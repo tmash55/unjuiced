@@ -1,0 +1,31 @@
+export const ROWS_FORMAT = 1 as const;
+
+export type ArbRow = {
+  eid: string;
+  mkt: string;
+  ln: number;
+  roi_bps: number;
+  ts: number;
+  ev: {
+    dt: string;
+    live: boolean;
+    home: { abbr?: string; name?: string };
+    away: { abbr?: string; name?: string };
+  };
+  o: {
+    bk: string;
+    name?: string;
+    od: number;
+    id?: string;
+    u?: string;
+  };
+  u: {
+    bk: string;
+    name?: string;
+    od: number;
+    id?: string;
+    u?: string;
+  };
+};
+
+export type ArbId = string;
