@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { SlidingNumber } from "./sliding-number";
 import Link from "next/link";
+import { ButtonLink } from "./button-link";
+
 
 export const PricingTable = () => {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
@@ -74,14 +76,9 @@ export const PricingTable = () => {
                       /seat billed{" "}
                       {cycle === "monthly" ? "monthly" : "annually"}
                     </div>
-                    <Button
-                      as={Link}
-                      href="/register"
-                      className="mt-4 w-full"
-                      variant="secondary"
-                    >
+                   <ButtonLink variant="secondary" href="/register" className="w-full sm:w-auto">
                       Start for free
-                    </Button>
+                    </ButtonLink>
                   </th>
                 ))}
               </tr>
