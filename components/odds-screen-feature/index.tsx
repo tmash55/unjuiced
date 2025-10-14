@@ -13,7 +13,7 @@ export const OddsScreenFeatures = () => {
   const tabs = [
     {
       title: "Lightning-Fast Odds Updates",
-      description: "Never miss a move. Odds Refresh every 2-3 seconds acorss 300+ markets. Main and alternate game lines and player props for NFL, NCAAF, NBA, NHL, MLB, and WNBA.",
+      description: "Never miss a move. Odds Refresh every 2-3 seconds across 300+ markets. Main and alternate game lines and player props for NFL, NCAAF, NBA, NHL, MLB, and WNBA.",
       icon: EVIcon,
       id: "opportunities",
       skeleton: <EVOpportunitiesSkeleton />,
@@ -21,7 +21,7 @@ export const OddsScreenFeatures = () => {
     },
     {
       title: "Your Screen, Your Rules",
-      description: "Customize everything. Drag and Drop columns, hide sportsbooks you don%apos;t need, and save your perfect layout for instand access everytime you log in.",
+      description: "Customize everything. Drag and Drop columns, hide sportsbooks you don''t need, and save your perfect layout for instant access everytime you log in.",
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
