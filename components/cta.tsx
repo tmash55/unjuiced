@@ -1,12 +1,16 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Container } from "./container";
-import { SectionHeading } from "./seciton-heading"; // change to "./section-heading" if that's the correct path
+import { SectionHeading } from "./seciton-heading";
+import { Button } from "./button";
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
+
+
+
+
 
 export type CTAOrbitProps = {
   size?: number;
@@ -14,14 +18,15 @@ export type CTAOrbitProps = {
   showRings?: boolean;
   ringDurationsSec?: number[];
   numRings?: number;
-  /** Icon/image size in px */
-  itemSize?: number;
+  itemSize?: number;       // icon/image size (px)
+
 };
 
 type SportsbookLogo = {
   src: string;
   alt: string;
 };
+
 
 export const CTA = () => {
   return (
@@ -30,7 +35,7 @@ export const CTA = () => {
       <SectionHeading className="relative z-10 text-center lg:text-6xl">
         Connect your Current Stack <br /> and Start Automating
       </SectionHeading>
-      /register
+       <ButtonLink variant="primary" href="/register" className="relative z-20 mt-4">
         Start for Free
       </ButtonLink>
     </Container>
@@ -44,8 +49,9 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   ringDurationsSec,
   numRings = 3,
   itemSize = 44,
+
 }) => {
-  const logos: SportsbookLogo[] = [
+   const logos: SportsbookLogo[] = [
     { src: "/images/sports-books/draftkings.png", alt: "DraftKings" },
     { src: "/images/sports-books/fanduel.png", alt: "FanDuel" },
     { src: "/images/sports-books/betmgm.png", alt: "BetMGM" },
@@ -71,8 +77,7 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   const counts: number[] = countsBase; // inner→outer
 
   let cursor = 0;
-  // ⬇️ Fix: rings hold SportsbookLogo[][], not components
-  const rings: SportsbookLogo[][] = counts.map((count) => {
+  const rings: SvgComponent[][] = counts.map((count) => {
     const slice = logos.slice(cursor, cursor + count);
     cursor += count;
     return slice;
@@ -86,7 +91,8 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
       ? [(innerScale + outerScale) / 2]
       : Array.from(
           { length: numRings },
-          (_, i) => innerScale + ((outerScale - innerScale) * i) / (numRings - 1),
+          (_, i) =>
+            innerScale + ((outerScale - innerScale) * i) / (numRings - 1),
         );
 
   const renderRing = (ringIndex: number) => {
@@ -103,15 +109,11 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
       defaultBase + defaultStep * ringIndex;
     const reverse = ringIndex % 2 === 1;
 
-    // Optional: slightly larger chip than the image itself
-    const chipPad = 10; // px
-    const chipSize = itemSize + chipPad;
-
     return (
       <div
         key={`ring-${ringIndex}`}
         className={cn(
-          "absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full",
+          "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full",
           reverse ? "animate-counter-orbit" : "animate-orbit",
         )}
         style={{
@@ -121,37 +123,28 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
         }}
       >
         <div className="relative h-full w-full">
-          {ringLogos.map((logo, idx) => {
+          {ringLogos.map((Logo, idx) => {
             const angleDeg = (360 / count) * idx;
-            // translateX to radius places the CENTER of the chip on the circle (correct)
+            const translate = radius;
             return (
               <div
                 key={`ring-${ringIndex}-logo-${idx}`}
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                style={{ transform: `rotate(${angleDeg}deg) translateX(${radius}px)` }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  transform: `rotate(${angleDeg}deg) translateX(${translate}px)`,
+                }}
               >
-                {/* Counter-rotate so the chip stays upright */}
                 <div style={{ transform: `rotate(${-angleDeg}deg)` }}>
                   <div
                     className={cn(
-                      "shadow-aceternity flex items-center justify-center rounded-md bg-white dark:bg-neutral-950 ring-1 ring-black/5 dark:ring-white/10",
+                      "shadow-aceternity flex size-14 items-center justify-center rounded-md bg-white dark:bg-neutral-950",
                       reverse ? "animate-orbit" : "animate-counter-orbit",
                     )}
                     style={{
                       ["--duration" as any]: `${duration}s`,
-                      width: chipSize,
-                      height: chipSize,
                     }}
                   >
-                    {/* ⬇️ Use next/image and the itemSize prop */}
-                    <Image
-                      src={logo.src}
-                      alt={logo.alt}
-                      width={itemSize}
-                      height={itemSize}
-                      className="object-contain"
-                      // priority // optional if above the fold
-                    />
+                    <Logo className="size-8 shrink-0" />
                   </div>
                 </div>
               </div>
@@ -164,31 +157,39 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
 
   return (
     <div
-      className={cn("relative mx-auto flex items-center justify-center", className)}
+      className={cn(
+        "relative mx-auto flex items-center justify-center",
+        className,
+      )}
       style={{ width: size, height: size }}
     >
       {showRings && (
         <div className="pointer-events-none absolute inset-0 z-0">
-          {Array.from({ length: numRings }, (_, idx) => numRings - 1 - idx).map((i) => {
-            const diameter = Math.round(size * ringScaleFactors[i]);
-            return (
-              <div
-                key={`bg-ring-${i}`}
-                className={cn(
-                  "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-inner",
-                  i === 0 && "bg-neutral-300 dark:bg-neutral-500",
-                  i === 1 && "bg-neutral-200 dark:bg-neutral-600",
-                  i === 2 && "bg-neutral-100 dark:bg-neutral-700",
-                  i === 3 && "bg-neutral-50 dark:bg-neutral-800",
-                )}
-                style={{ width: diameter, height: diameter }}
-              />
-            );
-          })}
+          {Array.from({ length: numRings }, (_, idx) => numRings - 1 - idx).map(
+            (i) => {
+              const diameter = Math.round(size * ringScaleFactors[i]);
+              return (
+                <div
+                  key={`bg-ring-${i}`}
+                  className={cn(
+                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-inner",
+                    i === 0 && "bg-neutral-300 dark:bg-neutral-500",
+                    i === 1 && "bg-neutral-200 dark:bg-neutral-600",
+                    i === 2 && "bg-neutral-100 dark:bg-neutral-700",
+                    i === 3 && "bg-neutral-50 dark:bg-neutral-800",
+                  )}
+                  style={{
+                    width: diameter,
+                    height: diameter,
+                  }}
+                />
+              );
+            },
+          )}
         </div>
       )}
-      {Array.from({ length: numRings }, (_, idx) => numRings - 1 - idx).map((ringIndex) =>
-        renderRing(ringIndex),
+      {Array.from({ length: numRings }, (_, idx) => numRings - 1 - idx).map(
+        (ringIndex) => renderRing(ringIndex),
       )}
     </div>
   );
