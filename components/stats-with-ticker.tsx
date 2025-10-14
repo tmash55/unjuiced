@@ -23,6 +23,7 @@ export function StatsWithNumberTicker() {
       label: "bets scanned monthly",
       value: 100000,
       prefix: "",
+      suffix:"+",
     },
     {
       label: "odds refresh",
