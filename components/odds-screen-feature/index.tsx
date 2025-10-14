@@ -12,38 +12,38 @@ const EVTrackerSkeleton = () => <div className="text-center text-gray-500">EV Tr
 export const OddsScreenFeatures = () => {
   const tabs = [
     {
-      title: "Lightning-Fast Odds Updates",
-      description: "Never miss a move. Odds refresh every 2–3 seconds across 300+ markets—game lines, player props, and alternate lines for  NFL, NCAAF, NBA, NHL, MLB, WNBA, and more coming.",
+      title: "Real-Time Odds Across 300+ Markets",
+      description: "Stay ahead with live odds updated every few 2-3 seconds for game lines and player props across NFL, NCAAF, NBA, NHL, MLB, WNBA. Access both main and alternate lines for over 300+ markets.",
       icon: EVIcon,
       id: "opportunities",
       skeleton: <EVOpportunitiesSkeleton />,
-      learnMoreHref: "/odds/nfl/",
+      learnMoreHref: "/positive-ev",
     },
     {
-      title: "Your Screen, Your Rules",
-      description: "Customize everything. Drag and drop columns, hide sportsbooks you don’t need, and save your perfect layout for instant access every time you log in.",
+      title: "Customize Odds Screen",
+      description: "Build your perfect view. Drag and drop columns, hide or display sportsbooks, and create custom layouts tailored to your betting strategy. Your Preferences are saved for seamless experience everyt time you log in.",
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
-      learnMoreHref: "/odds/nfl/",
+      learnMoreHref: "/positive-ev",
     },
     {
-      title: "All Markets. One Screen",
-      description: "Compare odds from every major sportsbook in one place. No more tab-hopping—just the best lines at your fingertips.",
+      title: "One-Click Betslip Integration",
+      description: "Found the line you want? Deep link directly to your sportsbooks with one click - your selection is added to your betslip instantly. No copy-pasting, no wasted time.",
       icon: ChartIcon,
       id: "tracker",
       skeleton: <EVTrackerSkeleton />,
-      learnMoreHref: "/odds/nfl/",
+      learnMoreHref: "/positive-ev",
     },
   ];
 
   return (
     <TabbedFeatureSection
-      badge="Odds Screen"
-      heading="The Ultimate Odds Screen, Built for Speed and Control"
-      subheading="Compare game lines and player props across every major sportsbook in real time. Customize your view, track 300+ markets, and never miss the best line again."
-      ctaText="Start Exploring Odds"
-      ctaHref="/odds/nfl"
+      badge="Positive EV"
+      heading="Find profitable edges, automatically."
+      subheading="Our algorithm scans thousands of lines per second to identify positive expected value opportunities before they disappear."
+      ctaText="Start Finding +EV"
+      ctaHref="/positive-ev"
       tabs={tabs}
       autoRotate={true}
       autoRotateDuration={10000} // 10 seconds per tab
@@ -83,4 +83,3 @@ const ChartIcon = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   );
 };
-
