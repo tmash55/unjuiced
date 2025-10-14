@@ -1,7 +1,5 @@
 import { Contact } from "@/components/contact";
 import { DivideX } from "@/components/divide";
-import { SignUp } from "@/components/register";
-
 import { getSEOTags } from "@/lib/seo";
 
 export const metadata = getSEOTags({
