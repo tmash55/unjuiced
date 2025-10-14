@@ -83,7 +83,7 @@
   --color-gray-500: #c0c0c0;
   --color-gray-600: #8b8b8b;
 
-  --color-brand: #ff7a1a;
+  --color-brand: #00FF88;
   --shadow-aceternity:
     0px 2px 3px -1px rgba(0, 0, 0, 0.1), 0px 1px 0px 0px rgba(25, 28, 33, 0.02),
     0px 0px 0px 1px rgba(25, 28, 33, 0.08);
@@ -156,6 +156,12 @@
     0%, 40% { transform: translateY(0); }
     20% { transform: translateY(var(--offset, -10%)); }
   }
+
+  /* Loading spinner bar fade keyframes */
+  @keyframes spinner-bar-fade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
 }
 
 :root {
@@ -212,4 +218,7 @@
 }
 @utility animate-ellipsis-wave {
   animation: ellipsis-wave 1.5s ease-in-out infinite;
+}
+@utility animate-spinner {
+  animation: spinner-bar-fade 1.2s linear infinite;
 }
