@@ -2,15 +2,24 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import {
+  AnthropicLogo,
+  AppleIcon,
+  FacebookIcon,
+  GoogleIcon,
+  LinearLogo,
+  MetaLogo,
+  NotionLogo,
+  OpenAILogo,
+  SlackLogo,
+  SupabaseLogo,
+} from "@/icons/general";
 import { Container } from "./container";
 import { SectionHeading } from "./seciton-heading";
 import { Button } from "./button";
 import Link from "next/link";
-import { ButtonLink } from "./button-link";
 
-
-
-
+type SvgComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
 export type CTAOrbitProps = {
   size?: number;
@@ -18,15 +27,7 @@ export type CTAOrbitProps = {
   showRings?: boolean;
   ringDurationsSec?: number[];
   numRings?: number;
-  itemSize?: number;       // icon/image size (px)
-
 };
-
-type SportsbookLogo = {
-  src: string;
-  alt: string;
-};
-
 
 export const CTA = () => {
   return (
@@ -35,9 +36,9 @@ export const CTA = () => {
       <SectionHeading className="relative z-10 text-center lg:text-6xl">
         Connect your Current Stack <br /> and Start Automating
       </SectionHeading>
-       <ButtonLink variant="primary" href="/register" className="relative z-20 mt-4">
-        Start for Free
-      </ButtonLink>
+      <Button as={Link} href="/sign-up" className="relative z-20 mt-4">
+        Start Building for Free
+      </Button>
     </Container>
   );
 };
@@ -48,19 +49,21 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   showRings = true,
   ringDurationsSec,
   numRings = 3,
-  itemSize = 44,
-
 }) => {
-   const logos: SportsbookLogo[] = [
-    { src: "/images/sports-books/draftkings.png", alt: "DraftKings" },
-    { src: "/images/sports-books/fanduel.png", alt: "FanDuel" },
-    { src: "/images/sports-books/betmgm.png", alt: "BetMGM" },
-    { src: "/images/sports-books/caesars.png", alt: "Caesars Sportsbook" },
-    { src: "/images/sports-books/circa.png", alt: "Circa" },
-    { src: "/images/sports-books/espnbet.png", alt: "ESPN BET" },
-    { src: "/images/sports-books/fliff.png", alt: "Fliff" },
-    { src: "/images/sports-books/hardrockbet.png", alt: "Hard Rock Bet" },
-    // add/remove as needed
+  const logos = [
+    SupabaseLogo,
+    OpenAILogo,
+    MetaLogo,
+    SlackLogo,
+    NotionLogo,
+    LinearLogo,
+    AnthropicLogo,
+    SupabaseLogo,
+    OpenAILogo,
+    MetaLogo,
+    GoogleIcon,
+    FacebookIcon,
+    AppleIcon,
   ];
   const total = logos.length;
 

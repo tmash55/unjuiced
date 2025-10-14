@@ -12,24 +12,24 @@ const EVTrackerSkeleton = () => <div className="text-center text-gray-500">EV Tr
 export const OddsScreenFeatures = () => {
   const tabs = [
     {
-      title: "Live EV Opportunities",
-      description: "Real-time positive expected value bets across all major sportsbooks with instant alerts.",
+      title: "Real-Time Odds Across 300+ Markets",
+      description: "Stay ahead with live odds updated every few 2-3 seconds for game lines and player props across NFL, NCAAF, NBA, NHL, MLB, WNBA. Access both main and alternate lines for over 300+ markets.",
       icon: EVIcon,
       id: "opportunities",
       skeleton: <EVOpportunitiesSkeleton />,
       learnMoreHref: "/positive-ev",
     },
     {
-      title: "EV Calculator",
-      description: "Calculate true probability and expected value for any bet with our advanced calculator.",
+      title: "Customize Odds Screen",
+      description: "Build your perfect view. Drag and drop columns, hide or display sportsbooks, and create custom layouts tailored to your betting strategy. Your Preferences are saved for seamless experience everyt time you log in.",
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
       learnMoreHref: "/positive-ev",
     },
     {
-      title: "Profit Tracker",
-      description: "Track your EV performance over time and see your actual vs. expected results.",
+      title: "One-Click Betslip Integration",
+      description: "Found the line you want? Deep link directly to your sportsbooks with one click - your selection is added to your betslip instantly. No copy-pasting, no wasted time.",
       icon: ChartIcon,
       id: "tracker",
       skeleton: <EVTrackerSkeleton />,

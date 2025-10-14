@@ -7,6 +7,7 @@ import { Hero } from "@/components/hero";
 import { HeroImage } from "@/components/hero-image";
 import { HowItWorks } from "@/components/how-it-works";
 import { PositiveEVFeatures } from "@/components/positive-ev";
+import { OddsScreenFeatures } from "@/components/odds-screen-feature";
 import { LogoCloud2 } from "@/components/logo-cloud-ace";
 import { Pricing } from "@/components/pricing";
 import { Security } from "@/components/security";
@@ -36,7 +37,7 @@ export default function Home() {
       <DivideX />
       <HowItWorks />
       <DivideX />
-      <PositiveEVFeatures />
+      <OddsScreenFeatures />
       <DivideX />
       <AgenticIntelligence />
       <DivideX />
