@@ -1,11 +1,10 @@
-﻿
-import { NextRequest, NextResponse } from "next/server";
-import type { NextApiRequestContext } from "next/server"; // ✅ Correct type import
+﻿import { NextRequest, NextResponse } from "next/server";
+import type { RouteHandlerContext } from "next"; // ✅ Correct type
 import { redis } from "@/lib/redis";
 
 const H_ALT_PREFIX = "props:"; // props:{sport}:rows:alt
 
-export async function GET(req: NextRequest, context: NextApiRequestContext) {
+export async function GET(req: NextRequest, context: RouteHandlerContext) {
   try {
     const sid = (context.params?.sid || "").trim();
     if (!sid) return NextResponse.json({ error: "sid_required" }, { status: 400, headers: { "Cache-Control": "no-store" } });
