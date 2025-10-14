@@ -3,10 +3,11 @@ import { redis } from "@/lib/redis";
 
 const H_ALT_PREFIX = "props:"; // props:{sport}:rows:alt
 
-export async function GET(req: NextRequest, { params }: { params: { sid: string } }) {
+export async function GET(req: NextRequest, context: { params: { sid: string } }) {
   try {
-    const sid = (params?.sid || "").trim();
+    const sid = (context.params?.sid || "").trim();
     if (!sid) return NextResponse.json({ error: "sid_required" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+
     const sp = new URL(req.url).searchParams;
     const sport = (sp.get("sport") || "").trim().toLowerCase();
     const allowed = new Set(["nfl", "mlb", "wnba", "nba"]);
