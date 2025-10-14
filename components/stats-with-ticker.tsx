@@ -15,7 +15,7 @@ export function StatsWithNumberTicker() {
     },
     {
       label: "player & prop markets",
-      value: 200,
+      value: 300,
       prefix: "",
       suffix: "+",
     },
