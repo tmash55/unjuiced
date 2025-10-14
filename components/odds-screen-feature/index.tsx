@@ -12,20 +12,20 @@ const EVTrackerSkeleton = () => <div className="text-center text-gray-500">EV Tr
 export const OddsScreenFeatures = () => {
   const tabs = [
     {
-      title: "Real-Time Odds Across 300+ Markets",
-      description: "Stay ahead with live odds updated every few 2-3 seconds for game lines and player props across NFL, NCAAF, NBA, NHL, MLB, WNBA. Access both main and alternate lines for over 300+ markets.",
+      title: "Lightning-Fast Odds Updates",
+      description: "Never miss a move. Odds Refresh every 2-3 seconds acorss 300+ markets. Main and alternate game lines and player props for NFL, NCAAF, NBA, NHL, MLB, and WNBA.",
       icon: EVIcon,
       id: "opportunities",
       skeleton: <EVOpportunitiesSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl",
     },
     {
-      title: "Customize Odds Screen",
-      description: "Build your perfect view. Drag and drop columns, hide or display sportsbooks, and create custom layouts tailored to your betting strategy. Your Preferences are saved for seamless experience everyt time you log in.",
+      title: "Your Screen, Your Rules",
+      description: "Customize everything. Drag and Drop columns, hide sportsbooks you don%apos;t need, and save your perfect layout for instand access everytime you log in.",
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl",
     },
     {
       title: "One-Click Betslip Integration",
@@ -33,17 +33,17 @@ export const OddsScreenFeatures = () => {
       icon: ChartIcon,
       id: "tracker",
       skeleton: <EVTrackerSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl",
     },
   ];
 
   return (
     <TabbedFeatureSection
-      badge="Positive EV"
-      heading="Find profitable edges, automatically."
-      subheading="Our algorithm scans thousands of lines per second to identify positive expected value opportunities before they disappear."
-      ctaText="Start Finding +EV"
-      ctaHref="/positive-ev"
+      badge="Odds Screen"
+      heading="The Ultimate Odds Screen"
+      subheading="Compare game lines and player props across every major sportsbook in real time. Customize your view, track 300+ markets, and never miss the best line again."
+      ctaText="Explore the Odds"
+      ctaHref="/odds/nfl"
       tabs={tabs}
       autoRotate={true}
       autoRotateDuration={10000} // 10 seconds per tab
