@@ -17,7 +17,7 @@ export const OddsScreenFeatures = () => {
       icon: EVIcon,
       id: "opportunities",
       skeleton: <EVOpportunitiesSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl/",
     },
     {
       title: "Your Screen, Your Rules",
@@ -25,7 +25,7 @@ export const OddsScreenFeatures = () => {
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl/",
     },
     {
       title: "All Markets. One Screen",
@@ -33,17 +33,17 @@ export const OddsScreenFeatures = () => {
       icon: ChartIcon,
       id: "tracker",
       skeleton: <EVTrackerSkeleton />,
-      learnMoreHref: "/positive-ev",
+      learnMoreHref: "/odds/nfl/",
     },
   ];
 
   return (
     <TabbedFeatureSection
-      badge="Positive EV"
-      heading="The Ultimate Odds Screen—Built for Speed and Control"
+      badge="Odds Screen"
+      heading="The Ultimate Odds Screen, Built for Speed and Control"
       subheading="Compare game lines and player props across every major sportsbook in real time. Customize your view, track 300+ markets, and never miss the best line again."
       ctaText="Start Exploring Odds"
-      ctaHref="/pdds/nfl"
+      ctaHref="/odds/nfl"
       tabs={tabs}
       autoRotate={true}
       autoRotateDuration={10000} // 10 seconds per tab
