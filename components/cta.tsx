@@ -18,6 +18,7 @@ import { Container } from "./container";
 import { SectionHeading } from "./seciton-heading";
 import { Button } from "./button";
 import Link from "next/link";
+import { ButtonLink } from "./button-link";
 
 type SvgComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
@@ -36,9 +37,9 @@ export const CTA = () => {
       <SectionHeading className="relative z-10 text-center lg:text-6xl">
         Connect your Current Stack <br /> and Start Automating
       </SectionHeading>
-      <Button as={Link} href="/sign-up" className="relative z-20 mt-4">
+      <ButtonLink href="/sign-up" className="relative z-20 mt-4">
         Start Building for Free
-      </Button>
+      </ButtonLink>
     </Container>
   );
 };
