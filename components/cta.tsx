@@ -11,6 +11,13 @@ import { ButtonLink } from "./button-link";
 
 type SvgComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
+
+type SportsbookLogo = {
+  src: string;
+  alt: string;
+};
+
+
 export type CTAOrbitProps = {
   size?: number;
   className?: string;
