@@ -21,7 +21,7 @@ export const OddsScreenFeatures = () => {
     },
     {
       title: "Your Screen, Your Rules",
-      description: "Customize everything. Drag and Drop columns, hide sportsbooks you don''t need, and save your perfect layout for instant access everytime you log in.",
+      description: "Customize everything. Drag and Drop columns, hide sportsbooks you don't need, and save your perfect layout for instant access everytime you log in.",
       icon: CalculatorIcon,
       id: "calculator",
       skeleton: <EVCalculatorSkeleton />,
