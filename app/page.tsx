@@ -16,6 +16,7 @@ import { UseCases } from "@/components/use-cases";
 import { FeatureSection } from "@/components/features";
 import { Nav } from "@/components/nav/navbar";
 import { Footer } from "@/components/footer";
+import { SportsbookGridSection } from "@components/sportsbooks-section"
 
 import { getSEOTags } from "@/lib/seo";
 
@@ -36,6 +37,7 @@ export default function Home() {
       <DivideX />
       <PositiveEVFeatures />
       <DivideX />
+      <SportsbookGridSection />
       <AgenticIntelligence />
       <DivideX />
       <UseCases />
