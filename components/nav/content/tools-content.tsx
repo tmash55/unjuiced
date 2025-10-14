@@ -14,14 +14,14 @@ import { PartnersGraphic } from "./graphics/partners-graphic";
 const tools = [
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-orange-400">
-        <Link2 className="size-2.5 text-orange-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
+        <Link2 className="size-2.5 text-blue-900" />
       </div>
     ),
     title: "Arbitrage",
     description: "Risk-free opportunities across books with automatic leg matching and sizing.",
     href: "/arbitrage",
-    color: "#f4950c",   //orange
+    color: "#00BFFF",   //Neon Blue
     graphicsContainerClassName: "px-2",
     graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
     comingSoon: false,
