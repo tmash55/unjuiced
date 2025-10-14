@@ -2,18 +2,6 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import {
-  AnthropicLogo,
-  AppleIcon,
-  FacebookIcon,
-  GoogleIcon,
-  LinearLogo,
-  MetaLogo,
-  NotionLogo,
-  OpenAILogo,
-  SlackLogo,
-  SupabaseLogo,
-} from "@/icons/general";
 import { Container } from "./container";
 import { SectionHeading } from "./seciton-heading";
 import { Button } from "./button";
@@ -52,20 +40,16 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   ringDurationsSec,
   numRings = 3,
 }) => {
-  const logos = [
-    SupabaseLogo,
-    OpenAILogo,
-    MetaLogo,
-    SlackLogo,
-    NotionLogo,
-    LinearLogo,
-    AnthropicLogo,
-    SupabaseLogo,
-    OpenAILogo,
-    MetaLogo,
-    GoogleIcon,
-    FacebookIcon,
-    AppleIcon,
+   const logos: SportsbookLogo[] = [
+    { src: "/images/sports-books/draftkings.png", alt: "DraftKings" },
+    { src: "/images/sports-books/fanduel.png", alt: "FanDuel" },
+    { src: "/images/sports-books/betmgm.png", alt: "BetMGM" },
+    { src: "/images/sports-books/caesars.png", alt: "Caesars Sportsbook" },
+    { src: "/images/sports-books/circa.png", alt: "Circa" },
+    { src: "/images/sports-books/espnbet.png", alt: "ESPN BET" },
+    { src: "/images/sports-books/fliff.png", alt: "Fliff" },
+    { src: "/images/sports-books/hardrockbet.png", alt: "Hard Rock Bet" },
+    // add/remove as needed
   ];
   const total = logos.length;
 
