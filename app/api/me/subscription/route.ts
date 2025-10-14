@@ -5,7 +5,7 @@ export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const brandKey = searchParams.get('brand_key') || 'unjuiced';
 
