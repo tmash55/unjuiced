@@ -127,7 +127,7 @@ export function canAccessFeature(
 export function getFeatureLimits<T extends keyof typeof PLAN_LIMITS.anonymous>(
   plan: UserPlan,
   feature: T
-): typeof PLAN_LIMITS.anonymous[T] {
+): (typeof PLAN_LIMITS)[UserPlan][T] {
   return PLAN_LIMITS[plan][feature];
 }
 
