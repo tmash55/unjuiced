@@ -1,0 +1,11 @@
+import { Nav } from "@/components/nav/navbar";
+import { ReactNode } from "react";
+
+export default function ProtectedLayout({ children }: { children: ReactNode }) {
+  return (
+    <main className="h-full bg-white antialiased dark:bg-black">
+      <Nav />
+      {children}
+    </main>
+  );
+}
