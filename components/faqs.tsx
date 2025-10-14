@@ -9,6 +9,8 @@ import { DivideX } from "./divide";
 import { faqs } from "@/constants/faqs";
 import { AnimatePresence, motion } from "motion/react";
 import useMeasure from "react-use-measure";
+import { ButtonLink } from "./button-link";
+
 
 const ChevronDownIcon = (
   props: React.SVGProps<SVGSVGElement> & { rotated?: boolean },
@@ -62,14 +64,9 @@ export const FAQs = () => {
         <Button variant="primary" className="w-full sm:w-auto">
           Read Docs
         </Button>
-        <Button
-          as="a"
-          href="mailto:support@example.com"
-          variant="secondary"
-          className="w-full sm:w-auto"
-        >
+       <ButtonLink variant="secondary" href="mailto:support@example.com" className="w-full sm:w-auto">
           Contact Us
-        </Button>
+        </ButtonLink>
       </div>
       <DivideX />
       <div className="divide-divide w-full divide-y">
