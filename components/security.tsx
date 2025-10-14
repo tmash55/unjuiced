@@ -6,6 +6,7 @@ import { SubHeading } from "./subheading";
 import { Button } from "./button";
 import Image from "next/image";
 import Link from "next/link";
+import { ButtonLink } from "./button-link";
 
 export const Security = () => {
   return (
@@ -25,13 +26,12 @@ export const Security = () => {
             Our AI assistant is designed with enterprise-grade security
             practices and compliant with global data protection standards.
           </SubHeading>
-          <Button
+          <ButtonLink
             className="mt-4 mb-8 inline-block w-full md:w-auto"
-            as={Link}
             href="/pricing"
           >
             Start for free
-          </Button>
+          </ButtonLink>
         </div>
         <div className="flex items-center justify-center gap-10">
           <Image
