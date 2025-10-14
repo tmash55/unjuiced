@@ -1,13 +1,16 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import type { RouteHandlerContext } from "next"; // ✅ Correct type
 import { redis } from "@/lib/redis";
 
 const H_ALT_PREFIX = "props:"; // props:{sport}:rows:alt
 
-export async function GET(req: NextRequest, context: RouteHandlerContext) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ sid: string }> }) {
+  const { sid } = await params; // ✅ Await the params
+
   try {
-    const sid = (context.params?.sid || "").trim();
-    if (!sid) return NextResponse.json({ error: "sid_required" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    const trimmedSid = sid.trim();
+    if (!trimmedSid) {
+      return NextResponse.json({ error: "sid_required" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
 
     const sp = new URL(req.url).searchParams;
     const sport = (sp.get("sport") || "").trim().toLowerCase();
@@ -17,11 +20,14 @@ export async function GET(req: NextRequest, context: RouteHandlerContext) {
     }
 
     const H_ALT = `${H_ALT_PREFIX}${sport}:rows:alt`;
-    const raw = await (redis as any).hget(H_ALT, sid);
+    const raw = await (redis as any).hget(H_ALT, trimmedSid);
     let family: any = null;
     if (raw) {
-      if (typeof raw === "string") { try { family = JSON.parse(raw); } catch { family = null; } }
-      else if (typeof raw === "object") family = raw;
+      if (typeof raw === "string") {
+        try { family = JSON.parse(raw); } catch { family = null; }
+      } else if (typeof raw === "object") {
+        family = raw;
+      }
     }
 
     return NextResponse.json({ family }, { headers: { "Cache-Control": "no-store" } });
