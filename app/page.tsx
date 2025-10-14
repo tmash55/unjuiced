@@ -38,7 +38,6 @@ export default function Home() {
       <DivideX />
       <PositiveEVFeatures />
       <DivideX />
-      <SportsbookGridSection />
       <AgenticIntelligence />
       <DivideX />
       <UseCases />

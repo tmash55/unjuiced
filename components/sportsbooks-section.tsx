@@ -13,10 +13,7 @@ import { motion } from "motion/react";
     "fanduel",
     "betmgm",
     "caesars",
-    "pointsbet",
     "betrivers",
-    "barstool",
-    "bet365",
   ];
 
   return (
