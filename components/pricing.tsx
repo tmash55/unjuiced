@@ -11,6 +11,7 @@ import { CheckIcon } from "@/icons/card-icons";
 import { Scale } from "./scale";
 import { tiers } from "@/constants/pricing";
 import Link from "next/link";
+import { ButtonLink } from "./button-link";
 
 export const Pricing = () => {
   const tabs = [
@@ -86,14 +87,14 @@ export const Pricing = () => {
                   <Step key={tierFeature + tierIdx + idx}>{tierFeature}</Step>
                 ))}
               </div>
-              <Button
+              <ButtonLink
                 className="mt-6 w-full"
                 as={Link}
                 href={tier.ctaLink}
                 variant={tier.featured ? "primary" : "secondary"}
               >
                 {tier.ctaText}
-              </Button>
+              </ButtonLink>
             </div>
           ))}
         </div>
