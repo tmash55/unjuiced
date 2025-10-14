@@ -36,7 +36,7 @@ export const CTA = () => {
       <SectionHeading className="relative z-10 text-center lg:text-6xl">
         Connect your Current Stack <br /> and Start Automating
       </SectionHeading>
-      <Button as={Link} href="/register" className="relative z-20 mt-4">
+      <Button href="/register" className="relative z-20 mt-4">
         Start Building for Free
       </Button>
     </Container>
