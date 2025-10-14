@@ -63,7 +63,6 @@ export function UpgradePrompt({
         <Link href={ctaLink}>
           <Button
             variant="primary"
-            size="sm"
             text={ctaText}
             icon={<ArrowRight className="size-4" />}
             className="shrink-0"
