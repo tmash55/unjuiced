@@ -165,7 +165,7 @@ const ContactCard = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-900 dark:text-white">Email</p>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">support@unjuiced.bet>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">support@unjuiced.bet</p>
             </div>
           </div>
           
