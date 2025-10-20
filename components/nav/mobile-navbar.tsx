@@ -37,11 +37,6 @@ const specialIcons: Record<string, ReactNode> = {
       <BarChart3 className="size-3 text-green-900" />
     </div>
   ),
-  "Positive EV": (
-    <div className="flex size-5 items-center justify-center rounded bg-violet-400">
-      <Handshake className="size-3 text-violet-900" />
-    </div>
-  ),
 };
 
 export function NavMobile({
