@@ -267,9 +267,7 @@ function MobileNav({ domain }: { domain: string }) {
   const mobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
-    { title: "Positive EV", href: "/positive-ev" },
-    { title: "Help Center", href: "/help" },
-    { title: "Docs", href: "/docs/introduction" },
+    {title: "Sportsbooks", "href: "sportsbooks" },
     { title: "About", href: "/about" },
     { title: "Contact", href: "/contact" },
     { title: "Blog", href: "/blog" },
