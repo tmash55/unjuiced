@@ -259,7 +259,7 @@ type MockOpp = {
     
             {/* EV / Hold badges */}
             <div className="flex items-center gap-2">
-              <Badge color="ev">{opp.ev.toFixed(1)}% EV</Badge>
+              <Badge color="ev">ROI {opp.ev.toFixed(1)}%</Badge>
               <Badge color={opp.hold <= 0 ? "green" : "warn"}>
                 {opp.hold > 0 ? `+${opp.hold.toFixed(1)}%` : `${opp.hold.toFixed(1)}%`}
               </Badge>

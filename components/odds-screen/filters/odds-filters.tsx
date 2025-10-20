@@ -4,17 +4,23 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/button'
-import { Filter, Building2, Settings } from 'lucide-react'
+import { Filter, Building2 } from 'lucide-react'
 import { useOddsPreferences } from '@/context/preferences-context'
 import { getAllActiveSportsbooks } from '@/lib/data/sportsbooks'
+import Lock from '@/icons/lock'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+import { Gear } from '@/icons/gear'
 
 interface OddsFiltersProps {
   className?: string
+  isPro?: boolean
+  liveUpdatesEnabled?: boolean
+  onLiveUpdatesChange?: (enabled: boolean) => void
 }
 
-export function OddsFilters({ className = '' }: OddsFiltersProps) {
+export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled = false, onLiveUpdatesChange }: OddsFiltersProps) {
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
   const [open, setOpen] = useState(false)
   const [selectedBooks, setSelectedBooks] = useState<string[]>([])
@@ -22,6 +28,8 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
   const [columnHighlighting, setColumnHighlighting] = useState(true)
   const [showBestLine, setShowBestLine] = useState(true)
   const [showAverageLine, setShowAverageLine] = useState(true)
+  const [localLiveUpdatesEnabled, setLocalLiveUpdatesEnabled] = useState(liveUpdatesEnabled)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
 
@@ -32,22 +40,84 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
       setColumnHighlighting(preferences.columnHighlighting)
       setShowBestLine(preferences.showBestLine)
       setShowAverageLine(preferences.showAverageLine)
+      setHasUnsavedChanges(false)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsFilters] Loaded preferences:', {
+          selectedBooks: preferences.selectedBooks.length,
+          includeAlternates: preferences.includeAlternates,
+          columnHighlighting: preferences.columnHighlighting,
+          showBestLine: preferences.showBestLine,
+          showAverageLine: preferences.showAverageLine
+        })
+      }
     }
   }, [isLoading, preferences])
+
+  // Sync local SSE state with parent prop when it changes
+  useEffect(() => {
+    setLocalLiveUpdatesEnabled(liveUpdatesEnabled)
+  }, [liveUpdatesEnabled])
+
+  // Track changes to mark as unsaved
+  useEffect(() => {
+    if (preferences && !isLoading) {
+      const preferencesChanged = 
+        selectedBooks.length !== preferences.selectedBooks.length ||
+        selectedBooks.some(id => !preferences.selectedBooks.includes(id)) ||
+        includeAlternates !== preferences.includeAlternates ||
+        columnHighlighting !== preferences.columnHighlighting ||
+        showBestLine !== preferences.showBestLine ||
+        showAverageLine !== preferences.showAverageLine
+      
+      // Also check if SSE toggle changed
+      const sseChanged = isPro && localLiveUpdatesEnabled !== liveUpdatesEnabled
+      
+      setHasUnsavedChanges(preferencesChanged || sseChanged)
+    }
+  }, [selectedBooks, includeAlternates, columnHighlighting, showBestLine, showAverageLine, localLiveUpdatesEnabled, preferences, isLoading, isPro, liveUpdatesEnabled])
 
   const toggleBook = (id: string) => {
     setSelectedBooks(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id])
   }
 
   const apply = async () => {
-    await updatePreferences({
-      selectedBooks,
-      includeAlternates,
-      columnHighlighting,
-      showBestLine,
-      showAverageLine
-    })
-    setOpen(false)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[OddsFilters] Applying preferences:', {
+        selectedBooks: selectedBooks.length,
+        includeAlternates,
+        columnHighlighting,
+        showBestLine,
+        showAverageLine,
+        autoRefresh: localLiveUpdatesEnabled
+      })
+    }
+    
+    try {
+      // Save database preferences
+      await updatePreferences({
+        selectedBooks,
+        includeAlternates,
+        columnHighlighting,
+        showBestLine,
+        showAverageLine
+      })
+      
+      // Apply SSE toggle change (not saved to DB, runtime only)
+      if (isPro && localLiveUpdatesEnabled !== liveUpdatesEnabled) {
+        onLiveUpdatesChange?.(localLiveUpdatesEnabled)
+      }
+      
+      setHasUnsavedChanges(false)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsFilters] Preferences saved successfully')
+      }
+      
+      setOpen(false)
+    } catch (error) {
+      console.error('[OddsFilters] Failed to save preferences:', error)
+    }
   }
 
   const reset = async () => {
@@ -57,25 +127,58 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
     setColumnHighlighting(true)
     setShowBestLine(true)
     setShowAverageLine(true)
-    await updatePreferences({
-      selectedBooks: defaults,
-      includeAlternates: false,
-      columnHighlighting: true,
-      showBestLine: true,
-      showAverageLine: true
-    })
+    
+    // Reset SSE toggle to on (default for Pro users)
+    if (isPro) {
+      setLocalLiveUpdatesEnabled(true)
+    }
+    
+    try {
+      await updatePreferences({
+        selectedBooks: defaults,
+        includeAlternates: false,
+        columnHighlighting: true,
+        showBestLine: true,
+        showAverageLine: true
+      })
+      
+      // Apply SSE reset
+      if (isPro && liveUpdatesEnabled !== true) {
+        onLiveUpdatesChange?.(true)
+      }
+      
+      setHasUnsavedChanges(false)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsFilters] Reset to defaults')
+      }
+    } catch (error) {
+      console.error('[OddsFilters] Failed to reset preferences:', error)
+    }
+  }
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      // Reset local SSE state when closing without applying
+      setLocalLiveUpdatesEnabled(liveUpdatesEnabled)
+    }
+    setOpen(newOpen)
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button
-          variant="secondary"
-          className="h-9 w-auto"
-          icon={<Filter className="h-4 w-4" />}
-          text={<span className="hidden sm:inline">Filters</span>}
+        <button
+          type="button"
+          className={cn(
+            "filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all",
+            className
+          )}
           title="Filters & Settings"
-        />
+        >
+          <Filter className="h-4 w-4" />
+          <span className="hidden sm:inline">Filters</span>
+        </button>
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
         <div className="flex h-full flex-col">
@@ -85,36 +188,36 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <Tabs defaultValue="books" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 gap-1 bg-neutral-100 p-1 dark:bg-neutral-800">
-                <TabsTrigger value="books" className="flex items-center justify-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-brand dark:data-[state=active]:bg-neutral-900">
+              <TabsList className="filter-tabs grid w-full grid-cols-2">
+                <TabsTrigger value="books" className="flex items-center justify-center gap-2">
                   <Building2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Sportsbooks</span>
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="flex items-center justify-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-brand dark:data-[state=active]:bg-neutral-900">
-                  <Settings className="h-4 w-4" />
+                <TabsTrigger value="settings" className="flex items-center justify-center gap-2">
+                  <Gear className="h-4 w-4" />
                   <span className="hidden sm:inline">Display</span>
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="books" className="mt-6 space-y-4">
-                <div className="flex items-center justify-between">
+              <TabsContent value="books" className="filter-section">
+                <div className="filter-section-header flex items-center justify-between">
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">Choose sportsbooks to include in results</p>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline"
-                      onClick={() => setSelectedBooks(allSportsbooks.map(b => b.id))}
-                      className="h-8 w-auto border-transparent px-3 text-xs font-medium text-brand hover:bg-brand/10"
-                      text="Select All"
-                    />
-                    <Button 
-                      variant="outline"
-                      onClick={() => setSelectedBooks([])}
-                      className="h-8 w-auto px-3 text-xs"
-                      text="Clear"
-                    />
+                    <button 
+                      onClick={() => setSelectedBooks(allSportsbooks.map(b => b.id))} 
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
+                    >
+                      Select All
+                    </button>
+                    <button 
+                      onClick={() => setSelectedBooks([])} 
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                    >
+                      Clear
+                    </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="filter-grid">
                   {allSportsbooks
                     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
                     .map((sb) => {
@@ -122,17 +225,17 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
                       return (
                         <label
                           key={sb.id}
-                          className={`flex items-center gap-3 rounded-lg border p-3 transition-all cursor-pointer hover:shadow-sm ${
-                            checked 
-                              ? 'border-brand bg-brand/5 dark:border-brand dark:bg-brand/10' 
-                              : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
-                          }`}
+                          className={cn(
+                            "filter-card flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm",
+                            checked && "active",
+                            !checked && "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600"
+                          )}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => toggleBook(sb.id)} />
                           {sb.image?.light && (
                             <img src={sb.image.light} alt={sb.name} className="h-6 w-6 object-contain" />
                           )}
-                          <span className="text-sm font-medium leading-none">{sb.name}</span>
+                          <span className="text-sm leading-none">{sb.name}</span>
                         </label>
                       )
                     })}
@@ -140,62 +243,115 @@ export function OddsFilters({ className = '' }: OddsFiltersProps) {
               </TabsContent>
 
               <TabsContent value="settings" className="mt-6 space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Include Alternate Lines</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">Show alternate spreads, totals, and props when available</div>
+                {/* Pro Gate for Free Users */}
+                {!isPro && (
+                  <div className="rounded-lg border border-brand/30 bg-brand/5 p-6 dark:bg-brand/10">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand/10 dark:bg-brand/20">
+                        <Lock className="h-6 w-6 text-brand" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-1">
+                          Unlock Display Settings
+                        </h3>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                          Upgrade to Pro to customize your odds display with auto refresh, column highlighting, and more advanced settings.
+                        </p>
+                        <a
+                          href="/pricing"
+                          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/20"
+                        >
+                          Upgrade to Pro
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                  <Switch checked={includeAlternates} fn={(v: boolean) => setIncludeAlternates(!!v)} />
-                </div>
+                )}
 
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Column Highlighting</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">Highlight the best odds with color backgrounds</div>
-                  </div>
-                  <Switch checked={columnHighlighting} fn={(v: boolean) => setColumnHighlighting(!!v)} />
-                </div>
+                {/* Display Settings - Pro Only */}
+                {isPro && (
+                  <>
+                    {/* Auto Refresh Toggle */}
+                    <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Auto Refresh</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Automatically refresh odds in real-time without manual refresh</div>
+                      </div>
+                      <Switch checked={localLiveUpdatesEnabled} fn={(v: boolean) => setLocalLiveUpdatesEnabled(!!v)} />
+                    </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Show Best Line Column</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">Display optimal odds from selected sportsbooks</div>
-                  </div>
-                  <Switch checked={showBestLine} fn={(v: boolean) => setShowBestLine(!!v)} />
-                </div>
+                    <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Include Alternate Lines</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Show alternate spreads, totals, and props when available</div>
+                      </div>
+                      <Switch checked={includeAlternates} fn={(v: boolean) => setIncludeAlternates(!!v)} />
+                    </div>
 
-                <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Show Average Line Column</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">Display market consensus from selected sportsbooks</div>
-                  </div>
-                  <Switch checked={showAverageLine} fn={(v: boolean) => setShowAverageLine(!!v)} />
-                </div>
+                    <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Column Highlighting</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Highlight the best odds with color backgrounds</div>
+                      </div>
+                      <Switch checked={columnHighlighting} fn={(v: boolean) => setColumnHighlighting(!!v)} />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Show Best Line Column</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Display optimal odds from selected sportsbooks</div>
+                      </div>
+                      <Switch checked={showBestLine} fn={(v: boolean) => setShowBestLine(!!v)} />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">Show Average Line Column</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Display market consensus from selected sportsbooks</div>
+                      </div>
+                      <Switch checked={showAverageLine} fn={(v: boolean) => setShowAverageLine(!!v)} />
+                    </div>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
           </div>
 
-          <div className="border-t border-neutral-200 px-6 py-4 dark:border-neutral-800">
+          <div className="filter-footer">
             <div className="flex items-center justify-between gap-3">
-              <Button 
-                variant="outline"
+              <button 
                 onClick={reset}
-                className="h-10 w-auto px-4"
-                text="Reset All"
-              />
+                className="h-10 rounded-lg border border-transparent px-4 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+              >
+                Reset All
+              </button>
               <div className="flex gap-2">
-                <Button 
-                  variant="secondary"
-                  onClick={() => setOpen(false)}
-                  className="h-10 w-auto px-5"
-                  text="Cancel"
-                />
-                <Button 
-                  variant="primary"
+                <button 
+                  onClick={() => {
+                    // Reset local SSE state when canceling
+                    setLocalLiveUpdatesEnabled(liveUpdatesEnabled)
+                    setOpen(false)
+                  }}
+                  className="h-10 rounded-lg border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button 
                   onClick={apply}
-                  className="h-10 w-auto bg-brand border-brand px-5 hover:bg-brand/90"
-                  text="Apply Filters"
-                />
+                  disabled={!hasUnsavedChanges}
+                  className={cn(
+                    "apply-btn h-10 rounded-lg border px-5 text-sm font-medium",
+                    hasUnsavedChanges && "active",
+                    hasUnsavedChanges
+                      ? "border-brand bg-brand text-white hover:bg-brand/90"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-400 cursor-not-allowed dark:border-neutral-700 dark:bg-neutral-800"
+                  )}
+                >
+                  {hasUnsavedChanges ? 'Apply Changes' : 'No Changes'}
+                </button>
               </div>
             </div>
           </div>

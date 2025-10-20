@@ -97,7 +97,7 @@ export function Nav({
       <LayoutGroup id={layoutGroupId}>
         <div
           className={cn(
-            `sticky inset-x-0 top-0 z-30 w-full transition-all`,
+            `sticky inset-x-0 top-0 z-50 w-full transition-all`,
             theme === "dark" && "dark",
           )}
         >

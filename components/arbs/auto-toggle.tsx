@@ -1,43 +1,42 @@
 "use client";
 
-import { RefreshCw, Radio } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function AutoToggle({
   enabled,
   setEnabled,
   pro,
   connected,
-  onManual,
-  refreshing,
 }: {
   enabled: boolean;
   setEnabled: (v: boolean) => void;
   pro: boolean;
   connected: boolean;
-  onManual: () => void | Promise<void>;
-  refreshing?: boolean;
 }) {
+  const isReconnecting = enabled && !connected;
+  
   return (
-    <div className="flex items-center gap-3">
-      <button
-        onClick={onManual}
-        disabled={!!refreshing}
-        className={`h-9 inline-flex items-center gap-2 rounded-md border px-3 bg-white text-slate-900 border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:text-white dark:border-slate-700 dark:hover:bg-neutral-800 ${refreshing ? 'opacity-80 cursor-wait' : ''}`}
-        title="Manual refresh"
-      >
-        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-        <span className="inline-block">Refresh</span>
-      </button>
-
-      <button
-        onClick={() => pro && setEnabled(!enabled)}
-        disabled={!pro}
-        className={`h-9 inline-flex items-center gap-2 rounded-md border px-3 ${enabled ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:text-white dark:border-slate-700 dark:hover:bg-neutral-800'} ${!pro ? 'opacity-50 cursor-not-allowed' : ''}`}
-        title={pro ? 'Toggle live SSE' : 'Pro required'}
-      >
-        <Radio className={`h-4 w-4 ${enabled ? 'animate-pulse' : ''}`} />
-        {enabled ? (connected ? 'Live' : 'Reconnecting…') : 'Enable Live'}
-      </button>
-    </div>
+    <button
+      onClick={() => pro && setEnabled(!enabled)}
+      disabled={!pro}
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors",
+        enabled && connected && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300",
+        isReconnecting && "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300",
+        !enabled && "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400",
+        !pro && "opacity-50 cursor-not-allowed"
+      )}
+      title={pro ? (enabled ? "Disable auto refresh" : "Enable auto refresh") : "Pro required"}
+    >
+      <span className={cn(
+        "inline-flex h-2 w-2 rounded-full",
+        enabled && connected && "bg-green-500",
+        isReconnecting && "bg-amber-500 animate-pulse",
+        !enabled && "bg-neutral-400"
+      )} />
+      <span>
+        {enabled ? (connected ? "Auto Refresh" : "Reconnecting...") : "Auto Refresh"}
+      </span>
+    </button>
   );
 }

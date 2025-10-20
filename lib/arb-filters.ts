@@ -3,6 +3,8 @@ import type { ArbRow } from "@/lib/arb-schema";
 
 export type ArbPrefs = {
   selectedBooks: string[];
+  selectedSports: string[];
+  selectedLeagues: string[];
   minArb: number;
   maxArb: number;
   searchQuery: string;
@@ -18,6 +20,20 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   const underOk = books.has(normalize(String(row.u?.bk || "")));
   if (!(overOk && underOk)) return false;
 
+  // Filter by sports
+  if (prefs.selectedSports.length > 0 && row.lg?.sport) {
+    const sport = normalize(row.lg.sport);
+    const selectedSportsNormalized = prefs.selectedSports.map((s) => normalize(s));
+    if (!selectedSportsNormalized.includes(sport)) return false;
+  }
+
+  // Filter by leagues
+  if (prefs.selectedLeagues.length > 0 && row.lg?.id) {
+    const league = normalize(row.lg.id);
+    const selectedLeaguesNormalized = prefs.selectedLeagues.map((l) => normalize(l));
+    if (!selectedLeaguesNormalized.includes(league)) return false;
+  }
+
   const q = prefs.searchQuery?.trim().toLowerCase();
   if (!q) return true;
 
@@ -29,6 +45,9 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
     row.ev?.home?.abbr,
     row.ev?.away?.name,
     row.ev?.away?.abbr,
+    row.lg?.name,
+    row.lg?.sport,
+    row.lg?.id,
   ]
     .filter(Boolean)
     .join(" ")

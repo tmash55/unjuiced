@@ -1,39 +1,57 @@
 import Link from "next/link";
-import { Button } from "./button";
+import { ButtonLink } from "./button-link";
 import { Container } from "./container";
-import { Logo } from "./logo";
+import { Droplet } from "lucide-react";
 import { SubHeading } from "./subheading";
-import { SendIcon } from "@/icons/bento-icons";
 
 export const Footer = () => {
-  const product = [
+  const features = [
     {
-      title: "Agent Builder",
-      href: "#",
+      title: "Arbitrage Finder",
+      href: "/arbitrage",
     },
     {
-      title: "Simulation",
-      href: "#",
+      title: "Odds Screen",
+      href: "/odds/nfl",
     },
     {
-      title: "Integrations",
-      href: "#",
+      title: "Live Updates",
+      href: "/pricing",
     },
     {
-      title: "Multi Agent",
-      href: "#",
+      title: "Pricing",
+      href: "/pricing",
+    },
+  ];
+
+  const sports = [
+    {
+      title: "NFL",
+      href: "/odds/nfl",
     },
     {
-      title: "Workflow API",
-      href: "#",
+      title: "NBA",
+      href: "/odds/nba",
+    },
+    {
+      title: "NHL",
+      href: "/odds/nhl",
+    },
+    {
+      title: "MLB",
+      href: "/odds/mlb",
+    },
+    {
+      title: "NCAAF",
+      href: "/odds/ncaaf",
+    },
+    {
+      title: "NCAAB",
+      href: "/odds/ncaab",
     },
   ];
 
   const company = [
-    {
-      title: "Sign In",
-      href: "/login",
-    },
     {
       title: "About",
       href: "/about",
@@ -43,24 +61,12 @@ export const Footer = () => {
       href: "/contact",
     },
     {
-      title: "Pricing",
-      href: "/pricing",
+      title: "Sign In",
+      href: "/login",
     },
     {
-      title: "Careers",
-      href: "/careers",
-    },
-    {
-      title: "Docs",
-      href: "#",
-    },
-    {
-      title: "Changelog",
-      href: "#",
-    },
-    {
-      title: "Glossary",
-      href: "#",
+      title: "Sign Up",
+      href: "/register",
     },
   ];
 
@@ -77,135 +83,102 @@ export const Footer = () => {
       title: "Cookie Policy",
       href: "/cookie-policy",
     },
+    {
+      title: "Responsible Gaming",
+      href: "/responsible-gaming",
+    },
   ];
   return (
     <Container>
-      <div className="grid grid-cols-1 px-4 py-20 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
-        <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-3">
-          <Logo />
-          <SubHeading as="p" className="mt-4 max-w-lg text-left">
-            Manage and simulate agentic workflows
+      <div className="grid grid-cols-1 gap-8 px-4 py-20 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+        <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10">
+              <Droplet className="h-5 w-5 text-brand" />
+            </div>
+            <span className="text-xl font-bold text-neutral-900 dark:text-white">Unjuiced</span>
+          </div>
+          <SubHeading as="p" className="mt-4 max-w-sm text-left">
+            Real-time odds comparison and arbitrage opportunities across all major sportsbooks.
           </SubHeading>
-          <Button className="mt-4 mb-8 lg:mb-0">Start building</Button>
+          <ButtonLink href="/register" variant="primary" className="mt-6 mb-8 lg:mb-0">
+            Get Started
+          </ButtonLink>
         </div>
         <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">
-          <p className="text-sm font-medium text-gray-600">Product</p>
-          {product.map((item) => (
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white mb-2">Features</p>
+          {features.map((item) => (
             <Link
               href={item.href}
               key={item.title}
-              className="text-footer-link my-2 text-sm font-medium"
+              className="text-footer-link text-sm font-medium transition-colors hover:text-neutral-900 dark:hover:text-white"
             >
               {item.title}
             </Link>
           ))}
         </div>
         <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">
-          <p className="text-sm font-medium text-gray-600">Company</p>
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white mb-2">Sports</p>
+          {sports.map((item) => (
+            <Link
+              href={item.href}
+              key={item.title}
+              className="text-footer-link text-sm font-medium transition-colors hover:text-neutral-900 dark:hover:text-white"
+            >
+              {item.title}
+            </Link>
+          ))}
+        </div>
+        <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white mb-2">Company</p>
           {company.map((item) => (
             <Link
               href={item.href}
               key={item.title}
-              className="text-footer-link my-2 text-sm font-medium"
+              className="text-footer-link text-sm font-medium transition-colors hover:text-neutral-900 dark:hover:text-white"
             >
               {item.title}
             </Link>
           ))}
         </div>
         <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">
-          <p className="text-sm font-medium text-gray-600">Legal</p>
+          <p className="text-sm font-semibold text-neutral-900 dark:text-white mb-2">Legal</p>
           {legal.map((item) => (
             <Link
               href={item.href}
               key={item.title}
-              className="text-footer-link my-2 text-sm font-medium"
+              className="text-footer-link text-sm font-medium transition-colors hover:text-neutral-900 dark:hover:text-white"
             >
               {item.title}
             </Link>
           ))}
         </div>
-        <div className="col-span-1 mb-4 flex flex-col items-start md:col-span-1 md:mb-0 lg:col-span-2">
-          <p className="text-footer-link text-sm font-medium">Newsletter</p>
-          <div className="mt-2 flex w-full items-center rounded-xl border border-gray-300 bg-gray-200 p-1 placeholder-gray-600 dark:border-neutral-700 dark:bg-neutral-800">
-            <input
-              type="email"
-              placeholder="Your email"
-              className="flex-1 bg-transparent px-2 text-sm outline-none focus:outline-none"
-            />
-            <Button className="my-0 flex size-8 shrink-0 items-center justify-center rounded-lg px-0 py-0 text-center">
-              <SendIcon />
-            </Button>
-          </div>
-          <SubHeading
-            as="p"
-            className="mt-4 text-left text-sm md:text-sm lg:text-sm"
-          >
-            Get the latest product news and behind the scenes updates.
-          </SubHeading>
-        </div>
       </div>
-      <div className="my-4 flex flex-col items-center justify-between px-4 pt-8 md:flex-row">
-        <p className="text-footer-link text-sm">
-          © 2024 Notus Aceternity Fight Club. All rights reserved.
-        </p>
-        <div className="mt-4 flex items-center gap-4 md:mt-0">
-          <Link
-            href="https://twitter.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      <div className="px-4 py-8">
+        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+          <p className="text-footer-link text-sm">
+            © {new Date().getFullYear()} Unjuiced
+          </p>
+          <p className="text-footer-link text-xs text-center max-w-md">
+            Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="https://twitter.com/unjuiced"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-footer-link transition-colors hover:text-neutral-900 dark:hover:text-white"
+              aria-label="X"
             >
-              <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
-            </svg>
-          </Link>
-          <Link
-            href="https://linkedin.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-              <rect width="4" height="12" x="2" y="9" />
-              <circle cx="4" cy="4" r="2" />
-            </svg>
-          </Link>
-          <Link
-            href="https://instagram.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-              <path d="m16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-              <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-            </svg>
-          </Link>
+              {/* X Icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
+              </svg>
+            </Link>
+          </div>
         </div>
       </div>
     </Container>
   );
 };
+

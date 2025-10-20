@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const sp = new URL(req.url).searchParams;
     const sport = (sp.get("sport") || "").trim().toLowerCase();
-    const allowed = new Set(["nfl", "mlb", "wnba", "nba"]);
+    const allowed = new Set(["nfl", "ncaaf", "mlb", "wnba", "nba", "ncaab", "nhl"]);
     const key = allowed.has(sport) ? `${IDX_PREFIX}${sport}:props:markets` : undefined;
     const raw = key ? await redis.get<string | string[]>(key) : null;
     let markets: string[] | null = null;

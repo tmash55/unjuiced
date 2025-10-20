@@ -7,7 +7,19 @@ import { OddsTable, type OddsTableItem } from '@/components/odds-screen/tables/o
 import { OddsFilters } from '@/components/odds-screen/filters'
 import { getMarketsForSport, type SportMarket } from '@/lib/data/markets'
 import { useOddsPreferences } from '@/context/preferences-context'
-import { LoadingSpinner } from '@/components/icons/loading-spinner'
+import { LoadingState } from '@/components/common/loading-state'
+import { useSSE } from '@/hooks/use-sse'
+import { useAuth } from '@/components/auth/auth-provider'
+import { LiveUpgradeBanner } from '@/components/odds-screen/live-upgrade-banner'
+import { ConnectionErrorDialog } from '@/components/common/connection-error-dialog'
+import { cn } from '@/lib/utils'
+import { Combobox } from '@/components/ui/combobox'
+import { ChevronsUpDown } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { InputSearch } from '@/components/icons/input-search'
+import { ToolHeading } from '@/components/common/tool-heading'
+import { ToolSubheading } from '@/components/common/tool-subheading'
+import { FiltersBar, FiltersBarSection, FiltersBarDivider } from '@/components/common/filters-bar'
 
 /**
  * Sport-specific Odds Page
@@ -38,6 +50,43 @@ function SportOddsContent({
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('')
   const [isSearching, setIsSearching] = useState<boolean>(false)
+  const [userPlan, setUserPlan] = useState<string | null>(null)
+  const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState<boolean>(true) // Pro users default to live
+  
+  const { user } = useAuth()
+  const isPro = userPlan === 'pro' || userPlan === 'admin'
+  const isFree = !isPro
+  const isLiveScope = scope === 'live'
+  
+  // Pro users get SSE by default (can toggle off), Free users never get SSE
+  const shouldUseLiveUpdates = isPro && liveUpdatesEnabled
+
+  // Fetch user plan for tier-based features
+  useEffect(() => {
+    const fetchUserPlan = async () => {
+      if (!user) {
+        setUserPlan(null)
+        return
+      }
+      
+      try {
+        const { createClient } = await import('@/libs/supabase/client')
+        const supabase = createClient()
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('plan')
+          .eq('id', user.id)
+          .single()
+        
+        setUserPlan(profile?.plan || null)
+      } catch (error) {
+        console.error('[USER_PLAN] Error fetching plan:', error)
+        setUserPlan(null)
+      }
+    }
+    
+    fetchUserPlan()
+  }, [user])
 
   // Debounce search query for performance (VC-level optimization)
   useEffect(() => {
@@ -133,12 +182,38 @@ function SportOddsContent({
   // Default market using centralized markets
   function getDefaultMarket(sportKey: string, t: 'game' | 'player'): string {
     const all = getMarketsForSport(resolveSportKey(sportKey))
-    const gameKeys = new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score'])
+    const gameKeys = new Set([
+      // Generic game markets
+      'moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals',
+      'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime',
+      '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time',
+      '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns',
+      '1st_half_home_team_total_points', '1st_half_away_team_total_points',
+      '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns',
+      '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards',
+      'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
+      'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
+      'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NHL game markets
+      'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
+      'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
+      'first_team_to_score', 'first_team_to_score_3way', 'last_team_to_score_3way', 
+      'away_total_goals', 'away_total_goals_reg', 'home_total_goals', 'home_total_goals_reg',
+      // NHL period game markets
+      'p1_moneyline', 'p1_moneyline_3way', 'p1_total_goals', 'p1_total_goals_odd_even', 'p1_puck_line',
+      'p1_10m_total_goals', 'p1_5m_total_goals', 'p1_btts', 'p1_first_team_to_score_3way',
+      'p1_home_total_goals', 'p1_away_total_goals',
+      'p2_moneyline', 'p2_moneyline_3way', 'p2_puck_line', 'p2_total_goals', 'p2_total_goals_odd_even',
+      'p2_btts', 'p2_10m_total_goals', 'p2_5m_total_goals',
+      'p3_moneyline', 'p3_moneyline_3way', 'p3_puck_line', 'p3_total_goals', 'p3_total_goals_odd_even',
+      // NHL race markets
+      'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
+    ])
     if (t === 'game') {
       const game = all.find((m) => gameKeys.has(m.apiKey))
       return game?.apiKey || 'total'
     }
-    // For player props, find first non-game market, preferring passing markets for NFL
+    // For player props, find first non-game market, preferring sport-specific defaults
     const playerMarkets = all.filter((m) => !gameKeys.has(m.apiKey))
     if (sportKey === 'nfl' || sportKey === 'ncaaf') {
       // Prefer passing yards or passing TDs for football
@@ -146,13 +221,44 @@ function SportOddsContent({
       const passingTds = playerMarkets.find((m) => m.apiKey === 'passing_tds')
       return passingYards?.apiKey || passingTds?.apiKey || playerMarkets[0]?.apiKey || 'passing_tds'
     }
-    return playerMarkets[0]?.apiKey || 'passing_tds'
+    if (sportKey === 'nhl') {
+      // Prefer player goals for hockey
+      const playerGoals = playerMarkets.find((m) => m.apiKey === 'player_goals')
+      return playerGoals?.apiKey || playerMarkets[0]?.apiKey || 'player_goals'
+    }
+    return playerMarkets[0]?.apiKey || 'player_points'
   }
 
   // Centralized market options from constants with group/period filters
   function getAvailableMarkets(s: string, t: 'game' | 'player') {
     const all = getMarketsForSport(resolveSportKey(s))
-    const gameKeys = new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score'])
+    const gameKeys = new Set([
+      // Generic game markets
+      'moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals',
+      'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime',
+      '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time',
+      '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns',
+      '1st_half_home_team_total_points', '1st_half_away_team_total_points',
+      '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns',
+      '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards',
+      'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
+      'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
+      'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NHL game markets
+      'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
+      'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
+      'first_team_to_score', 'first_team_to_score_3way', 'last_team_to_score_3way', 
+      'away_total_goals', 'away_total_goals_reg', 'home_total_goals', 'home_total_goals_reg',
+      // NHL period game markets
+      'p1_moneyline', 'p1_moneyline_3way', 'p1_total_goals', 'p1_total_goals_odd_even', 'p1_puck_line',
+      'p1_10m_total_goals', 'p1_5m_total_goals', 'p1_btts', 'p1_first_team_to_score_3way',
+      'p1_home_total_goals', 'p1_away_total_goals',
+      'p2_moneyline', 'p2_moneyline_3way', 'p2_puck_line', 'p2_total_goals', 'p2_total_goals_odd_even',
+      'p2_btts', 'p2_10m_total_goals', 'p2_5m_total_goals',
+      'p3_moneyline', 'p3_moneyline_3way', 'p3_puck_line', 'p3_total_goals', 'p3_total_goals_odd_even',
+      // NHL race markets
+      'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
+    ])
     let items: SportMarket[] = t === 'game'
       ? all.filter((m) => gameKeys.has(m.apiKey))
       : all.filter((m) => !gameKeys.has(m.apiKey))
@@ -164,35 +270,194 @@ function SportOddsContent({
     return items.map((m) => ({ key: m.apiKey, label: m.label, available: true }))
   }
 
-  // Fetch data when parameters change
-  const queryKey = ['odds-screen', sport, type, marketState, scope]
-  const { data: queryData, isLoading, isError, error: queryError, isFetching } = useQuery({
+  // Fetch data when parameters change (using new props API with pub/sub support)
+  const queryKey = ['odds-props', sport, type, marketState, scope]
+  const { data: queryData, isLoading, isError, error: queryError, isFetching, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      const url = `/api/odds-screen?sport=${encodeURIComponent(sport)}&type=${encodeURIComponent(type)}&market=${encodeURIComponent(marketState)}&scope=${encodeURIComponent(scope)}`
+      // Use new props API with transformation adapter
+      const url = `/api/props/table?sport=${encodeURIComponent(sport)}&market=${encodeURIComponent(marketState)}&scope=${encodeURIComponent(scope)}&limit=300`
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[FETCH] Requesting: ${url}`)
+        console.log(`[FETCH] Redis key would be: props:${sport}:sort:roi:${scope}:${marketState}`)
+      }
+      
+      const startTime = performance.now()
       const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
-      if (res.status === 304) return { success: true, data: data }
-      const json = await res.json()
-      return json
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error(`[FETCH] Error response:`, errorText)
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      }
+      
+      const propsResponse = await res.json()
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[FETCH] Received ${propsResponse.rows?.length || 0} rows`)
+      }
+      
+      // Transform props format to OddsTableItem format
+      const { transformPropsResponseToOddsScreen } = await import('@/lib/api-adapters/props-to-odds')
+      const transformedData = transformPropsResponseToOddsScreen(propsResponse, type as 'player' | 'game')
+      
+      const duration = performance.now() - startTime
+      if (duration > 1000) {
+        console.warn(`[FETCH] Slow API response: ${duration.toFixed(0)}ms`)
+      }
+      
+      return {
+        data: transformedData,
+        nextCursor: propsResponse.nextCursor,
+        fetchTime: duration
+      }
     },
-    staleTime: scope === 'live' ? 8_000 : 75_000, // Slightly more aggressive for VC standards
-    gcTime: 15 * 60_000, // Longer cache retention
+    staleTime: scope === 'live' ? 8_000 : 75_000, // Live: 8s, Pregame: 75s
+    gcTime: 15 * 60_000, // 15 minute cache retention
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    refetchInterval: scope === 'live' ? 8_000 : 60_000, // Live: 8s, Pregame: 60s
-    refetchIntervalInBackground: scope === 'live', // Continue live updates in background
-    retry: 3, // More resilient for VC standards
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-    placeholderData: (previousData) => previousData, // Smooth transitions
-    select: (result: any): { data: OddsTableItem[]; error?: string | null } => {
-      if (!result?.success) return { data: [], error: (result?.error as string) || null }
-      return { data: result.data as OddsTableItem[] }
-    }
+    // When SSE is active, disable polling entirely (SSE handles real-time updates)
+    refetchInterval: shouldUseLiveUpdates ? false : (scope === 'live' ? 8_000 : 60_000),
+    refetchIntervalInBackground: !shouldUseLiveUpdates && scope === 'live', // Only poll in background if SSE is off
+    retry: 3, // Resilient retry strategy
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff
+    placeholderData: (previousData) => previousData, // Smooth transitions (no flash of empty state)
   })
 
   useEffect(() => {
-    if (queryData?.data) setData(queryData.data)
-  }, [queryData])
+    if (queryData?.data) {
+      let filteredData = queryData.data
+      
+      // Filter out games that have already started from pregame view
+      if (scope === 'pregame') {
+        const now = new Date()
+        filteredData = queryData.data.filter(item => {
+          // Check if event has a start time
+          if (item.event?.startTime) {
+            const startTime = new Date(item.event.startTime)
+            // Only include if game hasn't started yet (with 5 min buffer for data sync)
+            return startTime.getTime() > now.getTime() - (5 * 60 * 1000)
+          }
+          // If no start time, include it (shouldn't happen but safe fallback)
+          return true
+        })
+        
+        if (process.env.NODE_ENV === 'development' && filteredData.length !== queryData.data.length) {
+          console.log(`[PREGAME_FILTER] Filtered out ${queryData.data.length - filteredData.length} started games`)
+        }
+      }
+      
+      setData(filteredData)
+      // Log fetch performance for VC monitoring
+      if (queryData.fetchTime) {
+        console.log(`[FETCH] Loaded ${filteredData.length} rows in ${queryData.fetchTime.toFixed(0)}ms`)
+      }
+    }
+  }, [queryData, scope])
+
+  // SSE Integration for Pro users (VC-grade efficiency)
+  const handleSSEUpdate = useCallback(async (message: any) => {
+    const perfStart = performance.now();
+    const { add = [], upd = [], del = [] } = message;
+    
+    try {
+      // Early exit: no updates
+      if (add.length === 0 && upd.length === 0 && del.length === 0) return;
+      
+      // Handle deletions (O(n) filter)
+      if (del.length > 0) {
+        const delSet = new Set(del);
+        setData(prev => prev.filter(item => !delSet.has(item.id)));
+      }
+      
+      // Handle additions and updates
+      const needIds = [...new Set([...add, ...upd])];
+      if (needIds.length === 0) return;
+      
+      // Fetch updated rows (use typed client to keep params consistent)
+      const { fetchPropsRows } = await import('@/lib/props-client');
+      const fetchedRows = await fetchPropsRows(sport, needIds);
+      
+      if (!Array.isArray(fetchedRows)) return;
+      
+      // Single-pass filter: null rows + market/type match
+      const validRows = fetchedRows.reduce((acc: any[], item: any) => {
+        if (!item.row) return acc;
+        
+        const row = item.row;
+        const matchesMarket = row.mkt === marketState;
+        const isPlayerRow = row.player !== null || row.ent?.startsWith('pid:');
+        const matchesType = (type === 'player') === isPlayerRow;
+        
+        if (matchesMarket && matchesType) acc.push(row);
+        return acc;
+      }, []);
+      
+      if (validRows.length === 0) return;
+      
+      // Transform (lazy-load adapter)
+      const { transformPropsResponseToOddsScreen } = await import('@/lib/api-adapters/props-to-odds');
+      const updatedItems = transformPropsResponseToOddsScreen(
+        { sids: [], rows: validRows, nextCursor: null },
+        type as 'player' | 'game'
+      );
+      
+      // Merge updates (O(n) with Map lookup)
+      setData(prevData => {
+        const updatedMap = new Map(updatedItems.map(item => [item.id, item]));
+        const merged = prevData.map(item => updatedMap.get(item.id) ?? item);
+        
+        // Apply pregame filter if in pregame mode
+        if (scope === 'pregame') {
+          const now = new Date();
+          return merged.filter(item => {
+            if (item.event?.startTime) {
+              const startTime = new Date(item.event.startTime);
+              return startTime.getTime() > now.getTime() - (5 * 60 * 1000);
+            }
+            return true;
+          });
+        }
+        
+        return merged;
+    });
+    
+    // Performance logging (dev only)
+      if (process.env.NODE_ENV === 'development') {
+        const perfEnd = performance.now();
+        console.log(`[SSE] ⚡ ${validRows.length} rows in ${(perfEnd - perfStart).toFixed(1)}ms`);
+      }
+    } catch (error) {
+      console.error('[SSE] Update failed:', error);
+    }
+  }, [sport, type, marketState, scope]);
+  
+  // SSE enabled for Pro users (works for both pregame and live)
+  const sseEnabled = shouldUseLiveUpdates
+  
+  const { isConnected: sseConnected, isReconnecting: sseReconnecting, hasFailed: sseFailed } = useSSE(
+    `/api/sse/props?sport=${sport}`,
+    {
+      enabled: sseEnabled,
+      onMessage: handleSSEUpdate,
+      onError: (error) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[SSE] Connection error:', error)
+        }
+      },
+    }
+  )
+  
+  // Track if we should show the connection error dialog
+  const [showConnectionError, setShowConnectionError] = useState(false)
+  
+  // Show dialog when SSE fails (only for Pro users with live updates enabled)
+  useEffect(() => {
+    if (sseFailed && isPro && liveUpdatesEnabled) {
+      setShowConnectionError(true)
+    }
+  }, [sseFailed, isPro, liveUpdatesEnabled])
 
   useEffect(() => {
     setLoading(isLoading)
@@ -207,34 +472,86 @@ function SportOddsContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [market])
 
+  // Define game keys for filtering (matches getAvailableMarkets)
+  const gameKeysSet = useMemo(() => new Set([
+    // Generic game markets
+    'moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals',
+    'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime',
+    '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time',
+    '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns',
+    '1st_half_home_team_total_points', '1st_half_away_team_total_points',
+    '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns',
+    '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards',
+    'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
+    'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
+    'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+    // NHL game markets
+    'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
+    'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
+    'first_team_to_score', 'first_team_to_score_3way', 'last_team_to_score_3way', 
+    'away_total_goals', 'away_total_goals_reg', 'home_total_goals', 'home_total_goals_reg',
+    // NHL period game markets
+    'p1_moneyline', 'p1_moneyline_3way', 'p1_total_goals', 'p1_total_goals_odd_even', 'p1_puck_line',
+    'p1_10m_total_goals', 'p1_5m_total_goals', 'p1_btts', 'p1_first_team_to_score_3way',
+    'p1_home_total_goals', 'p1_away_total_goals',
+    'p2_moneyline', 'p2_moneyline_3way', 'p2_puck_line', 'p2_total_goals', 'p2_total_goals_odd_even',
+    'p2_btts', 'p2_10m_total_goals', 'p2_5m_total_goals',
+    'p3_moneyline', 'p3_moneyline_3way', 'p3_puck_line', 'p3_total_goals', 'p3_total_goals_odd_even',
+    // NHL race markets
+    'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
+  ]), [])
+
+  // Prepare data for rendering (must be before early returns to maintain hook order)
+  const availableMarkets = useMemo(() => getAvailableMarkets(sport, type as 'game' | 'player'), [sport, type, groupFilter, periodFilter])
+  const allPlayerMarkets = useMemo(() => getMarketsForSport(resolveSportKey(sport)).filter((m) => !gameKeysSet.has(m.apiKey)), [sport, gameKeysSet])
+  const groups = useMemo(() => Array.from(new Set(allPlayerMarkets.map((m) => m.group).filter(Boolean))) as string[], [allPlayerMarkets])
+  const periods = useMemo(() => Array.from(new Set(allPlayerMarkets.map((m) => m.period || 'full'))), [allPlayerMarkets])
+  
+  // For game props, get groups/periods from game markets
+  const allGameMarkets = useMemo(() => getMarketsForSport(resolveSportKey(sport)).filter((m) => gameKeysSet.has(m.apiKey)), [sport, gameKeysSet])
+  const gameGroups = useMemo(() => Array.from(new Set(allGameMarkets.map((m) => m.group).filter(Boolean))) as string[], [allGameMarkets])
+  const gamePeriods = useMemo(() => Array.from(new Set(allGameMarkets.map((m) => m.period || 'full'))), [allGameMarkets])
+
+  // Combobox options for League and Market (shared by mobile/desktop)
+  const leagueOptions = useMemo(() => (
+    ['nfl', 'ncaaf', 'nba', 'mlb', 'nhl'].map((key) => ({ value: key, label: key.toUpperCase() }))
+  ), [])
+
+  const selectedLeague = useMemo(() => (
+    leagueOptions.find((o) => o.value === sport) || null
+  ), [leagueOptions, sport])
+
+  const marketOptions = useMemo(() => (
+    availableMarkets.map((m) => ({
+      value: m.key,
+      label: m.label,
+      disabled: !m.available,
+      disabledTooltip: !m.available ? 'Not available for this sport/period' : undefined,
+    }))
+  ), [availableMarkets])
+
+  const selectedMarket = useMemo(() => (
+    marketOptions.find((o) => o.value === marketState) || null
+  ), [marketOptions, marketState])
+
   if (loading) {
     return (
-      <div className="container mx-auto px-2 sm:px-4 py-4">
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 px-2 sm:px-0">
+      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {sport.toUpperCase()} Odds
           </h1>
         </div>
-        <div className="flex items-center justify-center py-16">
-          <div className="flex flex-col items-center gap-3">
-            <LoadingSpinner className="h-6 w-6" />
-            <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              {`Loading ${sport.toUpperCase()} Odds`}
-            </div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">
-              Fetching the latest odds and market data...
-            </div>
-          </div>
-        </div>
+        <LoadingState />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-2 sm:px-4 py-4">
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 px-2 sm:px-0">
+      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {sport.toUpperCase()} Odds
           </h1>
         </div>
@@ -284,283 +601,237 @@ function SportOddsContent({
     setGroupFilter('all')
     setPeriodFilter('all')
     // Navigate to the new sport page
-    router.push(`/odds/${newSport}?type=${type}&market=${getDefaultMarket(newSport, type as 'game' | 'player')}`)
+    router.push(`/odds/${newSport}?type=${type}&market=${getDefaultMarket(newSport, type as 'game' | 'player')}&scope=${scope}`)
   }
 
-  const availableMarkets = getAvailableMarkets(sport, type as 'game' | 'player')
-  const allPlayerMarkets = getMarketsForSport(resolveSportKey(sport)).filter((m) => !new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score']).has(m.apiKey))
-  const groups = Array.from(new Set(allPlayerMarkets.map((m) => m.group).filter(Boolean))) as string[]
-  const periods = Array.from(new Set(allPlayerMarkets.map((m) => m.period || 'full')))
-  
-  // For game props, get groups/periods from game markets
-  const allGameMarkets = getMarketsForSport(resolveSportKey(sport)).filter((m) => new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score']).has(m.apiKey))
-  const gameGroups = Array.from(new Set(allGameMarkets.map((m) => m.group).filter(Boolean))) as string[]
-  const gamePeriods = Array.from(new Set(allGameMarkets.map((m) => m.period || 'full')))
-  const availableSports = ['nfl', 'ncaaf', 'nba', 'mlb', 'nhl']
+  const handleScopeChange = (newScope: 'pregame' | 'live') => {
+    const next = `/odds/${sport}?type=${type}&market=${marketState}&scope=${newScope}`
+    router.replace(next)
+  }
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 animate-in fade-in duration-300">
+    <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header with sport and navigation */}
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 px-2 sm:px-0">
+      <div className="mb-8">
+        <ToolHeading>
           {sport.toUpperCase()} Odds
-        </h1>
-        
-        {/* Modern Filter Bar - Mobile Responsive */}
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        </ToolHeading>
+        <ToolSubheading>
+          Compare real-time odds across top sportsbooks and find the best value for {sport.toUpperCase()} games and player props.
+        </ToolSubheading>
+      </div>
+
+      {/* Controls Section - Pregame/Live Toggle */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Pregame/Live Toggle */}
+          <div className="mode-toggle">
+            <button
+              type="button"
+              onClick={() => handleScopeChange('pregame')}
+              className={cn(scope === 'pregame' && 'active')}
+            >
+              Pre-Game
+            </button>
+            <button
+              type="button"
+              disabled={!isPro}
+              onClick={() => isPro && handleScopeChange('live')}
+              className={cn(scope === 'live' && isPro && 'active')}
+            >
+              Live
+              {!isPro && (
+                <span className="ml-1 text-xs opacity-60">Pro</span>
+              )}
+            </button>
+          </div>
+
+          {/* Info Text */}
+          <div className="text-sm text-neutral-600 dark:text-neutral-400">
+            {scope === 'pregame' ? 'Showing upcoming games' : 'Showing live in-progress games'}
+          </div>
+        </div>
+
+        {/* Live Status Indicator - Far Right */}
+        {isPro && (
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium",
+            sseConnected
+              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+              : sseReconnecting
+              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300"
+              : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400"
+          )}>
+            <span className={cn(
+              "inline-flex h-2 w-2 rounded-full",
+              sseConnected ? "bg-green-500" : sseReconnecting ? "bg-amber-500 animate-pulse" : "bg-neutral-400"
+            )} />
+            <span>
+              {sseConnected ? "Live" : sseReconnecting ? "Reconnecting..." : "Offline"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Filter Bar */}
+      <div className="mb-8">
+         {/* Sticky Filter Bar - positioned below navbar */}
+         <div className="sticky top-14 z-40 mt-6 mb-6">
+          <FiltersBar useDots={true}>
           {/* Mobile Layout (< md) - Stacked */}
           <div className="block md:hidden space-y-3">
             {/* Top Row: League + Type Toggle */}
             <div className="flex items-center justify-between gap-3">
               {/* League Selector */}
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:block">League</span>
-                <select
-                  value={sport}
-                  onChange={(e) => handleSportChange(e.target.value)}
-                  className="px-3 py-3 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 touch-manipulation"
-                >
-                  {availableSports.map((sportKey) => (
-                    <option key={sportKey} value={sportKey}>
-                      {sportKey.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex-1">
+                <Combobox
+                  selected={selectedLeague}
+                  setSelected={(opt) => opt && handleSportChange(opt.value)}
+                  options={leagueOptions}
+                  matchTriggerWidth
+                  caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
+                  buttonProps={{
+                    className: "h-10 w-full",
+                    textWrapperClassName: "text-sm font-medium",
+                  }}
+                />
               </div>
 
               {/* Game/Player Toggle */}
-              <div className="flex bg-gray-200 dark:bg-gray-600 rounded-md p-0.5 flex-shrink-0">
+              <div className="mode-toggle flex-shrink-0">
                 <button
+                  type="button"
                   onClick={() => handleTypeChange('game')}
-                  className={`px-3 py-2 text-xs font-medium rounded transition-all touch-manipulation ${
-                    type === 'game' 
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 active:bg-gray-300 dark:active:bg-gray-500'
-                  }`}
+                  className={cn(type === 'game' && 'active')}
                 >
                   Game
                 </button>
                 <button
+                  type="button"
                   onClick={() => handleTypeChange('player')}
-                  className={`px-3 py-2 text-xs font-medium rounded transition-all touch-manipulation ${
-                    type === 'player' 
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 active:bg-gray-300 dark:active:bg-gray-500'
-                  }`}
+                  className={cn(type === 'player' && 'active')}
                 >
                   Player
                 </button>
               </div>
             </div>
 
-            {/* Bottom Row: Market + Status + Settings */}
-            <div className="flex items-center justify-between gap-3">
+            {/* Bottom Row: Market + Settings */}
+            <div className="flex items-center gap-3">
               {/* Market Type Selector */}
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:block">Market</span>
-                <select
-                  value={marketState}
-                  onChange={(e) => handleMarketChange(e.target.value)}
-                  className="px-3 py-3 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 touch-manipulation"
-                >
-                  {availableMarkets.map((m) => (
-                    <option key={m.key} value={m.key} disabled={!m.available}>
-                      {m.label}{!m.available ? ' (N/A)' : ''}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex-1">
+                <Combobox
+                  selected={selectedMarket}
+                  setSelected={(opt) => opt && handleMarketChange(opt.value)}
+                  options={marketOptions}
+                  matchTriggerWidth
+                  searchPlaceholder="Search markets..."
+                  caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
+                  buttonProps={{
+                    className: "h-10 w-full",
+                    textWrapperClassName: "text-sm font-medium",
+                  }}
+                />
               </div>
 
-              {/* Status & Settings */}
+              {/* Settings */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Compact Refresh Indicator for Mobile */}
-                {scope === 'live' && (
-                  <div className="flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                    <div className={`w-2 h-2 rounded-full ${isFetching ? 'bg-green-500 animate-pulse' : 'bg-green-400'}`} />
-                    <span className="text-xs text-green-700 dark:text-green-300 font-medium">
-                      {isFetching ? 'Live' : 'Live'}
-                    </span>
-                  </div>
-                )}
-                  
-                {scope === 'pregame' && isFetching && (
-                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                      Updating
-                    </span>
-                  </div>
-                )}
-
-                <OddsFilters />
+                <OddsFilters 
+                  isPro={isPro}
+                  liveUpdatesEnabled={liveUpdatesEnabled}
+                  onLiveUpdatesChange={setLiveUpdatesEnabled}
+                />
               </div>
             </div>
 
             {/* Search Row */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide hidden sm:block">Search</span>
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder={type === 'player' ? "Search players..." : "Search teams..."}
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-full px-3 py-3 pl-10 pr-10 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation transition-all duration-200"
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  {isSearching ? (
-                    <LoadingSpinner className="h-4 w-4" />
-                  ) : (
-                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  )}
-                </div>
-                {searchQuery && (
-                  <button
-                    onClick={handleSearchClear}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center group"
-                    aria-label="Clear search"
-                  >
-                    <svg className="h-4 w-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+            <div className="relative">
+              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
+              <Input
+                type="text"
+                placeholder={type === 'player' ? "Search players..." : "Search teams..."}
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
 
           {/* Desktop Layout (>= md) - Horizontal */}
-          <div className="hidden md:flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3 w-full">
+            <FiltersBarSection align="left">
               {/* League Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">League</span>
-                <select
-                  value={sport}
-                  onChange={(e) => handleSportChange(e.target.value)}
-                  className="px-3 py-2.5 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[80px] touch-manipulation"
-                >
-                  {availableSports.map((sportKey) => (
-                    <option key={sportKey} value={sportKey}>
-                      {sportKey.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Combobox
+                selected={selectedLeague}
+                setSelected={(opt) => opt && handleSportChange(opt.value)}
+                options={leagueOptions}
+                caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
+                buttonProps={{
+                  className: "h-9 w-[140px] md:w-[160px] lg:w-[180px]",
+                  textWrapperClassName: "text-sm font-medium",
+                }}
+              />
 
               {/* Game/Player Toggle */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</span>
-                <div className="flex bg-gray-200 dark:bg-gray-600 rounded-md p-0.5">
-                  <button
-                    onClick={() => handleTypeChange('game')}
-                    className={`px-3 py-2 text-xs font-medium rounded transition-all touch-manipulation ${
-                      type === 'game' 
-                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 active:bg-gray-300 dark:active:bg-gray-500'
-                    }`}
-                  >
-                    Game
-                  </button>
-                  <button
-                    onClick={() => handleTypeChange('player')}
-                    className={`px-3 py-2 text-xs font-medium rounded transition-all touch-manipulation ${
-                      type === 'player' 
-                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' 
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 active:bg-gray-300 dark:active:bg-gray-500'
-                    }`}
-                  >
-                    Player
-                  </button>
-                </div>
+              <div className="mode-toggle">
+                <button
+                  type="button"
+                  onClick={() => handleTypeChange('game')}
+                  className={cn(type === 'game' && 'active')}
+                >
+                  Game
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTypeChange('player')}
+                  className={cn(type === 'player' && 'active')}
+                >
+                  Player
+                </button>
               </div>
 
               {/* Market Type Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Market</span>
-                <select
-                  value={marketState}
-                  onChange={(e) => handleMarketChange(e.target.value)}
-                  className="px-3 py-2.5 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[120px] touch-manipulation"
-                >
-                  {availableMarkets.map((m) => (
-                    <option key={m.key} value={m.key} disabled={!m.available}>
-                      {m.label}{!m.available ? ' (N/A)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Combobox
+                selected={selectedMarket}
+                setSelected={(opt) => opt && handleMarketChange(opt.value)}
+                options={marketOptions}
+                matchTriggerWidth
+                searchPlaceholder="Search markets..."
+                caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
+                buttonProps={{
+                  className: "h-9 w-[180px] md:w-[240px] lg:w-[300px] xl:w-[320px]",
+                  textWrapperClassName: "text-sm font-medium",
+                }}
+              />
 
               {/* Search Input */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Search</span>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder={type === 'player' ? "Search players..." : "Search teams..."}
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="px-3 py-2.5 pl-10 pr-10 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px] touch-manipulation transition-all duration-200"
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  {isSearching ? (
-                    <LoadingSpinner className="h-4 w-4" />
-                  ) : (
-                      <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    )}
-                  </div>
-                  {searchQuery && (
-                    <button
-                      onClick={handleSearchClear}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center group"
-                      aria-label="Clear search"
-                    >
-                      <svg className="h-4 w-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+              <div className="relative min-w-0">
+                <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
+                <Input
+                  type="text"
+                  placeholder={type === 'player' ? "Search players..." : "Search teams..."}
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-[140px] md:w-[200px] lg:w-64 flex-shrink pl-10"
+                />
               </div>
-            </div>
+            </FiltersBarSection>
 
-            {/* Settings & Status */}
-            <div className="flex items-center gap-3">
-              {/* Live Refresh Indicator */}
-              {scope === 'live' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                  <div className={`w-2 h-2 rounded-full ${isFetching ? 'bg-green-500 animate-pulse' : 'bg-green-400'}`} />
-                  <span className="text-xs text-green-700 dark:text-green-300 font-medium">
-                    {isFetching ? 'Updating...' : 'Live'}
-                  </span>
-                  <span className="text-xs text-green-600 dark:text-green-400">
-                    8s refresh
-                  </span>
-                </div>
-              )}
-                
-              {/* Pregame Refresh Indicator */}
-              {scope === 'pregame' && isFetching && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    Refreshing odds...
-                  </span>
-                </div>
-              )}
-
-              <OddsFilters />
-            </div>
+            <FiltersBarSection align="right">
+              {/* Filters Button */}
+              <OddsFilters 
+                isPro={isPro}
+                liveUpdatesEnabled={liveUpdatesEnabled}
+                onLiveUpdatesChange={setLiveUpdatesEnabled}
+              />
+            </FiltersBarSection>
           </div>
+        </FiltersBar>
         </div>
 
         {/* Search Results Indicator */}
         {debouncedSearchQuery.trim() && (
-          <div className="mt-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+          <div className="mb-6 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -582,8 +853,10 @@ function SportOddsContent({
             </div>
           </div>
         )}
-
       </div>
+
+      {/* Upgrade Banner for Free Users */}
+      {isFree && <div className="mb-6"><LiveUpgradeBanner /></div>}
 
       {/* Odds Table */}
       <OddsTable 
@@ -594,7 +867,6 @@ function SportOddsContent({
         type={type as 'game' | 'player'}
         market={marketState}
         scope={scope as 'pregame' | 'live'}
-        maxSportsbookColumns={14}
         columnHighlighting={preferences?.columnHighlighting ?? true}
         searchQuery={debouncedSearchQuery}
         onRowClick={(item) => {
@@ -605,6 +877,13 @@ function SportOddsContent({
           console.log('Odds clicked:', { item: item.entity.name, side, book })
           // TODO: Implement odds click behavior (e.g., add to betslip, open sportsbook link)
         }}
+      />
+
+      {/* Connection Error Dialog */}
+      <ConnectionErrorDialog
+        isOpen={showConnectionError}
+        onClose={() => setShowConnectionError(false)}
+        onRefresh={() => window.location.reload()}
       />
     </div>
   )

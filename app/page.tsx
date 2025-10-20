@@ -30,22 +30,15 @@ export default function Home() {
       <Nav />
       <DivideX />
       <Hero />
-      <DivideX />
-      <HeroImage />
-      <DivideX />
       <StatsWithNumberTicker/>
       <DivideX />
       <HowItWorks />
       <DivideX />
       <OddsScreenFeatures />
       <DivideX />
-      <AgenticIntelligence />
-      <DivideX />
       <UseCases />
       <DivideX />
       <Benefits />
-      <DivideX />
-      <Testimonials />
       <DivideX />
       <Pricing />
       <DivideX />

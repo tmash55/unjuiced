@@ -6,6 +6,11 @@ export type ArbRow = {
   ln: number;
   roi_bps: number;
   ts: number;
+  lg?: {
+    id: string;
+    name: string;
+    sport: string;
+  };
   ev: {
     dt: string;
     live: boolean;

@@ -4,68 +4,67 @@ import { Container } from "./container";
 import { Badge } from "./badge";
 import { SectionHeading } from "./seciton-heading";
 import { SubHeading } from "./subheading";
-import {
-  DevopsIcon,
-  PhoneIcon,
-  TruckIcon,
-  DatabaseIcon,
-  WalletIcon,
-  GraphIcon,
-} from "@/icons/card-icons";
 import { Scale } from "./scale";
 import { motion } from "motion/react";
+import { 
+  Target, 
+  Wallet, 
+  Scale as ScaleIcon, 
+  Search, 
+  BarChart3, 
+  Zap 
+} from "lucide-react";
 
 export const UseCases = () => {
   const useCases = [
     {
-      title: "DevOps",
+      title: "Sharp Bettors",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <DevopsIcon className="text-brand size-6" />,
+        "Find +EV opportunities across 20+ books in seconds with real-time odds comparison and no-vig consensus pricing",
+      icon: <Target className="text-brand size-6" />,
     },
     {
-      title: "SalesOps",
+      title: "Casual Bettors",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <GraphIcon className="text-brand size-6" />,
+        "Never leave money on the table. Get the best available odds on every bet with instant price comparisons",
+      icon: <Wallet className="text-brand size-6" />,
     },
     {
-      title: "Supply Chain",
+      title: "Arbitrage Traders",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <TruckIcon className="text-brand size-6" />,
+        "Lock in guaranteed profits with automated arb detection and precise bet sizing calculations",
+      icon: <ScaleIcon className="text-brand size-6" />,
     },
     {
-      title: "Customer Support",
+      title: "Line Shoppers",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <PhoneIcon className="text-brand size-6" />,
+        "Compare every line, every book, every game in one place. Save 5-10 cents per bet to maximize long-term ROI",
+      icon: <Search className="text-brand size-6" />,
     },
     {
-      title: "DataOps",
+      title: "Prop Specialists",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <DatabaseIcon className="text-brand size-6" />,
+        "Track player props and alternate lines across all markets with comprehensive coverage and live updates",
+      icon: <BarChart3 className="text-brand size-6" />,
     },
     {
-      title: "FinOps",
+      title: "Live Bettors",
       description:
-        "Visually orchestrate autonomous agents without writing boilerplate code",
-      icon: <WalletIcon className="text-brand size-6" />,
+        "React instantly to in-game opportunities with sub-second odds updates and automated error recovery",
+      icon: <Zap className="text-brand size-6" />,
     },
   ];
   const [activeUseCase, setActiveUseCase] = useState<number | null>(null);
   return (
     <Container className="border-divide relative overflow-hidden border-x px-4 md:px-8">
       <div className="relative flex flex-col items-center py-20">
-        <Badge text="Use Cases" />
+        <Badge text="Who Uses Unjuiced" />
         <SectionHeading className="mt-4">
-          Across various Industries
+          Built for Every Type of Bettor
         </SectionHeading>
 
-        <SubHeading as="p" className="mx-auto mt-6 max-w-lg">
-          We empower developers and technical teams to create, simulate, and
-          manage AI-driven workflows visually
+        <SubHeading as="p" className="mx-auto mt-6 max-w-lg text-center">
+          From casual players to professional arbitrage traders, Unjuiced delivers the edge you need to win more and bet smarter
         </SubHeading>
 
         <div className="mt-12 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-3">
@@ -88,10 +87,10 @@ export const UseCases = () => {
               )}
               <div className="relative z-10 rounded-lg bg-gray-50 p-4 transition duration-200 hover:bg-transparent md:p-5 dark:bg-neutral-800">
                 <div className="flex items-center gap-2">{useCase.icon}</div>
-                <h3 className="mt-4 mb-2 text-lg font-medium">
+                <h3 className="mt-4 mb-2 text-lg font-medium text-neutral-900 dark:text-white">
                   {useCase.title}
                 </h3>
-                <p className="text-gray-600">{useCase.description}</p>
+                <p className="text-gray-600 dark:text-neutral-300">{useCase.description}</p>
               </div>
             </div>
           ))}

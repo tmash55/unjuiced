@@ -1,7 +1,8 @@
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Lock, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
+import Lock from "@/icons/lock";
 
 interface UpgradePromptProps {
   plan: "anonymous" | "free" | "pro";

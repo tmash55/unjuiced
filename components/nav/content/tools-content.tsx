@@ -21,7 +21,7 @@ const tools = [
     title: "Arbitrage",
     description: "Risk-free opportunities across books with automatic leg matching and sizing.",
     href: "/arbitrage",
-    color: "#00BFFF",   //Neon Blue
+    color: "#00b4d8",   //Neon Blue
     graphicsContainerClassName: "px-2",
     graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
     comingSoon: false,
@@ -35,7 +35,7 @@ const tools = [
     title: "Odds Screen",
     description: "Live market odds with fast updates, line movement, and best-price highlights.",
     href: "/odds/nfl",
-    color: "#36D78F",
+    color: "#35c97d",
     graphicsContainerClassName: "h-[170%] bottom-0 top-[unset]",
     graphic: (
       <AnalyticsGraphic className="absolute bottom-0 left-0 size-full" />

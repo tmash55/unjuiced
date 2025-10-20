@@ -2,25 +2,10 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import {
-  AnthropicLogo,
-  AppleIcon,
-  FacebookIcon,
-  GoogleIcon,
-  LinearLogo,
-  MetaLogo,
-  NotionLogo,
-  OpenAILogo,
-  SlackLogo,
-  SupabaseLogo,
-} from "@/icons/general";
 import { Container } from "./container";
 import { SectionHeading } from "./seciton-heading";
-import { Button } from "./button";
-import Link from "next/link";
 import { ButtonLink } from "./button-link";
-
-type SvgComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+import Image from "next/image";
 
 export type CTAOrbitProps = {
   size?: number;
@@ -35,10 +20,10 @@ export const CTA = () => {
     <Container className="border-divide relative flex min-h-60 flex-col items-center justify-center overflow-hidden border-x px-4 py-4 md:min-h-120">
       <CTAOrbit className="absolute inset-x-0 -top-120 mask-b-from-30%" />
       <SectionHeading className="relative z-10 text-center lg:text-6xl">
-        Connect your Current Stack <br /> and Start Automating
+        Find the Best Odds. <br /> Every Time.
       </SectionHeading>
-      <ButtonLink href="/sign-up" className="relative z-20 mt-4">
-        Start Building for Free
+      <ButtonLink href="/register" variant="primary" className="relative z-20 mt-4">
+        Start Comparing
       </ButtonLink>
     </Container>
   );
@@ -51,22 +36,23 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   ringDurationsSec,
   numRings = 3,
 }) => {
-  const logos = [
-    SupabaseLogo,
-    OpenAILogo,
-    MetaLogo,
-    SlackLogo,
-    NotionLogo,
-    LinearLogo,
-    AnthropicLogo,
-    SupabaseLogo,
-    OpenAILogo,
-    MetaLogo,
-    GoogleIcon,
-    FacebookIcon,
-    AppleIcon,
+  const sportsbooks = [
+    { name: "DraftKings", logo: "/images/sports-books/draftkings.png" },
+    { name: "FanDuel", logo: "/images/sports-books/fanduel.png" },
+    { name: "BetMGM", logo: "/images/sports-books/betmgm.png" },
+    { name: "Caesars", logo: "/images/sports-books/caesars.png" },
+    { name: "ESPN BET", logo: "/images/sports-books/espnbet.png" },
+    { name: "Fanatics", logo: "/images/sports-books/fanatics.png" },
+    { name: "BetRivers", logo: "/images/sports-books/betrivers.png" },
+    { name: "Pinnacle", logo: "/images/sports-books/pinnacle.png" },
+    { name: "Fliff", logo: "/images/sports-books/fliff.png" },
+    { name: "Hard Rock", logo: "/images/sports-books/hardrockbet.png" },
+    { name: "Circa", logo: "/images/sports-books/circa.png" },
+    { name: "BetParx", logo: "/images/sports-books/betparx.png" },
+    { name: "Bovada", logo: "/images/sports-books/bovada.png" },
+    { name: "BallyBet", logo: "/images/sports-books/ballybet.png" },
   ];
-  const total = logos.length;
+  const total = sportsbooks.length;
 
   // Compute ring weights (fewer inner, more outer): proportional 1..numRings
   const weights = Array.from({ length: numRings }, (_, i) => i + 1); // [1,2,...]
@@ -81,8 +67,8 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
   const counts: number[] = countsBase; // inner→outer
 
   let cursor = 0;
-  const rings: SvgComponent[][] = counts.map((count) => {
-    const slice = logos.slice(cursor, cursor + count);
+  const rings: typeof sportsbooks[] = counts.map((count) => {
+    const slice = sportsbooks.slice(cursor, cursor + count);
     cursor += count;
     return slice;
   });
@@ -100,8 +86,8 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
         );
 
   const renderRing = (ringIndex: number) => {
-    const ringLogos = rings[ringIndex];
-    const count = ringLogos.length;
+    const ringSportsbooks = rings[ringIndex];
+    const count = ringSportsbooks.length;
     if (count === 0) return null;
 
     const diameter = Math.round(size * ringScaleFactors[ringIndex]);
@@ -127,7 +113,7 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
         }}
       >
         <div className="relative h-full w-full">
-          {ringLogos.map((Logo, idx) => {
+          {ringSportsbooks.map((sportsbook, idx) => {
             const angleDeg = (360 / count) * idx;
             const translate = radius;
             return (
@@ -141,14 +127,20 @@ export const CTAOrbit: React.FC<CTAOrbitProps> = ({
                 <div style={{ transform: `rotate(${-angleDeg}deg)` }}>
                   <div
                     className={cn(
-                      "shadow-aceternity flex size-14 items-center justify-center rounded-md bg-white dark:bg-neutral-950",
+                      "shadow-aceternity flex size-14 items-center justify-center rounded-md bg-white p-2 dark:bg-neutral-950",
                       reverse ? "animate-orbit" : "animate-counter-orbit",
                     )}
                     style={{
                       ["--duration" as any]: `${duration}s`,
                     }}
                   >
-                    <Logo className="size-8 shrink-0" />
+                    <Image
+                      src={sportsbook.logo || "/images/sports-books/generic-sportsbook.svg"}
+                      alt={sportsbook.name}
+                      width={40}
+                      height={40}
+                      className="h-auto w-full object-contain"
+                    />
                   </div>
                 </div>
               </div>

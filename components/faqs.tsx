@@ -57,15 +57,14 @@ export const FAQs = () => {
       </SectionHeading>
 
       <SubHeading as="p" className="mx-auto mt-6 max-w-lg px-2">
-        Find all your doubts and questions in one place. Still couldn't find
-        what you're looking for?
+        Everything you need to know about finding the best odds and maximizing your betting value. Still have questions?
       </SubHeading>
       <div className="mt-8 mb-12 flex w-full flex-col justify-center gap-4 px-4 sm:flex-row">
-        <Button variant="primary" className="w-full sm:w-auto">
-          Read Docs
-        </Button>
-       <ButtonLink variant="secondary" href="mailto:support@example.com" className="w-full sm:w-auto">
-          Contact Us
+        <ButtonLink variant="primary" href="/register" className="w-full sm:w-auto">
+          Get Started Free
+        </ButtonLink>
+       <ButtonLink variant="secondary" href="/contact" className="w-full sm:w-auto">
+          Contact Support
         </ButtonLink>
       </div>
       <DivideX />

@@ -28,6 +28,8 @@ interface PreferencesContextType {
   // Tool-specific helpers
   updateArbitrageFilters: (filters: {
     selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedLeagues?: string[];
     minArb?: number;
     maxArb?: number;
     totalBetAmount?: number;
@@ -37,6 +39,8 @@ interface PreferencesContextType {
   
   getArbitrageFilters: () => {
     selectedBooks: string[];
+    selectedSports: string[];
+    selectedLeagues: string[];
     minArb: number;
     maxArb: number;
     totalBetAmount: number;
@@ -370,6 +374,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   // Tool-specific helpers
   const updateArbitrageFilters = useCallback(async (filters: {
     selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedLeagues?: string[];
     minArb?: number;
     maxArb?: number;
     searchQuery?: string;
@@ -380,7 +386,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     
     if (filters.selectedBooks !== undefined) {
       // Store tool-specific selection in arbitrage_selected_books (not global preferred)
-      (updates as any).arbitrage_selected_books = filters.selectedBooks;
+      updates.arbitrage_selected_books = filters.selectedBooks;
+    }
+    if (filters.selectedSports !== undefined) {
+      updates.arbitrage_selected_sports = filters.selectedSports;
+    }
+    if (filters.selectedLeagues !== undefined) {
+      updates.arbitrage_selected_leagues = filters.selectedLeagues;
     }
     if (filters.minArb !== undefined) {
       updates.arbitrage_min_arb = filters.minArb;
@@ -479,10 +491,16 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }, [activeSportsbooks]);
 
   const getArbitrageFilters = useCallback(() => {
-    // If preferences haven't loaded yet (logged-out user), default to all active books
+    // Get all sports and leagues for defaults (matching vendor API format)
+    const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey'];
+    const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'];
+    
+    // If preferences haven't loaded yet (logged-out user), default to all active books and all sports/leagues
     if (!preferences) {
       return {
         selectedBooks: activeSportsbooks,
+        selectedSports: allSportsIds,
+        selectedLeagues: allLeaguesIds,
         minArb: 0,
         maxArb: 20,
         totalBetAmount: 200,
@@ -500,6 +518,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     
     return {
       selectedBooks,
+      // If undefined (never set/NULL in DB), default to all sports/leagues selected
+      // Otherwise use the value from DB (empty array = nothing selected, or specific items)
+      selectedSports: preferences.arbitrage_selected_sports ?? allSportsIds,
+      selectedLeagues: preferences.arbitrage_selected_leagues ?? allLeaguesIds,
       minArb: preferences.arbitrage_min_arb ?? 0,
       maxArb: preferences.arbitrage_max_arb ?? 20,
       totalBetAmount: (typeof preferences.arbitrage_total_bet_amount === 'number' ? preferences.arbitrage_total_bet_amount : Number(preferences.arbitrage_total_bet_amount)) ?? 200,

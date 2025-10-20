@@ -1,13 +1,10 @@
 "use client";
 import React from "react";
 import { TabbedFeatureSection } from "../tabbed-feature-section";
+import { OddsLiveSkeleton, CustomizationSkeleton, DeepLinkSkeleton } from "./skeletons";
 import { SVGProps } from "react";
 
-// You would create your own skeletons specific to Positive EV features
-// For now, using placeholder components
-const EVOpportunitiesSkeleton = () => <div className="text-center text-gray-500">EV Opportunities Display</div>;
-const EVCalculatorSkeleton = () => <div className="text-center text-gray-500">EV Calculator Display</div>;
-const EVTrackerSkeleton = () => <div className="text-center text-gray-500">EV Tracker Display</div>;
+// Icons remain minimal; skeletons below provide rich visuals for each tab
 
 export const OddsScreenFeatures = () => {
   const tabs = [
@@ -16,7 +13,7 @@ export const OddsScreenFeatures = () => {
       description: "Never miss a move. Odds Refresh every 2-3 seconds across 300+ markets. Main and alternate game lines and player props for NFL, NCAAF, NBA, NHL, MLB, and WNBA.",
       icon: EVIcon,
       id: "opportunities",
-      skeleton: <EVOpportunitiesSkeleton />,
+      skeleton: <OddsLiveSkeleton />,
       learnMoreHref: "/odds/nfl",
     },
     {
@@ -24,7 +21,7 @@ export const OddsScreenFeatures = () => {
       description: "Customize everything. Drag and Drop columns, hide sportsbooks you don't need, and save your perfect layout for instant access everytime you log in.",
       icon: CalculatorIcon,
       id: "calculator",
-      skeleton: <EVCalculatorSkeleton />,
+      skeleton: <CustomizationSkeleton />,
       learnMoreHref: "/odds/nfl",
     },
     {
@@ -32,7 +29,7 @@ export const OddsScreenFeatures = () => {
       description: "Found the line you want? Deep link directly to your sportsbooks with one click - your selection is added to your betslip instantly. No copy-pasting, no wasted time.",
       icon: ChartIcon,
       id: "tracker",
-      skeleton: <EVTrackerSkeleton />,
+      skeleton: <DeepLinkSkeleton />,
       learnMoreHref: "/odds/nfl",
     },
   ];

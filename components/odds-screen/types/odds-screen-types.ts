@@ -65,6 +65,9 @@ export interface OddsScreenParams {
     startTime: string                // ISO string
     homeTeam: string                 // Team code (e.g., "KC")
     awayTeam: string                 // Team code (e.g., "BAL")
+  // Optional full names for leagues where we want to display full names (e.g., NCAAF)
+  homeName?: string
+  awayName?: string
   }
   
   /** Complete odds information for an item */
@@ -73,6 +76,27 @@ export interface OddsScreenParams {
     average: AverageOddsData        // Market average odds
     opening: OpeningOddsData        // Opening line odds
     books: SportsbookOddsData       // Individual sportsbook odds
+    // Optional normalized structure for simpler UI rendering
+    normalized?: {
+      marketKind: 'moneyline' | 'spread' | 'total' | 'other'
+      // For 'moneyline' and 'spread', displayOrder is always ['away','home']
+      displayOrder?: Array<'away' | 'home'>
+      sideMap?: { away: 'over' | 'under'; home: 'over' | 'under' }
+      books: Record<string, {
+        // For moneyline/spread
+        away?: OddsPrice
+        home?: OddsPrice
+        // For totals
+        over?: OddsPrice
+        under?: OddsPrice
+      }>
+      best?: {
+        away?: OddsPrice; home?: OddsPrice; over?: OddsPrice; under?: OddsPrice
+      }
+      average?: {
+        away?: OddsPrice; home?: OddsPrice; over?: OddsPrice; under?: OddsPrice
+      }
+    }
   }
   
   // ============================================================================
@@ -364,7 +388,7 @@ export interface OddsScreenParams {
   // ============================================================================
   
   /** Supported sports */
-  export const SUPPORTED_SPORTS = ['nfl', 'nba', 'mlb', 'nhl'] as const
+  export const SUPPORTED_SPORTS = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'] as const
   export type Sport = typeof SUPPORTED_SPORTS[number]
   
   /** Supported scopes */

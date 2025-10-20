@@ -124,6 +124,49 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     WSH: "WSH"
   }
   
+  // NHL Team Mappings
+  export const NHL_TEAM_MAP: Record<string, string> = {
+    // Eastern Conference - Atlantic Division
+    BOS: "BOS", // Boston Bruins
+    BUF: "BUF", // Buffalo Sabres
+    DET: "DET", // Detroit Red Wings
+    FLA: "FLA", // Florida Panthers
+    MTL: "MTL", // Montreal Canadiens
+    OTT: "OTT", // Ottawa Senators
+    TB: "TB",   // Tampa Bay Lightning
+    TOR: "TOR", // Toronto Maple Leafs
+    // Eastern Conference - Metropolitan Division
+    CAR: "CAR", // Carolina Hurricanes
+    CBJ: "CBJ", // Columbus Blue Jackets
+    NJ: "NJ",   // New Jersey Devils
+    NYI: "NYI", // New York Islanders
+    NYR: "NYR", // New York Rangers
+    PHI: "PHI", // Philadelphia Flyers
+    PIT: "PIT", // Pittsburgh Penguins
+    WSH: "WSH", // Washington Capitals
+    // Western Conference - Central Division
+    ARI: "ARI", // Arizona Coyotes (relocated to Utah, may need updating)
+    UTA: "UTA", // Utah Hockey Club
+    CHI: "CHI", // Chicago Blackhawks
+    COL: "COL", // Colorado Avalanche
+    DAL: "DAL", // Dallas Stars
+    MIN: "MIN", // Minnesota Wild
+    NSH: "NSH", // Nashville Predators
+    STL: "STL", // St. Louis Blues
+    WPG: "WPG", // Winnipeg Jets
+    // Western Conference - Pacific Division
+    ANA: "ANA", // Anaheim Ducks
+    CGY: "CGY", // Calgary Flames
+    EDM: "EDM", // Edmonton Oilers
+    LA: "LA",   // Los Angeles Kings
+    LAK: "LA",  // Los Angeles Kings (alternative)
+    SJ: "SJ",   // San Jose Sharks
+    SEA: "SEA", // Seattle Kraken
+    VAN: "VAN", // Vancouver Canucks
+    VGK: "VGK", // Vegas Golden Knights
+    LV: "VGK",  // Vegas Golden Knights (alternative)
+  }
+  
   // WNBA Team Mappings
   export const WNBA_TEAM_MAP: Record<string, string> = {
     ATL: "ATL", // Atlanta Dream
@@ -147,10 +190,15 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     
     switch(sport) {
       case "football_nfl":
+      case "nfl":
         return NFL_TEAM_MAP[upperAbbr] || upperAbbr
+      case "icehockey_nhl":
+      case "nhl":
+        return NHL_TEAM_MAP[upperAbbr] || upperAbbr
       case "basketball_wnba":
         return WNBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "baseball_mlb":
+      case "mlb":
       default:
         return MLB_TEAM_MAP[upperAbbr] || upperAbbr
     }
@@ -231,6 +279,76 @@ export const MLB_TEAM_MAP: Record<string, string> = {
         "Tennessee Titans": "TEN",
         "Washington Commanders": "WAS",
       },
+      icehockey_nhl: {
+        "Anaheim Ducks": "ANA",
+        "Arizona Coyotes": "ARI",
+        "Boston Bruins": "BOS",
+        "Buffalo Sabres": "BUF",
+        "Calgary Flames": "CGY",
+        "Carolina Hurricanes": "CAR",
+        "Chicago Blackhawks": "CHI",
+        "Colorado Avalanche": "COL",
+        "Columbus Blue Jackets": "CBJ",
+        "Dallas Stars": "DAL",
+        "Detroit Red Wings": "DET",
+        "Edmonton Oilers": "EDM",
+        "Florida Panthers": "FLA",
+        "Los Angeles Kings": "LA",
+        "Minnesota Wild": "MIN",
+        "Montreal Canadiens": "MTL",
+        "Nashville Predators": "NSH",
+        "New Jersey Devils": "NJ",
+        "New York Islanders": "NYI",
+        "New York Rangers": "NYR",
+        "Ottawa Senators": "OTT",
+        "Philadelphia Flyers": "PHI",
+        "Pittsburgh Penguins": "PIT",
+        "San Jose Sharks": "SJ",
+        "Seattle Kraken": "SEA",
+        "St. Louis Blues": "STL",
+        "Tampa Bay Lightning": "TB",
+        "Toronto Maple Leafs": "TOR",
+        "Utah Hockey Club": "UTA",
+        "Vancouver Canucks": "VAN",
+        "Vegas Golden Knights": "VGK",
+        "Washington Capitals": "WSH",
+        "Winnipeg Jets": "WPG",
+      },
+      nhl: { // Also support short 'nhl' key
+        "Anaheim Ducks": "ANA",
+        "Arizona Coyotes": "ARI",
+        "Boston Bruins": "BOS",
+        "Buffalo Sabres": "BUF",
+        "Calgary Flames": "CGY",
+        "Carolina Hurricanes": "CAR",
+        "Chicago Blackhawks": "CHI",
+        "Colorado Avalanche": "COL",
+        "Columbus Blue Jackets": "CBJ",
+        "Dallas Stars": "DAL",
+        "Detroit Red Wings": "DET",
+        "Edmonton Oilers": "EDM",
+        "Florida Panthers": "FLA",
+        "Los Angeles Kings": "LA",
+        "Minnesota Wild": "MIN",
+        "Montreal Canadiens": "MTL",
+        "Nashville Predators": "NSH",
+        "New Jersey Devils": "NJ",
+        "New York Islanders": "NYI",
+        "New York Rangers": "NYR",
+        "Ottawa Senators": "OTT",
+        "Philadelphia Flyers": "PHI",
+        "Pittsburgh Penguins": "PIT",
+        "San Jose Sharks": "SJ",
+        "Seattle Kraken": "SEA",
+        "St. Louis Blues": "STL",
+        "Tampa Bay Lightning": "TB",
+        "Toronto Maple Leafs": "TOR",
+        "Utah Hockey Club": "UTA",
+        "Vancouver Canucks": "VAN",
+        "Vegas Golden Knights": "VGK",
+        "Washington Capitals": "WSH",
+        "Winnipeg Jets": "WPG",
+      },
       basketball_wnba: {
         "Atlanta Dream": "ATL",
         "Chicago Sky": "CHI",
@@ -265,13 +383,23 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     const nflVariationMap: Record<string, string> = {
       LA: "LAR", // Los Angeles Rams (Redis sends "LA" but logo file is "LAR.svg")
     }
-  
+
+    const nhlVariationMap: Record<string, string> = {
+      LAK: "LA",  // Los Angeles Kings (alternative abbreviation)
+      LV: "VGK",  // Vegas Golden Knights (alternative abbreviation)
+      VEG: "VGK", // Vegas Golden Knights (alternative abbreviation)
+    }
+
     if (normalizedSport === "baseball_mlb" && mlbVariationMap[teamName]) {
       return mlbVariationMap[teamName]
     }
     
     if (normalizedSport === "football_nfl" && nflVariationMap[teamName]) {
       return nflVariationMap[teamName]
+    }
+
+    if ((normalizedSport === "icehockey_nhl" || normalizedSport === "nhl") && nhlVariationMap[teamName]) {
+      return nhlVariationMap[teamName]
     }
   
     // If no match found, check if it's already a valid abbreviation

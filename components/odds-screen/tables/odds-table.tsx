@@ -31,8 +31,13 @@ import { Loader2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider } from '@/components/tooltip'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { OddsTableSkeleton } from './odds-table-skeleton'
-import { createColumnHelper } from '@tanstack/react-table'
+import { createColumnHelper, flexRender } from '@tanstack/react-table'
 import { Table, useTable } from '@/components/table'
+import { cn } from '@/lib/utils'
+import { useSSE } from '@/hooks/use-sse'
+import { useAuth } from '@/components/auth/auth-provider'
+import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
+import { ProGateModal } from '../pro-gate-modal'
 
 interface AlternateRowData {
   key: string
@@ -55,45 +60,55 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   isHighlighted: boolean
   priceChanged: boolean
   lineChanged: boolean
+  isPositiveChange: boolean
+  isNegativeChange: boolean
   isMoneyline: boolean
   onClick: (e: React.MouseEvent) => void
   // Pass in formatters to avoid referencing outer scope (keeps memo stable)
   formatOdds: (price: number) => string
   formatLine: (line: number, side: 'over' | 'under') => string
 }) {
-  const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isMoneyline, onClick, formatOdds, formatLine } = props
+  const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isPositiveChange, isNegativeChange, isMoneyline, onClick, formatOdds, formatLine } = props
   return (
     <Tooltip content={`Place bet on ${sportsbookName}`}>
-      <button
-        onClick={onClick}
-        className={`block w-full text-xs rounded-md px-2 py-1.5 mx-auto transition-all cursor-pointer font-medium min-w-fit ${
-          isHighlighted
-            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800/40'
-            : 'bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600'
-        }`}
-      >
-        <div className="text-center">
-          {isMoneyline ? (
-            <>
-              <div className="text-sm font-semibold">
-                <span className={`${priceChanged ? 'bg-yellow-200 dark:bg-yellow-800/60 px-1 rounded transition-colors' : ''}`}>
+        <button
+          onClick={onClick}
+          className={cn(
+            'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium',
+            isHighlighted && 'sportsbook-cell--highlighted',
+            // Match player-props behavior: flash when either price or line changes
+            (priceChanged || lineChanged) && (isPositiveChange ? 'animate-odds-flash-positive' : 'animate-odds-flash-negative')
+          )}
+        >
+          <div className="text-center">
+            {isMoneyline ? (
+              // Moneylines: Show only the odds, no line/team label
+                <div className="text-sm font-semibold">
+                  <span
+                    className={cn(
+                      priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'),
+                      'transition-colors'
+                    )}
+                  >
+                    {formatOdds(odds.price)}
+                  </span>
+                </div>
+            ) : (
+              // Other markets: Show line and odds
+              <div className="text-xs font-medium">
+                <span className={`opacity-75 ${lineChanged ? 'animate-odds-flash-line px-1 rounded' : ''}`}>{formatLine(odds.line, side)}</span>
+                <span
+                  className={cn(
+                    'ml-1 font-semibold transition-colors',
+                    priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400')
+                  )}
+                >
                   {formatOdds(odds.price)}
                 </span>
               </div>
-              <div className="text-xs opacity-75">
-                <span className={`${lineChanged ? 'bg-blue-200 dark:bg-blue-800/60 px-1 rounded transition-colors' : ''}`}>
-                  {formatLine(odds.line, side)}
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="text-xs font-medium">
-              <span className={`opacity-75 ${lineChanged ? 'bg-blue-200 dark:bg-blue-800/60 px-1 rounded transition-colors' : ''}`}>{formatLine(odds.line, side)}</span>
-              <span className={`ml-1 font-semibold ${priceChanged ? 'bg-yellow-200 dark:bg-yellow-800/60 px-1 rounded transition-colors' : ''}`}>{formatOdds(odds.price)}</span>
-            </div>
-          )}
-        </div>
-      </button>
+            )}
+          </div>
+        </button>
     </Tooltip>
   )
 }, (prev, next) => {
@@ -104,6 +119,8 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
     prev.side === next.side &&
     prev.odds.price === next.odds.price &&
     prev.odds.line === next.odds.line &&
+    prev.isPositiveChange === next.isPositiveChange &&
+    prev.isNegativeChange === next.isNegativeChange &&
     prev.isHighlighted === next.isHighlighted &&
     prev.priceChanged === next.priceChanged &&
     prev.lineChanged === next.lineChanged &&
@@ -258,7 +275,10 @@ const calculateUserBestOdds = (
     return { userBest: null, hasGlobalBetter: false, globalBest: null }
   }
   
-  const isMoneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
+  const isMoneyline = item.entity.type === 'game' && (
+    item.entity.details === 'Moneyline' ||
+    (((item.odds?.best?.over?.line ?? 0) === 0) && ((item.odds?.best?.under?.line ?? 0) === 0))
+  )
   const allBooks = Object.entries(item.odds.books)
   const safeSportsbooks = Array.isArray(visibleSportsbooks) ? visibleSportsbooks : []
   
@@ -623,9 +643,11 @@ const renderAlternateRow = (
   row: AlternateRowData,
   onOddsClick?: (bookId: string, side: 'over' | 'under', odds: OddsPrice) => void,
   altIndex: number = 0,
-  columnHighlighting: boolean = true
+  columnHighlighting: boolean = true,
+  isPro: boolean = false,
+  setShowProGate?: (show: boolean) => void
 ) => {
-  const rowBg = altIndex % 2 === 0 ? 'bg-neutral-100 dark:bg-neutral-800' : 'bg-neutral-200 dark:bg-neutral-900'
+  const rowBg = altIndex % 2 === 0 ? 'table-row-even' : 'table-row-odd'
   const borderColor = 'border-neutral-200 dark:border-neutral-700'
   return (
   <tr key={row.key} className={rowBg}>
@@ -635,7 +657,7 @@ const renderAlternateRow = (
           return (
             <td
               key="entity"
-              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-10 ${rowBg}`}
+              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-20 ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
             >
               Alt Line {row.lineLabel}
             </td>
@@ -680,22 +702,22 @@ const renderAlternateRow = (
                           <Tooltip
                             content={
                               <div className="flex flex-wrap gap-2 max-w-[200px] p-2">
-                                {ids.map((id, i) => {
-                                  const sb = getSportsbookById(id)
-                                  return sb?.image?.light ? (
-                                    <div key={`${id}-${i}`} className="flex items-center gap-1">
-                                      <img src={sb.image.light} alt={sb.name} className="w-4 h-4 object-contain" />
+                                  {ids.map((id, i) => {
+                                    const sb = getSportsbookById(id)
+                                    return sb?.image?.light ? (
+                                      <div key={`${id}-${i}`} className="flex items-center gap-1">
+                                        <img src={sb.image.light} alt={sb.name} className="w-4 h-4 object-contain" />
                                       <span className="text-[11px] text-neutral-500 dark:text-neutral-400">{sb.name}</span>
-                                    </div>
-                                  ) : null
-                                })}
-                              </div>
+                                      </div>
+                                    ) : null
+                                  })}
+                                </div>
                             }
                           >
                             <div className="text-[10px] text-blue-600 dark:text-blue-300 cursor-help select-none">
                               {ids.length} books
                             </div>
-                          </Tooltip>
+                            </Tooltip>
                         ) : null}
                       </>
                     )
@@ -727,22 +749,22 @@ const renderAlternateRow = (
                           <Tooltip
                             content={
                               <div className="flex flex-wrap gap-2 max-w-[200px] p-2">
-                                {ids.map((id, i) => {
-                                  const sb = getSportsbookById(id)
-                                  return sb?.image?.light ? (
-                                    <div key={`${id}-${i}`} className="flex items-center gap-1">
-                                      <img src={sb.image.light} alt={sb.name} className="w-4 h-4 object-contain" />
+                                  {ids.map((id, i) => {
+                                    const sb = getSportsbookById(id)
+                                    return sb?.image?.light ? (
+                                      <div key={`${id}-${i}`} className="flex items-center gap-1">
+                                        <img src={sb.image.light} alt={sb.name} className="w-4 h-4 object-contain" />
                                       <span className="text-[11px] text-neutral-500 dark:text-neutral-400">{sb.name}</span>
-                                    </div>
-                                  ) : null
-                                })}
-                              </div>
+                                      </div>
+                                    ) : null
+                                  })}
+                                </div>
                             }
                           >
                             <div className="text-[10px] text-blue-600 dark:text-blue-300 cursor-help select-none">
                               {ids.length} books
                             </div>
-                          </Tooltip>
+                            </Tooltip>
                         ) : null}
                       </>
                     )
@@ -824,16 +846,22 @@ const renderAlternateRow = (
             onClick={(e) => {
               e.stopPropagation()
               if (priceOdds.link) {
-                window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
+                if (isPro) {
+                  window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
+                } else if (setShowProGate) {
+                  setShowProGate(true)
+                }
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
             }}
-            className={`block w-full text-xs rounded-md px-2 py-1.5 mx-auto transition-all cursor-pointer font-medium min-w-fit ${
+            className={cn(
+              'block w-full text-xs rounded-md px-2 py-1.5 mx-auto transition-all cursor-pointer font-medium min-w-fit',
               isBestAltOdds
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800/40'
-                : 'bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600'
-            }`}
+                ? '[background:color-mix(in_oklab,var(--accent)_15%,var(--card))] [color:var(--accent-strong)] [border-color:color-mix(in_oklab,var(--accent)_40%,transparent)] dark:[background:color-mix(in_oklab,var(--accent)_20%,var(--card))] dark:[color:var(--accent-weak)] dark:[border-color:color-mix(in_oklab,var(--accent)_30%,transparent)] hover:[background:color-mix(in_oklab,var(--accent)_25%,var(--card))] dark:hover:[background:color-mix(in_oklab,var(--accent)_30%,var(--card))]'
+                : 'bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600',
+              priceOdds.price && (priceOdds.price > 0 ? 'animate-odds-flash-positive' : '')
+            )}
           >
             <div className="text-center">
               {/* Match primary row styling - horizontal layout (line + odds on same row) */}
@@ -884,6 +912,7 @@ export interface OddsTableProps extends Partial<TableInteractionHandlers> {
   onColumnOrderChange?: (newOrder: string[]) => void
   columnHighlighting?: boolean // Whether to highlight best odds with green background
   searchQuery?: string // Optional search query to filter players/teams
+  height?: string // Optional max height for scroll container (e.g., '82vh')
 }
 
 type SortField = 'entity' | 'event' | 'bestOver' | 'bestUnder' | 'startTime'
@@ -985,24 +1014,69 @@ export function OddsTable({
   market,
   scope,
   visibleSportsbooks,
-  maxSportsbookColumns = 14,
+  maxSportsbookColumns,
   onRowClick,
   onOddsClick,
   onColumnOrderChange,
   className = '',
   columnHighlighting = true,
-  searchQuery = ''
+  searchQuery = '',
+  height = '82vh'
 }: OddsTableProps) {
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
   const allActiveSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
+  const { user } = useAuth()
+  // Quick client hint from metadata (may be stale); normalized check
+  const initialIsPro = useMemo(() => {
+    const raw = (user as any)?.user_metadata?.subscriptionPlan
+    const v = typeof raw === 'string' ? raw.toLowerCase() : ''
+    return v === 'pro' || v === 'unlimited' || v === 'admin'
+  }, [user])
+  const [isPro, setIsPro] = useState<boolean>(initialIsPro)
+  const [showProGate, setShowProGate] = useState(false)
+
+  // Server-truth plan fetch (align with arbitrage page behaviour)
+  useEffect(() => {
+    let cancelled = false
+    const fetchPlan = async () => {
+      try {
+        const res = await fetch('/api/me/plan', { cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const plan = String(data?.plan || '').toLowerCase()
+        const serverIsPro = plan === 'pro' || plan === 'admin' || plan === 'unlimited'
+        if (!cancelled) setIsPro(serverIsPro)
+      } catch (e) {
+        // noop; fall back to client hint
+      }
+    }
+    fetchPlan()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+  
+  // Debug logging for Pro status (development only)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[OddsTable] User Pro status:', {
+        hasUser: !!user,
+        subscriptionPlan: user?.user_metadata?.subscriptionPlan,
+        isPro
+      })
+    }
+  }, [user, isPro])
 
   // Track changes for visual feedback (SSE updates)
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set())
   const [newRows, setNewRows] = useState<Set<string>>(new Set())
   const [changedPriceCells, setChangedPriceCells] = useState<Set<string>>(new Set())
   const [changedLineCells, setChangedLineCells] = useState<Set<string>>(new Set())
+  // Track positive/negative odds changes for color flashing
+  const [positiveOddsChanges, setPositiveOddsChanges] = useState<Set<string>>(new Set())
+  const [negativeOddsChanges, setNegativeOddsChanges] = useState<Set<string>>(new Set())
   const prevDataRef = useRef<Map<string, OddsTableItem>>(new Map())
   const isInitialMount = useRef(true)
   const activeSportsbookIds = useMemo(
@@ -1010,15 +1084,9 @@ export function OddsTable({
     [allActiveSportsbooks]
   )
 
-  // Detect changes for visual feedback (skip on initial mount and when not live)
+  // Detect changes for visual feedback (works for both live and pregame)
   useEffect(() => {
     if (!data || data.length === 0) return
-    if (!scope || scope !== 'live') {
-      // Non-live scopes should not animate on data reloads
-      prevDataRef.current = new Map(data.map((d) => [d.id, d]))
-      isInitialMount.current = false
-      return
-    }
 
     // Skip animations on initial mount
     if (isInitialMount.current) {
@@ -1034,6 +1102,8 @@ export function OddsTable({
     const added = new Set<string>()
     const priceChanged = new Set<string>()
     const lineChanged = new Set<string>()
+    const positiveOddsChanges = new Set<string>()
+    const negativeOddsChanges = new Set<string>()
 
     data.forEach((item) => {
       const id = item.id
@@ -1065,12 +1135,24 @@ export function OddsTable({
             const prevSide = prv[side]
             const baseKey = `${id}|${bk}|${side}`
             if (curSide && prevSide) {
-              if (curSide.price !== prevSide.price) priceChanged.add(`${baseKey}|price`)
+              if (curSide.price !== prevSide.price) {
+                priceChanged.add(`${baseKey}|price`)
+                // Determine if odds got better or worse
+                // Higher odds = better (e.g., -110 → +105 or +150 → +200)
+                const isBetter = curSide.price > prevSide.price
+                if (isBetter) {
+                  positiveOddsChanges.add(baseKey)
+                } else {
+                  negativeOddsChanges.add(baseKey)
+                }
+              }
               if ((curSide.line ?? 0) !== (prevSide.line ?? 0)) lineChanged.add(`${baseKey}|line`)
             } else if (curSide && !prevSide) {
               // newly added side -> treat as both price and line changed
               priceChanged.add(`${baseKey}|price`)
               lineChanged.add(`${baseKey}|line`)
+              // New odds are considered positive
+              positiveOddsChanges.add(baseKey)
             }
           })
         }
@@ -1096,6 +1178,16 @@ export function OddsTable({
       setTimeout(() => setChangedLineCells(new Set()), 1500)
     }
 
+    // Set positive/negative changes and clear after 5 seconds
+    if (positiveOddsChanges.size > 0) {
+      setPositiveOddsChanges(positiveOddsChanges)
+      setTimeout(() => setPositiveOddsChanges(new Set()), 5000)
+    }
+    if (negativeOddsChanges.size > 0) {
+      setNegativeOddsChanges(negativeOddsChanges)
+      setTimeout(() => setNegativeOddsChanges(new Set()), 5000)
+    }
+
     prevDataRef.current = currentMap
   }, [data])
   
@@ -1106,6 +1198,35 @@ export function OddsTable({
   
   const [columnOrder, setColumnOrder] = useState<string[]>(preferences.columnOrder)
   
+  // Ensure columnOrder always has all required columns (don't remove them when hiding)
+  // IMPORTANT: Visibility is controlled by showBestLine/showAverageLine separately
+  React.useEffect(() => {
+    const requiredColumns = ['entity', 'event', 'best-line', 'average-line']
+    const missingColumns = requiredColumns.filter(col => !columnOrder.includes(col))
+    
+    if (missingColumns.length > 0) {
+      // Add missing columns to the end, preserving existing order
+      const updatedOrder = [...columnOrder, ...missingColumns]
+      setColumnOrder(updatedOrder)
+      updatePreferences({ columnOrder: updatedOrder })
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsTable] Added missing columns to columnOrder:', missingColumns)
+      }
+    }
+  }, [columnOrder])
+  
+  // Responsive: detect small screens to shrink column sizes without changing desktop
+  const [isSmallScreen, setIsSmallScreen] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)') // Tailwind sm breakpoint
+    const update = () => setIsSmallScreen(mq.matches)
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   // Filter column order based on user preferences
   const filteredColumnOrder = useMemo(() => {
     let columns = columnOrder
@@ -1123,254 +1244,14 @@ export function OddsTable({
     return columns
   }, [columnOrder, preferences?.showBestLine, preferences?.showAverageLine])
   const [sportsbookOrder, setSportsbookOrder] = useState<string[]>(preferences.sportsbookOrder)
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
-  const [alternatesCache, setAlternatesCache] = useState<Record<string, any>>({})
-  const [alternatesLoading, setAlternatesLoading] = useState<Record<string, boolean>>({})
-  const [alternateRows, setAlternateRows] = useState<Record<string, Record<string, AlternateRowData[]>>>({})
 
-  // Helper function to get available lines from alternate data
-  const getAvailableLines = (item: OddsTableItem): number[] => {
-    const eventId = item.event.id
-    const playerId = item.entity.id
-    
-    const altRows = type === 'player' && playerId
-      ? alternateRows[eventId]?.[playerId] || []
-      : type === 'game'
-      ? alternateRows[eventId]?.['game'] || []
-      : []
-    
-    // Extract unique line values and sort them
-    const lines = altRows.map(row => row.lineValue).filter(line => line != null)
-    const uniqueLines = Array.from(new Set(lines)).sort((a, b) => a - b)
-    
-    return uniqueLines
-  }
-
-  // Helper to check if alternates are being loaded for an event
-  const isLoadingAlternates = (eventId: string): boolean => {
-    return alternatesLoading[eventId] || false
-  }
-
-  // Helper function to get alternate data for a specific line
-  const getAlternateDataForLine = (item: OddsTableItem, selectedLine: number): AlternateRowData | null => {
-    const eventId = item.event.id
-    const playerId = item.entity.id
-    
-    const altRows = type === 'player' && playerId
-      ? alternateRows[eventId]?.[playerId] || []
-      : type === 'game'
-      ? alternateRows[eventId]?.['game'] || []
-      : []
-    
-    // Find the alternate row that matches the selected line
-    return altRows.find(row => row.lineValue === selectedLine) || null
-  }
-
-  // State to track custom line selections for each row
-  const [customLineSelections, setCustomLineSelections] = useState<Record<string, number>>({})
-  const [globalSelectedLine, setGlobalSelectedLine] = useState<number | 'primary'>('primary')
-
-  // Memoized cache for processed row data to avoid expensive recalculations
-  const processedRowCache = useMemo(() => new Map<string, OddsTableItem>(), [])
-
-  // Function to fetch alternate odds data for a specific event
-  const fetchAlternates = useCallback(async (eventId: string) => {
-    if (alternatesCache[eventId] || alternatesLoading[eventId]) {
-      return
-    }
-
-    setAlternatesLoading(prev => ({ ...prev, [eventId]: true }))
-    try {
-      const query = new URLSearchParams({ sport, type, market, scope, eventId })
-      const response = await fetch(`/api/odds-screen/alternates?${query.toString()}`)
-      const result = await response.json()
-      if (result?.success) {
-        const playersInPayload = Object.keys(result?.data?.players || {})
-        console.log('[Alternates] cache set for event', eventId, 'players:', playersInPayload)
-        setAlternatesCache(prev => ({ ...prev, [eventId]: result.data }))
-      } else {
-        console.error('Failed to fetch alternates', result?.error)
-      }
-    } catch (error) {
-      console.error('Error fetching alternates', error)
-    } finally {
-      setAlternatesLoading(prev => ({ ...prev, [eventId]: false }))
-    }
-  }, [alternatesCache, alternatesLoading, sport, type, market, scope])
-
-  // Helper function to update primary row data with selected line
-  const updatePrimaryRowWithLine = useCallback(async (item: OddsTableItem, selectedLine: number) => {
-    const rowKey = `${item.event.id}-${item.entity.id || 'game'}`
-    
-    // Performance tracking for interactions
-    performanceRef.current.interactionStart = performance.now()
-    
-    // Ensure alternates are fetched before trying to update
-    if (!alternatesCache[item.event.id]) {
-      console.log(`[Line Selection] Fetching alternates for event ${item.event.id}`)
-      await fetchAlternates(item.event.id)
-    }
-    
-    const alternateData = getAlternateDataForLine(item, selectedLine)
-    
-    if (alternateData) {
-      // Precompute and seed cache for the target line to avoid UI flicker
-      const cacheKeyForNewLine = `${rowKey}-${selectedLine}`
-      try {
-        const merged: OddsTableItem = {
-          ...item,
-          odds: {
-            ...item.odds,
-            best: {
-              over: alternateData.best.over ? { ...alternateData.best.over, line: selectedLine } : undefined,
-              under: alternateData.best.under ? { ...alternateData.best.under, line: selectedLine } : undefined,
-            },
-            books: Object.fromEntries(
-              Object.entries(alternateData.books).map(([bookId, bookData]) => [
-                bookId,
-                {
-                  over: bookData.over ? { ...bookData.over, line: selectedLine } : undefined,
-                  under: bookData.under ? { ...bookData.under, line: selectedLine } : undefined,
-                },
-              ])
-            ),
-          },
-        }
-        processedRowCache.set(cacheKeyForNewLine, merged)
-      } catch {}
-
-      // Store the custom line selection (will read from cache on next render)
-      setCustomLineSelections(prev => {
-        const newSelections = {
-          ...prev,
-          [rowKey]: selectedLine
-        }
-        // Track interaction performance
-        const interactionTime = performance.now() - performanceRef.current.interactionStart
-        if (interactionTime > 100) {
-          console.warn(`[Performance] Slow interaction: ${interactionTime.toFixed(2)}ms`)
-        }
-        return newSelections
-      })
-    } else {
-      console.warn(`[Line Selection] No alternate data found for line ${selectedLine} on event ${item.event.id}`)
-    }
-  }, [processedRowCache, alternatesCache, fetchAlternates, getAlternateDataForLine])
-
-  // Helper function to reset to primary line
-  const resetToPrimaryLine = useCallback((item: OddsTableItem) => {
-    const rowKey = `${item.event.id}-${item.entity.id || 'game'}`
-    
-    // Performance tracking for reset operations
-    
-    // Seed cache with the BASE primary row from current data (not the processed/alt row)
-    try {
-      const base = data.find(
-        (d) => (d.id && d.id === item.id) || (d.event.id === item.event.id && (d.entity.id || '') === (item.entity.id || ''))
-      )
-      if (base) processedRowCache.set(rowKey, base)
-      else processedRowCache.delete(rowKey)
-    } catch {}
-    
-    // Remove the custom line selection to revert to primary
-    setCustomLineSelections(prev => {
-      const newSelections = { ...prev }
-      delete newSelections[rowKey]
-      // Efficient state update
-      return newSelections
-    })
-  }, [processedRowCache, data])
-
-  // Eagerly fetch alternates for visible rows on mount to enable backfill on page load
-  useEffect(() => {
-    if (!preferences.includeAlternates || data.length === 0) return
-    const uniqueEvents = Array.from(new Set(data.slice(0, 20).map(item => item.event.id)))
-    uniqueEvents.forEach(eventId => {
-      if (!alternatesCache[eventId] && !alternatesLoading[eventId]) {
-        void fetchAlternates(eventId)
-      }
-    })
-  }, [data, preferences.includeAlternates, alternatesCache, alternatesLoading, fetchAlternates])
-
-  // Sort and merge data with missing sides filled from alternates, then group by date
+  // Sort and group data by date
   const sortedData = useMemo(() => {
     if (!data || data.length === 0) return []
 
-    // Optimized data processing with caching
-    const dataWithFilledSides = data.map(item => {
-      const rowKey = `${item.event.id}-${item.entity.id || 'game'}`
-      const customLine = customLineSelections[rowKey]
-      
-      // Create cache key that includes custom line selection
-      const cacheKey = customLine ? `${rowKey}-${customLine}` : rowKey
-      
-      // Check cache first to avoid expensive recalculations
-      if (processedRowCache.has(cacheKey)) {
-        return processedRowCache.get(cacheKey)!
-      }
-      
-      const alternateData = alternatesCache[item.event.id]
-      let processedItem = alternateData ? fillMissingSides(item, alternateData, type) : item
-      // Also backfill missing books from alternates (nearest to primary line)
-      if (alternateData) {
-        const altRowsForEvent: Record<string, AlternateRowData[]> = (() => {
-          const next: Record<string, AlternateRowData[]> = {}
-          if (type === 'player') {
-            const players = (alternateData as any)?.players || {}
-            Object.keys(players).forEach((pid) => {
-              const rows = parsePlayerAlternateRows(alternateData, pid)
-              if (rows.length) next[pid] = rows
-            })
-          } else if (type === 'game') {
-            const rows = parseGameAlternateRows(alternateData, item.event.id)
-            if (rows.length) next['game'] = rows
-          }
-          return next
-        })()
-        processedItem = fillMissingBooksFromAlternates(processedItem, altRowsForEvent)
-      }
-      
-      if (customLine && alternateData) {
-        // Replace primary row data with selected alternate line data
-        const alternateRowData = getAlternateDataForLine(item, customLine)
-        if (alternateRowData) {
-          // Applying custom line data transformation
-          
-          // Create new item with alternate line data
-          processedItem = {
-            ...processedItem,
-            odds: {
-              ...processedItem.odds,
-              best: {
-                over: alternateRowData.best.over ? { ...alternateRowData.best.over, line: customLine } : undefined,
-                under: alternateRowData.best.under ? { ...alternateRowData.best.under, line: customLine } : undefined
-              },
-              books: Object.fromEntries(
-                Object.entries(alternateRowData.books).map(([bookId, bookData]) => [
-                  bookId,
-                  {
-                    over: bookData.over ? { ...bookData.over, line: customLine } : undefined,
-                    under: bookData.under ? { ...bookData.under, line: customLine } : undefined
-                  }
-                ])
-              )
-            }
-          }
-          
-          // Data transformation complete
-        } else {
-          // No alternate data available for selected line
-        }
-      }
-      
-      // Cache the result with the appropriate key
-      processedRowCache.set(cacheKey, processedItem)
-      return processedItem
-    })
-
     // Apply search filtering if searchQuery is provided
     const filteredData = searchQuery.trim() 
-      ? dataWithFilledSides.filter(item => {
+      ? data.filter(item => {
           const query = searchQuery.toLowerCase().trim()
           
           // For player props, search in player name
@@ -1387,7 +1268,7 @@ export function OddsTable({
           
           return false
         })
-      : dataWithFilledSides
+      : data
 
     const safeTime = (t?: string) => {
       const n = t ? new Date(t).getTime() : 0
@@ -1422,7 +1303,7 @@ export function OddsTable({
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
       return 0
     })
-  }, [data, sortField, sortDirection, alternatesCache, type, customLineSelections, searchQuery])
+  }, [data, sortField, sortDirection, type, searchQuery])
 
   // Performance monitoring for VC-level metrics
   const performanceRef = useRef({
@@ -1456,23 +1337,12 @@ export function OddsTable({
     return () => window.removeEventListener('error', handleError)
   }, [])
 
-  // Virtual scrolling optimization for large datasets
-  const ITEMS_PER_PAGE = 100 // Optimized for better UX while maintaining performance
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: ITEMS_PER_PAGE })
-
-  // Debounced updates for high-frequency interactions
-  const debouncedUpdateLine = useCallback(
-    (() => {
-      let timeoutId: ReturnType<typeof setTimeout>
-      return (item: OddsTableItem, line: number) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(async () => {
-          await updatePrimaryRowWithLine(item, line)
-        }, 150)
-      }
-    })(),
-    [updatePrimaryRowWithLine]
-  )
+  // Virtual scrolling (mobile VC-level): only render visible rows on small screens
+  const containerRef = useRef<HTMLDivElement>(null)
+  const ROW_HEIGHT = 64 // approximate row height
+  const OVERSCAN = 10
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 })
+  // NOTE: effect moved below groupedData initialization so dependency order is valid
   
   // Group data by date for rendering with separators
   const groupedData = useMemo(() => {
@@ -1521,29 +1391,34 @@ export function OddsTable({
     return groups
   }, [sortedData])
 
+  // Set up/update virtual window after groupedData is ready
+  useEffect(() => {
+    if (!isSmallScreen) return
+    const el = containerRef.current
+    if (!el) return
+    const update = () => {
+      const scrollTop = el.scrollTop
+      const viewport = el.clientHeight || 0
+      const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+      const count = Math.ceil(viewport / ROW_HEIGHT) + OVERSCAN * 2
+      const end = Math.min(start + count, groupedData.length)
+      setVisibleRange({ start, end })
+    }
+    update()
+    el.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    return () => {
+      el.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [isSmallScreen, groupedData.length])
+
   useEffect(() => {
     if (!isLoading) {
       setColumnOrder(preferences.columnOrder)
       setSportsbookOrder(preferences.sportsbookOrder)
     }
   }, [isLoading, preferences.columnOrder, preferences.sportsbookOrder])
-
-
-
-  // Cleanup cache when data changes to prevent memory leaks
-  useEffect(() => {
-    processedRowCache.clear()
-    // Also cleanup custom selections for rows that no longer exist
-    if (data.length > 0) {
-      const currentRowKeys = new Set(data.map(item => `${item.event.id}-${item.entity.id || 'game'}`))
-      setCustomLineSelections(prev => {
-        const cleaned = Object.fromEntries(
-          Object.entries(prev).filter(([key]) => currentRowKeys.has(key))
-        )
-        return Object.keys(cleaned).length !== Object.keys(prev).length ? cleaned : prev
-      })
-    }
-  }, [data, processedRowCache])
 
   // Memoized calculation functions for better performance
   const memoizedCalculateUserBestOdds = useCallback((rowItem: OddsTableItem, side: 'over' | 'under', visibleSportsbooks: string[]) => {
@@ -1554,91 +1429,12 @@ export function OddsTable({
     return calculateUserAverageOdds(rowItem, side, visibleSportsbooks)
   }, [])
 
-  // Optimized batch fetching of alternates for line selectors and missing sides
-  useEffect(() => {
-    if (!data || data.length === 0) return
-
-    // Get unique event IDs from current data
-    const eventIds = Array.from(new Set(data.map(item => item.event.id)))
-    const eventsToFetch = eventIds.filter(eventId => 
-      !alternatesCache[eventId] && !alternatesLoading[eventId]
-    )
-    
-    if (eventsToFetch.length === 0) return
-
-    // Batch fetch with intelligent prioritization
-    const batchFetch = async () => {
-      // Prioritize visible rows (first 20) for immediate dropdown population
-      const visibleEventIds = eventIds.slice(0, 20)
-      const priorityFetches = eventsToFetch.filter(id => visibleEventIds.includes(id))
-      const backgroundFetches = eventsToFetch.filter(id => !visibleEventIds.includes(id))
-
-      // Fetch priority events in parallel (max 5 concurrent)
-      const priorityBatches = []
-      for (let i = 0; i < priorityFetches.length; i += 5) {
-        const batch = priorityFetches.slice(i, i + 5)
-        priorityBatches.push(
-          Promise.all(batch.map(eventId => fetchAlternates(eventId)))
-        )
-      }
-
-      // Execute priority batches sequentially to avoid overwhelming the server
-      for (const batchPromise of priorityBatches) {
-        await batchPromise
-      }
-
-      // Then fetch remaining events in background with delay
-      if (backgroundFetches.length > 0) {
-        setTimeout(() => {
-          backgroundFetches.forEach(eventId => {
-            if (!alternatesCache[eventId] && !alternatesLoading[eventId]) {
-              void fetchAlternates(eventId)
-            }
-          })
-        }, 1000) // 1 second delay for background fetches
-      }
-    }
-
-    void batchFetch()
-  }, [data, alternatesCache, alternatesLoading, fetchAlternates])
-
-  // Reset alternates when core parameters change (sport/type/market/scope)
-  useEffect(() => {
-    // Collapse immediately for snappy UX when the primary market switches
-    setExpandedRows({})
-    // Clear alternates caches so new market can fetch cleanly
-    setAlternatesCache({})
-    setAlternatesLoading({})
-    setAlternateRows({})
-  }, [sport, type, market, scope])
-
-  useEffect(() => {
-    const next: Record<string, Record<string, AlternateRowData[]>> = {}
-    Object.entries(alternatesCache).forEach(([eventId, cache]) => {
-      if (type === 'player') {
-        // Handle player alternates
-        const players = (cache as any)?.players || {}
-        Object.keys(players).forEach((playerId) => {
-          const rows = parsePlayerAlternateRows(cache, playerId)
-          if (rows.length > 0) {
-            if (!next[eventId]) next[eventId] = {}
-            next[eventId][playerId] = rows
-          }
-        })
-      } else if (type === 'game') {
-        // Handle game alternates - use 'game' as the ID since there's only one per event
-        const rows = parseGameAlternateRows(cache, eventId)
-        if (rows.length > 0) {
-          if (!next[eventId]) next[eventId] = {}
-          next[eventId]['game'] = rows
-        }
-      }
-    })
-    setAlternateRows(next)
-  }, [alternatesCache, type])
-
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -1646,54 +1442,112 @@ export function OddsTable({
 
   // Determine which sportsbooks to show as columns
   const displaySportsbooks = useMemo(() => {
-    const preferredSportsbooks = preferences.selectedBooks && preferences.selectedBooks.length
-      ? preferences.selectedBooks
-      : activeSportsbookIds
-    const allSportsbooks = [...allActiveSportsbooks].sort(
-      (a, b) => (b.priority || 0) - (a.priority || 0)
-    )
+    const normalizeBookId = (id: string): string => {
+      const lower = (id || '').toLowerCase()
+      switch (lower) {
+        case 'hardrock': return 'hard-rock'
+        case 'hardrock-indiana': return 'hard-rock-indiana'
+        case 'ballybet': return 'bally-bet'
+        case 'sportsinteraction': return 'sports-interaction'
+        default: return lower
+      }
+    }
+    // Build a union of IDs from (in priority): explicit prop, user selection, and data-present books
+    const idSet = new Set<string>()
+    const addIds = (ids?: string[]) => ids?.forEach((id) => idSet.add(normalizeBookId(id)))
 
+    // Priority 1: Explicit prop (highest priority)
     if (visibleSportsbooks && visibleSportsbooks.length > 0) {
-      const filteredBooks = visibleSportsbooks
-        .map((id) => getSportsbookById(id))
-        .filter((book): book is SportsbookMeta => book !== undefined && (book.isActive ?? true))
-
-      return filteredBooks.slice(0, maxSportsbookColumns)
+      addIds(visibleSportsbooks)
+    }
+    // Priority 2: User preferences (if they have selected specific books)
+    else if (preferences.selectedBooks && preferences.selectedBooks.length > 0) {
+      addIds(preferences.selectedBooks)
+      // Development logging to verify Pinnacle is included
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsTable] Selected books from preferences:', preferences.selectedBooks)
+        console.log('[OddsTable] Includes Pinnacle?', preferences.selectedBooks.includes('pinnacle'))
+      }
+    }
+    // Priority 3: Default to all active sportsbooks if no preferences set
+    else {
+      addIds(allActiveSportsbooks.map((sb) => sb.id))
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[OddsTable] Using all active sportsbooks (no preferences):', allActiveSportsbooks.map(sb => sb.id))
+      }
     }
 
-    const preferredBooks = preferredSportsbooks
-      .map((id) => getSportsbookById(id))
-      .filter((book): book is SportsbookMeta => book !== undefined && (book.isActive ?? true))
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    // Also include any books present in current data (union with above)
+    data.forEach((item) => {
+      const books = item.odds?.books || {}
+      Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
+      // Also include normalized books if available
+      const nbooks = item.odds?.normalized?.books || {}
+      Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
+    })
 
-    return preferredBooks.slice(0, maxSportsbookColumns)
+    // Convert set to array and get book metadata
+    const ids = Array.from(idSet)
+    const books = ids
+      .map((id) => getSportsbookById(id))
+      .filter((book): book is SportsbookMeta => book !== undefined)
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[OddsTable] Final displaySportsbooks:', books.map(b => b.id))
+    }
+
+    return typeof maxSportsbookColumns === 'number' ? books.slice(0, maxSportsbookColumns) : books
   }, [
     preferences.selectedBooks,
-    activeSportsbookIds,
     visibleSportsbooks,
     maxSportsbookColumns,
     allActiveSportsbooks,
+    data,
   ])
 
   // Get all sportsbooks (show all configured books, display "-" for missing data)
   const availableSportsbooks = useMemo(() => displaySportsbooks, [displaySportsbooks])
 
   // Initialize sportsbook order when availableSportsbooks changes
+  // IMPORTANT: sportsbookOrder should ALWAYS contain ALL books, not just selected ones
+  // Visibility is controlled by selectedBooks separately
   React.useEffect(() => {
-    if (availableSportsbooks.length > 0 && sportsbookOrder.length === 0) {
-      setSportsbookOrder(availableSportsbooks.map(book => book.id))
+    if (availableSportsbooks.length === 0) return
+    
+    const allBookIds = availableSportsbooks.map(book => book.id)
+    
+    // If sportsbookOrder is empty, initialize with all books
+    if (sportsbookOrder.length === 0) {
+      setSportsbookOrder(allBookIds)
+      updatePreferences({ sportsbookOrder: allBookIds })
+      return
     }
-  }, [availableSportsbooks, sportsbookOrder.length])
+    
+    // If there are new books not in sportsbookOrder, append them to the end
+    const missingBooks = allBookIds.filter(id => !sportsbookOrder.includes(id))
+    if (missingBooks.length > 0) {
+      const updatedOrder = [...sportsbookOrder, ...missingBooks]
+      setSportsbookOrder(updatedOrder)
+      updatePreferences({ sportsbookOrder: updatedOrder })
+    }
+  }, [availableSportsbooks, sportsbookOrder])
 
   // Create ordered sportsbooks based on current order
   const orderedSportsbooks = useMemo(() => {
     if (!sportsbookOrder || sportsbookOrder.length === 0) return availableSportsbooks
-    
+    const normalizeBookId = (id: string): string => {
+      const lower = (id || '').toLowerCase()
+      switch (lower) {
+        case 'hardrock': return 'hard-rock'
+        case 'hardrock-indiana': return 'hard-rock-indiana'
+        case 'ballybet': return 'bally-bet'
+        case 'sportsinteraction': return 'sports-interaction'
+        default: return lower
+      }
+    }
     const ordered = sportsbookOrder
-      .map(id => availableSportsbooks.find(book => book.id === id))
+      .map(id => availableSportsbooks.find(book => book.id === normalizeBookId(id)))
       .filter(Boolean) as SportsbookMeta[]
-    
-    // Add any new sportsbooks that aren't in the order yet
     const missingBooks = availableSportsbooks.filter(book => !sportsbookOrder.includes(book.id))
     return [...ordered, ...missingBooks]
   }, [availableSportsbooks, sportsbookOrder])
@@ -1702,44 +1556,191 @@ export function OddsTable({
   const columnHelper = createColumnHelper<OddsTableItem>()
 
   const tableColumns = useMemo(() => {
-    const cols: any[] = []
-
-    cols.push(
-      columnHelper.display({
+    // Define all main column definitions
+    const mainColumnDefs: Record<string, any> = {
+      'entity': columnHelper.display({
         id: 'entity',
-        header: 'Entity',
-        size: 220,
+        header: () => {
+          const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+            id: 'entity' 
+          })
+
+          const style = {
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+          }
+
+          return (
+            <div
+              ref={setNodeRef}
+              style={style}
+              className={cn(
+                "relative group/header flex items-center justify-between",
+                isDragging && "z-50"
+              )}
+            >
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                {type === 'game' ? 'Game' : 'Player'}
+              </span>
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4 text-neutral-400" />
+              </div>
+            </div>
+          )
+        },
+        size: isSmallScreen ? 110 : 160,
         cell: (info) => {
           const item = info.row.original
           if (item.entity.type === 'game') {
+            // Hide expand button for moneyline markets (no alternates)
+            const isMoneyline = item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))
+            
             return (
-              <div className="min-w-[200px]">
-                <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {item.event?.awayTeam} @ {item.event?.homeTeam}
-                </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {item.entity.details}
+              <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[200px]">
+                <ExpandButton hide={true} />
+                <div className="flex-1 min-w-0">
+                  {/* Two-line display with team logos: Away on top, Home on bottom */}
+                  <div className="flex flex-col gap-0.5">
+                    <div className={cn(
+                      "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
+                      sport === 'ncaaf' ? 'text-[13px]' : 'text-[15px]'
+                    )}>
+                      {hasTeamLogos(sport) && (
+                        <img
+                          src={getTeamLogoUrl(item.event?.awayTeam || '')}
+                          alt={item.event?.awayTeam || ''}
+                          className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
+                          onError={(e) => {
+                            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      )}
+                      <span>{sport === 'ncaaf' ? (item.event?.awayName || item.event?.awayTeam) : item.event?.awayTeam}</span>
+                    </div>
+                    <div className={cn(
+                      "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
+                      sport === 'ncaaf' ? 'text-[13px]' : 'text-[15px]'
+                    )}>
+                      {hasTeamLogos(sport) && (
+                        <img
+                          src={getTeamLogoUrl(item.event?.homeTeam || '')}
+                          alt={item.event?.homeTeam || ''}
+                          className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
+                          onError={(e) => {
+                            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      )}
+                      <span>{sport === 'ncaaf' ? (item.event?.homeName || item.event?.homeTeam) : item.event?.homeTeam}</span>
+                    </div>
+                  </div>
+                  {/* Hide redundant market name for spreads/totals in game column */}
+                  {item.entity.details && !['Point Spread', 'Total Points', 'Moneyline'].includes(item.entity.details) && (
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                      {item.entity.details}
+                    </div>
+                  )}
                 </div>
               </div>
             )
           }
+          // Player props
+          const playerTeam = item.entity?.team; // Team abbreviation (e.g., "JAX")
+          const awayTeam = item.event?.awayTeam;
+          const homeTeam = item.event?.homeTeam;
+          const showLogos = hasTeamLogos(sport);
+          
           return (
-            <div className="min-w-[200px]">
-              <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                {item.entity?.name || 'Unknown'}
-              </div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                {item.entity?.details}
+            <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[200px]">
+              <ExpandButton disabled={!preferences.includeAlternates} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {item.entity?.name || 'Unknown'}
+                  {item.entity?.details && (
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                      ({item.entity.details})
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  {showLogos && awayTeam && (
+                    <img 
+                      src={getTeamLogoUrl(awayTeam)} 
+                      alt={awayTeam}
+                      className="w-4 h-4 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                  <span className={playerTeam === awayTeam ? 'font-semibold text-neutral-900 dark:text-neutral-100' : ''}>
+                    {awayTeam}
+                  </span>
+                  <span className="mx-0.5">@</span>
+                  {showLogos && homeTeam && (
+                    <img 
+                      src={getTeamLogoUrl(homeTeam)} 
+                      alt={homeTeam}
+                      className="w-4 h-4 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                  <span className={playerTeam === homeTeam ? 'font-semibold text-neutral-900 dark:text-neutral-100' : ''}>
+                    {homeTeam}
+                  </span>
+                </div>
               </div>
             </div>
           )
         }
       }),
-
-      columnHelper.display({
+      'event': columnHelper.display({
         id: 'event',
-        header: 'Event',
-        size: 110,
+        header: () => {
+          const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+            id: 'event' 
+          })
+
+          const style = {
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+          }
+
+          return (
+            <div
+              ref={setNodeRef}
+              style={style}
+              className={cn(
+                "relative group/header flex items-center justify-between",
+                isDragging && "z-50"
+              )}
+            >
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Event
+              </span>
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4 text-neutral-400" />
+              </div>
+            </div>
+          )
+        },
+        size: isSmallScreen ? 48 : 80,
         cell: (info) => {
           const item = info.row.original
           return (
@@ -1750,52 +1751,208 @@ export function OddsTable({
           )
         }
       }),
-
-      columnHelper.display({
+      'best-line': columnHelper.display({
         id: 'best-line',
-        header: 'Best Line',
-        size: 140,
+        header: () => {
+          const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+            id: 'best-line' 
+          })
+
+          const style = {
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+          }
+
+          return (
+            <div
+              ref={setNodeRef}
+              style={style}
+              className={cn(
+                "relative group/header flex items-center justify-between",
+                isDragging && "z-50"
+              )}
+            >
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Best Line
+              </span>
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4 text-neutral-400" />
+              </div>
+            </div>
+          )
+        },
+        size: isSmallScreen ? 96 : 140,
         cell: (info) => {
           const item = info.row.original
+            const isMoneyline = item.entity.type === 'game' && (
+            item.entity.details === 'Moneyline' ||
+            (typeof market === 'string' && market.toLowerCase().includes('moneyline')) ||
+            (((item.odds?.best?.over?.line ?? 0) === 0) && ((item.odds?.best?.under?.line ?? 0) === 0))
+          )
+            const isSpread = item.entity.type === 'game' && (
+              item.entity.details === 'Point Spread' ||
+              (typeof market === 'string' && /spread/i.test(market)) ||
+              // Fallback: non-zero line with best over/under both present and not totals
+              (((item.odds?.best?.over?.line ?? null) !== null || (item.odds?.best?.under?.line ?? null) !== null) &&
+               !((item.odds?.best?.over?.line ?? 0) === 0 && (item.odds?.best?.under?.line ?? 0) === 0) &&
+               !(typeof market === 'string' && /(total|totals)/i.test(market)))
+            )
           return (
             <div className="space-y-1 text-center">
-              {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-              {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+              {/* Team markets (moneyline & spread): Away (top under), Home (bottom over). Totals unchanged */}
+              {isMoneyline || isSpread ? (
+                <>
+                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                </>
+              ) : (
+                <>
+                  {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                </>
+              )}
             </div>
           )
         }
       }),
-
-      columnHelper.display({
+      'average-line': columnHelper.display({
         id: 'average-line',
-        header: 'Avg Line',
-        size: 140,
+        header: () => {
+          const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+            id: 'average-line' 
+          })
+
+          const style = {
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+          }
+
+          return (
+            <div
+              ref={setNodeRef}
+              style={style}
+              className={cn(
+                "relative group/header flex items-center justify-between",
+                isDragging && "z-50"
+              )}
+            >
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Avg Line
+              </span>
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4 text-neutral-400" />
+              </div>
+            </div>
+          )
+        },
+        size: isSmallScreen ? 96 : 140,
         cell: (info) => {
           const item = info.row.original
+          const isMoneyline = item.entity.type === 'game' && (
+            item.entity.details === 'Moneyline' ||
+            (typeof market === 'string' && market.toLowerCase().includes('moneyline')) ||
+            (((item.odds?.best?.over?.line ?? 0) === 0) && ((item.odds?.best?.under?.line ?? 0) === 0))
+          )
+          const isSpread = item.entity.type === 'game' && (
+            item.entity.details === 'Point Spread' ||
+            (typeof market === 'string' && /spread/i.test(market))
+          )
           return (
             <div className="space-y-1 text-center">
-              {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-              {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+              {/* Team markets (moneyline & spread): Away (top under), Home (bottom over). Totals unchanged */}
+              {isMoneyline || isSpread ? (
+                <>
+                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                </>
+              ) : (
+                <>
+                  {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                </>
+              )}
             </div>
           )
         }
-      }),
-    )
+      })
+    }
 
-    // Dynamic sportsbook columns
-    orderedSportsbooks.forEach((book) => {
+    // Order main columns based on filteredColumnOrder
+    const cols: any[] = filteredColumnOrder
+      .map(colId => mainColumnDefs[colId])
+      .filter(Boolean)
+
+    // Dynamic sportsbook columns (draggable)
+    orderedSportsbooks.forEach((book, bookIndex) => {
       cols.push(
         columnHelper.display({
           id: book.id,
-          header: () => (
-            <div className="flex flex-col items-center space-y-1 min-w-[120px]">
-              <img src={book.image.light} alt={book.name} className="h-6 w-auto object-contain" />
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{book.name}</span>
-            </div>
-          ),
-          size: 140,
+          header: () => {
+            const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+              id: book.id 
+            })
+
+            const style = {
+              transform: CSS.Transform.toString(transform),
+              transition,
+              opacity: isDragging ? 0.5 : 1,
+            }
+
+            return (
+              <div
+                ref={setNodeRef}
+                style={style}
+                className={cn(
+                  "relative group/header flex items-center justify-center",
+                  isDragging && "z-50"
+                )}
+              >
+                <button
+                  onClick={() => {
+                    if (book.links.desktop) {
+                      if (isPro) {
+                        window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
+                      } else {
+                        setShowProGate(true)
+                      }
+                    }
+                  }}
+                  className="flex flex-col items-center space-y-1 min-w-[96px] sm:min-w-[120px] hover:opacity-80 transition-opacity"
+                  title={`Visit ${book.name}`}
+                >
+                  <img src={book.image.light} alt={book.name} className="book-logo" />
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{book.name}</span>
+                </button>
+                {/* Drag Handle */}
+                <div
+                  {...attributes}
+                  {...listeners}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GripVertical className="w-4 h-4 text-neutral-400" />
+                </div>
+              </div>
+            )
+          },
+          size: isSmallScreen ? 100 : 140,
           cell: (info) => {
             const item = info.row.original
+            const n = item.odds.normalized
             const bookData = item.odds.books?.[book.id] ||
                               item.odds.books?.[book.id.replace('-', '_')] ||
                               item.odds.books?.[book.id.replace('_', '-')] ||
@@ -1815,87 +1972,131 @@ export function OddsTable({
               </div>
             )
 
+            // Prefer normalized mapping when present
+            const isMoneyline = n?.marketKind === 'moneyline' || (item.entity.type === 'game' && (item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))))
+            const isSpread = n?.marketKind === 'spread' || (item.entity.type === 'game' && ((item.entity.details === 'Point Spread') || (typeof market === 'string' && /spread/i.test(market))))
+            const sideTop = (isMoneyline || isSpread) && n?.sideMap?.away ? n!.sideMap!.away : (isMoneyline ? 'under' : 'over')
+            const sideBottom = (isMoneyline || isSpread) && n?.sideMap?.home ? n!.sideMap!.home : (isMoneyline ? 'over' : 'under')
+            const firstSide = sideTop
+            const secondSide = sideBottom
+            const firstData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.away : bookData.over
+            const secondData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.home : bookData.under
+
+            // Fallback when normalized not available (keep current over/under)
+            const fd = firstData || (isMoneyline ? bookData.under : bookData.over)
+            const sd = secondData || (isMoneyline ? bookData.over : bookData.under)
+
             return (
               <div className="space-y-1">
-                {bookData.over ? (
+                {fd ? (
                   ((odds) => {
                     const isBestOdds = (() => {
-                      const { userBest } = calculateUserBestOdds(item, 'over', effectiveVisibleSportsbooks)
+                      if (!columnHighlighting) return false
+                      const { userBest } = calculateUserBestOdds(item, firstSide, effectiveVisibleSportsbooks)
                       return !!userBest && odds.price === userBest.price && (odds.line ?? 0) === (userBest.line ?? 0)
                     })()
-                    const cellKeyPrice = `${item.id}|${book.id}|over|price`
-                    const cellKeyLine = `${item.id}|${book.id}|over|line`
+                    const cellKeyBase = `${item.id}|${book.id}|${firstSide}`
+                    const cellKeyPrice = `${cellKeyBase}|price`
+                    const cellKeyLine = `${cellKeyBase}|line`
                     const priceChanged = changedPriceCells.has(cellKeyPrice)
                     const lineChanged = changedLineCells.has(cellKeyLine)
+                    const isPositiveChange = positiveOddsChanges.has(cellKeyBase)
+                    const isNegativeChange = negativeOddsChanges.has(cellKeyBase)
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        window.open(odds.link, '_blank', 'noopener,noreferrer')
+                        if (isPro) {
+                          window.open(odds.link, '_blank', 'noopener,noreferrer')
+                        } else {
+                          setShowProGate(true)
+                        }
                       } else {
-                        onOddsClick?.(item, 'over', book.id)
+                        onOddsClick?.(item, firstSide, book.id)
                       }
                     }
-                    const moneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
                     return (
                       <OddsCellButton
                         itemId={item.id}
                         sportsbookId={book.id}
                         sportsbookName={book.name}
-                        side={'over'}
+                        side={firstSide}
                         odds={odds}
                         isHighlighted={isBestOdds}
                         priceChanged={priceChanged}
                         lineChanged={lineChanged}
-                        isMoneyline={moneyline}
+                        isPositiveChange={isPositiveChange}
+                        isNegativeChange={isNegativeChange}
+                        isMoneyline={isMoneyline}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
-                          if (moneyline) return sd === 'over' ? item.event.awayTeam : item.event.homeTeam
-                          return sd === 'over' ? `o${ln}` : `u${ln}`
+                          if (isMoneyline) return ''
+                          // Fallback for initial load if line is undefined
+                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
+                          if (isSpread) {
+                            const abs = Math.abs(baseLine)
+                            // Away on top (firstSide). Show away as negative, home as positive
+                            return sd === firstSide ? `-${abs}` : `+${abs}`
+                          }
+                          return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
                         }}
                         onClick={onClick}
                       />
                     )
-                  })(bookData.over)) : renderPlaceholder()}
+                  })(fd)) : renderPlaceholder()}
 
-                {bookData.under ? (
+                {sd ? (
                   ((odds) => {
                     const isBestOdds = (() => {
-                      const { userBest } = calculateUserBestOdds(item, 'under', effectiveVisibleSportsbooks)
+                      if (!columnHighlighting) return false
+                      const { userBest } = calculateUserBestOdds(item, secondSide, effectiveVisibleSportsbooks)
                       return !!userBest && odds.price === userBest.price && (odds.line ?? 0) === (userBest.line ?? 0)
                     })()
-                    const cellKeyPrice = `${item.id}|${book.id}|under|price`
-                    const cellKeyLine = `${item.id}|${book.id}|under|line`
+                    const cellKeyBase = `${item.id}|${book.id}|${secondSide}`
+                    const cellKeyPrice = `${cellKeyBase}|price`
+                    const cellKeyLine = `${cellKeyBase}|line`
                     const priceChanged = changedPriceCells.has(cellKeyPrice)
                     const lineChanged = changedLineCells.has(cellKeyLine)
+                    const isPositiveChange = positiveOddsChanges.has(cellKeyBase)
+                    const isNegativeChange = negativeOddsChanges.has(cellKeyBase)
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        window.open(odds.link, '_blank', 'noopener,noreferrer')
+                        if (isPro) {
+                          window.open(odds.link, '_blank', 'noopener,noreferrer')
+                        } else {
+                          setShowProGate(true)
+                        }
                       } else {
-                        onOddsClick?.(item, 'under', book.id)
+                        onOddsClick?.(item, secondSide, book.id)
                       }
                     }
-                    const moneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
                     return (
                       <OddsCellButton
                         itemId={item.id}
                         sportsbookId={book.id}
                         sportsbookName={book.name}
-                        side={'under'}
+                        side={secondSide}
                         odds={odds}
                         isHighlighted={isBestOdds}
                         priceChanged={priceChanged}
                         lineChanged={lineChanged}
-                        isMoneyline={moneyline}
+                        isPositiveChange={isPositiveChange}
+                        isNegativeChange={isNegativeChange}
+                        isMoneyline={isMoneyline}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
-                          if (moneyline) return sd === 'over' ? item.event.awayTeam : item.event.homeTeam
-                          return sd === 'over' ? `o${ln}` : `u${ln}`
+                          if (isMoneyline) return ''
+                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
+                          if (isSpread) {
+                            const abs = Math.abs(baseLine)
+                            return sd === firstSide ? `-${abs}` : `+${abs}`
+                          }
+                          return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
                         }}
                         onClick={onClick}
                       />
                     )
-                  })(bookData.under)) : renderPlaceholder()}
+                  })(sd)) : renderPlaceholder()}
               </div>
             )
           }
@@ -1904,7 +2105,7 @@ export function OddsTable({
     })
 
     return cols
-  }, [orderedSportsbooks, effectiveVisibleSportsbooks, changedPriceCells, changedLineCells])
+  }, [orderedSportsbooks, effectiveVisibleSportsbooks, changedPriceCells, changedLineCells, isSmallScreen])
 
   const tableProps = useTable({
     data: sortedData,
@@ -1929,13 +2130,17 @@ export function OddsTable({
   }
 
   const formatLine = (line: number | undefined, side: 'over' | 'under', item?: OddsTableItem) => {
-    if (!line && line !== 0) return ''
+    // Guard: return empty string if line is undefined or null
+    if (line === undefined || line === null) return ''
     
     // For game markets, show contextual labels
     if (item?.entity.type === 'game') {
       const gameDetails = item.entity.details || ''
       
-      if (gameDetails === 'Moneyline') {
+      if (
+        gameDetails === 'Moneyline' ||
+        ((item.odds?.best?.over?.line ?? 0) === 0 && (item.odds?.best?.under?.line ?? 0) === 0)
+      ) {
         // For moneylines, show team abbreviations instead of o/u
         return side === 'over' ? item.event.awayTeam : item.event.homeTeam
       } else if (gameDetails === 'Point Spread') {
@@ -1957,26 +2162,21 @@ export function OddsTable({
     
     if (!displayOdds) {
       return (
-        <div className="px-2 py-1.5 text-xs text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md text-center min-w-fit mx-auto">
+        <div className="avg-line avg-line--sm text-neutral-400 dark:text-neutral-500">
           -
         </div>
       )
     }
 
     return (
-      <div className="px-2 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-200 dark:border-blue-700 text-center min-w-fit mx-auto">
-        {/* For moneylines only, show just odds (no team names in average). All other markets use horizontal layout */}
-        {rowItem.entity.type === 'game' && rowItem.entity.details === 'Moneyline' ? (
-          /* Moneylines: just show average odds */
-          <div className="font-medium">
-            {formatOdds(displayOdds.price)}
-          </div>
+      <div className="avg-line avg-line--sm">
+        {rowItem.entity.type === 'game' && (rowItem.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))) ? (
+          <span>{formatOdds(displayOdds.price)}</span>
         ) : (
-          /* All other markets: horizontal layout (line + odds) */
-          <div className="font-medium">
+          <>
             <span className="opacity-75">{formatLine(displayOdds.line, side, rowItem)}</span>
-            <span className="ml-1 font-semibold">{formatOdds(displayOdds.price)}</span>
-          </div>
+            <span className="font-semibold">/{formatOdds(displayOdds.price)}</span>
+          </>
         )}
       </div>
     )
@@ -2020,28 +2220,28 @@ export function OddsTable({
       <Tooltip
         content={
           <div className="flex flex-wrap gap-2 max-w-[200px] p-2">
-            {bookIds.map((bookId, index) => {
-              const sportsbook = getSportsbookById(bookId)
-              return sportsbook?.image?.light ? (
-                <div key={`${bookId}-${index}`} className="flex items-center gap-1">
-                  <img
-                    src={sportsbook.image.light}
-                    alt={sportsbook.name}
-                    className="w-4 h-4 object-contain"
-                  />
+              {bookIds.map((bookId, index) => {
+                const sportsbook = getSportsbookById(bookId)
+                return sportsbook?.image?.light ? (
+                  <div key={`${bookId}-${index}`} className="flex items-center gap-1">
+                    <img
+                      src={sportsbook.image.light}
+                      alt={sportsbook.name}
+                      className="w-4 h-4 object-contain"
+                    />
                   <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    {sportsbook.name}
-                  </span>
-                </div>
-              ) : null
-            })}
-          </div>
+                      {sportsbook.name}
+                    </span>
+                  </div>
+                ) : null
+              })}
+            </div>
         }
       >
         <div className="text-[10px] text-blue-600 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-200 cursor-help select-none">
           {bookIds.length} books
         </div>
-      </Tooltip>
+        </Tooltip>
     ) : null
 
     // Better odds indicator
@@ -2049,46 +2249,84 @@ export function OddsTable({
       <Tooltip
         content={
           <div className="text-xs p-2">
-            <div className="font-medium">Better odds available:</div>
+              <div className="font-medium">Better odds available:</div>
             <div className="text-amber-600 dark:text-amber-400">
-              {formatLine(globalBest.line, side, rowItem)}/{formatOdds(globalBest.price)}
-            </div>
+                {formatLine(globalBest.line, side, rowItem)}/{formatOdds(globalBest.price)}
+              </div>
             <div className="text-neutral-500 dark:text-neutral-300 text-[10px] mt-1">
               {(() => {
                 const sb = globalBest.book ? getSportsbookById(globalBest.book) : undefined
                 return <>at {sb?.name ?? globalBest.book ?? '—'}</>
               })()}
+              </div>
             </div>
-          </div>
         }
       >
         <div className="w-3 h-3 bg-amber-400 dark:bg-amber-500 rounded-full flex items-center justify-center cursor-help">
           <span className="text-[8px] text-white font-bold">!</span>
         </div>
-      </Tooltip>
+        </Tooltip>
     ) : null
 
     const firstBookId = bookIds[0]
 
-    return (
-      <div className="flex items-center gap-1">
+    // Build chip content similar to alternates styling (icon + label/odds)
+    const isMoneyline = rowItem.entity.type === 'game' && (
+      rowItem.entity.details === 'Moneyline' ||
+      (((rowItem.odds?.best?.over?.line ?? 0) === 0) && ((rowItem.odds?.best?.under?.line ?? 0) === 0))
+    )
+    const label = isMoneyline
+      ? (side === 'under' ? rowItem.event.awayTeam : rowItem.event.homeTeam)
+      : formatLine(displayOdds.line, side, rowItem)
+
+    const chip = (
+      <div className="best-line best-line--sm">
+        {(() => {
+          if (showInlineLogos && logoElements.length > 0) return logoElements[0]
+          if (firstBookId) {
+            const sb = getSportsbookById(firstBookId)
+            return sb?.image?.light ? (
+              <img src={sb.image.light} alt={sb.name} className="w-3.5 h-3.5 object-contain" />
+            ) : null
+          }
+          return null
+        })()}
+        <span>
+          {label}/{formatOdds(displayOdds.price)}
+        </span>
+      </div>
+    )
+
+    const sbName = firstBookId ? (getSportsbookById(firstBookId)?.name ?? 'Sportsbook') : 'Sportsbook'
+    const interactive = (
+      displayOdds.link || firstBookId ? (
         <button
           onClick={(e) => {
             e.stopPropagation()
             if (displayOdds.link) {
-              window.open(displayOdds.link, '_blank', 'noopener,noreferrer')
+              if (isPro) {
+                window.open(displayOdds.link, '_blank', 'noopener,noreferrer')
+              } else {
+                setShowProGate(true)
+              }
             } else if (firstBookId) {
               onOddsClick?.(rowItem, side, firstBookId)
             }
           }}
-          className="text-xs flex items-center justify-center gap-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded px-2 py-1 transition-colors cursor-pointer"
+          className="w-full hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
         >
-          <span className="font-medium text-neutral-700 dark:text-neutral-300 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
-            {formatLine(displayOdds.line, side, rowItem)}/{formatOdds(displayOdds.price)}
-          </span>
-          {logosInline}
-          {logosTooltip}
+          {chip}
         </button>
+      ) : (
+        chip
+      )
+    )
+
+    return (
+      <div className="flex items-center gap-1">
+        <Tooltip content={`Place bet on ${sbName}`}>
+          <div>{interactive}</div>
+        </Tooltip>
         {betterOddsIndicator}
       </div>
     )
@@ -2098,12 +2336,12 @@ export function OddsTable({
   const getTeamLogoUrl = (teamName: string): string => {
     if (!teamName) return ''
     const abbr = getStandardAbbreviation(teamName, sport)
-    return `/images/team-logos/${sport}/${abbr.toUpperCase()}.svg`
+    return `/team-logos/${sport}/${abbr.toUpperCase()}.svg`
   }
 
   // Helper function to check if sport has team logos available
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl'] // Only NFL has logos currently
+    const sportsWithLogos = ['nfl', 'nhl'] // NFL and NHL have logos
     return sportsWithLogos.includes(sportKey.toLowerCase())
   }
 
@@ -2114,33 +2352,33 @@ export function OddsTable({
     }
   }
 
-  // Handle column reordering (main columns)
+  // Handle all column reordering in a single handler
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
-    if (over && active.id !== over.id) {
-      const oldIndex = columnOrder.indexOf(active.id as string)
-      const newIndex = columnOrder.indexOf(over.id as string)
+    if (!over || active.id === over.id) return
+
+    // Check if it's a main column
+    const isMainColumn = filteredColumnOrder.includes(active.id as string)
+    
+    if (isMainColumn) {
+      const oldIndex = filteredColumnOrder.indexOf(active.id as string)
+      const newIndex = filteredColumnOrder.indexOf(over.id as string)
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(columnOrder, oldIndex, newIndex)
+        const newOrder = arrayMove(filteredColumnOrder, oldIndex, newIndex)
         setColumnOrder(newOrder)
         updatePreferences({ columnOrder: newOrder })
         onColumnOrderChange?.(newOrder)
       }
-    }
-  }
-
-  // Handle sportsbook column reordering
-  const handleSportsbookDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (over && active.id !== over.id) {
-      const oldIndex = sportsbookOrder.indexOf(active.id as string)
-      const newIndex = sportsbookOrder.indexOf(over.id as string)
+    } else {
+      // It's a sportsbook column - use orderedSportsbooks to include ALL books
+      const allBookIds = orderedSportsbooks.map(b => b.id)
+      const oldIndex = allBookIds.indexOf(active.id as string)
+      const newIndex = allBookIds.indexOf(over.id as string)
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(sportsbookOrder, oldIndex, newIndex)
+        const newOrder = arrayMove(allBookIds, oldIndex, newIndex)
         setSportsbookOrder(newOrder)
         updatePreferences({ sportsbookOrder: newOrder })
       }
@@ -2157,6 +2395,35 @@ export function OddsTable({
       <ChevronDown className="w-4 h-4" />
     )
   }
+
+  // Map react-table rows by id so we can interleave date separators with rows
+  const tableRows = tableProps.table.getRowModel().rows
+  const rowById = useMemo(() => {
+    const map = new Map<string, (typeof tableRows)[number]>()
+    tableRows.forEach((r) => map.set(r.id, r))
+    return map
+  }, [tableRows])
+
+  // Compute total number of visible columns for proper colSpan on separators
+  const totalColumns = useMemo(
+    () =>
+      (tableProps.table.getHeaderGroups()?.[0]?.headers?.length as number | undefined) ??
+      (filteredColumnOrder.length + orderedSportsbooks.length),
+    [tableProps.table, filteredColumnOrder.length, orderedSportsbooks.length]
+  )
+
+  // Determine the pixel width of the sticky left entity column so the date
+  // separator can include a matching sticky cell for persistent visibility.
+  const entityColWidth = useMemo(() => {
+    try {
+      const headers = tableProps.table.getHeaderGroups()?.[0]?.headers || []
+      const entityHeader = headers.find((h: any) => h.column?.id === 'entity')
+      const sz = entityHeader?.column?.columnDef?.size
+      return typeof sz === 'number' && sz > 0 ? sz : 220
+    } catch {
+      return 220
+    }
+  }, [tableProps.table])
 
   // Error boundary state
   if (hasError) {
@@ -2225,611 +2492,157 @@ export function OddsTable({
   return (
     <TooltipProvider>
       <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden ${className}`}>
-        <div className="max-h-[82vh] overflow-auto">
+        <div ref={containerRef} className="overflow-auto" style={{ maxHeight: height }}>
+          {/* Single DndContext for all columns */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          {/* Dub-style Table component */}
-          <Table
-            {...tableProps}
-            containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
-            className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50"
-            thClassName={() => "bg-neutral-50/50 dark:bg-neutral-900/50 font-medium text-xs uppercase tracking-wide"}
-          />
-          {/* Legacy header rendering retained for drag handles and controls; can be removed after full migration */}
-          <table className="hidden">
-            <thead>
-              <tr>
                 <SortableContext 
-                  items={filteredColumnOrder} 
+              items={[...filteredColumnOrder, ...orderedSportsbooks.map(b => b.id)]} 
                   strategy={horizontalListSortingStrategy}
                 >
-                  {filteredColumnOrder.map((columnId) => {
-                    switch (columnId) {
-                      case 'entity':
+              {/* Custom Table with ExpandableRowWrapper */}
+              <table className="w-full border-separate border-spacing-0">
+                <thead className="table-header-gradient backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+                  {tableProps.table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        // Check if this is a sportsbook column (not entity, event, best-line, average-line)
+                        const isBookColumn = !['entity', 'event', 'best-line', 'average-line'].includes(header.column.id)
                         return (
-                          <SortableHeader
-                            key="entity"
-                            id="entity"
-                          className="px-4 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider cursor-default sticky left-0 bg-neutral-50 dark:bg-neutral-900 z-10 border-r border-neutral-200 dark:border-neutral-700"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{
-                                type === 'game' 
-                                  ? ((market.includes('home_team') || market.includes('home_total')) ? 'Home Team' : 
-                                     (market.includes('away_team') || market.includes('away_total')) ? 'Away Team' : 'Game')
-                                  : 'Player'
-                              }</span>
-                              {/* Global line selector (player markets only) */}
-                              {type === 'player' && (
-                                <div className="ml-2 flex items-center gap-2">
-                                  <label className="text-[10px] text-neutral-400 dark:text-neutral-500">Line</label>
-                                  <select
-                                    onClick={(e) => e.stopPropagation()}
-                                    value={globalSelectedLine}
-                                    onChange={async (e) => {
-                                      e.stopPropagation()
-                                      const val = e.target.value
-                                      if (val === 'primary') {
-                                        setGlobalSelectedLine('primary')
-                                        // reset all
-                                        setCustomLineSelections({})
-                                      } else {
-                                        const num = parseFloat(val)
-                                        if (!Number.isNaN(num)) {
-                                          setGlobalSelectedLine(num)
-                                          // apply to visible rows with available alternates
-                                          const visibleEvents = Array.from(new Set(data.map(d => d.event.id)))
-                                          // ensure alternates cached
-                                          await Promise.all(visibleEvents.map(async (eid) => {
-                                            if (!alternatesCache[eid] && !alternatesLoading[eid]) {
-                                              await fetchAlternates(eid)
-                                            }
-                                          }))
-                                          // set selections map
-                                          setCustomLineSelections(prev => {
-                                            const next: Record<string, number> = {}
-                                            data.forEach(d => {
-                                              if (d.entity.id) {
-                                                // will be resolved per-row during render
-                                                next[`${d.event.id}-${d.entity.id}`] = num
-                                              }
-                                            })
-                                            return next
-                                          })
-                                        }
-                                      }
-                                    }}
-                                    className="text-[11px] bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1 text-neutral-700 dark:text-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  >
-                                    <option value="primary">Primary</option>
-                                    {/* Populate with a merged set of available lines across visible rows (lightweight) */}
-                                    {(() => {
-                                      const lines = new Set<number>()
-                                      data.slice(0, 50).forEach(d => {
-                                        const rows = alternateRows[d.event.id]?.[d.entity.id || ''] || []
-                                        rows.forEach((r: any) => lines.add(r.lineValue))
-                                      })
-                                      return Array.from(lines).sort((a,b)=>a-b).map(l => (
-                                        <option key={l} value={l}>{l}</option>
-                                      ))
-                                    })()}
-                                  </select>
-                                </div>
+                        <th
+                          key={header.id}
+                          className={cn(
+                            "bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-2 py-2 sm:px-4 sm:py-3 text-left font-medium text-xs",
+                            header.column.id === 'average-line' && 'hidden sm:table-cell',
+                            header.column.id === 'entity' && 'sticky left-0 z-20 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60',
+                            isBookColumn && 'books'
+                          )}
+                          style={{
+                            minWidth: header.column.columnDef.minSize,
+                            maxWidth: header.column.columnDef.maxSize,
+                            width: header.column.columnDef.size || 'auto',
+                          }}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
                               )}
-                              <SortIcon field="entity" />
-                            </div>
-                          </SortableHeader>
+                        </th>
                         )
-                      case 'event':
-                        return (
-                          <SortableHeader
-                            key="event"
-                            id="event"
-                            className="px-3 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border-r border-neutral-200 dark:border-neutral-700"
-                            onClick={() => handleSort('startTime')}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>Event</span>
-                              <SortIcon field="startTime" />
-                            </div>
-                          </SortableHeader>
-                        )
-                      case 'best-line':
-                        return (
-                          <SortableHeader
-                            key="best-line"
-                            id="best-line"
-                            className="px-3 py-3 text-center text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider cursor-default border-r border-neutral-200 dark:border-neutral-700"
-                          >
-                            <div className="flex items-center justify-center">
-                              <span>Best Line</span>
-                            </div>
-                          </SortableHeader>
-                        )
-                      case 'average-line':
-                        return (
-                          <SortableHeader
-                            key="average-line"
-                            id="average-line"
-                            className="px-3 py-3 text-center text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider cursor-default border-r border-neutral-200 dark:border-neutral-700"
-                          >
-                            <div className="flex items-center justify-center">
-                              <span>Avg Line</span>
-                            </div>
-                          </SortableHeader>
-                        )
-                      default:
-                        return null
-                    }
-                  })}
-                </SortableContext>
-              
-              {/* Sportsbook columns - separate DnD context */}
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleSportsbookDragEnd}
-              >
-                <SortableContext 
-                  items={sportsbookOrder} 
-                  strategy={horizontalListSortingStrategy}
-                >
-                  {orderedSportsbooks.map((sportsbook) => (
-                    <SortableHeader
-                      key={sportsbook.id}
-                      id={sportsbook.id}
-                      className="py-3 pl-4 pr-2 text-center text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider min-w-[120px] border-r border-neutral-200 dark:border-neutral-700"
-                      onClick={() => {
-                        if (sportsbook.links.desktop) {
-                          window.open(sportsbook.links.desktop, '_blank', 'noopener,noreferrer')
-                        }
-                      }}
-                    >
-                      <div className="flex flex-col items-center space-y-1 cursor-pointer hover:opacity-80 transition-opacity">
-                        <img 
-                          src={sportsbook.image.light} 
-                          alt={sportsbook.name}
-                          className="h-6 w-auto object-contain"
-                        />
-                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{sportsbook.name}</span>
-                      </div>
-                    </SortableHeader>
-                  ))}
-                </SortableContext>
-              </DndContext>
+                      })}
             </tr>
+                  ))}
           </thead>
-          <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
-            {groupedData.map((group, groupIndex) => {
-              if (group.type === 'separator') {
-                const totalColumns = columnOrder.length + orderedSportsbooks.length
-                const columnsPerSection = Math.floor(totalColumns / 3)
-                const remainder = totalColumns % 3
-                
-                return (
-                  <tr key={`separator-${group.date}`} className="bg-neutral-600 dark:bg-neutral-700">
-                    {/* Left section */}
-                    <td 
-                      colSpan={columnsPerSection + (remainder > 0 ? 1 : 0)} 
-                      className="px-4 py-1.5 text-sm font-semibold text-white dark:text-neutral-200 border-t border-b border-neutral-500 dark:border-neutral-600 text-center"
-                    >
-                      {group.dateLabel}
-                    </td>
-                    {/* Middle section */}
-                    <td 
-                      colSpan={columnsPerSection + (remainder > 1 ? 1 : 0)} 
-                      className="px-4 py-1.5 text-sm font-semibold text-white dark:text-neutral-200 border-t border-b border-neutral-500 dark:border-neutral-600 text-center"
-                    >
-                      {group.dateLabel}
-                    </td>
-                    {/* Right section */}
-                    <td 
-                      colSpan={columnsPerSection} 
-                      className="px-4 py-1.5 text-sm font-semibold text-white dark:text-neutral-200 border-t border-b border-neutral-500 dark:border-neutral-600 text-center"
-                    >
-                      {group.dateLabel}
-                    </td>
-                  </tr>
-                )
-              }
-
-              const { item, index } = group
-              const rowBgClass = index % 2 === 0
-                ? 'bg-white dark:bg-neutral-800'
-                : 'bg-neutral-50 dark:bg-neutral-900'
-              const rowKey = item.id || `${item.event.id}-${index}`
-              const isExpanded = !!expandedRows[rowKey]
-              const alternates = alternatesCache[item.event.id]
-              const isAltLoading = !!alternatesLoading[item.event.id]
-              const playerId = item.entity.id
-              const altRows = type === 'player' && playerId
-                ? alternateRows[item.event.id]?.[playerId] || []
-                : type === 'game'
-                ? alternateRows[item.event.id]?.['game'] || []
-                : []
- 
-               const handleRowClick = () => {
-                setExpandedRows(prev => ({
-                  ...prev,
-                  [rowKey]: !prev[rowKey]
-                }))
-
-                if (!expandedRows[rowKey] && preferences.includeAlternates) {
-                   void fetchAlternates(item.event.id)
-                 }
- 
-                 onRowClick?.(item)
-               }
- 
-              const isNew = newRows.has(item.id)
-              const isChanged = changedRows.has(item.id)
-
-              return (
-                <React.Fragment key={item.id || index}>
-                  <tr 
-                    className={`transition-all cursor-pointer ${
-                      index % 2 === 0
-                        ? 'bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700'
-                        : 'bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                    } ${isNew ? 'animate-fade-in bg-green-50 dark:bg-green-900/10' : ''} ${
-                      isChanged ? 'ring-2 ring-blue-400 dark:ring-blue-600' : ''
-                    }`}
-                     onClick={handleRowClick}
-                   >
-                 {/* Render columns in the same order as headers */}
-                 {filteredColumnOrder.map((columnId) => {
-                   switch (columnId) {
-                    case 'entity':
+                <tbody>
+                  {(isSmallScreen ? groupedData.slice(visibleRange.start, visibleRange.end) : groupedData).map((entry, localIdx) => {
+                    const idx = isSmallScreen ? visibleRange.start + localIdx : localIdx
+                    // Render a full-width date separator row
+                    if (entry.type === 'separator') {
                       return (
-                        <td key="entity" className={`px-4 py-4 whitespace-nowrap sticky left-0 ${rowBgClass} hover:bg-neutral-50 dark:hover:bg-neutral-700 z-10 border-r border-neutral-200 dark:border-neutral-700`}>
-                          {item.entity?.type === 'game' ? (
-                             <div>
-                               {/* For team-specific markets, show only the relevant team */}
-                               {(market.includes('home_team') || market.includes('home_total')) ? (
-                                 <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                   {hasTeamLogos(sport) && (
-                                     <img 
-                                       src={getTeamLogoUrl(item.event?.homeTeam || '')} 
-                                       alt={item.event?.homeTeam || ''} 
-                                       className="w-4 h-4 object-contain flex-shrink-0"
-                                       onError={(e) => {
-                                         e.currentTarget.style.display = 'none'
-                                       }}
-                                     />
-                                   )}
-                                   <span>{item.event?.homeTeam}</span>
-                                 </div>
-                               ) : (market.includes('away_team') || market.includes('away_total')) ? (
-                                 <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                   {hasTeamLogos(sport) && (
-                                     <img 
-                                       src={getTeamLogoUrl(item.event?.awayTeam || '')} 
-                                       alt={item.event?.awayTeam || ''} 
-                                       className="w-4 h-4 object-contain flex-shrink-0"
-                                       onError={(e) => {
-                                         e.currentTarget.style.display = 'none'
-                                       }}
-                                     />
-                                   )}
-                                   <span>{item.event?.awayTeam}</span>
-                                 </div>
-                               ) : (
-                                 /* For general game markets, show both teams */
-                                 <>
-                                   <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                     {hasTeamLogos(sport) && (
-                                       <img 
-                                         src={getTeamLogoUrl(item.event?.awayTeam || '')} 
-                                         alt={item.event?.awayTeam || ''} 
-                                         className="w-4 h-4 object-contain flex-shrink-0"
-                                         onError={(e) => {
-                                           e.currentTarget.style.display = 'none'
-                                         }}
-                                       />
-                                     )}
-                                     <span>{item.event?.awayTeam}</span>
-                                   </div>
-                                   <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                                     {hasTeamLogos(sport) && (
-                                       <img 
-                                         src={getTeamLogoUrl(item.event?.homeTeam || '')} 
-                                         alt={item.event?.homeTeam || ''} 
-                                         className="w-4 h-4 object-contain flex-shrink-0"
-                                         onError={(e) => {
-                                           e.currentTarget.style.display = 'none'
-                                         }}
-                                       />
-                                     )}
-                                     <span>{item.event?.homeTeam}</span>
-                                   </div>
-                                 </>
-                               )}
-                               
-                              {/* Line Selector removed for game props - will be added later */}
-                             </div>
-                          ) : (
-                            <div>
-                          <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                            <span>{item.entity?.name || 'Unknown'}</span>
-                            {(() => {
-                              const d = (item.entity?.details || '').toString().trim()
-                              // Only show if it looks like a position (1–4 letters), not market keys like receiving_yards
-                              if (!d || /_/g.test(d) || /yards|points|total|spread/i.test(d) || d.length > 4) return null
-                              return (
-                                <span className="text-xs text-neutral-500 dark:text-neutral-400 ml-1">({d.toUpperCase()})</span>
-                              )
-                            })()}
-                          </div>
-                          {(() => {
-                            const playerTeam = item.entity?.team
-                            const homeTeamName = item.event?.homeTeam
-                            const awayTeamName = item.event?.awayTeam
-                            if (!playerTeam || !homeTeamName || !awayTeamName) return null
+                        <tr key={`date-${entry.date}-${idx}`}>
+                          {/* Sticky left date cell so date stays visible while horizontally scrolling */}
+                          <td
+                            className="date-row sticky left-0 z-10"
+                            style={{ width: entityColWidth, minWidth: entityColWidth }}
+                          >
+                            {entry.dateLabel}
+                          </td>
+                          {/* Fill the rest of the row with the same background so it reads like a single bar */}
+                          <td
+                            colSpan={Math.max(totalColumns - 1, 1)}
+                            className="date-row"
+                          />
+                        </tr>
+                      )
+                    }
 
-                            const isHome = playerTeam === homeTeamName
-                            const opponentTeamName = isHome ? awayTeamName : homeTeamName
-                            const sep = isHome ? 'vs' : '@'
-                            // Prefer provided abbreviations from API via event names if they already are abbrs
-                            const playerAbbr = (getStandardAbbreviation(playerTeam, sport) || playerTeam).toUpperCase()
-                            const opponentAbbr = (getStandardAbbreviation(opponentTeamName, sport) || opponentTeamName).toUpperCase()
+                    // Otherwise render the normal data row
+                    const row = rowById.get(entry.item.id)
+                    if (!row) return null
+                    const item = row.original
+                    const isMoneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
+                    const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'
+                    // Sticky column needs solid background that matches the zebra pattern
+                    const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-[#f0f9ff] dark:bg-[#17202B]'
 
-                            return (
-                              <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                                {hasTeamLogos(sport) && (
-                                  <img
-                                    src={getTeamLogoUrl(playerTeam)}
-                                    alt={playerAbbr}
-                                    className="w-4 h-4 object-contain flex-shrink-0"
-                                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                                  />
-                                )}
-                                <span>{playerAbbr}</span>
-                                <span>{sep}</span>
-                                <span>{opponentAbbr}</span>
-                                {hasTeamLogos(sport) && (
-                                  <img
-                                    src={getTeamLogoUrl(opponentTeamName)}
-                                    alt={opponentAbbr}
-                                    className="w-4 h-4 object-contain flex-shrink-0"
-                                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                                  />
-                                )}
-                              </div>
-                            )
-                          })()}
-                          {/* Player Line Selector and Expand Controls */}
-                          <div className="mt-2 flex items-center gap-2">
-                            <select
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={async (e) => {
-                                e.stopPropagation()
-                                if (!alternatesCache[item.event.id] && !alternatesLoading[item.event.id]) {
-                                  await fetchAlternates(item.event.id)
-                                }
-                              }}
-                              onChange={async (e) => {
-                                e.stopPropagation()
-                                const value = e.target.value
-                                if (value === 'primary') {
-                                  resetToPrimaryLine(item)
-                                } else {
-                                  const newLine = parseFloat(value)
-                                  if (!isNaN(newLine)) {
-                                    await updatePrimaryRowWithLine(item, newLine)
-                                  }
-                                }
-                              }}
-                              className={`text-xs bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] ${isLoadingAlternates(item.event.id) ? 'opacity-75' : ''}`}
-                              value={(() => {
-                                const rowKey = `${item.event.id}-${item.entity.id || 'game'}`
-                                return customLineSelections[rowKey] || 'primary'
-                              })()}
-                              disabled={isLoadingAlternates(item.event.id)}
-                            >
-                              <option value="primary">Primary Line</option>
-                              {isLoadingAlternates(item.event.id) ? (
-                                <option disabled>Loading...</option>
-                              ) : (
-                                getAvailableLines(item).map(line => (
-                                  <option key={line} value={line}>
-                                    {line}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-
-                            {preferences.includeAlternates && (
-                              <Tooltip content={<span className="text-xs">{isExpanded ? 'Hide all alternates' : 'Show all alternates'}</span>}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setExpandedRows(prev => ({
-                                      ...prev,
-                                      [rowKey]: !prev[rowKey]
-                                    }))
-                                    if (!expandedRows[rowKey]) {
-                                      void fetchAlternates(item.event.id)
-                                    }
-                                  }}
-                                  className="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition text-blue-600 dark:text-blue-400"
-                                  aria-label={isExpanded ? 'Hide all alternates' : 'Show all alternates'}
-                                >
-                                  {isExpanded ? (
-                                    <ChevronUp className="w-3 h-3" />
-                                  ) : (
-                                    <Plus className="w-3 h-3" />
-                                  )}
-                                </button>
-                              </Tooltip>
-                            )}
-                          </div>
-                             </div>
-                           )}
-                         </td>
-                       )
-                     case 'event':
-                       return (
-                         <td key="event" className="px-3 py-4 whitespace-nowrap border-r border-neutral-200 dark:border-neutral-700">
-                           <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                             {item.event?.startTime ? new Date(item.event.startTime).toLocaleDateString() : ''}
-                           </div>
-                           <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                             {item.event?.startTime ? new Date(item.event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                           </div>
-                         </td>
-                       )
-                     case 'best-line':
-                       return (
-                        <td key="best-line" className="px-3 py-4 whitespace-nowrap text-center border-r border-neutral-200 dark:border-neutral-700">
-                           <div className="space-y-1">
-                            {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                            {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
-                           </div>
-                         </td>
-                       )
-                     case 'average-line':
-                       return (
-                        <td key="average-line" className="px-3 py-4 whitespace-nowrap text-center border-r border-neutral-200 dark:border-neutral-700">
-                           <div className="space-y-1">
-                            {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                            {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
-                           </div>
-                         </td>
-                       )
-                     default:
-                       return null
-                   }
-                 })}
-                 
-                 {/* Sportsbook columns */}
-                 {orderedSportsbooks.map((sportsbook) => {
-                   const bookData = item.odds.books?.[sportsbook.id] || 
-                                    item.odds.books?.[sportsbook.id.replace('-', '_')] ||
-                                    item.odds.books?.[sportsbook.id.replace('_', '-')] ||
-                                    item.odds.books?.[sportsbook.id.toLowerCase()] ||
-                                    item.odds.books?.[sportsbook.id.toUpperCase()]
- 
-                  // Check if this sportsbook has the best line+odds combination (matching Best Line column logic)
-                  const isBestOdds = (odds: { price: number; line?: number }, side: 'over' | 'under') => {
-                    const { userBest } = calculateUserBestOdds(item, side, effectiveVisibleSportsbooks)
-                    if (!userBest) return false
-                    
-                    // Must match both price AND line to be highlighted (same logic as Best Line column)
-                    return odds.price === userBest.price && 
-                           (odds.line ?? 0) === (userBest.line ?? 0)
-                  }
-
-                  const renderOddsButton = (
-                     odds: { line: number; price: number; link?: string | null },
-                     side: 'over' | 'under'
-                   ) => {
-                     const isHighlighted = columnHighlighting && isBestOdds(odds, side)
-                     const cellKeyPrice = `${item.id}|${sportsbook.id}|${side}|price`
-                     const cellKeyLine = `${item.id}|${sportsbook.id}|${side}|line`
-                     const priceChanged = changedPriceCells.has(cellKeyPrice)
-                     const lineChanged = changedLineCells.has(cellKeyLine)
-
-                     const onClick = (e: React.MouseEvent) => {
-                       e.stopPropagation()
-                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                         window.open(odds.link, '_blank', 'noopener,noreferrer')
-                       } else {
-                         onOddsClick?.(item, side, sportsbook.id)
-                       }
-                     }
-
-                     const moneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
-
-                     return (
-                      <OddsCellButton
-                        itemId={item.id}
-                        sportsbookId={sportsbook.id}
-                        sportsbookName={sportsbook.name}
-                        side={side}
-                        odds={odds}
-                        isHighlighted={isHighlighted}
-                        priceChanged={priceChanged}
-                        lineChanged={lineChanged}
-                        isMoneyline={moneyline}
-                        formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
-                        formatLine={(ln, sd) => {
-                          if (moneyline) return sd === 'over' ? item.event.awayTeam : item.event.homeTeam
-                          return sd === 'over' ? `o${ln}` : `u${ln}`
+                    const cells = row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className={cn(
+                          'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-2 py-1.5 sm:px-4 sm:py-2 text-left text-sm',
+                          rowBg,
+                          cell.column.id === 'average-line' && 'hidden sm:table-cell',
+                          cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`
+                        )}
+                        style={{
+                          minWidth: cell.column.columnDef.minSize,
+                          maxWidth: cell.column.columnDef.maxSize,
+                          width: cell.column.columnDef.size || 'auto',
                         }}
-                        onClick={onClick}
-                      />
-                     )
-                   }
-
-                  const renderPlaceholder = () => (
-                    <div className="block w-full text-xs text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md px-2 py-1.5 mx-auto text-center min-w-fit">
-                      -
-                    </div>
-                  )
- 
-                   return (
-                      <td key={sportsbook.id} className="border-r border-neutral-200 dark:border-neutral-700 px-1 py-2 w-auto whitespace-nowrap">
-                        <div className="space-y-1">
-                          {bookData?.over ? renderOddsButton(bookData.over, 'over') : renderPlaceholder()}
-                          {bookData?.under ? renderOddsButton(bookData.under, 'under') : renderPlaceholder()}
-                        </div>
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
+                    ))
+
+                    if (isMoneyline) {
+                      return (
+                        <tr key={row.id} className={cn('group relative transition-colors', rowBg, 'hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]')}>
+                          {cells}
+                        </tr>
+                      )
+                    }
+
+                    return (
+                      <ExpandableRowWrapper
+                        key={row.id}
+                        sid={item.id}
+                        sport={sport}
+                        primaryLine={item.odds.best.over?.line || item.odds.best.under?.line}
+                        columnOrder={filteredColumnOrder}
+                        sportsbookOrder={orderedSportsbooks.map((b) => b.id)}
+                        includeAlternates={preferences.includeAlternates}
+                        isPro={isPro}
+                        setShowProGate={setShowProGate}
+                        rowClassName={rowBg}
+                      >
+                        {cells}
+                      </ExpandableRowWrapper>
                     )
                   })}
-               </tr>
-                  {isExpanded && preferences.includeAlternates && (
-                    <React.Fragment>
-                      {isAltLoading && (
-                        <tr className={index % 2 === 0 ? 'bg-white dark:bg-neutral-800' : 'bg-neutral-50 dark:bg-neutral-900'}>
-                          <td colSpan={columnOrder.length + orderedSportsbooks.length} className="px-4 py-3 text-xs text-neutral-500 dark:text-neutral-400">
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Loading alternate lines...
-                            </div>
-                          </td>
+                  {isSmallScreen && (
+                    <>
+                      {/* top spacer */}
+                      {visibleRange.start > 0 && (
+                        <tr>
+                          <td colSpan={totalColumns} style={{ height: visibleRange.start * ROW_HEIGHT }} />
                         </tr>
                       )}
-                      {!isAltLoading && altRows.length === 0 && (
-                        <tr className={index % 2 === 0 ? 'bg-white dark:bg-neutral-800' : 'bg-neutral-50 dark:bg-neutral-900'}>
-                          <td colSpan={columnOrder.length + orderedSportsbooks.length} className="px-4 py-3 text-xs text-neutral-500 dark:text-neutral-400">
-                            {type === 'game' 
-                              ? 'Game alternates coming soon!' 
-                              : 'No alternate lines available for this player.'}
-                          </td>
+                      {/* bottom spacer */}
+                      {visibleRange.end < groupedData.length && (
+                        <tr>
+                          <td colSpan={totalColumns} style={{ height: (groupedData.length - visibleRange.end) * ROW_HEIGHT }} />
                         </tr>
                       )}
-                      {!isAltLoading && altRows.length > 0 && (
-                        altRows.map((row, altIndex) => renderAlternateRow(
-                          filteredColumnOrder,
-                          orderedSportsbooks,
-                          row,
-                          
-                          (bookId, side, odds) => {
-                            const sportsbook = getSportsbookById(bookId)
-                            if (odds.link) {
-                              window.open(odds.link, '_blank', 'noopener,noreferrer')
-                            } else if (sportsbook?.links?.desktop) {
-                              window.open(sportsbook.links.desktop, '_blank', 'noopener,noreferrer')
-                            }
-                          },
-                          altIndex,
-                          columnHighlighting
-                        ))
-                      )}
-                    </React.Fragment>
+                    </>
                   )}
-                </React.Fragment>
-              )
-            })}
-          </tbody>
+                </tbody>
         </table>
+            </SortableContext>
         </DndContext>
         </div>
       </div>
+      
+      {/* Pro Gate Modal for Deep Linking */}
+      <ProGateModal 
+        isOpen={showProGate} 
+        onClose={() => setShowProGate(false)}
+        feature="Deep Linking"
+      />
     </TooltipProvider>
   )
 }

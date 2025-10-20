@@ -2,85 +2,66 @@ import { CheckIcon } from "@/icons/card-icons";
 import { CloseIcon } from "@/icons/general";
 
 export enum TierName {
-  TIER_1 = "Growth",
-  TIER_2 = "Scale",
-  TIER_3 = "Enterprise",
+  FREE = "Free",
+  PRO = "Pro",
 }
 
 export const tiers = [
   {
-    title: TierName.TIER_1,
-    subtitle: "Early stage teams",
-    monthly: 8,
-    yearly: 80,
-    ctaText: "Start building",
+    title: TierName.FREE,
+    subtitle: "For casual bettors",
+    monthly: 0,
+    yearly: 0,
+    ctaText: "Get Started",
     ctaLink: "/register",
     features: [
-      "Up to 5 active agents",
-      "50 simulation runs",
-      "Visual builder access",
-      "GitHub + Zapier integration",
-      "Basic support",
-      "1 team workspace",
-      "Workflow APIs",
-      "Community Slack access",
+      "20+ sportsbooks",
+      "Basic odds comparison",
+      "Manual refresh",
+      "Standard support",
+      "Limited arbitrage detection",
+      "View main lines only",
     ],
   },
   {
-    title: TierName.TIER_2,
-    subtitle: "Fast moving startups",
-    monthly: 12,
-    yearly: 120,
-    ctaText: "Start for free",
+    title: TierName.PRO,
+    subtitle: "For serious bettors",
+    monthly: 29,
+    yearly: 290,
+    ctaText: "Start Free Trial",
     ctaLink: "/register",
     features: [
-      "Up to 25 active agents",
-      "150 simulation runs",
-      "Visual builder access",
-      "GitHub + Zapier integration",
+      "Everything in Free",
+      "Real-time odds updates (sub-2s)",
+      "Auto-refresh with SSE",
+      "Deep linking to sportsbooks",
+      "Customizable odds screens",
+      "Unlimited arbitrage detection",
+      "Alternate lines & player props",
+      "EV calculations & consensus pricing",
       "Priority support",
-      "3 team workspace",
-      "Workflow APIs",
-      "Priority Slack access",
+      "Advanced filters & sorting",
     ],
     featured: true,
-  },
-  {
-    title: TierName.TIER_3,
-    subtitle: "Large enterprises",
-    monthly: 25,
-    yearly: 250,
-    ctaText: "Contact sales",
-    ctaLink: "/contact",
-    features: [
-      "Unlimited active agents",
-      "Unlimited simulation runs",
-      "Visual builder access",
-      "GitHub + Zapier integration",
-      "Priority support",
-      "Unlimited team workspace",
-      "Workflow APIs",
-      "Priority Slack access",
-      "Access to Fight Club",
-    ],
+    badge: "Most Popular",
   },
 ];
 
-export const pricingTable = [
+// Legacy pricing table - kept for backwards compatibility but not actively used
+export const pricingTable: Array<{
+  title: string;
+  tiers: Array<{ title: TierName; value: string | React.ReactNode }>;
+}> = [
   {
-    title: "Seat Limit",
+    title: "Sportsbooks",
     tiers: [
       {
-        title: TierName.TIER_1,
-        value: "Up to 3",
+        title: TierName.FREE,
+        value: "20+",
       },
       {
-        title: TierName.TIER_2,
-        value: "Up to 10",
-      },
-      {
-        title: TierName.TIER_3,
-        value: "Unlimited",
+        title: TierName.PRO,
+        value: "20+",
       },
     ],
   },
@@ -88,15 +69,15 @@ export const pricingTable = [
     title: "Two-factor authentication",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -105,15 +86,15 @@ export const pricingTable = [
     title: "Pay-per-task billing",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -122,15 +103,15 @@ export const pricingTable = [
     title: "Static IP",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -139,15 +120,15 @@ export const pricingTable = [
     title: "Record Limit",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "1,000",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "10,000",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],
@@ -156,15 +137,15 @@ export const pricingTable = [
     title: "Folder Permissions",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -173,15 +154,15 @@ export const pricingTable = [
     title: "Teams",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "1",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "3",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],
@@ -190,15 +171,15 @@ export const pricingTable = [
     title: "Shared Nodes",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -207,15 +188,15 @@ export const pricingTable = [
     title: "Shared app connections",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -224,15 +205,15 @@ export const pricingTable = [
     title: "Agents",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "5",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "25",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],
@@ -241,15 +222,15 @@ export const pricingTable = [
     title: "Chatbots",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "2",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "10",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],
@@ -258,15 +239,15 @@ export const pricingTable = [
     title: "Nodus MCP",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -275,15 +256,15 @@ export const pricingTable = [
     title: "Nodus Canvas",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
       },
     ],
@@ -292,15 +273,15 @@ export const pricingTable = [
     title: "Tables",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "5",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "50",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],
@@ -309,15 +290,15 @@ export const pricingTable = [
     title: "Access Permissions",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "Basic",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "Advanced",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Enterprise",
       },
     ],
@@ -326,15 +307,15 @@ export const pricingTable = [
     title: "Record Templates",
     tiers: [
       {
-        title: TierName.TIER_1,
+        title: TierName.FREE,
         value: "10",
       },
       {
-        title: TierName.TIER_2,
+        title: TierName.PRO,
         value: "100",
       },
       {
-        title: TierName.TIER_3,
+        title: TierName.PRO,
         value: "Unlimited",
       },
     ],

@@ -156,7 +156,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/espnbet_long.png"
     },
     brandColor: "#FF0000",
-    priority: 4,
+    priority: 5,
     isActive: true,
     requiresState: false
   },
@@ -176,7 +176,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/fanatics.png",
       long: "/images/sports-books/fanatics_long.png"
     },
-    priority: 3,
+    priority: 5,
     isActive: true,
     requiresState: false
   },
@@ -194,7 +194,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/hardrockbet.png",
       long: "/images/sports-books/hardrockbet_long.png"
     },
-    priority: 2,
+    priority: 5,
     isActive: true,
     requiresState: true
   },
@@ -212,7 +212,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/hardrockbet.png",
       long: "/images/sports-books/hardrockbet_long.png"
     },
-    priority: 2,
+    priority: 4,
     isActive: true,
     requiresState: true
   },
@@ -379,7 +379,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/fliff.png",
       long: "/images/sports-books/fliff_long.png"
     },
-    priority: 1,
+    priority: 5,
     isActive: true,
     requiresState: false,
     regions: ["eu"]
@@ -398,8 +398,8 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/pinnacle.png",
       long: "/images/sports-books/pinnacle_long.png"
     },
-    priority: 1,
-    isActive: false,
+    priority: 7,
+    isActive: true,
     requiresState: false,
     regions: ["eu"]
   },

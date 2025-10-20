@@ -4,22 +4,16 @@ import { CTA } from "@/components/cta";
 import { DivideX } from "@/components/divide";
 import { Heading } from "@/components/heading";
 import { InformationBlock } from "@/components/information-block";
-import { ProgressiveBlur } from "@/components/progressive-blur";
 import { SectionHeading } from "@/components/seciton-heading";
 import { SubHeading } from "@/components/subheading";
-import { Testimonials } from "@/components/testimonials";
-import { careers } from "@/constants/careers";
-import { founders } from "@/constants/founders";
-import { LinkedInIcon } from "@/icons/general";
 
 import { getSEOTags } from "@/lib/seo";
 import Image from "next/image";
-import Link from "next/link";
 
 export const metadata = getSEOTags({
-  title: "About Us - Notus | Aceternity UI Pro Template",
+  title: "About Us - Unjuiced | Sports Betting Odds Comparison",
   description:
-    "We're Building the Future of Agent-Driven Development. Founded by engineers and AI researchers, Notus was born out of a simple frustration: building intelligent systems still required too much manual orchestration. We set out to change that by creating a tool that lets teams design, simulate, and launch autonomous agents visually and intuitively.",
+    "We're building the most transparent sports betting odds comparison platform. Founded by bettors for bettors, Unjuiced was born from a simple frustration: finding the best odds shouldn't require opening 20+ tabs. We built a platform that gives you real-time odds, arbitrage detection, and line shopping tools—all in one place.",
 });
 
 export default function AboutPage() {
@@ -31,19 +25,26 @@ export default function AboutPage() {
           <div className="flex flex-col items-start justify-start">
             <Badge text="About Us" />
             <Heading className="mt-4 text-left">
-              We're Building the Future of Agent-Driven Development
+              We're Building the Most{" "}
+              <span 
+                className="text-brand"
+                style={{
+                  textShadow: '0 0 40px rgba(14, 165, 233, 0.3), 0 0 20px rgba(14, 165, 233, 0.2)',
+                }}
+              >
+                Transparent
+              </span>{" "}
+              Odds Comparison Platform
             </Heading>
             <SubHeading className="mt-6 mr-auto text-left">
-              Founded by engineers and AI researchers, Notus was born out of a
-              simple frustration: building intelligent systems still required
-              too much manual orchestration. We set out to change that by
-              creating a tool that lets teams design, simulate, and launch
-              autonomous agents visually and intuitively.
+              Founded by bettors for bettors, Unjuiced was born from a simple frustration: 
+              finding the best odds shouldn't require opening 20+ tabs. We set out to change 
+              that by creating a platform that gives you real-time odds, arbitrage detection, 
+              and line shopping tools—all in one place.
               <br /> <br />
-              Today, Notus powers next-gen workflows for startups, dev teams,
-              and AI-first platforms across the globe. Whether you're automating
-              internal ops, scaling customer support, or building complex
-              multi-agent systems.
+              Today, Unjuiced helps thousands of bettors—from casual players to sharp 
+              professionals—find better odds, maximize ROI, and make smarter betting decisions. 
+              No sponsored rankings. No conflicts of interest. Just real market data.
             </SubHeading>
           </div>
           <div className="border-divide rounded-3xl border p-2">
@@ -58,201 +59,86 @@ export default function AboutPage() {
         </div>
         <div className="mt-20 flex w-full flex-col items-center lg:flex-row">
           <h2 className="mb-4 min-w-40 text-center font-mono text-sm tracking-tight text-neutral-500 uppercase lg:mb-0 lg:text-left dark:text-neutral-400">
-            As featured in
+            Trusted by bettors
           </h2>
-          <div className="grid w-full grid-cols-2 items-center gap-4 md:grid-cols-4">
-            <Image
-              src="/logos/bloomberg.png"
-              alt="Bloomberg"
-              width={140}
-              height={140}
-              className="h-6 w-auto object-contain dark:invert dark:filter"
-            />
-            <Image
-              src="/logos/wired.png"
-              alt="Bloomberg"
-              width={140}
-              height={140}
-              className="h-6 w-auto object-contain dark:invert dark:filter"
-            />
-            <Image
-              src="/logos/forbes.png"
-              alt="Bloomberg"
-              width={140}
-              height={140}
-              className="h-6 w-auto object-contain dark:invert dark:filter"
-            />
-            <Image
-              src="/logos/the-guardian.png"
-              alt="Bloomberg"
-              width={140}
-              height={140}
-              className="h-6 w-auto object-contain dark:invert dark:filter"
-            />
+          <div className="flex w-full items-center justify-center gap-8 lg:justify-start">
+            <div className="flex flex-col items-center">
+              <p className="text-3xl font-bold text-neutral-900 dark:text-white">10K+</p>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Active Users</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <p className="text-3xl font-bold text-neutral-900 dark:text-white">1M+</p>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Odds Compared</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <p className="text-3xl font-bold text-neutral-900 dark:text-white">20+</p>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Sportsbooks</p>
+            </div>
           </div>
         </div>
       </Container>
-      <Testimonials />
-      <Container className="border-divide border-x border-t p-4 py-20 md:px-8 md:py-40">
+      <DivideX />
+      <Container className="border-divide border-x p-4 py-20 md:px-8 md:py-40">
         <div className="grid grid-cols-1 gap-10 md:gap-20 lg:grid-cols-2">
           <div className="flex flex-col items-start justify-start">
-            <Badge text="Journey and Values" />
+            <Badge text="Our Mission" />
             <SectionHeading className="mt-4 text-left">
-              Helping Engineering Teams Focus on Important Things
+              Empowering Bettors with Transparent Data
             </SectionHeading>
             <SubHeading className="mt-6 mr-auto text-left">
-              We empower developers and technical teams to create, simulate, and
-              manage AI-driven workflows visually
+              We believe every bettor deserves access to the best odds without jumping through hoops. 
+              Our platform removes the juice from sports betting by giving you real-time, unbiased odds 
+              comparison across 20+ sportsbooks.
             </SubHeading>
             <div className="divide-divide mt-8 grid grid-cols-3 gap-6">
-              <MetricBlock value="1.2M+" label="Workflows created" />
-              <MetricBlock value="6.4k" label="Tech Community" />
-              <MetricBlock value="1.2K" label="G2 reviews" />
+              <MetricBlock value="Sub-2s" label="Odds Updates" />
+              <MetricBlock value="99.9%" label="Uptime" />
+              <MetricBlock value="$500K+" label="Arbs Found" />
             </div>
           </div>
           <InformationBlock />
         </div>
       </Container>
       <DivideX />
-      <Container className="border-divide flex flex-col items-center border-x py-16">
-        <Badge text="Our Team" />
+      <Container className="border-divide flex flex-col items-center border-x px-4 py-20 md:px-8">
+        <Badge text="Our Values" />
         <SectionHeading className="mt-4">
-          Team of Industry Leaders
+          What Drives Us
         </SectionHeading>
-        <SubHeading className="mx-auto mt-6 max-w-lg px-4">
-          We empower developers and technical teams to create, simulate, and
-          manage AI-driven workflows visually
+        <SubHeading className="mx-auto mt-6 max-w-2xl text-center">
+          Our core principles guide everything we build
         </SubHeading>
-        <div className="mt-12 grid w-full grid-cols-1 gap-6 px-4 md:grid-cols-2 md:px-8 lg:grid-cols-3">
-          {founders.map((founder) => (
-            <div
-              className="group relative h-60 overflow-hidden rounded-2xl md:h-100"
-              key={founder.name + founder.title}
-            >
-              <Image
-                src={founder.src}
-                alt={founder.name}
-                width={500}
-                height={500}
-                className="h-full w-full object-cover object-top"
-              />
-              <ProgressiveBlur
-                className="pointer-events-none absolute bottom-0 left-0 hidden h-[30%] w-full transition-all duration-200 group-hover:block"
-                blurIntensity={2}
-              />
-              <div className="absolute inset-x-4 bottom-4 flex items-center justify-between rounded-xl bg-black/80 px-4 py-2">
-                <div>
-                  <h3 className="text-sm font-medium text-white">
-                    {founder.name}
-                  </h3>
-                  <p className="text-sm text-neutral-300">{founder.title}</p>
-                </div>
-                <a
-                  href={founder.url}
-                  target="_blank"
-                  className="cursor-pointer"
-                >
-                  <LinkedInIcon className="h-5 w-5 text-white" />
-                </a>
-              </div>
+        <div className="mt-12 grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-3">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10">
+              <span className="text-brand text-xl">✓</span>
             </div>
-          ))}
+            <h4 className="mt-4 font-semibold text-neutral-900 dark:text-white">Transparency First</h4>
+            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+              No sponsored rankings or hidden agendas. Just real market data.
+            </p>
+          </div>
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10">
+              <span className="text-brand text-xl">✓</span>
+            </div>
+            <h4 className="mt-4 font-semibold text-neutral-900 dark:text-white">Bettor-First</h4>
+            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+              Built by bettors who understand the grind and what you need to win.
+            </p>
+          </div>
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/10">
+              <span className="text-brand text-xl">✓</span>
+            </div>
+            <h4 className="mt-4 font-semibold text-neutral-900 dark:text-white">Data Integrity</h4>
+            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+              Real-time, accurate odds you can trust with 99.9% uptime.
+            </p>
+          </div>
         </div>
       </Container>
       <DivideX />
-      <Container className="border-divide flex flex-col items-center border-x border-b pb-20">
-        <div className="divide-divide border-divide grid grid-cols-1 border-b lg:grid-cols-2 lg:divide-x">
-          <div className="flex flex-col items-start justify-start px-4 py-10 md:px-8 md:py-20">
-            <Badge text="Careers" />
-            <SectionHeading className="mt-4 text-left">
-              Let's Change How Modern <br />
-              Enterprise Teams Function
-            </SectionHeading>
-            <SubHeading className="mt-6 mr-auto max-w-md text-left">
-              Building a generational company requires exceptional, hard-working
-              people. We are tackling the complexities of commerce
-              infrastructure that no one else has dared to.
-            </SubHeading>
-            <div className="mt-4 flex items-center gap-2">
-              <p className="text-charcoal-700 text-base font-medium dark:text-neutral-100">
-                Join the team
-              </p>
-              <div className="flex items-center">
-                {founders.slice(0, 3).map((founder) => (
-                  <Image
-                    key={founder.name + founder.title}
-                    src={founder.src}
-                    alt={founder.name}
-                    width={500}
-                    height={500}
-                    className="-mr-3 size-10 rounded-full border border-white object-cover"
-                  />
-                ))}
-                <div className="flex size-10 items-center justify-center rounded-full bg-gray-300">
-                  <p className="text-charcoal-700 text-sm font-medium">
-                    {founders.length - 3}+
-                  </p>
-                </div>
-              </div>
-            </div>
-            <h2 className="mt-8 text-left font-mono text-sm tracking-tight text-neutral-500 uppercase dark:text-neutral-400">
-              Our Investors
-            </h2>
-            <div className="mt-8 grid w-full grid-cols-3 items-center gap-10 md:grid-cols-3">
-              <Image
-                src="/logos/y-combinator.png"
-                alt="Investor 1"
-                width={120}
-                height={120}
-                className="h-6 w-auto object-contain dark:invert dark:filter"
-              />
-              <Image
-                src="/logos/accel.png"
-                alt="Investor 2"
-                width={70}
-                height={70}
-                className="h-6 w-auto object-contain dark:invert dark:filter"
-              />
-              <Image
-                src="/logos/softbank.png"
-                alt="Investor 3"
-                width={140}
-                height={140}
-                className="h-6 w-auto object-contain dark:invert dark:filter"
-              />
-            </div>
-          </div>
-          <div className="divide-divide border-divide divide-y border-t lg:border-t-0">
-            {careers.slice(0, 4).map((career, index) => (
-              <Link
-                href={career.href}
-                key={career.id}
-                className="block cursor-pointer px-4 py-4 hover:bg-gray-100 md:px-8 dark:hover:bg-neutral-800"
-              >
-                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-                  <h3 className="text-brand font-medium">{career.title}</h3>
-                  <div className="hidden size-1 rounded-full bg-gray-400 sm:block dark:bg-neutral-600"></div>
-                  <p className="text-sm text-gray-600 dark:text-neutral-200">
-                    {career.location}
-                  </p>
-                  <div className="hidden size-1 rounded-full bg-gray-400 sm:block dark:bg-neutral-600"></div>
-                  <span className="text-xs font-medium text-gray-600 dark:text-neutral-400">
-                    {Math.floor(
-                      (new Date().getTime() -
-                        new Date(career.createdAt).getTime()) /
-                        (1000 * 60 * 60 * 24),
-                    )}{" "}
-                    days ago
-                  </span>
-                </div>
-                <p className="mt-2 font-medium text-neutral-500 dark:text-neutral-200">
-                  {career.description}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </Container>
       <CTA />
       <DivideX />
     </main>
@@ -262,7 +148,7 @@ export default function AboutPage() {
 const MetricBlock = ({ value, label }: { value: string; label: string }) => {
   return (
     <div className="flex flex-col items-start justify-start">
-      <h3 className="text-charcoal-700 text-3xl font-medium dark:text-neutral-100">
+      <h3 className="text-brand text-3xl font-bold">
         {value}
       </h3>
       <p className="text-sm text-gray-600 dark:text-neutral-400">{label}</p>

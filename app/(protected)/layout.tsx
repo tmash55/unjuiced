@@ -1,4 +1,5 @@
 import { Nav } from "@/components/nav/navbar";
+import { Footer } from "@/components/footer";
 import { ReactNode } from "react";
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
@@ -6,6 +7,7 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
     <main className="h-full bg-white antialiased dark:bg-black">
       <Nav />
       {children}
+      <Footer />
     </main>
   );
 }

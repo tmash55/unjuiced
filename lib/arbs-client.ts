@@ -3,6 +3,11 @@ export type ArbRow = {
     mkt: string;
     ln: number;
     roi_bps: number;
+    lg?: {
+      id: string;
+      name: string;
+      sport: string;
+    };
     ev: any;
     o: any;
     u: any;

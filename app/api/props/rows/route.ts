@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       .map((s: string) => s.trim())
       .filter((s: string) => s.length > 0);
 
-    const allowed = new Set(["nfl", "mlb", "wnba", "nba"]);
+    const allowed = new Set(["nfl", "ncaaf", "mlb", "wnba", "nba", "ncaab", "nhl"]);
     if (!sport || !allowed.has(sport)) {
       return NextResponse.json(
         { error: "invalid_sport" },

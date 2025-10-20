@@ -133,7 +133,33 @@ function SportOddsContent({
   // Default market using centralized markets
   function getDefaultMarket(sportKey: string, t: 'game' | 'player'): string {
     const all = getMarketsForSport(resolveSportKey(sportKey))
-    const gameKeys = new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score'])
+    const gameKeys = new Set([
+      // Generic game markets
+      'moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals',
+      'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime',
+      '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time',
+      '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns',
+      '1st_half_home_team_total_points', '1st_half_away_team_total_points',
+      '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns',
+      '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards',
+      'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
+      'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
+      'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NHL additions (native keys)
+      'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 'puck_line_reg', 'draw_no_bet',
+      'both_teams_to_score', 'both_teams_to_score_2', 'first_team_to_score', 'first_team_to_score_3way',
+      'last_team_to_score_3way', 'away_total_goals', 'away_total_goals_reg', 'home_total_goals',
+      'home_total_goals_reg',
+      // NHL period game markets
+      'p1_moneyline', 'p1_moneyline_3way', 'p1_total_goals', 'p1_total_goals_odd_even', 'p1_puck_line',
+      'p1_10m_total_goals', 'p1_5m_total_goals', 'p1_btts', 'p1_first_team_to_score_3way',
+      'p1_home_total_goals', 'p1_away_total_goals',
+      'p2_moneyline', 'p2_moneyline_3way', 'p2_puck_line', 'p2_total_goals', 'p2_total_goals_odd_even',
+      'p2_btts', 'p2_10m_total_goals', 'p2_5m_total_goals',
+      'p3_moneyline', 'p3_moneyline_3way', 'p3_puck_line', 'p3_total_goals', 'p3_total_goals_odd_even',
+      // NHL race markets
+      'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
+    ])
     if (t === 'game') {
       const game = all.find((m) => gameKeys.has(m.apiKey))
       return game?.apiKey || 'total'
@@ -152,7 +178,33 @@ function SportOddsContent({
   // Centralized market options from constants with group/period filters
   function getAvailableMarkets(s: string, t: 'game' | 'player') {
     const all = getMarketsForSport(resolveSportKey(s))
-    const gameKeys = new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score'])
+    const gameKeys = new Set([
+      // Generic game markets
+      'moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals',
+      'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime',
+      '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time',
+      '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns',
+      '1st_half_home_team_total_points', '1st_half_away_team_total_points',
+      '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns',
+      '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards',
+      'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
+      'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
+      'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NHL additions
+      'h2h_3way', 'total_goals_reg', 'total_goals_odd_even', 'puck_line_reg', 'draw_no_bet',
+      'both_teams_to_score', 'both_teams_to_score_2', 'first_team_to_score', 'first_team_to_score_3way',
+      'last_team_to_score_3way', 'away_total_goals', 'away_total_goals_reg', 'home_total_goals',
+      'home_total_goals_reg',
+      // NHL period game markets
+      'p1_h2h', 'p1_h2h_3way', 'p1_total_goals', 'p1_total_goals_odd_even', 'p1_spreads',
+      'p1_10m_total_goals', 'p1_5m_total_goals', 'p1_btts', 'p1_first_team_to_score_3way',
+      'p1_home_total_goals', 'p1_away_total_goals',
+      'p2_h2h', 'p2_h2h_3way', 'p2_spreads', 'p2_total_goals', 'p2_total_goals_odd_even',
+      'p2_btts', 'p2_10m_total_goals', 'p2_5m_total_goals',
+      'p3_h2h', 'p3_h2h_3way', 'p3_spreads', 'p3_total_goals', 'p3_total_goals_odd_even',
+      // NHL race markets
+      'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
+    ])
     let items: SportMarket[] = t === 'game'
       ? all.filter((m) => gameKeys.has(m.apiKey))
       : all.filter((m) => !gameKeys.has(m.apiKey))

@@ -12,27 +12,27 @@ import {
 export const InformationBlock = () => {
   const useCases = [
     {
-      title: "Complete Ownership",
+      title: "Real-Time Data",
       description:
-        "Take full control of your AI agents and workflows with comprehensive ownership and customization options",
-      icon: <CloudCheckIcon className="text-brand size-6" />,
-    },
-    {
-      title: "High-Paced",
-      description:
-        "Build and deploy autonomous agents rapidly with our streamlined development environment",
+        "Sub-second odds updates across 20+ sportsbooks with automated error recovery and 99.9% uptime",
       icon: <BoltIcon className="text-brand size-6" />,
     },
     {
-      title: "Absolute Integrity",
+      title: "No Conflicts",
       description:
-        "Ensure reliable and secure agent operations with built-in safety measures and transparent processes",
+        "Zero sponsored rankings or affiliate bias. We show you the best odds, not the ones that pay us",
       icon: <ShieldSplitIcon className="text-brand size-6" />,
     },
     {
-      title: "Meaningful Impact",
+      title: "Full Coverage",
       description:
-        "Create AI solutions that drive real business value and transform how your team works",
+        "Compare main lines, alternates, player props, and live odds across all major sports and markets",
+      icon: <CloudCheckIcon className="text-brand size-6" />,
+    },
+    {
+      title: "Built for Bettors",
+      description:
+        "Customizable screens, advanced filters, and tools designed by bettors who understand what you need",
       icon: <SparklesIcon className="text-brand size-6" />,
     },
   ];

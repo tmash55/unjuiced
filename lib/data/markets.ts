@@ -369,10 +369,56 @@ export interface SportMarket {
       },
     ],
     icehockey_nhl: [
-      // Game-level markets
-      { value: "Moneyline", label: "Moneyline", apiKey: "h2h" },
-      { value: "Spread", label: "Puck Line", apiKey: "spreads" },
-      { value: "Total", label: "Total Goals", apiKey: "totals" },
+      // Game-level markets (use sport-native keys)
+      { value: "Moneyline", label: "Moneyline", apiKey: "moneyline", group: "Game", period: 'full' },
+      { value: "Puck Line", label: "Puck Line", apiKey: "puck_line", group: "Game", period: 'full' },
+      { value: "Total Goals", label: "Total Goals", apiKey: "total_goals", group: "Game", period: 'full' },
+      { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3way", group: "Game", period: 'full' },
+      { value: "Total Goals Reg Time", label: "Total Goals (Reg)", apiKey: "total_goals_reg", group: "Game", period: 'full' },
+      { value: "Total Goals Odd/Even", label: "Total Goals Odd/Even", apiKey: "total_goals_odd_even", group: "Game", period: 'full' },
+      { value: "Puck Line Reg Time", label: "Puck Line (Reg)", apiKey: "puck_line_reg", group: "Game", period: 'full' },
+      { value: "Draw No Bet", label: "Draw No Bet", apiKey: "draw_no_bet", group: "Game", period: 'full' },
+      { value: "Both Teams To Score", label: "Both Teams To Score", apiKey: "both_teams_to_score", group: "Game", period: 'full' },
+      { value: "Both Teams To Score 2 Goals", label: "Both Teams To Score 2+", apiKey: "both_teams_to_score_2", group: "Game", period: 'full' },
+      { value: "First Team To Score", label: "First Team To Score", apiKey: "first_team_to_score", group: "Game", period: 'full' },
+      { value: "First Team To Score 3-Way", label: "First Team To Score (3-Way)", apiKey: "first_team_to_score_3way", group: "Game", period: 'full' },
+      { value: "last-team-to-score-3-way", label: "Last Team To Score (3-Way)", apiKey: "last_team_to_score_3way", group: "Game", period: 'full' },
+      { value: "Away Team Total Goals", label: "Away Team Total Goals", apiKey: "away_total_goals", group: "Game", period: 'full' },
+      { value: "Away Team Total Goals Reg Time", label: "Away Team Total Goals (Reg)", apiKey: "away_total_goals_reg", group: "Game", period: 'full' },
+      { value: "Home Team Total Goals", label: "Home Team Total Goals", apiKey: "home_total_goals", group: "Game", period: 'full' },
+      { value: "Home Team Total Goals Reg Time", label: "Home Team Total Goals (Reg)", apiKey: "home_total_goals_reg", group: "Game", period: 'full' },
+
+      // Period game markets
+      { value: "1st Period Moneyline", label: "1st Period Moneyline", apiKey: "p1_moneyline", group: "1st Period" },
+      { value: "1st Period Moneyline 3-Way", label: "1st Period Moneyline (3-Way)", apiKey: "p1_moneyline_3way", group: "1st Period" },
+      { value: "1st Period Total Goals", label: "1st Period Total Goals", apiKey: "p1_total_goals", group: "1st Period" },
+      { value: "1st Period Total Goals Odd/Even", label: "1st Period Total Goals Odd/Even", apiKey: "p1_total_goals_odd_even", group: "1st Period" },
+      { value: "1st Period Puck Line", label: "1st Period Puck Line", apiKey: "p1_puck_line", group: "1st Period" },
+      { value: "1st 10 Minutes Total Goals", label: "1st 10 Minutes Total Goals", apiKey: "p1_10m_total_goals", group: "1st Period" },
+      { value: "1st 5 Minutes Total Goals", label: "1st 5 Minutes Total Goals", apiKey: "p1_5m_total_goals", group: "1st Period" },
+      { value: "1st Period Both Teams To Score", label: "1st Period Both Teams To Score", apiKey: "p1_btts", group: "1st Period" },
+      { value: "1st Period First Team To Score 3-Way", label: "1st Period First Team To Score (3-Way)", apiKey: "p1_first_team_to_score_3way", group: "1st Period" },
+      { value: "1st Period Home Team Total Goals", label: "1st Period Home Team Total Goals", apiKey: "p1_home_total_goals", group: "1st Period" },
+      { value: "1st Period Away Team Total Goals", label: "1st Period Away Team Total Goals", apiKey: "p1_away_total_goals", group: "1st Period" },
+      { value: "2nd Period Moneyline", label: "2nd Period Moneyline", apiKey: "p2_moneyline", group: "2nd Period" },
+      { value: "2nd Period Moneyline 3-Way", label: "2nd Period Moneyline (3-Way)", apiKey: "p2_moneyline_3way", group: "2nd Period" },
+      { value: "2nd Period Puck Line", label: "2nd Period Puck Line", apiKey: "p2_puck_line", group: "2nd Period" },
+      { value: "2nd Period Total Goals", label: "2nd Period Total Goals", apiKey: "p2_total_goals", group: "2nd Period" },
+      { value: "2nd Period Total Goals Odd/Even", label: "2nd Period Total Goals Odd/Even", apiKey: "p2_total_goals_odd_even", group: "2nd Period" },
+      { value: "2nd Period Both Teams To Score", label: "2nd Period Both Teams To Score", apiKey: "p2_btts", group: "2nd Period" },
+      { value: "2nd Period 1st 10 Minutes Total Goals", label: "2nd Period First 10 Minutes Total Goals", apiKey: "p2_10m_total_goals", group: "2nd Period" },
+      { value: "2nd Period 1st 5 Minutes Total Goals", label: "2nd Period First 5 Minutes Total Goals", apiKey: "p2_5m_total_goals", group: "2nd Period" },
+      { value: "3rd Period Moneyline", label: "3rd Period Moneyline", apiKey: "p3_moneyline", group: "3rd Period" },
+      { value: "3rd Period Moneyline 3-Way", label: "3rd Period Moneyline (3-Way)", apiKey: "p3_moneyline_3way", group: "3rd Period" },
+      { value: "3rd Period Puck Line", label: "3rd Period Puck Line", apiKey: "p3_puck_line", group: "3rd Period" },
+      { value: "3rd Period Total Goals", label: "3rd Period Total Goals", apiKey: "p3_total_goals", group: "3rd Period" },
+      { value: "3rd Period Total Goals Odd/Even", label: "3rd Period Total Goals Odd/Even", apiKey: "p3_total_goals_odd_even", group: "3rd Period" },
+
+      // Races
+      { value: "Race To 2 Goals 3-Way Reg Time", label: "Race To 2 Goals (3-Way, Reg)", apiKey: "race_to_2_goals_3way_reg", group: "Races", period: 'full' },
+      { value: "Race To 3 Goals 3-Way Reg Time", label: "Race To 3 Goals (3-Way, Reg)", apiKey: "race_to_3_goals_3way_reg", group: "Races", period: 'full' },
+      { value: "Race To 4 Goals 3-Way Reg Time", label: "Race To 4 Goals (3-Way, Reg)", apiKey: "race_to_4_goals_3way_reg", group: "Races", period: 'full' },
+      { value: "Race To 5 Goals 3-Way Reg Time", label: "Race To 5 Goals (3-Way, Reg)", apiKey: "race_to_5_goals_3way_reg", group: "Races", period: 'full' },
       
       // Player props
       {
@@ -382,7 +428,28 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_points_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
+      // Additional player props
+      { value: "Hits", label: "Hits", apiKey: "player_hits", group: "Skater" },
+      { value: "Plus/Minus", label: "Plus/Minus", apiKey: "player_plus_minus", group: "Skater" },
+      { value: "Shutout", label: "Shutout", apiKey: "player_shutout", group: "Goalie" },
+
+      // Period player markets
+      { value: "1st Period Player Goals", label: "1st Period Player Goals", apiKey: "p1_player_goals" },
+      { value: "1st Period Player Assists", label: "1st Period Player Assists", apiKey: "p1_player_assists" },
+      { value: "1st Period Player Saves", label: "1st Period Player Saves", apiKey: "p1_player_total_saves" },
+      { value: "1st Period Player Shots On Goal", label: "1st Period Player Shots On Goal", apiKey: "p1_player_shots_on_goal" },
+      { value: "2nd Period Player Goals", label: "2nd Period Player Goals", apiKey: "p2_player_goals" },
+      { value: "2nd Period Player Assists", label: "2nd Period Player Assists", apiKey: "p2_player_assists" },
+      { value: "2nd Period Player Points", label: "2nd Period Player Points", apiKey: "p2_player_points" },
+      { value: "2nd Period Player Saves", label: "2nd Period Player Saves", apiKey: "p2_player_total_saves" },
+      { value: "2nd Period Player Shots On Goal", label: "2nd Period Player Shots On Goal", apiKey: "p2_player_shots_on_goal" },
+      { value: "3rd Period Player Goals", label: "3rd Period Player Goals", apiKey: "p3_player_goals" },
+      { value: "3rd Period Player Assists", label: "3rd Period Player Assists", apiKey: "p3_player_assists" },
+      { value: "3rd Period Player Points", label: "3rd Period Player Points", apiKey: "p3_player_points" },
+      { value: "3rd Period Player Saves", label: "3rd Period Player Saves", apiKey: "p3_player_total_saves" },
+      { value: "3rd Period Player Shots On Goal", label: "3rd Period Player Shots On Goal", apiKey: "p3_player_shots_on_goal" },
       {
         value: "Shots",
         label: "Shots on Goal",
@@ -390,6 +457,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_shots_on_goal_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
       {
         value: "Goals",
@@ -398,6 +466,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_goals_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
       {
         value: "Assists",
@@ -406,6 +475,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_assists_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
       {
         value: "Power_Play_Points",
@@ -414,6 +484,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_power_play_points_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
       {
         value: "Blocked_Shots",
@@ -422,6 +493,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_blocked_shots_alternate",
         alwaysFetchAlternate: true,
+        group: "Skater",
       },
       {
         value: "Total_Saves",
@@ -430,6 +502,7 @@ export interface SportMarket {
         hasAlternates: true,
         alternateKey: "player_total_saves_alternate",
         alwaysFetchAlternate: true,
+        group: "Goalie",
       },
   
       {
@@ -610,14 +683,14 @@ export interface SportMarket {
       'last touchdown scorer'
     ],
     nhl: [
-      'anytime goal', // Set as default
+      'goals', // Set as default (player_goals)
       'points',
-      'goals',
       'assists',
       'shots on goal',
       'power play points',
       'blocked shots',
       'total saves',
+      'anytime goal',
       'first goal',
       'last goal'
     ]
@@ -626,6 +699,100 @@ export interface SportMarket {
   // Export supported sports array
   export const SUPPORTED_SPORTS = ['mlb', 'nba', 'wnba', 'ncaab', 'nfl', 'ncaaf', 'nhl'] as const;
   
+// Canonical mapping for Hockey (NHL) market display names → internal API keys
+// Note: For core game markets we map to our existing keys used across sports:
+// - Moneyline → 'h2h'
+// - Puck Line (Spread) → 'spreads'
+// - Total Goals → 'totals'
+export const MARKET_NAME_MAP: Record<string, string> = {
+  // Player primary markets
+  'Player Goals': 'player_goals',
+  'Player Assists': 'player_assists',
+  'Player Points': 'player_points',
+  // We standardize to 'player_total_saves' to match SPORT_MARKETS (not 'player_saves')
+  'Player Saves': 'player_total_saves',
+  'Player Shots On Goal': 'player_shots_on_goal',
+  'Player Hits': 'player_hits',
+  'Player Blocked Shots': 'player_blocked_shots',
+  'Player Plus Minus': 'player_plus_minus',
+  // We standardize to 'player_power_play_points' (not 'player_pp_points')
+  'Player Power Play Points': 'player_power_play_points',
+  'Player Shutout': 'player_shutout',
+
+  // Period player markets (generic prefixes)
+  '1st Period Player Goals': 'p1_player_goals',
+  '1st Period Player Assists': 'p1_player_assists',
+  '1st Period Player Saves': 'p1_player_total_saves',
+  '1st Period Player Shots On Goal': 'p1_player_shots_on_goal',
+  '2nd Period Player Goals': 'p2_player_goals',
+  '2nd Period Player Assists': 'p2_player_assists',
+  '2nd Period Player Points': 'p2_player_points',
+  '2nd Period Player Saves': 'p2_player_total_saves',
+  '2nd Period Player Shots On Goal': 'p2_player_shots_on_goal',
+  '3rd Period Player Goals': 'p3_player_goals',
+  '3rd Period Player Assists': 'p3_player_assists',
+  '3rd Period Player Points': 'p3_player_points',
+  '3rd Period Player Saves': 'p3_player_total_saves',
+  '3rd Period Player Shots On Goal': 'p3_player_shots_on_goal',
+
+  // First/Last/Team first goalscorer
+  'First Goalscorer': 'first_goalscorer',
+  'Last Goalscorer': 'last_goalscorer',
+  'Away Team First Goalscorer': 'away_first_goalscorer',
+  'Home Team First Goalscorer': 'home_first_goalscorer',
+
+  // Game markets
+  'Moneyline': 'moneyline',
+  'Moneyline 3-Way': 'moneyline_3way',
+  'Total Goals': 'total_goals',
+  'Total Goals Reg Time': 'total_goals_reg',
+  'Total Goals Odd/Even': 'total_goals_odd_even',
+  'Puck Line': 'puck_line',
+  'Puck Line Reg Time': 'puck_line_reg',
+  'Draw No Bet': 'draw_no_bet',
+  'Both Teams To Score': 'both_teams_to_score',
+  'Both Teams To Score 2 Goals': 'both_teams_to_score_2',
+  'First Team To Score': 'first_team_to_score',
+  'First Team To Score 3-Way': 'first_team_to_score_3way',
+  'last-team-to-score-3-way': 'last_team_to_score_3way',
+  'Away Team Total Goals': 'away_total_goals',
+  'Away Team Total Goals Reg Time': 'away_total_goals_reg',
+  'Home Team Total Goals': 'home_total_goals',
+  'Home Team Total Goals Reg Time': 'home_total_goals_reg',
+
+  // Period game markets
+  '1st Period Moneyline': 'p1_moneyline',
+  '1st Period Moneyline 3-Way': 'p1_moneyline_3way',
+  '1st Period Total Goals': 'p1_total_goals',
+  '1st Period Total Goals Odd/Even': 'p1_total_goals_odd_even',
+  '1st Period Puck Line': 'p1_puck_line',
+  '1st 10 Minutes Total Goals': 'p1_10m_total_goals',
+  '1st 5 Minutes Total Goals': 'p1_5m_total_goals',
+  '1st Period Both Teams To Score': 'p1_btts',
+  '1st Period First Team To Score 3-Way': 'p1_first_team_to_score_3way',
+  '1st Period Home Team Total Goals': 'p1_home_total_goals',
+  '1st Period Away Team Total Goals': 'p1_away_total_goals',
+  '2nd Period Moneyline': 'p2_moneyline',
+  '2nd Period Moneyline 3-Way': 'p2_moneyline_3way',
+  '2nd Period Puck Line': 'p2_puck_line',
+  '2nd Period Total Goals': 'p2_total_goals',
+  '2nd Period Total Goals Odd/Even': 'p2_total_goals_odd_even',
+  '2nd Period Both Teams To Score': 'p2_btts',
+  '2nd Period 1st 10 Minutes Total Goals': 'p2_10m_total_goals',
+  '2nd Period 1st 5 Minutes Total Goals': 'p2_5m_total_goals',
+  '3rd Period Moneyline': 'p3_moneyline',
+  '3rd Period Moneyline 3-Way': 'p3_moneyline_3way',
+  '3rd Period Puck Line': 'p3_puck_line',
+  '3rd Period Total Goals': 'p3_total_goals',
+  '3rd Period Total Goals Odd/Even': 'p3_total_goals_odd_even',
+
+  // Races
+  'Race To 2 Goals 3-Way Reg Time': 'race_to_2_goals_3way_reg',
+  'Race To 3 Goals 3-Way Reg Time': 'race_to_3_goals_3way_reg',
+  'Race To 4 Goals 3-Way Reg Time': 'race_to_4_goals_3way_reg',
+  'Race To 5 Goals 3-Way Reg Time': 'race_to_5_goals_3way_reg',
+};
+
   // Helper function to format market labels with special cases
   export function formatMarketLabel(market: string): string {
     // Special case mappings

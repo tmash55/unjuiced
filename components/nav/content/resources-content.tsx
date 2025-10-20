@@ -26,37 +26,38 @@ const mainLinks = [
 
 export function ResourcesContent({ domain }: { domain: string }) {
   return (
-    <div className="grid w-[1020px] grid-cols-[0.9fr,0.55fr,0.55fr] divide-x divide-neutral-200 dark:divide-white/20">
-      <div className="flex h-full flex-col p-4">
+    <div className="grid w-[1020px] grid-cols-[1fr_auto_auto] divide-x divide-neutral-200 dark:divide-white/20">
+      <div className="flex h-full flex-col p-4 pr-6">
         <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>Explore</p>
-        <div className="grid grow grid-cols-2 gap-4">
+        <div className="grid grow grid-cols-2 gap-3">
           {mainLinks.map(({ icon: Icon, title, description, href, comingSoon }) =>
             comingSoon ? (
               <div
                 key={title}
                 className={cn(
-                  "group relative isolate z-0 flex flex-col justify-between overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 px-5 py-4 opacity-80 grayscale",
+                  "group relative isolate z-0 flex flex-col justify-between overflow-hidden rounded-xl border border-neutral-100 bg-neutral-50 px-5 py-4 opacity-60 grayscale transition-colors duration-75",
                   "dark:border-white/20 dark:bg-neutral-900",
                 )}
                 aria-disabled
               >
                 <Icon className="relative size-5 text-neutral-700 dark:text-white/60" />
                 <div className="relative">
-                  <span className="text-sm font-medium text-neutral-900 dark:text-white">
-                    {title}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-neutral-900 dark:text-white">
+                      {title}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-white/20 dark:text-white/80">
+                      Soon
+                    </span>
+                  </div>
                   <p className="mt-2 text-xs text-neutral-500 dark:text-white/60">
                     {description}
                   </p>
-                  <span className="mt-2 inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-white/20 dark:text-white/80">
-                    Coming soon
-                  </span>
                 </div>
               </div>
             ) : (
               <NavigationMenuLink key={title} asChild>
                 <Link
-                  key={title}
                   href={createHref(
                     href,
                     domain,
@@ -98,7 +99,7 @@ export function ResourcesContent({ domain }: { domain: string }) {
         </div>
       </div>
 
-      <div className="px-6 py-4">
+      <div className="w-[240px] px-6 py-4">
         <p className={cn(contentHeadingClassName, "mb-2")}>Company</p>
         <div className="flex flex-col gap-0.5">
           {[
@@ -127,7 +128,7 @@ export function ResourcesContent({ domain }: { domain: string }) {
         </div>
       </div>
 
-      <div className="px-6 py-4">
+      <div className="w-[240px] px-6 py-4">
         <p className={cn(contentHeadingClassName, "mb-2")}>Updates</p>
         <div className="flex flex-col gap-0.5">
           {[

@@ -15,13 +15,13 @@ export const SignInForm = () => {
 
         {/* Sign up link */}
         <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-          Don&apos;t have an account?{" "}
-          <Link
+              Don&apos;t have an account?{" "}
+              <Link
             href="/register"
             className="font-semibold text-neutral-800 underline underline-offset-2 hover:text-neutral-600 dark:text-neutral-200 dark:hover:text-neutral-400"
-          >
+              >
             Sign up
-          </Link>
+              </Link>
         </p>
       </div>
     </div>

@@ -36,6 +36,9 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [authExpired, setAuthExpired] = useState<boolean>(false);
   const [totalCounts, setTotalCounts] = useState<{ all: number; live: number; pregame: number } | null>(null);
+  const [hasFailed, setHasFailed] = useState(false);
+  const retryCountRef = useRef(0);
+  const maxRetries = 10;
 
   // Fetch total counts from API
   const fetchTotalCounts = useCallback(async () => {
@@ -143,18 +146,44 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   }, []);
 
   useEffect(() => {
-    if (!pro || !live) { setConnected(false); return; }
+    if (!pro || !live) { 
+      setConnected(false); 
+      setHasFailed(false);
+      retryCountRef.current = 0;
+      return; 
+    }
     let es: EventSource | null = null;
     let backoff = 1000;
     const maxBackoff = 15000;
 
     const open = () => {
+      // Check if we've exceeded max retries
+      if (retryCountRef.current >= maxRetries) {
+        setHasFailed(true);
+        setConnected(false);
+        return;
+      }
+      
       es = new EventSource("/api/sse/arbs", { withCredentials: true } as any);
-      es.onopen = () => { setConnected(true); backoff = 1000; };
+      es.onopen = () => { 
+        setConnected(true); 
+        setHasFailed(false);
+        backoff = 1000; 
+        retryCountRef.current = 0; // Reset on successful connection
+      };
       es.onerror = () => {
         setConnected(false);
         try { es?.close(); } catch {}
         es = null;
+        
+        retryCountRef.current += 1;
+        
+        // Check if we've hit max retries
+        if (retryCountRef.current >= maxRetries) {
+          setHasFailed(true);
+          return;
+        }
+        
         setTimeout(() => { backoff = Math.min(backoff * 2, maxBackoff); open(); }, backoff);
       };
       es.onmessage = async (ev) => {
@@ -271,5 +300,5 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     try { location.reload(); } catch {}
   }, []);
 
-  return { rows, ids, changes, added, version, loading, connected, lastDiff, error, cursor, hasMore, nextPage, prevPage, setCursor, lastUpdated, refresh, authExpired, reconnectNow, totalCounts };
+  return { rows, ids, changes, added, version, loading, connected, lastDiff, error, cursor, hasMore, nextPage, prevPage, setCursor, lastUpdated, refresh, authExpired, reconnectNow, totalCounts, hasFailed };
 }

@@ -1,18 +1,21 @@
 import { Contact } from "@/components/contact";
+import { FAQs } from "@/components/faqs";
 import { DivideX } from "@/components/divide";
 import { getSEOTags } from "@/lib/seo";
 
 export const metadata = getSEOTags({
-  title: "Sign Up | Nodus",
+  title: "Contact Us | Unjuiced",
   description:
-    "Sign up for Nodus and start building your own autonomous agents today.",
+    "Get in touch with Unjuiced. Have questions about odds comparison, arbitrage detection, or our platform? We're here to help.",
 });
 
-export default function SignupPage() {
+export default function ContactPage() {
   return (
     <main>
       <DivideX />
       <Contact />
+      <DivideX />
+      <FAQs />
       <DivideX />
     </main>
   );

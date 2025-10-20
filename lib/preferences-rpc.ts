@@ -16,6 +16,8 @@ export interface UserPreferences {
   
   // Tool-specific preferences
   arbitrage_selected_books?: string[];
+  arbitrage_selected_sports?: string[];
+  arbitrage_selected_leagues?: string[];
   arbitrage_min_arb?: number;
   arbitrage_max_arb?: number;
   arbitrage_total_bet_amount?: number;
@@ -85,6 +87,9 @@ export class PreferencesRPC {
       
       // Tool preferences with defaults
       arbitrage_selected_books: data?.arbitrage_selected_books || [],
+      // Return undefined only if column doesn't exist (NULL in DB), otherwise return the array (even if empty)
+      arbitrage_selected_sports: data?.arbitrage_selected_sports !== null ? data?.arbitrage_selected_sports : undefined,
+      arbitrage_selected_leagues: data?.arbitrage_selected_leagues !== null ? data?.arbitrage_selected_leagues : undefined,
       arbitrage_min_arb: data?.arbitrage_min_arb ?? 0,
       arbitrage_total_bet_amount: typeof data?.arbitrage_total_bet_amount === 'number' ? data!.arbitrage_total_bet_amount : (data?.arbitrage_total_bet_amount ? Number(data?.arbitrage_total_bet_amount) : undefined),
       arbitrage_search_query: data?.arbitrage_search_query || "",
@@ -191,6 +196,8 @@ export class PreferencesRPC {
         notifications_enabled: false,
         public_profile: true,
         arbitrage_selected_books: [],
+        arbitrage_selected_sports: [],
+        arbitrage_selected_leagues: [],
         arbitrage_min_arb: 0,
         arbitrage_search_query: "",
         ev_selected_books: [],

@@ -14,7 +14,7 @@ export const PricingTable = () => {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
 
   const orderedTierNames: TierName[] = useMemo(
-    () => [TierName.TIER_1, TierName.TIER_2, TierName.TIER_3],
+    () => [TierName.FREE, TierName.PRO],
     [],
   );
 

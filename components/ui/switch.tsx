@@ -41,19 +41,20 @@ export function Switch({
       {...(fn && { onCheckedChange: fn })}
       disabled={switchDisabled}
       className={cn(
-        "radix-state-checked:bg-blue-500 radix-state-unchecked:bg-neutral-200 relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
-        "focus:outline-none focus-visible:ring focus-visible:ring-blue-500 focus-visible:ring-opacity-75",
-        "data-[disabled]:cursor-not-allowed",
+        "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+        "data-[state=checked]:bg-brand data-[state=unchecked]:bg-neutral-300 dark:data-[state=unchecked]:bg-neutral-700",
+        "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         trackDimensions,
       )}
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          `radix-state-checked:${thumbTranslate}`,
-          "radix-state-unchecked:translate-x-0",
-          `pointer-events-none h-3 w-3 translate-x-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out`,
+          "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out",
+          "data-[state=checked]:translate-x-4",
+          "data-[state=unchecked]:translate-x-0",
           thumbDimensions,
-          thumbTranslate,
+          thumbTranslate && `data-[state=checked]:${thumbTranslate}`,
         )}
       >
         {thumbIcon}

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const sp = new URL(req.url).searchParams;
   const sport = (sp.get("sport") || "").trim().toLowerCase();
-  const allowed = new Set(["nfl", "mlb", "wnba", "nba"]);
+  const allowed = new Set(["nfl", "ncaaf", "mlb", "wnba", "nba", "ncaab", "nhl"]);
   if (!sport || !allowed.has(sport)) {
     return new Response(JSON.stringify({ error: "invalid_sport" }), { status: 400 });
   }

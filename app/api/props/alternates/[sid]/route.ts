@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sid:
 
     const sp = new URL(req.url).searchParams;
     const sport = (sp.get("sport") || "").trim().toLowerCase();
-    const allowed = new Set(["nfl", "mlb", "wnba", "nba"]);
+    const allowed = new Set(["nfl", "ncaaf", "mlb", "wnba", "nba", "ncaab", "nhl"]);
     if (!sport || !allowed.has(sport)) {
       return NextResponse.json({ error: "invalid_sport" }, { status: 400, headers: { "Cache-Control": "no-store" } });
     }

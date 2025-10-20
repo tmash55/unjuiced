@@ -1,32 +1,42 @@
 export const faqs = [
   {
-    question: "What exactly does this platform do?",
+    question: "What is Unjuiced and how does it work?",
     answer:
-      "Our platform lets you design, deploy, and manage AI-powered agentic workflows that can combine both automated (AI) and manual steps. These workflows connect to your existing tools (like Slack, Notion, or Google Sheets) and use AI agents to complete tasks.",
+      "Unjuiced is a real-time odds comparison platform that aggregates betting lines from all major sportsbooks. We help you find the best odds for any bet, identify arbitrage opportunities, and track line movements across NFL, NBA, NHL, MLB, and college sports. Our platform updates in real-time so you never miss the best value.",
   },
   {
-    question: "How do I get started with creating my first workflow?",
+    question: "What sports and markets do you cover?",
     answer:
-      "Start by using our drag-and-drop interface to design your workflow. Connect the tools you already use, define the steps (both AI and manual), and test everything in our sandbox environment before deploying. No coding required.",
+      "We cover all major sports including NFL, NBA, NHL, MLB, NCAAF, and NCAAB. You can compare odds for game lines (moneyline, spread, totals), player props (points, rebounds, touchdowns, etc.), and futures. We support both pregame and live betting markets across 20+ sportsbooks. See all sports and markets we support here: /markets",
   },
   {
-    question: "What tools and services can I integrate?",
+    question: "How do I find arbitrage opportunities?",
     answer:
-      "We support hundreds of integrations including Slack, Notion, Google Workspace, Salesforce, GitHub, Zapier, and many more. You can also connect custom APIs and databases through our flexible connector system.",
+      "Our Arbitrage Finder automatically scans all sportsbooks to identify risk-free betting opportunities where you can guarantee a profit regardless of the outcome. Simply set your bet amount and ROI filters, and we'll show you exactly how much to wager on each side to guarantee a profit.",
   },
   {
-    question: "Is my data secure when using AI agents?",
+    question: "Which sportsbooks do you support?",
     answer:
-      "Yes, we take security seriously. All data is encrypted in transit and at rest, we're SOC 2 compliant, and you maintain full control over what data your agents can access. Agents only interact with the specific tools and data you explicitly authorize.",
+      "We support all major US sportsbooks including DraftKings, FanDuel, BetMGM, Caesars, ESPN BET, Fanatics, BetRivers, and many more. We also include sharp books like Pinnacle and Circa. You can customize which books to display based on your location and preferences. View all supported sportsbooks and details here: /sportsbooks",
   },
   {
-    question: "Can I test workflows before they go live?",
+    question: "What's the difference between Free and Pro plans?",
     answer:
-      "Absolutely. Our sandbox environment lets you preview and debug workflow logic safely before deployment. You can test different scenarios, validate agent behavior, and ensure everything works as expected without affecting your live systems.",
+      "Free users can compare odds across all sportsbooks and find arbitrage opportunities up to 2% ROI. Pro users get unlimited arbitrage opportunities, live odds updates via real-time data feeds, advanced filters, and the ability to hide/reorder columns. Pro also includes deep links to place bets directly from our platform. Compare Free and Pro features here: /pricing",
   },
   {
-    question: "What's the difference between automated and manual steps?",
+    question: "How accurate and fast are your odds?",
     answer:
-      "Automated steps are handled entirely by AI agents (like data analysis, content generation, or API calls), while manual steps require human input or approval. You can mix both types to create workflows that leverage AI efficiency while maintaining human oversight where needed.",
+      "We provide live, up-to-date odds with sub-second latency directly from sportsbook APIs. Pro users receive real-time updates via Server-Sent Events (SSE) with instant UI updates as lines move. We offer full bet coverage including main lines, alternate lines, player props, and more across all major markets.",
+  },
+  {
+    question: "Is sports betting legal in my state?",
+    answer:
+      "Sports betting legality varies by state. Unjuiced is a comparison tool available nationwide, but you can only place bets through licensed sportsbooks in states where sports betting is legal. We filter sportsbooks based on your location to show only those available in your state. Always gamble responsibly.",
+  },
+  {
+    question: "Does Unjuiced handle bets or process wagers?",
+    answer:
+      "No. Unjuiced is an odds comparison and information platform for entertainment purposes only. We do not accept, place, or process any bets or wagers. All betting is done directly through licensed sportsbooks. We simply provide tools to help you compare odds and find value across different betting platforms.",
   },
 ];

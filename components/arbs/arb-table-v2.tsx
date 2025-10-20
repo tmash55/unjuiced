@@ -4,9 +4,11 @@ import React, { useMemo, useState } from "react";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
+import { SportIcon } from "@/components/icons/sport-icons";
+import { Tooltip } from "@/components/tooltip";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -17,6 +19,7 @@ interface ArbTableProps {
   changes: Map<string, { roi?: "up" | "down"; o?: "up" | "down"; u?: "up" | "down" }>;
   added?: Set<string>;
   totalBetAmount?: number;
+  roundBets?: boolean;
 }
 
 interface ArbRowWithId extends ArbRow {
@@ -27,8 +30,17 @@ interface ArbRowWithId extends ArbRow {
 
 const columnHelper = createColumnHelper<ArbRowWithId>();
 
-export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: ArbTableProps) {
+export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundBets = false }: ArbTableProps) {
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
+  const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
+
+  const setCustomWagersBoth = React.useCallback((updater: (prev: Record<string, { over: string; under: string }>) => Record<string, { over: string; under: string }>) => {
+    setCustomWagers(prev => {
+      const next = updater(prev);
+      customWagersRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Utility functions
   const logo = (id?: string) => SB_MAP.get(norm(id))?.logo;
@@ -240,6 +252,148 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
     return { overStake, underStake, total, profit };
   };
 
+  // Local, focus-safe cell for bet size editing. Avoids table-level re-renders on each keystroke.
+  function BetSizeCell({ r, id }: { r: ArbRowWithId; id: string }) {
+    const plan = getBetPlan(r, id);
+    const formatAmount = (n: number) => {
+      return roundBets ? String(Math.round(n)) : Number.isFinite(n) ? (Math.round(n * 100) / 100).toFixed(2) : '0.00';
+    };
+    const [overLocal, setOverLocal] = React.useState<string>(formatAmount(plan.overStake));
+    const [underLocal, setUnderLocal] = React.useState<string>(formatAmount(plan.underStake));
+
+    // Sync local state if row id changes
+    React.useEffect(() => {
+      const p = getBetPlan(r, id);
+      setOverLocal(formatAmount(p.overStake));
+      setUnderLocal(formatAmount(p.underStake));
+    }, [id, roundBets, r]);
+
+    const commitOver = (value: string) => {
+      const input = parseFloat(value);
+      if (!value || !isFinite(input) || input <= 0) {
+        setCustomWagersBoth(prev => {
+          const ns = { ...prev };
+          delete ns[id];
+          return ns;
+        });
+        const p = getBetPlan(r, id);
+        setOverLocal(String(Math.round(p.overStake)));
+        setUnderLocal(String(Math.round(p.underStake)));
+        return;
+      }
+      const overOdds = Number(r.o?.od || 0);
+      const underOdds = Number(r.u?.od || 0);
+      const other = calculateOptimalWager(input, overOdds, underOdds);
+      const overFinal = roundBets ? Math.round(input) : Math.round(input * 100) / 100;
+      const underFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+      setCustomWagersBoth(prev => ({
+        ...prev,
+        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
+      }));
+      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
+      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+    };
+
+    const commitUnder = (value: string) => {
+      const input = parseFloat(value);
+      if (!value || !isFinite(input) || input <= 0) {
+        setCustomWagersBoth(prev => {
+          const ns = { ...prev };
+          delete ns[id];
+          return ns;
+        });
+        const p = getBetPlan(r, id);
+        setOverLocal(String(Math.round(p.overStake)));
+        setUnderLocal(String(Math.round(p.underStake)));
+        return;
+      }
+      const overOdds = Number(r.o?.od || 0);
+      const underOdds = Number(r.u?.od || 0);
+      const other = calculateOptimalWager(input, underOdds, overOdds);
+      const underFinal = roundBets ? Math.round(input) : Math.round(input * 100) / 100;
+      const overFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+      setCustomWagersBoth(prev => ({
+        ...prev,
+        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
+      }));
+      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
+      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+    };
+
+    return (
+      <div className="inline-block">
+        <div className="bg-neutral-50/50 dark:bg-neutral-800/50 rounded-lg p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 min-w-[170px]">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Over Bet</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-neutral-500">$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={overLocal}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setOverLocal(val);
+                    const n = parseFloat(val);
+                    if (!val || !isFinite(n) || n <= 0) return;
+                    const overOdds = Number(r.o?.od || 0);
+                    const underOdds = Number(r.u?.od || 0);
+                    if (isFinite(overOdds) && isFinite(underOdds) && (overOdds !== 0 || underOdds !== 0)) {
+                      const other = calculateOptimalWager(n, overOdds, underOdds);
+                      const overFinal = roundBets ? Math.round(n) : Math.round(n * 100) / 100;
+                      const underFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+                      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) } }));
+                    }
+                  }}
+                  onBlur={(e) => commitOver(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={(e) => e.target.select()}
+                  className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Under Bet</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-neutral-500">$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={underLocal}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setUnderLocal(val);
+                    const n = parseFloat(val);
+                    if (!val || !isFinite(n) || n <= 0) return;
+                    const overOdds = Number(r.o?.od || 0);
+                    const underOdds = Number(r.u?.od || 0);
+                    if (isFinite(overOdds) && isFinite(underOdds) && (overOdds !== 0 || underOdds !== 0)) {
+                      const other = calculateOptimalWager(n, underOdds, overOdds);
+                      const underFinal = roundBets ? Math.round(n) : Math.round(n * 100) / 100;
+                      const overFinal = roundBets ? Math.round(other) : Math.round(other * 100) / 100;
+                      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
+                      setCustomWagersBoth(prev => ({ ...prev, [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) } }));
+                    }
+                  }}
+                  onBlur={(e) => commitUnder(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={(e) => e.target.select()}
+                  className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="pt-2 mt-2 border-t border-neutral-200/60 dark:border-neutral-700/60 flex items-center justify-between">
+            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Total</span>
+            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{currency((parseFloat(overLocal || '0') || 0) + (parseFloat(underLocal || '0') || 0))}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Prepare data with IDs and flags
   const data = useMemo<ArbRowWithId[]>(() => {
     return rows.map((r, i) => {
@@ -263,10 +417,43 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
       sortingFn: "basic",
       cell: (info) => {
         const roiPct = info.getValue().toFixed(2);
+        const roiValue = parseFloat(roiPct);
+        
+        // High-tier opportunities (>5% ROI) get extra glow
+        const isHighTier = roiValue >= 5;
+        
         return (
-          <span className="inline-flex items-center justify-center font-semibold text-sm px-2 py-0.5 rounded border border-emerald-200/60 bg-emerald-50/50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-400">
+          <span className={cn(
+            "roi-badge up",
+            isHighTier && "shadow-[0_0_12px_rgba(132,204,22,0.4)] ring-1 ring-[var(--accent-strong)]/20"
+          )}>
+            <span className="caret"></span>
             +{roiPct}%
           </span>
+        );
+      },
+    }),
+
+    columnHelper.accessor((row) => row.lg?.name || "", {
+      id: "league",
+      header: "League",
+      size: 100,
+      enableSorting: true,
+      sortingFn: "alphanumeric",
+      cell: (info) => {
+        const r = info.row.original;
+        if (!r.lg) {
+          return null;
+        }
+        return (
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+              <SportIcon sport={r.lg.sport} className="h-5 w-5" />
+            </div>
+            <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
+              {r.lg.name}
+            </span>
+          </div>
         );
       },
     }),
@@ -277,12 +464,22 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
       size: 250,
       cell: (info) => {
         const r = info.row.original;
+        const roiPct = ((r.roi_bps ?? 0) / 100).toFixed(2);
+        const isHighROI = (r.roi_bps ?? 0) / 100 > 10;
+        
         return (
-          <div>
-            <div className="font-medium text-neutral-900 dark:text-white">{formatGameTitle(r)}</div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">
-              {r.ev?.away?.abbr} @ {r.ev?.home?.abbr}
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <div className="font-medium text-neutral-900 dark:text-white">{formatGameTitle(r)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 font-mono tracking-tight">
+                {r.ev?.away?.abbr} @ {r.ev?.home?.abbr}
+              </div>
             </div>
+            {isHighROI && (
+              <Tooltip content="Caution: High ROI. Double-check market and odds before placing bet.">
+                <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              </Tooltip>
+            )}
           </div>
         );
       },
@@ -329,7 +526,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
         return (
           <div className={cn("rounded-lg", isHighlighted && "ring-1 ring-emerald-500/40")}>
             {/* Market Label */}
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2 pl-2">
               <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded border border-neutral-200/60 bg-neutral-50/50 dark:border-neutral-700/60 dark:bg-neutral-800/50">
                 <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                   {(() => {
@@ -343,84 +540,64 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
               </div>
             </div>
 
-            {/* Over/Under with Dual Bet Button */}
-            <div className="relative pr-12">
-              <div className="space-y-1.5">
-                {/* Over Side */}
-                <div className="flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30">
-                  <div className="flex items-center gap-2.5">
-                    {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 object-contain" />}
-                    <div>
-                      <div className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            {/* Over/Under with Dual Bet Button - Grouped Action Card */}
+            <div className="market-action-card relative rounded-lg border border-transparent bg-gradient-to-br from-transparent to-transparent transition-all duration-200 pl-2 pr-2 py-2">
+              <div className="pr-12 space-y-1.5">
+                {/* Over Side - Clickable Card */}
+                <Tooltip content={`Place bet on ${bookName(r.o?.bk)}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openLink(r.o?.bk, r.o?.u);
+                    }}
+                    className="w-full flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 object-contain" />}
+                      <div className="market-positive text-sm font-medium">
                         {getSideLabel("over", r)}
                       </div>
-                      <div className="text-xs text-neutral-500 dark:text-neutral-400">{bookName(r.o?.bk)}</div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">
+                    <div className="market-positive font-bold text-sm">
                       {formatOdds(Number(r.o?.od || 0))}
                     </div>
-                    {(r.o?.u || getBookFallbackUrl(r.o?.bk)) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openLink(r.o?.bk, r.o?.u);
-                        }}
-                        className="h-6 w-6 inline-flex items-center justify-center rounded border border-neutral-200/60 bg-white hover:bg-neutral-50 dark:border-neutral-700/60 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-400 transition-colors"
-                        title="Open sportsbook"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  </button>
+                </Tooltip>
 
-                {/* Under Side */}
-                <div className="flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30">
-                  <div className="flex items-center gap-2.5">
-                    {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 object-contain" />}
-                    <div>
-                      <div className="text-sm font-medium text-red-600 dark:text-red-400">
+                {/* Under Side - Clickable Card */}
+                <Tooltip content={`Place bet on ${bookName(r.u?.bk)}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openLink(r.u?.bk, r.u?.u);
+                    }}
+                    className="w-full flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 object-contain" />}
+                      <div className="market-negative text-sm font-medium">
                         {getSideLabel("under", r)}
                       </div>
-                      <div className="text-xs text-neutral-500 dark:text-neutral-400">{bookName(r.u?.bk)}</div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-red-600 dark:text-red-400 font-bold text-sm">
+                    <div className="market-negative font-bold text-sm">
                       {formatOdds(Number(r.u?.od || 0))}
                     </div>
-                    {(r.u?.u || getBookFallbackUrl(r.u?.bk)) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openLink(r.u?.bk, r.u?.u);
-                        }}
-                        className="h-6 w-6 inline-flex items-center justify-center rounded border border-neutral-200/60 bg-white hover:bg-neutral-50 dark:border-neutral-700/60 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-400 transition-colors"
-                        title="Open sportsbook"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  </button>
+                </Tooltip>
               </div>
 
               {/* Dual Bet Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDualBet(r);
-                }}
-                className="absolute right-0 top-0 bottom-0 w-9 inline-flex flex-col items-center justify-center rounded-md bg-gradient-to-b from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 transition-all"
-                title="Open both bets"
-              >
-                <Zap className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip content="Open both bets">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleDualBet(r); }}
+                  className="dual-bet-btn absolute right-2 top-2 bottom-2 w-9 !h-auto"
+                >
+                  <Zap />
+                </button>
+              </Tooltip>
             </div>
           </div>
         );
@@ -434,52 +611,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
       cell: (info) => {
         const r = info.row.original;
         const id = r._id;
-        const plan = getBetPlan(r, id);
-
-        return (
-          <div className="inline-block">
-            <div className="bg-neutral-50/50 dark:bg-neutral-800/50 rounded-lg p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 min-w-[170px]">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Over Bet</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-neutral-500">$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={customWagers[id]?.over ?? Math.round(plan.overStake)}
-                      onChange={(e) => handleWagerChange(id, 'over', e.target.value)}
-                      onBlur={(e) => handleWagerBlur(id, 'over', e.target.value, r)}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.target.select()}
-                      className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Under Bet</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-neutral-500">$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={customWagers[id]?.under ?? Math.round(plan.underStake)}
-                      onChange={(e) => handleWagerChange(id, 'under', e.target.value)}
-                      onBlur={(e) => handleWagerBlur(id, 'under', e.target.value, r)}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.target.select()}
-                      className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="pt-2 mt-2 border-t border-neutral-200/60 dark:border-neutral-700/60 flex items-center justify-between">
-                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Total</span>
-                <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{currency(plan.total)}</span>
-              </div>
-            </div>
-          </div>
-        );
+        return <BetSizeCell r={r} id={id} />;
       },
     }),
 
@@ -490,22 +622,36 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
       cell: (info) => {
         const r = info.row.original;
         const id = r._id;
-        const plan = getBetPlan(r, id);
+    const custom = customWagersRef.current[id] ?? customWagers[id];
+        // Live recompute with custom inputs if present
+        const over = custom?.over != null && custom.over !== '' ? Math.max(0, parseFloat(custom.over)) : undefined;
+        const under = custom?.under != null && custom.under !== '' ? Math.max(0, parseFloat(custom.under)) : undefined;
+        let profitValue: number;
+        if (over !== undefined || under !== undefined) {
+          const overOdds = Number(r.o?.od || 0);
+          const underOdds = Number(r.u?.od || 0);
+          const overStake = over ?? 0;
+          const underStake = under ?? 0;
+          const overPayout = calculatePayout(overOdds, overStake);
+          const underPayout = calculatePayout(underOdds, underStake);
+          const total = overStake + underStake;
+          profitValue = Math.min(overPayout, underPayout) - total;
+        } else {
+          const plan = getBetPlan(r, id);
+          profitValue = plan.profit;
+        }
         const roiPct = ((r.roi_bps || 0) / 100).toFixed(2);
 
         return (
           <div className="text-center">
-            <div className="text-emerald-600 dark:text-emerald-400 font-bold text-base">
-              {currency(plan.profit)}
-            </div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-              {roiPct}% ROI
+            <div className="font-bold text-base bg-gradient-to-r from-[var(--accent-strong)] to-[var(--accent)] bg-clip-text text-transparent tabular-nums">
+              {currency(profitValue)}
             </div>
           </div>
         );
       },
     }),
-  ], [customWagers, totalBetAmount, added, changes]);
+  ], [totalBetAmount, added, changes]);
 
   // Create table instance
   const tableProps = useTable({
@@ -534,27 +680,39 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200 }: 
       {...tableProps}
       sortableColumns={["roi", "time"]}
       resourceName={(plural) => plural ? "opportunities" : "opportunity"}
-      className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50"
+      className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient"
       containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
+      scrollWrapperClassName="max-h-[calc(100vh-280px)] overflow-y-auto"
       thClassName={(columnId) => cn(
-        "bg-neutral-50/50 dark:bg-neutral-900/50 font-medium text-xs uppercase tracking-wide",
-        columnId === "roi" && "text-center",
-        columnId === "time" && "text-center",
-        columnId === "profit" && "text-center",
+        "bg-neutral-50/50 dark:bg-neutral-900/50 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14",
+        columnId === "roi" && "text-center pr-6",
+        columnId === "league" && "pl-6",
+        columnId === "game" && "pr-6",
+        columnId === "time" && "text-center pl-6 pr-6",
+        columnId === "market" && "pl-6 pr-6",
+        columnId === "betSize" && "pl-6 pr-6",
+        columnId === "profit" && "text-center pl-6",
       )}
-      tdClassName={(columnId, row) => cn(
-        "bg-white dark:bg-neutral-900",
-        (row.original as ArbRowWithId)._isNew && "bg-emerald-50/30 dark:bg-emerald-950/20",
-        columnId === "roi" && "text-center",
-        columnId === "time" && "text-center",
-        columnId === "profit" && "text-center",
-      )}
-      rowProps={(row) => ({
-        className: cn(
-          "group/row hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors",
-          (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10"
-        )
-      })}
+          tdClassName={(columnId, row) => cn(
+            // Zebra striping
+            row.index % 2 === 0 ? "table-row-even" : "table-row-odd",
+            (row.original as ArbRowWithId)._isNew && "bg-emerald-50/30 dark:bg-emerald-950/20",
+            columnId === "roi" && "text-center pr-6",
+            columnId === "league" && "pl-6",
+            columnId === "game" && "pr-6",
+            columnId === "time" && "text-center pl-6 pr-6",
+            columnId === "market" && "pl-6 pr-6",
+            columnId === "betSize" && "pl-6 pr-6",
+            columnId === "profit" && "text-center pl-6",
+          )}
+          rowProps={(row) => ({
+            className: cn(
+              "group/row transition-all duration-200 ease-out cursor-pointer",
+              "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)]",
+              "hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
+              (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10"
+            )
+          })}
     />
   );
 }

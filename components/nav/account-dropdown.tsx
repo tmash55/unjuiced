@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { AnimatePresence, motion } from "motion/react";
-import { User as UserIcon, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
+import { CircleUserRound } from "lucide-react";
+import Logout from "@/icons/logout";
+import { Gear } from "@/icons/gear";
 
 export function AccountDropdown({ user }: { user: User }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,7 +33,7 @@ export function AccountDropdown({ user }: { user: User }) {
           isOpen && "ring-2 ring-neutral-200 dark:ring-neutral-700"
         )}
       >
-        <UserIcon className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+        <CircleUserRound className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
       </button>
 
       <AnimatePresence>
@@ -76,7 +78,7 @@ export function AccountDropdown({ user }: { user: User }) {
                     "dark:text-neutral-300 dark:hover:bg-neutral-800"
                   )}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Gear className="h-4 w-4" />
                   Settings
                 </Link>
 
@@ -91,7 +93,7 @@ export function AccountDropdown({ user }: { user: User }) {
                     "dark:text-red-400 dark:hover:bg-red-950/50"
                   )}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <Logout className="h-4 w-4" />
                   Sign out
                 </button>
               </div>

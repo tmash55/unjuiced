@@ -5,6 +5,7 @@ import { satoshi, inter } from "@/fonts/fonts";
 import { ThemeProvider } from "@/context/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { PreferencesProvider } from "@/context/preferences-context";
+import { TooltipProvider } from "@/components/tooltip";
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -31,12 +32,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${satoshi.variable} ${inter.variable} ${geistMono.variable} overflow-y-scroll`}>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
-          <AuthProvider>
-            <PreferencesProvider>
-              {children}
-              <Toaster position="top-center" />
-            </PreferencesProvider>
-          </AuthProvider>
+          <TooltipProvider>
+            <AuthProvider>
+              <PreferencesProvider>
+                {children}
+                <Toaster position="top-center" />
+              </PreferencesProvider>
+            </AuthProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

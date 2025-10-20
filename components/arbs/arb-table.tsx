@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import type { ArbRow } from "@/lib/arb-schema";
 import { ArrowUpDown, Zap, ExternalLink } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
-import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/tooltip";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -178,22 +178,6 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
     const opposite = (inputWager * inputDec) / oppositeDec;
     return Math.round(opposite);
   };
-  const handleWagerChange = (key: string, side: 'over'|'under', value: string, r: ArbRow) => {
-    const input = parseFloat(value);
-    if (!isFinite(input) || input <= 0) {
-      setCustomWagers(prev => ({ ...prev, [key]: { over: side === 'over' ? '' : '', under: side === 'under' ? '' : '' } }));
-      return;
-    }
-    const overOdds = Number(r.o?.od || 0);
-    const underOdds = Number(r.u?.od || 0);
-    if (side === 'over') {
-      const other = calculateOptimalWager(input, overOdds, underOdds);
-      setCustomWagers(prev => ({ ...prev, [key]: { over: String(Math.round(input)), under: String(other) } }));
-    } else {
-      const other = calculateOptimalWager(input, underOdds, overOdds);
-      setCustomWagers(prev => ({ ...prev, [key]: { over: String(other), under: String(Math.round(input)) } }));
-    }
-  };
   const getBetPlan = (r: ArbRow, rowId: string) => {
     const custom = customWagers[rowId];
     if (custom && (custom.over || custom.under)) {
@@ -311,14 +295,15 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
                       <div className="flex items-center gap-2">
                         <div className="text-emerald-600 dark:text-emerald-400 font-bold">{formatOdds(Number(r.o?.od || 0))}</div>
                         {(r.o?.u || getBookFallbackUrl(r.o?.bk)) && (
-                          <button
-                            type="button"
-                            onClick={() => openLink(r.o?.bk, r.o?.u)}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                            title="Open sportsbook"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </button>
+                          <Tooltip content={`Place bet on ${bookName(r.o?.bk)}`}>
+                            <button
+                              type="button"
+                              onClick={() => openLink(r.o?.bk, r.o?.u)}
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </button>
+                          </Tooltip>
                         )}
                       </div>
                     </div>
@@ -333,26 +318,28 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
                       <div className="flex items-center gap-2">
                         <div className="text-red-600 dark:text-red-400 font-bold">{formatOdds(Number(r.u?.od || 0))}</div>
                         {(r.u?.u || getBookFallbackUrl(r.u?.bk)) && (
-                          <button
-                            type="button"
-                            onClick={() => openLink(r.u?.bk, r.u?.u)}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                            title="Open sportsbook"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </button>
+                          <Tooltip content={`Place bet on ${bookName(r.u?.bk)}`}>
+                            <button
+                              type="button"
+                              onClick={() => openLink(r.u?.bk, r.u?.u)}
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </button>
+                          </Tooltip>
                         )}
                       </div>
                     </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDualBet(r)}
-                      className="absolute right-0 top-0 bottom-0 w-10 inline-flex flex-col items-center justify-center rounded-md bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow hover:from-emerald-600 hover:to-emerald-700 transition-colors"
-                      title="Dual Bet"
-                    >
-                      <Zap className="h-4 w-4" />
-                    </button>
+                    <Tooltip content="Open both bets">
+                      <button
+                        type="button"
+                        onClick={() => handleDualBet(r)}
+                        className="absolute right-0 top-0 bottom-0 w-10 inline-flex flex-col items-center justify-center rounded-md bg-[var(--primary)] text-white hover:bg-[var(--primary-strong)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-1 transition-all shadow-sm hover:shadow-md"
+                      >
+                        <Zap className="h-4 w-4 fill-white" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
               </td>
@@ -369,14 +356,49 @@ export function ArbTable({ rows, ids, changes, added, totalBetAmount }: { rows: 
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Over Bet</span>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-gray-500">$</span>
-                        <Input value={(customWagers[id]?.over ?? Math.round(plan.overStake).toString())} onChange={(e) => handleWagerChange(id, 'over', e.target.value, r)} className="h-7 w-20 text-sm font-medium bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-lg text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        <input 
+                          type="text"
+                          value={customWagers[id]?.over ?? Math.round(plan.overStake).toString()} 
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            console.log('Over input changed:', value, 'for id:', id);
+                            setCustomWagers(prev => {
+                              const newState = {
+                                ...prev,
+                                [id]: {
+                                  over: value,
+                                  under: prev[id]?.under ?? Math.round(plan.underStake).toString()
+                                }
+                              };
+                              console.log('New customWagers state:', newState);
+                              return newState;
+                            });
+                          }}
+                          onFocus={() => console.log('Over input focused')}
+                          onBlur={() => console.log('Over input blurred')}
+                          className="h-7 w-20 text-sm font-medium bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-right px-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                        />
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Under Bet</span>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-gray-500">$</span>
-                        <Input value={(customWagers[id]?.under ?? Math.round(plan.underStake).toString())} onChange={(e) => handleWagerChange(id, 'under', e.target.value, r)} className="h-7 w-20 text-sm font-medium bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-lg text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        <input 
+                          type="text"
+                          value={customWagers[id]?.under ?? Math.round(plan.underStake).toString()} 
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCustomWagers(prev => ({
+                              ...prev,
+                              [id]: {
+                                over: prev[id]?.over ?? Math.round(plan.overStake).toString(),
+                                under: value
+                              }
+                            }));
+                          }}
+                          className="h-7 w-20 text-sm font-medium bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-right px-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                        />
                       </div>
                     </div>
                   </div>

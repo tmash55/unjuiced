@@ -17,6 +17,7 @@ const Checkbox = forwardRef<
     ref={ref}
     className={cn(
       "peer h-5 w-5 shrink-0 rounded-md border border-neutral-200 bg-white outline-none focus-visible:border-black disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-[#00BFFF] data-[state=indeterminate]:bg-[#00BFFF]",
+      "dark:border-neutral-700 dark:bg-neutral-800 dark:focus-visible:border-neutral-500",
       className,
     )}
     {...props}

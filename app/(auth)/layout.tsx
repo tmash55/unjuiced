@@ -29,16 +29,17 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             className={cn(
               "absolute left-1/2 top-6 size-[80px] -translate-x-1/2 -translate-y-1/2 scale-x-[1.6]",
               idx === 0 
-                ? "mix-blend-overlay opacity-100 dark:mix-blend-lighten dark:opacity-30" 
-                : "opacity-10 dark:opacity-5",
+                ? "opacity-40 mix-blend-normal dark:mix-blend-lighten dark:opacity-30" 
+                : "opacity-15 dark:opacity-5",
             )}
           >
             {[...Array(idx === 0 ? 2 : 1)].map((_, idx) => (
               <div
                 key={idx}
                 className={cn(
-                  "absolute -inset-16 mix-blend-overlay blur-[50px] saturate-[2]",
-                  "bg-[conic-gradient(from_90deg,#ff7a1a_5deg,#EAB308_63deg,#5CFF80_115deg,#1E90FF_170deg,#855AFC_220deg,#ff7a1a_286deg,#ff7a1a_360deg)]",
+                  "absolute -inset-16 blur-[50px]",
+                  "mix-blend-normal saturate-150 dark:mix-blend-overlay dark:saturate-[2]",
+                  "bg-[conic-gradient(from_90deg,var(--color-primary)_0deg,var(--color-primary-light)_60deg,var(--color-secondary)_120deg,var(--color-accent)_180deg,var(--color-tertiary)_240deg,var(--color-tertiary-light)_300deg,var(--color-primary)_360deg)]",
                 )}
               />
             ))}
