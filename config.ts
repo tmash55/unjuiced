@@ -5,7 +5,7 @@ const config = {
     "Unjuiced: Build and Manage AI-Driven Agentic Workflows | Aceternity UI Pro Template",
   websiteUrl:
     process.env.NEXT_PUBLIC_WEBSITE_URL ||
-    "https://notus-agent-marketing-template.vercel.app/",
+    "https://unjuiced.bet/",
   websiteDescription:
     "Empower your technical teams to create, simulate and manage AI-driven workflows visually. Notus provides an intuitive platform for developing and testing agentic systems, helping you build the next generation of intelligent applications with confidence.",
 
@@ -97,7 +97,7 @@ const config = {
     // REQUIRED — the path to log in users. It's use to protect private routes (like /dashboard). It's used in apiClient (/libs/api.js) upon 401 errors from our API
     loginUrl: "/login",
     // REQUIRED — the path you want to redirect users after successfull login (i.e. /dashboard, /private). This is normally a private page for users to manage their accounts. It's used in apiClient (/libs/api.js) upon 401 errors from our API & in ButtonSignin.js
-    callbackUrl: "/dashboard",
+    callbackUrl: "/arbitrage
   },
 } as ConfigProps;
 
