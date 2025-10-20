@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 import { CircleUserRound } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Gear } from "@/icons/gear";
-import { User } from "@/icons/user-icon";
-
+Import {UserIcon } from "@/icons/user-icon";
 export function AccountDropdown({ user }: { user: User }) {
   const [isOpen, setIsOpen] = useState(false);
   const { signOut } = useAuth();
@@ -34,7 +33,7 @@ export function AccountDropdown({ user }: { user: User }) {
           isOpen && "ring-2 ring-neutral-200 dark:ring-neutral-700"
         )}
       >
-        <User className="h-4 w-4" />
+        <UserIcon className="h-4 w-4" />
       </button>
 
       <AnimatePresence>

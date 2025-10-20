@@ -1,6 +1,6 @@
 import { SVGProps } from "react";
 
-export function User(props: SVGProps<SVGSVGElement>) {
+export function UserIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" {...props}>
       <g fill="currentColor">
