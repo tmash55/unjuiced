@@ -2,12 +2,12 @@ import { ConfigProps } from "./types/config";
 
 const config = {
   websiteName:
-    "Unjuiced: Build and Manage AI-Driven Agentic Workflows | Aceternity UI Pro Template",
+    "Unjuiced: Smarter Sports Betting Insights & Tools",
   websiteUrl:
     process.env.NEXT_PUBLIC_WEBSITE_URL ||
     "https://unjuiced.bet/",
   websiteDescription:
-    "Empower your technical teams to create, simulate and manage AI-driven workflows visually. Notus provides an intuitive platform for developing and testing agentic systems, helping you build the next generation of intelligent applications with confidence.",
+    "Unjuiced helps sports bettors make sharper decisions with data-driven insights, prop analysis, and real-time odds comparison. Whether you're a casual fan or a seasoned bettor, our tools give you the edge to bet smarter and maximize value.",
 
   // REQUIRED
   appName: "Unjuiced",
