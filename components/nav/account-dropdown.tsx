@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { CircleUserRound } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Gear } from "@/icons/gear";
-Import {UserIcon } from "@/icons/user-icon";
+Import { UserIcon } from "@/icons/user-icon";
 export function AccountDropdown({ user }: { user: User }) {
   const [isOpen, setIsOpen] = useState(false);
   const { signOut } = useAuth();
