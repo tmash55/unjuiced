@@ -15,7 +15,7 @@ const config = {
   appDescription:
     "Unjuiced helps sports bettors make sharper decisions with data-driven insights, prop analysis, and real-time odds comparison. Whether you're a casual fan or a seasoned bettor, our tools give you the edge to bet smarter and maximize value.",
   // REQUIRED (no https://, not trialing slash at the end, just the naked domain)
-  domainName: "shipfa.st",
+  domainName: "unjuiced.bet",
   crisp: {
     // Crisp website ID. IF YOU DON'T USE CRISP: just remove this => Then add a support email in this config file (resend.supportEmail) otherwise customer support won't work.
     id: "",
@@ -23,54 +23,69 @@ const config = {
     onlyShowOnRoutes: ["/"],
   },
   stripe: {
-    // Create multiple plans in your Stripe dashboard, then add them here. You can add as many plans as you want, just make sure to add the priceId
-    plans: [
-      {
-        // REQUIRED — we use this to find the plan in the webhook (for instance if you want to update the user's credits based on the plan)
-        priceId:
-          process.env.NODE_ENV === "development"
-            ? "price_1Niyy5AxyNprDp7iZIqEyD2h"
-            : "price_456",
-        //  REQUIRED - Name of the plan, displayed on the pricing page
-        name: "Starter",
-        // A friendly description of the plan, displayed on the pricing page. Tip: explain why this plan and not others
-        description: "Perfect for small projects",
-        // The price you want to display, the one user will be charged on Stripe.
-        price: 99,
-        // If you have an anchor price (i.e. $29) that you want to display crossed out, put it here. Otherwise, leave it empty
-        priceAnchor: 149,
-        features: [
+    // Create multiple plans in your Stripe dashboard, then add them here. You can add as many plans as you want, just make sure to add the priceId   
+    productId: "prod_THGlf0qL4IYiAD",
+        plans: [
           {
-            name: "NextJS boilerplate",
+            // REQUIRED — used in webhooks and subscription logic
+            priceId:
+              process.env.NODE_ENV === "development"
+                // If you have a test price for dev, put it here. For now, we'll reuse the live price ID.
+                ? "price_1SKiDjDHoRr1ai9XQTH0H9iV"
+                : "price_1SKiDjDHoRr1ai9XQTH0H9iV",
+
+            // Displayed on pricing/checkout
+            name: "Unjuiced Pro – Monthly",
+            description:
+              "Advanced betting analytics, real-time EV insights, and premium tools for smarter wagers.",
+            // Display price (for UI only; Stripe charges by priceId)
+            price: 39.99,
+            // Optional: show anchor price (e.g., planned future price). Remove if not needed.
+            // priceAnchor: 49.99,
+
+            // Feature bullets for your pricing page
+            features: [
+              { name: "Real-time EV calculations" },
+              { name: "Hit rate tracking and trends" },
+              { name: "Betslip scanning & comparison" },
+              { name: "Full access to premium tools" },
+            ],
+
+            // Optional metadata for internal use (passed to Stripe if you create sessions programmatically)
+            metadata: {
+              billing_interval: "month",
+              product_id: "prod_THGlf0qL4IYiAD",
+              tier: "pro",
+            },
           },
-          { name: "User oauth" },
-          { name: "Database" },
-          { name: "Emails" },
-        ],
-      },
-      {
-        priceId:
-          process.env.NODE_ENV === "development"
-            ? "price_1O5KtcAxyNprDp7iftKnrrpw"
-            : "price_456",
-        // This plan will look different on the pricing page, it will be highlighted. You can only have one plan with isFeatured: true
-        isFeatured: true,
-        name: "Advanced",
-        description: "You need more power",
-        price: 149,
-        priceAnchor: 299,
-        features: [
           {
-            name: "NextJS boilerplate",
+            isFeatured: true, // Highlight Yearly on pricing page
+            priceId:
+              process.env.NODE_ENV === "development"
+                ? "price_1SKiFTDHoRr1ai9XCF5wywQO"
+                : "price_1SKiFTDHoRr1ai9XCF5wywQO",
+
+            name: "Unjuiced Pro – Yearly",
+            description:
+              "Get 2 months free when you commit annually. Unlock all premium features for a full year.",
+            // Display price (UI only)
+            price: 399.99,
+            // Optional: show the 'equivalent monthly' as an anchor for comparison
+            priceAnchor: 39.99, // communicates $39.99/mo equivalent
+            features: [
+              { name: "Everything in Pro – Monthly" },
+              { name: "2 months free (save $79.98)" },
+              { name: "Priority access to new features" },
+            ],
+
+            metadata: {
+              billing_interval: "year",
+              product_id: "prod_THGlf0qL4IYiAD",
+              tier: "pro",
+              promo: "2_months_free",
+            },
           },
-          { name: "User oauth" },
-          { name: "Database" },
-          { name: "Emails" },
-          { name: "1 year of updates" },
-          { name: "24/7 support" },
         ],
-      },
-    ],
   },
   aws: {
     // If you use AWS S3/Cloudfront, put values in here
