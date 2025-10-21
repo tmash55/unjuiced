@@ -2354,7 +2354,7 @@ export function OddsTable({
 
   // Helper function to check if sport has team logos available
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl', 'nhl','nba'] // NFL and NHL have logos
+    const sportsWithLogos = ['nfl', 'nhl','nba','ncaaf'] // NFL and NHL have logos
     return sportsWithLogos.includes(sportKey.toLowerCase())
   }
 
