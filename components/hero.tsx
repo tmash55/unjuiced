@@ -63,14 +63,21 @@ export function Hero() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.4 }}
-            className="mt-10 flex w-full items-center justify-center px-4 sm:px-0"
+            className="mt-10 flex w-full flex-col items-center justify-center gap-4 px-4 sm:flex-row sm:px-0"
           >
             <ButtonLink 
               href="/register" 
               variant="primary"
-              className="rounded-lg border-brand bg-brand px-8 py-3 text-base font-medium text-white hover:bg-brand/90 hover:ring-4 hover:ring-brand/20 dark:border-brand dark:bg-brand dark:hover:bg-brand/90"
+              className="w-full rounded-lg border-brand bg-brand px-8 py-3 text-base font-medium text-white hover:bg-brand/90 hover:ring-4 hover:ring-brand/20 sm:w-auto dark:border-brand dark:bg-brand dark:hover:bg-brand/90"
             >
               Start for Free
+            </ButtonLink>
+            <ButtonLink 
+              href="/odds/nfl" 
+              variant="secondary"
+              className="w-full rounded-lg border-transparent bg-transparent px-6 py-3 text-base font-medium text-brand hover:bg-brand/10 sm:w-auto dark:border-transparent dark:text-brand dark:hover:bg-brand/20"
+            >
+              Explore Odds
             </ButtonLink>
           </motion.div>
 
