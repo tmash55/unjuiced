@@ -22,8 +22,7 @@ const config = {
     // Hide Crisp by default, except on route "/". Crisp is toggled with <ButtonSupport/>. If you want to show Crisp on every routes, just remove this below
     onlyShowOnRoutes: ["/"],
   },
-  s
-tripe: {
+  stripe: {
     plans: [
       {
         // Monthly — default
