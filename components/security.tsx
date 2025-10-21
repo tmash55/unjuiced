@@ -34,16 +34,17 @@ export const Security = () => {
       </Container>
       <DivideX />
       <Container className="border-divide grid grid-cols-1 border-x bg-gray-100 px-8 py-12 md:grid-cols-2 gap-8 dark:bg-neutral-900">
-        <div>
-          <SectionHeading className="text-left">
+        <div className="flex flex-col items-center md:items-start text-center md:text-left">
+          <SectionHeading>
             Win with trusted data. Every second counts.
           </SectionHeading>
-          <SubHeading as="p" className="mt-4 text-left">
+          <SubHeading as="p" className="mt-4">
             Live lines from verified feeds, refreshed in real time with enterprise-grade reliability — no sponsored rankings, no conflicts of interest.
           </SubHeading>
           <ButtonLink
-            className="mt-6 mb-8 inline-block w-full md:w-auto"
+            variant="primary"
             href="/pricing"
+            className="mt-6 mb-8"
           >
             Start for free
           </ButtonLink>

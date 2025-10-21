@@ -87,20 +87,30 @@ export default function ArbsPage() {
     loadPlan();
   }, []);
 
-  // Fetch preview counts for unauthenticated users
+  // Fetch preview counts and best ROI for unauthenticated users
   useEffect(() => {
     if (!loggedIn && !planLoading) {
-      const fetchPreviewCounts = async () => {
+      const fetchPreviewData = async () => {
         try {
-          const response = await fetch("/api/arbs/counts", { cache: "no-store" });
-          const data = await response.json();
-          setPreviewCounts({ pregame: data.pregame || 0, live: data.live || 0 });
+          // Fetch counts
+          const countsResponse = await fetch("/api/arbs/counts", { cache: "no-store" });
+          const countsData = await countsResponse.json();
+          setPreviewCounts({ pregame: countsData.pregame || 0, live: countsData.live || 0 });
+          
+          // Fetch preview rows to calculate best ROI
+          const previewResponse = await fetch("/api/arbs/teaser?limit=8", { cache: "no-store" });
+          const previewData = await previewResponse.json();
+          if (previewData.rows && previewData.rows.length > 0) {
+            const maxRoi = Math.max(...previewData.rows.map((r: any) => (r.roi_bps || 0) / 100));
+            setPreviewBestRoi(maxRoi.toFixed(2));
+          }
         } catch (error) {
-          console.error("Failed to fetch preview counts:", error);
+          console.error("Failed to fetch preview data:", error);
           setPreviewCounts({ pregame: 0, live: 0 });
+          setPreviewBestRoi("0.00");
         }
       };
-      fetchPreviewCounts();
+      fetchPreviewData();
     }
   }, [loggedIn, planLoading]);
 
@@ -131,6 +141,7 @@ export default function ArbsPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const bestRoi = useMemo(() => rows.length ? Math.max(...rows.map(r => (r.roi_bps || 0) / 100)).toFixed(2) : "0.00", [rows]);
+  const [previewBestRoi, setPreviewBestRoi] = useState<string>("0.00");
   const [freshFound, setFreshFound] = useState(false);
   const [freshBest, setFreshBest] = useState(false);
   const prevFoundRef = useState<number>(rows.length)[0];
@@ -208,7 +219,7 @@ export default function ArbsPage() {
               "mt-1 text-2xl font-bold text-emerald-600 transition-all duration-300 dark:text-emerald-400",
               freshBest && "scale-110"
             )}>
-              +{bestRoi}%
+              +{loggedIn ? bestRoi : previewBestRoi}%
             </div>
           </div>
         </div>

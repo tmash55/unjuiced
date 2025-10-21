@@ -60,6 +60,7 @@ export function LogoCloud2() {
               ease: "easeOut",
               delay: index * 0.1,
             }}
+            className="flex items-center justify-center"
           >
             <img
               key={logo.title}
@@ -67,7 +68,7 @@ export function LogoCloud2() {
               width={100}
               height={100}
               alt={logo.title}
-              className="mx-auto size-20 object-contain dark:invert dark:filter"
+              className="size-20 object-contain dark:invert dark:filter"
             />
           </motion.div>
         ))}

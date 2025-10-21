@@ -1259,11 +1259,18 @@ export function OddsTable({
             return item.entity.name.toLowerCase().includes(query)
           }
           
-          // For game props, search in team names
+          // For game props, search in team abbreviations and full names
           if (type === 'game') {
             const homeTeam = item.event?.homeTeam?.toLowerCase() || ''
             const awayTeam = item.event?.awayTeam?.toLowerCase() || ''
-            return homeTeam.includes(query) || awayTeam.includes(query)
+            const homeName = item.event?.homeName?.toLowerCase() || ''
+            const awayName = item.event?.awayName?.toLowerCase() || ''
+            return (
+              homeTeam.includes(query) ||
+              awayTeam.includes(query) ||
+              homeName.includes(query) ||
+              awayName.includes(query)
+            )
           }
           
           return false
@@ -2030,12 +2037,14 @@ export function OddsTable({
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
                           if (isMoneyline) return ''
+                          // For spreads, use the actual line value from the data (already signed correctly)
+                          if (isSpread && ln !== undefined && ln !== null) {
+                            return ln > 0 ? `+${ln}` : `${ln}`
+                          }
                           // Fallback for initial load if line is undefined
                           const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                           if (isSpread) {
-                            const abs = Math.abs(baseLine)
-                            // Away on top (firstSide). Show away as negative, home as positive
-                            return sd === firstSide ? `-${abs}` : `+${abs}`
+                            return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
                           return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
                         }}
@@ -2086,10 +2095,14 @@ export function OddsTable({
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
                           if (isMoneyline) return ''
+                          // For spreads, use the actual line value from the data (already signed correctly)
+                          if (isSpread && ln !== undefined && ln !== null) {
+                            return ln > 0 ? `+${ln}` : `${ln}`
+                          }
+                          // Fallback for initial load if line is undefined
                           const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                           if (isSpread) {
-                            const abs = Math.abs(baseLine)
-                            return sd === firstSide ? `-${abs}` : `+${abs}`
+                            return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
                           return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
                         }}

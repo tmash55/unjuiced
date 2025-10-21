@@ -18,9 +18,31 @@ export interface SportMarket {
   // Common market definitions for reuse
   const BASKETBALL_MARKETS: SportMarket[] = [
     // Game-level markets
-    { value: "Moneyline", label: "Moneyline", apiKey: "h2h" },
-    { value: "Spread", label: "Point Spread", apiKey: "spreads" },
-    { value: "Total", label: "Total Points", apiKey: "totals" },
+    { value: "Moneyline", label: "Moneyline", apiKey: "moneyline", group: "Game", period: 'full' },
+    { value: "Spread", label: "Point Spread", apiKey: "spread", group: "Game", period: 'full' },
+    { value: "Total", label: "Total Points", apiKey: "total", group: "Game", period: 'full' },
+    { value: "Total Points Odd/Even", label: "Total Points Odd/Even", apiKey: "total_points_odd_even", group: "Game", period: 'full' },
+    { value: "Overtime", label: "Overtime?", apiKey: "overtime", group: "Game", period: 'full' },
+    
+    // Half markets
+    { value: "1st Half Moneyline", label: "1st Half Moneyline", apiKey: "1h_moneyline", group: "Halves", period: '1h' },
+    { value: "1st Half Spread", label: "1st Half Point Spread", apiKey: "1h_spread", group: "Halves", period: '1h' },
+    { value: "1st Half Total", label: "1st Half Total Points", apiKey: "1h_total", group: "Halves", period: '1h' },
+    { value: "2nd Half Total", label: "2nd Half Total Points", apiKey: "2h_total", group: "Halves", period: '2h' },
+    
+    // Quarter markets
+    { value: "1st Quarter Moneyline", label: "1st Quarter Moneyline", apiKey: "1q_moneyline", group: "Quarters", period: '1q' },
+    { value: "1st Quarter Spread", label: "1st Quarter Point Spread", apiKey: "1q_spread", group: "Quarters", period: '1q' },
+    { value: "1st Quarter Total", label: "1st Quarter Total Points", apiKey: "1q_total", group: "Quarters", period: '1q' },
+    { value: "2nd Quarter Moneyline", label: "2nd Quarter Moneyline", apiKey: "2q_moneyline", group: "Quarters", period: '2q' },
+    { value: "2nd Quarter Spread", label: "2nd Quarter Point Spread", apiKey: "2q_spread", group: "Quarters", period: '2q' },
+    { value: "2nd Quarter Total", label: "2nd Quarter Total Points", apiKey: "2q_total", group: "Quarters", period: '2q' },
+    { value: "3rd Quarter Moneyline", label: "3rd Quarter Moneyline", apiKey: "3q_moneyline", group: "Quarters", period: '3q' },
+    { value: "3rd Quarter Spread", label: "3rd Quarter Point Spread", apiKey: "3q_spread", group: "Quarters", period: '3q' },
+    { value: "3rd Quarter Total", label: "3rd Quarter Total Points", apiKey: "3q_total", group: "Quarters", period: '3q' },
+    { value: "4th Quarter Moneyline", label: "4th Quarter Moneyline", apiKey: "4q_moneyline", group: "Quarters", period: '4q' },
+    { value: "4th Quarter Spread", label: "4th Quarter Point Spread", apiKey: "4q_spread", group: "Quarters", period: '4q' },
+    { value: "4th Quarter Total", label: "4th Quarter Total Points", apiKey: "4q_total", group: "Quarters", period: '4q' },
     
     // Player props
     {
@@ -30,6 +52,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_points_alternate",
       alwaysFetchAlternate: true,
+      group: "Scoring",
+      period: 'full',
     },
     {
       value: "Rebounds",
@@ -38,6 +62,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_rebounds_alternate",
       alwaysFetchAlternate: true,
+      group: "Scoring",
+      period: 'full',
     },
     {
       value: "Assists",
@@ -46,14 +72,18 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_assists_alternate",
       alwaysFetchAlternate: true,
+      group: "Scoring",
+      period: 'full',
     },
     {
       value: "Threes",
       label: "Threes",
-      apiKey: "player_threes",
+      apiKey: "player_threes_made",
       hasAlternates: true,
-      alternateKey: "player_threes_alternate",
+      alternateKey: "player_threes_made_alternate",
       alwaysFetchAlternate: true,
+      group: "Scoring",
+      period: 'full',
     },
     {
       value: "PRA",
@@ -62,6 +92,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_points_rebounds_assists_alternate",
       alwaysFetchAlternate: true,
+      group: "Combo",
+      period: 'full',
     },
     {
       value: "Points_Rebounds",
@@ -70,6 +102,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_points_rebounds_alternate",
       alwaysFetchAlternate: true,
+      group: "Combo",
+      period: 'full',
     },
     {
       value: "Points_Assists",
@@ -78,6 +112,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_points_assists_alternate",
       alwaysFetchAlternate: true,
+      group: "Combo",
+      period: 'full',
     },
     {
       value: "Rebounds_Assists",
@@ -86,16 +122,22 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_rebounds_assists_alternate",
       alwaysFetchAlternate: true,
+      group: "Combo",
+      period: 'full',
     },
     {
       value: "Double_Double",
       label: "Double Double",
       apiKey: "player_double_double",
+      group: "Special",
+      period: 'full',
     },
     {
       value: "Triple_Double",
       label: "Triple Double",
       apiKey: "player_triple_double",
+      group: "Special",
+      period: 'full',
     },
     {
       value: "Blocks",
@@ -104,6 +146,8 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_blocks_alternate",
       alwaysFetchAlternate: true,
+      group: "Defense",
+      period: 'full',
     },
     {
       value: "Steals",
@@ -112,11 +156,15 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_steals_alternate",
       alwaysFetchAlternate: true,
+      group: "Defense",
+      period: 'full',
     },
     {
       value: "Blocks_steals",
       label: "Blocks+Steals",
       apiKey: "player_blocks_steals",
+      group: "Defense",
+      period: 'full',
     },
     {
       value: "Turnovers",
@@ -125,31 +173,50 @@ export interface SportMarket {
       hasAlternates: true,
       alternateKey: "player_turnovers_alternate",
       alwaysFetchAlternate: true,
+      group: "Other",
+      period: 'full',
     },
     {
       value: "First_Team_Basket",
       label: "Team First Point",
       apiKey: "player_first_team_basket",
+      group: "Special",
+      period: 'full',
     },
     {
       value: "First_Field_Goal",
       label: "First Point",
-      apiKey: "player_first_basket",
+      apiKey: "first_basket",
+      group: "Special",
+      period: 'full',
+    },
+    {
+      value: "Top_Points_Scorer",
+      label: "Top Points Scorer",
+      apiKey: "top_points_scorer",
+      group: "Special",
+      period: 'full',
     },
     {
       value: "Player_Points_Q1",
       label: "Points - 1st Quarter",
-      apiKey: "player_points_q1",
+      apiKey: "1q_player_points",
+      group: "Scoring",
+      period: '1q',
     },
     {
       value: "Player_Assists_Q1",
-      label: "Assists- 1st Quarter",
+      label: "Assists - 1st Quarter",
       apiKey: "player_assists_q1",
+      group: "Scoring",
+      period: '1q',
     },
     {
       value: "Player_Rebounds_Q1",
       label: "Rebounds - 1st Quarter",
       apiKey: "player_rebounds_q1",
+      group: "Scoring",
+      period: '1q',
     },
   ];
   
@@ -699,16 +766,93 @@ export interface SportMarket {
   // Export supported sports array
   export const SUPPORTED_SPORTS = ['mlb', 'nba', 'wnba', 'ncaab', 'nfl', 'ncaaf', 'nhl'] as const;
   
-// Canonical mapping for Hockey (NHL) market display names → internal API keys
-// Note: For core game markets we map to our existing keys used across sports:
-// - Moneyline → 'h2h'
-// - Puck Line (Spread) → 'spreads'
-// - Total Goals → 'totals'
+// Canonical mapping for market display names → internal API keys
+// Maps backend market names to frontend API keys for consistent routing
 export const MARKET_NAME_MAP: Record<string, string> = {
-  // Player primary markets
-  'Player Goals': 'player_goals',
-  'Player Assists': 'player_assists',
+  // Basketball player markets
   'Player Points': 'player_points',
+  'player-points': 'player_points',
+  'Player Rebounds': 'player_rebounds',
+  'player-rebounds': 'player_rebounds',
+  'Player Assists': 'player_assists',
+  'player-assists': 'player_assists',
+  'Player Points + Rebounds + Assists': 'player_points_rebounds_assists',
+  'player-points-rebounds-assists': 'player_points_rebounds_assists',
+  'Player Points + Rebounds': 'player_points_rebounds',
+  'player-points-rebounds': 'player_points_rebounds',
+  'Player Points + Assists': 'player_points_assists',
+  'player-points-assists': 'player_points_assists',
+  'Player Rebounds + Assists': 'player_rebounds_assists',
+  'player-rebounds-assists': 'player_rebounds_assists',
+  'Player Threes': 'player_threes_made',
+  'Player Three Pointers': 'player_threes_made',
+  'Player 3-Point Field Goals': 'player_threes_made',
+  'Player Threes Made': 'player_threes_made',
+  'player-threes-made': 'player_threes_made',
+  'Player Blocks': 'player_blocks',
+  'player-blocks': 'player_blocks',
+  'Player Steals': 'player_steals',
+  'player-steals': 'player_steals',
+  'Player Blocks + Steals': 'player_blocks_steals',
+  'Player Turnovers': 'player_turnovers',
+  'player-turnovers': 'player_turnovers',
+  'First Basket': 'first_basket',
+  'first-basket': 'first_basket',
+  'Player Double-Double': 'player_double_double',
+  'player-double-double': 'player_double_double',
+  'Player Triple-Double': 'player_triple_double',
+  'player-triple-double': 'player_triple_double',
+  'Top Points Scorer': 'top_points_scorer',
+  'top-points-scorer': 'top_points_scorer',
+  '1st Quarter Player Points': '1q_player_points',
+  '1st-quarter-player-points': '1q_player_points',
+  
+  // Basketball game markets
+  'Moneyline': 'moneyline',
+  'moneyline': 'moneyline',
+  'Point Spread': 'spread',
+  'point-spread': 'spread',
+  'Total Points': 'total',
+  'total-points': 'total',
+  'Total Points Odd/Even': 'total_points_odd_even',
+  'total-points-odd-even': 'total_points_odd_even',
+  'Overtime?': 'overtime',
+  'overtime': 'overtime',
+  '1st Half Moneyline': '1h_moneyline',
+  '1st-half-moneyline': '1h_moneyline',
+  '1st Half Point Spread': '1h_spread',
+  '1st-half-point-spread': '1h_spread',
+  '1st Half Total Points': '1h_total',
+  '1st-half-total-points': '1h_total',
+  '2nd Half Total Points': '2h_total',
+  '2nd-half-total-points': '2h_total',
+  '1st Quarter Moneyline': '1q_moneyline',
+  '1st-quarter-moneyline': '1q_moneyline',
+  '1st Quarter Point Spread': '1q_spread',
+  '1st-quarter-point-spread': '1q_spread',
+  '1st Quarter Total Points': '1q_total',
+  '1st-quarter-total-points': '1q_total',
+  '2nd Quarter Moneyline': '2q_moneyline',
+  '2nd-quarter-moneyline': '2q_moneyline',
+  '2nd Quarter Point Spread': '2q_spread',
+  '2nd-quarter-point-spread': '2q_spread',
+  '2nd Quarter Total Points': '2q_total',
+  '2nd-quarter-total-points': '2q_total',
+  '3rd Quarter Moneyline': '3q_moneyline',
+  '3rd-quarter-moneyline': '3q_moneyline',
+  '3rd Quarter Point Spread': '3q_spread',
+  '3rd-quarter-point-spread': '3q_spread',
+  '3rd Quarter Total Points': '3q_total',
+  '3rd-quarter-total-points': '3q_total',
+  '4th Quarter Moneyline': '4q_moneyline',
+  '4th-quarter-moneyline': '4q_moneyline',
+  '4th Quarter Point Spread': '4q_spread',
+  '4th-quarter-point-spread': '4q_spread',
+  '4th Quarter Total Points': '4q_total',
+  '4th-quarter-total-points': '4q_total',
+  
+  // Hockey player markets
+  'Player Goals': 'player_goals',
   // We standardize to 'player_total_saves' to match SPORT_MARKETS (not 'player_saves')
   'Player Saves': 'player_total_saves',
   'Player Shots On Goal': 'player_shots_on_goal',
@@ -741,8 +885,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'Away Team First Goalscorer': 'away_first_goalscorer',
   'Home Team First Goalscorer': 'home_first_goalscorer',
 
-  // Game markets
-  'Moneyline': 'moneyline',
+  // Hockey-specific game markets
   'Moneyline 3-Way': 'moneyline_3way',
   'Total Goals': 'total_goals',
   'Total Goals Reg Time': 'total_goals_reg',

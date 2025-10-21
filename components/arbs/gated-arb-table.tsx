@@ -78,7 +78,7 @@ export function GatedArbTable({
         </div>
 
         {/* Overlay CTA */}
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black">
           <div className="relative z-10 mx-auto max-w-md rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
             {/* Icon with gradient glow */}
             <div className="relative mx-auto mb-6 w-fit">

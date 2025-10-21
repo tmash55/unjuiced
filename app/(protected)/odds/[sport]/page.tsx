@@ -159,7 +159,14 @@ function SportOddsContent({
       if (type === 'game') {
         const homeTeam = item.event?.homeTeam?.toLowerCase() || ''
         const awayTeam = item.event?.awayTeam?.toLowerCase() || ''
-        return homeTeam.includes(query) || awayTeam.includes(query)
+        const homeName = item.event?.homeName?.toLowerCase() || ''
+        const awayName = item.event?.awayName?.toLowerCase() || ''
+        return (
+          homeTeam.includes(query) ||
+          awayTeam.includes(query) ||
+          homeName.includes(query) ||
+          awayName.includes(query)
+        )
       }
       return false
     }).length
@@ -194,6 +201,12 @@ function SportOddsContent({
       'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
       'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
       'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NBA/Basketball game markets
+      'total_points_odd_even', '1h_moneyline', '1h_spread', '2h_total',
+      '1q_moneyline', '1q_spread', '1q_total',
+      '2q_moneyline', '2q_spread', '2q_total',
+      '3q_moneyline', '3q_spread', '3q_total',
+      '4q_moneyline', '4q_spread', '4q_total',
       // NHL game markets
       'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
       'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
@@ -244,6 +257,12 @@ function SportOddsContent({
       'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
       'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
       'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+      // NBA/Basketball game markets
+      'total_points_odd_even', '1h_moneyline', '1h_spread', '2h_total',
+      '1q_moneyline', '1q_spread', '1q_total',
+      '2q_moneyline', '2q_spread', '2q_total',
+      '3q_moneyline', '3q_spread', '3q_total',
+      '4q_moneyline', '4q_spread', '4q_total',
       // NHL game markets
       'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
       'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
@@ -485,6 +504,12 @@ function SportOddsContent({
     'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards',
     'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion',
     'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score',
+    // NBA/Basketball game markets
+    'total_points_odd_even', '1h_moneyline', '1h_spread', '2h_total',
+    '1q_moneyline', '1q_spread', '1q_total',
+    '2q_moneyline', '2q_spread', '2q_total',
+    '3q_moneyline', '3q_spread', '3q_total',
+    '4q_moneyline', '4q_spread', '4q_total',
     // NHL game markets
     'puck_line', 'total_goals', 'moneyline_3way', 'total_goals_reg', 'total_goals_odd_even', 
     'puck_line_reg', 'draw_no_bet', 'both_teams_to_score', 'both_teams_to_score_2', 
@@ -831,22 +856,21 @@ function SportOddsContent({
 
         {/* Search Results Indicator */}
         {debouncedSearchQuery.trim() && (
-          <div className="mb-6 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+          <div className="mb-6 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                   {searchResultsCount === 0 
                     ? `No ${type === 'player' ? 'players' : 'teams'} found for "${debouncedSearchQuery}"`
-                    : `Found ${searchResultsCount} ${type === 'player' ? 'player' : 'game'}${searchResultsCount !== 1 ? 's' : ''} matching "${debouncedSearchQuery}"`
-                  }
+                    : `Found ${searchResultsCount} ${type === 'player' ? 'player' : 'game'}${searchResultsCount !== 1 ? 's' : ''} matching "${debouncedSearchQuery}"`}
                 </span>
               </div>
               <button
                 onClick={handleSearchClear}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 text-sm font-medium transition-colors duration-150"
+                className="text-brand hover:opacity-80 text-sm font-medium transition-opacity duration-150"
               >
                 Clear search
               </button>
