@@ -73,16 +73,13 @@ export const Footer = () => {
   const legal = [
     {
       title: "Privacy Policy",
-      href: "/privacy-policy",
+      href: "/privacy",
     },
     {
       title: "Terms of Service",
-      href: "/terms-of-service",
+      href: "/terms",
     },
-    {
-      title: "Cookie Policy",
-      href: "/cookie-policy",
-    },
+   
     {
       title: "Responsible Gaming",
       href: "/responsible-gaming",
@@ -159,9 +156,14 @@ export const Footer = () => {
           <p className="text-footer-link text-sm">
             © {new Date().getFullYear()} Unjuiced
           </p>
-          <p className="text-footer-link text-xs text-center max-w-md">
-            Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
-          </p>
+          <div className="flex flex-col gap-2 text-center">
+            <p className="text-footer-link text-xs max-w-md">
+              For entertainment purposes only. Unjuiced does not accept or facilitate bets.
+            </p>
+            <p className="text-footer-link text-xs max-w-md">
+              Please gamble responsibly. If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+            </p>
+          </div>
           <div className="flex items-center gap-4">
             <Link
               href="https://twitter.com/unjuiced"

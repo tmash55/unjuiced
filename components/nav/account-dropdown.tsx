@@ -70,7 +70,7 @@ export function AccountDropdown({ user }: { user: User }) {
               {/* Menu Items */}
               <div className="p-1">
                 <Link
-                  href="/settings"
+                  href="/account/settings"
                   onClick={() => setIsOpen(false)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",

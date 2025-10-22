@@ -1,41 +1,28 @@
 import { Container } from "@/components/container";
-import { getBlogs } from "@/lib/blogs";
 import { Metadata } from "next";
 import { Heading } from "@/components/heading";
 import { SubHeading } from "@/components/subheading";
-import Link from "next/link";
 import { Badge } from "@/components/badge";
-import Image from "next/image";
-import { CTA } from "@/components/cta";
 import { DivideX } from "@/components/divide";
 
 export const metadata: Metadata = {
-  title: "All blogs | Minimal Portfolio Website Template - Aceternity UI Pro",
+  title: "Blog | Unjuiced - Sports Betting Insights & Analysis",
   description:
-    "A perfect portfolio website template that showcases your skills, minimal and smooth microinteractions, perfect for developers and designers.",
-};
-const truncate = (str: string, length: number) => {
-  return str.length > length ? str.substring(0, length) + "..." : str;
+    "Stay updated with the latest sports betting insights, strategies, and analysis from Unjuiced. Learn how to bet smarter and maximize your edge.",
 };
 
 export default async function BlogsPage() {
-  const allBlogs = await getBlogs();
-
   return (
     <div>
       <DivideX />
       <Container className="border-divide flex flex-col items-center border-x pt-10 md:pt-20 md:pb-10">
-        <Badge text=" All blogs" />
-        <Heading>Writing for the World</Heading>
-        <SubHeading className="mx-auto mt-2 max-w-sm px-4">
-          At Notus, we educate and empower developers to build better software
-          solutions for the world.
+        <Badge text="Blog" />
+        <Heading>Insights & Analysis</Heading>
+        <SubHeading className="mx-auto mt-2 max-w-2xl px-4 text-center">
+          Expert sports betting insights, strategies, and analysis to help you make smarter bets and find more value.
         </SubHeading>
         <div className="border-divide divide-divide mt-10 flex w-full flex-col divide-y border-y">
-          <GridLayout blogs={allBlogs.slice(0, 3)} />
-          {allBlogs.slice(3).map((blog, idx) => (
-            <RowLayout key={blog.title} blog={blog} />
-          ))}
+          <ComingSoonSection />
         </div>
       </Container>
 
@@ -44,71 +31,55 @@ export default async function BlogsPage() {
   );
 }
 
-const GridLayout = ({ blogs }: { blogs: any[] }) => {
+const ComingSoonSection = () => {
   return (
-    <div className="divide-divide grid grid-cols-1 divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-      {blogs.map((blog, index) => (
-        <Link
-          key={blog.title}
-          href={`/blog/${blog.slug}`}
-          className="p-4 hover:bg-gray-50 md:p-8 dark:hover:bg-neutral-800"
-        >
-          <Image
-            src={blog.image}
-            alt={blog.title}
-            width={500}
-            height={500}
-            className="shadow-aceternity h-60 w-full rounded-lg object-cover md:h-80 lg:h-60"
-          />
-          <div>
-            <h2 className="text-primary mt-2 text-lg font-medium tracking-tight">
-              {blog.title}
-            </h2>
-            <p className="max-w-lg pt-2 text-base text-gray-600 md:text-sm dark:text-neutral-400">
-              {truncate(blog.description || "", 100)}
-            </p>
-          </div>
-        </Link>
-      ))}
-    </div>
-  );
-};
-
-const RowLayout = ({ blog }: { blog: any }) => {
-  return (
-    <Link
-      key={blog.title}
-      href={`/blog/${blog.slug}`}
-      className="flex flex-col justify-between px-4 py-4 hover:bg-gray-50 md:flex-row md:items-center md:px-8 dark:hover:bg-neutral-800"
-    >
-      <div>
-        <h2 className="text-primary text-lg font-medium tracking-tight">
-          {blog.title}
-        </h2>
-        <p className="max-w-lg pt-2 text-base text-gray-600 md:text-sm dark:text-neutral-400">
-          {truncate(blog.description || "", 150)}
+    <div className="w-full">
+      {/* Coming Soon Message */}
+      <div className="flex flex-col items-center justify-center py-20 px-4">
+        <div className="inline-flex items-center rounded-full bg-brand/10 px-4 py-2 text-sm font-medium text-brand dark:bg-brand/20 dark:text-brand-300 mb-4">
+          Coming Soon
+        </div>
+        <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
+          We're Working on Something Great
+        </h3>
+        <p className="text-neutral-600 dark:text-neutral-400 max-w-md text-center">
+          Our blog is currently under development. Check back soon for expert betting insights, market analysis, and winning strategies.
         </p>
       </div>
-      <div className="text-charcoal-700 mt-4 flex flex-col text-sm md:mt-0 md:text-sm dark:text-neutral-100">
-        {new Date(blog.date || "").toLocaleDateString("en-us", {
-          weekday: "long",
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })}
-        <div className="mt-2 flex items-center gap-1 md:justify-end">
-          <Image
-            src={blog.authorSrc as string}
-            alt={blog.authorName as string}
-            height={50}
-            width={50}
-            className="size-6 rounded-full"
-          />
-          <span className="text-gray-500 dark:text-neutral-400">
-            {blog.authorName}
-          </span>
-        </div>
+
+      {/* Skeleton Loaders */}
+      <div className="divide-divide grid grid-cols-1 divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0 border-t border-neutral-200 dark:border-neutral-800">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="p-4 md:p-8 animate-pulse">
+            <div className="h-60 w-full rounded-lg bg-neutral-200 dark:bg-neutral-800 md:h-80 lg:h-60" />
+            <div className="mt-4 space-y-3">
+              <div className="h-5 w-3/4 rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-4 w-full rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-4 w-5/6 rounded bg-neutral-200 dark:bg-neutral-800" />
+            </div>
+          </div>
+        ))}
       </div>
-    </Link>
+
+      {/* Additional Row Skeletons */}
+      <div className="divide-divide flex flex-col divide-y border-t border-neutral-200 dark:border-neutral-800">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex flex-col justify-between px-4 py-6 md:flex-row md:items-center md:px-8 animate-pulse">
+            <div className="flex-1 space-y-3">
+              <div className="h-5 w-2/3 rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-4 w-full max-w-lg rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-4 w-4/5 max-w-lg rounded bg-neutral-200 dark:bg-neutral-800" />
+            </div>
+            <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end space-y-2">
+              <div className="h-4 w-32 rounded bg-neutral-200 dark:bg-neutral-800" />
+              <div className="flex items-center gap-2">
+                <div className="size-6 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                <div className="h-4 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };

@@ -3,7 +3,7 @@ import { Link as NavigationMenuLink } from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
 
 import { Grid } from "@/components/grid";
-import { BookOpenText, LifeBuoy, Calculator, Trophy, Users, Mail, Feather, ListChecks } from "lucide-react";
+import { BookOpenText, LifeBuoy, Calculator, Trophy, Users, Mail, Feather, ListChecks, TrendingUp } from "lucide-react";
 import { contentHeadingClassName, ContentLinkCard, getUtmParams, createHref } from "./shared";
 import { RESOURCES } from "@/lib/resources";
 
@@ -13,6 +13,13 @@ const mainLinks = [
     title: "Sportsbooks",
     description: "Supported books and coverage details",
     href: "/sportsbooks",
+    comingSoon: false,
+  },
+  {
+    icon: TrendingUp,
+    title: "Markets",
+    description: "Browse all betting markets by sport",
+    href: "/markets",
     comingSoon: false,
   },
   {

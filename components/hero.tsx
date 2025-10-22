@@ -81,6 +81,17 @@ export function Hero() {
             </ButtonLink>
           </motion.div>
 
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.5 }}
+            className="mx-auto mt-8 max-w-2xl px-4"
+          >
+            <p className="text-center text-xs text-neutral-500 dark:text-neutral-500">
+              For entertainment purposes only. Unjuiced does not accept or facilitate bets.
+            </p>
+          </motion.div>
+
           <div className="z-40 mt-12 flex w-full justify-center bg-white dark:bg-black">
             <motion.div
               initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}

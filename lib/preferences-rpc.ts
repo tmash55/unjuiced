@@ -91,6 +91,7 @@ export class PreferencesRPC {
       arbitrage_selected_sports: data?.arbitrage_selected_sports !== null ? data?.arbitrage_selected_sports : undefined,
       arbitrage_selected_leagues: data?.arbitrage_selected_leagues !== null ? data?.arbitrage_selected_leagues : undefined,
       arbitrage_min_arb: data?.arbitrage_min_arb ?? 0,
+      arbitrage_max_arb: data?.arbitrage_max_arb ?? 20,
       arbitrage_total_bet_amount: typeof data?.arbitrage_total_bet_amount === 'number' ? data!.arbitrage_total_bet_amount : (data?.arbitrage_total_bet_amount ? Number(data?.arbitrage_total_bet_amount) : undefined),
       arbitrage_search_query: data?.arbitrage_search_query || "",
       
