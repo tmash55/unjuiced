@@ -657,7 +657,7 @@ const renderAlternateRow = (
           return (
             <td
               key="entity"
-              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-20 ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
+              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-10 ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
             >
               Alt Line {row.lineLabel}
             </td>

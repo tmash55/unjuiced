@@ -147,7 +147,7 @@ export function AlternateLinesRow({
             // Entity column - show "Alt Line" label with line value
             if (colId === 'entity') {
               return (
-                <td key={colId} className="px-4 py-2 text-left sticky left-0 z-20 bg-white dark:bg-neutral-900">
+                <td key={colId} className="px-4 py-2 text-left sticky left-0 z-10 bg-white dark:bg-neutral-900">
                   <div className="flex items-center gap-2">
                     {/* Add left padding to align with expand button space */}
                     <div className="w-6 shrink-0" />

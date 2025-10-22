@@ -639,16 +639,26 @@ function SportOddsContent({
       {/* Header with sport and navigation */}
       <div className="mb-8">
         <ToolHeading>
-          {sport.toUpperCase()} Odds
+          <span className="flex items-center gap-2">
+            {sport.toUpperCase()} Odds
+            {/* Live Status Indicator - Mobile only (green dot after "Odds") */}
+            {isPro && (
+              <span className={cn(
+                "md:hidden inline-flex h-2 w-2 rounded-full",
+                sseConnected ? "bg-green-500" : sseReconnecting ? "bg-amber-500 animate-pulse" : "bg-neutral-400"
+              )} />
+            )}
+          </span>
         </ToolHeading>
         <ToolSubheading>
           Compare real-time odds across top sportsbooks and find the best value for {sport.toUpperCase()} games and player props.
         </ToolSubheading>
       </div>
 
-      {/* Controls Section - Pregame/Live Toggle */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Controls Section - Pregame/Live Toggle (Desktop only) */}
+      <div className="mb-6 hidden md:flex items-center justify-between gap-3">
+        {/* Left side: Toggle + Text */}
+        <div className="flex items-center gap-3">
           {/* Pregame/Live Toggle */}
           <div className="mode-toggle">
             <button
@@ -677,7 +687,7 @@ function SportOddsContent({
           </div>
         </div>
 
-        {/* Live Status Indicator - Far Right */}
+        {/* Right side: Live Status Indicator */}
         {isPro && (
           <div className={cn(
             "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium",
@@ -704,9 +714,34 @@ function SportOddsContent({
          <div className="sticky top-14 z-40 mt-6 mb-6">
           <FiltersBar useDots={true}>
           {/* Mobile Layout (< md) - Stacked */}
-          <div className="block md:hidden space-y-3">
-            {/* Top Row: League + Type Toggle */}
-            <div className="flex items-center justify-between gap-3">
+          <div className="block md:hidden space-y-3 w-full">
+            {/* Row 1: Pre-Game/Live Toggle */}
+            <div className="flex items-center gap-3">
+              {/* Pregame/Live Toggle */}
+              <div className="mode-toggle">
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('pregame')}
+                  className={cn(scope === 'pregame' && 'active')}
+                >
+                  Pre-Game
+                </button>
+                <button
+                  type="button"
+                  disabled={!isPro}
+                  onClick={() => isPro && handleScopeChange('live')}
+                  className={cn(scope === 'live' && isPro && 'active')}
+                >
+                  Live
+                  {!isPro && (
+                    <span className="ml-1 text-xs opacity-60">Pro</span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Row 2: League + Game/Player Toggle */}
+            <div className="flex items-center gap-3">
               {/* League Selector */}
               <div className="flex-1">
                 <Combobox
@@ -741,10 +776,10 @@ function SportOddsContent({
               </div>
             </div>
 
-            {/* Bottom Row: Market + Settings */}
-            <div className="flex items-center gap-3">
+            {/* Row 3: Market + Filters */}
+            <div className="flex items-stretch gap-3">
               {/* Market Type Selector */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <Combobox
                   selected={selectedMarket}
                   setSelected={(opt) => opt && handleMarketChange(opt.value)}
@@ -760,7 +795,7 @@ function SportOddsContent({
               </div>
 
               {/* Settings */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center">
                 <OddsFilters 
                   isPro={isPro}
                   liveUpdatesEnabled={liveUpdatesEnabled}
@@ -769,7 +804,7 @@ function SportOddsContent({
               </div>
             </div>
 
-            {/* Search Row */}
+            {/* Row 4: Search */}
             <div className="relative">
               <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
               <Input
