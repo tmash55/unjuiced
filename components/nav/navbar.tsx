@@ -268,6 +268,7 @@ function MobileNav({ domain }: { domain: string }) {
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Sportsbooks", href: "/sportsbooks" },
+    { title: "Markets", href: "/markets" },
     { title: "About", href: "/about" },
     { title: "Contact", href: "/contact" },
     { title: "Blog", href: "/blog" },
