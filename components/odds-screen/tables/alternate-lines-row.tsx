@@ -140,14 +140,27 @@ export function AlternateLinesRow({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2, delay: index * 0.03 }}
-          className="bg-blue-50/30 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600"
+          className={cn(
+            "border-l-2 border-blue-400 dark:border-blue-600",
+            index % 2 === 0 
+              ? "bg-blue-50/40 dark:bg-blue-900/15" 
+              : "bg-blue-50/20 dark:bg-blue-900/5"
+          )}
         >
           {/* Render columns in the same order as main table */}
           {columnOrder.map((colId) => {
             // Entity column - show "Alt Line" label with line value
             if (colId === 'entity') {
               return (
-                <td key={colId} className="px-4 py-2 text-left sticky left-0 z-10 bg-white dark:bg-neutral-900">
+                <td 
+                  key={colId} 
+                  className={cn(
+                    "px-4 py-2 text-left sticky left-0 z-10",
+                    index % 2 === 0 
+                      ? "bg-blue-50/40 dark:bg-blue-900/15" 
+                      : "bg-blue-50/20 dark:bg-blue-900/5"
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     {/* Add left padding to align with expand button space */}
                     <div className="w-6 shrink-0" />
@@ -192,8 +205,9 @@ export function AlternateLinesRow({
                     {sb?.image?.light && (
                       <img src={sb.image.light} alt={sb.name} className="w-3.5 h-3.5 object-contain" />
                     )}
-                    <span className="font-medium">
-                      {side === 'over' ? `o${alt.ln}` : `u${alt.ln}`}/{formatOdds(best.price)}
+                    <span className="font-semibold">
+                      <span className="opacity-75">{side === 'over' ? `o${alt.ln}` : `u${alt.ln}`}</span>
+                      <span className="ml-1">{formatOdds(best.price)}</span>
                     </span>
                   </div>
                 )
@@ -208,7 +222,7 @@ export function AlternateLinesRow({
                             setShowProGate(true)
                           }
                         }}
-                        className="w-full px-2 py-1 text-xs rounded border bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                        className="best-line best-line--sm w-full"
                       >
                         {content}
                       </button>
@@ -216,7 +230,7 @@ export function AlternateLinesRow({
                   )
                 }
                 return (
-                  <div className="px-2 py-1 text-xs rounded border bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700">{content}</div>
+                  <div className="best-line best-line--sm">{content}</div>
                 )
               }
 
@@ -243,18 +257,24 @@ export function AlternateLinesRow({
               return (
                 <td key={colId} className="px-3 py-2">
                   <div className="space-y-1 text-center">
-                    <div className="px-2 py-1 text-xs rounded border bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+                    <div className="avg-line avg-line--sm">
                       {avgOver !== null ? (
-                        <span className="font-medium">o{alt.ln}/{formatOdds(avgOver)}</span>
+                        <>
+                          <span className="opacity-75">o{alt.ln}</span>
+                          <span className="font-semibold">/{formatOdds(avgOver)}</span>
+                        </>
                       ) : (
-                        <span className="text-neutral-400">-</span>
+                        <span className="text-neutral-400 dark:text-neutral-500">-</span>
                       )}
                     </div>
-                    <div className="px-2 py-1 text-xs rounded border bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+                    <div className="avg-line avg-line--sm">
                       {avgUnder !== null ? (
-                        <span className="font-medium">u{alt.ln}/{formatOdds(avgUnder)}</span>
+                        <>
+                          <span className="opacity-75">u{alt.ln}</span>
+                          <span className="font-semibold">/{formatOdds(avgUnder)}</span>
+                        </>
                       ) : (
-                        <span className="text-neutral-400">-</span>
+                        <span className="text-neutral-400 dark:text-neutral-500">-</span>
                       )}
                     </div>
                   </div>
@@ -291,41 +311,29 @@ export function AlternateLinesRow({
               );
 
               const isBest = side === 'over' ? isBestOver : isBestUnder;
-              const commonClasses = isBest
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800/40'
-                : 'bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600';
-
-              const content = (
-                <div className={`block w-full text-xs rounded-md px-2 py-1.5 mx-auto transition-all cursor-pointer font-medium min-w-fit ${commonClasses}`}>
-                  <div className="text-center">
-                    <div className="text-xs font-medium">
-                      <span className="opacity-75">{side === 'over' ? `o${alt.ln}` : `u${alt.ln}`}</span>
-                      <span className="ml-1 font-semibold">{formatOdds(entry.price)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-
-              const interactive = entry.u ? (
-                <button
-                  onClick={() => {
-                    if (isPro) {
-                      window.open(entry.u!, '_blank', 'noopener,noreferrer');
-                    } else if (setShowProGate) {
-                      setShowProGate(true);
-                    }
-                  }}
-                  className="w-full"
-                >
-                  {content}
-                </button>
-              ) : (
-                content
-              );
 
               return (
                 <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
-                  <div>{interactive}</div>
+                  <button
+                    onClick={() => {
+                      if (isPro && entry.u) {
+                        window.open(entry.u, '_blank', 'noopener,noreferrer');
+                      } else if (setShowProGate) {
+                        setShowProGate(true);
+                      }
+                    }}
+                    className={cn(
+                      'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium',
+                      isBest && 'sportsbook-cell--highlighted'
+                    )}
+                  >
+                    <div className="text-center">
+                      <div className="text-xs font-medium">
+                        <span className="opacity-75">{side === 'over' ? `o${alt.ln}` : `u${alt.ln}`}</span>
+                        <span className="ml-1 font-semibold">{formatOdds(entry.price)}</span>
+                      </div>
+                    </div>
+                  </button>
                 </Tooltip>
               );
             };

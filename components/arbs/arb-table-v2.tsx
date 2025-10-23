@@ -436,7 +436,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
     columnHelper.accessor((row) => row.lg?.name || "", {
       id: "league",
-      header: "League",
+      header: "LEAGUE",
       size: 100,
       enableSorting: true,
       sortingFn: "alphanumeric",
@@ -460,7 +460,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
     columnHelper.display({
       id: "game",
-      header: "Game",
+      header: "GAME",
       size: 250,
       cell: (info) => {
         const r = info.row.original;
@@ -469,9 +469,9 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         
         return (
           <div className="flex items-start gap-2">
-            <div className="flex-1">
-              <div className="font-medium text-neutral-900 dark:text-white">{formatGameTitle(r)}</div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400 font-mono tracking-tight">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-neutral-900 dark:text-white break-words whitespace-normal">{formatGameTitle(r)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 font-mono tracking-tight whitespace-normal mt-0.5">
                 {r.ev?.away?.abbr} @ {r.ev?.home?.abbr}
               </div>
             </div>
@@ -487,12 +487,21 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
     columnHelper.display({
       id: "time",
-      header: "Time",
+      header: "TIME",
       size: 110,
       cell: (info) => {
         const r = info.row.original;
         const d = r.ev?.dt ? new Date(r.ev.dt) : null;
-        const dateStr = d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }) : 'TBD';
+        
+        // Check if the date is today
+        const isToday = d ? (() => {
+          const today = new Date();
+          return d.getDate() === today.getDate() &&
+                 d.getMonth() === today.getMonth() &&
+                 d.getFullYear() === today.getFullYear();
+        })() : false;
+        
+        const dateStr = d ? (isToday ? 'Today' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' })) : 'TBD';
         const timeStr = d ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
         
         if ((r as any).ev?.live) {
@@ -506,8 +515,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         
         return (
           <div>
-            <div className="font-medium text-sm">{dateStr}</div>
-            {timeStr && <div className="text-xs text-neutral-500 dark:text-neutral-400">{timeStr}</div>}
+            <div className="text-sm text-neutral-600 dark:text-neutral-400">{dateStr}</div>
+            {timeStr && <div className="text-xs text-neutral-500 dark:text-neutral-500">{timeStr}</div>}
           </div>
         );
       },
@@ -515,7 +524,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
     columnHelper.display({
       id: "market",
-      header: "Market",
+      header: "MARKET",
       size: 350,
       cell: (info) => {
         const r = info.row.original;
@@ -605,8 +614,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     }),
 
     columnHelper.display({
-      id: "betSize",
-      header: "Bet Size",
+      id: "bet-size",
+      header: "BET SIZE",
       size: 200,
       cell: (info) => {
         const r = info.row.original;
@@ -617,7 +626,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
     columnHelper.display({
       id: "profit",
-      header: "Profit",
+      header: "PROFIT",
       size: 120,
       cell: (info) => {
         const r = info.row.original;
@@ -643,7 +652,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         const roiPct = ((r.roi_bps || 0) / 100).toFixed(2);
 
         return (
-          <div className="text-center">
+          <div className="text-right">
             <div className="font-bold text-base bg-gradient-to-r from-[var(--accent-strong)] to-[var(--accent)] bg-clip-text text-transparent tabular-nums">
               {currency(profitValue)}
             </div>
@@ -690,8 +699,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         columnId === "game" && "pr-6",
         columnId === "time" && "text-center pl-6 pr-6",
         columnId === "market" && "pl-6 pr-6",
-        columnId === "betSize" && "pl-6 pr-6",
-        columnId === "profit" && "text-center pl-6",
+        columnId === "bet-size" && "pl-6 pr-6",
+        columnId === "profit" && "text-right pl-6",
       )}
           tdClassName={(columnId, row) => cn(
             // Zebra striping
@@ -702,8 +711,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             columnId === "game" && "pr-6",
             columnId === "time" && "text-center pl-6 pr-6",
             columnId === "market" && "pl-6 pr-6",
-            columnId === "betSize" && "pl-6 pr-6",
-            columnId === "profit" && "text-center pl-6",
+            columnId === "bet-size" && "pl-6 pr-6",
+            columnId === "profit" && "text-right pl-6",
           )}
           rowProps={(row) => ({
             className: cn(

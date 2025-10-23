@@ -18,7 +18,7 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
       <DialogContent className="sm:max-w-md bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-brand">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[var(--tertiary-strong)]">
               <Lock className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -33,9 +33,9 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
           </p>
 
           <div className="space-y-3">
-            <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10">
-                <Sparkles className="h-4 w-4 text-brand" />
+            <div className="flex items-start gap-3 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/5 p-4 dark:border-[var(--tertiary)]/30 dark:bg-[var(--tertiary)]/10">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--tertiary)]/20">
+                <Sparkles className="h-4 w-4 text-[var(--tertiary-strong)]" />
               </div>
               <div>
                 <h4 className="font-semibold text-sm text-neutral-900 dark:text-white">
@@ -47,9 +47,9 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
               </div>
             </div>
 
-            <div className="flex items-start gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10">
-                <ExternalLink className="h-4 w-4 text-brand" />
+            <div className="flex items-start gap-3 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/5 p-4 dark:border-[var(--tertiary)]/30 dark:bg-[var(--tertiary)]/10">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--tertiary)]/20">
+                <ExternalLink className="h-4 w-4 text-[var(--tertiary-strong)]" />
               </div>
               <div>
                 <h4 className="font-semibold text-sm text-neutral-900 dark:text-white">
@@ -66,7 +66,7 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
             <ButtonLink 
               href="/pricing" 
               onClick={onClose}
-              variant="primary"
+              variant="pro"
               className="w-full justify-center"
             >
               Upgrade to Pro

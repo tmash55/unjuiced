@@ -10,8 +10,10 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { 
   Trophy, 
   Users, 
-  TrendingUp
+  TrendingUp,
+  ChevronDown
 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 // Ordered by popularity: NFL, NBA, MLB, NHL, NCAAB, WNBA, NCAAF
 const SPORT_INFO_ORDERED = [
@@ -134,6 +136,43 @@ function groupByCategory(markets: SportMarket[]) {
 }
 
 export default function MarketsClient() {
+  const [selectedSport, setSelectedSport] = useState(SPORT_INFO_ORDERED[0]);
+  const [activeSport, setActiveSport] = useState(SPORT_INFO_ORDERED[0].key);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Intersection Observer to track which sport section is in view
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const sportKey = entry.target.id.replace('sport-', '');
+            setActiveSport(sportKey);
+            // Also update selected sport for mobile dropdown
+            const sport = SPORT_INFO_ORDERED.find(s => s.key === sportKey);
+            if (sport) {
+              setSelectedSport(sport);
+            }
+          }
+        });
+      },
+      {
+        rootMargin: '-20% 0px -60% 0px', // Trigger when section is in the top 40% of viewport
+        threshold: 0
+      }
+    );
+
+    // Observe all sport sections
+    SPORT_INFO_ORDERED.forEach((info) => {
+      const element = document.getElementById(`sport-${info.key}`);
+      if (element) {
+        observer.observe(element);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const scrollToSport = (sportKey: string) => {
     const element = document.getElementById(`sport-${sportKey}`);
     if (element) {
@@ -143,6 +182,12 @@ export default function MarketsClient() {
         top: elementPosition - navHeight,
         behavior: 'smooth'
       });
+    }
+    // Update selected sport for mobile dropdown
+    const sport = SPORT_INFO_ORDERED.find(s => s.key === sportKey);
+    if (sport) {
+      setSelectedSport(sport);
+      setIsDropdownOpen(false);
     }
   };
 
@@ -167,21 +212,91 @@ export default function MarketsClient() {
       {/* Sport Navigation */}
       <div className="sticky top-[60px] z-40 bg-white/95 backdrop-blur-xl dark:bg-black/95 border-b border-neutral-200 dark:border-neutral-800">
         <Container className="border-divide border-x">
-          <div className="flex items-center justify-center gap-1 px-4 py-3 overflow-x-auto scrollbar-hide">
-            {SPORT_INFO_ORDERED.map((info) => (
+          {/* Mobile Dropdown */}
+          <div className="md:hidden px-4 py-3">
+            <div className="relative">
               <button
-                key={info.key}
-                onClick={() => scrollToSport(info.key)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all hover:bg-brand/5 dark:hover:bg-brand/10 group min-w-fit border border-transparent hover:border-brand/20 dark:hover:border-brand/30"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex w-full items-center justify-between gap-2 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100 dark:bg-neutral-800 transition-all group-hover:bg-brand/10 dark:group-hover:bg-brand/20 group-hover:scale-105">
-                  <SportIcon sport={info.sportKey} className="h-4 w-4 text-neutral-600 dark:text-neutral-400 group-hover:text-brand transition-colors" />
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100 dark:bg-neutral-800">
+                    <SportIcon sport={selectedSport.sportKey} className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                  </div>
+                  <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                    {selectedSport.name}
+                  </span>
                 </div>
-                <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 whitespace-nowrap group-hover:text-brand transition-colors">
-                  {info.name}
-                </span>
+                <ChevronDown className={`h-4 w-4 text-neutral-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-            ))}
+
+              {isDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsDropdownOpen(false)}
+                  />
+                  <div className="absolute top-full left-0 right-0 mt-2 z-20 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg overflow-hidden">
+                    {SPORT_INFO_ORDERED.map((info) => (
+                      <button
+                        key={info.key}
+                        onClick={() => scrollToSport(info.key)}
+                        className={`flex w-full items-center gap-3 px-4 py-3 transition-all hover:bg-brand/5 dark:hover:bg-brand/10 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 ${
+                          selectedSport.key === info.key ? 'bg-brand/5 dark:bg-brand/10' : ''
+                        }`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100 dark:bg-neutral-800">
+                          <SportIcon sport={info.sportKey} className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                          {info.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop Horizontal Navigation */}
+          <div className="hidden md:flex items-center justify-center gap-1 px-4 py-3">
+            {SPORT_INFO_ORDERED.map((info) => {
+              const isActive = activeSport === info.key;
+              return (
+                <button
+                  key={info.key}
+                  onClick={() => scrollToSport(info.key)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all group min-w-fit border ${
+                    isActive
+                      ? 'bg-brand/10 dark:bg-brand/20 border-brand/30 dark:border-brand/40'
+                      : 'border-transparent hover:bg-brand/5 dark:hover:bg-brand/10 hover:border-brand/20 dark:hover:border-brand/30'
+                  }`}
+                >
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-md transition-all ${
+                    isActive
+                      ? 'bg-brand/20 dark:bg-brand/30 scale-105'
+                      : 'bg-neutral-100 dark:bg-neutral-800 group-hover:bg-brand/10 dark:group-hover:bg-brand/20 group-hover:scale-105'
+                  }`}>
+                    <SportIcon 
+                      sport={info.sportKey} 
+                      className={`h-4 w-4 transition-colors ${
+                        isActive
+                          ? 'text-brand'
+                          : 'text-neutral-600 dark:text-neutral-400 group-hover:text-brand'
+                      }`}
+                    />
+                  </div>
+                  <span className={`text-sm font-semibold whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'text-brand'
+                      : 'text-neutral-700 dark:text-neutral-300 group-hover:text-brand'
+                  }`}>
+                    {info.name}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </Container>
       </div>

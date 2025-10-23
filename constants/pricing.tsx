@@ -26,8 +26,8 @@ export const tiers = [
   {
     title: TierName.PRO,
     subtitle: "For serious bettors",
-    monthly: 29,
-    yearly: 290,
+    monthly: 30,
+    yearly: 300,
     ctaText: "Start Free Trial",
     ctaLink: "/register",
     features: [

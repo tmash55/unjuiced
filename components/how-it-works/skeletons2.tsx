@@ -113,26 +113,27 @@ type MockOpp = {
     }, [y, totalHeight, prefersReducedMotion]);
 
     return (
-      <div className="relative mt-8 w-full max-w-4xl px-4">
+      <div className="relative mt-6 w-full max-w-4xl px-2 md:mt-8 md:px-4">
         {/* floating header */}
         <motion.div
           initial={{ y: -6, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="mb-6 flex items-center justify-between"
+          className="mb-4 flex items-center justify-between md:mb-6"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-base font-medium text-gray-900 dark:text-white">Live Opportunities</span>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] text-gray-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <span className="text-sm font-medium text-gray-900 md:text-base dark:text-white">Live Opportunities</span>
+            <div className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-[9px] text-gray-600 md:gap-1.5 md:px-2 md:text-[10px] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
               <motion.span 
-                className="inline-block size-1.5 rounded-full bg-brand"
+                className="inline-block size-1 rounded-full bg-brand md:size-1.5"
                 animate={{ opacity: [1, 0.3, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
-              Updates every 1s
+              <span className="hidden sm:inline">Updates every 1s</span>
+              <span className="sm:hidden">Live</span>
             </div>
           </div>
-          <span className="text-sm text-gray-500 dark:text-neutral-400">
-            {mockOpps.length} active
+          <span className="text-xs text-gray-500 md:text-sm dark:text-neutral-400">
+            {mockOpps.length}
           </span>
         </motion.div>
   
@@ -225,40 +226,40 @@ type MockOpp = {
           />
         )}
 
-        <div className="relative p-5">
+        <div className="relative p-3 md:p-5">
   
           {/* top row: type + league + timing */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-1.5 md:gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <span
                 className={
-                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition-transform " +
+                  "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[9px] font-medium transition-transform md:gap-1 md:px-2.5 md:py-1 md:text-[10px] " +
                   (isLive
                     ? "bg-red-50 text-red-600 ring-1 ring-red-200 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/20"
                     : "bg-gray-50 text-gray-600 ring-1 ring-gray-200 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700")
                 }
               >
-                {isLive && <span className="size-1.5 animate-pulse rounded-full bg-red-500" />}
+                {isLive && <span className="size-1 animate-pulse rounded-full bg-red-500 md:size-1.5" />}
                 {opp.type}
               </span>
-              <span className="text-xs font-medium text-gray-600 dark:text-neutral-400">{opp.league}</span>
+              <span className="text-[10px] font-medium text-gray-600 md:text-xs dark:text-neutral-400">{opp.league}</span>
             </div>
-            <div className="text-[11px] text-gray-500 transition-opacity dark:text-neutral-400">
-              {isLive ? `Updated ${opp.updated}` : `Starts in ${opp.startsIn}`}
+            <div className="text-[10px] text-gray-500 transition-opacity md:text-[11px] dark:text-neutral-400">
+              {isLive ? `${opp.updated}` : `${opp.startsIn}`}
             </div>
           </div>
     
           {/* match + market */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-base font-semibold text-gray-900 dark:text-neutral-100">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 md:mt-3 md:gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-gray-900 md:text-base dark:text-neutral-100">
                 {opp.match}
               </div>
-              <div className="mt-0.5 text-xs text-gray-500 dark:text-neutral-400">{opp.market}</div>
+              <div className="mt-0.5 text-[10px] text-gray-500 md:text-xs dark:text-neutral-400">{opp.market}</div>
             </div>
     
             {/* EV / Hold badges */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
               <Badge color="ev">ROI {opp.ev.toFixed(1)}%</Badge>
               <Badge color={opp.hold <= 0 ? "green" : "warn"}>
                 {opp.hold > 0 ? `+${opp.hold.toFixed(1)}%` : `${opp.hold.toFixed(1)}%`}
@@ -267,8 +268,8 @@ type MockOpp = {
           </div>
     
           {/* book pair + action buttons */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-neutral-800">
-            <div className="flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-2 md:mt-4 md:gap-3 md:pt-3 dark:border-neutral-800">
+            <div className="flex items-center gap-1.5 md:gap-2">
               {opp.books.map((b, idx) => {
                 // Map book names to logo paths
                 const bookLogos: Record<string, string> = {
@@ -287,26 +288,26 @@ type MockOpp = {
                 return (
                   <div
                     key={b + idx}
-                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-transform dark:border-neutral-700 dark:from-neutral-900 dark:to-neutral-800 dark:text-neutral-200"
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-2 py-1 text-[10px] font-medium text-gray-700 shadow-sm transition-transform md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs dark:border-neutral-700 dark:from-neutral-900 dark:to-neutral-800 dark:text-neutral-200"
                   >
                     <Image 
                       src={bookLogos[b] || "/images/sports-books/generic-sportsbook.svg"} 
                       alt={b}
                       width={14}
                       height={14}
-                      className="size-3.5 object-contain"
+                      className="size-3 object-contain md:size-3.5"
                     />
-                    {b}
+                    <span className="hidden sm:inline">{b}</span>
                   </div>
                 );
               })}
             </div>
     
-            <div className="flex items-center gap-2 transition-opacity">
-              <button className="rounded-lg border border-brand/20 bg-brand/5 px-4 py-2 text-xs font-medium text-brand transition-colors hover:bg-brand/10 dark:border-brand/30 dark:bg-brand/10">
+            <div className="flex w-full items-center gap-1.5 transition-opacity sm:w-auto md:gap-2">
+              <button className="hidden rounded-lg border border-brand/20 bg-brand/5 px-3 py-1.5 text-[10px] font-medium text-brand transition-colors hover:bg-brand/10 sm:block md:px-4 md:py-2 md:text-xs dark:border-brand/30 dark:bg-brand/10">
                 View Details
               </button>
-              <button className="rounded-lg border-2 border-brand bg-brand px-4 py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md">
+              <button className="flex-1 rounded-lg border-2 border-brand bg-brand px-3 py-1.5 text-[10px] font-medium text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md sm:flex-none md:px-4 md:py-2 md:text-xs">
                 Place Bets
               </button>
             </div>
@@ -335,7 +336,7 @@ type MockOpp = {
   
     return (
       <span
-        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] ring-1 ${map[color]}`}
+        className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] ring-1 md:px-2 md:text-[11px] ${map[color]}`}
       >
         {children}
       </span>
@@ -374,19 +375,19 @@ export function ChooseBooksSkeleton() {
   const selectedCount = selectedBooks.size;
 
   return (
-    <div className="mt-10 w-full max-w-4xl px-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="mt-6 w-full max-w-4xl px-2 md:mt-10 md:px-4">
+      <div className="mb-3 flex items-center justify-between md:mb-4">
         <div>
-          <div className="text-base font-medium text-gray-900 dark:text-white">Choose your sportsbooks</div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-neutral-400">
-            Select books you have accounts with • <span className="text-brand">{selectedCount} selected</span>
+          <div className="text-sm font-medium text-gray-900 md:text-base dark:text-white">Choose your sportsbooks</div>
+          <div className="mt-0.5 text-[10px] text-gray-500 md:mt-1 md:text-xs dark:text-neutral-400">
+            <span className="hidden sm:inline">Select books you have accounts with • </span><span className="text-brand">{selectedCount} selected</span>
           </div>
         </div>
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => setSelectedBooks(new Set(books.map((b) => b.name)))}
-          className="text-xs font-medium text-brand transition-colors hover:text-brand/80"
+          className="text-[10px] font-medium text-brand transition-colors hover:text-brand/80 md:text-xs"
         >
           Select all
         </motion.button>
@@ -404,7 +405,7 @@ export function ChooseBooksSkeleton() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => toggleBook(b.name)}
-              className={`group relative flex items-center gap-3 rounded-xl border p-3 shadow-sm transition-all ${
+              className={`group relative flex items-center gap-2 rounded-xl border p-2.5 shadow-sm transition-all md:gap-3 md:p-3 ${
                 isSelected
                   ? "border-brand bg-brand/5 hover:shadow-md dark:border-brand dark:bg-brand/10"
                   : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900"
@@ -414,25 +415,25 @@ export function ChooseBooksSkeleton() {
               {isSelected && (
                 <motion.div
                   layoutId="selected-book"
-                  className="absolute -left-1 -top-1 h-3 w-3 rounded-full bg-brand shadow-sm"
+                  className="absolute -left-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand shadow-sm md:-left-1 md:-top-1 md:h-3 md:w-3"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 />
               )}
               
-              <div className="relative h-10 w-10 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800">
+              <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white shadow-sm md:h-10 md:w-10 dark:bg-neutral-800">
                 <Image
                   src={b.logo}
                   alt={b.name}
                   fill
-                  className="object-contain p-1.5"
+                  className="object-contain p-1 md:p-1.5"
                 />
               </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">{b.name}</div>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <div className="h-1 w-full max-w-[60px] overflow-hidden rounded-full bg-gray-200 dark:bg-neutral-800">
+              <div className="min-w-0 flex-1 text-left">
+                <div className="truncate text-xs font-medium text-gray-900 md:text-sm dark:text-white">{b.name}</div>
+                <div className="mt-0.5 flex items-center gap-1 md:gap-1.5">
+                  <div className="h-0.5 w-full max-w-[50px] overflow-hidden rounded-full bg-gray-200 md:h-1 md:max-w-[60px] dark:bg-neutral-800">
                     <motion.div
                       className="h-full bg-brand"
                       initial={{ width: 0 }}
@@ -440,7 +441,7 @@ export function ChooseBooksSkeleton() {
                       transition={{ delay: i * 0.1 + 0.2, duration: 0.6 }}
                     />
                   </div>
-                  <span className="text-[10px] text-gray-500 dark:text-neutral-400">{b.coverage}</span>
+                  <span className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">{b.coverage}</span>
                 </div>
               </div>
               {/* selected toggle with animation */}
@@ -450,7 +451,7 @@ export function ChooseBooksSkeleton() {
                   rotate: isSelected ? 360 : 0,
                 }}
                 transition={{ type: "spring", stiffness: 200 }}
-                className={`rounded-full border p-1.5 transition-all ${
+                className={`shrink-0 rounded-full border p-1 transition-all md:p-1.5 ${
                   isSelected
                     ? "border-brand bg-brand shadow-sm"
                     : "border-gray-300 group-hover:border-gray-400 dark:border-neutral-700"
@@ -461,7 +462,7 @@ export function ChooseBooksSkeleton() {
                     scale: isSelected ? [1, 1.2, 1] : 1,
                   }}
                   transition={{ duration: 0.3 }}
-                  className={`h-3 w-3 rounded-full transition-all ${
+                  className={`h-2.5 w-2.5 rounded-full transition-all md:h-3 md:w-3 ${
                     isSelected
                       ? "bg-white"
                       : "bg-gray-300 group-hover:bg-brand/70 dark:bg-neutral-600"
@@ -478,22 +479,22 @@ export function ChooseBooksSkeleton() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="mt-6 flex items-center justify-between rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-white p-4 dark:border-neutral-700 dark:from-neutral-900 dark:to-neutral-800"
+        className="mt-4 flex flex-col items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-white p-3 sm:flex-row md:mt-6 md:p-4 dark:border-neutral-700 dark:from-neutral-900 dark:to-neutral-800"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
           <div className="text-center">
-            <div className="text-lg font-bold text-brand">{selectedCount}</div>
-            <div className="text-[10px] text-gray-500 dark:text-neutral-400">Books</div>
+            <div className="text-base font-bold text-brand md:text-lg">{selectedCount}</div>
+            <div className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">Books</div>
             </div>
-          <div className="h-8 w-px bg-gray-200 dark:bg-neutral-700" />
+          <div className="h-6 w-px bg-gray-200 md:h-8 dark:bg-neutral-700" />
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900 dark:text-white">
+            <div className="text-base font-bold text-gray-900 md:text-lg dark:text-white">
               {Math.round(selectedCount * 24)}+
             </div>
-            <div className="text-[10px] text-gray-500 dark:text-neutral-400">Markets</div>
+            <div className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">Markets</div>
       </div>
       </div>
-        <button className="rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md">
+        <button className="w-full rounded-lg bg-brand px-4 py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md sm:w-auto md:px-6 md:py-2.5 md:text-sm">
           Continue
         </button>
       </motion.div>
@@ -557,14 +558,14 @@ export function SmartFiltersSkeleton() {
   const selectedCount = selectedBooks.size;
 
   return (
-    <div className="mt-10 w-full max-w-5xl px-4">
+    <div className="mt-6 w-full max-w-5xl px-2 md:mt-10 md:px-4">
       {/* Sportsbook selection section */}
-      <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="mb-6 md:mb-8">
+        <div className="mb-3 flex items-center justify-between md:mb-4">
           <div>
-            <div className="text-base font-medium text-gray-900 dark:text-white">Sportsbooks</div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-neutral-400">
-              <span className="font-medium text-gray-700 dark:text-neutral-300">{selectedCount} selected</span> • Click to toggle
+            <div className="text-sm font-medium text-gray-900 md:text-base dark:text-white">Sportsbooks</div>
+            <div className="mt-0.5 text-[10px] text-gray-500 md:mt-1 md:text-xs dark:text-neutral-400">
+              <span className="font-medium text-gray-700 dark:text-neutral-300">{selectedCount} selected</span> <span className="hidden sm:inline">• Click to toggle</span>
             </div>
           </div>
         </div>
@@ -637,11 +638,11 @@ export function SmartFiltersSkeleton() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3 md:gap-4">
         {/* League filter */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-          <div className="mb-3 text-sm font-medium text-gray-700 dark:text-neutral-300">League</div>
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4 dark:border-neutral-700 dark:bg-neutral-900">
+          <div className="mb-2 text-xs font-medium text-gray-700 md:mb-3 md:text-sm dark:text-neutral-300">League</div>
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {["NFL", "NBA", "MLB", "NHL", "WNBA", "NCAAF", "NCAAB"].map((l, i) => {
               const isSelected = selectedLeagues.has(l);
               return (
@@ -651,7 +652,7 @@ export function SmartFiltersSkeleton() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 * i }}
                   onClick={() => toggleLeague(l)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-all md:px-3 md:py-1 md:text-xs ${
                     isSelected
                       ? "border-gray-600 bg-gray-600 text-white shadow-sm dark:border-neutral-400 dark:bg-neutral-400 dark:text-neutral-900"
                       : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
@@ -665,9 +666,9 @@ export function SmartFiltersSkeleton() {
         </div>
 
         {/* Market type */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-          <div className="mb-3 text-sm font-medium text-gray-700 dark:text-neutral-300">Market Type</div>
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4 dark:border-neutral-700 dark:bg-neutral-900">
+          <div className="mb-2 text-xs font-medium text-gray-700 md:mb-3 md:text-sm dark:text-neutral-300">Market Type</div>
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {["Moneyline", "Spread", "Totals", "Player Props", "Team Props", "Alt Lines"].map((m, i) => {
               const isSelected = selectedMarkets.has(m);
               return (
@@ -677,7 +678,7 @@ export function SmartFiltersSkeleton() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.04 * i }}
                   onClick={() => toggleMarket(m)}
-                  className={`rounded-lg px-3 py-1 text-xs font-medium transition-all ${
+                  className={`rounded-lg px-2.5 py-0.5 text-[10px] font-medium transition-all md:px-3 md:py-1 md:text-xs ${
                     isSelected
                       ? "bg-gray-600 text-white shadow-sm dark:bg-neutral-400 dark:text-neutral-900"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
@@ -691,18 +692,18 @@ export function SmartFiltersSkeleton() {
         </div>
 
         {/* Min EV / Max Hold */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-          <div className="mb-3 text-sm font-medium text-gray-700 dark:text-neutral-300">Thresholds</div>
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:p-4 dark:border-neutral-700 dark:bg-neutral-900">
+          <div className="mb-2 text-xs font-medium text-gray-700 md:mb-3 md:text-sm dark:text-neutral-300">Thresholds</div>
           {[
             { label: "Min EV", width: "70%", value: "2.5%" },
             { label: "Max Hold", width: "55%", value: "5.0%" },
           ].map((s, i) => (
-            <div key={i} className="mt-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-neutral-400">{s.label}</span>
-                <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">{s.value}</span>
+            <div key={i} className="mt-2 md:mt-3">
+              <div className="mb-1 flex items-center justify-between md:mb-1.5">
+                <span className="text-[10px] text-gray-500 md:text-xs dark:text-neutral-400">{s.label}</span>
+                <span className="text-[10px] font-medium text-gray-700 md:text-xs dark:text-neutral-300">{s.value}</span>
               </div>
-              <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-neutral-800">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-100 md:h-2.5 dark:bg-neutral-800">
                 <motion.div
                   className="absolute left-0 top-0 h-full bg-gradient-to-r from-gray-600 to-gray-500 dark:from-neutral-400 dark:to-neutral-500"
                   initial={{ width: "10%" }}
@@ -720,22 +721,22 @@ export function SmartFiltersSkeleton() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mt-6 flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-800"
+        className="mt-4 flex flex-col items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:flex-row md:mt-6 md:p-4 dark:border-neutral-700 dark:bg-neutral-800"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2">
           <div className="relative">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-            <div className="absolute inset-0 h-2 w-2 animate-ping rounded-full bg-green-500 opacity-75" />
+            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500 md:h-2 md:w-2" />
+            <div className="absolute inset-0 h-1.5 w-1.5 animate-ping rounded-full bg-green-500 opacity-75 md:h-2 md:w-2" />
           </div>
-          <span className="text-sm font-medium text-gray-700 dark:text-neutral-200">
-            <span className="font-semibold text-gray-900 dark:text-white">47</span> active opportunities
+          <span className="text-xs font-medium text-gray-700 md:text-sm dark:text-neutral-200">
+            <span className="font-semibold text-gray-900 dark:text-white">47</span> <span className="hidden sm:inline">active opportunities</span><span className="sm:hidden">active</span>
           </span>
         </div>
-        <div className="flex gap-2">
-          <button className="rounded-lg bg-white px-4 py-2 text-xs font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-950">
+        <div className="flex w-full gap-2 sm:w-auto">
+          <button className="flex-1 rounded-lg bg-white px-3 py-1.5 text-[10px] font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 sm:flex-none md:px-4 md:py-2 md:text-xs dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-950">
             Reset
           </button>
-          <button className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-gray-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white">
+          <button className="flex-1 rounded-lg bg-gray-900 px-3 py-1.5 text-[10px] font-medium text-white shadow-sm transition-all hover:bg-gray-800 sm:flex-none md:px-4 md:py-2 md:text-xs dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white">
             Apply Filters
           </button>
       </div>
@@ -877,13 +878,13 @@ export function OneClickDualBetSkeleton() {
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <div className="relative mt-10 flex w-full max-w-7xl items-center justify-center gap-0 px-4">
+    <div className="relative mt-6 flex w-full max-w-7xl flex-col items-center justify-center gap-4 px-2 md:mt-10 md:flex-row md:gap-0 md:px-4">
       {/* Left Bet Slip - DraftKings */}
       <motion.div
         initial={{ opacity: 0, x: prefersReducedMotion ? 0 : -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.1, type: "spring", stiffness: 100, damping: 15 }}
-        className="relative z-10 w-full max-w-[320px]"
+        className="relative z-10 w-full max-w-[280px] md:max-w-[320px]"
       >
         {/* Animated border wrapper */}
         <div className="relative overflow-hidden rounded-2xl bg-gray-200 p-px shadow-xl dark:bg-neutral-700">
@@ -899,22 +900,22 @@ export function OneClickDualBetSkeleton() {
             className="relative z-20 overflow-hidden rounded-2xl bg-white dark:bg-neutral-900"
           >
           {/* Window title bar */}
-          <div className="flex items-center gap-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900">
-            <div className="flex gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
-              <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-              <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
+          <div className="flex items-center gap-1.5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-2 md:gap-2 md:px-4 md:py-2.5 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900">
+            <div className="flex gap-1 md:gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-red-400 md:h-2.5 md:w-2.5" />
+              <div className="h-2 w-2 rounded-full bg-yellow-400 md:h-2.5 md:w-2.5" />
+              <div className="h-2 w-2 rounded-full bg-green-400 md:h-2.5 md:w-2.5" />
             </div>
-            <div className="flex-1 text-center text-xs font-medium text-gray-600 dark:text-neutral-400">
+            <div className="flex-1 text-center text-[10px] font-medium text-gray-600 md:text-xs dark:text-neutral-400">
               DraftKings Bet Slip
             </div>
           </div>
           
           {/* Content */}
-          <div className="p-5">
+          <div className="p-3 md:p-5">
             {/* Book header */}
-            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-3 dark:border-neutral-800">
-              <div className="relative h-6 w-6 overflow-hidden rounded">
+            <div className="mb-3 flex items-center gap-1.5 border-b border-gray-100 pb-2 md:mb-4 md:gap-2 md:pb-3 dark:border-neutral-800">
+              <div className="relative h-5 w-5 shrink-0 overflow-hidden rounded md:h-6 md:w-6">
                 <Image
                   src="/images/sports-books/draftkings.png"
                   alt="DraftKings"
@@ -922,34 +923,34 @@ export function OneClickDualBetSkeleton() {
                   className="object-contain"
                 />
               </div>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">DraftKings</span>
-              <div className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+              <span className="text-xs font-semibold text-gray-900 md:text-sm dark:text-white">DraftKings</span>
+              <div className="ml-auto rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-medium text-green-700 md:px-2 md:text-[10px] dark:bg-green-900 dark:text-green-300">
                 Best Price
               </div>
             </div>
           
           {/* Bet details */}
-          <div className="mb-4 space-y-2">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-xs text-gray-500 dark:text-neutral-400">NBA • Moneyline</div>
-                <div className="mt-1 font-semibold text-gray-900 dark:text-white">LA Lakers</div>
-                <div className="text-xs text-gray-500">vs Boston Celtics</div>
+          <div className="mb-3 space-y-1.5 md:mb-4 md:space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-gray-500 md:text-xs dark:text-neutral-400">NBA • Moneyline</div>
+                <div className="mt-0.5 truncate text-sm font-semibold text-gray-900 md:text-base dark:text-white">LA Lakers</div>
+                <div className="text-[10px] text-gray-500 md:text-xs">vs Boston Celtics</div>
               </div>
-              <div className="rounded-lg bg-green-50 px-3 py-1.5 text-lg font-bold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              <div className="shrink-0 rounded-lg bg-green-50 px-2 py-1 text-base font-bold text-green-700 md:px-3 md:py-1.5 md:text-lg dark:bg-green-900/30 dark:text-green-400">
                 +150
               </div>
             </div>
           </div>
 
           {/* Stake input */}
-          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800">
-            <div className="text-[10px] text-gray-500 dark:text-neutral-400">Stake</div>
-            <div className="text-base font-semibold text-gray-900 dark:text-white">$100.00</div>
+          <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 md:mb-3 md:px-3 md:py-2 dark:border-neutral-700 dark:bg-neutral-800">
+            <div className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">Stake</div>
+            <div className="text-sm font-semibold text-gray-900 md:text-base dark:text-white">$100.00</div>
           </div>
 
             {/* Potential return */}
-            <div className="mb-3 flex items-center justify-between text-xs">
+            <div className="mb-2 flex items-center justify-between text-[10px] md:mb-3 md:text-xs">
               <span className="text-gray-500 dark:text-neutral-400">Potential return</span>
               <span className="font-semibold text-gray-900 dark:text-white">$250.00</span>
             </div>
@@ -958,23 +959,23 @@ export function OneClickDualBetSkeleton() {
         </div>
       </motion.div>
 
-      {/* Left connection line (right to left animation) */}
-      <HorizontalLineRTL className="shrink-0" />
+      {/* Left connection line (right to left animation) - hidden on mobile */}
+      <HorizontalLineRTL className="hidden shrink-0 md:block" />
 
       {/* Center - Zap Button */}
-      <div className="relative z-20 flex shrink-0 flex-col items-center gap-3">
+      <div className="relative z-20 flex shrink-0 flex-col items-center gap-2 md:gap-3">
         {/* Profit indicator above button */}
       <motion.div
           initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 px-4 py-2 shadow-sm dark:border-green-900/30 dark:from-green-900/20 dark:to-emerald-900/20"
+          className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 px-3 py-1.5 shadow-sm md:px-4 md:py-2 dark:border-green-900/30 dark:from-green-900/20 dark:to-emerald-900/20"
         >
           <div className="text-center">
-            <div className="text-[10px] font-medium text-green-600 dark:text-green-400">Guaranteed Profit</div>
-            <div className="mt-0.5 flex items-baseline gap-1.5 justify-center">
-              <span className="text-xl font-bold text-green-700 dark:text-green-300">$19</span>
-              <span className="rounded-full bg-green-600 px-1.5 py-0.5 text-[9px] font-bold text-white dark:bg-green-500">+7.6%</span>
+            <div className="text-[9px] font-medium text-green-600 md:text-[10px] dark:text-green-400">Guaranteed Profit</div>
+            <div className="mt-0.5 flex items-baseline justify-center gap-1 md:gap-1.5">
+              <span className="text-lg font-bold text-green-700 md:text-xl dark:text-green-300">$19</span>
+              <span className="rounded-full bg-green-600 px-1.5 py-0.5 text-[8px] font-bold text-white md:text-[9px] dark:bg-green-500">+7.6%</span>
             </div>
           </div>
       </motion.div>
@@ -985,10 +986,10 @@ export function OneClickDualBetSkeleton() {
           onMouseLeave={() => setIsHovered(false)}
         >
           {/* Zap button - clean, no animations */}
-          <button className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-2 border-brand bg-gradient-to-br from-brand to-brand/80 shadow-xl transition-transform hover:scale-105">
+          <button className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-2 border-brand bg-gradient-to-br from-brand to-brand/80 shadow-xl transition-transform hover:scale-105 md:h-20 md:w-20">
             {/* Zap icon */}
             <svg
-              className="h-10 w-10 text-white"
+              className="h-8 w-8 text-white md:h-10 md:w-10"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1004,20 +1005,20 @@ export function OneClickDualBetSkeleton() {
         </div>
 
         {/* Label */}
-        <div className="rounded-full border border-brand/20 bg-brand/10 px-4 py-1 text-xs font-medium text-brand dark:border-brand/30 dark:bg-brand/20">
+        <div className="rounded-full border border-brand/20 bg-brand/10 px-3 py-0.5 text-[10px] font-medium text-brand md:px-4 md:py-1 md:text-xs dark:border-brand/30 dark:bg-brand/20">
           One-Click Dual Bet
         </div>
       </div>
 
-      {/* Right connection line */}
-      <HorizontalLine className="shrink-0" />
+      {/* Right connection line - hidden on mobile */}
+      <HorizontalLine className="hidden shrink-0 md:block" />
 
       {/* Right Bet Slip - FanDuel */}
       <motion.div
         initial={{ opacity: 0, x: prefersReducedMotion ? 0 : 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.15, type: "spring", stiffness: 100, damping: 15 }}
-        className="relative z-10 w-full max-w-[320px]"
+        className="relative z-10 w-full max-w-[280px] md:max-w-[320px]"
       >
         {/* Animated border wrapper */}
         <div className="relative overflow-hidden rounded-2xl bg-gray-200 p-px shadow-xl dark:bg-neutral-700">
@@ -1033,22 +1034,22 @@ export function OneClickDualBetSkeleton() {
             className="relative z-20 overflow-hidden rounded-2xl bg-white dark:bg-neutral-900"
           >
           {/* Window title bar */}
-          <div className="flex items-center gap-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900">
-            <div className="flex gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
-              <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-              <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
+          <div className="flex items-center gap-1.5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-2 md:gap-2 md:px-4 md:py-2.5 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900">
+            <div className="flex gap-1 md:gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-red-400 md:h-2.5 md:w-2.5" />
+              <div className="h-2 w-2 rounded-full bg-yellow-400 md:h-2.5 md:w-2.5" />
+              <div className="h-2 w-2 rounded-full bg-green-400 md:h-2.5 md:w-2.5" />
             </div>
-            <div className="flex-1 text-center text-xs font-medium text-gray-600 dark:text-neutral-400">
+            <div className="flex-1 text-center text-[10px] font-medium text-gray-600 md:text-xs dark:text-neutral-400">
               FanDuel Bet Slip
             </div>
           </div>
           
           {/* Content */}
-          <div className="p-5">
+          <div className="p-3 md:p-5">
             {/* Book header */}
-            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-3 dark:border-neutral-800">
-              <div className="relative h-6 w-6 overflow-hidden rounded">
+            <div className="mb-3 flex items-center gap-1.5 border-b border-gray-100 pb-2 md:mb-4 md:gap-2 md:pb-3 dark:border-neutral-800">
+              <div className="relative h-5 w-5 shrink-0 overflow-hidden rounded md:h-6 md:w-6">
                 <Image
                   src="/images/sports-books/fanduel.png"
                   alt="FanDuel"
@@ -1056,34 +1057,34 @@ export function OneClickDualBetSkeleton() {
                   className="object-contain"
                 />
               </div>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">FanDuel</span>
-              <div className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+              <span className="text-xs font-semibold text-gray-900 md:text-sm dark:text-white">FanDuel</span>
+              <div className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 md:px-2 md:text-[10px] dark:bg-blue-900 dark:text-blue-300">
                 Best Price
               </div>
             </div>
           
           {/* Bet details */}
-          <div className="mb-4 space-y-2">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-xs text-gray-500 dark:text-neutral-400">NBA • Moneyline</div>
-                <div className="mt-1 font-semibold text-gray-900 dark:text-white">Boston Celtics</div>
-                <div className="text-xs text-gray-500">vs LA Lakers</div>
+          <div className="mb-3 space-y-1.5 md:mb-4 md:space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-gray-500 md:text-xs dark:text-neutral-400">NBA • Moneyline</div>
+                <div className="mt-0.5 truncate text-sm font-semibold text-gray-900 md:text-base dark:text-white">Boston Celtics</div>
+                <div className="text-[10px] text-gray-500 md:text-xs">vs LA Lakers</div>
               </div>
-              <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-lg font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              <div className="shrink-0 rounded-lg bg-blue-50 px-2 py-1 text-base font-bold text-blue-700 md:px-3 md:py-1.5 md:text-lg dark:bg-blue-900/30 dark:text-blue-400">
                 -110
               </div>
             </div>
           </div>
 
           {/* Stake input */}
-          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800">
-            <div className="text-[10px] text-gray-500 dark:text-neutral-400">Stake</div>
-            <div className="text-base font-semibold text-gray-900 dark:text-white">$130.00</div>
+          <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 md:mb-3 md:px-3 md:py-2 dark:border-neutral-700 dark:bg-neutral-800">
+            <div className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">Stake</div>
+            <div className="text-sm font-semibold text-gray-900 md:text-base dark:text-white">$130.00</div>
           </div>
 
             {/* Potential return */}
-            <div className="mb-3 flex items-center justify-between text-xs">
+            <div className="mb-2 flex items-center justify-between text-[10px] md:mb-3 md:text-xs">
               <span className="text-gray-500 dark:text-neutral-400">Potential return</span>
               <span className="font-semibold text-gray-900 dark:text-white">$250.00</span>
             </div>

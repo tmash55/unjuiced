@@ -79,7 +79,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/fanduel_long.png"
     },
     brandColor: "#1E3A8A",
-    priority: 9,
+    priority: 10,
     isActive: true,
     requiresState: false
   },
@@ -135,7 +135,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/caesars_long.png"
     },
     brandColor: "#FFD700",
-    priority: 6,
+    priority: 8,
     isActive: true,
     requiresState: false
   },
@@ -156,7 +156,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/espnbet_long.png"
     },
     brandColor: "#FF0000",
-    priority: 5,
+    priority: 8,
     isActive: true,
     requiresState: false
   },
@@ -176,7 +176,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/fanatics.png",
       long: "/images/sports-books/fanatics_long.png"
     },
-    priority: 5,
+    priority: 8,
     isActive: true,
     requiresState: false
   },
@@ -194,7 +194,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/hardrockbet.png",
       long: "/images/sports-books/hardrockbet_long.png"
     },
-    priority: 5,
+    priority: 4.5,
     isActive: true,
     requiresState: true
   },
@@ -212,7 +212,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/hardrockbet.png",
       long: "/images/sports-books/hardrockbet_long.png"
     },
-    priority: 4,
+    priority: 4.5,
     isActive: true,
     requiresState: true
   },
@@ -251,7 +251,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/betparx.png",
       long: "/images/sports-books/betparx_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -269,7 +269,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/ballybet.png",
       long: "/images/sports-books/ballybet_long.png"
     },
-    priority: 5,
+    priority: 7,
     isActive: true,
     requiresState: false
   },
@@ -287,7 +287,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/bwin.png",
       long: "/images/sports-books/bwin_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -305,7 +305,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/circa.png",
       long: "/images/sports-books/circa_long.png"
     },
-    priority: 5,
+    priority: 6,
     isActive: true,
     requiresState: false
   },
@@ -323,7 +323,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/sportsinteraction.png",
       long: "/images/sports-books/sportsinteraction_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -341,7 +341,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/thescore.png",
       long: "/images/sports-books/thescore_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -379,7 +379,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/fliff.png",
       long: "/images/sports-books/fliff_long.png"
     },
-    priority: 5,
+    priority: 4.4,
     isActive: true,
     requiresState: false,
     regions: ["eu"]
@@ -436,7 +436,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/betonline_long.png"
     },
     brandColor: "#FF6B35",
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -453,7 +453,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/bovada.png",
       long: "/images/sports-books/bovada_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   },
@@ -470,7 +470,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/bodog.png",
       long: "/images/sports-books/bodog_long.png"
     },
-    priority: 5,
+    priority: 4,
     isActive: true,
     requiresState: false
   }

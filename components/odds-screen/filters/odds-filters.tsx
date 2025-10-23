@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/button'
+import { ButtonLink } from '@/components/button-link'
 import { Filter, Building2 } from 'lucide-react'
 import { useOddsPreferences } from '@/context/preferences-context'
 import { getAllActiveSportsbooks } from '@/lib/data/sportsbooks'
@@ -245,10 +246,10 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
               <TabsContent value="settings" className="mt-6 space-y-4">
                 {/* Pro Gate for Free Users */}
                 {!isPro && (
-                  <div className="rounded-lg border border-brand/30 bg-brand/5 p-6 dark:bg-brand/10">
+                  <div className="rounded-lg border border-[var(--tertiary)]/30 bg-[var(--tertiary)]/5 p-6 dark:bg-[var(--tertiary)]/10">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand/10 dark:bg-brand/20">
-                        <Lock className="h-6 w-6 text-brand" />
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--tertiary)]/10 dark:bg-[var(--tertiary)]/20">
+                        <Lock className="h-6 w-6 text-[var(--tertiary-strong)]" />
                       </div>
                       <div className="flex-1">
                         <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-1">
@@ -257,15 +258,16 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
                           Upgrade to Pro to customize your odds display with auto refresh, column highlighting, and more advanced settings.
                         </p>
-                        <a
+                        <ButtonLink
                           href="/pricing"
-                          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/20"
+                          variant="pro"
+                          className="inline-flex items-center gap-2 text-sm h-auto py-2"
                         >
                           Upgrade to Pro
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
-                        </a>
+                        </ButtonLink>
                       </div>
                     </div>
                   </div>

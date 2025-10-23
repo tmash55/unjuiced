@@ -14,28 +14,28 @@ import { PartnersGraphic } from "./graphics/partners-graphic";
 const tools = [
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
-        <Link2 className="size-2.5 text-blue-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-green-400">
+        <Link2 className="size-2.5 text-green-900" />
       </div>
     ),
     title: "Arbitrage",
     description: "Risk-free opportunities across books with automatic leg matching and sizing.",
     href: "/arbitrage",
-    color: "#00b4d8",   //Neon Blue
+    color: "#35c97d",   //Neon Blue
     graphicsContainerClassName: "px-2",
     graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
     comingSoon: false,
   },
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-green-400">
-        <BarChart3 className="size-2.5 text-green-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
+        <BarChart3 className="size-2.5 text-blue-900" />
       </div>
     ),
     title: "Odds Screen",
     description: "Live market odds with fast updates, line movement, and best-price highlights.",
     href: "/odds/nfl",
-    color: "#35c97d",
+    color: "#00b4d8",
     graphicsContainerClassName: "h-[170%] bottom-0 top-[unset]",
     graphic: (
       <AnalyticsGraphic className="absolute bottom-0 left-0 size-full" />

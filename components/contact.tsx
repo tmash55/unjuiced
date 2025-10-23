@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Container } from "./container";
-import { Droplet, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { Heading } from "./heading";
 import { SubHeading } from "./subheading";
 import { Input } from "./ui/input";
@@ -63,9 +63,7 @@ export const Contact = () => {
     <Container className="min-h-[calc(100vh-8rem)] py-10 md:py-20">
       <div className="grid grid-cols-1 gap-10 px-4 md:grid-cols-2 md:px-8 lg:gap-40">
         <div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand/10">
-            <Droplet className="h-6 w-6 text-brand" />
-          </div>
+          
           <Heading className="mt-4 text-left lg:text-4xl">Get in Touch</Heading>
           <SubHeading as="p" className="mt-4 max-w-xl text-left">
             Have questions about odds comparison, arbitrage detection, or our platform? 
@@ -137,6 +135,31 @@ export const Contact = () => {
 };
 
 const ContactCard = () => {
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedX, setCopiedX] = useState(false);
+
+  const copyToClipboard = async (text: string, type: 'email' | 'x') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (type === 'email') {
+        setCopiedEmail(true);
+        setTimeout(() => setCopiedEmail(false), 2000);
+      } else {
+        setCopiedX(true);
+        setTimeout(() => setCopiedX(false), 2000);
+      }
+      toast.success(`${type === 'email' ? 'Email' : 'X handle'} copied!`, {
+        description: `${text} copied to clipboard`,
+        duration: 2000,
+      });
+    } catch (err) {
+      toast.error('Failed to copy', {
+        description: 'Please try again',
+        duration: 2000,
+      });
+    }
+  };
+
   return (
     <div className="relative flex flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white p-8 dark:border-neutral-800 dark:bg-neutral-900">
       {/* Animated gradient background */}
@@ -159,27 +182,71 @@ const ContactCard = () => {
         </p>
         
         <div className="mt-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-brand/10">
-              <Mail className="h-5 w-5 text-sky-700 dark:text-brand" />
+          <button
+            onClick={() => copyToClipboard('support@unjuiced.bet', 'email')}
+            className="group flex w-full items-center gap-3 rounded-lg p-3 transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
+          >
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
+              copiedEmail 
+                ? 'bg-green-100 dark:bg-green-900/30' 
+                : 'bg-sky-100 dark:bg-brand/10 group-hover:bg-sky-200 dark:group-hover:bg-brand/20'
+            }`}>
+              {copiedEmail ? (
+                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <Mail className="h-5 w-5 text-sky-700 dark:text-brand transition-transform group-hover:scale-110" />
+              )}
             </div>
-            <div>
+            <div className="flex-1 text-left">
               <p className="text-sm font-medium text-neutral-900 dark:text-white">Email</p>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">support@unjuiced.bet</p>
+              <p className={`text-sm transition-colors ${
+                copiedEmail 
+                  ? 'text-green-600 dark:text-green-400 font-medium' 
+                  : 'text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-200'
+              }`}>
+                {copiedEmail ? 'Copied!' : 'support@unjuiced.bet'}
+              </p>
             </div>
-          </div>
+            <svg className="h-4 w-4 text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
           
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-brand/10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" className="text-sky-700 dark:text-brand">
-                <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
-              </svg>
+          <button
+            onClick={() => copyToClipboard('@unjuiced', 'x')}
+            className="group flex w-full items-center gap-3 rounded-lg p-3 transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
+          >
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
+              copiedX 
+                ? 'bg-green-100 dark:bg-green-900/30' 
+                : 'bg-sky-100 dark:bg-brand/10 group-hover:bg-sky-200 dark:group-hover:bg-brand/20'
+            }`}>
+              {copiedX ? (
+                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" className="text-sky-700 dark:text-brand transition-transform group-hover:scale-110">
+                  <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
+                </svg>
+              )}
             </div>
-            <div>
+            <div className="flex-1 text-left">
               <p className="text-sm font-medium text-neutral-900 dark:text-white">X</p>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">@unjuiced</p>
+              <p className={`text-sm transition-colors ${
+                copiedX 
+                  ? 'text-green-600 dark:text-green-400 font-medium' 
+                  : 'text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-200'
+              }`}>
+                {copiedX ? 'Copied!' : '@unjuiced'}
+              </p>
             </div>
-          </div>
+            <svg className="h-4 w-4 text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>

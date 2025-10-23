@@ -353,55 +353,75 @@ function MobileNav({ domain }: { domain: string }) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: mobileNavItems.length * 0.05 }}
-                    className="mt-6 flex flex-col gap-3 px-4"
+                    className="mt-8 space-y-4 border-t border-neutral-200 px-4 pt-6 dark:border-white/10"
                   >
                     {user ? (
                       <>
                         {/* User Info */}
-                        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-white/10 dark:bg-neutral-900">
-                          <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                        <div className="rounded-xl border border-neutral-200 bg-gradient-to-br from-neutral-50 to-white p-4 shadow-sm dark:border-white/10 dark:from-neutral-900 dark:to-neutral-900/50">
+                          <div className="text-sm font-semibold text-neutral-900 dark:text-white">
                             {user.email}
                           </div>
-                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                          <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                             {user.user_metadata?.full_name || "User"}
                           </div>
                         </div>
-                        {/* Sign Out Button */}
-                        <button
-                          onClick={async () => {
-                            setIsOpen(false);
-                            await signOut();
-                          }}
-                          className={cn(
-                            buttonVariants({ variant: "secondary" }),
-                            "w-full justify-center border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50",
-                          )}
-                        >
-                          Sign out
-                        </button>
+                        {/* Dashboard & Sign Out Buttons */}
+                        <div className="flex gap-2">
+                          <Link
+                            href="/account/settings"
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              buttonVariants({ variant: "secondary" }),
+                              "flex-1 justify-center rounded-xl text-sm font-semibold shadow-sm",
+                            )}
+                          >
+                            Settings
+                          </Link>
+                          <button
+                            onClick={async () => {
+                              setIsOpen(false);
+                              await signOut();
+                            }}
+                            className={cn(
+                              buttonVariants({ variant: "secondary" }),
+                              "flex-1 justify-center rounded-xl border-red-200 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50",
+                            )}
+                          >
+                            Sign out
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <>
-                        <Link
-                          href={createHref("/login", domain, { utm_content: "login" })}
-                          onClick={() => setIsOpen(false)}
-                          className={cn(
-                            buttonVariants({ variant: "secondary" }),
-                            "w-full justify-center",
-                          )}
-                        >
-                          Log in
-                        </Link>
-                        <Link
-                          href={createHref("/register", domain, { utm_content: "signup" })}
-                          onClick={() => setIsOpen(false)}
-                          className={cn(
-                            buttonVariants({ variant: "primary" }),
-                            "w-full justify-center",
-                          )}
-                        >
-                          Sign up
-                        </Link>
+                        <div className="space-y-3">
+                          <Link
+                            href={createHref("/login", domain, { utm_content: "login" })}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
+                              buttonVariants({ variant: "secondary" }),
+                              "group relative w-full overflow-hidden shadow-sm hover:scale-[1.02] active:scale-[0.98]",
+                            )}
+                          >
+                            <span className="relative z-10">Log in</span>
+                          </Link>
+                          <Link
+                            href={createHref("/register", domain, { utm_content: "signup" })}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
+                              buttonVariants({ variant: "primary" }),
+                              "group relative w-full overflow-hidden shadow-lg shadow-neutral-900/10 hover:scale-[1.02] hover:shadow-xl hover:shadow-neutral-900/20 active:scale-[0.98] dark:shadow-white/5 dark:hover:shadow-white/10",
+                            )}
+                          >
+                            <span className="relative z-10">Sign up</span>
+                            <div className="absolute inset-0 -z-0 bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 opacity-0 transition-opacity group-hover:opacity-100 dark:from-white dark:via-neutral-50 dark:to-white" />
+                          </Link>
+                        </div>
+                        <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+                          Start your free trial today
+                        </p>
                       </>
                     )}
                   </motion.div>

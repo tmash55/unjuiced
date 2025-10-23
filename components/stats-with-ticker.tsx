@@ -9,7 +9,7 @@ export function StatsWithNumberTicker() {
   const items = [
     {
       label: "using Unjuiced",
-      value: 10000,
+      value: 1000,
       prefix: "",
       suffix: "+",
     },
@@ -21,7 +21,7 @@ export function StatsWithNumberTicker() {
     },
     {
       label: "bets scanned monthly",
-      value: 100000,
+      value: 500000,
       prefix: "",
       suffix:"+",
     },

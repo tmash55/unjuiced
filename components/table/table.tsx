@@ -442,7 +442,9 @@ export function Table<T>({
                           colSpan={header.colSpan}
                           className={cn(
                             tableCellClassName(header.id),
-                            "text-content-emphasis select-none font-medium",
+                            "text-content-emphasis select-none text-sm font-semibold tracking-wide",
+                            // Right-align financial columns
+                            ["profit", "bet-size"].includes(header.column.id) && "text-right",
                             getCommonPinningClassNames(
                               header.column,
                               !table.getRowModel().rows.length,

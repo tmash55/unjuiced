@@ -118,6 +118,12 @@
    --color-tertiary-light:  #C4B5FD;
    --color-tertiary-dark:   #7C3AED;
    --color-on-tertiary:     #120B1C;
+
+   /* Custom Teal Gradient */
+   --gradient-teal-dark: #024A58;
+   --gradient-teal-mid: #4C8D94;
+   --gradient-teal-light: #CAEAF0;
+   --gradient-teal-lightest: #DFE0E2;
    --roi-radius: 8px;
    --roi-pad-y: 3px;
    --roi-pad-x: 10px;

@@ -39,7 +39,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
                 className={cn(
                   "absolute -inset-16 blur-[50px]",
                   "mix-blend-normal saturate-150 dark:mix-blend-overlay dark:saturate-[2]",
-                  "bg-[conic-gradient(from_90deg,var(--color-primary)_0deg,var(--color-primary-light)_60deg,var(--color-secondary)_120deg,var(--color-accent)_180deg,var(--color-tertiary)_240deg,var(--color-tertiary-light)_300deg,var(--color-primary)_360deg)]",
+                  "bg-[conic-gradient(from_90deg,var(--gradient-teal-dark)_0deg,var(--gradient-teal-mid)_90deg,var(--gradient-teal-light)_180deg,var(--gradient-teal-lightest)_270deg,var(--gradient-teal-dark)_360deg)]",
                 )}
               />
             ))}

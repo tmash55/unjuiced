@@ -17,7 +17,6 @@ export default function ChangelogPage() {
         description="All the latest updates, improvements, and fixes to Unjuiced"
         showFollowButtons={true}
         xUrl="https://twitter.com/unjuiced"
-        rssUrl="/changelog/rss"
       />
       <DivideX />
       

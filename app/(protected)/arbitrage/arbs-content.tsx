@@ -294,8 +294,8 @@ export default function ArbsPage() {
             </button>
           </div>
 
-          {/* Info Text */}
-          <div className="text-sm text-neutral-600 dark:text-neutral-400">
+          {/* Info Text - Hidden on Mobile */}
+          <div className="hidden md:block text-sm text-neutral-600 dark:text-neutral-400">
             {mode === 'prematch' ? 'Showing pre-match opportunities' : 'Showing live opportunities'}
           </div>
         </div>

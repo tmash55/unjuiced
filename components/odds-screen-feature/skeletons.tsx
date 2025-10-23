@@ -1136,14 +1136,15 @@ export const OddsLiveSkeleton = () => {
   }, [])
   const [active, setActive] = useState<{ r: number; b: number; s: 0|1; dir: 'up' | 'down' } | null>(null)
 
-  // Responsive grid columns
-  const [isSmall, setIsSmall] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
-  )
+  // Responsive grid columns - start with false to avoid hydration mismatch
+  const [isSmall, setIsSmall] = useState(false)
+  
   useEffect(() => {
     if (typeof window === 'undefined') return
     const mq = window.matchMedia('(max-width: 640px)')
     const update = () => setIsSmall(mq.matches)
+    // Set initial value
+    setIsSmall(mq.matches)
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
@@ -1184,15 +1185,15 @@ export const OddsLiveSkeleton = () => {
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
         {/* Header */}
         <div
-          className="grid items-center gap-px border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
-          style={{ gridTemplateColumns: isSmall ? '1.6fr 1fr 1fr repeat(5,1fr)' : '2fr 1.2fr 1.2fr repeat(5,1.2fr)' }}
+          className="grid items-center gap-px border-b border-neutral-200 bg-neutral-50 px-2 py-2 text-[9px] font-medium text-neutral-600 md:px-3 md:text-[11px] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+          style={{ gridTemplateColumns: isSmall ? '1.4fr 0.8fr repeat(3,0.8fr)' : '2fr 1.2fr 1.2fr repeat(5,1.2fr)' }}
         >
           <div>Game</div>
-          <div className="text-center">Best Line</div>
-          <div className="text-center">Avg Line</div>
-          {BOOKS.map((b) => (
+          <div className="text-center hidden sm:block">Best Line</div>
+          <div className="text-center hidden sm:block">Avg Line</div>
+          {BOOKS.slice(0, isSmall ? 3 : 5).map((b) => (
             <div key={b.name} className="flex items-center justify-center">
-              <img src={b.logo} alt={b.name} className="h-4 w-auto object-contain" />
+              <img src={b.logo} alt={b.name} className="h-3 w-auto object-contain md:h-4" />
             </div>
           ))}
         </div>
@@ -1201,35 +1202,35 @@ export const OddsLiveSkeleton = () => {
           {rows.map((r, i) => (
             <div
               key={i}
-              className="grid items-center gap-px px-3 py-3 text-sm"
-              style={{ gridTemplateColumns: isSmall ? '1.6fr 1fr 1fr repeat(5,1fr)' : '2fr 1.2fr 1.2fr repeat(5,1.2fr)' }}
+              className="grid items-center gap-px px-2 py-2 text-xs md:px-3 md:py-3 md:text-sm"
+              style={{ gridTemplateColumns: isSmall ? '1.4fr 0.8fr repeat(3,0.8fr)' : '2fr 1.2fr 1.2fr repeat(5,1.2fr)' }}
             >
-              <div className="flex items-center gap-2">
-                <span className="rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] dark:border-neutral-700 dark:bg-neutral-900">{r.league}</span>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100">{r.away}</span>
-                <span className="text-neutral-500 dark:text-neutral-400">@</span>
-                <span className="font-medium text-neutral-900 dark:text-neutral-100">{r.home}</span>
+              <div className="flex items-center gap-1 md:gap-2">
+                <span className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[8px] md:px-2 md:text-[10px] dark:border-neutral-700 dark:bg-neutral-900">{r.league}</span>
+                <span className="text-[10px] font-medium text-neutral-900 md:text-sm dark:text-neutral-100">{r.away}</span>
+                <span className="text-[10px] text-neutral-500 md:text-sm dark:text-neutral-400">@</span>
+                <span className="text-[10px] font-medium text-neutral-900 md:text-sm dark:text-neutral-100">{r.home}</span>
               </div>
-              {/* Best */}
-              <div className="space-y-1 text-center">
-                <div className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold dark:border-neutral-700 dark:bg-neutral-800">
+              {/* Best - hidden on mobile */}
+              <div className="hidden space-y-1 text-center sm:block">
+                <div className="inline-flex items-center gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-semibold md:gap-1 md:px-2 md:py-1 md:text-xs dark:border-neutral-700 dark:bg-neutral-800">
                   o{6.5 + (i%2===0?0:0.5)} <span className="opacity-60">/</span> {-110 - i*2}
                 </div>
-                <div className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold dark:border-neutral-700 dark:bg-neutral-800">
+                <div className="inline-flex items-center gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-semibold md:gap-1 md:px-2 md:py-1 md:text-xs dark:border-neutral-700 dark:bg-neutral-800">
                   u{6.5 + (i%2===0?0:0.5)} <span className="opacity-60">/</span> {(-110 - i*2) - 5}
                 </div>
               </div>
-              {/* Avg */}
-              <div className="space-y-1 text-center">
-                <div className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+              {/* Avg - hidden on mobile */}
+              <div className="hidden space-y-1 text-center sm:block">
+                <div className="inline-flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 md:gap-1 md:px-2 md:py-1 md:text-xs dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                   o{6.5 + (i%2===0?0:0.5)} <span className="opacity-60">/</span> {formatOdds3((-110 - i*2) + 20)}
                 </div>
-                <div className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                <div className="inline-flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 md:gap-1 md:px-2 md:py-1 md:text-xs dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                   u{6.5 + (i%2===0?0:0.5)} <span className="opacity-60">/</span> {formatOdds3((-110 - i*2) + 25)}
                 </div>
               </div>
-              {/* Books - two rows (top/bottom) */}
-              {BOOKS.map((_, b) => (
+              {/* Books - two rows (top/bottom), only show 3 on mobile */}
+              {BOOKS.slice(0, isSmall ? 3 : 5).map((_, b) => (
                 <div key={b} className="space-y-1 text-center">
                   <FlashCell value={prices[i][b][0]} active={!!active && active.r===i && active.b===b && active.s===0} dir={active?.dir ?? null} />
                   <FlashCell value={prices[i][b][1]} active={!!active && active.r===i && active.b===b && active.s===1} dir={active?.dir ?? null} />
@@ -1252,7 +1253,7 @@ function FlashCell({ value, active, dir }: { value: number; active: boolean; dir
         color: active ? (dir === 'up' ? '#0c4a6e' : '#7f1d1d') : undefined,
       }}
       transition={{ duration: 0.5 }}
-      className="mx-auto inline-flex min-w-[96px] select-none items-center justify-center rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+      className="mx-auto inline-flex min-w-[60px] select-none items-center justify-center rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 md:min-w-[96px] md:px-2 md:py-1 md:text-xs dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
     >
       {value > 0 ? `+${value}` : value}
     </motion.div>
@@ -1376,13 +1377,13 @@ export const CustomizationSkeleton = () => {
     <div className="relative mt-6 w-full max-w-5xl px-4">
       <div className="mb-4 flex items-center justify-between">
         <span className="text-sm font-medium text-neutral-900 dark:text-white">Your Screen, Your Rules</span>
-        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+        <span className="text-[10px] text-neutral-500 md:text-[11px] dark:text-neutral-400">
           {phase === 'drag' ? 'Drag & Reorder' : 'Show & Hide'}
         </span>
       </div>
 
       {/* Table container */}
-      <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="relative overflow-x-auto rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
         {/* Header */}
         <motion.div 
           className="flex border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900"
@@ -1397,12 +1398,12 @@ export const CustomizationSkeleton = () => {
                 key={col.id}
                 layout
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className={`group relative flex items-center justify-center border-r border-neutral-200 px-3 py-3 text-xs font-medium text-neutral-600 dark:border-neutral-800 dark:text-neutral-300 ${
+                className={`group relative flex items-center justify-center border-r border-neutral-200 px-2 py-2 text-[10px] font-medium text-neutral-600 md:px-3 md:py-3 md:text-xs dark:border-neutral-800 dark:text-neutral-300 ${
                   isBeingDragged ? 'opacity-30' : ''
                 }`}
                 style={{ 
-                  width: col.width,
-                  minWidth: col.width,
+                  width: col.id === 'game' ? col.width : col.width,
+                  minWidth: col.id === 'game' ? col.width : col.width,
                 }}
                 animate={{
                   backgroundColor: isHovered 
@@ -1429,7 +1430,7 @@ export const CustomizationSkeleton = () => {
                 )}
                 
                 {col.logo ? (
-                  <img src={col.logo} alt={col.label} className="h-5 w-auto object-contain relative z-10" />
+                  <img src={col.logo} alt={col.label} className="h-4 w-auto object-contain relative z-10 md:h-5" />
                 ) : (
                   <span className="relative z-10">{col.label}</span>
                 )}
@@ -1497,7 +1498,7 @@ export const CustomizationSkeleton = () => {
                   key={col.id}
                   layout
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  className="flex items-center border-r border-neutral-200 px-3 py-3 text-sm dark:border-neutral-800"
+                  className="flex items-center border-r border-neutral-200 px-2 py-2 text-xs md:px-3 md:py-3 md:text-sm dark:border-neutral-800"
                   style={{ 
                     width: col.width,
                     minWidth: col.width,
@@ -1506,7 +1507,7 @@ export const CustomizationSkeleton = () => {
                   {col.id === 'game' ? (
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">{row.game}</span>
                   ) : (
-                    <span className="mx-auto rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                    <span className="mx-auto rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 md:px-2 md:py-1 md:text-xs dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                       {row.values[col.id as keyof typeof row.values]}
                     </span>
                   )}
@@ -1551,15 +1552,299 @@ export const CustomizationSkeleton = () => {
   );
 }
 
-// 3) One-Click Betslip Integration → dual bet/zap mockup
+// 3) One-Click Betslip Integration → single click flow from odds to betslip
 export const DeepLinkSkeleton = () => {
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [clickedBook, setClickedBook] = useState<string | null>(null);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const sequence = async () => {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setClickedBook('fanduel');
+      setIsAnimating(true);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsAnimating(false);
+      setClickedBook(null);
+    };
+
+    const interval = setInterval(sequence, 6000);
+    sequence();
+
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion]);
+
   return (
-    <div className="mt-6 w-full max-w-6xl px-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="mt-6 w-full max-w-5xl px-2 md:px-4">
+      <div className="mb-4 flex items-center justify-between px-2 md:px-0">
         <span className="text-sm font-medium text-neutral-900 dark:text-white">One‑Click Betslip Integration</span>
-        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Deep link</span>
+        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Direct deep link</span>
       </div>
-      <OneClickDualBetSkeleton />
+
+      <div className="relative flex flex-col items-center justify-center gap-4 md:flex-row md:gap-6">
+        {/* Left: Odds Table Row */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="relative w-full max-w-xl"
+        >
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+            {/* Mini table header */}
+            <div className="flex items-center border-b border-neutral-200 bg-neutral-50 px-2 py-2 text-[9px] font-medium text-neutral-600 md:px-3 md:text-[10px] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <div className="w-20 md:w-32">Game</div>
+              <div className="hidden w-24 text-center sm:block">Market</div>
+              <div className="flex-1 text-center">Best Odds</div>
     </div>
-  )
+
+            {/* Odds row */}
+            <div className="flex items-center px-2 py-2 md:px-3 md:py-3">
+              <div className="flex w-20 items-center gap-1 md:w-32 md:gap-2">
+                <span className="rounded border border-neutral-200 bg-white px-1 py-0.5 text-[8px] md:px-1.5 md:text-[9px] dark:border-neutral-700 dark:bg-neutral-900">NBA</span>
+                <div className="text-[10px] font-medium text-neutral-900 md:text-xs dark:text-neutral-100">
+                  <div>LAL</div>
+                  <div className="text-[8px] text-neutral-500 md:text-[10px]">@ BOS</div>
+                </div>
+              </div>
+              <div className="hidden w-24 text-center text-xs text-neutral-600 sm:block dark:text-neutral-400">
+                Moneyline
+              </div>
+              <div className="flex flex-1 items-center justify-center gap-1 md:gap-2">
+                {[
+                  { name: 'DraftKings', logo: '/images/sports-books/draftkings.png', odds: '+145', id: 'draftkings' },
+                  { name: 'FanDuel', logo: '/images/sports-books/fanduel.png', odds: '+150', id: 'fanduel', isBest: true },
+                  { name: 'BetMGM', logo: '/images/sports-books/betmgm.png', odds: '+140', id: 'betmgm' },
+                ].map((book) => (
+                  <motion.button
+                    key={book.id}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    animate={{
+                      scale: clickedBook === book.id ? [1, 0.95, 1.05] : 1,
+                    }}
+                    transition={{ duration: 0.4 }}
+                    className={`group relative flex min-w-[70px] flex-col items-center gap-1 rounded-lg border-2 p-1.5 transition-all md:min-w-[90px] md:gap-1.5 md:p-2 ${
+                      clickedBook === book.id
+                        ? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/30'
+                        : book.isBest
+                        ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                        : 'border-neutral-200 bg-white hover:border-brand/30 hover:bg-brand/5 dark:border-neutral-700 dark:bg-neutral-900'
+                    }`}
+                  >
+                    {book.isBest && (
+                      <div className="absolute -right-0.5 -top-0.5 rounded-full bg-green-500 p-0.5 md:-right-1 md:-top-1">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="md:h-[10px] md:w-[10px]">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                    )}
+                    <img src={book.logo} alt={book.name} className="h-3 w-auto object-contain md:h-4" />
+                    <span className={`text-xs font-bold md:text-sm ${
+                      book.isBest 
+                        ? 'text-green-700 dark:text-green-400' 
+                        : 'text-neutral-800 dark:text-neutral-200'
+                    }`}>
+                      {book.odds}
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Connection line - horizontal on desktop, vertical on mobile */}
+        <motion.div
+          animate={{
+            opacity: isAnimating ? 1 : 0.3,
+          }}
+          transition={{ duration: 0.3 }}
+          className="hidden md:block"
+        >
+          <HorizontalLine className="shrink-0" />
+        </motion.div>
+        
+        {/* Vertical line for mobile */}
+        <motion.div
+          animate={{
+            opacity: isAnimating ? 1 : 0.3,
+          }}
+          transition={{ duration: 0.3 }}
+          className="block md:hidden"
+        >
+          <svg
+            width="2"
+            height="40"
+            viewBox="0 0 2 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+          >
+            <line
+              x1="1"
+              y1="0"
+              x2="1"
+              y2="40"
+              stroke="var(--color-line)"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+            <line
+              x1="1"
+              y1="0"
+              x2="1"
+              y2="40"
+              stroke="url(#vertical-gradient)"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+            <defs>
+              <motion.linearGradient
+                id="vertical-gradient"
+                initial={{
+                  x1: 0,
+                  x2: 0,
+                  y1: "-20%",
+                  y2: "0%",
+                }}
+                animate={{
+                  x1: 0,
+                  x2: 0,
+                  y1: "120%",
+                  y2: "140%",
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatType: "loop",
+                  ease: "easeInOut",
+                  repeatDelay: 1,
+                }}
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stopColor="var(--color-line)" />
+                <stop offset="0.5" stopColor="var(--color-brand)" />
+                <stop offset="1" stopColor="var(--color-line)" />
+              </motion.linearGradient>
+            </defs>
+          </svg>
+        </motion.div>
+
+        {/* Right: Bet Slip */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ 
+            opacity: isAnimating ? 1 : 0.4,
+            x: 0,
+            scale: isAnimating ? 1 : 0.98,
+          }}
+          transition={{ delay: 0.2 }}
+          className="relative w-full md:max-w-xs"
+        >
+          {/* Animated border wrapper */}
+          <div className="relative overflow-hidden rounded-2xl bg-gray-200 p-px shadow-xl dark:bg-neutral-700">
+            {isAnimating && (
+              <>
+                <div className="absolute inset-0 scale-[1.4] animate-spin rounded-2xl bg-conic [background-image:conic-gradient(at_center,transparent,var(--color-blue-500)_20%,transparent_30%)] [animation-duration:3s]" />
+                <div className="absolute inset-0 scale-[1.4] animate-spin rounded-2xl [background-image:conic-gradient(at_center,transparent,var(--color-brand)_20%,transparent_30%)] [animation-delay:1.5s] [animation-duration:3s]" />
+              </>
+            )}
+            
+            <div className="relative z-20 overflow-hidden rounded-2xl bg-white dark:bg-neutral-900">
+              {/* Window title bar */}
+              <div className="flex items-center gap-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-2 dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900 md:px-4 md:py-2.5">
+                <div className="flex gap-1">
+                  <div className="h-2 w-2 rounded-full bg-red-400 md:h-2.5 md:w-2.5" />
+                  <div className="h-2 w-2 rounded-full bg-yellow-400 md:h-2.5 md:w-2.5" />
+                  <div className="h-2 w-2 rounded-full bg-green-400 md:h-2.5 md:w-2.5" />
+                </div>
+                <div className="flex-1 text-center text-[10px] font-medium text-gray-600 md:text-xs dark:text-neutral-400">
+                  FanDuel Bet Slip
+                </div>
+              </div>
+              
+              {/* Content */}
+              <div className="p-3 md:p-5">
+                {/* Book header */}
+                <div className="mb-3 flex items-center gap-2 border-b border-gray-100 pb-2 md:mb-4 md:pb-3 dark:border-neutral-800">
+                  <div className="relative h-5 w-5 overflow-hidden rounded md:h-6 md:w-6">
+                    <Image
+                      src="/images/sports-books/fanduel.png"
+                      alt="FanDuel"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-900 md:text-sm dark:text-white">FanDuel</span>
+                  <div className="ml-auto rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-medium text-green-700 md:px-2 md:text-[10px] dark:bg-green-900 dark:text-green-300">
+                    Best Price
+                  </div>
+                </div>
+              
+                {/* Bet details */}
+                <div className="mb-3 space-y-2 md:mb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] text-gray-500 md:text-xs dark:text-neutral-400">NBA • Moneyline</div>
+                      <div className="mt-0.5 text-sm font-semibold text-gray-900 md:mt-1 md:text-base dark:text-white">LA Lakers</div>
+                      <div className="text-[10px] text-gray-500 md:text-xs">vs Boston Celtics</div>
+                    </div>
+                    <motion.div
+                      animate={{
+                        scale: isAnimating ? [1, 1.1, 1] : 1,
+                      }}
+                      transition={{ duration: 0.5, repeat: isAnimating ? 2 : 0 }}
+                      className="shrink-0 rounded-lg bg-green-50 px-2.5 py-1 text-base font-bold text-green-700 md:px-3 md:py-1.5 md:text-lg dark:bg-green-900/30 dark:text-green-400"
+                    >
+                      +150
+                    </motion.div>
+                  </div>
+                </div>
+
+                {/* Stake input */}
+                <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 md:mb-3 md:px-3 md:py-2 dark:border-neutral-700 dark:bg-neutral-800">
+                  <div className="text-[9px] text-gray-500 md:text-[10px] dark:text-neutral-400">Stake</div>
+                  <div className="text-sm font-semibold text-gray-900 md:text-base dark:text-white">$100.00</div>
+                </div>
+
+                {/* Potential return */}
+                <div className="mb-3 flex items-center justify-between text-[10px] md:mb-4 md:text-xs">
+                  <span className="text-gray-500 dark:text-neutral-400">Potential return</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">$250.00</span>
+                </div>
+
+                {/* Place bet button */}
+                <motion.button
+                  animate={{
+                    scale: isAnimating ? [1, 1.02, 1] : 1,
+                    boxShadow: isAnimating 
+                      ? ['0 4px 6px rgba(0,0,0,0.1)', '0 10px 20px rgba(var(--color-brand-rgb),0.3)', '0 4px 6px rgba(0,0,0,0.1)']
+                      : '0 4px 6px rgba(0,0,0,0.1)',
+                  }}
+                  transition={{ duration: 0.5, repeat: isAnimating ? 2 : 0 }}
+                  className="w-full rounded-lg bg-brand py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-brand/90 md:py-3 md:text-sm"
+                >
+                  Place Bet
+                </motion.button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Info text */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-4 text-center md:mt-6"
+      >
+        <p className="text-[10px] text-neutral-500 md:text-xs dark:text-neutral-400">
+          Click any odds to instantly open a pre-filled bet slip at your sportsbook
+        </p>
+      </motion.div>
+    </div>
+  );
 }

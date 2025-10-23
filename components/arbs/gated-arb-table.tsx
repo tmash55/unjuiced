@@ -79,12 +79,12 @@ export function GatedArbTable({
 
         {/* Overlay CTA */}
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black">
-          <div className="relative z-10 mx-auto max-w-md rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="relative z-10 mx-auto max-w-md rounded-2xl border border-[var(--tertiary)]/20 bg-white p-8 text-center shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
             {/* Icon with gradient glow */}
             <div className="relative mx-auto mb-6 w-fit">
-              <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-sky-500/30 via-blue-500/30 to-indigo-500/30 blur-2xl" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-                <Droplet className="h-8 w-8 text-brand" />
+              <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[var(--tertiary)]/20 via-[var(--tertiary)]/30 to-[var(--tertiary-strong)]/30 blur-2xl" />
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--tertiary)]/20 bg-white shadow-sm dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
+                <Droplet className="h-8 w-8 text-[var(--tertiary-strong)]" />
               </div>
             </div>
 
@@ -98,17 +98,17 @@ export function GatedArbTable({
             </p>
 
             {/* Stats */}
-            <div className="mb-6 flex items-center justify-center gap-4 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs dark:border-neutral-800 dark:bg-neutral-900/50">
+            <div className="mb-6 flex items-center justify-center gap-4 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/5 px-4 py-3 text-xs dark:border-[var(--tertiary)]/30 dark:bg-[var(--tertiary)]/10">
               <div className="text-center">
                 <div className="font-bold text-neutral-900 dark:text-white">20+</div>
                 <div className="text-neutral-500 dark:text-neutral-400">Books</div>
               </div>
-              <div className="h-8 w-px bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
               <div className="text-center">
                 <div className="font-bold text-neutral-900 dark:text-white">Live</div>
                 <div className="text-neutral-500 dark:text-neutral-400">Updates</div>
               </div>
-              <div className="h-8 w-px bg-neutral-200 dark:bg-neutral-800" />
+              <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
               <div className="text-center">
                 <div className="font-bold text-neutral-900 dark:text-white">Real-time</div>
                 <div className="text-neutral-500 dark:text-neutral-400">Odds</div>
@@ -119,7 +119,7 @@ export function GatedArbTable({
             <div className="flex flex-col gap-3">
               <ButtonLink
                 href="/register"
-                variant="primary"
+                variant="pro"
                 className="w-full justify-center gap-2"
               >
                 Start Free Trial

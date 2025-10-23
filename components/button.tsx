@@ -20,6 +20,8 @@ export const buttonVariants = cva("transition-all", {
         "border-red-500 bg-red-500 text-white hover:bg-red-600 hover:ring-4 hover:ring-red-100",
       "danger-outline":
         "border-transparent bg-white text-red-500 hover:bg-red-600 hover:text-white",
+      pro:
+        "border-[var(--tertiary-strong)] bg-[var(--tertiary-strong)] text-white hover:ring-4 hover:ring-[var(--tertiary)]/30 hover:shadow-lg hover:shadow-[var(--tertiary)]/20",
     },
   },
   defaultVariants: {
