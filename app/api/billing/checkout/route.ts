@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
     let stripeCustomerId: string | undefined
     {
       const { data: sub } = await supabase
-        .from('billing.subscriptions')
+        .schema('billing')
+        .from('subscriptions')
         .select('stripe_customer_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })

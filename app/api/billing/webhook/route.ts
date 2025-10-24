@@ -75,7 +75,10 @@ export async function POST(req: NextRequest) {
         const cancel_at_period_end = !!(sub as any).cancel_at_period_end
         const canceled_at = (sub as any).canceled_at ? new Date((sub as any).canceled_at * 1000).toISOString() : null
 
-        const { data, error } = await supabase.from('billing.subscriptions').upsert({
+        const { data, error } = await supabase
+          .schema('billing')
+          .from('subscriptions')
+          .upsert({
           user_id,
           stripe_customer_id: String(sub.customer),
           stripe_subscription_id: sub.id,
@@ -99,7 +102,10 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         // Store a reference for later lookup (optional)
         try {
-          await getServiceClient().from('billing.invoices').insert({
+          await getServiceClient()
+            .schema('billing')
+            .from('invoices')
+            .insert({
             user_id: (session.client_reference_id as string) || null,
             stripe_invoice_id: session.invoice as string,
             amount_due: 0,
@@ -116,7 +122,10 @@ export async function POST(req: NextRequest) {
       case 'invoice.payment_succeeded': {
         const inv = event.data.object as Stripe.Invoice
         const user_id = (inv.customer_email as string) || (inv.customer as string) || null
-        await getServiceClient().from('billing.invoices').upsert({
+        await getServiceClient()
+          .schema('billing')
+          .from('invoices')
+          .upsert({
           user_id,
           stripe_invoice_id: inv.id,
           amount_due: inv.amount_due,
