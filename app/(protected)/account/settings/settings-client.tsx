@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePreferences } from "@/context/preferences-context";
 import { createClient } from "@/libs/supabase/client";
-import { Settings, Shield, Bell, User, CreditCard } from "lucide-react";
+import { Settings, User } from "lucide-react";
+import { CreditCard } from "@/components/icons/credit-card";
+import { ShieldUser } from "@/components/icons/shield-user";
+import { Bell } from "@/components/icons/bell";
 import { DivideX } from "@/components/divide";
 
 import SecuritySettings from "./sections/security";
@@ -66,7 +69,7 @@ export default function SettingsClient() {
     {
       id: "security" as SettingsSection,
       label: "Security",
-      icon: Shield,
+      icon: ShieldUser,
       description: "Password and authentication",
     },
     {
