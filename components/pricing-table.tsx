@@ -8,6 +8,8 @@ import { Button } from "./button";
 import { SlidingNumber } from "./sliding-number";
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
+import { BuyButton } from "@/components/billing/BuyButton";
+import { getPriceId } from "@/constants/billing";
 
 
 export const PricingTable = () => {
@@ -76,9 +78,17 @@ export const PricingTable = () => {
                       /seat billed{" "}
                       {cycle === "monthly" ? "monthly" : "annually"}
                     </div>
-                   <ButtonLink variant="secondary" href="/register" className="w-full sm:w-auto">
-                      Start for free
-                    </ButtonLink>
+                    {tierName === TierName.FREE ? (
+                      <ButtonLink variant="secondary" href="/register" className="w-full sm:w-auto">
+                        Start for free
+                      </ButtonLink>
+                    ) : (
+                      <BuyButton
+                        priceId={getPriceId(cycle)}
+                        label="Unlock Pro Now"
+                        className="w-full sm:w-auto mt-2"
+                      />
+                    )}
                   </th>
                 ))}
               </tr>

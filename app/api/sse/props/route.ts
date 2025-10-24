@@ -7,12 +7,13 @@ async function assertPro(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('plan')
-    .eq('id', user.id)
+  // Use entitlements view so trials and subscriptions both unlock live updates
+  const { data: ent } = await supabase
+    .from('current_entitlements')
+    .select('current_plan')
+    .eq('user_id', user.id)
     .single();
-  if (!profile || (profile.plan !== 'pro' && profile.plan !== 'admin')) {
+  if (!ent || ent.current_plan !== 'pro') {
     return new Response(JSON.stringify({ error: 'pro required' }), { status: 403 });
   }
   return null;

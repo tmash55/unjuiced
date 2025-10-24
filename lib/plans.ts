@@ -64,7 +64,8 @@ export const PLAN_LIMITS = {
 } as const;
 
 /**
- * Get user's plan tier
+ * Get user's plan tier using the v_user_entitlements view
+ * This accounts for both active subscriptions AND active trials
  */
 export async function getUserPlan(user: User | null): Promise<UserPlan> {
   if (!user) {
@@ -73,18 +74,20 @@ export async function getUserPlan(user: User | null): Promise<UserPlan> {
 
   try {
     const supabase = await createClient();
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", user.id)
+    
+    // Use current_entitlements view to get effective plan
+    const { data: entitlement, error } = await supabase
+      .from("current_entitlements")
+      .select("current_plan")
+      .eq("user_id", user.id)
       .single();
 
-    if (error || !profile) {
-      console.error("Error fetching user profile:", error);
-      return "free"; // Default to free if profile not found
+    if (error || !entitlement) {
+      console.error("Error fetching user entitlement:", error);
+      return "free"; // Default to free if entitlement not found
     }
 
-    return (profile.plan as UserPlan) || "free";
+    return (entitlement.current_plan as UserPlan) || "free";
   } catch (error) {
     console.error("Error in getUserPlan:", error);
     return "free";

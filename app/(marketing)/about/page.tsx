@@ -63,7 +63,7 @@ export default function AboutPage() {
           </h2>
           <div className="flex w-full items-center justify-center gap-8 lg:justify-start">
             <div className="flex flex-col items-center">
-              <p className="text-3xl font-bold text-neutral-900 dark:text-white">10K+</p>
+              <p className="text-3xl font-bold text-neutral-900 dark:text-white">1K+</p>
               <p className="text-sm text-neutral-600 dark:text-neutral-400">Active Users</p>
             </div>
             <div className="flex flex-col items-center">

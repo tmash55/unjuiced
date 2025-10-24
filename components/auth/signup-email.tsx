@@ -68,6 +68,19 @@ export const SignUpEmail = () => {
           // Check if email confirmation is disabled (user is immediately confirmed)
           if (signUpData.user && signUpData.session) {
             // User is automatically signed in
+            
+            // Initialize trial for new user
+            try {
+              const initTrialResponse = await fetch('/api/auth/init-trial', {
+                method: 'POST',
+              });
+              const trialResult = await initTrialResponse.json();
+              console.log('✅ Trial initialization result:', trialResult);
+            } catch (trialError) {
+              console.error('❌ Error initializing trial:', trialError);
+              // Don't block the flow if trial init fails
+            }
+            
             toast.success("Account created! 🎉", {
               description: "Redirecting you to your dashboard...",
               duration: 3000,

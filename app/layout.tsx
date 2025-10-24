@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { satoshi, inter } from "@/fonts/fonts";
 import { ThemeProvider } from "@/context/theme-provider";
+import { QueryProvider } from "@/components/query-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { PreferencesProvider } from "@/context/preferences-context";
 import { TooltipProvider } from "@/components/tooltip";
@@ -34,10 +35,12 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>
             <AuthProvider>
-              <PreferencesProvider>
-                {children}
-                <Toaster position="top-center" />
-              </PreferencesProvider>
+              <QueryProvider>
+                <PreferencesProvider>
+                  {children}
+                  <Toaster position="top-center" />
+                </PreferencesProvider>
+              </QueryProvider>
             </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>

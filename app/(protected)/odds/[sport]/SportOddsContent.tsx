@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { OddsTable, type OddsTableItem } from '@/components/odds-screen/tables/odds-table'
 import { OddsFilters } from '@/components/odds-screen/filters'
@@ -662,12 +662,6 @@ function SportOddsContent({
   )
 }
 
-const queryClient = new QueryClient()
-
 export default function SportOddsConent(props: { params: Promise<{ sport: string }> }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SportOddsContent {...props} />
-    </QueryClientProvider>
-  )
+  return <SportOddsContent {...props} />
 }

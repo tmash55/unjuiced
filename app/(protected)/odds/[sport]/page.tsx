@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { OddsTable, type OddsTableItem } from '@/components/odds-screen/tables/odds-table'
 import { OddsFilters } from '@/components/odds-screen/filters'
@@ -10,6 +10,7 @@ import { useOddsPreferences } from '@/context/preferences-context'
 import { LoadingState } from '@/components/common/loading-state'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
+import { useEntitlements } from '@/hooks/use-entitlements'
 import { LiveUpgradeBanner } from '@/components/odds-screen/live-upgrade-banner'
 import { ConnectionErrorDialog } from '@/components/common/connection-error-dialog'
 import { cn } from '@/lib/utils'
@@ -61,32 +62,11 @@ function SportOddsContent({
   // Pro users get SSE by default (can toggle off), Free users never get SSE
   const shouldUseLiveUpdates = isPro && liveUpdatesEnabled
 
-  // Fetch user plan for tier-based features
+  // Use shared entitlements cache (VC-grade efficiency)
+  const { data: entitlements } = useEntitlements()
   useEffect(() => {
-    const fetchUserPlan = async () => {
-      if (!user) {
-        setUserPlan(null)
-        return
-      }
-      
-      try {
-        const { createClient } = await import('@/libs/supabase/client')
-        const supabase = createClient()
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('plan')
-          .eq('id', user.id)
-          .single()
-        
-        setUserPlan(profile?.plan || null)
-      } catch (error) {
-        console.error('[USER_PLAN] Error fetching plan:', error)
-        setUserPlan(null)
-      }
-    }
-    
-    fetchUserPlan()
-  }, [user])
+    setUserPlan(entitlements?.plan ?? null)
+  }, [entitlements])
 
   // Debounce search query for performance (VC-level optimization)
   useEffect(() => {
@@ -948,12 +928,6 @@ function SportOddsContent({
   )
 }
 
-const queryClient = new QueryClient()
-
 export default function SportOddsPage(props: { params: Promise<{ sport: string }> }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SportOddsContent {...props} />
-    </QueryClientProvider>
-  )
+  return <SportOddsContent {...props} />
 }

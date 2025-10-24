@@ -36,6 +36,7 @@ import { Table, useTable } from '@/components/table'
 import { cn } from '@/lib/utils'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
+import { useEntitlements } from '@/hooks/use-entitlements'
 import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 
@@ -1037,26 +1038,13 @@ export function OddsTable({
   const [isPro, setIsPro] = useState<boolean>(initialIsPro)
   const [showProGate, setShowProGate] = useState(false)
 
-  // Server-truth plan fetch (align with arbitrage page behaviour)
+  // Server-truth plan via shared entitlements cache
+  const { data: entitlements } = useEntitlements()
   useEffect(() => {
-    let cancelled = false
-    const fetchPlan = async () => {
-      try {
-        const res = await fetch('/api/me/plan', { cache: 'no-store', credentials: 'include' })
-        if (!res.ok) return
-        const data = await res.json()
-        const plan = String(data?.plan || '').toLowerCase()
-        const serverIsPro = plan === 'pro' || plan === 'admin' || plan === 'unlimited'
-        if (!cancelled) setIsPro(serverIsPro)
-      } catch (e) {
-        // noop; fall back to client hint
-      }
-    }
-    fetchPlan()
-    return () => {
-      cancelled = true
-    }
-  }, [user])
+    const plan = String(entitlements?.plan || '').toLowerCase()
+    const serverIsPro = plan === 'pro' || plan === 'admin' || plan === 'unlimited'
+    setIsPro(serverIsPro)
+  }, [entitlements])
   
   // Debug logging for Pro status (development only)
   useEffect(() => {

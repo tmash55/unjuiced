@@ -1,8 +1,7 @@
 'use client'
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Button } from '@/components/button'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { AlertTriangle, RefreshCw, Zap } from 'lucide-react'
 
 interface ConnectionErrorDialogProps {
   isOpen: boolean
@@ -21,55 +20,61 @@ export function ConnectionErrorDialog({ isOpen, onClose, onRefresh }: Connection
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950 dark:border-amber-800">
-              <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+      <DialogContent className="sm:max-w-md border-neutral-200 bg-white p-0 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="p-8 text-center">
+          {/* Icon with gradient glow */}
+          <div className="relative mx-auto mb-6 w-fit">
+            <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-amber-500/20 via-amber-500/30 to-amber-600/30 blur-2xl" />
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/20 bg-white shadow-sm dark:border-amber-500/30 dark:bg-neutral-900">
+              <AlertTriangle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
             </div>
-            <DialogTitle className="text-xl font-semibold text-neutral-900 dark:text-white">
-              Connection Lost
-            </DialogTitle>
           </div>
-          <DialogDescription className="text-base text-neutral-600 dark:text-neutral-400">
+
+          {/* Content */}
+          <h3 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white">
+            Connection Lost
+          </h3>
+          <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
             We've lost connection to live odds updates. This can happen after extended periods of inactivity.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
 
-        <div className="space-y-3 py-4">
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              <strong className="font-semibold text-neutral-900 dark:text-white">What happened?</strong>
-              <br />
-              <span className="mt-1 inline-block">
+          {/* Info Cards */}
+          <div className="mb-6 space-y-3">
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-left dark:border-neutral-700 dark:bg-neutral-800">
+              <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                What happened?
+              </p>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
                 The connection to our real-time odds feed has timed out. This is normal after being away for a while.
-              </span>
-            </p>
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-left dark:border-amber-500/30 dark:bg-amber-500/10">
+              <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+                <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <strong className="font-semibold">Tip:</strong> Refreshing will reconnect you and load the latest odds data.
+                </span>
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-lg border border-brand/20 bg-brand/5 p-4 dark:border-brand/30 dark:bg-brand/10">
-            <p className="text-sm text-brand-700 dark:text-brand-300">
-              <strong className="font-semibold">💡 Tip:</strong> Refreshing will reconnect you and load the latest odds data.
-            </p>
+          {/* CTA Buttons */}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleRefresh}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-900 bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-neutral-800 hover:shadow-md dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh Page
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full rounded-lg border border-transparent px-4 py-2.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            >
+              Continue Without Live Updates
+            </button>
           </div>
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <Button
-            onClick={onClose}
-            variant="outline"
-            className="flex-1"
-          >
-            Continue Without Live Updates
-          </Button>
-          <Button
-            onClick={handleRefresh}
-            variant="primary"
-            className="flex-1 gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh Page
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

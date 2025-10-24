@@ -3,8 +3,9 @@ import { createClient } from "@/libs/supabase/server";
 
 /**
  * GET /api/me/plan
- * Returns the user's plan from the profiles table
- * Returns "free" if not authenticated or if plan is not set
+ * Returns the user's effective plan using the v_user_entitlements view
+ * This accounts for both active subscriptions AND active trials
+ * Returns "free" if not authenticated or if no entitlements found
  */
 export async function GET() {
   try {
@@ -23,17 +24,18 @@ export async function GET() {
       );
     }
 
-    // Get user's plan from profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", user.id)
+    // Get user's effective plan from current_entitlements view
+    // This view calculates the plan based on active subscriptions OR trial status
+    const { data: entitlement, error: entitlementError } = await supabase
+      .from("current_entitlements")
+      .select("current_plan, entitlement_source, trial_started_at, trial_ends_at, trial_used")
+      .eq("user_id", user.id)
       .single();
 
-    if (profileError || !profile) {
-      console.error("Error fetching profile:", profileError);
+    if (entitlementError || !entitlement) {
+      console.error("Error fetching entitlement:", entitlementError);
       return NextResponse.json(
-        { plan: "free", authenticated: true, error: "Profile not found" },
+        { plan: "free", authenticated: true, error: "Entitlement not found" },
         { 
           status: 200,
           headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } 
@@ -43,9 +45,16 @@ export async function GET() {
 
     return NextResponse.json(
       { 
-        plan: profile.plan || "free", 
+        plan: entitlement.current_plan || "free", 
         authenticated: true,
-        userId: user.id 
+        userId: user.id,
+        entitlement_source: entitlement.entitlement_source,
+        trial: {
+          trial_used: entitlement.trial_used,
+          trial_started_at: entitlement.trial_started_at,
+          trial_ends_at: entitlement.trial_ends_at,
+          is_trial_active: entitlement.entitlement_source === 'trial',
+        },
       },
       { 
         status: 200,

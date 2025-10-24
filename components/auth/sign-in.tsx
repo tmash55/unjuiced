@@ -2,8 +2,15 @@
 
 import { SignInEmail } from "@/components/auth/signin-email";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export const SignInForm = () => {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo");
+  
+  // Preserve redirectTo when switching to register
+  const registerHref = redirectTo ? `/register?redirectTo=${encodeURIComponent(redirectTo)}` : "/register";
+
   return (
     <div className="flex w-full max-w-md flex-col gap-6">
       <div className="flex flex-col gap-6">
@@ -17,7 +24,7 @@ export const SignInForm = () => {
         <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
               Don&apos;t have an account?{" "}
               <Link
-            href="/register"
+            href={registerHref}
             className="font-semibold text-neutral-800 underline underline-offset-2 hover:text-neutral-600 dark:text-neutral-200 dark:hover:text-neutral-400"
               >
             Sign up

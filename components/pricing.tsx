@@ -12,21 +12,11 @@ import { Scale } from "./scale";
 import { tiers } from "@/constants/pricing";
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
+import { BuyButton } from "./billing/BuyButton";
+import { getPriceId } from "@/constants/billing";
 
 export const Pricing = () => {
-  const tabs = [
-    {
-      title: "Monthly",
-      value: "monthly",
-      badge: "",
-    },
-    {
-      title: "Yearly",
-      value: "yearly",
-      badge: "",
-    },
-  ];
-  const [activeTier, setActiveTier] = useState<"monthly" | "yearly">("monthly");
+  const [isYearly, setIsYearly] = useState(false);
   return (
     <section className="">
       <Container className="border-divide flex flex-col items-center justify-center border-x px-4 pt-20 pb-10 md:px-8">
@@ -37,35 +27,16 @@ export const Pricing = () => {
         <p className="mx-auto mt-4 max-w-2xl text-center text-base text-neutral-600 md:text-lg dark:text-neutral-400">
           Find the plan that fits your betting strategy
         </p>
-        <div className="relative mt-8 flex items-center gap-4 rounded-xl bg-neutral-100 p-2 dark:bg-neutral-800">
-          <Scale className="opacity-50" />
-          {tabs.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTier(tab.value as "monthly" | "yearly")}
-              className="relative z-20 flex w-32 justify-center py-2 text-center sm:w-40"
-            >
-              {activeTier === tab.value && (
-                <motion.div
-                  layoutId="active-span"
-                  className="absolute inset-0 h-full w-full rounded-lg bg-brand shadow-lg"
-                ></motion.div>
-              )}
-              <span className={`relative z-20 flex items-center gap-2 text-sm font-medium transition-colors sm:text-base ${
-                activeTier === tab.value 
-                  ? 'text-white' 
-                  : 'text-neutral-600 dark:text-neutral-400'
-              }`}>
-                {tab.title}{" "}
-                {tab.badge && (
-                  <span className="rounded-full bg-white/20 px-2 py-1 text-xs font-medium">
-                    {tab.badge}
-                  </span>
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-4 py-3 dark:border-brand/30 dark:bg-brand/10"
+        >
+          <p className="text-center text-sm font-medium text-brand-700 dark:text-brand-300">
+            Save hours daily finding value—our users uncover $50-$200/day in edges
+          </p>
+        </motion.div>
 
         {/* Two-card layout - Pro first on mobile, Free first on desktop */}
         <div className="mt-12 grid w-full max-w-5xl grid-cols-1 gap-8 md:grid-cols-2">
@@ -82,9 +53,16 @@ export const Pricing = () => {
               }`}
             >
               {tier.badge && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <div className="absolute -top-4 left-4 md:left-1/2 md:-translate-x-1/2">
                   <span className="rounded-full bg-brand px-4 py-1 text-sm font-medium text-white">
                     {tier.badge}
+                  </span>
+                </div>
+              )}
+              {tier.featured && isYearly && (
+                <div className="absolute -top-4 right-4">
+                  <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-lg">
+                    2 months free
                   </span>
                 </div>
               )}
@@ -96,15 +74,37 @@ export const Pricing = () => {
                 <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
                   {tier.subtitle}
                 </p>
+                
+                {/* Billed yearly toggle - only for Pro tier */}
+                {tier.featured && (
+                  <div className="mt-6 flex items-center justify-center gap-2.5">
+                    <button
+                      onClick={() => setIsYearly(!isYearly)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                        isYearly ? 'bg-brand' : 'bg-neutral-300 dark:bg-neutral-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                          isYearly ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      Billed yearly
+                    </span>
+                  </div>
+                )}
+                
                 <div className="mt-6 flex items-baseline justify-center gap-2">
                   <div className="relative overflow-hidden">
                     {tier.monthly > 0 ? (
                       <Price 
-                        value={activeTier === "monthly" ? tier.monthly : Math.round(tier.yearly / 12)} 
+                        value={tier.featured && isYearly ? Math.round(tier.yearly / 12) : tier.monthly} 
                       />
                     ) : (
                       <span className="text-5xl font-bold text-neutral-900 dark:text-white">
-                        ${activeTier === "monthly" ? tier.monthly : Math.round(tier.yearly / 12)}
+                        ${tier.monthly}
                       </span>
                     )}
                   </div>
@@ -125,17 +125,37 @@ export const Pricing = () => {
                 ))}
               </div>
 
-              <ButtonLink
-                className={`mt-8 w-full justify-center rounded-lg px-6 py-3 text-center text-base font-medium ${
-                  tier.featured
-                    ? "border-brand bg-brand text-white hover:bg-brand/90 hover:ring-4 hover:ring-brand/20 dark:border-brand dark:bg-brand dark:hover:bg-brand/90"
-                    : "border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800 hover:ring-4 hover:ring-neutral-200/60 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50"
-                }`}
-                href={tier.ctaLink}
-                variant={tier.featured ? "primary" : "primary"}
-              >
-                {tier.ctaText}
-              </ButtonLink>
+              {tier.featured ? (
+                <div className="mt-8 flex flex-col gap-3">
+                  {/* Primary CTA - Start Free Trial */}
+                  <ButtonLink
+                    className="w-full justify-center rounded-lg border-2 border-brand bg-brand px-6 py-3 text-center text-base font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md hover:ring-4 hover:ring-brand/20"
+                    href={tier.ctaLink}
+                    variant="primary"
+                  >
+                    Start Free — 7-Day Trial
+                  </ButtonLink>
+                  <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+                    No card required • Full Pro access for 7 days
+                  </p>
+
+                  {/* Secondary CTA - Go Pro Now (Stripe Checkout) */}
+                  <BuyButton
+                    priceId={getPriceId(isYearly ? "yearly" : "monthly")}
+                    mode="subscription"
+                    label="Unlock Pro Now"
+                    className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
+                  />
+                </div>
+              ) : (
+                <ButtonLink
+                  className="mt-8 w-full justify-center rounded-lg border-2 border-neutral-900 bg-neutral-900 px-6 py-3 text-center text-base font-medium text-white transition-all hover:bg-neutral-800 hover:ring-4 hover:ring-neutral-200/60 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50"
+                  href={tier.ctaLink}
+                  variant="primary"
+                >
+                  {tier.ctaText}
+                </ButtonLink>
+              )}
             </motion.div>
           ))}
         </div>

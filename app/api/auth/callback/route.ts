@@ -20,6 +20,31 @@ export async function GET(request: NextRequest) {
         metadata: data.user.user_metadata 
       })
       
+      // Check if this is a new user and initialize trial
+      // We check if the user was created recently (within last 5 minutes)
+      const userCreatedAt = new Date(data.user.created_at)
+      const now = new Date()
+      const isNewUser = (now.getTime() - userCreatedAt.getTime()) < 5 * 60 * 1000 // 5 minutes
+      
+      if (isNewUser) {
+        console.log('🎉 New user detected, initializing trial...')
+        try {
+          // Call init-trial endpoint
+          const initTrialResponse = await fetch(`${origin}/api/auth/init-trial`, {
+            method: 'POST',
+            headers: {
+              'Cookie': request.headers.get('cookie') || '',
+            },
+          })
+          
+          const trialResult = await initTrialResponse.json()
+          console.log('✅ Trial initialization result:', trialResult)
+        } catch (trialError) {
+          console.error('❌ Error initializing trial:', trialError)
+          // Don't block the redirect if trial init fails
+        }
+      }
+      
       console.log('✨ Redirecting to:', next)
       
       // Redirect to next page
