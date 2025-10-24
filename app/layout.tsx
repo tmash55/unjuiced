@@ -7,6 +7,7 @@ import { QueryProvider } from "@/components/query-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { PreferencesProvider } from "@/context/preferences-context";
 import { TooltipProvider } from "@/components/tooltip";
+import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({
             <AuthProvider>
               <QueryProvider>
                 <PreferencesProvider>
+                  <Analytics />
                   {children}
                   <Toaster position="top-center" />
                 </PreferencesProvider>
