@@ -123,7 +123,6 @@ export async function POST(req: NextRequest) {
             currency: session.currency || 'usd',
             status: 'open',
             hosted_invoice_url: null,
-            invoice_pdf: null,
           })
         } catch {}
 
@@ -181,8 +180,7 @@ export async function POST(req: NextRequest) {
           amount_paid: inv.amount_paid,
           currency: inv.currency,
           status: inv.status,
-          hosted_invoice_url: inv.hosted_invoice_url ?? null,
-          invoice_pdf: inv.invoice_pdf ?? null,
+          hosted_invoice_url: (inv.hosted_invoice_url as string) ?? null,
           created_at: new Date(inv.created * 1000).toISOString(),
         }, { onConflict: 'stripe_invoice_id' })
 
