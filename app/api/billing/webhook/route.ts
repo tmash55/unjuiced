@@ -154,26 +154,32 @@ export async function POST(req: NextRequest) {
             const s = await stripe.subscriptions.retrieve(session.subscription as string)
             const subUserId = session.client_reference_id as string
             const normalizedStatus = s.status
-            const current_period_start = new Date((s as any).current_period_start * 1000).toISOString()
-            const current_period_end = new Date((s as any).current_period_end * 1000).toISOString()
-            const cancel_at_period_end = !!(s as any).cancel_at_period_end
-            const canceled_at = (s as any).canceled_at ? new Date((s as any).canceled_at * 1000).toISOString() : null
-            await getServiceClient()
-              .schema('billing')
-              .from('subscriptions')
-              .upsert({
-                user_id: subUserId,
-                stripe_customer_id: String(s.customer),
-                stripe_subscription_id: s.id,
-                price_id: typeof s.items.data[0]?.price?.id === 'string' ? s.items.data[0].price.id : '',
-                status: normalizedStatus,
-                current_period_start,
-                current_period_end,
-                cancel_at_period_end,
-                canceled_at,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'stripe_subscription_id' })
-            console.log('[webhook] Upserted subscription from checkout.session for user', subUserId)
+            const cpsRaw = (s as any)?.current_period_start
+            const cpeRaw = (s as any)?.current_period_end
+            if (!cpsRaw || !cpeRaw) {
+              console.warn('[webhook] Subscription from checkout.session missing period dates; skipping upsert')
+            } else {
+              const current_period_start = new Date(Number(cpsRaw) * 1000).toISOString()
+              const current_period_end = new Date(Number(cpeRaw) * 1000).toISOString()
+              const cancel_at_period_end = !!(s as any).cancel_at_period_end
+              const canceled_at = (s as any).canceled_at ? new Date(Number((s as any).canceled_at) * 1000).toISOString() : null
+              await getServiceClient()
+                .schema('billing')
+                .from('subscriptions')
+                .upsert({
+                  user_id: subUserId,
+                  stripe_customer_id: String(s.customer),
+                  stripe_subscription_id: s.id,
+                  price_id: typeof s.items.data[0]?.price?.id === 'string' ? s.items.data[0].price.id : '',
+                  status: normalizedStatus,
+                  current_period_start,
+                  current_period_end,
+                  cancel_at_period_end,
+                  canceled_at,
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'stripe_subscription_id' })
+              console.log('[webhook] Upserted subscription from checkout.session for user', subUserId)
+            }
           }
         } catch (e) {
           console.warn('[webhook] Failed to upsert subscription from checkout.session', (e as any)?.message)
