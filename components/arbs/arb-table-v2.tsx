@@ -135,8 +135,27 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     return `${side === "over" ? "Over" : "Under"} ${lineStr}`.trim();
   };
 
-  const openLink = (bookId?: string, href?: string | null) => {
-    const target = href || getBookFallbackUrl(bookId);
+  // Detect if user is on mobile device
+  const isMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+           window.innerWidth < 768;
+  };
+
+  // Smart link selection: mobile → desktop → fallback
+  const getBestLink = (bookId?: string, desktopUrl?: string | null, mobileUrl?: string | null) => {
+    // If on mobile and mobile link exists, use it
+    if (isMobile() && mobileUrl) return mobileUrl;
+    
+    // Otherwise use desktop link
+    if (desktopUrl) return desktopUrl;
+    
+    // Fallback to sportsbook homepage
+    return getBookFallbackUrl(bookId);
+  };
+
+  const openLink = (bookId?: string, desktopUrl?: string | null, mobileUrl?: string | null) => {
+    const target = getBestLink(bookId, desktopUrl, mobileUrl);
     if (!target) return;
     try {
       window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
@@ -145,8 +164,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   const handleDualBet = (r: ArbRow) => {
     try {
-      const overUrl = r.o?.u || getBookFallbackUrl(r.o?.bk);
-      const underUrl = r.u?.u || getBookFallbackUrl(r.u?.bk);
+      const overUrl = getBestLink(r.o?.bk, r.o?.u, r.o?.m);
+      const underUrl = getBestLink(r.u?.bk, r.u?.u, r.u?.m);
       if (overUrl) window.open(overUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
       if (underUrl) setTimeout(() => { window.open(underUrl, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes'); }, 100);
     } catch { void 0; }
@@ -558,7 +577,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      openLink(r.o?.bk, r.o?.u);
+                      openLink(r.o?.bk, r.o?.u, r.o?.m);
                     }}
                     className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
                   >
@@ -580,7 +599,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      openLink(r.u?.bk, r.u?.u);
+                      openLink(r.u?.bk, r.u?.u, r.u?.m);
                     }}
                     className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
                   >

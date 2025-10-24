@@ -23,6 +23,7 @@ export type ArbRow = {
     od: number;
     id?: string;
     u?: string;
+    m?: string | null;
   };
   u: {
     bk: string;
@@ -30,6 +31,7 @@ export type ArbRow = {
     od: number;
     id?: string;
     u?: string;
+    m?: string | null;
   };
 };
 
