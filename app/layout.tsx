@@ -21,8 +21,55 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Unjuiced - Find the Edge. Lose the Vig.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://unjuiced.bet'),
+  title: {
+    default: "Unjuiced - Find the Edge. Lose the Vig.",
+    template: "%s | Unjuiced"
+  },
   description: "Sports betting tools for finding value. Real-time arbitrage, full odds coverage, and one-click to bet slip.",
+  keywords: ["sports betting", "arbitrage", "odds comparison", "betting tools", "sportsbook", "NFL", "NBA", "NHL", "MLB", "NCAAF"],
+  authors: [{ name: "Unjuiced" }],
+  creator: "Unjuiced",
+  publisher: "Unjuiced",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    siteName: "Unjuiced",
+    title: "Unjuiced - Find the Edge. Lose the Vig.",
+    description: "Sports betting tools for finding value. Real-time arbitrage, full odds coverage, and one-click to bet slip.",
+    images: [
+      {
+        url: "/banner.png",
+        width: 1200,
+        height: 630,
+        alt: "Unjuiced - Sports Betting Tools",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Unjuiced - Find the Edge. Lose the Vig.",
+    description: "Sports betting tools for finding value. Real-time arbitrage, full odds coverage, and one-click to bet slip.",
+    images: ["/banner.png"],
+    creator: "@unjuiced",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

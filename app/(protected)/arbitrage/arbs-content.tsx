@@ -17,75 +17,28 @@ import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useIsPro } from "@/hooks/use-entitlements";
 
 export default function ArbsPage() {
-  const [pro, setPro] = useState(false);
+  // VC-Grade: Use centralized, cached Pro status
+  const { user } = useAuth();
+  const { isPro: pro, isLoading: planLoading } = useIsPro();
+  
   const [auto, setAuto] = useState(false);
   const [eventId, setEventId] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<"prematch" | "live">("prematch");
-  const [loggedIn, setLoggedIn] = useState<boolean>(false);
-  const [planLoading, setPlanLoading] = useState(true);
   const [previewCounts, setPreviewCounts] = useState<{ pregame: number; live: number } | null>(null);
 
-  // Load user plan on mount
+  // Derive logged in status from auth
+  const loggedIn = !!user;
+  
+  // Disable auto-refresh if not pro
   useEffect(() => {
-    const loadPlan = async () => {
-      try {
-        setPlanLoading(true);
-        const response = await fetch("/api/me/plan", { 
-          cache: "no-store", 
-          credentials: "include" 
-        });
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch plan");
-        }
-        
-        const data = await response.json();
-        
-        // Check if user is authenticated
-        const isAuthenticated = data.authenticated === true;
-        setLoggedIn(isAuthenticated);
-        
-        // Check if user has pro or admin plan (including active trial)
-        const isPro = data.plan === "pro" || data.plan === "admin";
-        setPro(isPro);
-        
-        // Disable auto-refresh if not pro
-        if (!isPro) {
-          setAuto(false);
-        }
-        
-        // Store in window for debugging
-        if (typeof window !== 'undefined') {
-          (window as any).__userPlan = {
-            plan: data.plan,
-            authenticated: isAuthenticated,
-            isPro,
-          };
-        }
-        
-        console.log('✅ Plan loaded:', { 
-          plan: data.plan, 
-          authenticated: isAuthenticated, 
-          isPro 
-        });
-      } catch (error) {
-        console.error("❌ Error loading plan:", error);
-        setLoggedIn(false);
-        setPro(false);
-        setAuto(false);
-        
-        if (typeof window !== 'undefined') {
-          (window as any).__userPlan = { error: String(error) };
-        }
-      } finally {
-        setPlanLoading(false);
-      }
-    };
-
-    loadPlan();
-  }, []);
+    if (!pro) {
+      setAuto(false);
+    }
+  }, [pro]);
 
   // Fetch preview counts and best ROI for non-pro users (not logged in or free plan)
   useEffect(() => {
