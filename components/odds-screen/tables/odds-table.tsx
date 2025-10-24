@@ -1039,12 +1039,28 @@ export function OddsTable({
   const [showProGate, setShowProGate] = useState(false)
 
   // Server-truth plan via shared entitlements cache
-  const { data: entitlements } = useEntitlements()
-  useEffect(() => {
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements()
+  
+  // Derive isPro directly from entitlements (more reliable than useState)
+  const derivedIsPro = useMemo(() => {
+    if (isLoadingEntitlements) return initialIsPro // Use initial value while loading
     const plan = String(entitlements?.plan || '').toLowerCase()
-    const serverIsPro = plan === 'pro' || plan === 'admin' || plan === 'unlimited'
-    setIsPro(serverIsPro)
-  }, [entitlements])
+    return plan === 'pro' || plan === 'admin' || plan === 'unlimited'
+  }, [entitlements, isLoadingEntitlements, initialIsPro])
+  
+  // Sync state with derived value
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[OddsTable] Entitlements update:', {
+        plan: entitlements?.plan,
+        entitlement_source: entitlements?.entitlement_source,
+        derivedIsPro,
+        isLoading: isLoadingEntitlements,
+        currentIsPro: isPro
+      })
+    }
+    setIsPro(derivedIsPro)
+  }, [derivedIsPro, entitlements, isLoadingEntitlements, isPro])
   
   // Debug logging for Pro status (development only)
   useEffect(() => {
