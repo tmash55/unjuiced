@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePreferences } from "@/context/preferences-context";
 import { createClient } from "@/libs/supabase/client";
-import { Settings, Shield, Bell, User } from "lucide-react";
+import { Settings, Shield, Bell, User, CreditCard } from "lucide-react";
 import { DivideX } from "@/components/divide";
 
 import SecuritySettings from "./sections/security";
 import NotificationsSettings from "./sections/notifications";
 import GeneralSettings from "./sections/general";
+import BillingSettings from "./sections/billing";
 
 
-type SettingsSection = "general" | "security" | "notifications";
+type SettingsSection = "general" | "security" | "notifications" | "billing";
 
 export default function SettingsClient() {
   const { user } = useAuth();
@@ -55,6 +56,12 @@ export default function SettingsClient() {
       label: "General",
       icon: User,
       description: "Manage your account details",
+    },
+    {
+      id: "billing" as SettingsSection,
+      label: "Billing",
+      icon: CreditCard,
+      description: "Subscription and payments",
     },
     {
       id: "security" as SettingsSection,
@@ -138,6 +145,7 @@ export default function SettingsClient() {
             {activeSection === "general" && (
               <GeneralSettings user={user} profile={profile} setProfile={setProfile} />
             )}
+            {activeSection === "billing" && <BillingSettings user={user} />}
             {activeSection === "security" && <SecuritySettings user={user} />}
             {activeSection === "notifications" && (
               <NotificationsSettings user={user} preferences={preferences} />
