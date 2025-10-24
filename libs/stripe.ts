@@ -30,7 +30,7 @@ export const createCheckout = async ({
 }: CreateCheckoutParams): Promise<string | null> => {
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-09-30.clover",
+      apiVersion: "2023-08-16" as any,
       typescript: true,
     });
 
@@ -96,7 +96,7 @@ export const createCustomerPortal = async ({
   returnUrl,
 }: CreateCustomerPortalParams): Promise<string> => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2025-09-30.clover",
+    apiVersion: "2023-08-16" as any,
     typescript: true,
   });
 
@@ -112,7 +112,7 @@ export const createCustomerPortal = async ({
 export const findCheckoutSession = async (sessionId: string) => {
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-09-30.clover",
+      apiVersion: "2023-08-16" as any,
       typescript: true,
     });
 

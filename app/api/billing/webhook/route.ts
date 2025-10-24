@@ -4,7 +4,7 @@ import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-09-30.clover',
+  apiVersion: '2023-08-16' as any,
   typescript: true,
 })
 
