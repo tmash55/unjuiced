@@ -82,10 +82,18 @@ export async function POST(req: NextRequest) {
         }
 
         const normalizedStatus = sub.status
-        const current_period_start = new Date((sub as any).current_period_start * 1000).toISOString()
-        const current_period_end = new Date((sub as any).current_period_end * 1000).toISOString()
+        // Robustly derive period timestamps (top-level or from first item)
+        const firstItem: any = (sub as any)?.items?.data?.[0] || null
+        const cpsEpoch = (sub as any)?.current_period_start ?? firstItem?.current_period_start ?? (sub as any)?.start_date
+        const cpeEpoch = (sub as any)?.current_period_end ?? firstItem?.current_period_end ?? null
+        if (!cpsEpoch || !cpeEpoch) {
+          console.warn('[webhook] Subscription event missing period dates; skipping upsert for subscription', sub.id)
+          break
+        }
+        const current_period_start = new Date(Number(cpsEpoch) * 1000).toISOString()
+        const current_period_end = new Date(Number(cpeEpoch) * 1000).toISOString()
         const cancel_at_period_end = !!(sub as any).cancel_at_period_end
-        const canceled_at = (sub as any).canceled_at ? new Date((sub as any).canceled_at * 1000).toISOString() : null
+        const canceled_at = (sub as any).canceled_at ? new Date(Number((sub as any).canceled_at) * 1000).toISOString() : null
 
         const { data, error } = await supabase
           .schema('billing')
@@ -94,7 +102,7 @@ export async function POST(req: NextRequest) {
           user_id,
           stripe_customer_id: String(sub.customer),
           stripe_subscription_id: sub.id,
-          price_id: typeof sub.items.data[0]?.price?.id === 'string' ? sub.items.data[0].price.id : '',
+          price_id: typeof (sub as any)?.items?.data?.[0]?.price?.id === 'string' ? (sub as any).items.data[0].price.id : '',
           status: normalizedStatus,
           current_period_start,
           current_period_end,

@@ -63,7 +63,7 @@ export const createCheckout = async ({
       allow_promotion_codes: true,
       client_reference_id: clientReferenceId,
       metadata: {
-        brand_key: 'oddsmash',
+        brand_key: 'unjuiced',
       },
       line_items: [
         {
