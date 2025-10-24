@@ -1,18 +1,17 @@
-export const runtime = 'nodejs'
-// Disable body parsing, we need the raw body for Stripe signature verification
-export const dynamic = 'force-dynamic'
-
 import { NextRequest, NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import Stripe from 'stripe'
-import { createClient as createService } from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-09-30.clover',
   typescript: true,
 })
 
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+
 function getServiceClient() {
-  return createService(
+  return new SupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
@@ -22,20 +21,22 @@ function getServiceClient() {
 export async function POST(req: NextRequest) {
   console.log('[webhook] Received webhook request')
   
-  const sig = req.headers.get('stripe-signature')
-  if (!sig) {
+  const body = await req.text()
+  const headersList = await headers()
+  const signature = headersList.get('stripe-signature')
+  
+  if (!signature) {
     console.error('[webhook] Missing stripe-signature header')
     return NextResponse.json({ error: 'missing_signature' }, { status: 400 })
   }
 
-  const buf = Buffer.from(await req.arrayBuffer())
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     console.log('[webhook] Event verified:', event.type)
   } catch (err: any) {
-    console.error('[stripe] signature verification failed', err?.message)
-    return NextResponse.json({ error: 'invalid_signature' }, { status: 400 })
+    console.error('[webhook] Signature verification failed:', err?.message)
+    return NextResponse.json({ error: err.message }, { status: 400 })
   }
 
   try {
@@ -129,14 +130,16 @@ export async function POST(req: NextRequest) {
         break
       }
       default:
+        // Unhandled event type
+        console.log('[webhook] Unhandled event type:', event.type)
         break
     }
-
-    return NextResponse.json({ received: true })
-  } catch (e) {
-    console.error('[stripe] webhook handler error', e)
-    return NextResponse.json({ error: 'server_error' }, { status: 500 })
+  } catch (e: any) {
+    console.error('[webhook] Error processing webhook:', e?.message)
+    return NextResponse.json({ error: e?.message }, { status: 500 })
   }
+
+  return NextResponse.json({ received: true })
 }
 
 
