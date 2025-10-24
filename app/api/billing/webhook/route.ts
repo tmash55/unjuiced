@@ -96,6 +96,16 @@ export async function POST(req: NextRequest) {
         } else {
           console.log('[webhook] Successfully upserted subscription for user:', user_id)
         }
+
+        // Also persist the Stripe customer id on the profile for easy joins from invoice events
+        try {
+          await supabase
+            .from('profiles')
+            .update({ stripe_customer_id: String(sub.customer) })
+            .eq('id', user_id)
+        } catch (e) {
+          console.warn('[webhook] Failed to update profiles.stripe_customer_id', e)
+        }
         break
       }
       case 'checkout.session.completed': {
@@ -116,12 +126,32 @@ export async function POST(req: NextRequest) {
             invoice_pdf: null,
           })
         } catch {}
+
+        // Best-effort: store stripe_customer_id on profile from session
+        try {
+          if (session.customer && session.client_reference_id) {
+            await getServiceClient()
+              .from('profiles')
+              .update({ stripe_customer_id: String(session.customer) })
+              .eq('id', session.client_reference_id as string)
+          }
+        } catch {}
         break
       }
       case 'invoice.paid':
       case 'invoice.payment_succeeded': {
         const inv = event.data.object as Stripe.Invoice
-        const user_id = (inv.customer_email as string) || (inv.customer as string) || null
+        // Resolve the application user id from the Stripe customer id on the profile
+        let user_id: string | null = null
+        if (inv.customer) {
+          const { data: profile } = await getServiceClient()
+            .from('profiles')
+            .select('id')
+            .eq('stripe_customer_id', String(inv.customer))
+            .maybeSingle()
+          user_id = profile?.id ?? null
+        }
+
         await getServiceClient()
           .schema('billing')
           .from('invoices')
