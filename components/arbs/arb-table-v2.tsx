@@ -560,15 +560,15 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                       e.stopPropagation();
                       openLink(r.o?.bk, r.o?.u);
                     }}
-                    className="w-full flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
                   >
-                    <div className="flex items-center gap-2.5">
-                      {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 object-contain" />}
-                      <div className="market-positive text-sm font-medium">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 shrink-0 object-contain" />}
+                      <div className="market-positive text-xs sm:text-sm font-medium truncate">
                         {getSideLabel("over", r)}
                       </div>
                     </div>
-                    <div className="market-positive font-bold text-sm">
+                    <div className="market-positive font-bold text-xs sm:text-sm shrink-0 ml-2">
                       {formatOdds(Number(r.o?.od || 0))}
                     </div>
                   </button>
@@ -582,15 +582,15 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                       e.stopPropagation();
                       openLink(r.u?.bk, r.u?.u);
                     }}
-                    className="w-full flex items-center justify-between rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
                   >
-                    <div className="flex items-center gap-2.5">
-                      {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 object-contain" />}
-                      <div className="market-negative text-sm font-medium">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 shrink-0 object-contain" />}
+                      <div className="market-negative text-xs sm:text-sm font-medium truncate">
                         {getSideLabel("under", r)}
                       </div>
                     </div>
-                    <div className="market-negative font-bold text-sm">
+                    <div className="market-negative font-bold text-xs sm:text-sm shrink-0 ml-2">
                       {formatOdds(Number(r.u?.od || 0))}
                     </div>
                   </button>
