@@ -130,21 +130,7 @@ export async function POST(req: NextRequest) {
       }
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        // Store a reference for later lookup (optional)
-        try {
-          await getServiceClient()
-            .schema('billing')
-            .from('invoices')
-            .insert({
-            user_id: (session.client_reference_id as string) || null,
-            stripe_invoice_id: session.invoice as string,
-            amount_due: 0,
-            amount_paid: 0,
-            currency: session.currency || 'usd',
-            status: 'open',
-            hosted_invoice_url: null,
-          })
-        } catch {}
+        // Do not insert invoice placeholders here; rely on invoice.* events for accurate amounts/status
 
         // Best-effort: store stripe_customer_id on profile from session
         try {
@@ -195,7 +181,9 @@ export async function POST(req: NextRequest) {
         break
       }
       case 'invoice.paid':
-      case 'invoice.payment_succeeded': {
+      case 'invoice.payment_succeeded':
+      case 'invoice.finalized':
+      case 'invoice.created': {
         const inv = event.data.object as Stripe.Invoice
         // Resolve the application user id from the Stripe customer id on the profile
         let user_id: string | null = null
