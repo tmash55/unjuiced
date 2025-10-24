@@ -383,17 +383,18 @@ function MobileNav({ domain }: { domain: string }) {
                             {user.user_metadata?.full_name || "User"}
                           </div>
                         </div>
-                        {/* Dashboard & Sign Out Buttons */}
-                        <div className="flex gap-2">
+                        {/* Settings & Sign Out Buttons */}
+                        <div className="space-y-3">
                           <Link
                             href="/account/settings"
                             onClick={() => setIsOpen(false)}
                             className={cn(
+                              "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
                               buttonVariants({ variant: "secondary" }),
-                              "flex-1 justify-center rounded-xl text-sm font-semibold shadow-sm",
+                              "group relative w-full overflow-hidden shadow-sm hover:scale-[1.02] active:scale-[0.98]",
                             )}
                           >
-                            Settings
+                            <span className="relative z-10">Settings</span>
                           </Link>
                           <button
                             onClick={async () => {
@@ -401,11 +402,12 @@ function MobileNav({ domain }: { domain: string }) {
                               await signOut();
                             }}
                             className={cn(
-                              buttonVariants({ variant: "secondary" }),
-                              "flex-1 justify-center rounded-xl border-red-200 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50",
+                              "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
+                              "w-full overflow-hidden shadow-sm hover:scale-[1.02] active:scale-[0.98]",
+                              "border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:bg-black dark:text-red-400 dark:hover:bg-red-950/50",
                             )}
                           >
-                            Sign out
+                            <span className="relative z-10">Sign out</span>
                           </button>
                         </div>
                       </>

@@ -32,11 +32,7 @@ export async function GET() {
       )
     }
 
-    // Return null if no subscription found (not an error)
-    if (!subscription) {
-      return NextResponse.json(null, { status: 404 })
-    }
-
+    // Return null if no subscription found (this is normal for free/trial users)
     return NextResponse.json(subscription)
   } catch (error: any) {
     console.error('[subscription] Unexpected error:', error)
