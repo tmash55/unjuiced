@@ -1,4 +1,6 @@
 export const runtime = 'nodejs'
+// Disable body parsing, we need the raw body for Stripe signature verification
+export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -18,13 +20,19 @@ function getServiceClient() {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('[webhook] Received webhook request')
+  
   const sig = req.headers.get('stripe-signature')
-  if (!sig) return NextResponse.json({ error: 'missing_signature' }, { status: 400 })
+  if (!sig) {
+    console.error('[webhook] Missing stripe-signature header')
+    return NextResponse.json({ error: 'missing_signature' }, { status: 400 })
+  }
 
   const buf = Buffer.from(await req.arrayBuffer())
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    console.log('[webhook] Event verified:', event.type)
   } catch (err: any) {
     console.error('[stripe] signature verification failed', err?.message)
     return NextResponse.json({ error: 'invalid_signature' }, { status: 400 })
@@ -66,7 +74,7 @@ export async function POST(req: NextRequest) {
         const cancel_at_period_end = !!(sub as any).cancel_at_period_end
         const canceled_at = (sub as any).canceled_at ? new Date((sub as any).canceled_at * 1000).toISOString() : null
 
-        await supabase.from('billing.subscriptions').upsert({
+        const { data, error } = await supabase.from('billing.subscriptions').upsert({
           user_id,
           stripe_customer_id: String(sub.customer),
           stripe_subscription_id: sub.id,
@@ -78,6 +86,12 @@ export async function POST(req: NextRequest) {
           canceled_at,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'stripe_subscription_id' })
+        
+        if (error) {
+          console.error('[webhook] Failed to upsert subscription:', error)
+        } else {
+          console.log('[webhook] Successfully upserted subscription for user:', user_id)
+        }
         break
       }
       case 'checkout.session.completed': {
