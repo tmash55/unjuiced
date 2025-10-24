@@ -1,32 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/libs/supabase/server'
+import { createCheckout } from '@/libs/stripe'
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
   const priceId = sp.get('priceId')
-  const mode = sp.get('mode') || 'subscription'
+  const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
   const couponId = sp.get('couponId')
-
-  // Attempt to immediately create checkout; if not authenticated, API will 401 via middleware/auth
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
+
+  console.log('[billing/start] Request received', { priceId, mode })
+
   try {
-    const res = await fetch(`${origin}/api/billing/checkout`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        // Pass through cookies so auth is present
-        'Cookie': req.headers.get('cookie') || '',
-      },
-      body: JSON.stringify({ priceId, mode, couponId }),
-    })
-    if (!res.ok) {
+    // Check authentication directly instead of making HTTP call
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError) {
+      console.error('[billing/start] Auth error:', authError)
+      return NextResponse.redirect(`${origin}/login?redirectTo=${encodeURIComponent(req.url)}`)
+    }
+
+    if (!user) {
+      console.error('[billing/start] No user found - redirecting to login')
+      return NextResponse.redirect(`${origin}/login?redirectTo=${encodeURIComponent(req.url)}`)
+    }
+
+    console.log('[billing/start] User authenticated:', user.id)
+
+    if (!priceId) {
+      console.error('[billing/start] Missing priceId')
       return NextResponse.redirect(`${origin}/pricing`)
     }
-    const json = await res.json()
-    if (json?.url) {
-      return NextResponse.redirect(json.url)
+
+    // Try to reuse existing Stripe customer id if present
+    let stripeCustomerId: string | undefined
+    const { data: sub } = await supabase
+      .from('billing.subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    stripeCustomerId = sub?.stripe_customer_id || undefined
+
+    const successUrl = `${origin}/account/settings?billing=success`
+    const cancelUrl = `${origin}/account/settings?billing=cancelled`
+
+    console.log('[billing/start] Creating checkout session')
+    const url = await createCheckout({
+      user: { customerId: stripeCustomerId, email: user.email ?? undefined },
+      mode,
+      clientReferenceId: user.id,
+      successUrl,
+      cancelUrl,
+      priceId,
+      couponId: couponId || undefined,
+    })
+
+    if (!url) {
+      console.error('[billing/start] Failed to create checkout')
+      return NextResponse.redirect(`${origin}/pricing`)
     }
-  } catch {}
-  return NextResponse.redirect(`${origin}/pricing`)
+
+    console.log('[billing/start] Redirecting to Stripe checkout')
+    return NextResponse.redirect(url)
+  } catch (error) {
+    console.error('[billing/start] Error:', error)
+    return NextResponse.redirect(`${origin}/pricing`)
+  }
 }
 
 

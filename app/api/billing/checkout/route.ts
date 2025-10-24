@@ -6,11 +6,20 @@ import { createCheckout } from '@/libs/stripe'
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[billing/checkout] Request received')
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError) {
+      console.error('[billing/checkout] Auth error:', authError)
+    }
+    
     if (!user) {
+      console.error('[billing/checkout] No user found - unauthorized')
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
+    
+    console.log('[billing/checkout] User authenticated:', user.id)
 
     const body = await req.json().catch(() => ({}))
     const priceId = String(body?.priceId || '')
