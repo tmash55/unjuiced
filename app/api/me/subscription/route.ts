@@ -1,54 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/libs/supabase/server";
+import { NextResponse } from 'next/server'
+import { createClient } from '@/libs/supabase/server'
 
-export const runtime = 'nodejs'
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const supabase = await createClient();
-    const { searchParams } = new URL(req.url);
-    const brandKey = searchParams.get('brand_key') || 'unjuiced';
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ pro: false, status: null, current_period_end: null, cancel_at_period_end: null });
+    const supabase = await createClient()
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
-    const { data: sub } = await supabase
+    // Get the user's latest subscription
+    const { data: subscription, error: subError } = await supabase
+      .schema('billing')
       .from('subscriptions')
-      .select('status, current_period_end, cancel_at_period_end')
+      .select('*')
       .eq('user_id', user.id)
-      .eq('brand_key', brandKey)
-      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .maybeSingle()
 
-    if (!sub) {
-      return NextResponse.json({ pro: false, status: null, current_period_end: null, cancel_at_period_end: null });
+    if (subError) {
+      console.error('[subscription] DB error:', subError)
+      return NextResponse.json(
+        { error: 'Failed to fetch subscription' },
+        { status: 500 }
+      )
     }
 
-    const status = (sub as any)?.status as string | null;
-    const endIso = (sub as any)?.current_period_end as string | null;
-    const cancelAtPeriodEnd = Boolean((sub as any)?.cancel_at_period_end);
+    // Return null if no subscription found (not an error)
+    if (!subscription) {
+      return NextResponse.json(null, { status: 404 })
+    }
 
-    const nowMs = Date.now();
-    const endMs = endIso ? Date.parse(endIso) : NaN;
-
-    const isActiveStatus = status === 'active' || status === 'trialing';
-    const withinPeriod = !endIso || (Number.isFinite(endMs) && endMs > nowMs);
-    const pro = Boolean(isActiveStatus && withinPeriod);
-
-    return NextResponse.json({
-      pro,
-      status,
-      current_period_end: endIso,
-      cancel_at_period_end: cancelAtPeriodEnd,
-    });
-  } catch (e: any) {
-    console.error('subscription status error', e);
-    return NextResponse.json({ error: e?.message || 'Unknown error' }, { status: 500 });
+    return NextResponse.json(subscription)
+  } catch (error: any) {
+    console.error('[subscription] Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

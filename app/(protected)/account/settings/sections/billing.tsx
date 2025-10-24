@@ -1,37 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { CreditCard, ExternalLink, Loader2, AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { useState } from "react";
+import { CreditCard, ExternalLink, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useEntitlements } from "@/hooks/use-entitlements";
-import { createClient } from "@/libs/supabase/client";
+import { useSubscription } from "@/hooks/use-subscription";
 
 export default function BillingSettings({ user }: { user: any }) {
   const [loading, setLoading] = useState(false);
-  const [subscription, setSubscription] = useState<any>(null);
-  const { data: entitlements, isLoading } = useEntitlements();
-
-  useEffect(() => {
-    async function loadSubscription() {
-      if (!user) return;
-      
-      const supabase = createClient();
-      const { data } = await supabase
-        .schema('billing')
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        setSubscription(data);
-      }
-    }
-
-    loadSubscription();
-  }, [user]);
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
+  const { data: subscription, isLoading: isLoadingSubscription } = useSubscription();
 
   const handleManageSubscription = async () => {
     setLoading(true);
@@ -65,6 +43,7 @@ export default function BillingSettings({ user }: { user: any }) {
   const isSubscription = entitlements?.entitlement_source === "subscription";
   const isCanceled = subscription?.cancel_at_period_end === true;
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+  const isLoading = isLoadingEntitlements || isLoadingSubscription;
 
   return (
     <div className="space-y-6">
