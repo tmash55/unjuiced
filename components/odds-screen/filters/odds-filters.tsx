@@ -13,6 +13,8 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { Gear } from '@/icons/gear'
+import { useAuth } from '@/components/auth/auth-provider'
+import { useEntitlements } from '@/hooks/use-entitlements'
 
 interface OddsFiltersProps {
   className?: string
@@ -33,6 +35,12 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
+  
+  const { user } = useAuth()
+  const { data: entitlements } = useEntitlements()
+
+  // Determine if user can access trial
+  const canUseTrial = !user || (entitlements?.trial?.trial_used === false)
 
   useEffect(() => {
     if (!isLoading && preferences) {
@@ -263,7 +271,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                           variant="pro"
                           className="inline-flex items-center gap-2 text-sm h-auto py-2"
                         >
-                          Upgrade to Pro
+                          {canUseTrial ? "Start Free Trial" : "Get Pro Now"}
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>

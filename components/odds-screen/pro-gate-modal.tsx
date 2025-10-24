@@ -6,6 +6,8 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { Sparkles, ExternalLink, Droplet } from 'lucide-react'
 import { ButtonLink } from '@/components/button-link'
 import Lock from '@/icons/lock'
+import { useAuth } from '@/components/auth/auth-provider'
+import { useEntitlements } from '@/hooks/use-entitlements'
 
 interface ProGateModalProps {
   isOpen: boolean
@@ -14,6 +16,11 @@ interface ProGateModalProps {
 }
 
 export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProGateModalProps) {
+  const { user } = useAuth()
+  const { data: entitlements } = useEntitlements()
+
+  // Determine if user can access trial
+  const canUseTrial = !user || (entitlements?.trial?.trial_used === false)
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md border-[var(--tertiary)]/20 bg-white p-0 shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
@@ -60,9 +67,15 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
 
           {/* CTAs */}
           <div className="flex flex-col gap-3">
-            <ButtonLink href="/pricing" onClick={onClose} variant="pro" className="w-full justify-center">
-              Start Free — 7‑Day Trial
-            </ButtonLink>
+            {canUseTrial ? (
+              <ButtonLink href="/pricing" onClick={onClose} variant="pro" className="w-full justify-center">
+                Start Free — 7‑Day Trial
+              </ButtonLink>
+            ) : (
+              <ButtonLink href="/pricing" onClick={onClose} variant="pro" className="w-full justify-center">
+                Get Pro Now
+              </ButtonLink>
+            )}
             <button
               onClick={onClose}
               className="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"

@@ -3,8 +3,15 @@
 import { Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useEntitlements } from "@/hooks/use-entitlements";
 
 export function LiveUpgradeBanner() {
+  const { user } = useAuth();
+  const { data: entitlements } = useEntitlements();
+
+  // Determine if user can access trial
+  const canUseTrial = !user || (entitlements?.trial?.trial_used === false);
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -32,7 +39,7 @@ export function LiveUpgradeBanner() {
             variant="pro"
             className="text-xs sm:text-sm px-4 py-2 h-auto"
           >
-            Upgrade Now
+            {canUseTrial ? "Start Free Trial" : "Get Pro Now"}
           </ButtonLink>
         </div>
       </div>
