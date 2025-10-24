@@ -63,6 +63,18 @@ export async function POST(req: NextRequest) {
           } catch {}
         }
 
+        // Fallback: resolve by Stripe customer id via profiles.stripe_customer_id
+        if (!user_id && sub.customer) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('stripe_customer_id', String(sub.customer))
+              .maybeSingle()
+            user_id = profile?.id || undefined
+          } catch {}
+        }
+
         if (!user_id) {
           // Best effort: do not fail webhook
           console.warn('[stripe] missing user id on subscription event')
