@@ -1,13 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CreditCard, ExternalLink, Loader2, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { createClient } from "@/libs/supabase/client";
 
 export default function BillingSettings({ user }: { user: any }) {
   const [loading, setLoading] = useState(false);
+  const [subscription, setSubscription] = useState<any>(null);
   const { data: entitlements, isLoading } = useEntitlements();
+
+  useEffect(() => {
+    async function loadSubscription() {
+      if (!user) return;
+      
+      const supabase = createClient();
+      const { data } = await supabase
+        .schema('billing')
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        setSubscription(data);
+      }
+    }
+
+    loadSubscription();
+  }, [user]);
 
   const handleManageSubscription = async () => {
     setLoading(true);
@@ -39,6 +63,8 @@ export default function BillingSettings({ user }: { user: any }) {
   const isPro = entitlements?.plan === "pro" || entitlements?.plan === "admin";
   const isTrial = entitlements?.entitlement_source === "trial";
   const isSubscription = entitlements?.entitlement_source === "subscription";
+  const isCanceled = subscription?.cancel_at_period_end === true;
+  const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
 
   return (
     <div className="space-y-6">
@@ -60,9 +86,14 @@ export default function BillingSettings({ user }: { user: any }) {
               <h3 className="text-base font-semibold text-neutral-900 dark:text-white">
                 Current Plan
               </h3>
-              {isPro && (
+              {isPro && !isCanceled && (
                 <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand">
                   Pro
+                </span>
+              )}
+              {isPro && isCanceled && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                  Canceling
                 </span>
               )}
               {!isPro && (
@@ -74,11 +105,14 @@ export default function BillingSettings({ user }: { user: any }) {
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
               {isLoading && "Loading..."}
               {!isLoading && isTrial && "7-day free trial"}
-              {!isLoading && isSubscription && "Active subscription"}
+              {!isLoading && isSubscription && !isCanceled && "Active subscription"}
+              {!isLoading && isSubscription && isCanceled && "Subscription set to cancel"}
               {!isLoading && !isPro && "Free plan with limited features"}
             </p>
           </div>
-          <CreditCard className="h-5 w-5 text-neutral-400" />
+          {isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-green-500" />}
+          {isSubscription && isCanceled && <AlertCircle className="h-5 w-5 text-amber-500" />}
+          {!isSubscription && <CreditCard className="h-5 w-5 text-neutral-400" />}
         </div>
 
         {/* Trial Info */}
@@ -95,6 +129,31 @@ export default function BillingSettings({ user }: { user: any }) {
                 }
               )}
             </p>
+          </div>
+        )}
+
+        {/* Cancellation Notice */}
+        {isCanceled && periodEnd && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <div className="flex gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-300">
+                  Subscription Ending
+                </p>
+                <p className="text-sm text-amber-800 dark:text-amber-400">
+                  Your Pro access will end on{" "}
+                  <span className="font-semibold">
+                    {periodEnd.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  . You can reactivate anytime before then.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
