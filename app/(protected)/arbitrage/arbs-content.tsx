@@ -47,7 +47,7 @@ export default function ArbsPage() {
         const isAuthenticated = data.authenticated === true;
         setLoggedIn(isAuthenticated);
         
-        // Check if user has pro or admin plan
+        // Check if user has pro or admin plan (including active trial)
         const isPro = data.plan === "pro" || data.plan === "admin";
         setPro(isPro);
         
@@ -83,13 +83,13 @@ export default function ArbsPage() {
         setPlanLoading(false);
       }
     };
-    
+
     loadPlan();
   }, []);
 
-  // Fetch preview counts and best ROI for unauthenticated users
+  // Fetch preview counts and best ROI for non-pro users (not logged in or free plan)
   useEffect(() => {
-    if (!loggedIn && !planLoading) {
+    if (!pro && !planLoading) {
       const fetchPreviewData = async () => {
         try {
           // Fetch counts
@@ -112,7 +112,7 @@ export default function ArbsPage() {
       };
       fetchPreviewData();
     }
-  }, [loggedIn, planLoading]);
+  }, [pro, planLoading]);
 
   // Fetch all results at once (no pagination)
   const limit = pro ? 1000 : 100;
@@ -204,7 +204,7 @@ export default function ArbsPage() {
               "mt-1 text-2xl font-bold text-neutral-900 transition-all duration-300 dark:text-white",
               freshFound && "scale-110"
             )}>
-              {loggedIn 
+              {pro 
                 ? (counts ? (mode === 'live' ? counts.live : counts.pregame) : rows.length)
                 : (previewCounts ? (mode === 'live' ? previewCounts.live : previewCounts.pregame) : 0)
               }
@@ -219,7 +219,7 @@ export default function ArbsPage() {
               "mt-1 text-2xl font-bold text-emerald-600 transition-all duration-300 dark:text-emerald-400",
               freshBest && "scale-110"
             )}>
-              +{loggedIn ? bestRoi : previewBestRoi}%
+              +{pro ? bestRoi : previewBestRoi}%
             </div>
           </div>
         </div>
@@ -243,32 +243,6 @@ export default function ArbsPage() {
         </div>
       )}
 
-      {!pro && loggedIn && (
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-brand/20 bg-brand/5 p-4 dark:bg-brand/10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/10 dark:bg-brand/20">
-              <Zap className="h-5 w-5 text-brand" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-neutral-900 dark:text-white">
-                You're only seeing arbitrage opportunities under 1%
-              </div>
-              <div className="text-sm text-neutral-600 dark:text-neutral-400">
-                Join Pro to access all pre-match and live arbitrage opportunities with unlimited ROI.
-              </div>
-            </div>
-          </div>
-          <ButtonLink 
-            href="/pricing" 
-            variant="primary"
-            className="shrink-0 gap-2"
-          >
-            Upgrade to Pro
-            <ArrowRight className="h-4 w-4" />
-          </ButtonLink>
-        </div>
-      )}
-
       {/* Controls Section - Mode Toggle */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -279,7 +253,7 @@ export default function ArbsPage() {
               onClick={() => setMode('prematch')}
               className={cn(mode !== 'live' && 'active')}
             >
-              Pre-Match{(loggedIn ? counts : previewCounts) ? ` (${(loggedIn ? counts : previewCounts)?.pregame})` : ''}
+              Pre-Match{(pro ? counts : previewCounts) ? ` (${(pro ? counts : previewCounts)?.pregame})` : ''}
             </button>
             <button
               type="button"
@@ -287,7 +261,7 @@ export default function ArbsPage() {
               onClick={() => pro && setMode('live')}
               className={cn(mode === 'live' && pro && 'active')}
             >
-              Live{(loggedIn ? counts : previewCounts) ? ` (${(loggedIn ? counts : previewCounts)?.live})` : ''}
+              Live{(pro ? counts : previewCounts) ? ` (${(pro ? counts : previewCounts)?.live})` : ''}
               {!pro && (
                 <span className="ml-1 text-xs opacity-60">Pro</span>
               )}

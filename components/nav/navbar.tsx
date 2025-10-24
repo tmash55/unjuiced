@@ -20,6 +20,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
+import { useEntitlements } from "@/hooks/use-entitlements";
 
 
 export type NavTheme = "light" | "dark";
@@ -91,6 +92,14 @@ export function Nav({
   const scrolled = useScroll(40);
   const pathname = usePathname();
   const { user, loading } = useAuth();
+  const { data: entitlements } = useEntitlements();
+
+  // Hide pricing if user is on an active subscription (not trial)
+  const showPricing = !entitlements || entitlements.entitlement_source !== 'subscription';
+
+  const filteredNavItems = navItems.filter(item => 
+    item.name !== 'Pricing' || showPricing
+  );
 
   return (
     <NavContext.Provider value={{ theme }}>
@@ -124,7 +133,7 @@ export function Nav({
                 className="relative hidden lg:block"
               >
                 <NavigationMenuPrimitive.List className="group relative z-0 flex">
-                  {navItems.map(
+                  {filteredNavItems.map(
                     ({ name, href, segments, content: Content }) => {
                       const isActive = segments.some((segment) =>
                         pathname?.startsWith(segment),
@@ -262,9 +271,13 @@ function MobileNav({ domain }: { domain: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
+  const { data: entitlements } = useEntitlements();
+
+  // Hide pricing if user is on an active subscription (not trial)
+  const showPricing = !entitlements || entitlements.entitlement_source !== 'subscription';
 
   // Create flat list of mobile nav items
-  const mobileNavItems = [
+  const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Sportsbooks", href: "/sportsbooks" },
@@ -275,6 +288,10 @@ function MobileNav({ domain }: { domain: string }) {
     { title: "Changelog", href: "/changelog" },
     { title: "Pricing", href: "/pricing" },
   ];
+
+  const mobileNavItems = baseMobileNavItems.filter(item => 
+    item.title !== 'Pricing' || showPricing
+  );
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
