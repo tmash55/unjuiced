@@ -43,8 +43,10 @@ export async function POST(req: NextRequest) {
         let user_id = userId
         if (!user_id && sub.latest_invoice && typeof sub.latest_invoice === 'string') {
           try {
-            const inv = await stripe.invoices.retrieve(sub.latest_invoice)
-            const sessionId = (inv.metadata?.checkout_session_id || inv.subscription_details?.metadata?.checkout_session_id) as string | undefined
+            const inv = await stripe.invoices.retrieve(sub.latest_invoice, {
+              expand: ['payment_intent']
+            })
+            const sessionId = inv.metadata?.checkout_session_id as string | undefined
             if (sessionId) {
               const session = await stripe.checkout.sessions.retrieve(sessionId)
               user_id = (session.client_reference_id as string) || undefined
