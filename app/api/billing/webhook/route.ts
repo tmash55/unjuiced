@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
         }
 
         const normalizedStatus = sub.status
-        const current_period_start = new Date(sub.current_period_start * 1000).toISOString()
-        const current_period_end = new Date(sub.current_period_end * 1000).toISOString()
-        const cancel_at_period_end = !!sub.cancel_at_period_end
-        const canceled_at = sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null
+        const current_period_start = new Date((sub as any).current_period_start * 1000).toISOString()
+        const current_period_end = new Date((sub as any).current_period_end * 1000).toISOString()
+        const cancel_at_period_end = !!(sub as any).cancel_at_period_end
+        const canceled_at = (sub as any).canceled_at ? new Date((sub as any).canceled_at * 1000).toISOString() : null
 
         await supabase.from('billing.subscriptions').upsert({
           user_id,
