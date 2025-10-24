@@ -36,7 +36,7 @@ import { Table, useTable } from '@/components/table'
 import { cn } from '@/lib/utils'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
-import { useEntitlements } from '@/hooks/use-entitlements'
+import { useIsPro } from '@/hooks/use-entitlements'
 import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 
@@ -1030,48 +1030,21 @@ export function OddsTable({
   const allActiveSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
   const { user } = useAuth()
   // Quick client hint from metadata (may be stale); normalized check
-  const initialIsPro = useMemo(() => {
-    const raw = (user as any)?.user_metadata?.subscriptionPlan
-    const v = typeof raw === 'string' ? raw.toLowerCase() : ''
-    return v === 'pro' || v === 'unlimited' || v === 'admin'
-  }, [user])
-  const [isPro, setIsPro] = useState<boolean>(initialIsPro)
   const [showProGate, setShowProGate] = useState(false)
 
-  // Server-truth plan via shared entitlements cache
-  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements()
-  
-  // Derive isPro directly from entitlements (more reliable than useState)
-  const derivedIsPro = useMemo(() => {
-    if (isLoadingEntitlements) return initialIsPro // Use initial value while loading
-    const plan = String(entitlements?.plan || '').toLowerCase()
-    return plan === 'pro' || plan === 'admin' || plan === 'unlimited'
-  }, [entitlements, isLoadingEntitlements, initialIsPro])
-  
-  // Sync state with derived value
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[OddsTable] Entitlements update:', {
-        plan: entitlements?.plan,
-        entitlement_source: entitlements?.entitlement_source,
-        derivedIsPro,
-        isLoading: isLoadingEntitlements,
-        currentIsPro: isPro
-      })
-    }
-    setIsPro(derivedIsPro)
-  }, [derivedIsPro, entitlements, isLoadingEntitlements, isPro])
+  // VC-Grade: Use centralized, cached Pro status
+  const { isPro, isLoading: isLoadingPro } = useIsPro()
   
   // Debug logging for Pro status (development only)
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('[OddsTable] User Pro status:', {
+      console.log('[OddsTable] Pro status:', {
+        isPro,
+        isLoading: isLoadingPro,
         hasUser: !!user,
-        subscriptionPlan: user?.user_metadata?.subscriptionPlan,
-        isPro
       })
     }
-  }, [user, isPro])
+  }, [isPro, isLoadingPro, user])
 
   // Track changes for visual feedback (SSE updates)
   const [changedRows, setChangedRows] = useState<Set<string>>(new Set())
