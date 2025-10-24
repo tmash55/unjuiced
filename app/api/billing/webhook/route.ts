@@ -143,16 +143,35 @@ export async function POST(req: NextRequest) {
         const inv = event.data.object as Stripe.Invoice
         // Resolve the application user id from the Stripe customer id on the profile
         let user_id: string | null = null
-        if (inv.customer) {
+        const customerId = inv.customer ? String(inv.customer) : null
+        if (customerId) {
           const { data: profile } = await getServiceClient()
             .from('profiles')
             .select('id')
-            .eq('stripe_customer_id', String(inv.customer))
+            .eq('stripe_customer_id', customerId)
             .maybeSingle()
           user_id = profile?.id ?? null
         }
 
-        await getServiceClient()
+        // Fallback: try to resolve via subscriptions table by stripe_customer_id
+        if (!user_id && customerId) {
+          const { data: subLookup } = await getServiceClient()
+            .schema('billing')
+            .from('subscriptions')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          user_id = subLookup?.user_id ?? null
+        }
+
+        if (!user_id) {
+          console.warn('[webhook] Skipping invoice upsert; could not resolve user_id for customer', customerId)
+          break
+        }
+
+        const { error: invError } = await getServiceClient()
           .schema('billing')
           .from('invoices')
           .upsert({
@@ -162,10 +181,16 @@ export async function POST(req: NextRequest) {
           amount_paid: inv.amount_paid,
           currency: inv.currency,
           status: inv.status,
-          hosted_invoice_url: inv.hosted_invoice_url,
-          invoice_pdf: inv.invoice_pdf,
+          hosted_invoice_url: inv.hosted_invoice_url ?? null,
+          invoice_pdf: inv.invoice_pdf ?? null,
           created_at: new Date(inv.created * 1000).toISOString(),
         }, { onConflict: 'stripe_invoice_id' })
+
+        if (invError) {
+          console.error('[webhook] Failed to upsert invoice:', invError)
+        } else {
+          console.log('[webhook] Upserted invoice', inv.id, 'for user', user_id)
+        }
         break
       }
       default:
