@@ -8,7 +8,7 @@ import { Input } from "../ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/libs/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRegisterContext } from "./register/context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
@@ -25,6 +25,8 @@ type SignUpProps = z.infer<typeof signUpSchema>;
 
 export const SignUpEmail = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo");
   const supabase = createClient();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { setEmail, setPassword, setStep, email: contextEmail, lockEmail } = useRegisterContext();
@@ -55,11 +57,14 @@ export const SignUpEmail = () => {
           setEmail(data.email);
           setPassword(data.password);
 
+          // Determine where to redirect after signup
+          const nextUrl = redirectTo || '/arbitrage';
+          
           const { data: signUpData, error } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
             options: {
-              emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/arbitrage`,
+              emailRedirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextUrl)}`,
             },
           });
 
@@ -86,9 +91,9 @@ export const SignUpEmail = () => {
               duration: 3000,
             });
 
-            // Redirect to arbitrage
+            // Redirect to the intended destination
             setTimeout(() => {
-              router.push("/arbitrage");
+              router.push(nextUrl);
               router.refresh();
             }, 500);
           } else {
