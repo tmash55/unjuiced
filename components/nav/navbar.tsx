@@ -311,10 +311,10 @@ function MobileNav({ domain }: { domain: string }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] h-full w-full bg-white dark:bg-black"
+            className="fixed inset-0 z-[100] flex h-full w-full flex-col overflow-hidden bg-white dark:bg-black"
           >
             {/* Header */}
-            <div className="border-b border-neutral-200 dark:border-white/10">
+            <div className="shrink-0 border-b border-neutral-200 dark:border-white/10">
               <MaxWidthWrapper>
                 <div className="flex h-14 items-center justify-between">
                   <Link
@@ -335,9 +335,10 @@ function MobileNav({ domain }: { domain: string }) {
               </MaxWidthWrapper>
             </div>
 
-            {/* Menu Items */}
-            <MaxWidthWrapper>
-              <div className="flex flex-col py-4">
+            {/* Menu Items - Scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              <MaxWidthWrapper>
+                <div className="flex flex-col py-4">
                 {mobileNavItems.map((item, index) => {
                   const isActive = pathname?.startsWith(item.href);
                   return (
@@ -445,8 +446,9 @@ function MobileNav({ domain }: { domain: string }) {
                     )}
                   </motion.div>
                 )}
-              </div>
-            </MaxWidthWrapper>
+                </div>
+              </MaxWidthWrapper>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

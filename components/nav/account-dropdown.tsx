@@ -15,7 +15,7 @@ import { useEntitlements } from "@/hooks/use-entitlements";
 export function AccountDropdown({ user }: { user: User }) {
   const [isOpen, setIsOpen] = useState(false);
   const { signOut } = useAuth();
-  const { data: entitlements } = useEntitlements();
+  const { data: entitlements, isLoading } = useEntitlements();
 
   const handleSignOut = async () => {
     try {
@@ -73,7 +73,9 @@ export function AccountDropdown({ user }: { user: User }) {
                       </div>
                     )}
                   </div>
-                  {entitlements?.plan && (
+                  {isLoading ? (
+                    <div className="shrink-0 h-5 w-10 rounded-full bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+                  ) : entitlements?.plan ? (
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
@@ -93,7 +95,7 @@ export function AccountDropdown({ user }: { user: User }) {
                         ? "Pro"
                         : "Free"}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
 

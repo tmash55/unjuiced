@@ -45,6 +45,47 @@ export default function BillingSettings({ user }: { user: any }) {
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
   const isLoading = isLoadingEntitlements || isLoadingSubscription;
 
+  // Show loading state while fetching entitlements
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+            Billing & Subscription
+          </h2>
+          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+            Manage your subscription and billing information
+          </p>
+        </div>
+
+        {/* Loading Skeleton */}
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="animate-pulse space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-32 rounded bg-neutral-200 dark:bg-neutral-800" />
+                <div className="h-4 w-48 rounded bg-neutral-200 dark:bg-neutral-800" />
+              </div>
+              <div className="h-10 w-10 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-4 w-full rounded bg-neutral-200 dark:bg-neutral-800" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
