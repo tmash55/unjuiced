@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createClient } from "@/libs/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import config from "@/config";
 import { getRedirectUrl } from "@/libs/utils/auth";
 
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   
   // Memoize Supabase client to prevent recreating on every render
   const supabase = useMemo(() => createClient(), []);
@@ -69,13 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (mounted) {
         setUser(session?.user ?? null);
         setLoading(false);
+        
         // Hide auth modal on successful auth
         if (session?.user) {
           setShowAuthModal(false);
+        }
+        
+        // Invalidate entitlements cache on sign in/out to force refetch
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          queryClient.invalidateQueries({ queryKey: ['me-plan'] });
         }
       }
     });
@@ -84,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, queryClient]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

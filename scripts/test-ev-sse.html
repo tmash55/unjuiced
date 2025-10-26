@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EV SSE Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    .event {
+      margin: 10px 0;
+      padding: 10px;
+      background: #2a2a2a;
+      border-left: 3px solid #00ff00;
+    }
+    .error {
+      border-left-color: #ff0000;
+      color: #ff0000;
+    }
+    .status {
+      padding: 10px;
+      margin-bottom: 20px;
+      background: #2a2a2a;
+    }
+    .connected { color: #00ff00; }
+    .disconnected { color: #ff0000; }
+  </style>
+</head>
+<body>
+  <h1>🔴 EV SSE Feed Test</h1>
+  
+  <div class="status">
+    Status: <span id="status" class="disconnected">Disconnected</span><br>
+    Events received: <span id="count">0</span>
+  </div>
+
+  <button onclick="connect()">Connect</button>
+  <button onclick="disconnect()">Disconnect</button>
+  <button onclick="clearLog()">Clear Log</button>
+
+  <div id="log"></div>
+
+  <script>
+    let eventSource = null;
+    let eventCount = 0;
+
+    function connect() {
+      if (eventSource) {
+        console.log('Already connected');
+        return;
+      }
+
+      const url = 'http://localhost:3000/api/sse/ev?scope=pregame';
+      eventSource = new EventSource(url);
+
+      eventSource.onopen = () => {
+        document.getElementById('status').textContent = 'Connected';
+        document.getElementById('status').className = 'connected';
+        log('✅ Connected to SSE stream');
+      };
+
+      eventSource.onmessage = (event) => {
+        eventCount++;
+        document.getElementById('count').textContent = eventCount;
+        
+        try {
+          const data = JSON.parse(event.data);
+          log('📨 Message received:', data);
+        } catch (e) {
+          log('📨 Raw message:', event.data);
+        }
+      };
+
+      eventSource.addEventListener('hello', (event) => {
+        log('👋 Hello event:', event.data);
+      });
+
+      eventSource.onerror = (error) => {
+        log('❌ Error:', error, true);
+        document.getElementById('status').textContent = 'Error';
+        document.getElementById('status').className = 'disconnected';
+      };
+    }
+
+    function disconnect() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+        document.getElementById('status').textContent = 'Disconnected';
+        document.getElementById('status').className = 'disconnected';
+        log('🔌 Disconnected');
+      }
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+      eventCount = 0;
+      document.getElementById('count').textContent = '0';
+    }
+
+    function log(message, data, isError = false) {
+      const div = document.createElement('div');
+      div.className = 'event' + (isError ? ' error' : '');
+      
+      const timestamp = new Date().toLocaleTimeString();
+      let content = `[${timestamp}] ${message}`;
+      
+      if (data) {
+        content += '\n' + JSON.stringify(data, null, 2);
+      }
+      
+      div.textContent = content;
+      document.getElementById('log').prepend(div);
+    }
+
+    // Auto-connect on load
+    connect();
+  </script>
+</body>
+</html>
+
+

@@ -36,6 +36,8 @@ export const navItems = [
     childItems: TOOLS,
     segments: [
       "/arbitrage",
+      "/ev",
+      "/odds",
       "/analytics",
       "/partners",
       "/integrations",

@@ -49,12 +49,12 @@ const tools = [
       </div>
     ),
     title: "Positive EV",
-    description: "Identify profitable edges across books (in development).",
-    href: "/positive-ev",
+    description: "Identify profitable edges with expected value calculations across all books.",
+    href: "/ev",
     color: "#818cf8",
     graphicsContainerClassName: "pl-2",
     graphic: <PartnersGraphic />,
-    comingSoon: true,
+    comingSoon: false,
   },
 ];
 
