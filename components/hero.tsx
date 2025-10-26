@@ -68,14 +68,14 @@ export function Hero() {
             <ButtonLink 
               href="/register" 
               variant="primary"
-              className="w-full rounded-lg border-brand bg-brand px-8 py-3 text-base font-medium text-white hover:bg-brand/90 hover:ring-4 hover:ring-brand/20 sm:w-auto dark:border-brand dark:bg-brand dark:hover:bg-brand/90"
+              className="w-full justify-center text-center rounded-lg border-brand bg-brand px-8 py-3 text-base font-medium text-white hover:bg-brand/90 hover:ring-4 hover:ring-brand/20 sm:w-auto dark:border-brand dark:bg-brand dark:hover:bg-brand/90"
             >
               Start for Free
             </ButtonLink>
             <ButtonLink 
               href="/odds/nfl" 
               variant="secondary"
-              className="w-full rounded-lg border-transparent bg-transparent px-6 py-3 text-base font-medium text-brand hover:bg-brand/10 sm:w-auto dark:border-transparent dark:text-brand dark:hover:bg-brand/20"
+              className="w-full justify-center text-center rounded-lg border-transparent bg-transparent px-6 py-3 text-base font-medium text-brand hover:bg-brand/10 sm:w-auto dark:border-transparent dark:text-brand dark:hover:bg-brand/20"
             >
               Explore Odds
             </ButtonLink>
