@@ -84,6 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Invalidate entitlements cache on sign in/out to force refetch
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
           queryClient.invalidateQueries({ queryKey: ['me-plan'] });
+          // Ensure any server components re-read cookies and re-render
+          try { router.refresh(); } catch {}
         }
       }
     });
@@ -100,6 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     if (error) throw error;
+    // Proactively invalidate & refetch entitlements after sign-in to avoid stale gates
+    queryClient.invalidateQueries({ queryKey: ['me-plan'] });
   };
 
   const signUp = async (email: string, password: string) => {
@@ -111,12 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error) throw error;
+    // In case of magic-link-less environments where user becomes authenticated immediately
+    queryClient.invalidateQueries({ queryKey: ['me-plan'] });
   };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     router.push(config.auth.loginUrl);
+    // Ensure all pages reflect signed-out state immediately
+    queryClient.invalidateQueries({ queryKey: ['me-plan'] });
   };
 
   const signInWithGoogle = async () => {

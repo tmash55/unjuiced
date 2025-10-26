@@ -31,12 +31,12 @@ export function useEntitlements() {
   return useQuery<Entitlements>({
     queryKey: ["me-plan"],
     queryFn: async () => {
-      const res = await fetch("/api/me/plan", { 
+      const res = await fetch("/api/me/plan", {
         cache: "no-store",
         credentials: "include", // Ensure cookies are sent
       });
       if (!res.ok) {
-        // Don't throw on 401/403 - just return free plan
+        // Don't throw on 401/403 - treat as unauthenticated
         if (res.status === 401 || res.status === 403) {
           return { plan: "free", authenticated: false };
         }
@@ -44,14 +44,13 @@ export function useEntitlements() {
       }
       return res.json();
     },
-    staleTime: 5 * 60_000, // 5 minutes - balance freshness vs performance
-    gcTime: 30 * 60_000, // Keep in cache for 30 minutes
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchOnReconnect: true, // Refetch on network reconnect
-    refetchOnMount: false, // Don't refetch on every component mount (use cache)
-    retry: 1, // Only retry once on failure
-    // Optimistic initial data - assume free until proven otherwise
-    placeholderData: { plan: "free", authenticated: false },
+    // Keep caching aggressive, but always refetch on mount to avoid stale plan after auth transitions
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: true,
+    retry: 1,
   });
 }
 
