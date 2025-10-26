@@ -18,7 +18,7 @@ Updated `AuthProvider` to automatically invalidate the entitlements cache when a
 
 ### **Changes Made:**
 
-**File:** `components/auth/auth-provider.tsx`
+**File 1:** `components/auth/auth-provider.tsx`
 
 1. **Import React Query:**
 ```typescript
@@ -41,6 +41,19 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 ```
+
+**File 2:** `app/layout.tsx`
+
+4. **Reorder providers** (QueryProvider must wrap AuthProvider):
+```typescript
+<QueryProvider>
+  <AuthProvider>
+    {/* ... */}
+  </AuthProvider>
+</QueryProvider>
+```
+
+**Why:** `AuthProvider` uses `useQueryClient()`, so it must be a child of `QueryProvider`.
 
 ---
 

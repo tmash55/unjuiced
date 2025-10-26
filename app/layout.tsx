@@ -82,15 +82,15 @@ export default function RootLayout({
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>
-            <AuthProvider>
-              <QueryProvider>
+            <QueryProvider>
+              <AuthProvider>
                 <PreferencesProvider>
                   <Analytics />
                   {children}
                   <Toaster position="top-center" />
                 </PreferencesProvider>
-              </QueryProvider>
-            </AuthProvider>
+              </AuthProvider>
+            </QueryProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>
