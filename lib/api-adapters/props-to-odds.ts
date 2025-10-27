@@ -269,19 +269,43 @@ export function transformPropsResponseToOddsScreen(
     })
     .filter((item): item is OddsScreenItem => item !== null)
   
-  // Check for duplicate IDs in development
-  if (process.env.NODE_ENV === 'development') {
-    const idCounts = new Map<string, number>()
-    items.forEach(item => {
-      idCounts.set(item.id, (idCounts.get(item.id) || 0) + 1)
-    })
-    const duplicates = Array.from(idCounts.entries()).filter(([_, count]) => count > 1)
-    if (duplicates.length > 0) {
-      console.warn('[ADAPTER] Duplicate IDs detected:', duplicates.map(([id, count]) => `${id} (${count}x)`))
+  // Deduplicate by entity + event (for player props) or event + market (for game markets)
+  // This ensures only one row per player/game per market is shown
+  const seen = new Map<string, OddsScreenItem>()
+  const duplicatesByEntity = new Map<string, number>()
+  
+  items.forEach(item => {
+    // Create deduplication key based on type
+    let dedupeKey: string
+    if (type === 'player' && item.entity.type === 'player') {
+      // For player props: dedupe by event + entity (player)
+      dedupeKey = `${item.event.id}-${item.entity.id}`
+    } else {
+      // For game markets: dedupe by event + market kind
+      const marketKind = item.odds.normalized?.marketKind || 'other'
+      dedupeKey = `${item.event.id}-${marketKind}`
+    }
+    
+    if (!seen.has(dedupeKey)) {
+      seen.set(dedupeKey, item)
+    } else {
+      // Track duplicates for logging
+      duplicatesByEntity.set(dedupeKey, (duplicatesByEntity.get(dedupeKey) || 1) + 1)
+    }
+  })
+  
+  // Log duplicates if any were found
+  if (duplicatesByEntity.size > 0) {
+    const totalDuplicates = Array.from(duplicatesByEntity.values()).reduce((sum, count) => sum + count, 0)
+    console.warn(`[ADAPTER] Removed ${totalDuplicates} duplicate rows (multiple primary lines for same player/game)`)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[ADAPTER] Duplicates by entity:', Array.from(duplicatesByEntity.entries()).slice(0, 5))
+      console.warn('[ADAPTER] This indicates duplicate SIDs in Redis. Check DUPLICATE_ROWS_DEBUG.md for diagnosis.')
     }
   }
   
-  return items
+  // Return deduplicated items
+  return Array.from(seen.values())
 }
 
 /**
