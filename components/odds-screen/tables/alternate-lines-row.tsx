@@ -307,7 +307,7 @@ export function AlternateLinesRow({
             const renderBookOdds = (side: 'over' | 'under') => {
               const entry = bookData[side];
               if (!entry) return (
-                <div className="text-center text-xs text-neutral-400 dark:text-neutral-600 py-1">-</div>
+                <div className="sportsbook-cell sportsbook-cell--sm text-center text-xs text-neutral-400 dark:text-neutral-600">-</div>
               );
 
               const isBest = side === 'over' ? isBestOver : isBestUnder;
@@ -339,8 +339,8 @@ export function AlternateLinesRow({
             };
 
             return (
-              <td key={bookId} className="px-2 py-2 w-auto whitespace-nowrap">
-                <div className="space-y-1">
+              <td key={bookId} className="px-2 py-2 w-auto whitespace-nowrap align-top">
+                <div className="flex flex-col gap-1">
                   {renderBookOdds('over')}
                   {renderBookOdds('under')}
                 </div>
