@@ -9,6 +9,7 @@ import { PreferencesProvider } from "@/context/preferences-context";
 import { TooltipProvider } from "@/components/tooltip";
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -79,6 +80,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${satoshi.variable} ${inter.variable} ${geistMono.variable} overflow-y-scroll`}>
+      <head>
+        <Script
+          defer
+          data-website-id="dfid_1o7mQbG6BLcWxsNAbeJrN"
+          data-domain="unjuiced.bet"
+          src="https://datafa.st/js/script.js"/>
+    </head>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>

@@ -39,4 +39,9 @@ export const faqs = [
     answer:
       "No. Unjuiced is an odds comparison and information platform for entertainment purposes only. We do not accept, place, or process any bets or wagers. All betting is done directly through licensed sportsbooks. We simply provide tools to help you compare odds and find value across different betting platforms.",
   },
+  {
+    question: "Does Unjuiced have a mobile app?",
+    answer:
+      "Not yet, but development has been started—stay tuned! In the meantime, our web platform is fully responsive and works great on mobile browsers. You can access all features including odds comparison, arbitrage finder, and ladders directly from your phone or tablet.",
+  },
 ];
