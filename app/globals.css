@@ -64,7 +64,6 @@
     border-radius: 10px;
   }
 
-  /* Sonner toast radius override */
   [data-sonner-toast] {
     border-radius: 10px !important;
   }
