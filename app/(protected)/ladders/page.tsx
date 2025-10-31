@@ -581,7 +581,7 @@ export default function LaddersPage() {
                       Compare & Build
                     </h3>
                     <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
-                      View all alternate lines with best odds, add to your ladder, and build parlays
+                      View all alternate lines with best odds, add to your ladder, and one-click to open bets
                     </p>
                   </div>
                 </div>
