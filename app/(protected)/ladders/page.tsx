@@ -16,6 +16,7 @@ import { LadderBuilderPanel, type LadderSelection } from "@/components/ladders/l
 import { getMarketsForSport, formatMarketLabel } from "@/lib/data/markets";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { toast } from "sonner";
+import { ArrowTrendUp } from "@/components/icons";
 
 export default function LaddersPage() {
   // Initialize state with defaults (no URL params)
@@ -523,10 +524,85 @@ export default function LaddersPage() {
       {/* Ladder table */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
         {!sid ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="text-neutral-900 dark:text-neutral-100 font-medium mb-2">No Selection</div>
-              <div className="text-neutral-500 dark:text-neutral-400 text-sm">Select a market and player to view alternates.</div>
+          <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] px-4 sm:px-6 py-8 sm:py-12">
+            <div className="max-w-2xl w-full">
+              {/* Header */}
+              <div className="text-center mb-8 sm:mb-12">
+                <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-brand/20 to-brand/5 mb-4">
+                  <ArrowTrendUp className="w-7 h-7 sm:w-8 sm:h-8 text-brand" />
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white mb-2 px-4">
+                  Build Your Perfect Ladder
+                </h2>
+                <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 px-4">
+                  Compare alternate lines across sportsbooks to find the best value
+                </p>
+              </div>
+
+              {/* Steps */}
+              <div className="space-y-4 sm:space-y-6">
+                {/* Step 1 */}
+                <div className="flex gap-3 sm:gap-4 items-start p-4 sm:p-6 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 hover:border-brand/50 dark:hover:border-brand/50 transition-colors">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    1
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-white mb-1">
+                      Select a Market
+                    </h3>
+                    <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
+                      Choose a prop type like "Passing Yards", "Receptions", or "Player Points"
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex gap-3 sm:gap-4 items-start p-4 sm:p-6 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 hover:border-brand/50 dark:hover:border-brand/50 transition-colors">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    2
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-white mb-1">
+                      Pick a Player
+                    </h3>
+                    <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
+                      Search or browse available players for your selected market
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex gap-3 sm:gap-4 items-start p-4 sm:p-6 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 hover:border-brand/50 dark:hover:border-brand/50 transition-colors">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    3
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-white mb-1">
+                      Compare & Build
+                    </h3>
+                    <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
+                      View all alternate lines with best odds, add to your ladder, and build parlays
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Tip */}
+              <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <div className="flex gap-2 sm:gap-3">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-300 mb-1">
+                      Pro Tip
+                    </p>
+                    <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-400">
+                      Lines highlighted in <span className="font-semibold text-brand">blue</span> are primary markets, while <span className="font-semibold" style={{ color: 'var(--tertiary)' }}>purple</span> indicates the best value plays based on market movement.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ) : error === 'not_found' ? (
