@@ -20,17 +20,43 @@ export function useMarkets(sport: Sport) {
 }
 
 export function usePlayers(sport: Sport, mkt?: string, search?: string, scope: 'pregame' | 'live' = 'pregame') {
+  const queryClient = useQueryClient();
   const q = new URLSearchParams();
   if (mkt) q.set("mkt", mkt);
   if (search) q.set("q", search);
   q.set("sport", sport);
   q.set("scope", scope);
+  
   return useQuery<{ players: { ent: string; name?: string; team?: string; position?: string }[] }>({
     queryKey: ["ladder-players", sport, mkt ?? "", search ?? "", scope],
     queryFn: async () => {
-      const res = await fetch(`/api/props/players?${q.toString()}`, { cache: "no-store" });
+      const url = `/api/props/players?${q.toString()}`;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[usePlayers] Fetching players: ${url}`);
+      }
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("players failed");
-      return res.json();
+      const data = await res.json();
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[usePlayers] Received ${data.players?.length || 0} players for market: ${mkt}`);
+      }
+      
+      // Prefetch SIDs for first 5 players to speed up selection
+      if (data.players && data.players.length > 0 && mkt) {
+        const topPlayers = data.players.slice(0, 5);
+        topPlayers.forEach((player: any) => {
+          queryClient.prefetchQuery({
+            queryKey: ["ladder-find", sport, player.ent, mkt],
+            queryFn: async () => {
+              const r = await findSid({ sport, ent: player.ent, mkt, eid: "" as any });
+              return { sids: r.sids };
+            },
+            staleTime: 60_000,
+          });
+        });
+      }
+      
+      return data;
     },
     staleTime: 60_000,
     gcTime: 10 * 60_000,
@@ -48,7 +74,8 @@ export function useFindSid(sport: Sport, ent?: string, mkt?: string) {
       return { sids: r.sids };
     },
     enabled: !!sport && !!ent && !!mkt,
-    staleTime: 30_000,
+    staleTime: 60_000, // Increased from 30s to 60s to match API cache
+    gcTime: 5 * 60_000, // Keep in cache for 5 minutes
   });
 }
 

@@ -20,7 +20,7 @@ async function checkDuplicatePlayers(sport: string, market: string) {
   try {
     // Get all entities from the players SET
     const setKey = `props:${sport}:players:mkt:${market}`
-    const entities = await redis.smembers<string>(setKey) || []
+    const entities = await redis.smembers<string[]>(setKey) || []
     
     console.log(`\n📊 Total entities in SET: ${entities.length}`)
     
@@ -81,7 +81,7 @@ async function checkDuplicatePlayers(sport: string, market: string) {
           
           // Get SIDs for this entity
           const sidsKey = `props:${sport}:sids:ent:${ent}:mkt:${market}`
-          const sids = await redis.smembers<string>(sidsKey) || []
+          const sids = await redis.smembers<string[]>(sidsKey) || []
           
           console.log(`      ${ent}`)
           console.log(`         Team: ${card.team || 'N/A'}`)
@@ -148,7 +148,7 @@ async function main() {
   const [sport, market] = args
   
   await checkDuplicatePlayers(sport, market)
-  await redis.quit()
+  // No need to close Upstash Redis connection (REST-based)
 }
 
 main().catch(console.error)

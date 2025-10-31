@@ -8,6 +8,11 @@ const redis = new Redis({
 
 const SUPPORTED_SPORTS = new Set(["nfl", "nba", "nhl", "ncaaf"]);
 
+// Simple in-memory cache (60s TTL)
+type CacheEntry = { sids: string[]; ts: number };
+const MEMO = new Map<string, CacheEntry>();
+const TTL_MS = 60_000; // 60s
+
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
@@ -25,53 +30,87 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "missing_ent", message: "Provide player or ent" }, { status: 400 });
     }
 
+    // Check cache first
+    const cacheKey = `${sport}:${ent}:${mkt}`;
+    const now = Date.now();
+    const cached = MEMO.get(cacheKey);
+    if (cached && now - cached.ts < TTL_MS) {
+      return NextResponse.json({ 
+        sids: cached.sids, 
+        resolved: { sport, ent, mkt },
+        cached: true
+      });
+    }
+
     // New SOP: direct set for SIDs by ent+mkt
     const sidsKey = `props:${sport}:sids:ent:${ent}:mkt:${mkt}`;
-    const candidateSids = (await redis.smembers<string>(sidsKey)) || [];
+    const candidateSids = (await redis.smembers<string[]>(sidsKey)) || [];
     
-    // API Guard: Validate SIDs before returning to prevent 404s
-    // For each candidate SID, check if it exists or can be resolved to a valid family SID
-    const validatedSids: string[] = [];
+    if (candidateSids.length === 0) {
+      // No SIDs found, return early
+      return NextResponse.json({ 
+        sids: [], 
+        resolved: { sport, ent, mkt }
+      });
+    }
     
-    for (const sid of candidateSids) {
-      // Check if the alternate lines exist for this SID
-      const altKey = `props:${sport}:rows:alt:${sid}`;
-      const exists = await redis.exists(altKey);
-      
-      if (exists === 1) {
-        // SID is valid, keep it
-        validatedSids.push(sid);
+    // API Guard: Validate SIDs in batch (much faster than looping)
+    // Step 1: Check all alternate keys at once
+    const altKeys = candidateSids.map((sid) => `props:${sport}:rows:alt:${sid}`);
+    const existsResults = await Promise.all(altKeys.map((k) => redis.exists(k)));
+    
+    // Step 2: Separate valid SIDs from those needing resolution
+    const validSids: string[] = [];
+    const sidsNeedingResolution: string[] = [];
+    
+    candidateSids.forEach((sid, idx) => {
+      if (existsResults[idx] === 1) {
+        validSids.push(sid);
       } else {
-        // Try to resolve to primary SID using sid2primary mapping
-        const sid2primaryKey = `props:${sport}:sid2primary`;
-        const primarySid = await redis.hget<string>(sid2primaryKey, sid);
+        sidsNeedingResolution.push(sid);
+      }
+    });
+    
+    // Step 3: Resolve stale SIDs in batch via sid2primary
+    if (sidsNeedingResolution.length > 0) {
+      const sid2primaryKey = `props:${sport}:sid2primary`;
+      
+      // Batch lookup primary SIDs
+      const primarySids = sidsNeedingResolution.length === 1
+        ? [await redis.hget<string>(sid2primaryKey, sidsNeedingResolution[0])]
+        : await Promise.all(sidsNeedingResolution.map(sid => redis.hget<string>(sid2primaryKey, sid)));
+      
+      // Filter out nulls and check which primary SIDs have alternates
+      const primarySidsToCheck = primarySids.filter(Boolean) as string[];
+      if (primarySidsToCheck.length > 0) {
+        const primaryAltKeys = primarySidsToCheck.map((sid) => `props:${sport}:rows:alt:${sid}`);
+        const primaryExists = await Promise.all(primaryAltKeys.map((k) => redis.exists(k)));
         
-        if (primarySid) {
-          // Check if the primary SID exists
-          const primaryAltKey = `props:${sport}:rows:alt:${primarySid}`;
-          const primaryExists = await redis.exists(primaryAltKey);
-          
-          if (primaryExists === 1) {
-            // Use the primary SID instead
-            validatedSids.push(primarySid);
+        primarySidsToCheck.forEach((sid, idx) => {
+          if (primaryExists[idx] === 1 && !validSids.includes(sid)) {
+            validSids.push(sid);
           }
-          // Otherwise drop this SID (neither original nor primary exist)
-        }
-        // Otherwise drop this SID (no mapping and doesn't exist)
+        });
       }
     }
     
+    // Cache the result
+    MEMO.set(cacheKey, { sids: validSids, ts: now });
+    
     return NextResponse.json({ 
-      sids: validatedSids, 
+      sids: validSids, 
       resolved: { sport, ent, mkt },
       // Include debug info in development
       ...(process.env.NODE_ENV === 'development' && {
         debug: {
           candidates: candidateSids.length,
-          validated: validatedSids.length,
-          dropped: candidateSids.length - validatedSids.length
+          validated: validSids.length,
+          dropped: candidateSids.length - validSids.length,
+          resolved: sidsNeedingResolution.length
         }
       })
+    }, {
+      headers: { "Cache-Control": "public, max-age=30, s-maxage=60" }
     });
   } catch (err) {
     console.error("[/api/props/find] error", err);

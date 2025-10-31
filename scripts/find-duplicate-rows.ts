@@ -45,7 +45,7 @@ async function findDuplicateRows(sport: string, marketFilter?: string) {
     
     // Fetch all row data
     console.log('📥 Fetching row data...')
-    const rawData = await redis.hmget(key, ...allSids) as (string | null)[]
+    const rawData = await redis.hmget(key, ...allSids) as unknown as (string | null)[]
     
     // Parse rows
     const rows: RowData[] = []
@@ -180,7 +180,7 @@ async function main() {
   const market = args[1]
   
   await findDuplicateRows(sport, market)
-  await redis.quit()
+  // No need to close Upstash Redis connection (REST-based)
 }
 
 main().catch(console.error)

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const key = `props:${sport}:mkts`;
-    const mkts = await redis.smembers<string>(key);
+    const mkts = await redis.smembers<string[]>(key);
     return NextResponse.json({ mkts: mkts || [] }, {
       headers: { "Cache-Control": "public, max-age=300, s-maxage=600" },
     });

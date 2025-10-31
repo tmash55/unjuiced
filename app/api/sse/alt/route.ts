@@ -62,9 +62,9 @@ export async function GET(req: NextRequest) {
       // XRANGE: if cursor is "$", there's nothing to read; set to just before now
       const start = cursor === "$" ? "(0-0" : `(${cursor}`;
       const end = "+";
-      const entries = await redis.xrange(streamKey, start, end, { count: 200 });
+      const entries = await redis.xrange(streamKey, start, end, 200);
 
-      for (const [id, fields] of entries as any[]) {
+      for (const [id, fields] of entries as unknown as any[]) {
         cursor = id;
         const data: Record<string, string> = {};
         for (let i = 0; i < fields.length; i += 2) {

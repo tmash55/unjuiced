@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
     const mkt = (sp.get("mkt") || "").trim();
     const q = (sp.get("q") || "").trim().toLowerCase();
     const limit = Math.max(1, Math.min(parseInt(sp.get("limit") || "100"), 500));
+    // Note: scope parameter is accepted for cache key but not used for filtering
+    // Scope filtering happens in /api/props/find when resolving SIDs
     const scope = ((sp.get("scope") || "pregame").trim().toLowerCase() === "live") ? "live" : "pregame";
 
     if (!sport || !SUPPORTED_SPORTS.has(sport)) {
@@ -41,57 +43,66 @@ export async function GET(req: NextRequest) {
     }
 
     const setKey = `props:${sport}:players:mkt:${mkt}`;
-    const ents = await redis.smembers<string>(setKey);
+    const ents = await redis.smembers<string[]>(setKey);
     const players: PlayerCard[] = [];
+    
+  // Debug counters
+  let totalProcessed = 0;
+  let filteredNoMetadata = 0;
+    
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`\n[/api/props/players] 🔍 Fetching players for market: ${mkt}`);
+      console.log(`[/api/props/players] Looking for Redis key: ${setKey}`);
+      console.log(`[/api/props/players] Found ${ents?.length || 0} entities in ${setKey}`);
+      if (ents && ents.length > 0) {
+        console.log(`[/api/props/players] First 10 entities: ${ents.slice(0, 10).join(', ')}`);
+        
+        // Check if a specific player exists (Justin Herbert example)
+        const herbertEnt = 'pid:00-0036355';
+        if (ents.includes(herbertEnt)) {
+          console.log(`[/api/props/players] ✅ ${herbertEnt} (Justin Herbert) found in player set`);
+        } else {
+          console.log(`[/api/props/players] ❌ ${herbertEnt} (Justin Herbert) NOT found in ${setKey}`);
+          console.log(`[/api/props/players] 💡 Your ingestor needs to add this entity to the set`);
+        }
+      } else {
+        console.log(`[/api/props/players] ⚠️  EMPTY SET: ${setKey} contains no players!`);
+        console.log(`[/api/props/players] 💡 Your ingestor needs to populate this set with player entities`);
+      }
+    }
+    
     if (ents && ents.length) {
       const chunkSize = 40;
+      
       for (let i = 0; i < ents.length && players.length < limit; i += chunkSize) {
         const chunk = ents.slice(i, i + chunkSize);
 
         const perEnt = await Promise.all(chunk.map(async (ent) => {
-          // 1) Resolve sids for (ent,mkt)
-          const sidsKey = `props:${sport}:sids:ent:${ent}:mkt:${mkt}`;
-          const sids = await redis.smembers<string>(sidsKey);
-          if (!sids || sids.length === 0) return null;
-
-          // 2) Check which SIDs have valid families first (fast batch check)
-          const famKeys = sids.map((sid) => `props:${sport}:rows:alt:${sid}`);
-          const existsResults = await Promise.all(famKeys.map((k) => redis.exists(k)));
-          const validSids = sids.filter((_, idx) => existsResults[idx] === 1);
+          totalProcessed++;
           
-          if (validSids.length === 0) return null;
-
-          // 3) Scope filter via props:{sport}:is_live (if available)
-          const liveKey = `props:${sport}:is_live`;
-          let flags: any[] = [];
-          try {
-            const keyType = await redis.type(liveKey);
-            if (keyType === "hash") {
-              if (validSids.length === 1) {
-                flags = [await redis.hget(liveKey, validSids[0])];
-              } else {
-                const tryArray = await (redis as any).hmget(liveKey, validSids);
-                flags = Array.isArray(tryArray) ? tryArray : validSids.map((sid) => (tryArray as any)?.[sid]);
-              }
+          // Just get basic player info from the hash
+          // No need to check for SIDs or alternates here - /api/props/find will handle validation
+          const playerKey = `props:${sport}:player:${ent}`;
+          const card = (await redis.hgetall<Record<string, string>>(playerKey)) || {};
+          
+          if (!card.name) {
+            // Skip if no player metadata
+            filteredNoMetadata++;
+            if (process.env.NODE_ENV === 'development' && totalProcessed <= 3) {
+              console.log(`[/api/props/players] ❌ ${ent}: No 'name' field in ${playerKey}`);
+              console.log(`[/api/props/players]    Hash contents:`, JSON.stringify(card));
+              console.log(`[/api/props/players]    💡 Your ingestor needs to create this hash with {name, team, position}`);
             }
-          } catch {
-            // Swallow; flags remain empty
+            return null;
           }
-
-          // 4) Find first sid that matches scope
-          for (let idx = 0; idx < validSids.length; idx++) {
-            // If flags available, filter by scope
-            if (flags.length > 0) {
-              const flag = (flags?.[idx] as string | null | undefined) || "0";
-              const isMatch = scope === "live" ? flag === "1" : flag === "0";
-              if (!isMatch) continue;
-            }
-            // This sid has a valid family and matches scope (or no scope filtering)
-            const card = (await redis.hgetall<Record<string, string>>(`props:${sport}:player:${ent}`)) || {};
-            return { ent, name: card.name, team: card.team, position: card.position } as PlayerCard;
-          }
-
-          return null;
+          
+          return { 
+            ent, 
+            name: card.name, 
+            team: card.team, 
+            position: card.position 
+          } as PlayerCard;
         }));
 
         for (const p of perEnt) {
@@ -113,6 +124,15 @@ export async function GET(req: NextRequest) {
       }
     }
     const deduplicatedPlayers = Array.from(seen.values());
+    
+    // Debug summary
+    if (process.env.NODE_ENV === 'development' && totalProcessed > 0) {
+      console.log(`[/api/props/players] Summary for ${mkt}:`);
+      console.log(`  - Total entities processed: ${totalProcessed}`);
+      console.log(`  - Filtered (no metadata): ${filteredNoMetadata}`);
+      console.log(`  - Final players returned: ${deduplicatedPlayers.length}`);
+      console.log(`  ℹ️  Note: SID validation happens in /api/props/find when player is selected`);
+    }
     
     MEMO.set(memoKey, { ts: now, players: deduplicatedPlayers });
     const filtered = q

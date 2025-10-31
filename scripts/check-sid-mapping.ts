@@ -21,7 +21,7 @@ async function checkSIDMapping(sport: string, ent: string, market: string) {
   
   try {
     // 1. Get SIDs from the mapping SET (what /api/props/find returns)
-    const sidsKey = `props:${sport}:sids:ent:${ent}:mkt:${mkt}`
+    const sidsKey = `props:${sport}:sids:ent:${ent}:mkt:${market}`
     const mappedSids = await redis.smembers(sidsKey) as string[]
     
     console.log(`\n📍 SIDs in mapping SET (${sidsKey}):`)
@@ -45,7 +45,7 @@ async function checkSIDMapping(sport: string, ent: string, market: string) {
     const batchSize = 100
     for (let i = 0; i < allSids.length; i += batchSize) {
       const batch = allSids.slice(i, i + batchSize)
-      const rawData = await redis.hmget(rowsKey, ...batch) as (string | null)[]
+      const rawData = await redis.hmget(rowsKey, ...batch) as unknown as (string | null)[]
       
       for (let j = 0; j < batch.length; j++) {
         const sid = batch[j]
@@ -174,7 +174,7 @@ async function main() {
   const [sport, ent, market] = args
   
   await checkSIDMapping(sport, ent, market)
-  await redis.quit()
+  // No need to close Upstash Redis connection (REST-based)
 }
 
 main().catch(console.error)

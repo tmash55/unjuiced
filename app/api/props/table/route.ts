@@ -33,13 +33,51 @@ export async function GET(req: NextRequest) {
       ? `${Z_ROI_LIVE_PREFIX}${sport}:sort:roi:live:${market}`
       : `${Z_ROI_PREGAME_PREFIX}${sport}:sort:roi:pregame:${market}`;
 
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`\n[/api/props/table] 🔍 Fetching odds for: ${sport} ${market} (${scope})`);
+      console.log(`[/api/props/table] ZSET key: ${zkey}`);
+      
+      // Check if ZSET exists and count members
+      const exists = await redis.exists(zkey);
+      if (exists) {
+        const count = await redis.zcard(zkey);
+        console.log(`[/api/props/table] ✅ ZSET exists with ${count} members`);
+      } else {
+        console.log(`[/api/props/table] ❌ ZSET does NOT exist`);
+        console.log(`[/api/props/table] 💡 Your ingestor needs to create: ${zkey}`);
+      }
+    }
+
     // Page SIDs from ZSET (simple offset cursor)
     const zrUnknown = (await (redis as any).zrange(zkey, cursor, cursor + limit - 1, { rev: true })) as unknown;
     const zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
     let sids = zrArr.map((x) => String(x));
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[/api/props/table] Retrieved ${sids.length} SIDs from ZSET (cursor: ${cursor}, limit: ${limit})`);
+      if (sids.length > 0) {
+        console.log(`[/api/props/table] First 5 SIDs: ${sids.slice(0, 5).join(', ')}`);
+      }
+    }
 
     // Fetch rows
     const H_PRIM = `${H_PRIM_PREFIX}${sport}:rows:prim`;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[/api/props/table] HASH key: ${H_PRIM}`);
+      
+      // Check if hash exists
+      const hashExists = await redis.exists(H_PRIM);
+      if (hashExists) {
+        const hashLen = await redis.hlen(H_PRIM);
+        console.log(`[/api/props/table] ✅ HASH exists with ${hashLen} total entries (all markets)`);
+      } else {
+        console.log(`[/api/props/table] ❌ HASH does NOT exist`);
+        console.log(`[/api/props/table] 💡 Your ingestor needs to create: ${H_PRIM}`);
+      }
+    }
+    
     const rawUnknown = sids.length ? ((await (redis as any).hmget(H_PRIM, ...sids)) as unknown) : [];
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
     if (sids.length && rawArr.length === 0) {
@@ -55,6 +93,19 @@ export async function GET(req: NextRequest) {
       return null;
     });
     let rows: Row[] = rowsParsed.filter(Boolean) as Row[];
+    
+    if (process.env.NODE_ENV === 'development') {
+      const nullCount = rowsParsed.filter(r => r === null).length;
+      console.log(`[/api/props/table] Parsed ${rows.length} valid rows, ${nullCount} nulls`);
+      
+      if (nullCount > 0 && sids.length > 0) {
+        // Show which SIDs have missing data
+        const missingSids = sids.filter((sid, idx) => rowsParsed[idx] === null);
+        console.log(`[/api/props/table] ⚠️  ${nullCount} SIDs have no row data in hash:`);
+        console.log(`[/api/props/table]    Missing: ${missingSids.slice(0, 3).join(', ')}${missingSids.length > 3 ? ` (+${missingSids.length - 3} more)` : ''}`);
+        console.log(`[/api/props/table]    💡 These SIDs are in the ZSET but not in the HASH`);
+      }
+    }
 
     // Optional filters
     if (playerId) rows = rows.filter((r: any) => String(r?.ent || "").startsWith(`pid:${playerId}`));
@@ -64,6 +115,15 @@ export async function GET(req: NextRequest) {
     sids = sids.filter((_, i) => Boolean(rowsParsed[i]));
 
     const nextCursor = zrArr.length === limit ? String(cursor + limit) : null;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[/api/props/table] 📊 Returning ${rows.length} rows, nextCursor: ${nextCursor || 'null'}`);
+      if (rows.length === 0 && zrArr.length > 0) {
+        console.log(`[/api/props/table] ⚠️  WARNING: ZSET has ${zrArr.length} SIDs but all returned null data`);
+        console.log(`[/api/props/table] 💡 This means ${H_PRIM} is missing entries for these SIDs`);
+      }
+      console.log(`[/api/props/table] ✅ Done\n`);
+    }
 
     return NextResponse.json(
       { sids, rows, nextCursor },

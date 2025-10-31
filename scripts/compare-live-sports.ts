@@ -45,7 +45,7 @@ async function compareLiveSports() {
       const topSids = await redis.zrange(liveKey, 0, 0, { rev: true });
       if (topSids.length > 0) {
         const primKey = `props:${sport}:rows:prim`;
-        const rowData = await redis.hget(primKey, topSids[0]);
+        const rowData = await redis.hget(primKey, topSids[0] as string);
         if (rowData) {
           try {
             const parsed = typeof rowData === 'string' ? JSON.parse(rowData) : rowData;

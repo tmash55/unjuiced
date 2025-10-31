@@ -13,112 +13,29 @@ import { LaddersFilters } from "@/components/ladders/ladders-filters";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { LadderRow } from "@/components/ladders/ladder-row";
 import { LadderBuilderPanel, type LadderSelection } from "@/components/ladders/ladder-builder-panel";
-import { getMarketsForSport } from "@/lib/data/markets";
+import { getMarketsForSport, formatMarketLabel } from "@/lib/data/markets";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
-import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 export default function LaddersPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  
-  // Initialize state from URL params or defaults
-  const [sport, setSport] = React.useState<Sport>(() => (searchParams.get('sport') as Sport) || "nfl");
-  const [mkt, setMkt] = React.useState<string>(() => searchParams.get('market') || "");
+  // Initialize state with defaults (no URL params)
+  const [sport, setSport] = React.useState<Sport>("nfl");
+  const [mkt, setMkt] = React.useState<string>("");
   const [query, setQuery] = React.useState<string>("");
-  const [ent, setEnt] = React.useState<string>(() => searchParams.get('player') || "");
+  const [ent, setEnt] = React.useState<string>("");
   const [selectedPlayer, setSelectedPlayer] = React.useState<ComboboxOption | null>(null);
   // Exclude Bodog and Bovada from Ladders due to data accuracy issues
-  const [selectedBooks, setSelectedBooks] = React.useState<string[]>(() => {
-    const booksParam = searchParams.get('books');
-    if (booksParam) {
-      return booksParam.split(',').filter(Boolean);
-    }
-    return getAllActiveSportsbooks()
+  const [selectedBooks, setSelectedBooks] = React.useState<string[]>(() => 
+    getAllActiveSportsbooks()
       .filter(b => b.id !== 'bodog' && b.id !== 'bovada')
-      .map(b => b.id);
-  });
+      .map(b => b.id)
+  );
   const [ladderSelections, setLadderSelections] = React.useState<LadderSelection[]>([]);
-  const [sideFilter, setSideFilter] = React.useState<'over' | 'under'>(() => 
-    (searchParams.get('side') as 'over' | 'under') || 'over'
-  );
+  const [sideFilter, setSideFilter] = React.useState<'over' | 'under'>('over');
   const [marketType, setMarketType] = React.useState<'game' | 'player'>('player'); // Default to player since game is disabled
-  const [ladderGap, setLadderGap] = React.useState<number>(() => 
-    parseInt(searchParams.get('gap') || '0') || 0
-  );
-  const [multiBookOnly, setMultiBookOnly] = React.useState<boolean>(() => 
-    searchParams.get('multibook') === 'true'
-  );
-  const [singleBookMode, setSingleBookMode] = React.useState<string | null>(() => 
-    searchParams.get('view') || null
-  ); // null = show best odds, string = show specific book only
-  
-  // Update URL when key params change - VC-grade approach with proper state sync
-  const updateURL = React.useCallback((updates: Partial<{
-    sport: Sport;
-    market: string;
-    player: string;
-    side: 'over' | 'under';
-    books: string[];
-    gap: number;
-    multibook: boolean;
-    view: string | null;
-  }>) => {
-    const params = new URLSearchParams(window.location.search);
-    
-    // Apply updates
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === undefined || value === '') {
-        params.delete(key);
-      } else if (Array.isArray(value)) {
-        if (value.length > 0) {
-          params.set(key, value.join(','));
-        } else {
-          params.delete(key);
-        }
-      } else if (typeof value === 'boolean') {
-        if (value) {
-          params.set(key, 'true');
-        } else {
-          params.delete(key);
-        }
-      } else if (typeof value === 'number') {
-        if (value === 0 && key === 'gap') {
-          params.delete(key);
-        } else {
-          params.set(key, value.toString());
-        }
-      } else {
-        params.set(key, value.toString());
-      }
-    });
-    
-    router.replace(`/ladders?${params.toString()}`, { scroll: false });
-  }, [router]);
-  
-  // Sync initial state to URL on mount (including market/player if they exist)
-  React.useEffect(() => {
-    // Only update URL if it's empty (first load)
-    if (searchParams.toString() === '') {
-      updateURL({
-        sport,
-        side: sideFilter,
-        books: selectedBooks,
-      });
-    } else {
-      // If URL has params but market/player are set from URL, ensure they stay in URL
-      // This handles the case where user refreshes with market/player selected
-      const hasMarket = searchParams.get('market');
-      const hasPlayer = searchParams.get('player');
-      
-      if ((mkt && !hasMarket) || (ent && !hasPlayer)) {
-        updateURL({
-          market: mkt,
-          player: ent,
-        });
-      }
-    }
-  }, []); // Run once on mount
+  const [ladderGap, setLadderGap] = React.useState<number>(0);
+  const [multiBookOnly, setMultiBookOnly] = React.useState<boolean>(false);
+  const [singleBookMode, setSingleBookMode] = React.useState<string | null>(null); // null = show best odds, string = show specific book only
   
   const { data: mktsData } = useMarkets(sport);
   const [scope, setScope] = React.useState<'pregame' | 'live'>('pregame');
@@ -376,7 +293,6 @@ export default function LaddersPage() {
                         setMkt("");
                         setEnt("");
                         setSelectedPlayer(null);
-                        updateURL({ sport: newSport, market: '', player: '' });
                       }
                     }}
                     options={sportOptions}
@@ -435,8 +351,6 @@ export default function LaddersPage() {
                       setMkt(newMarket);
                       setEnt("");
                       setSelectedPlayer(null);
-                      // Clear player from URL when market changes
-                      updateURL({ market: newMarket, player: '' });
                     }}
                     options={marketOptions}
                     matchTriggerWidth
@@ -445,7 +359,6 @@ export default function LaddersPage() {
                       className: "h-10 w-full",
                       textWrapperClassName: "text-sm font-medium",
                     }}
-                    placeholder="Select market"
                   />
                 </div>
               </div>
@@ -459,7 +372,6 @@ export default function LaddersPage() {
                       setSelectedPlayer(opt);
                       const newPlayer = opt?.value || "";
                       setEnt(newPlayer);
-                      updateURL({ player: newPlayer });
                     }}
                     options={playerOptions}
                     onSearchChange={(v) => setQuery(v)}
@@ -478,25 +390,15 @@ export default function LaddersPage() {
                         <div className="py-6 text-center text-sm text-neutral-500">Select a market first</div>
                       ) : undefined
                     }
-                    placeholder="Select player"
                   />
                 </div>
                 <LaddersFilters 
                   selectedBooks={selectedBooks}
-                  onSelectedBooksChange={(books) => {
-                    setSelectedBooks(books);
-                    updateURL({ books });
-                  }}
+                  onSelectedBooksChange={setSelectedBooks}
                   ladderGap={ladderGap}
-                  onLadderGapChange={(gap) => {
-                    setLadderGap(gap);
-                    updateURL({ gap });
-                  }}
+                  onLadderGapChange={setLadderGap}
                   multiBookOnly={multiBookOnly}
-                  onMultiBookOnlyChange={(multibook) => {
-                    setMultiBookOnly(multibook);
-                    updateURL({ multibook });
-                  }}
+                  onMultiBookOnlyChange={setMultiBookOnly}
                   className="flex-shrink-0"
                 />
               </div>
@@ -559,8 +461,6 @@ export default function LaddersPage() {
                       setMkt(newMarket);
                       setEnt("");
                       setSelectedPlayer(null);
-                      // Keep desktop URL in sync
-                      updateURL({ market: newMarket, player: '' });
                     }}
                     options={marketOptions}
                     matchTriggerWidth
@@ -569,7 +469,6 @@ export default function LaddersPage() {
                       className: "h-10",
                       textWrapperClassName: "text-sm font-medium",
                     }}
-                    placeholder="Select market"
                   />
                 </div>
 
@@ -583,8 +482,6 @@ export default function LaddersPage() {
                       setSelectedPlayer(opt);
                       const newPlayer = opt?.value || "";
                       setEnt(newPlayer);
-                      // Keep desktop URL in sync
-                      updateURL({ player: newPlayer });
                     }}
                     options={playerOptions}
                     onSearchChange={(v) => setQuery(v)}
@@ -603,7 +500,6 @@ export default function LaddersPage() {
                         <div className="py-6 text-center text-sm text-neutral-500">Select a market first</div>
                       ) : undefined
                     }
-                    placeholder="Select player"
                   />
                 </div>
               </FiltersBarSection>
@@ -654,39 +550,68 @@ export default function LaddersPage() {
             {/* Sticky Family Header */}
             <div className="sticky top-0 z-20 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 backdrop-blur-sm w-full">
               {/* Player Info Row */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-4 sm:px-6 py-4">
-                {/* Left: Player Info */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-base font-semibold text-neutral-900 dark:text-white">{family.player || family.ent}</span>
-                  {family.team && hasTeamLogos(sport) && (
-                    <img
-                      src={getTeamLogoUrl(family.team)}
-                      alt={family.team}
-                      className={cn('object-contain', sport === 'ncaaf' ? 'h-5 w-5' : 'h-6 w-6')}
-                      onError={(e) => {
-                        // Fallback to text badge if logo fails to load
-                        const parent = e.currentTarget.parentElement;
-                        if (parent) {
-                          e.currentTarget.style.display = 'none';
-                          const badge = document.createElement('span');
-                          badge.className = 'inline-flex items-center rounded-md bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 text-xs font-medium text-neutral-700 dark:text-neutral-300';
-                          badge.textContent = family.team;
-                          parent.appendChild(badge);
-                        }
-                      }}
-                    />
-                  )}
-                  {family.team && !hasTeamLogos(sport) && (
-                    <span className="inline-flex items-center rounded-md bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                      {family.team}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 px-4 sm:px-6 py-4">
+                {/* Left: Player Info - Hero Row Layout */}
+                <div className="flex flex-col gap-2">
+                  {/* Row 1: Player Name + Position + Matchup */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-lg font-bold text-neutral-900 dark:text-white">
+                      {family.player || family.ent}
                     </span>
-                  )}
-                  {family.position && (
-                    <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
-                      {family.position}
+                    {family.position && (
+                      <span className="inline-flex items-center rounded-md bg-[#202630] dark:bg-[#202630] px-2.5 py-0.5 text-xs font-medium text-blue-400">
+                        {family.position}
+                      </span>
+                    )}
+                    {family.ev && family.ev.away && family.ev.home && (
+                      <div className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                        <span>{getTeamDisplay(family.ev.away)}</span>
+                        <span className="text-neutral-400">@</span>
+                        <span>{getTeamDisplay(family.ev.home)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Row 2: Team + Market + Game Time */}
+                  <div className="flex items-center gap-3 flex-wrap text-sm text-neutral-600 dark:text-neutral-400">
+                    {family.team && (
+                      <>
+                        {hasTeamLogos(sport) ? (
+                          <div className="flex items-center gap-1.5">
+                            <img
+                              src={getTeamLogoUrl(family.team)}
+                              alt={family.team}
+                              className={cn('object-contain opacity-80', sport === 'ncaaf' ? 'h-4 w-4' : 'h-4 w-4')}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                            <span>{family.team}</span>
+                          </div>
+                        ) : (
+                          <span>{family.team}</span>
+                        )}
+                        <span className="text-neutral-400">•</span>
+                      </>
+                    )}
+                    <span className="text-xs font-medium uppercase tracking-wide">
+                      {formatMarketLabel(family.mkt)}
                     </span>
-                  )}
-                  <span className="text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{family.mkt}</span>
+                    {family.ev && family.ev.dt && (
+                      <>
+                        <span className="text-neutral-400">•</span>
+                        <span className="text-xs text-neutral-500 dark:text-neutral-500">
+                          {new Date(family.ev.dt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            timeZoneName: 'short'
+                          })}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Right: Controls - Stack on mobile, row on desktop */}
@@ -712,39 +637,12 @@ export default function LaddersPage() {
                   
                   {/* Filters Row */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Ladder View Dropdown */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs font-medium text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
-                        View:
-                      </label>
-                      <select
-                        value={singleBookMode || 'best'}
-                        onChange={(e) => {
-                          const newView = e.target.value === 'best' ? null : e.target.value;
-                          setSingleBookMode(newView);
-                          updateURL({ view: newView });
-                        }}
-                        className="h-8 min-w-[140px] rounded-lg border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 transition-colors hover:border-neutral-300 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-600"
-                      >
-                        <option value="best">Best Odds</option>
-                        {getAllActiveSportsbooks()
-                          .filter(b => b.id !== 'bodog' && b.id !== 'bovada')
-                          .filter(b => selectedBooks.includes(b.id))
-                          .sort((a, b) => (b.priority || 0) - (a.priority || 0))
-                          .slice(0, 8)
-                          .map(sb => (
-                            <option key={sb.id} value={sb.id}>{sb.name}</option>
-                          ))}
-                      </select>
-                    </div>
-                    
                     {/* Over/Under Toggle */}
                     <div className="mode-toggle">
                       <button
                         type="button"
                         onClick={() => {
                           setSideFilter('over');
-                          updateURL({ side: 'over' });
                         }}
                         className={cn(sideFilter === 'over' && 'active')}
                       >
@@ -754,7 +652,6 @@ export default function LaddersPage() {
                         type="button"
                         onClick={() => {
                           setSideFilter('under');
-                          updateURL({ side: 'under' });
                         }}
                         className={cn(sideFilter === 'under' && 'active')}
                       >
@@ -772,7 +669,6 @@ export default function LaddersPage() {
                         onChange={(e) => {
                           const newGap = Number(e.target.value);
                           setLadderGap(newGap);
-                          updateURL({ gap: newGap });
                         }}
                         className="h-8 min-w-[120px] rounded-lg border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 transition-colors hover:border-neutral-300 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-600"
                       >
@@ -786,79 +682,6 @@ export default function LaddersPage() {
                   </div>
                 </div>
               </div>
-              
-              {/* Event Info Row - Only show if we have actual event data */}
-              {family.ev && (family.ev.away || family.ev.home || family.ev.dt) && (
-                <div className="px-4 sm:px-6 pb-3 flex items-center gap-4 flex-wrap text-sm">
-                  {/* Matchup */}
-                  {family.ev.away && family.ev.home && (
-                    <div className="flex items-center gap-2">
-                      {/* Away Team */}
-                      <div className="flex items-center gap-1.5">
-                        {hasTeamLogos(sport) && (
-                          <img
-                            src={getTeamLogoUrl(getTeamDisplay(family.ev.away))}
-                            alt={getTeamDisplay(family.ev.away)}
-                            className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        )}
-                        <span className="text-neutral-600 dark:text-neutral-400">
-                          {getTeamDisplay(family.ev.away)}
-                        </span>
-                      </div>
-                      <span className="text-neutral-400 dark:text-neutral-600">@</span>
-                      {/* Home Team */}
-                      <div className="flex items-center gap-1.5">
-                        {hasTeamLogos(sport) && (
-                          <img
-                            src={getTeamLogoUrl(getTeamDisplay(family.ev.home))}
-                            alt={getTeamDisplay(family.ev.home)}
-                            className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        )}
-                        <span className="text-neutral-600 dark:text-neutral-400">
-                          {getTeamDisplay(family.ev.home)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Game Time */}
-                  {family.ev.dt && (
-                    <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-xs">
-                        {new Date(family.ev.dt).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          timeZoneName: 'short'
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {/* Live Badge */}
-                  {family.ev.live && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-                      </span>
-                      LIVE
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
             
             {/* Add All Button */}

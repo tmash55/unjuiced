@@ -48,7 +48,7 @@ async function checkDuplicates(sport: string, market: string, scope: 'pregame' |
         console.log(`   ${sid}: ${count}x`)
         
         // Get the scores for this SID
-        const scores = await redis.zmscore(key, sid) as (number | null)[]
+        const scores = await redis.zmscore(key, [sid]) as (number | null)[]
         if (scores && scores.length > 0) {
           console.log(`      Scores: ${scores.filter(s => s !== null).join(', ')}`)
         }
@@ -118,7 +118,7 @@ async function main() {
     }
   }
   
-  await redis.quit()
+  // No need to close Upstash Redis connection (REST-based)
 }
 
 main().catch(console.error)
