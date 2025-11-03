@@ -1,168 +1,353 @@
-# Ladders Component - Redis Keys Reference
+# Ladders Redis Keys Documentation
 
-This document outlines all the Redis keys used by the NFL ladders feature (and other sports) to ensure your VPS ingestor scripts create the necessary keys for all supported sports.
+This document outlines all the Redis keys used by the Ladders feature to ensure your VPS ingestor scripts create the necessary keys for all sports.
 
-## Supported Sports
-- `nfl`
-- `nba`
-- `nhl`
-- `ncaaf`
+## Overview
 
-## Core Redis Keys Required
+The Ladders feature relies on several Redis key patterns to function. These keys are created by your VPS ingestor scripts running outside this project. For the NFL ladder to work (and any other sport), you need to ensure all these keys are populated.
 
-### 1. Finding SIDs (Player → SID mapping)
-**API Route:** `/api/props/find`
+---
 
-**Keys Used:**
-- `props:{sport}:sids:ent:{ent}:mkt:{mkt}` 
-  - **Type:** Set
-  - **Contains:** Array of SIDs for a specific player entity (`ent`) and market (`mkt`)
-  - **Example:** `props:nfl:sids:ent:12345:mkt:rushing_yards`
-  - **Used in:** `app/api/props/find/route.ts:29`
+## Required Redis Keys by Sport
 
-- `props:{sport}:rows:alt:{sid}`
-  - **Type:** String (JSON)
-  - **Contains:** Ladder family data with alternate lines
-  - **Used for:** Validation that SID exists before returning
-  - **Used in:** `app/api/props/find/route.ts:38`
+Replace `{sport}` with the sport code: `nfl`, `nba`, `nhl`, `ncaaf`, etc.
 
-- `props:{sport}:sid2primary`
-  - **Type:** Hash
-  - **Contains:** Mapping of SIDs to their primary SID
-  - **Used for:** Resolving secondary SIDs to primary SIDs when original doesn't exist
-  - **Used in:** `app/api/props/find/route.ts:46`
+### 1. **Alternate Lines Data** (CRITICAL)
+**Pattern:** `props:{sport}:rows:alt:{sid}`  
+**Type:** String (JSON)  
+**Used by:** `/api/props/alt/route.ts`
 
-### 2. Getting Ladder Family Data (Alternate Lines)
-**API Route:** `/api/props/alt`
+This is the **primary data source** for ladder lines. Each SID (unique identifier for a player+market+event combination) must have this key.
 
-**Keys Used:**
-- `props:{sport}:rows:alt:{sid}`
-  - **Type:** String (JSON)
-  - **Contains:** Complete ladder family data with all alternate lines
-  - **This is the main data source for displaying ladders**
-  - **Used in:** `app/api/props/alt/route.ts:29`
+**Expected Structure:**
+```json
+{
+  "eid": "event_id_here",
+  "ent": "player_entity_id",
+  "mkt": "receiving_yards",
+  "player": "Player Name",
+  "team": "PHI",
+  "position": "WR",
+  "primary_ln": 67.5,
+  "ev": {
+    "eid": "event_id_here",
+    "event": {
+      "dt": "2024-12-29T20:00:00Z",
+      "live": false,
+      "home": "DAL",
+      "away": "PHI"
+    },
+    "live": false
+  },
+  "lines": [
+    {
+      "ln": 67.5,
+      "books": {
+        "draftkings": {
+          "over": { "price": -110, "link": "https://..." },
+          "under": { "price": -110, "link": "https://..." }
+        },
+        "fanduel": { ... }
+      },
+      "best": {
+        "over": { "book": "draftkings", "price": -110 },
+        "under": { "book": "fanduel", "price": -105 }
+      },
+      "avg": {
+        "over": -112,
+        "under": -108
+      }
+    }
+  ]
+}
+```
 
-### 3. Listing Players for a Market
-**API Route:** `/api/props/players`
+---
 
-**Keys Used:**
-- `props:{sport}:players:mkt:{mkt}` ⭐ **CRITICAL**
-  - **Type:** Set
-  - **Contains:** Array of player entity IDs (`ent`) available for a market
-  - **Example:** `props:nfl:players:mkt:passing_yards` → `["pid:00-0036355", "pid:00-0039732", ...]`
-  - **Used in:** `app/api/props/players/route.ts:43`
-  - **⚠️ MUST BE POPULATED:** This is the source of truth for which players appear in the dropdown
+### 2. **Available Markets**
+**Pattern:** `props:{sport}:mkts`  
+**Type:** Set  
+**Used by:** `/api/props/mkts/route.ts`
 
-- `props:{sport}:player:{ent}` ⭐ **CRITICAL**
-  - **Type:** Hash
-  - **Contains:** Player metadata for display
-    - `name` - Player name (e.g., "Justin Herbert")
-    - `team` - Team abbreviation (e.g., "LAC")
-    - `position` - Player position (e.g., "QB")
-  - **Example:** `props:nfl:player:pid:00-0036355` → `{name: "Justin Herbert", team: "LAC", position: "QB"}`
-  - **Used in:** `app/api/props/players/route.ts:87`
-  - **⚠️ MUST BE POPULATED:** Required for each player entity to show their name
+Contains all available markets for the sport (e.g., `passing_yards`, `rushing_yards`, `receiving_yards`).
 
-**Note:** This route does NOT check for SIDs or alternates. It simply returns all players in the market set with their metadata. SID validation happens later in `/api/props/find` when the user selects a player.
+**Example:**
+```bash
+SADD props:nfl:mkts "passing_yards"
+SADD props:nfl:mkts "rushing_yards"
+SADD props:nfl:mkts "receiving_yards"
+SADD props:nfl:mkts "passing_tds"
+SADD props:nfl:mkts "receptions"
+```
 
-### 4. Listing Available Markets
-**API Route:** `/api/props/mkts`
+---
 
-**Keys Used:**
-- `props:{sport}:mkts`
-  - **Type:** Set
-  - **Contains:** Array of available market identifiers
-  - **Example:** `props:nfl:mkts` → ["rushing_yards", "passing_yards", ...]
-  - **Used in:** `app/api/props/mkts/route.ts:15`
+### 3. **Players by Market**
+**Pattern:** `props:{sport}:players:mkt:{market}`  
+**Type:** Set  
+**Used by:** `/api/props/players/route.ts`
 
-### 5. Server-Sent Events (Live Updates)
-**API Route:** `/api/sse/alt`
+Contains all player entity IDs that have props for a specific market.
 
-**Keys Used:**
-- `props:{sport}:alt:x`
-  - **Type:** Redis Stream
-  - **Contains:** Stream entries with SID updates
-  - **Stream Fields:**
-    - `sid` - The SID that was updated
-  - **Used in:** `app/api/sse/alt/route.ts:26`
+**Example:**
+```bash
+SADD props:nfl:players:mkt:receiving_yards "player_entity_id_1"
+SADD props:nfl:players:mkt:receiving_yards "player_entity_id_2"
+```
 
-- `props:{sport}:rows:alt:{sid}`
-  - **Type:** String (JSON)
-  - **Contains:** Fetched when embedding full family data in SSE response
-  - **Used in:** `app/api/sse/alt/route.ts:77`
+---
 
-## Data Flow Summary
+### 4. **Player Metadata**
+**Pattern:** `props:{sport}:player:{ent}`  
+**Type:** Hash  
+**Used by:** `/api/props/players/route.ts`
 
-1. **User selects sport and market** → Fetches `props:{sport}:mkts`
-2. **User searches for player** → Fetches `props:{sport}:players:mkt:{mkt}` → Gets player info from `props:{sport}:player:{ent}`
-3. **User selects player** → Finds/validates SIDs via `/api/props/find` using `props:{sport}:sids:ent:{ent}:mkt:{mkt}` + `props:{sport}:sid2primary` + `props:{sport}:rows:alt:{sid}`
-4. **Display ladder** → Fetches `props:{sport}:rows:alt:{sid}` for ladder data
-5. **Live updates** → Subscribes to `props:{sport}:alt:x` stream → Receives SID updates → Fetches updated `props:{sport}:rows:alt:{sid}`
+Contains player information (name, team, position).
 
-## Key Requirements for VPS Ingestor Scripts
+**Example:**
+```bash
+HSET props:nfl:player:player_entity_id_1 name "Patrick Mahomes"
+HSET props:nfl:player:player_entity_id_1 team "KC"
+HSET props:nfl:player:player_entity_id_1 position "QB"
+```
 
-For each sport (`nfl`, `nba`, `nhl`, `ncaaf`), your ingestor scripts must create:
+---
 
-### ⭐ Critical Keys (Required for player dropdown)
-1. `props:{sport}:players:mkt:{mkt}` - **Players per market** (Set)
-   - Populate with all player entities that have alternates for this market
-   - Example: `SADD props:nfl:players:mkt:passing_yards pid:00-0036355`
-   
-2. `props:{sport}:player:{ent}` - **Player metadata** (Hash)
-   - Must have `name`, `team`, `position` fields
-   - Example: `HMSET props:nfl:player:pid:00-0036355 name "Justin Herbert" team "LAC" position "QB"`
+### 5. **SIDs by Entity and Market**
+**Pattern:** `props:{sport}:sids:ent:{ent}:mkt:{market}`  
+**Type:** Set  
+**Used by:** `/api/props/find/route.ts`
 
-### Required for Ladder Display
-3. `props:{sport}:rows:alt:{sid}` - **Ladder family data** (String/JSON)
-   - Contains all alternate lines and odds
-   
-4. `props:{sport}:sids:ent:{ent}:mkt:{mkt}` - **SID lookup** (Set)
-   - Maps player+market to SIDs
-   
-5. `props:{sport}:sid2primary` - **Primary SID mapping** (Hash)
-   - Maps any SID to its current primary SID
+Maps a player entity ID + market to all their SIDs (different events/games).
 
-### Optional but Recommended
-6. `props:{sport}:mkts` - Available markets (Set)
-7. `props:{sport}:is_live` - Live flag per SID (Hash)
-8. `props:{sport}:alt:x` - Real-time update stream (Stream)
+**Example:**
+```bash
+SADD props:nfl:sids:ent:player_entity_id_1:mkt:passing_yards "sid_game1"
+SADD props:nfl:sids:ent:player_entity_id_1:mkt:passing_yards "sid_game2"
+```
 
-## File References
+---
 
-- **Client:** `libs/ladders/client.ts`
-- **Hooks:** `hooks/use-ladders.ts`
-- **Components:** `app/(protected)/ladders/page.tsx`
-- **API Routes:**
-  - `app/api/props/find/route.ts`
-  - `app/api/props/alt/route.ts`
-  - `app/api/props/players/route.ts`
-  - `app/api/props/mkts/route.ts`
-  - `app/api/sse/alt/route.ts`
+### 6. **Live Status Tracking** (Optional but Recommended)
+**Pattern:** `props:{sport}:is_live`  
+**Type:** Hash  
+**Used by:** `/api/props/players/route.ts` (for scope filtering)
 
-## Common Issues
+Tracks which SIDs are currently live vs pregame.
 
-### Players Not Showing in Dropdown
-**Symptom:** Alternates exist (`props:nfl:rows:alt:{sid}`), but player doesn't appear in dropdown
+**Example:**
+```bash
+HSET props:nfl:is_live "sid_1" "0"  # 0 = pregame
+HSET props:nfl:is_live "sid_2" "1"  # 1 = live
+```
 
-**Cause:** Missing or incomplete player list keys:
-- `props:nfl:players:mkt:{mkt}` doesn't contain the player entity
-- OR `props:nfl:player:{ent}` is missing or has no `name` field
+---
 
-**Fix:** See `INGESTOR_FIX_PLAYERS.md` for how to populate these keys from existing alternates
+### 7. **SID to Primary SID Mapping** (Optional)
+**Pattern:** `props:{sport}:sid2primary`  
+**Type:** Hash  
+**Used by:** `/api/props/find/route.ts` (for SID resolution)
 
-### 404 Errors When Selecting Player  
-**Symptom:** Player appears in dropdown, but clicking shows "not_found"
+Maps alternate SIDs to their primary SID if needed.
 
-**Cause:** 
-- `props:{sport}:sids:ent:{ent}:mkt:{mkt}` is missing or empty
-- OR SIDs are stale and `props:{sport}:sid2primary` mapping is missing
+**Example:**
+```bash
+HSET props:nfl:sid2primary "old_sid" "new_primary_sid"
+```
 
-**Fix:** Ensure `/api/props/find` can resolve the player to valid SIDs with alternates
+---
 
-## Notes
+### 8. **Real-time Updates Stream** (Optional)
+**Pattern:** `props:{sport}:alt:x`  
+**Type:** Stream (Redis Stream)  
+**Used by:** `/api/sse/alt/route.ts` (for live updates)
 
-- The `sid2primary` hash is recommended for handling SID updates/changes
-- The `is_live` hash is optional but used for filtering pregame vs live players
-- All keys follow the pattern `props:{sport}:...` where `{sport}` is one of: `nfl`, `nba`, `nhl`, `ncaaf`
-- **Most common issue:** Having alternates but not populating the player list sets
+Stream of updates when alternate lines change. Used for real-time SSE updates.
+
+**Example:**
+```bash
+XADD props:nfl:alt:x * sid "sid_123" ts "1234567890"
+```
+
+---
+
+### 9. **Markets Index** (Optional Fallback)
+**Pattern:** `idx:{sport}:props:markets`  
+**Type:** String (JSON array)  
+**Used by:** `/api/props/markets/route.ts`
+
+Alternative way to store markets list (as JSON string instead of Set).
+
+**Example:**
+```bash
+SET idx:nfl:props:markets '["passing_yards","rushing_yards","receiving_yards"]'
+```
+
+---
+
+## Key Creation Checklist for New Sports
+
+To enable ladders for a new sport (e.g., NBA, NHL), your ingestor must create:
+
+### Critical (Required)
+- [ ] `props:{sport}:rows:alt:{sid}` - For every player+market+event combination
+- [ ] `props:{sport}:mkts` - Set of all available markets
+- [ ] `props:{sport}:players:mkt:{market}` - For each market
+- [ ] `props:{sport}:player:{ent}` - For each player
+- [ ] `props:{sport}:sids:ent:{ent}:mkt:{market}` - For each player+market combo
+
+### Recommended (Enhanced Features)
+- [ ] `props:{sport}:is_live` - For live/pregame filtering
+- [ ] `props:{sport}:alt:x` - For real-time updates
+
+### Optional (Fallback/Legacy)
+- [ ] `props:{sport}:sid2primary` - For SID resolution
+- [ ] `idx:{sport}:props:markets` - Alternative markets storage
+
+---
+
+## Example: Complete NFL Setup
+
+Here's what a minimal NFL setup looks like for one player in one game:
+
+```bash
+# 1. Add market to available markets
+SADD props:nfl:mkts "receiving_yards"
+
+# 2. Add player entity to market
+SADD props:nfl:players:mkt:receiving_yards "player_123"
+
+# 3. Store player metadata
+HSET props:nfl:player:player_123 name "DeVonta Smith"
+HSET props:nfl:player:player_123 team "PHI"
+HSET props:nfl:player:player_123 position "WR"
+
+# 4. Map player+market to SID
+SADD props:nfl:sids:ent:player_123:mkt:receiving_yards "sid_abc123"
+
+# 5. Store alternate lines data (CRITICAL)
+SET props:nfl:rows:alt:sid_abc123 '{
+  "eid": "event_456",
+  "ent": "player_123",
+  "mkt": "receiving_yards",
+  "player": "DeVonta Smith",
+  "team": "PHI",
+  "position": "WR",
+  "primary_ln": 67.5,
+  "ev": {
+    "eid": "event_456",
+    "event": {
+      "dt": "2024-12-29T20:00:00Z",
+      "live": false,
+      "home": "DAL",
+      "away": "PHI"
+    },
+    "live": false
+  },
+  "lines": [
+    {
+      "ln": 57.5,
+      "books": {
+        "draftkings": {
+          "over": { "price": 150, "link": "https://..." },
+          "under": { "price": -180, "link": "https://..." }
+        }
+      },
+      "best": {
+        "over": { "book": "draftkings", "price": 150 },
+        "under": { "book": "draftkings", "price": -180 }
+      },
+      "avg": { "over": 150, "under": -180 }
+    },
+    {
+      "ln": 67.5,
+      "books": { ... },
+      "best": { ... },
+      "avg": { ... }
+    },
+    {
+      "ln": 77.5,
+      "books": { ... },
+      "best": { ... },
+      "avg": { ... }
+    }
+  ]
+}'
+
+# 6. Mark as pregame (optional)
+HSET props:nfl:is_live "sid_abc123" "0"
+```
+
+---
+
+## Testing Your Keys
+
+Use the test script to verify your keys are set up correctly:
+
+```bash
+# Check if keys exist for NFL
+npx tsx scripts/check-nfl-keys.ts
+
+# Or manually check in Redis CLI
+redis-cli SMEMBERS props:nfl:mkts
+redis-cli SMEMBERS props:nfl:players:mkt:receiving_yards
+redis-cli GET props:nfl:rows:alt:YOUR_SID_HERE
+```
+
+---
+
+## API Endpoints That Use These Keys
+
+1. **GET /api/props/mkts** - Lists available markets
+   - Uses: `props:{sport}:mkts`
+
+2. **GET /api/props/players** - Lists players for a market
+   - Uses: `props:{sport}:players:mkt:{market}`, `props:{sport}:player:{ent}`, `props:{sport}:sids:ent:{ent}:mkt:{market}`, `props:{sport}:rows:alt:{sid}`, `props:{sport}:is_live`
+
+3. **GET /api/props/find** - Finds SIDs for a player+market
+   - Uses: `props:{sport}:sids:ent:{ent}:mkt:{market}`, `props:{sport}:rows:alt:{sid}`, `props:{sport}:sid2primary`
+
+4. **GET /api/props/alt** - Gets ladder data for a SID
+   - Uses: `props:{sport}:rows:alt:{sid}`
+
+5. **GET /api/sse/alt** - Real-time updates stream
+   - Uses: `props:{sport}:alt:x`, `props:{sport}:rows:alt:{sid}`
+
+---
+
+## Notes for Ingestor Scripts
+
+### Data Freshness
+- Update `props:{sport}:rows:alt:{sid}` frequently (every 30-60 seconds recommended)
+- The API caches this data for 5-10 seconds on the frontend
+
+### SID Format
+- SIDs should be unique per player+market+event combination
+- Use a consistent hashing scheme (e.g., SHA1 of `player_id|market|event_id`)
+
+### Line Format
+- Include all available lines (not just the primary line)
+- Each line should have `ln` (line value), `books` (all sportsbooks), `best` (best odds), and `avg` (average odds)
+- Include deep links in the `link` field for each book when available
+
+### Event Data
+- Always include the `ev` object with event metadata
+- Include `dt` (datetime), `home`, `away`, and `live` status
+
+### Cleanup
+- Remove stale SIDs after games complete
+- Clean up old entries from `props:{sport}:is_live`
+- Expire old stream entries in `props:{sport}:alt:x`
+
+---
+
+## Support
+
+If you're setting up a new sport and need help, refer to:
+- `LADDERS_TEST_ROUTES.md` - Testing endpoints
+- `scripts/check-nfl-keys.ts` - Example key checking script
+- `scripts/debug-live-nfl.ts` - Debug live data issues
+
+
+
 

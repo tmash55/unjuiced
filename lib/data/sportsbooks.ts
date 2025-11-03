@@ -492,9 +492,29 @@ export const sportsbooks: Sportsbook[] = Object.values(SPORTSBOOKS_META).map(sb 
   appLinkTemplate: sb.links.deeplinkScheme
 }));
 
+// Helper function to normalize sportsbook IDs (handle variations)
+function normalizeSportsbookId(id: string): string {
+  // Common variations mapping
+  const idMappings: Record<string, string> = {
+    'ballybet': 'bally-bet',
+    'sportsinteraction': 'sports-interaction',
+    'hardrockbet': 'hard-rock',
+    'hardrock': 'hard-rock',
+    'espnbet': 'espn',
+    'thescore': 'thescore',
+    'betparx': 'betparx',
+    'betrivers': 'betrivers',
+    'betonline': 'betonline',
+  };
+  
+  // Return mapped ID if exists, otherwise return original (lowercase)
+  return idMappings[id.toLowerCase()] || id.toLowerCase();
+}
+
 // Helper functions for the new structure
 export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {
-  return SPORTSBOOKS_META[id];
+  const normalizedId = normalizeSportsbookId(id);
+  return SPORTSBOOKS_META[normalizedId];
 }
 
 export function getAllActiveSportsbooks(): SportsbookMeta[] {

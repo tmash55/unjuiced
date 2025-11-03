@@ -38,6 +38,8 @@ export interface UserPreferences {
   odds_show_best_line?: boolean;
   odds_show_average_line?: boolean;
   
+  ladder_selected_books?: string[];
+  
   created_at?: string;
   updated_at?: string;
 }
@@ -107,6 +109,8 @@ export class PreferencesRPC {
       odds_column_order: data?.odds_column_order || ['entity', 'event', 'best-line'],
       odds_sportsbook_order: data?.odds_sportsbook_order || [],
       odds_column_highlighting: data?.odds_column_highlighting ?? true,
+      
+      ladder_selected_books: data?.ladder_selected_books || [],
       
       created_at: data?.created_at,
       updated_at: data?.updated_at,
@@ -212,6 +216,7 @@ export class PreferencesRPC {
         odds_column_order: ['entity', 'event', 'best-line'],
         odds_sportsbook_order: [],
         odds_column_highlighting: true,
+        ladder_selected_books: [],
         updated_at: new Date().toISOString(),
       })
       .select()

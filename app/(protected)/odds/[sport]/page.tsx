@@ -518,9 +518,17 @@ function SportOddsContent({
   const gamePeriods = useMemo(() => Array.from(new Set(allGameMarkets.map((m) => m.period || 'full'))), [allGameMarkets])
 
   // Combobox options for League and Market (shared by mobile/desktop)
-  const leagueOptions = useMemo(() => (
-    ['nfl', 'ncaaf', 'nba', 'mlb', 'nhl'].map((key) => ({ value: key, label: key.toUpperCase() }))
-  ), [])
+  const leagueOptions = useMemo(() => {
+    const sports = [
+      { value: 'nfl', label: 'NFL', disabled: false },
+      { value: 'ncaaf', label: 'NCAAF', disabled: false },
+      { value: 'nba', label: 'NBA', disabled: false },
+      { value: 'ncaab', label: 'NCAAB', disabled: false },
+      { value: 'nhl', label: 'NHL', disabled: false },
+      { value: 'mlb', label: 'MLB (Off Season)', disabled: true },
+    ]
+    return sports
+  }, [])
 
   const selectedLeague = useMemo(() => (
     leagueOptions.find((o) => o.value === sport) || null

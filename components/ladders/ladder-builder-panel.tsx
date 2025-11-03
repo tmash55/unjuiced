@@ -25,7 +25,7 @@ interface LadderBuilderPanelProps {
 export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, market }: LadderBuilderPanelProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [totalBankroll, setTotalBankroll] = React.useState<string>('100')
-  const [betSizingStrategy, setBetSizingStrategy] = React.useState<'equal' | 'probability' | 'value'>('equal')
+  const [betSizingStrategy, setBetSizingStrategy] = React.useState<'equal' | 'value'>('equal')
   
   const formatPrice = (n: number) => (n > 0 ? `+${n}` : `${n}`)
   
@@ -68,27 +68,22 @@ export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, 
       selections.forEach(sel => {
         betSizes[sel.id] = equalAmount
       })
-    } else if (betSizingStrategy === 'probability') {
-      // Weight by inverse of implied probability (higher on longshots)
-      const weights = selections.map(sel => {
-        const prob = getImpliedProbability(sel.price)
-        return 1 / prob // Higher weight for lower probability (longshots)
-      })
-      const totalWeight = weights.reduce((sum, w) => sum + w, 0)
-      
-      selections.forEach((sel, idx) => {
-        betSizes[sel.id] = (weights[idx] / totalWeight) * bankroll
-      })
     } else if (betSizingStrategy === 'value') {
-      // Weight by potential return (higher on better value)
-      const values = selections.map(sel => {
+      // Equal payout: Calculate bet sizes so each leg returns the same amount
+      // For each selection, calculate the payout multiplier (total return / stake)
+      const payoutMultipliers = selections.map(sel => {
         const profit = calculateProfit(1, sel.price)
-        return profit // Higher weight for better potential return
+        return 1 + profit // Total return per $1 bet
       })
-      const totalValue = values.reduce((sum, v) => sum + v, 0)
       
+      // To get equal payout, we need: stake * multiplier = constant
+      // So stake should be inversely proportional to multiplier
+      const inverseMultipliers = payoutMultipliers.map(m => 1 / m)
+      const totalInverse = inverseMultipliers.reduce((sum, inv) => sum + inv, 0)
+      
+      // Distribute bankroll proportionally to inverse multipliers
       selections.forEach((sel, idx) => {
-        betSizes[sel.id] = (values[idx] / totalValue) * bankroll
+        betSizes[sel.id] = (inverseMultipliers[idx] / totalInverse) * bankroll
       })
     }
     
@@ -196,7 +191,7 @@ export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, 
             <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
               Bet Sizing Strategy
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setBetSizingStrategy('equal')}
                 className={cn(
@@ -209,17 +204,6 @@ export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, 
                 Equal
               </button>
               <button
-                onClick={() => setBetSizingStrategy('probability')}
-                className={cn(
-                  "rounded-lg border px-2 py-1.5 text-xs font-medium transition-all",
-                  betSizingStrategy === 'probability'
-                    ? "border-brand bg-brand/10 text-brand"
-                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
-                )}
-              >
-                By Odds
-              </button>
-              <button
                 onClick={() => setBetSizingStrategy('value')}
                 className={cn(
                   "rounded-lg border px-2 py-1.5 text-xs font-medium transition-all",
@@ -228,13 +212,12 @@ export function LadderBuilderPanel({ selections, onRemove, onClear, playerName, 
                     : "border-neutral-300 text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
                 )}
               >
-                By Value
+                Equal Win
               </button>
             </div>
             <p className="mt-1.5 text-[10px] text-neutral-500 dark:text-neutral-400">
               {betSizingStrategy === 'equal' && 'Split bankroll equally across all legs'}
-              {betSizingStrategy === 'probability' && 'Bet more on longshots (lower probability)'}
-              {betSizingStrategy === 'value' && 'Bet more on higher potential returns'}
+              {betSizingStrategy === 'value' && 'Each leg returns the same payout'}
             </p>
           </div>
         </div>

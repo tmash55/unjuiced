@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref } from "./shared";
-import { Link2, BarChart3, Handshake } from "lucide-react";
+import { Link2, BarChart3, Handshake, TrendingUp } from "lucide-react";
 import { LinksGraphic } from "./graphics/links-graphic";
 import { AnalyticsGraphic } from "./graphics/analytics-graphics";
 import { PartnersGraphic } from "./graphics/partners-graphic";
@@ -60,6 +60,14 @@ const tools = [
 
 const largeLinks = [
   {
+    title: "Ladder Builder",
+    description: "Build and track custom multi-line prop ladders — stack alternate lines, compare odds, and visualize potential payouts across every rung",
+    href: "/ladders",
+    comingSoon: false,
+    graphic: null, // No graphic for now
+    color: "#f97316", // Orange color for hover effect
+  },
+  {
     title: "Parlay Builder",
     description: "Build SGPs and SGP+ with the highest available prices across major books.",
     href: "/parlay-builder",
@@ -67,17 +75,6 @@ const largeLinks = [
     graphic: (
       <div className="absolute -right-4 top-1/2 h-[180px] w-[240px] -translate-y-1/2 [mask-image:linear-gradient(90deg,black_50%,transparent_95%)] dark:opacity-80">
         <Image src="/illustrations/native-tools-integration.svg" alt="" fill />
-      </div>
-    ),
-  },
-  {
-    title: "Bet Slip Scanner",
-    description: "Auto-detect opportunities from pasted slips (coming soon).",
-    href: "/bet-slip-scanner",
-    comingSoon: true,
-    graphic: (
-      <div className="absolute -right-4 top-2.5 h-[180px] w-[240px] [mask-image:linear-gradient(90deg,black_50%,transparent_95%)] dark:opacity-60">
-        <Image src="/dashboard.png" alt="" fill />
       </div>
     ),
   },
@@ -180,7 +177,7 @@ export function ProductContent({ domain }: { domain: string }) {
         )}
       </div>
       <div className="grid grow grid-cols-2 gap-4">
-        {largeLinks.map(({ title, description, href, graphic, comingSoon }) => (
+        {largeLinks.map(({ title, description, href, graphic, comingSoon, color }) => (
           comingSoon ? (
             <div
               key={title}
@@ -222,9 +219,21 @@ export function ProductContent({ domain }: { domain: string }) {
                   cellSize={60}
                   patternOffset={[-39, -49]}
                 />
-                <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                  {graphic}
-                </div>
+                {graphic && (
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                    {graphic}
+                  </div>
+                )}
+                {color && (
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,var(--color),transparent)] opacity-0 transition-opacity duration-150 group-hover:opacity-15"
+                    style={
+                      {
+                        "--color": color,
+                      } as CSSProperties
+                    }
+                  />
+                )}
                 <div className="relative flex items-center justify-between px-5 py-4">
                   <div>
                     <span className="text-sm font-medium leading-none text-neutral-900 dark:text-white">

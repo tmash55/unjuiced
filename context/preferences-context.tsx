@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
-import { sportsbooks } from "@/lib/data/sportsbooks";
+import { sportsbooks, getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { preferencesRPC, UserPreferences, UserPreferencesUpdate } from "@/lib/preferences-rpc";
 
 // Development-only logging flag
@@ -87,6 +87,14 @@ interface PreferencesContextType {
     columnHighlighting: boolean;
     showBestLine: boolean;
     showAverageLine: boolean;
+  };
+  
+  updateLadderFilters: (filters: {
+    selectedBooks?: string[];
+  }) => Promise<void>;
+  
+  getLadderFilters: () => {
+    selectedBooks: string[];
   };
 }
 
@@ -580,6 +588,49 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     };
   }, [preferences, activeSportsbooks]);
 
+  const getLadderFilters = useCallback(() => {
+    // Get all active sportsbooks excluding Bodog and Bovada (same as ladders page)
+    const allLadderBooks = getAllActiveSportsbooks()
+      .filter(b => b.id !== 'bodog' && b.id !== 'bovada')
+      .map(b => b.id);
+    
+    // If preferences haven't loaded yet (logged-out user), default to all ladder books
+    if (!preferences) {
+      return {
+        selectedBooks: allLadderBooks,
+      };
+    }
+    
+    // Empty array means "select all", so use all ladder books
+    // Non-empty array means specific selection
+    const selectedBooks = preferences.ladder_selected_books?.length 
+      ? preferences.ladder_selected_books 
+      : allLadderBooks;
+    
+    return {
+      selectedBooks,
+    };
+  }, [preferences]);
+  
+  const updateLadderFilters = useCallback(async (filters: {
+    selectedBooks?: string[];
+  }) => {
+    if (!user) {
+      if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update ladder filters - no user');
+      return;
+    }
+    
+    const updates: UserPreferencesUpdate = {};
+    
+    if (filters.selectedBooks !== undefined) {
+      updates.ladder_selected_books = filters.selectedBooks;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      await updatePreferences(updates, true);
+    }
+  }, [user, updatePreferences]);
+  
   const value: PreferencesContextType = {
     preferences,
     isLoading,
@@ -595,6 +646,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     getActiveSportsbooks,
     getEvFilters,
     getOddsPreferences,
+    updateLadderFilters,
+    getLadderFilters,
   };
 
   return (
@@ -641,13 +694,26 @@ export function useEvPreferences() {
 
 export function useOddsPreferences() {
   const { getOddsPreferences, updateOddsPreferences, isLoading } = usePreferences();
-
+  
   // Memoize the preferences to prevent infinite re-renders
   const preferences = useMemo(() => getOddsPreferences(), [getOddsPreferences]);
-
+  
   return {
     preferences,
     updatePreferences: updateOddsPreferences,
+    isLoading,
+  };
+}
+
+export function useLadderPreferences() {
+  const { getLadderFilters, updateLadderFilters, isLoading } = usePreferences();
+  
+  // Memoize the filters to prevent infinite re-renders
+  const filters = useMemo(() => getLadderFilters(), [getLadderFilters]);
+  
+  return {
+    filters,
+    updateFilters: updateLadderFilters,
     isLoading,
   };
 }

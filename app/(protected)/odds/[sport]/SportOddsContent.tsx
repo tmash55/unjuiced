@@ -348,7 +348,14 @@ function SportOddsContent({
   const allGameMarkets = getMarketsForSport(resolveSportKey(sport)).filter((m) => new Set(['moneyline', 'spread', 'total', 'h2h', 'spreads', 'totals', 'home_total', 'away_total', 'total_touchdowns', 'total_fgs', 'safety', 'overtime', '1h_total', '2h_total', '1q_total', '2nd_half_total_points_reg_time', '1st_half_total_touchdowns', '2nd_half_total_touchdowns', '1st_quarter_total_touchdowns', '1st_half_home_team_total_points', '1st_half_away_team_total_points', '1st_half_home_team_total_touchdowns', '1st_half_away_team_total_touchdowns', '1h_total_fgs', '2h_total_fgs', 'total_fg_yards', 'longest_field_goal_made_yards', 'shortest_field_goal_made_yards', 'total_td_yards', 'longest_td_yards', 'shortest_td_yards', 'first_td_yards', 'home_safety', 'away_safety', '2pt_attempt', '2pt_conversion', 'total_punts', 'largest_lead', 'first_score_yards', '1st_quarter_both_teams_to_score']).has(m.apiKey))
   const gameGroups = Array.from(new Set(allGameMarkets.map((m) => m.group).filter(Boolean))) as string[]
   const gamePeriods = Array.from(new Set(allGameMarkets.map((m) => m.period || 'full')))
-  const availableSports = ['nfl', 'ncaaf', 'nba', 'mlb', 'nhl']
+  const availableSports = [
+    { value: 'nfl', label: 'NFL', disabled: false },
+    { value: 'ncaaf', label: 'NCAAF', disabled: false },
+    { value: 'nba', label: 'NBA', disabled: false },
+    { value: 'ncaab', label: 'NCAAB', disabled: false },
+    { value: 'nhl', label: 'NHL', disabled: false },
+    { value: 'mlb', label: 'MLB (Off Season)', disabled: true },
+  ]
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 animate-in fade-in duration-300">
@@ -372,9 +379,9 @@ function SportOddsContent({
                   onChange={(e) => handleSportChange(e.target.value)}
                   className="px-3 py-3 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 touch-manipulation"
                 >
-                  {availableSports.map((sportKey) => (
-                    <option key={sportKey} value={sportKey}>
-                      {sportKey.toUpperCase()}
+                  {availableSports.map((sport) => (
+                    <option key={sport.value} value={sport.value} disabled={sport.disabled}>
+                      {sport.label}
                     </option>
                   ))}
                 </select>
@@ -494,9 +501,9 @@ function SportOddsContent({
                   onChange={(e) => handleSportChange(e.target.value)}
                   className="px-3 py-2.5 text-sm font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[80px] touch-manipulation"
                 >
-                  {availableSports.map((sportKey) => (
-                    <option key={sportKey} value={sportKey}>
-                      {sportKey.toUpperCase()}
+                  {availableSports.map((sport) => (
+                    <option key={sport.value} value={sport.value} disabled={sport.disabled}>
+                      {sport.label}
                     </option>
                   ))}
                 </select>

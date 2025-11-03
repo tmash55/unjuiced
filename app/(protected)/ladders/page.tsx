@@ -17,20 +17,57 @@ import { getMarketsForSport, formatMarketLabel } from "@/lib/data/markets";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { toast } from "sonner";
 import { ArrowTrendUp } from "@/components/icons";
+import { usePreferences } from "@/context/preferences-context";
+import { trackLadderUsage } from "@/lib/ladder-tracking";
 
 export default function LaddersPage() {
+  const { getLadderFilters, updateLadderFilters, isLoading: prefsLoading } = usePreferences();
+  
   // Initialize state with defaults (no URL params)
   const [sport, setSport] = React.useState<Sport>("nfl");
   const [mkt, setMkt] = React.useState<string>("");
   const [query, setQuery] = React.useState<string>("");
   const [ent, setEnt] = React.useState<string>("");
   const [selectedPlayer, setSelectedPlayer] = React.useState<ComboboxOption | null>(null);
-  // Exclude Bodog and Bovada from Ladders due to data accuracy issues
+  
+  // Get ladder filters from preferences
+  const ladderPrefs = React.useMemo(() => getLadderFilters(), [getLadderFilters]);
+  
+  // Initialize selectedBooks from preferences
+  // getLadderFilters already handles empty array = all books logic
   const [selectedBooks, setSelectedBooks] = React.useState<string[]>(() => 
-    getAllActiveSportsbooks()
-      .filter(b => b.id !== 'bodog' && b.id !== 'bovada')
-      .map(b => b.id)
+    ladderPrefs.selectedBooks
   );
+  
+  // Sync with preferences when they load (only if preferences are loaded and different)
+  React.useEffect(() => {
+    if (!prefsLoading) {
+      const prefsBooks = ladderPrefs.selectedBooks;
+      // Only update if preferences actually changed (avoid loops)
+      if (JSON.stringify(prefsBooks.sort()) !== JSON.stringify(selectedBooks.sort())) {
+        setSelectedBooks(prefsBooks);
+      }
+    }
+  }, [prefsLoading, ladderPrefs.selectedBooks]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Handle selected books change - update both state and preferences
+  const handleSelectedBooksChange = React.useCallback(async (books: string[]) => {
+    setSelectedBooks(books);
+    
+    // Get all available ladder books
+    const allLadderBooks = getAllActiveSportsbooks()
+      .filter(b => b.id !== 'bodog' && b.id !== 'bovada')
+      .map(b => b.id);
+    
+    // If user selected all books, save empty array (means "select all" and includes future books)
+    // Otherwise save the specific selection
+    const booksToSave = books.length === allLadderBooks.length && 
+      allLadderBooks.every(id => books.includes(id))
+      ? [] // Empty array = "select all"
+      : books; // Specific selection
+    
+    await updateLadderFilters({ selectedBooks: booksToSave });
+  }, [updateLadderFilters]);
   const [ladderSelections, setLadderSelections] = React.useState<LadderSelection[]>([]);
   const [sideFilter, setSideFilter] = React.useState<'over' | 'under'>('over');
   const [marketType, setMarketType] = React.useState<'game' | 'player'>('player'); // Default to player since game is disabled
@@ -85,6 +122,55 @@ export default function LaddersPage() {
   ], []);
   const sid = findData?.sids?.[0];
   const { family, error, isLoading } = useLadderFamily(sport, sid);
+  
+  // Track ladder usage when market and player are selected
+  // Use a ref to track the last tracked combination to avoid duplicate events
+  const lastTrackedRef = React.useRef<string>('');
+  
+  React.useEffect(() => {
+    // Only track if we have both market and player selected
+    if (mkt && ent && selectedPlayer) {
+      // Create a unique key for this combination
+      const trackKey = `${sport}:${mkt}:${ent}:${sideFilter}`;
+      
+      // Only track if this is a new combination (not just a re-render)
+      if (lastTrackedRef.current !== trackKey) {
+        lastTrackedRef.current = trackKey;
+        
+        // Extract player name by looking up in playersData using the entity ID
+        // This is more reliable than trying to extract from the React element label
+        const player = (playersData?.players || []).find(p => p.ent === ent);
+        const playerName = player?.name || family?.player || ent || null;
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 [Ladder Tracking] Triggering tracking for:', {
+            sport,
+            market: mkt,
+            playerEntity: ent,
+            playerName,
+            playerNameType: typeof playerName,
+            side: sideFilter,
+            scope,
+            selectedBooksCount: selectedBooks.length,
+            trackKey,
+          });
+        }
+        
+        // Track usage (non-blocking)
+        trackLadderUsage({
+          sport: sport as 'nfl' | 'nba' | 'nhl' | 'mlb' | 'ncaaf' | 'ncaab',
+          market: mkt,
+          playerEntity: ent,
+          playerName: typeof playerName === 'string' ? playerName : undefined,
+          side: sideFilter,
+          scope: scope,
+          selectedBooks: selectedBooks.length > 0 ? selectedBooks : undefined,
+        });
+      } else if (process.env.NODE_ENV === 'development') {
+        console.debug('📊 [Ladder Tracking] Skipping duplicate tracking for:', trackKey);
+      }
+    }
+  }, [mkt, ent, selectedPlayer, sport, sideFilter, scope, selectedBooks, family?.player, playersData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mobile detection (same as arb-table)
   const isMobile = React.useCallback(() => {
@@ -195,6 +281,11 @@ export default function LaddersPage() {
         </span>
       ),
       right: p.position ? <span className="text-xs text-neutral-500">{p.position}</span> : undefined,
+      meta: {
+        name: p.name,
+        team: p.team,
+        position: p.position,
+      },
     })),
     [playersData, sport, hasTeamLogos, getTeamLogoUrl]
   );
@@ -509,7 +600,7 @@ export default function LaddersPage() {
                 {/* Filters Button */}
                 <LaddersFilters 
                   selectedBooks={selectedBooks}
-                  onSelectedBooksChange={setSelectedBooks}
+                  onSelectedBooksChange={handleSelectedBooksChange}
                   ladderGap={ladderGap}
                   onLadderGapChange={setLadderGap}
                   multiBookOnly={multiBookOnly}

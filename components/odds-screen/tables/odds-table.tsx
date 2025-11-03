@@ -1594,35 +1594,35 @@ export function OddsTable({
                   <div className="flex flex-col gap-0.5">
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
-                      sport === 'ncaaf' ? 'text-[13px]' : 'text-[15px]'
+                      (sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]'
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
                           src={getTeamLogoUrl(item.event?.awayTeam || '')}
                           alt={item.event?.awayTeam || ''}
-                          className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
+                          className={cn('object-contain', (sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
                         />
                       )}
-                      <span>{sport === 'ncaaf' ? (item.event?.awayName || item.event?.awayTeam) : item.event?.awayTeam}</span>
+                      <span>{(sport === 'ncaaf' || sport === 'ncaab') ? (item.event?.awayName || item.event?.awayTeam) : item.event?.awayTeam}</span>
                     </div>
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
-                      sport === 'ncaaf' ? 'text-[13px]' : 'text-[15px]'
+                      (sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]'
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
                           src={getTeamLogoUrl(item.event?.homeTeam || '')}
                           alt={item.event?.homeTeam || ''}
-                          className={cn('object-contain', sport === 'ncaaf' ? 'h-4 w-4' : 'h-5 w-5')}
+                          className={cn('object-contain', (sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
                         />
                       )}
-                      <span>{sport === 'ncaaf' ? (item.event?.homeName || item.event?.homeTeam) : item.event?.homeTeam}</span>
+                      <span>{(sport === 'ncaaf' || sport === 'ncaab') ? (item.event?.homeName || item.event?.homeTeam) : item.event?.homeTeam}</span>
                     </div>
                   </div>
                   {/* Hide redundant market name for spreads/totals in game column */}
@@ -2331,7 +2331,7 @@ export function OddsTable({
 
   // Helper function to check if sport has team logos available
   const hasTeamLogos = (sportKey: string): boolean => {
-    const sportsWithLogos = ['nfl', 'nhl','nba','ncaaf'] // NFL and NHL have logos
+    const sportsWithLogos = ['nfl', 'nhl', 'nba'] // Sports with team logos
     return sportsWithLogos.includes(sportKey.toLowerCase())
   }
 

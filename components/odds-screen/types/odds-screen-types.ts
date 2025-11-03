@@ -65,7 +65,7 @@ export interface OddsScreenParams {
     startTime: string                // ISO string
     homeTeam: string                 // Team code (e.g., "KC")
     awayTeam: string                 // Team code (e.g., "BAL")
-  // Optional full names for leagues where we want to display full names (e.g., NCAAF)
+  // Optional full names for leagues where we want to display full names (e.g., NCAAF, NCAAB)
   homeName?: string
   awayName?: string
   }
