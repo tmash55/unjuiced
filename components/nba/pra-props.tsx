@@ -9,6 +9,13 @@ import { Table, useTable } from '@/components/table';
 import { cn } from '@/lib/utils';
 import { sportsbooks } from '@/lib/data/sportsbooks';
 
+// Add type for window debug flag
+declare global {
+  interface Window {
+    __propsLogged?: boolean;
+  }
+}
+
 // Create sportsbook map for quick lookups
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -86,12 +93,40 @@ export function PRAProps({ props, market, onRefresh, isRefreshing, lastUpdated }
   };
 
   const columns = useMemo(() => [
+    // Player column (includes matchup on mobile)
     columnHelper.accessor('player', {
       id: 'player',
       header: 'Player',
       size: 250,
       cell: (info) => {
         const prop = info.row.original;
+        
+        // Get matchup info for mobile view
+        let awayTeam = '';
+        let homeTeam = '';
+        let gameTime = '';
+        
+        if (prop.ev) {
+          awayTeam = prop.ev.away.abbr;
+          homeTeam = prop.ev.home.abbr;
+          if (prop.ev.dt) {
+            const date = new Date(prop.ev.dt);
+            gameTime = date.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+              timeZoneName: 'short'
+            });
+          }
+        } else {
+          const parts = prop.event.split('•');
+          const matchupText = parts[0]?.trim() || prop.event;
+          const teams = matchupText.split('@').map(t => t.trim());
+          awayTeam = teams[0] || '';
+          homeTeam = teams[1] || '';
+          gameTime = parts[1]?.trim() || '';
+        }
+        
         return (
           <div className="flex items-center gap-3">
             <img
@@ -102,32 +137,87 @@ export function PRAProps({ props, market, onRefresh, isRefreshing, lastUpdated }
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
+              {/* Player name */}
               <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
                 {prop.player}
               </div>
-              <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-                {prop.team}
+              
+              {/* Matchup info - only visible on mobile (md:hidden) */}
+              <div className="md:hidden mt-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1">
+                    <img
+                      src={getTeamLogoUrl(awayTeam)}
+                      alt={awayTeam}
+                      className="w-3.5 h-3.5 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      {awayTeam}
+                    </span>
+                  </div>
+                  <span className="text-xs text-neutral-400 dark:text-neutral-600">@</span>
+                  <div className="flex items-center gap-1">
+                    <img
+                      src={getTeamLogoUrl(homeTeam)}
+                      alt={homeTeam}
+                      className="w-3.5 h-3.5 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      {homeTeam}
+                    </span>
+                  </div>
+                  {gameTime && (
+                    <>
+                      <span className="text-xs text-neutral-400 dark:text-neutral-600">•</span>
+                      <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                        {gameTime}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {prop.ev?.live && (
+                  <div className="inline-flex items-center gap-1 mt-1">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                    </span>
+                    <span className="text-[10px] font-medium text-red-600 dark:text-red-400">LIVE</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
       },
     }),
+    // Matchup column (hidden on mobile, visible on md+)
     columnHelper.display({
       id: 'matchup',
-      header: 'Matchup',
-      size: 150,
+      header: () => <span className="hidden md:inline">Matchup</span>,
+      size: 180,
+      meta: {
+        headerClassName: 'hidden md:table-cell',
+        cellClassName: 'hidden md:table-cell',
+      },
       cell: (info) => {
         const prop = info.row.original;
         
         // Try to get matchup from ev block first, fallback to event string
-        let matchup = '';
+        let awayTeam = '';
+        let homeTeam = '';
         let gameTime = '';
         
         if (prop.ev) {
-          // Build matchup from ev data
-          matchup = `${prop.ev.away.abbr} @ ${prop.ev.home.abbr}`;
+          // Get team abbreviations from ev data
+          awayTeam = prop.ev.away.abbr;
+          homeTeam = prop.ev.home.abbr;
           
           // Format the game time from dt (ISO string)
           if (prop.ev.dt) {
@@ -142,20 +232,54 @@ export function PRAProps({ props, market, onRefresh, isRefreshing, lastUpdated }
         } else {
           // Fallback to parsing event string
           const parts = prop.event.split('•');
-          matchup = parts[0]?.trim() || prop.event;
+          const matchupText = parts[0]?.trim() || prop.event;
+          const teams = matchupText.split('@').map(t => t.trim());
+          awayTeam = teams[0] || '';
+          homeTeam = teams[1] || '';
           gameTime = parts[1]?.trim() || '';
         }
         
         return (
           <div className="min-w-0">
-            <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
-              {matchup}
+            {/* Matchup with team logos */}
+            <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-1.5">
+                <img
+                  src={getTeamLogoUrl(awayTeam)}
+                  alt={awayTeam}
+                  className="w-4 h-4 object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {awayTeam}
+                </span>
+              </div>
+              <span className="text-neutral-400 dark:text-neutral-600">@</span>
+              <div className="flex items-center gap-1.5">
+                <img
+                  src={getTeamLogoUrl(homeTeam)}
+                  alt={homeTeam}
+                  className="w-4 h-4 object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {homeTeam}
+                </span>
+              </div>
             </div>
+            
+            {/* Game time */}
             {gameTime && (
               <div className="text-xs text-neutral-600 dark:text-neutral-400">
                 {gameTime}
               </div>
             )}
+            
+            {/* Live indicator */}
             {prop.ev?.live && (
               <div className="inline-flex items-center gap-1 mt-1">
                 <span className="relative flex h-1.5 w-1.5">
@@ -220,13 +344,11 @@ export function PRAProps({ props, market, onRefresh, isRefreshing, lastUpdated }
         )}
       </div>
 
-      <div className="rounded-xl border-[2px] border-neutral-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-900 shadow-sm">
-        <Table
-          {...tableProps}
-          className="w-full [&_td]:border-l [&_td]:border-b [&_td]:border-neutral-200 dark:[&_td]:border-neutral-700 [&_th]:border-l [&_th]:border-b [&_th]:border-neutral-200 dark:[&_th]:border-neutral-700"
-          containerClassName="max-h-[calc(100vh-300px)] overflow-auto"
-        />
-      </div>
+      <Table
+        {...tableProps}
+        className="w-full [&_td]:border-b [&_td]:border-r [&_td]:border-neutral-200/30 [&_td]:dark:border-neutral-800/30 [&_th]:border-b [&_th]:border-r [&_th]:border-neutral-200/30 [&_th]:dark:border-neutral-800/30 [&_td:nth-child(2)]:hidden [&_td:nth-child(2)]:md:table-cell [&_th:nth-child(2)]:hidden [&_th:nth-child(2)]:md:table-cell"
+        containerClassName="max-h-[calc(100vh-300px)] overflow-auto"
+      />
     </div>
   );
 }

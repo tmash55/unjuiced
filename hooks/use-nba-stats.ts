@@ -89,7 +89,7 @@ export function useNBAProps(
       const props = transformPropsData(data, market);
       
       // Sort by PRA line (highest first)
-      const sortedProps = props.sort((a, b) => b.line - a.line);
+      const sortedProps = props.sort((a: any, b: any) => b.line - a.line);
       
       return {
         props: sortedProps,
