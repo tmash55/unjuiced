@@ -1,0 +1,291 @@
+'use client';
+
+import { useState } from 'react';
+import { useTodaysGames, useLiveLeaderboard, useNBAProps } from '@/hooks/use-nba-stats';
+import { TodaysGames } from '@/components/nba/todays-games';
+import { LiveLeaderboard } from '@/components/nba/live-leaderboard';
+import { PRAProps } from '@/components/nba/pra-props';
+import { HistoricalBrowser } from '@/components/nba/historical-browser';
+import { AdvancedStatsPanel } from '@/components/nba/advanced-stats-panel';
+import { FiltersBar, FiltersBarSection } from '@/components/common/filters-bar';
+import { Activity, Calendar, TrendingUp, BarChart3, Trophy, Award, Flame, ChevronUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type MainTab = 'games' | 'leaderboard' | 'props' | 'historical' | 'advanced';
+
+export default function NBAStatsPage() {
+  const [activeTab, setActiveTab] = useState<MainTab>('games'); // Default to games tab
+
+  // Fetch data for each tab (polls automatically with specified intervals)
+  const { data: gamesData, isLoading: gamesLoading } = useTodaysGames(activeTab === 'games');
+  const { data: leaderboardData, isLoading: leaderboardLoading } = useLiveLeaderboard('leaderboard', 50, 0, activeTab === 'leaderboard');
+  const { data: propsData, isLoading: propsLoading, refetch: refetchProps, isFetching: propsRefetching } = useNBAProps('player_points_rebounds_assists', 'pregame', activeTab === 'props');
+
+  // Check if there are live games
+  const hasLiveGames = (gamesData?.summary.live || 0) > 0 || (leaderboardData?.metadata.gamesLive || 0) > 0;
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Header */}
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <Trophy className="h-8 w-8 text-primary" />
+                <h1 className="text-4xl font-bold tracking-tight">
+                  King of the Court
+                </h1>
+              </div>
+              <p className="mt-2 text-lg text-neutral-600 dark:text-neutral-400">
+                Live NBA PRA Leaderboard • Points + Rebounds + Assists
+              </p>
+            </div>
+            {hasLiveGames && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-red-600 dark:text-red-400">
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                </span>
+                <span className="text-sm font-semibold">LIVE GAMES</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-6">
+        {/* Tab Navigation - FiltersBar Style */}
+        <FiltersBar>
+          <FiltersBarSection align="left">
+            <div className="flex flex-wrap gap-2">
+              <TabButton
+                isActive={activeTab === 'games'}
+                onClick={() => setActiveTab('games')}
+                icon={<Calendar className="h-4 w-4" />}
+                label="Games"
+                fullLabel="Today's Games"
+              />
+              <TabButton
+                isActive={activeTab === 'leaderboard'}
+                onClick={() => setActiveTab('leaderboard')}
+                icon={<Activity className="h-4 w-4" />}
+                label="Leaders"
+                fullLabel="PRA Leaderboard"
+                badge={hasLiveGames ? (
+                  <span className="ml-1 flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                  </span>
+                ) : undefined}
+              />
+              <TabButton
+                isActive={activeTab === 'props'}
+                onClick={() => setActiveTab('props')}
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="Odds"
+                fullLabel="PRA Odds"
+              />
+              <TabButton
+                isActive={activeTab === 'historical'}
+                onClick={() => setActiveTab('historical')}
+                icon={<Calendar className="h-4 w-4" />}
+                label="Historical"
+              />
+              <TabButton
+                isActive={activeTab === 'advanced'}
+                onClick={() => setActiveTab('advanced')}
+                icon={<BarChart3 className="h-4 w-4" />}
+                label="Advanced"
+              />
+            </div>
+          </FiltersBarSection>
+        </FiltersBar>
+
+        <div className="mt-6">
+          {/* Today's Games Tab */}
+          {activeTab === 'games' && (
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+              {gamesLoading ? (
+                <div className="py-12 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+                  <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading games...</p>
+                </div>
+              ) : gamesData ? (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold">Today&apos;s Schedule</h2>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                      {new Date(gamesData.date + 'T12:00:00Z').toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                  <TodaysGames 
+                    games={gamesData.games} 
+                    date={gamesData.date}
+                    summary={gamesData.summary}
+                  />
+                </>
+              ) : (
+                <div className="py-12 text-center text-neutral-600 dark:text-neutral-400">
+                  No data available
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PRA Leaderboard Tab */}
+          {activeTab === 'leaderboard' && (
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+              <div className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-4">
+                <h2 className="text-2xl font-bold">Live PRA Leaderboard</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  {leaderboardData?.metadata.gamesLive ? 
+                    `${leaderboardData.metadata.gamesLive} live game${leaderboardData.metadata.gamesLive > 1 ? 's' : ''} • Updates every 20 seconds` :
+                    'Latest stats from today'}
+                </p>
+              </div>
+              {leaderboardLoading ? (
+                <div className="py-12 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+                  <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading leaderboard...</p>
+                </div>
+              ) : (leaderboardData?.leaderboard.length || 0) > 0 ? (
+                <LiveLeaderboard
+                  players={leaderboardData?.leaderboard || []}
+                  isLoading={leaderboardLoading}
+                  selectedGameId={null}
+                />
+              ) : (
+                <div className="p-12 text-center">
+                  <h3 className="text-lg font-semibold">No stats available yet</h3>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    Player stats will appear once games start
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PRA Props/Odds Tab */}
+          {activeTab === 'props' && (
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold">PRA Betting Odds</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  Points + Rebounds + Assists • DraftKings preferred, best available shown
+                </p>
+              </div>
+              {propsLoading && !propsData ? (
+                <div className="py-12 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+                  <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading props...</p>
+                </div>
+              ) : propsData ? (
+                <PRAProps 
+                  props={propsData.props}
+                  market={propsData.metadata.market}
+                  onRefresh={() => refetchProps()}
+                  isRefreshing={propsRefetching}
+                  lastUpdated={propsData.lastUpdated}
+                />
+              ) : (
+                <div className="py-12 text-center text-neutral-600 dark:text-neutral-400">
+                  No props available
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Historical Tab */}
+          {activeTab === 'historical' && (
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+              <HistoricalBrowser />
+            </div>
+          )}
+
+          {/* Advanced Stats Tab */}
+          {activeTab === 'advanced' && (
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
+              <AdvancedStatsPanel />
+            </div>
+          )}
+        </div>
+
+        {/* Info Section */}
+        <div className="mt-8 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/50 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Award className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-semibold">About PRA (Points + Rebounds + Assists)</h3>
+          </div>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            PRA is a combined stat that measures a player&apos;s total offensive production. 
+            It&apos;s calculated by adding points, rebounds, and assists. This King of the Court 
+            leaderboard tracks who&apos;s dominating the NBA each night with real-time updates.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div className="flex items-start gap-2">
+              <Flame className="h-5 w-5 text-orange-500 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold">Elite Performance</div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">50+ PRA in a game</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold">Legendary</div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">60+ PRA in a game</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <ChevronUp className="h-5 w-5 text-green-500 mt-0.5" />
+              <div>
+                <div className="text-sm font-semibold">On Court</div>
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">Currently playing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Tab Button Component
+function TabButton({
+  isActive,
+  onClick,
+  icon,
+  label,
+  fullLabel,
+  badge,
+}: {
+  isActive: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  fullLabel?: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+        isActive
+          ? "bg-primary text-primary-foreground"
+          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+      )}
+    >
+      {icon}
+      <span className="hidden sm:inline">{fullLabel || label}</span>
+      <span className="sm:hidden">{label}</span>
+      {badge}
+    </button>
+  );
+}

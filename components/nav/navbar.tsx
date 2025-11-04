@@ -59,7 +59,11 @@ export const navItems = [
       "/contact",
     ],
   },
-
+  {
+    name: "NBA Stats",
+    href: "/stats/nba",
+    segments: ["/stats/nba"],
+  },
   {
     name: "Pricing",
     href: "/pricing",
@@ -281,6 +285,7 @@ function MobileNav({ domain }: { domain: string }) {
   const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
+    { title: "NBA Stats", href: "/stats/nba" },
     { title: "Sportsbooks", href: "/sportsbooks" },
     { title: "Markets", href: "/markets" },
     { title: "About", href: "/about" },

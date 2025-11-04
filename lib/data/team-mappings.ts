@@ -167,6 +167,40 @@ export const MLB_TEAM_MAP: Record<string, string> = {
     LV: "VGK",  // Vegas Golden Knights (alternative)
   }
   
+  // NBA Team Mappings
+  export const NBA_TEAM_MAP: Record<string, string> = {
+    ATL: "ATL", // Atlanta Hawks
+    BKN: "BKN", // Brooklyn Nets
+    BOS: "BOS", // Boston Celtics
+    CHA: "CHA", // Charlotte Hornets
+    CHI: "CHI", // Chicago Bulls
+    CLE: "CLE", // Cleveland Cavaliers
+    DAL: "DAL", // Dallas Mavericks
+    DEN: "DEN", // Denver Nuggets
+    DET: "DET", // Detroit Pistons
+    GSW: "GSW", // Golden State Warriors
+    HOU: "HOU", // Houston Rockets
+    IND: "IND", // Indiana Pacers
+    LAC: "LAC", // Los Angeles Clippers
+    LAL: "LAL", // Los Angeles Lakers
+    MEM: "MEM", // Memphis Grizzlies
+    MIA: "MIA", // Miami Heat
+    MIL: "MIL", // Milwaukee Bucks
+    MIN: "MIN", // Minnesota Timberwolves
+    NOP: "NOP", // New Orleans Pelicans
+    NYK: "NYK", // New York Knicks
+    OKC: "OKC", // Oklahoma City Thunder
+    ORL: "ORL", // Orlando Magic
+    PHI: "PHI", // Philadelphia 76ers
+    PHX: "PHX", // Phoenix Suns
+    POR: "POR", // Portland Trail Blazers
+    SAC: "SAC", // Sacramento Kings
+    SAS: "SAS", // San Antonio Spurs
+    TOR: "TOR", // Toronto Raptors
+    UTA: "UTA", // Utah Jazz
+    WAS: "WAS", // Washington Wizards
+  }
+
   // WNBA Team Mappings
   export const WNBA_TEAM_MAP: Record<string, string> = {
     ATL: "ATL", // Atlanta Dream
@@ -195,6 +229,9 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       case "icehockey_nhl":
       case "nhl":
         return NHL_TEAM_MAP[upperAbbr] || upperAbbr
+      case "basketball_nba":
+      case "nba":
+        return NBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "basketball_wnba":
         return WNBA_TEAM_MAP[upperAbbr] || upperAbbr
       case "baseball_mlb":
