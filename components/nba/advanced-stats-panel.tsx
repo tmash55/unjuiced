@@ -29,9 +29,9 @@ export function AdvancedStatsPanel() {
         </p>
       </div>
 
-      {/* Custom tabs styled like FiltersBar with purple accent */}
-      <FiltersBar className="bg-purple-50/50 dark:bg-purple-950/20 border-purple-200/80 dark:border-purple-800/80">
-        <div className="flex gap-2 w-full">
+      {/* Custom tabs styled like FiltersBar with tertiary (purple) accent */}
+      <FiltersBar className="bg-[color-mix(in_oklab,var(--tertiary)_5%,var(--card))] dark:bg-[color-mix(in_oklab,var(--tertiary)_8%,transparent)] border-[color-mix(in_oklab,var(--tertiary)_25%,var(--border))] dark:border-[color-mix(in_oklab,var(--tertiary)_20%,var(--border))]">
+        <div className="flex flex-wrap gap-2 w-full">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -39,15 +39,16 @@ export function AdvancedStatsPanel() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  'hover:bg-purple-100/80 dark:hover:bg-purple-900/40',
+                  'flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all shrink-0',
+                  'hover:bg-[color-mix(in_oklab,var(--tertiary)_15%,var(--card))] dark:hover:bg-[color-mix(in_oklab,var(--tertiary)_20%,transparent)]',
                   activeTab === tab.id
-                    ? 'bg-purple-600 text-white shadow-sm hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700'
+                    ? 'bg-[var(--tertiary-strong)] text-white shadow-sm hover:bg-[var(--tertiary-strong)] dark:bg-[var(--tertiary)] dark:hover:bg-[var(--tertiary-strong)]'
                     : 'text-neutral-700 dark:text-neutral-300'
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {tab.label}
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label === 'Elite Club' ? 'Elite' : tab.label}</span>
               </button>
             );
           })}
@@ -68,7 +69,7 @@ export function AdvancedStatsPanel() {
                     className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30 font-bold text-purple-600 dark:text-purple-400">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--tertiary)_15%,var(--card))] dark:bg-[color-mix(in_oklab,var(--tertiary)_20%,transparent)] font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">
                         {index + 1}
                       </div>
                       <div>
@@ -78,7 +79,7 @@ export function AdvancedStatsPanel() {
                             <Trophy className="h-4 w-4 text-yellow-500" />
                           )}
                           {player.tier === 'Elite' && (
-                            <Zap className="h-4 w-4 text-purple-500" />
+                            <Zap className="h-4 w-4 text-[var(--tertiary-strong)]" />
                           )}
                         </div>
                         <div className="text-sm text-neutral-600 dark:text-neutral-400">
@@ -87,7 +88,7 @@ export function AdvancedStatsPanel() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{player.pra}</div>
+                      <div className="text-2xl font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">{player.pra}</div>
                       <div className="text-xs text-neutral-600 dark:text-neutral-400">PRA</div>
                     </div>
                   </div>
@@ -111,7 +112,7 @@ export function AdvancedStatsPanel() {
                     className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30 font-bold text-purple-600 dark:text-purple-400">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--tertiary)_15%,var(--card))] dark:bg-[color-mix(in_oklab,var(--tertiary)_20%,transparent)] font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">
                         {index + 1}
                       </div>
                       <div>
@@ -122,7 +123,7 @@ export function AdvancedStatsPanel() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                      <div className="text-2xl font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">
                         {player.pra_per_minute?.toFixed(2)}
                       </div>
                       <div className="text-xs text-neutral-600 dark:text-neutral-400">PRA/Min</div>
@@ -148,7 +149,7 @@ export function AdvancedStatsPanel() {
                     className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30 font-bold text-purple-600 dark:text-purple-400">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--tertiary)_15%,var(--card))] dark:bg-[color-mix(in_oklab,var(--tertiary)_20%,transparent)] font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">
                         {index + 1}
                       </div>
                       <div>
@@ -159,7 +160,7 @@ export function AdvancedStatsPanel() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{player.pra}</div>
+                      <div className="text-2xl font-bold text-[var(--tertiary-strong)] dark:text-[var(--tertiary)]">{player.pra}</div>
                       <div className="text-xs text-neutral-600 dark:text-neutral-400">PRA</div>
                     </div>
                   </div>
@@ -177,7 +178,7 @@ function LoadingState() {
   return (
     <div className="flex items-center justify-center py-12">
       <div className="flex items-center gap-2">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--tertiary-strong)] border-t-transparent" />
         <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading stats...</p>
       </div>
     </div>

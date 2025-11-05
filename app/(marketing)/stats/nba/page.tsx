@@ -25,7 +25,7 @@ export default function NBAStatsPage() {
   // Fetch data for each tab (polls automatically with specified intervals)
   const { data: gamesData, isLoading: gamesLoading } = useTodaysGames(true); // Always fetch games data to check for live games
   const { data: leaderboardData, isLoading: leaderboardLoading, refetch: refetchLeaderboard, isFetching: leaderboardRefetching } = useLiveLeaderboard('leaderboard', 50, 0, activeTab === 'leaderboard');
-  const { data: propsData, isLoading: propsLoading, refetch: refetchProps, isFetching: propsRefetching } = useNBAProps('player_points_rebounds_assists', 'pregame', activeTab === 'props');
+  const { data: propsData, isLoading: propsLoading } = useNBAProps('player_points_rebounds_assists', 'pregame', activeTab === 'props');
 
   // Check if there are live games
   const hasLiveGames = (gamesData?.summary.live || 0) > 0 || (leaderboardData?.metadata.gamesLive || 0) > 0;
@@ -253,8 +253,6 @@ export default function NBAStatsPage() {
                 <PRAProps 
                   props={propsData.props}
                   market={propsData.metadata.market}
-                  onRefresh={() => refetchProps()}
-                  isRefreshing={propsRefetching}
                   lastUpdated={propsData.lastUpdated}
                 />
               ) : (
