@@ -12,8 +12,10 @@ import { useScroll } from "@/hooks/use-scroll";
 import { MaxWidthWrapper } from "@/components/max-width-wrapper";
 import { NavWordmark } from "@/components/nav-wordmark";
 import { ProductContent } from "@/components/nav/content/tools-content";
+import { StatsContent } from "@/components/nav/content/stats-content";
 import { ResourcesContent } from "@/components/nav/content/resources-content";
 import { TOOLS } from "@/lib/tools";
+import { STATS } from "@/lib/stats";
 import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -45,6 +47,16 @@ export const navItems = [
     ],
   },
   {
+    name: "Stats",
+    content: StatsContent,
+    childItems: STATS,
+    segments: [
+      "/stats/nba",
+      "/stats/nfl",
+      "/stats/props",
+    ],
+  },
+  {
     name: "Resources",
     content: ResourcesContent,
     childItems: RESOURCES,
@@ -58,11 +70,6 @@ export const navItems = [
       "/changelog",
       "/contact",
     ],
-  },
-  {
-    name: "NBA Stats",
-    href: "/stats/nba",
-    segments: ["/stats/nba"],
   },
   {
     name: "Pricing",
