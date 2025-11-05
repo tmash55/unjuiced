@@ -1,6 +1,7 @@
 // app/api/nba/games/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { formatNBATime } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
       display_time: game.game_status === 3 
         ? 'Final'
         : game.game_status === 2
-          ? `Q${game.period} ${game.game_clock || ''}`
+          ? `Q${game.period} ${game.game_clock ? formatNBATime(game.game_clock) : '0:00'}`
           : game.game_status_text, // e.g., "7:00 PM ET"
       period: game.period,
       game_clock: game.game_clock,

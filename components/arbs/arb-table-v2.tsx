@@ -708,11 +708,11 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       {...tableProps}
       sortableColumns={["roi", "time"]}
       resourceName={(plural) => plural ? "opportunities" : "opportunity"}
-      className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient"
+      className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
       containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
-      scrollWrapperClassName="max-h-[calc(100vh-280px)] overflow-y-auto"
+      scrollWrapperClassName="max-h-[calc(100vh-180px)] overflow-y-auto"
       thClassName={(columnId) => cn(
-        "bg-neutral-50/50 dark:bg-neutral-900/50 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14",
+        "bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14",
         columnId === "roi" && "text-center pr-6",
         columnId === "league" && "pl-6",
         columnId === "game" && "pr-6",

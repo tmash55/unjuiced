@@ -59,6 +59,8 @@ export interface PlayerStat {
   game_id: string;
   game_date?: string;
   matchup: string;
+  away_team_score?: number;
+  home_team_score?: number;
   game_status: number;
   game_time: string;
   // Advanced stats (optional)

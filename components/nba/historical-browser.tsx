@@ -223,13 +223,11 @@ export function HistoricalBrowser() {
           <h3 className="text-sm font-semibold text-muted-foreground">
             {selectedGameId ? 'Game Stats' : 'Daily Leaders'}
           </h3>
-          <div className="rounded-lg border border-border bg-card">
-            <LiveLeaderboard
-              players={data.leaderboard}
-              isLoading={isLoading}
-              selectedGameId={selectedGameId}
-            />
-          </div>
+          <LiveLeaderboard
+            players={data.leaderboard}
+            isLoading={isLoading}
+            selectedGameId={selectedGameId}
+          />
         </div>
       )}
     </div>

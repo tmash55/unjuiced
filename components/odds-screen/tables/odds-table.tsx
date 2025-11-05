@@ -1022,7 +1022,7 @@ export function OddsTable({
   className = '',
   columnHighlighting = true,
   searchQuery = '',
-  height = '82vh'
+  height = '90vh'
 }: OddsTableProps) {
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')

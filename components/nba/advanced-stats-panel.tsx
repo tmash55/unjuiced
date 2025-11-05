@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAdvancedStats } from '@/hooks/use-nba-stats';
 import { AdvancedStatType } from '@/types/nba';
 import { FiltersBar } from '@/components/common/filters-bar';
-import { cn } from '@/lib/utils';
+import { cn, formatNBATime } from '@/lib/utils';
 import { Trophy, Zap, TrendingUp } from 'lucide-react';
 
 export function AdvancedStatsPanel() {
@@ -117,7 +117,7 @@ export function AdvancedStatsPanel() {
                       <div>
                         <div className="font-semibold">{player.player_name}</div>
                         <div className="text-sm text-neutral-600 dark:text-neutral-400">
-                          {player.team_tricode} • {player.stat_line} • {player.minutes} min
+                          {player.team_tricode} • {player.stat_line} • {formatNBATime(player.minutes)}
                         </div>
                       </div>
                     </div>
