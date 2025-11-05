@@ -18,7 +18,7 @@ export default function NBAStatsPage() {
 
   // Fetch data for each tab (polls automatically with specified intervals)
   const { data: gamesData, isLoading: gamesLoading } = useTodaysGames(activeTab === 'games');
-  const { data: leaderboardData, isLoading: leaderboardLoading } = useLiveLeaderboard('leaderboard', 50, 0, activeTab === 'leaderboard');
+  const { data: leaderboardData, isLoading: leaderboardLoading, refetch: refetchLeaderboard, isFetching: leaderboardRefetching } = useLiveLeaderboard('leaderboard', 50, 0, activeTab === 'leaderboard');
   const { data: propsData, isLoading: propsLoading, refetch: refetchProps, isFetching: propsRefetching } = useNBAProps('player_points_rebounds_assists', 'pregame', activeTab === 'props');
 
   // Check if there are live games
@@ -43,10 +43,7 @@ export default function NBAStatsPage() {
             </div>
             {hasLiveGames && (
               <div className="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-red-600 dark:text-red-400">
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
-                </span>
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
                 <span className="text-sm font-semibold">LIVE GAMES</span>
               </div>
             )}
@@ -74,10 +71,7 @@ export default function NBAStatsPage() {
                 label="Leaders"
                 fullLabel="PRA Leaderboard"
                 badge={hasLiveGames ? (
-                  <span className="ml-1 flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-                  </span>
+                  <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-red-500"></span>
                 ) : undefined}
               />
               <TabButton
@@ -142,12 +136,37 @@ export default function NBAStatsPage() {
           {activeTab === 'leaderboard' && (
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
               <div className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-4">
-                <h2 className="text-2xl font-bold">Live PRA Leaderboard</h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                  {leaderboardData?.metadata.gamesLive ? 
-                    `${leaderboardData.metadata.gamesLive} live game${leaderboardData.metadata.gamesLive > 1 ? 's' : ''} • Updates every 20 seconds` :
-                    'Latest stats from today'}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">Live PRA Leaderboard</h2>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                      {leaderboardData?.metadata.gamesLive ? 
+                        `${leaderboardData.metadata.gamesLive} live game${leaderboardData.metadata.gamesLive > 1 ? 's' : ''} • Updates every 20 seconds` :
+                        'Latest stats from today'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => refetchLeaderboard()}
+                    disabled={leaderboardRefetching}
+                    className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+                  >
+                    <svg
+                      className={cn("h-4 w-4", leaderboardRefetching && "animate-spin")}
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Refresh
+                  </button>
+                </div>
               </div>
               {leaderboardLoading ? (
                 <div className="py-12 text-center">
