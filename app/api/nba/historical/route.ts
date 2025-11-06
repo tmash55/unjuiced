@@ -148,6 +148,8 @@ export async function GET(req: NextRequest) {
         game_id: stat.game_id,
         matchup,
         final_score,
+        away_team_score: game.away_team_score,
+        home_team_score: game.home_team_score,
         game_status: game.game_status,
         game_time: 'Final',
         field_goals_made: stat.field_goals_made,

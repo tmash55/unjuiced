@@ -87,10 +87,10 @@ export function HistoricalBrowser() {
               setSelectedDate(e.target.value);
               setSelectedGameId(null);
             }}
-            className="rounded-md border border-border bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {availableDates.map((date) => (
-              <option key={date} value={date}>
+              <option key={date} value={date} className="bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
                 {format(new Date(date + 'T12:00:00Z'), 'MMM d, yyyy')}
               </option>
             ))}
