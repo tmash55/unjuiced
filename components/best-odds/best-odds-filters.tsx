@@ -180,9 +180,33 @@ export function BestOddsFilters({
   };
 
   const toggleSport = (id: string) => {
-    setLocalSports(prev => 
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-    );
+    setLocalSports(prev => {
+      const newSports = prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id];
+      
+      // When deselecting a sport, also deselect its leagues
+      if (prev.includes(id)) {
+        // Sport is being deselected - remove its leagues
+        const leaguesToRemove = allLeagues
+          .filter(league => league.sportId === id)
+          .map(league => league.id);
+        
+        setLocalLeagues(currentLeagues => 
+          currentLeagues.filter(leagueId => !leaguesToRemove.includes(leagueId))
+        );
+      } else {
+        // Sport is being selected - add its leagues if they're in availableLeagues
+        const leaguesToAdd = allLeagues
+          .filter(league => league.sportId === id && availableLeagues.includes(league.id))
+          .map(league => league.id);
+        
+        setLocalLeagues(currentLeagues => {
+          const uniqueLeagues = new Set([...currentLeagues, ...leaguesToAdd]);
+          return Array.from(uniqueLeagues);
+        });
+      }
+      
+      return newSports;
+    });
   };
 
   const toggleLeague = (id: string) => {
@@ -208,11 +232,22 @@ export function BestOddsFilters({
     const allLeaguesInUI = localLeagues.length === availableLeagues.length;
     const allMarketsInUI = localMarkets.length === availableMarkets.length;
     
+    // Filter leagues based on selected sports
+    // If specific sports are selected, only include leagues from those sports
+    let finalLeagues = localLeagues;
+    if (localSports.length > 0 && localSports.length < allSports.length) {
+      // User has selected specific sports - filter leagues to only those sports
+      finalLeagues = localLeagues.filter(leagueId => {
+        const league = allLeagues.find(l => l.id === leagueId);
+        return league && localSports.includes(league.sportId);
+      });
+    }
+    
     onPrefsChange({
       ...prefs,
       selectedBooks: localBooks, // Empty = all selected (deselection logic)
       selectedSports: [], // Not used by backend, only for UI state
-      selectedLeagues: allLeaguesInUI ? [] : localLeagues, // Empty = all selected
+      selectedLeagues: allLeaguesInUI ? [] : finalLeagues, // Empty = all selected
       selectedMarkets: allMarketsInUI ? [] : localMarkets, // Empty = all selected
       minImprovement: localMinImprovement,
       maxOdds: localMaxOdds,
