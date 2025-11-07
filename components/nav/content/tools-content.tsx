@@ -9,6 +9,7 @@ import { Link2, BarChart3, Handshake, TrendingUp } from "lucide-react";
 import { LinksGraphic } from "./graphics/links-graphic";
 import { AnalyticsGraphic } from "./graphics/analytics-graphics";
 import { PartnersGraphic } from "./graphics/partners-graphic";
+import { EdgeFinderGraphic } from "./graphics/edge-finder-graphic";
 
 
 const tools = [
@@ -53,7 +54,7 @@ const tools = [
     href: "/edge-finder",
     color: "#f59e0b",
     graphicsContainerClassName: "px-2",
-    graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
+    graphic: <EdgeFinderGraphic className="absolute left-0 top-0 h-auto w-full" />,
     comingSoon: false,
   },
 ];
