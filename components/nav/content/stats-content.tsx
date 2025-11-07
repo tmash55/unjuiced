@@ -48,9 +48,9 @@ const stats = [
 
 export function StatsContent({ domain }: { domain: string }) {
   return (
-    <div className="w-[680px] p-4">
+    <div className="w-[1020px] p-4">
       <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>Live Stats & Analysis</p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-4">
         {stats.map(({ icon, title, description, href, color, comingSoon }) =>
           comingSoon ? (
             <div

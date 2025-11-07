@@ -55,8 +55,9 @@ export function GatedArbTable({
   // Handle trial activation for logged-in users
   const handleStartTrial = async () => {
     if (!isLoggedIn) {
-      // Not logged in - redirect to trial activate (which will redirect to register)
-      window.location.href = "/trial/activate";
+      // Not logged in - redirect to trial activate with current path
+      const currentPath = window.location.pathname;
+      window.location.href = `/trial/activate?redirectTo=${encodeURIComponent(currentPath)}`;
       return;
     }
 
@@ -229,7 +230,7 @@ export function GatedArbTable({
                     <ArrowRight className="h-4 w-4" />
                   </button>
                   <ButtonLink
-                    href="/login"
+                    href={`/login?redirectTo=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/arbitrage')}`}
                     variant="outline"
                     className="w-full justify-center text-sm"
                   >

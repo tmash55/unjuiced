@@ -96,6 +96,32 @@ interface PreferencesContextType {
   getLadderFilters: () => {
     selectedBooks: string[];
   };
+  
+  updateBestOddsFilters: (filters: {
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedLeagues?: string[];
+    selectedMarkets?: string[];
+    minImprovement?: number;
+    maxOdds?: number;
+    minOdds?: number;
+    scope?: string;
+    sortBy?: string;
+    searchQuery?: string;
+  }) => Promise<void>;
+  
+  getBestOddsFilters: () => {
+    selectedBooks: string[];
+    selectedSports: string[];
+    selectedLeagues: string[];
+    selectedMarkets: string[];
+    minImprovement: number;
+    maxOdds?: number;
+    minOdds?: number;
+    scope: 'all' | 'pregame' | 'live';
+    sortBy: 'improvement' | 'odds';
+    searchQuery: string;
+  };
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
@@ -265,9 +291,12 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         const nextVal = updates[key] as any;
         const prevVal = (preferences as any)[key];
         const isArray = Array.isArray(nextVal) || Array.isArray(prevVal);
+        
+        // Special handling for null/undefined comparison
         const equal = isArray
           ? Array.isArray(nextVal) && Array.isArray(prevVal) && nextVal.length === prevVal.length && nextVal.every((v: any, i: number) => v === prevVal[i])
-          : nextVal === prevVal;
+          : (nextVal === prevVal) || (nextVal == null && prevVal == null);
+        
         if (!equal) {
           (acc as any)[key] = nextVal;
         }
@@ -631,6 +660,106 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
   }, [user, updatePreferences]);
   
+  const getBestOddsFilters = useCallback(() => {
+    // Get all available options for defaults
+    const allSports = ['basketball', 'football', 'hockey', 'baseball'];
+    const allLeagues = ['nba', 'nfl', 'ncaaf', 'ncaab', 'nhl', 'mlb', 'wnba'];
+    const allMarkets = [
+      'player_points', 'player_rebounds', 'player_assists', 'pra',
+      'passing_yards', 'rushing_yards', 'receiving_yards',
+      'player_shots_on_goal', 'player_blocked_shots', 'player_points_hockey',
+      'batter_hits', 'batter_total_bases', 'batter_rbis', 'batter_runs_scored',
+      'pitcher_strikeouts', 'pitcher_hits_allowed', 'pitcher_walks',
+    ];
+    
+    // If preferences haven't loaded yet (logged-out user), default to all
+    if (!preferences) {
+      return {
+        selectedBooks: activeSportsbooks,
+        selectedSports: allSports,
+        selectedLeagues: allLeagues,
+        selectedMarkets: allMarkets,
+        minImprovement: 0,
+        maxOdds: undefined,
+        minOdds: undefined,
+        scope: 'pregame' as const,
+        sortBy: 'improvement' as const,
+        searchQuery: '',
+      };
+    }
+    
+    // If undefined (NULL in DB), default to ALL. If empty array [], user deselected all.
+    return {
+      selectedBooks: preferences.best_odds_selected_books ?? activeSportsbooks,
+      selectedSports: preferences.best_odds_selected_sports ?? allSports,
+      selectedLeagues: preferences.best_odds_selected_leagues ?? allLeagues,
+      selectedMarkets: preferences.best_odds_selected_markets ?? allMarkets,
+      minImprovement: preferences.best_odds_min_improvement ?? 0,
+      maxOdds: preferences.best_odds_max_odds ?? undefined,
+      minOdds: preferences.best_odds_min_odds ?? undefined,
+      scope: (preferences.best_odds_scope as 'all' | 'pregame' | 'live') ?? 'pregame',
+      sortBy: (preferences.best_odds_sort_by as 'improvement' | 'odds') ?? 'improvement',
+      searchQuery: preferences.best_odds_search_query ?? '',
+    };
+  }, [preferences, activeSportsbooks]);
+  
+  const updateBestOddsFilters = useCallback(async (filters: {
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedLeagues?: string[];
+    selectedMarkets?: string[];
+    minImprovement?: number;
+    maxOdds?: number;
+    minOdds?: number;
+    scope?: string;
+    sortBy?: string;
+    searchQuery?: string;
+  }) => {
+    if (!user) {
+      if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update best odds filters - no user');
+      return;
+    }
+    
+    const updates: UserPreferencesUpdate = {};
+    
+    if (filters.selectedBooks !== undefined) {
+      updates.best_odds_selected_books = filters.selectedBooks;
+    }
+    if (filters.selectedSports !== undefined) {
+      updates.best_odds_selected_sports = filters.selectedSports;
+    }
+    if (filters.selectedLeagues !== undefined) {
+      updates.best_odds_selected_leagues = filters.selectedLeagues;
+    }
+    if (filters.selectedMarkets !== undefined) {
+      updates.best_odds_selected_markets = filters.selectedMarkets;
+    }
+    if (filters.minImprovement !== undefined) {
+      updates.best_odds_min_improvement = filters.minImprovement;
+    }
+    if ('maxOdds' in filters) {
+      // Explicitly convert undefined to null for database
+      updates.best_odds_max_odds = filters.maxOdds === undefined ? (null as any) : filters.maxOdds;
+    }
+    if ('minOdds' in filters) {
+      // Explicitly convert undefined to null for database
+      updates.best_odds_min_odds = filters.minOdds === undefined ? (null as any) : filters.minOdds;
+    }
+    if (filters.scope !== undefined) {
+      updates.best_odds_scope = filters.scope;
+    }
+    if (filters.sortBy !== undefined) {
+      updates.best_odds_sort_by = filters.sortBy;
+    }
+    if (filters.searchQuery !== undefined) {
+      updates.best_odds_search_query = filters.searchQuery;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      await updatePreferences(updates, true);
+    }
+  }, [user, updatePreferences]);
+  
   const value: PreferencesContextType = {
     preferences,
     isLoading,
@@ -648,6 +777,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     getOddsPreferences,
     updateLadderFilters,
     getLadderFilters,
+    updateBestOddsFilters,
+    getBestOddsFilters,
   };
 
   return (
@@ -714,6 +845,19 @@ export function useLadderPreferences() {
   return {
     filters,
     updateFilters: updateLadderFilters,
+    isLoading,
+  };
+}
+
+export function useBestOddsPreferences() {
+  const { getBestOddsFilters, updateBestOddsFilters, isLoading } = usePreferences();
+  
+  // Memoize the filters to prevent infinite re-renders
+  const filters = useMemo(() => getBestOddsFilters(), [getBestOddsFilters]);
+  
+  return {
+    filters,
+    updateFilters: updateBestOddsFilters,
     isLoading,
   };
 }

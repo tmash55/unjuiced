@@ -7,6 +7,9 @@ import type { BestOddsDeal, BestOddsResponse, EnrichmentResponse } from './best-
  * No need to call enrichBestOdds() anymore.
  */
 export async function fetchBestOdds(params: {
+  leagues?: string[];
+  markets?: string[];
+  books?: string[];
   scope?: 'all' | 'pregame' | 'live';
   sortBy?: 'improvement' | 'odds';
   limit?: number;
@@ -18,6 +21,15 @@ export async function fetchBestOdds(params: {
   const searchParams = new URLSearchParams();
   searchParams.set('sport', 'all'); // Currently only 'all' is supported
   
+  if (params.leagues && params.leagues.length > 0) {
+    searchParams.set('leagues', params.leagues.join(','));
+  }
+  if (params.markets && params.markets.length > 0) {
+    searchParams.set('markets', params.markets.join(','));
+  }
+  if (params.books && params.books.length > 0) {
+    searchParams.set('books', params.books.join(','));
+  }
   if (params.scope) searchParams.set('scope', params.scope);
   if (params.sortBy) searchParams.set('sortBy', params.sortBy);
   if (params.limit) searchParams.set('limit', String(params.limit));

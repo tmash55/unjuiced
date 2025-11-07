@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
 import { Container } from "./container";
-import { Droplet } from "lucide-react";
+
 import { SubHeading } from "./subheading";
 
 export const Footer = () => {
@@ -90,9 +90,7 @@ export const Footer = () => {
       <div className="grid grid-cols-1 gap-8 px-4 py-20 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
         <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10">
-              <Droplet className="h-5 w-5 text-brand" />
-            </div>
+            
             <span className="text-xl font-bold text-neutral-900 dark:text-white">Unjuiced</span>
           </div>
           <SubHeading as="p" className="mt-4 max-w-sm text-left">

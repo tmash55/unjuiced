@@ -33,6 +33,7 @@ export const tiers = [
     features: [
       "Everything in Free — plus:",
       "Unlimited arbitrage detection",
+      "Edge Finder — find +EV opportunities",
       "Real-time odds updates (sub-2s)",
       "Alternate lines & player props",
       "Deep linking to sportsbooks",

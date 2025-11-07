@@ -978,15 +978,112 @@ export const MARKET_NAME_MAP: Record<string, string> = {
 
   // Helper function to format market labels with special cases
   export function formatMarketLabel(market: string): string {
-    // Special case mappings
+    // First, check if this is an API key and map it to a display name
+    const apiKeyMappings: Record<string, string> = {
+      // Basketball
+      'player_points': 'Points',
+      'player_rebounds': 'Rebounds',
+      'player_assists': 'Assists',
+      'player_points_rebounds_assists': 'PRA',
+      'player_points_rebounds': 'PR',
+      'player_points_assists': 'PA',
+      'player_rebounds_assists': 'RA',
+      'player_threes_made': 'Threes Made',
+      'player_threes': 'Threes Made',
+      'player_blocks': 'Blocks',
+      'player_steals': 'Steals',
+      'player_blocks_steals': 'BS',
+      'player_turnovers': 'Turnovers',
+      'player_double_double': 'Double Double',
+      'player_triple_double': 'Triple Double',
+      
+      // Football - Passing
+      'passing_yards': 'Passing Yards',
+      'passing_tds': 'Passing Touchdowns',
+      'pass_completions': 'Pass Completions',
+      'passing_completions': 'Pass Completions',
+      'pass_attempts': 'Pass Attempts',
+      'passing_attempts': 'Pass Attempts',
+      'pass_interceptions': 'Interceptions Thrown',
+      'passing_interceptions': 'Interceptions Thrown',
+      
+      // Football - Rushing
+      'rushing_yards': 'Rushing Yards',
+      'rush_attempts': 'Rush Attempts',
+      'rushing_attempts': 'Rush Attempts',
+      'rushing_tds': 'Rushing Touchdowns',
+      
+      // Football - Receiving
+      'receiving_yards': 'Receiving Yards',
+      'receptions': 'Receptions',
+      'receiving_tds': 'Receiving Touchdowns',
+      
+      // Football - Combo
+      'pass_rush_yards': 'Pass + Rush Yards',
+      'rush_rec_yards': 'Rush + Reception Yards',
+      
+      // Football - Scoring
+      'player_anytime_td': 'Anytime TD',
+      'player_touchdowns': 'Touchdowns',
+      'first_td': 'First TD Scorer',
+      'last_td': 'Last TD Scorer',
+      
+      // Football - Defense
+      'player_sacks': 'Sacks',
+      'player_tackles_and_assists': 'Tackles + Assists',
+      'player_defensive_interceptions': 'Defensive Interceptions',
+      
+      // Football - Kicking
+      'player_field_goals_made': 'Field Goals Made',
+      'player_extra_points_made': 'Extra Points Made',
+      'player_kicking_points': 'Kicking Points',
+      
+      // Hockey (player_points and player_assists already defined in Basketball)
+      'player_goals': 'Goals',
+      'player_shots_on_goal': 'Shots on Goal',
+      'player_blocked_shots': 'Blocked Shots',
+      'player_power_play_points': 'Power Play Points',
+      'player_total_saves': 'Total Saves',
+      'player_hits': 'Hits',
+      'player_goal_scorer_first': 'First Goal',
+      'player_goal_scorer_last': 'Last Goal',
+      'player_goal_scorer_anytime': 'Anytime Goal',
+      
+      // Baseball - Batter
+      'batter_home_runs': 'Home Runs',
+      'batter_hits': 'Hits',
+      'batter_total_bases': 'Total Bases',
+      'batter_rbis': 'RBIs',
+      'batter_runs_scored': 'Runs Scored',
+      'batter_walks': 'Walks',
+      'batter_singles': 'Singles',
+      'batter_doubles': 'Doubles',
+      'batter_triples': 'Triples',
+      'batter_stolen_bases': 'Stolen Bases',
+      'batter_hits_runs_rbis': 'Hits + Runs + RBIs',
+      
+      // Baseball - Pitcher
+      'pitcher_strikeouts': 'Strikeouts',
+      'pitcher_hits_allowed': 'Hits Allowed',
+      'pitcher_walks': 'Walks Allowed',
+      'pitcher_earned_runs': 'Earned Runs',
+      'pitcher_outs': 'Outs Recorded',
+    };
+    
+    // Check if this is a known API key
+    if (apiKeyMappings[market]) {
+      return apiKeyMappings[market];
+    }
+    
+    // Legacy special case mappings (for display names)
     const specialCases: Record<string, string> = {
       'rbis': 'RBIs',
-      'hits + runs + rbis': 'Hits + Runs + RBIs',
-      'pra': 'Points + Rebounds + Assists',
-      'pr': 'Points + Rebounds',
-      'pa': 'Points + Assists',
-      'ra': 'Rebounds + Assists',
-      'bs': 'Blocks + Steals',
+      'hits + runs + rbis': 'HRR',
+      'pra': 'PRA',
+      'pr': 'PR',
+      'pa': 'PA',
+      'ra': 'RA',
+      'bs': 'BS',
       'double_double': 'Double Double',
       'triple_double': 'Triple Double',
       // Football phrasing preferences
@@ -1010,11 +1107,19 @@ export const MARKET_NAME_MAP: Record<string, string> = {
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' + ');
     }
-  
-    return market
+    
+    // Convert underscores to spaces and capitalize
+    const formatted = market
+      .replace(/_/g, ' ')
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
+    
+    // Clean up common prefixes
+    return formatted
+      .replace(/^Player /, '')
+      .replace(/^Batter /, '')
+      .replace(/^Pitcher /, '');
   }
   
   // Helper function to get default market for a sport

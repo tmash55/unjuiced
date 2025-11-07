@@ -9,10 +9,13 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
  * Returns best odds deals across sportsbooks for player props.
  * 
  * Query params:
- * - sport: "all" | "nfl" | "nba" | "nhl" (default: "all")
+ * - sport: "all" | "nfl" | "nba" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba" (default: "all")
+ * - leagues: comma-separated list of leagues (e.g., "nba,nfl,ncaaf")
+ * - markets: comma-separated list of markets (e.g., "player_points,passing_yards,pra")
+ * - books: comma-separated list of sportsbooks (e.g., "draftkings,fanduel,mgm")
  * - scope: "all" | "pregame" | "live" (default: "all")
  * - sortBy: "improvement" | "odds" (default: "improvement")
- * - limit: number (default: 50, max: 200)
+ * - limit: number (default: 500, max: 2000)
  * - offset: number (default: 0)
  * - minImprovement: number (default: 0)
  * - maxOdds: number (optional) - Filter deals with odds <= this value
@@ -26,8 +29,8 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
  */
 
 const FREE_USER_IMPROVEMENT_LIMIT = 10; // Free users can only see <10% improvements
-const MAX_LIMIT = 200;
-const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 2000; // Increased from 200 to match Redis key capacity
+const DEFAULT_LIMIT = 500;
 
 export async function GET(req: NextRequest) {
   try {
@@ -48,6 +51,9 @@ export async function GET(req: NextRequest) {
     // 2. Parse query parameters
     const sp = req.nextUrl.searchParams;
     const sport = sp.get('sport') || 'all'; // Note: Currently only 'all' is supported
+    const leagues = sp.get('leagues')?.split(',').filter(Boolean) || [];
+    const markets = sp.get('markets')?.split(',').filter(Boolean) || [];
+    const books = sp.get('books')?.split(',').filter(Boolean) || [];
     const scope = (sp.get('scope') || 'all') as 'all' | 'pregame' | 'live';
     const sortBy = (sp.get('sortBy') || 'improvement') as 'improvement' | 'odds';
     const limit = Math.min(parseInt(sp.get('limit') || String(DEFAULT_LIMIT)), MAX_LIMIT);
@@ -56,7 +62,10 @@ export async function GET(req: NextRequest) {
     const maxOdds = sp.get('maxOdds') ? parseFloat(sp.get('maxOdds')!) : undefined;
     const minOdds = sp.get('minOdds') ? parseFloat(sp.get('minOdds')!) : undefined;
     
-    console.log('[/api/best-odds] Query:', { sport, scope, sortBy, limit, offset, isPro, minImprovement, maxOdds, minOdds });
+    console.log('[/api/best-odds] Query:', { 
+      sport, leagues, markets, books, scope, sortBy, limit, offset, isPro, 
+      minImprovement, maxOdds, minOdds 
+    });
     
     // 3. Determine which ZSET to query based on sortBy and scope
     // sortBy=improvement: Use improvement % sorted ZSETs
@@ -114,7 +123,9 @@ export async function GET(req: NextRequest) {
       const parts = entry.key.split(':');
       const sport = parts[0];
       
-      if (!['nfl', 'nba', 'nhl'].includes(sport)) {
+      // Support all sports
+      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'mlb', 'wnba'];
+      if (!validSports.includes(sport)) {
         console.log('[/api/best-odds] Unknown sport prefix:', sport);
         return acc;
       }
@@ -191,7 +202,7 @@ export async function GET(req: NextRequest) {
         // Normalize field names to camelCase and add metadata
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
-          sport: sport as 'nfl' | 'nba' | 'nhl',  // Use sport from batch key
+          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'mlb' | 'wnba',  // Use sport from batch key
           eid: deal.eid || '',
           ent: deal.ent || '',
           mkt: deal.mkt || '',
@@ -212,8 +223,33 @@ export async function GET(req: NextRequest) {
           position: deal.position,
           homeTeam: deal.home_team || deal.homeTeam,
           awayTeam: deal.away_team || deal.awayTeam,
-          startTime: deal.start_time || deal.startTime,
+          startTime: deal.game_start || deal.start_time || deal.startTime,
         };
+        
+        // Apply client-side filters for leagues, markets, and books
+        // (These are not in Redis keys, so we filter after fetching)
+        
+        // Filter by leagues
+        if (leagues.length > 0 && !leagues.includes(normalizedDeal.sport)) {
+          continue;
+        }
+        
+        // Filter by markets
+        if (markets.length > 0 && !markets.includes(normalizedDeal.mkt)) {
+          continue;
+        }
+        
+        // Filter by books (deal must have odds from at least one selected book)
+        if (books.length > 0) {
+          const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]/g, '');
+          const normalizedBooks = books.map(b => normalize(b));
+          const hasBook = normalizedDeal.allBooks.some(b => 
+            normalizedBooks.includes(normalize(b.book))
+          );
+          if (!hasBook) {
+            continue;
+          }
+        }
         
         deals.push(normalizedDeal);
       }

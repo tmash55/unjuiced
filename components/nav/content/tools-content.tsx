@@ -44,17 +44,17 @@ const tools = [
   },
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-violet-400">
-        <Handshake className="size-2.5 text-violet-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-amber-400">
+        <TrendingUp className="size-2.5 text-amber-900" />
       </div>
     ),
-    title: "Positive EV",
-    description: "Identify profitable edges with expected value calculations across all books (coming soon).",
-    href: "/positive-ev",
-    color: "#818cf8",
-    graphicsContainerClassName: "pl-2",
-    graphic: <PartnersGraphic />,
-    comingSoon: true,
+    title: "Edge Finder",
+    description: "Find mispriced odds across every sportsbook in seconds.",
+    href: "/edge-finder",
+    color: "#f59e0b",
+    graphicsContainerClassName: "px-2",
+    graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
+    comingSoon: false,
   },
 ];
 

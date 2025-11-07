@@ -1,20 +1,23 @@
 import { createClient } from '@/libs/supabase/server'
 import { redirect } from 'next/navigation'
+import { NextRequest } from 'next/server'
 
 /**
  * GET /trial/activate
  * Activates the free trial for authenticated users who haven't used it yet
- * Redirects to arbitrage page after activation
+ * Supports redirectTo query param to return users to the page they came from
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
+  const searchParams = request.nextUrl.searchParams
+  const redirectTo = searchParams.get('redirectTo') || '/arbitrage'
   
   // Get authenticated user
   const { data: { user } } = await supabase.auth.getUser()
   
-  // If not authenticated, redirect to register
+  // If not authenticated, redirect to register with redirectTo preserved
   if (!user) {
-    redirect('/register?redirectTo=/trial/activate')
+    redirect(`/register?redirectTo=${encodeURIComponent(redirectTo)}`)
   }
 
   // Check if user has already used their trial
@@ -49,7 +52,7 @@ export async function GET() {
     }
   }
 
-  // Redirect to arbitrage page
-  redirect('/arbitrage')
+  // Redirect to the page user came from, or arbitrage by default
+  redirect(redirectTo)
 }
 

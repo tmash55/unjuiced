@@ -40,6 +40,18 @@ export interface UserPreferences {
   
   ladder_selected_books?: string[];
   
+  // Best Odds preferences
+  best_odds_selected_books?: string[];
+  best_odds_selected_sports?: string[];
+  best_odds_selected_leagues?: string[];
+  best_odds_selected_markets?: string[];
+  best_odds_min_improvement?: number;
+  best_odds_max_odds?: number;
+  best_odds_min_odds?: number;
+  best_odds_scope?: string;
+  best_odds_sort_by?: string;
+  best_odds_search_query?: string;
+  
   created_at?: string;
   updated_at?: string;
 }
@@ -111,6 +123,16 @@ export class PreferencesRPC {
       odds_column_highlighting: data?.odds_column_highlighting ?? true,
       
       ladder_selected_books: data?.ladder_selected_books || [],
+      best_odds_selected_books: data?.best_odds_selected_books || [],
+      best_odds_selected_sports: data?.best_odds_selected_sports !== null ? data?.best_odds_selected_sports : undefined,
+      best_odds_selected_leagues: data?.best_odds_selected_leagues || [],
+      best_odds_selected_markets: data?.best_odds_selected_markets || [],
+      best_odds_min_improvement: data?.best_odds_min_improvement ?? 0,
+      best_odds_max_odds: data?.best_odds_max_odds,
+      best_odds_min_odds: data?.best_odds_min_odds,
+      best_odds_scope: data?.best_odds_scope || 'pregame',
+      best_odds_sort_by: data?.best_odds_sort_by || 'improvement',
+      best_odds_search_query: data?.best_odds_search_query || '',
       
       created_at: data?.created_at,
       updated_at: data?.updated_at,
@@ -217,6 +239,16 @@ export class PreferencesRPC {
         odds_sportsbook_order: [],
         odds_column_highlighting: true,
         ladder_selected_books: [],
+        best_odds_selected_books: [],
+        best_odds_selected_sports: [],
+        best_odds_selected_leagues: [],
+        best_odds_selected_markets: [],
+        best_odds_min_improvement: 0,
+        best_odds_max_odds: null,
+        best_odds_min_odds: null,
+        best_odds_scope: 'pregame',
+        best_odds_sort_by: 'improvement',
+        best_odds_search_query: '',
         updated_at: new Date().toISOString(),
       })
       .select()
