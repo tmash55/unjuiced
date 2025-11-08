@@ -82,7 +82,7 @@ export function GatedBestOddsView({
     if (viewMode === 'table') {
       return <BestOddsTable deals={deals} loading={loading} />;
     }
-    return <BestOddsCards deals={deals} />;
+    return <BestOddsCards deals={deals} loading={loading} />;
   }
 
   // Non-pro: Show blurred preview with auth gate (using the deals passed from parent)

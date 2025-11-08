@@ -13,9 +13,10 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
 interface BestOddsCardsProps {
   deals: BestOddsDeal[];
+  loading?: boolean;
 }
 
-export function BestOddsCards({ deals }: BestOddsCardsProps) {
+export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const allLeagues = getAllLeagues();
@@ -109,6 +110,17 @@ export function BestOddsCards({ deals }: BestOddsCardsProps) {
   const toggleCard = (dealId: string) => {
     setExpandedCard(prev => prev === dealId ? null : dealId);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4"></div>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading opportunities...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (deals.length === 0) {
     return (
