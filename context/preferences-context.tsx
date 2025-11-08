@@ -183,7 +183,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       setPreferences(prefs);
       publishMetrics();
     } catch (err) {
-      console.error("❌ Failed to load preferences:", err);
+      if (DEV_LOGGING) console.error("❌ Failed to load preferences:", err);
       setError(err instanceof Error ? err.message : "Failed to load preferences");
     } finally {
       setIsLoading(false);
@@ -259,7 +259,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         setPreferences(updatedPrefs);
       }
     } catch (err) {
-      console.error(`❌ Failed to update ${String(key)}:`, err);
+      if (DEV_LOGGING) console.error(`❌ Failed to update ${String(key)}:`, err);
       
       // Revert optimistic update on error
       if (optimistic) {
@@ -267,7 +267,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
           const freshPrefs = await preferencesRPC.getPreferences(user.id);
           setPreferences(freshPrefs);
         } catch (revertErr) {
-          console.error('❌ Failed to revert preferences:', revertErr);
+          if (DEV_LOGGING) console.error('❌ Failed to revert preferences:', revertErr);
         }
       }
       
@@ -325,7 +325,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       // Set final state from database response
       setPreferences(updatedPrefs);
     } catch (err) {
-      console.error("❌ Failed to update preferences:", err);
+      if (DEV_LOGGING) console.error("❌ Failed to update preferences:", err);
       
       // Revert optimistic update on error
       if (optimistic) {
@@ -333,7 +333,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
           const freshPrefs = await preferencesRPC.getPreferences(user.id);
           setPreferences(freshPrefs);
         } catch (revertErr) {
-          console.error('❌ Failed to revert preferences:', revertErr);
+          if (DEV_LOGGING) console.error('❌ Failed to revert preferences:', revertErr);
         }
       }
       
@@ -381,14 +381,14 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       publishMetrics();
       setPreferences(updatedPrefs);
     } catch (err) {
-      console.error("❌ Failed to batch update preferences:", err);
+      if (DEV_LOGGING) console.error("❌ Failed to batch update preferences:", err);
       
       // Revert optimistic update on error
       try {
         const freshPrefs = await preferencesRPC.getPreferences(user.id);
         setPreferences(freshPrefs);
       } catch (revertErr) {
-        console.error('❌ Failed to revert preferences:', revertErr);
+        if (DEV_LOGGING) console.error('❌ Failed to revert preferences:', revertErr);
       }
       
       setError(err instanceof Error ? err.message : "Failed to update preferences");
@@ -403,7 +403,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       const resetPrefs = await preferencesRPC.resetPreferences(user.id);
       setPreferences(resetPrefs);
     } catch (err) {
-      console.error("Failed to reset preferences:", err);
+      if (DEV_LOGGING) console.error("Failed to reset preferences:", err);
       setError(err instanceof Error ? err.message : "Failed to reset preferences");
     }
   }, [user]);
