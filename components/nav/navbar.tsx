@@ -293,8 +293,8 @@ function MobileNav({ domain }: { domain: string }) {
   const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
-    { title: "Ladder", href: "/ladder" },
     { title: "Edge Finder", href: "/edge-finder" },
+    { title: "Ladder", href: "/ladders" },    
     { title: "NBA Stats", href: "/stats/nba" },
     { title: "Sportsbooks", href: "/sportsbooks" },
     { title: "Markets", href: "/markets" },
