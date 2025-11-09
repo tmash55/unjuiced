@@ -74,7 +74,7 @@ export function normalizeSportsbookName(name: string): string {
  * Check if a deal matches the user's filter preferences
  */
 export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): boolean {
-  // TEMPORARY: Filter out moneyline and spread markets (including quarters and halves)
+  // TEMPORARY: Filter out moneyline, spread, and specific player prop markets
   const excludedMarkets = [
     // Moneylines
     'moneyline',
@@ -109,6 +109,9 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
     '2nd_quarter_spread',
     '3rd_quarter_spread',
     '4th_quarter_spread',
+    // Player props to exclude
+    'triple_double',
+    'player_triple_double',
   ];
   
   const marketLower = deal.mkt.toLowerCase();
