@@ -94,21 +94,21 @@ export default function BestOddsPage() {
 
   // Apply client-side filtering and sorting
   const filteredDeals = useMemo(() => {
-    let filtered = deals.filter(deal => matchesBestOddsDeal(deal, prefs));
+    let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefs));
     filtered = sortDeals(filtered, prefs.sortBy);
     return filtered;
   }, [deals, prefs]);
 
   // Calculate counts by scope for toggle buttons (using filtered deals)
-  const pregameCount = filteredDeals.filter(d => d.scope === 'pregame').length;
-  const liveCount = filteredDeals.filter(d => d.scope === 'live').length;
+  const pregameCount = filteredDeals.filter((d: BestOddsDeal) => d.scope === 'pregame').length;
+  const liveCount = filteredDeals.filter((d: BestOddsDeal) => d.scope === 'live').length;
 
   const stats = {
     total: filteredDeals.length,
     pregame: pregameCount,
     live: liveCount,
     avgImprovement: filteredDeals.length > 0
-      ? (filteredDeals.reduce((sum, d) => sum + Number(d.priceImprovement || 0), 0) / filteredDeals.length).toFixed(1)
+      ? (filteredDeals.reduce((sum: number, d: BestOddsDeal) => sum + Number(d.priceImprovement || 0), 0) / filteredDeals.length).toFixed(1)
       : '0'
   };
 
