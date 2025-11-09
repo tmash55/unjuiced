@@ -199,10 +199,21 @@ export async function GET(req: NextRequest) {
         if (gameStartTime) {
           const gameTime = new Date(gameStartTime).getTime();
           const now = Date.now();
-          // Filter out games that started more than 30 minutes ago
-          // (30 min buffer allows for live betting on recently started games)
-          const BUFFER_MS = 30 * 60 * 1000; // 30 minutes
+          // Only show games that haven't started yet (or started very recently)
+          // 5 minute buffer for games that just started
+          const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+          const timeDiff = now - gameTime;
+          
           if (gameTime < (now - BUFFER_MS)) {
+            if (process.env.NODE_ENV === 'development') {
+              const minutesAgo = Math.floor(timeDiff / 60000);
+              console.log(`[/api/best-odds] Filtering out game that started ${minutesAgo} minutes ago:`, {
+                gameStart: new Date(gameStartTime).toISOString(),
+                now: new Date(now).toISOString(),
+                player: deal.player_name || deal.playerName,
+                sport
+              });
+            }
             continue; // Skip this deal - game already started
           }
         }

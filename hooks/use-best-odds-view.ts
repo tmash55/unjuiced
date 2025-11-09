@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchBestOdds } from "@/lib/best-odds-client";
 import type { BestOddsDeal } from "@/lib/best-odds-schema";
 import { useBestOddsPreferences } from "@/context/preferences-context";
@@ -12,29 +13,28 @@ interface UseBestOddsViewOptions {
 
 /**
  * Custom hook for managing best odds data fetching
- * Handles Pro vs non-Pro data sources automatically
- * Follows the same pattern as useArbsView for consistency
+ * Uses React Query to prevent unnecessary refetches when switching tabs
+ * Follows the same pattern as the odds screen for consistency
  */
 export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) {
   const { filters: prefs, isLoading: prefsLoading, updateFilters } = useBestOddsPreferences();
-  const [deals, setDeals] = useState<BestOddsDeal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Load deals from API (fetch ALL data for Pro, preview for non-Pro)
-  const loadDeals = useCallback(async () => {
-    // Don't fetch if still checking plan status
-    if (planLoading) return;
-
-    try {
-      setLoading(true);
-      setError(null);
+  // Use React Query for intelligent caching and refetch control
+  const queryKey = ['best-odds', isPro, prefs.scope, prefs.sortBy];
+  
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      // Don't fetch if still checking plan status
+      if (planLoading) {
+        return { deals: [] as BestOddsDeal[] };
+      }
 
       if (!isPro) {
         // Non-Pro: Fetch preview data from teaser endpoint
         const response = await fetch("/api/best-odds/teaser?limit=10", { cache: "no-store" });
         const data = await response.json();
-        setDeals(data.deals || []);
+        return { deals: data.deals || [] };
       } else {
         // Pro: Fetch ALL deals without filters (filter client-side)
         const response = await fetchBestOdds({
@@ -43,30 +43,30 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
           limit: 2000,
           minImprovement: 0, // Get all, filter client-side
         });
-        setDeals(response.deals);
+        return { deals: response.deals };
       }
-    } catch (err) {
-      console.error('[useBestOddsView] Error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load deals');
-    } finally {
-      setLoading(false);
-    }
-  }, [prefs.scope, prefs.sortBy, isPro, planLoading]);
+    },
+    staleTime: 30_000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60_000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch when switching back to tab
+    refetchOnReconnect: true, // Refetch when internet reconnects
+    refetchInterval: false, // No automatic polling (user can manually refresh)
+    enabled: !planLoading, // Only run query when plan status is loaded
+    placeholderData: (previousData) => previousData, // Keep previous data during refetch
+    retry: 3, // Retry failed requests up to 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s (max 30s)
+  });
 
   // Refresh function for manual refresh
   const refresh = useCallback(async () => {
-    await loadDeals();
-  }, [loadDeals]);
-
-  // Load on mount and when dependencies change
-  useEffect(() => {
-    loadDeals();
-  }, [loadDeals]);
+    await refetch();
+  }, [refetch]);
 
   return {
-    deals,
-    loading,
-    error,
+    deals: data?.deals || [],
+    // Only show loading if we don't have data yet (not when refetching with cached data)
+    loading: isLoading && !data,
+    error: error ? (error instanceof Error ? error.message : 'Failed to load deals') : null,
     refresh,
     prefs,
     prefsLoading,

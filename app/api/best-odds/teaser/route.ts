@@ -112,8 +112,9 @@ export async function GET(req: NextRequest) {
           if (gameStartTime) {
             const gameTime = new Date(gameStartTime).getTime();
             const now = Date.now();
-            // Filter out games that started more than 30 minutes ago
-            const BUFFER_MS = 30 * 60 * 1000; // 30 minutes
+            // Only show games that haven't started yet (or started very recently)
+            // 5 minute buffer for games that just started
+            const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
             if (gameTime < (now - BUFFER_MS)) {
               continue; // Skip this deal - game already started
             }
