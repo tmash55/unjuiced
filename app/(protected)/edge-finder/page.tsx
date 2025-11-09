@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import type { BestOddsPrefs } from "@/lib/best-odds-schema";
+import type { BestOddsPrefs, BestOddsDeal } from "@/lib/best-odds-schema";
 import { GatedBestOddsView } from "@/components/best-odds/gated-best-odds-view";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
 import { ToolHeading } from "@/components/common/tool-heading";
@@ -82,7 +82,7 @@ export default function BestOddsPage() {
   // Dynamically extract unique markets from actual data (instead of hardcoding)
   const availableMarkets = useMemo(() => {
     const uniqueMarkets = new Set<string>();
-    deals.forEach(deal => {
+    deals.forEach((deal: BestOddsDeal) => {
       if (deal.mkt) {
         uniqueMarkets.add(deal.mkt);
       }
