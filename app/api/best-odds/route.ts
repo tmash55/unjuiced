@@ -194,6 +194,19 @@ export async function GET(req: NextRequest) {
         
         const { originalKey, score } = sportEntries[i];
         
+        // Filter out games that have already started
+        const gameStartTime = deal.game_start || deal.start_time || deal.startTime;
+        if (gameStartTime) {
+          const gameTime = new Date(gameStartTime).getTime();
+          const now = Date.now();
+          // Filter out games that started more than 30 minutes ago
+          // (30 min buffer allows for live betting on recently started games)
+          const BUFFER_MS = 30 * 60 * 1000; // 30 minutes
+          if (gameTime < (now - BUFFER_MS)) {
+            continue; // Skip this deal - game already started
+          }
+        }
+        
         // Apply odds filters (deal uses snake_case from backend)
         const dealPrice = deal.best_price || deal.bestPrice || 0;
         if (maxOdds !== undefined && dealPrice > maxOdds) continue;

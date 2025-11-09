@@ -107,6 +107,18 @@ export async function GET(req: NextRequest) {
           const deal = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
           const { originalKey, score } = sportEntries[i];
           
+          // Filter out games that have already started
+          const gameStartTime = deal.game_start || deal.start_time || deal.startTime;
+          if (gameStartTime) {
+            const gameTime = new Date(gameStartTime).getTime();
+            const now = Date.now();
+            // Filter out games that started more than 30 minutes ago
+            const BUFFER_MS = 30 * 60 * 1000; // 30 minutes
+            if (gameTime < (now - BUFFER_MS)) {
+              continue; // Skip this deal - game already started
+            }
+          }
+          
           // Normalize field names to camelCase (matching main API)
           const normalizedDeal: BestOddsDeal = {
             key: originalKey,
