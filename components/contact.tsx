@@ -240,7 +240,7 @@ const ContactCard = () => {
                   ? 'text-green-600 dark:text-green-400 font-medium' 
                   : 'text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-200'
               }`}>
-                {copiedX ? 'Copied!' : '@unjuiced'}
+                {copiedX ? 'Copied!' : '@unjuicedApp'}
               </p>
             </div>
             <svg className="h-4 w-4 text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
