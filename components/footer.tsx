@@ -164,7 +164,7 @@ export const Footer = () => {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href="https://twitter.com/unjuiced"
+              href="https://x.com/UnjuicedApp"
               target="_blank"
               rel="noopener noreferrer"
               className="text-footer-link transition-colors hover:text-neutral-900 dark:hover:text-white"

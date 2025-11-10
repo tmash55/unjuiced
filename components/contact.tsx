@@ -215,7 +215,7 @@ const ContactCard = () => {
           </button>
           
           <button
-            onClick={() => copyToClipboard('@unjuiced', 'x')}
+            onClick={() => copyToClipboard('@unjuicedApp', 'x')}
             className="group flex w-full items-center gap-3 rounded-lg p-3 transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
           >
             <div className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
