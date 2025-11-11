@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
+import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
@@ -53,6 +54,25 @@ export async function GET(req: NextRequest) {
         .eq('id', user.id)
         .maybeSingle()
       stripeCustomerId = profile?.stripe_customer_id || undefined
+    }
+    if (!stripeCustomerId) {
+      try {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: '2023-08-16' as any,
+          typescript: true,
+        })
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { user_id: user.id },
+        })
+        await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customer.id })
+          .eq('id', user.id)
+        stripeCustomerId = customer.id
+      } catch (err) {
+        console.warn('[billing/start] Failed to create Stripe customer:', (err as any)?.message)
+      }
     }
 
     const successUrl = `${origin}/account/settings?billing=success`
