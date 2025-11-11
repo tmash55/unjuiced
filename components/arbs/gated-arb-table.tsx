@@ -7,6 +7,8 @@ import { ButtonLink } from "@/components/button-link";
 import { ArrowRight, Lock, Droplet, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getPriceId } from "@/constants/billing";
+import config from "@/config";
 
 interface GatedArbTableProps {
   rows: ArbRow[];
@@ -52,36 +54,55 @@ export function GatedArbTable({
     }
   }, [isLoggedIn, isPro]);
 
-  // Handle trial activation for logged-in users
+  // Handle trial activation via Stripe Checkout (requires card, with trial)
   const handleStartTrial = async () => {
-    if (!isLoggedIn) {
-      // Not logged in - redirect to trial activate with current path
-      const currentPath = window.location.pathname;
-      window.location.href = `/trial/activate?redirectTo=${encodeURIComponent(currentPath)}`;
+    const priceId = getPriceId("monthly", config.stripe.plans[0]?.priceId);
+    if (!priceId) {
+      toast.error("Trial unavailable: missing price configuration.");
       return;
     }
 
-    // Logged in - activate trial and refresh
+    if (!isLoggedIn) {
+      // Not logged in - start Checkout; backend will redirect to login preserving redirect
+      const params = new URLSearchParams({
+        priceId,
+        mode: "subscription",
+        trialDays: String(7),
+      }).toString();
+      window.location.href = `/billing/start?${params}`;
+      return;
+    }
+
+    // Logged in - create Checkout session then redirect to Stripe
     setActivatingTrial(true);
     try {
-      const response = await fetch("/api/auth/init-trial", {
+      const res = await fetch("/api/billing/checkout", {
         method: "POST",
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          priceId,
+          mode: "subscription",
+          trialDays: 7,
+        }),
       });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        toast.success("Trial activated! Enjoy 7 days of Pro access.");
-        // Refresh the page to show Pro content
-        window.location.reload();
-      } else {
-        toast.error(data.message || "Failed to activate trial");
-        setActivatingTrial(false);
+      if (res.status === 401) {
+        const params = new URLSearchParams({
+          priceId,
+          mode: "subscription",
+          trialDays: String(7),
+        }).toString();
+        window.location.assign(`/billing/start?${params}`);
+        return;
       }
+      const json = await res.json();
+      if (json?.url) {
+        window.location.assign(json.url);
+        return;
+      }
+      toast.error("Failed to start trial checkout. Please try again.");
     } catch (error) {
       console.error("Error activating trial:", error);
-      toast.error("Failed to activate trial. Please try again.");
+      toast.error("Failed to start trial. Please try again.");
       setActivatingTrial(false);
     }
   };
@@ -152,7 +173,7 @@ export function GatedArbTable({
             <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
               {isLoggedIn && !hasUnusedTrial
                 ? "Unlock real-time arbitrage opportunities across 20+ sportsbooks with Pro access."
-                : "Join thousands of bettors finding risk-free profit opportunities across 20+ sportsbooks. No credit card required."
+                : "Join thousands of bettors finding risk-free profit opportunities across 20+ sportsbooks. Card required; you won’t be charged until the trial ends."
               }
             </p>
 

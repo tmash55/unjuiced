@@ -1,5 +1,6 @@
 import { createClient } from '@/libs/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import Stripe from 'stripe'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -20,31 +21,33 @@ export async function GET(request: NextRequest) {
         metadata: data.user.user_metadata 
       })
       
-      // Check if this is a new user and initialize trial
-      // We check if the user was created recently (within last 5 minutes)
-      const userCreatedAt = new Date(data.user.created_at)
-      const now = new Date()
-      const isNewUser = (now.getTime() - userCreatedAt.getTime()) < 5 * 60 * 1000 // 5 minutes
-      
-      if (isNewUser) {
-        console.log('🎉 New user detected, initializing trial...')
-        try {
-          // Call init-trial endpoint
-          const initTrialResponse = await fetch(`${origin}/api/auth/init-trial`, {
-            method: 'POST',
-            headers: {
-              'Cookie': request.headers.get('cookie') || '',
-            },
+      // Ensure a Stripe customer exists for this user (idempotent by profile check)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('stripe_customer_id')
+          .eq('id', data.user.id)
+          .maybeSingle()
+
+        if (!profile?.stripe_customer_id) {
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2023-08-16' as any,
+            typescript: true,
           })
-          
-          const trialResult = await initTrialResponse.json()
-          console.log('✅ Trial initialization result:', trialResult)
-        } catch (trialError) {
-          console.error('❌ Error initializing trial:', trialError)
-          // Don't block the redirect if trial init fails
+          const customer = await stripe.customers.create({
+            email: data.user.email || undefined,
+            metadata: { user_id: data.user.id },
+          })
+          await supabase
+            .from('profiles')
+            .update({ stripe_customer_id: customer.id })
+            .eq('id', data.user.id)
+          console.log('✅ Created Stripe customer for user', data.user.id)
         }
+      } catch (e) {
+        console.warn('⚠️ Could not ensure Stripe customer on auth callback:', (e as any)?.message)
       }
-      
+
       console.log('✨ Redirecting to:', next)
       
       // Redirect to next page

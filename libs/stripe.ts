@@ -11,6 +11,15 @@ interface CreateCheckoutParams {
     customerId?: string;
     email?: string;
   };
+  /**
+   * Optional number of trial days to apply when mode === 'subscription'
+   */
+  trialDays?: number;
+  /**
+   * Force card collection even if no payment is due up front.
+   * Defaults to 'always' for subscriptions when trialDays is set.
+   */
+  paymentMethodCollection?: "always" | "if_required";
 }
 
 interface CreateCustomerPortalParams {
@@ -27,6 +36,8 @@ export const createCheckout = async ({
   cancelUrl,
   priceId,
   couponId,
+  trialDays,
+  paymentMethodCollection,
 }: CreateCheckoutParams): Promise<string | null> => {
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -58,12 +69,14 @@ export const createCheckout = async ({
       extraParams.tax_id_collection = { enabled: true };
     }
 
-    const stripeSession = await stripe.checkout.sessions.create({
+    // Build base session params
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode,
       allow_promotion_codes: true,
       client_reference_id: clientReferenceId,
       metadata: {
         brand_key: 'unjuiced',
+        ...(clientReferenceId ? { user_id: String(clientReferenceId) } : {}),
       },
       line_items: [
         {
@@ -80,8 +93,22 @@ export const createCheckout = async ({
         : [],
       success_url: successUrl,
       cancel_url: cancelUrl,
+      ...(mode === 'subscription'
+        ? {
+            payment_method_collection:
+              paymentMethodCollection || (typeof trialDays === 'number' ? 'always' : 'if_required'),
+            subscription_data: {
+              ...(typeof trialDays === 'number' ? { trial_period_days: trialDays } : {}),
+              metadata: {
+                ...(clientReferenceId ? { user_id: String(clientReferenceId) } : {}),
+              },
+            },
+          }
+        : {}),
       ...extraParams,
-    });
+    };
+
+    const stripeSession = await stripe.checkout.sessions.create(sessionParams);
 
     return stripeSession.url || null;
   } catch (e) {

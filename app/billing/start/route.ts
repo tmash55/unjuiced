@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
   const priceId = sp.get('priceId')
   const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
   const couponId = sp.get('couponId')
+  const trialDaysParam = sp.get('trialDays')
+  const trialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
 
   console.log('[billing/start] Request received', { priceId, mode })
@@ -44,6 +46,14 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     stripeCustomerId = sub?.stripe_customer_id || undefined
+    if (!stripeCustomerId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('id', user.id)
+        .maybeSingle()
+      stripeCustomerId = profile?.stripe_customer_id || undefined
+    }
 
     const successUrl = `${origin}/account/settings?billing=success`
     const cancelUrl = `${origin}/account/settings?billing=cancelled`
@@ -57,6 +67,8 @@ export async function GET(req: NextRequest) {
       cancelUrl,
       priceId,
       couponId: couponId || undefined,
+      trialDays,
+      paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
     })
 
     if (!url) {
