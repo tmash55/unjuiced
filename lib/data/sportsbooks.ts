@@ -349,7 +349,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   // Legacy entries for backward compatibility
   "prophetx": {
     id: "prophetx",
-    name: "Prophetx",
+    name: "ProphetX",
     sgp: false,
     legalStates: ["US"],
     links: {
