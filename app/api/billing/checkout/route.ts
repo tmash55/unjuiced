@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
     const allowTrial = profileTrialUsed === false
     const trialDays = allowTrial ? requestedTrialDays : undefined
 
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
+    // Always use absolute origin from the request URL for Stripe success/cancel URLs
+    const { origin } = new URL(req.url)
     const successUrl = `${origin}/account/settings?billing=success`
     const cancelUrl = `${origin}/account/settings?billing=cancelled`
 

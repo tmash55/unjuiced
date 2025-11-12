@@ -11,7 +11,6 @@ import { LoadingState } from '@/components/common/loading-state'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useEntitlements } from '@/hooks/use-entitlements'
-import { LiveUpgradeBanner } from '@/components/odds-screen/live-upgrade-banner'
 import { ConnectionErrorDialog } from '@/components/common/connection-error-dialog'
 import { cn } from '@/lib/utils'
 import { Combobox } from '@/components/ui/combobox'
@@ -902,8 +901,7 @@ function SportOddsContent({
         )}
       </div>
 
-      {/* Upgrade Banner for Free Users */}
-      {isFree && <div className="mb-6"><LiveUpgradeBanner /></div>}
+  {/* Upgrade banner removed to allow open access for all users */}
 
       {/* Odds Table */}
       <OddsTable 

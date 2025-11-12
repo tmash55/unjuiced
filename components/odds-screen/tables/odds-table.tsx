@@ -847,11 +847,7 @@ const renderAlternateRow = (
             onClick={(e) => {
               e.stopPropagation()
               if (priceOdds.link) {
-                if (isPro) {
-                  window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
-                } else if (setShowProGate) {
-                  setShowProGate(true)
-                }
+                window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
@@ -1908,11 +1904,7 @@ export function OddsTable({
                 <button
                   onClick={() => {
                     if (book.links.desktop) {
-                      if (isPro) {
-                        window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
-                      } else {
-                        setShowProGate(true)
-                      }
+                      window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
                     }
                   }}
                   className="flex flex-col items-center space-y-1 min-w-[96px] sm:min-w-[120px] hover:opacity-80 transition-opacity"
@@ -1989,11 +1981,7 @@ export function OddsTable({
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        if (isPro) {
-                          window.open(odds.link, '_blank', 'noopener,noreferrer')
-                        } else {
-                          setShowProGate(true)
-                        }
+                        window.open(odds.link, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, firstSide, book.id)
                       }
@@ -2047,11 +2035,7 @@ export function OddsTable({
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        if (isPro) {
-                          window.open(odds.link, '_blank', 'noopener,noreferrer')
-                        } else {
-                          setShowProGate(true)
-                        }
+                        window.open(odds.link, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, secondSide, book.id)
                       }
@@ -2293,12 +2277,8 @@ export function OddsTable({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            if (displayOdds.link) {
-              if (isPro) {
+              if (displayOdds.link) {
                 window.open(displayOdds.link, '_blank', 'noopener,noreferrer')
-              } else {
-                setShowProGate(true)
-              }
             } else if (firstBookId) {
               onOddsClick?.(rowItem, side, firstBookId)
             }

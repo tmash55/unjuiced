@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
   const couponId = sp.get('couponId')
   const trialDaysParam = sp.get('trialDays')
   const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
-  const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
+  // Always use absolute base origin from the incoming request URL
+  const { origin } = new URL(req.url)
 
   console.log('[billing/start] Request received', { priceId, mode })
 
