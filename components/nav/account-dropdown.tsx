@@ -85,12 +85,17 @@ export function AccountDropdown({ user }: { user: User }) {
                         entitlements.plan === "pro" &&
                           entitlements.entitlement_source === "subscription" &&
                           "bg-[var(--tertiary)]/10 text-[var(--tertiary-strong)] dark:bg-[var(--tertiary)]/20",
+                        entitlements.plan === "pro" &&
+                          entitlements.entitlement_source === "grant" &&
+                          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
                         entitlements.plan === "free" &&
                           "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
                     >
                       {entitlements.entitlement_source === "trial"
                         ? "Trial"
+                        : entitlements.entitlement_source === "grant"
+                        ? "Pro"
                         : entitlements.plan === "pro"
                         ? "Pro"
                         : "Free"}

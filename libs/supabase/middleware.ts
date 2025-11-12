@@ -16,6 +16,8 @@ const PUBLIC_ROUTES = [
   '/changelog',
   '/auth/callback',
   '/auth/auth-code-error',
+  // Explicitly allow Stripe webhooks (must be publicly accessible)
+  '/api/billing/webhook',
 ];
 
 // Freemium routes - accessible to everyone but with plan-based limits

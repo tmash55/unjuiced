@@ -107,8 +107,11 @@ export function Nav({
   const { user, loading } = useAuth();
   const { data: entitlements } = useEntitlements();
 
-  // Hide pricing if user is on an active subscription (not trial)
-  const showPricing = !entitlements || entitlements.entitlement_source !== 'subscription';
+  // Hide pricing if user has Pro via subscription or grant (still show during trial to encourage upgrade)
+  const showPricing =
+    !entitlements ||
+    (entitlements.entitlement_source !== 'subscription' &&
+     entitlements.entitlement_source !== 'grant');
 
   const filteredNavItems = navItems.filter(item => 
     item.name !== 'Pricing' || showPricing

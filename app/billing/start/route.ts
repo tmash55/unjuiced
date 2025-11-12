@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
+import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
   const priceId = sp.get('priceId')
   const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
   const couponId = sp.get('couponId')
+  const trialDaysParam = sp.get('trialDays')
+  const trialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
 
   console.log('[billing/start] Request received', { priceId, mode })
@@ -44,6 +47,33 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     stripeCustomerId = sub?.stripe_customer_id || undefined
+    if (!stripeCustomerId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('id', user.id)
+        .maybeSingle()
+      stripeCustomerId = profile?.stripe_customer_id || undefined
+    }
+    if (!stripeCustomerId) {
+      try {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: '2023-08-16' as any,
+          typescript: true,
+        })
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { user_id: user.id },
+        })
+        await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customer.id })
+          .eq('id', user.id)
+        stripeCustomerId = customer.id
+      } catch (err) {
+        console.warn('[billing/start] Failed to create Stripe customer:', (err as any)?.message)
+      }
+    }
 
     const successUrl = `${origin}/account/settings?billing=success`
     const cancelUrl = `${origin}/account/settings?billing=cancelled`
@@ -57,6 +87,8 @@ export async function GET(req: NextRequest) {
       cancelUrl,
       priceId,
       couponId: couponId || undefined,
+      trialDays,
+      paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
     })
 
     if (!url) {

@@ -41,6 +41,7 @@ export default function BillingSettings({ user }: { user: any }) {
   const isPro = entitlements?.plan === "pro" || entitlements?.plan === "admin";
   const isTrial = entitlements?.entitlement_source === "trial";
   const isSubscription = entitlements?.entitlement_source === "subscription";
+  const isGrant = entitlements?.entitlement_source === "grant";
   const isCanceled = subscription?.cancel_at_period_end === true;
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
   const isLoading = isLoadingEntitlements || isLoadingSubscription;
@@ -106,8 +107,13 @@ export default function BillingSettings({ user }: { user: any }) {
               <h3 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">
                 Current Plan
               </h3>
-              {isPro && !isCanceled && !isTrial && (
+              {isPro && !isCanceled && !isTrial && !isGrant && (
                 <span className="inline-flex items-center rounded-full bg-gradient-to-r from-brand to-brand/80 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  Pro
+                </span>
+              )}
+              {isGrant && (
+                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
                   Pro
                 </span>
               )}
@@ -142,6 +148,7 @@ export default function BillingSettings({ user }: { user: any }) {
                 </>
               )}
               {!isLoading && isSubscription && !isCanceled && "Active subscription"}
+              {!isLoading && isGrant && "Granted access"}
               {!isLoading && isSubscription && isCanceled && "Subscription set to cancel"}
               {!isLoading && !isPro && "Free plan with limited features"}
             </p>
@@ -150,6 +157,7 @@ export default function BillingSettings({ user }: { user: any }) {
             {isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-green-500" />}
             {isSubscription && isCanceled && <AlertCircle className="h-5 w-5 text-amber-500" />}
             {isTrial && <CheckCircle className="h-5 w-5 text-blue-500" />}
+            {isGrant && <CheckCircle className="h-5 w-5 text-emerald-500" />}
             {!isSubscription && !isTrial && <CreditCard className="h-5 w-5 text-neutral-400" />}
           </div>
         </div>
