@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const priceId = String(body?.priceId || '')
     const mode = (body?.mode === 'payment' ? 'payment' : 'subscription') as 'payment' | 'subscription'
     const couponId: string | null = body?.couponId ?? null
-    const trialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
+    const requestedTrialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
 
     if (!priceId) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })
@@ -45,14 +45,24 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
       stripeCustomerId = sub?.stripe_customer_id || undefined
     }
-    // Fallback to profiles.stripe_customer_id if no subscription yet
+    // Fallback to profiles.stripe_customer_id if no subscription yet, and read trial_used
+    let profileTrialUsed: boolean | undefined
     if (!stripeCustomerId) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('stripe_customer_id')
+        .select('stripe_customer_id, trial_used')
         .eq('id', user.id)
         .maybeSingle()
       stripeCustomerId = profile?.stripe_customer_id || undefined
+      profileTrialUsed = profile?.trial_used ?? undefined
+    } else {
+      // Even if we had a customer id from subscriptions, still fetch trial_used for gating trials
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trial_used')
+        .eq('id', user.id)
+        .maybeSingle()
+      profileTrialUsed = profile?.trial_used ?? undefined
     }
     // If still missing, create a Stripe customer now and persist it for this user
     if (!stripeCustomerId) {
@@ -74,6 +84,10 @@ export async function POST(req: NextRequest) {
         console.warn('[billing/checkout] Failed to create Stripe customer:', (err as any)?.message)
       }
     }
+
+    // Gate trials: only allow trial if profile.trial_used === false
+    const allowTrial = profileTrialUsed === false
+    const trialDays = allowTrial ? requestedTrialDays : undefined
 
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
     const successUrl = `${origin}/account/settings?billing=success`

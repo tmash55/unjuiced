@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
   const couponId = sp.get('couponId')
   const trialDaysParam = sp.get('trialDays')
-  const trialDays = trialDaysParam ? Number(trialDaysParam) : undefined
+  const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || ''
 
   console.log('[billing/start] Request received', { priceId, mode })
@@ -47,14 +47,25 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     stripeCustomerId = sub?.stripe_customer_id || undefined
+    let profileTrialUsed: boolean | undefined
     if (!stripeCustomerId) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('stripe_customer_id')
+        .select('stripe_customer_id, trial_used')
         .eq('id', user.id)
         .maybeSingle()
       stripeCustomerId = profile?.stripe_customer_id || undefined
+      profileTrialUsed = profile?.trial_used ?? undefined
+    } else {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('trial_used')
+        .eq('id', user.id)
+        .maybeSingle()
+      profileTrialUsed = profile?.trial_used ?? undefined
     }
+    const allowTrial = profileTrialUsed === false
+    const trialDays = allowTrial ? requestedTrialDays : undefined
     if (!stripeCustomerId) {
       try {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

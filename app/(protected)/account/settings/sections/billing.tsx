@@ -4,6 +4,8 @@ import { useState } from "react";
 import { CreditCard, ExternalLink, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { getPriceId } from "@/constants/billing";
+import config from "@/config";
 import { useSubscription } from "@/hooks/use-subscription";
 
 export default function BillingSettings({ user }: { user: any }) {
@@ -25,6 +27,23 @@ export default function BillingSettings({ user }: { user: any }) {
       const data = await res.json();
 
       if (!res.ok) {
+        // If the user has no customer yet or a stale customer id, route them to Checkout instead
+        const priceId = getPriceId("monthly", config.stripe.plans[0]?.priceId);
+        const msg: string = data?.message || data?.error || "";
+        const shouldUpgrade =
+          res.status === 400 ||
+          /no customer/i.test(msg) ||
+          /No such customer/i.test(msg) ||
+          /billing account/i.test(msg);
+        if (priceId && shouldUpgrade) {
+          const params = new URLSearchParams({
+            priceId,
+            mode: "subscription",
+            trialDays: "7",
+          }).toString();
+          window.location.assign(`/billing/start?${params}`);
+          return;
+        }
         throw new Error(data.error || "Failed to open billing portal");
       }
 
@@ -45,6 +64,14 @@ export default function BillingSettings({ user }: { user: any }) {
   const isCanceled = subscription?.cancel_at_period_end === true;
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
   const isLoading = isLoadingEntitlements || isLoadingSubscription;
+  // Route legacy (pre-card) trial users directly to Checkout instead of the portal.
+  // Cutoff: 2025-11-12 07:00:00 Central = 2025-11-12T13:00:00Z
+  const legacyTrialCutoff = new Date("2025-11-12T13:00:00Z");
+  const trialStartedAt = entitlements?.trial?.trial_started_at ? new Date(entitlements.trial.trial_started_at) : null;
+  const isLegacyTrial =
+    isTrial &&
+    trialStartedAt !== null &&
+    trialStartedAt.getTime() < legacyTrialCutoff.getTime();
 
   // Show loading state while fetching entitlements
   if (isLoading) {
@@ -245,26 +272,43 @@ export default function BillingSettings({ user }: { user: any }) {
         {/* Upgrade CTA for Trial Users */}
         {isTrial && (
           <div className="mt-6 space-y-2">
-            <button
-              onClick={handleManageSubscription}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Opening…
-                </>
-              ) : (
-                <>
-                  Manage Billing
+            {isLegacyTrial ? (
+              <>
+                <a
+                  href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=7`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow"
+                >
+                  Upgrade to Pro
                   <ExternalLink className="h-4 w-4" />
-                </>
-              )}
-            </button>
-            <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              Update payment method, view invoices, or cancel your trial
-            </p>
+                </a>
+                <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Complete checkout to continue after your trial ends.
+                </p>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Opening…
+                    </>
+                  ) : (
+                    <>
+                      Manage Billing
+                      <ExternalLink className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
+                <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Update payment method, view invoices, or cancel your trial
+                </p>
+              </>
+            )}
           </div>
         )}
 
