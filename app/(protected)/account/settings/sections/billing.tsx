@@ -182,7 +182,7 @@ export default function BillingSettings({ user }: { user: any }) {
                       year: "numeric",
                     })}
                   </span>
-                  . Subscribe anytime to continue after your trial ends.
+                  . Billing will begin automatically after your trial unless you cancel beforehand.
                 </p>
               </div>
             </div>
@@ -245,15 +245,25 @@ export default function BillingSettings({ user }: { user: any }) {
         {/* Upgrade CTA for Trial Users */}
         {isTrial && (
           <div className="mt-6 space-y-2">
-            <a
-              href="/pricing"
-              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand to-brand/90 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+            <button
+              onClick={handleManageSubscription}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Subscribe to Pro
-              <ExternalLink className="h-4 w-4" />
-            </a>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opening…
+                </>
+              ) : (
+                <>
+                  Manage Billing
+                  <ExternalLink className="h-4 w-4" />
+                </>
+              )}
+            </button>
             <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              Lock in Pro access before your trial ends
+              Update payment method, view invoices, or cancel your trial
             </p>
           </div>
         )}
