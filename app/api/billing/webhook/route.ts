@@ -117,6 +117,31 @@ export async function POST(req: NextRequest) {
           console.log('[webhook] Successfully upserted subscription for user:', user_id)
         }
 
+        // If the subscription includes a trial, persist trial metadata on the profile
+        try {
+          const trialStartEpoch = (sub as any)?.trial_start ?? null
+          const trialEndEpoch = (sub as any)?.trial_end ?? null
+          const profileUpdates: Record<string, any> = {}
+          if (normalizedStatus === 'trialing') {
+            profileUpdates.trial_used = true
+          }
+          if (typeof trialStartEpoch === 'number') {
+            profileUpdates.trial_started_at = new Date(Number(trialStartEpoch) * 1000).toISOString()
+          }
+          if (typeof trialEndEpoch === 'number') {
+            profileUpdates.trial_ends_at = new Date(Number(trialEndEpoch) * 1000).toISOString()
+          }
+          if (Object.keys(profileUpdates).length > 0) {
+            await supabase
+              .from('profiles')
+              .update(profileUpdates)
+              .eq('id', user_id)
+            console.log('[webhook] Updated profile trial fields for user', user_id, profileUpdates)
+          }
+        } catch (e) {
+          console.warn('[webhook] Failed to update profile trial fields', (e as any)?.message)
+        }
+
         // Also persist the Stripe customer id on the profile for easy joins from invoice events
         try {
           await supabase

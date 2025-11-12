@@ -360,8 +360,8 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/prophetx.png",
       long: "/images/sports-books/prophetx_long.png"
     },
-    priority: 1,
-    isActive: false,
+    priority: 7,
+    isActive: true,
     requiresState: false
   },
 
