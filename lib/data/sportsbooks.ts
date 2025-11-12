@@ -213,7 +213,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/hardrockbet_long.png"
     },
     priority: 4.5,
-    isActive: true,
+    isActive: false,
     requiresState: true
   },
 
