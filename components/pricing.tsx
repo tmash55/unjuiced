@@ -139,22 +139,21 @@ export const Pricing = () => {
                       {/* Primary CTA - Start Free Trial */}
                       <ButtonLink
                         className="w-full justify-center rounded-lg border-2 border-brand bg-brand px-6 py-3 text-center text-base font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md hover:ring-4 hover:ring-brand/20 dark:border-brand dark:bg-brand dark:text-white dark:hover:bg-brand/90"
-                        href="/trial/activate"
+                        href={`/billing/start?priceId=${encodeURIComponent(getPriceId(isYearly ? "yearly" : "monthly"))}&mode=subscription&trialDays=7`}
                         variant="primary"
                       >
                         Start Free — 7-Day Trial
                       </ButtonLink>
-                      <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-                        No card required • Full Pro access for 7 days
-                      </p>
 
-                      {/* Secondary CTA - Go Pro Now (Stripe Checkout) */}
-                      <BuyButton
-                        priceId={getPriceId(isYearly ? "yearly" : "monthly")}
-                        mode="subscription"
-                        label="Unlock Pro Now"
-                        className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
-                      />
+                      {/* Secondary CTA - Go Pro Now (Stripe Checkout) — only for signed-in users */}
+                      {user && (
+                        <BuyButton
+                          priceId={getPriceId(isYearly ? "yearly" : "monthly")}
+                          mode="subscription"
+                          label="Unlock Pro Now"
+                          className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
+                        />
+                      )}
                     </>
                   ) : (
                     <>
