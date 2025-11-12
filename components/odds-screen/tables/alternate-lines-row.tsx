@@ -143,8 +143,8 @@ export function AlternateLinesRow({
           className={cn(
             "border-l-2 border-blue-400 dark:border-blue-600",
             index % 2 === 0 
-              ? "bg-blue-50/40 dark:bg-blue-900/15" 
-              : "bg-blue-50/20 dark:bg-blue-900/5"
+              ? "bg-[#F0F9FF] dark:bg-[#0D1626]" 
+              : "bg-[#FCFDFF] dark:bg-[#0C121A]"
           )}
         >
           {/* Render columns in the same order as main table */}
@@ -157,8 +157,8 @@ export function AlternateLinesRow({
                   className={cn(
                     "px-4 py-2 text-left sticky left-0 z-10",
                     index % 2 === 0 
-                      ? "bg-blue-50/40 dark:bg-blue-900/15" 
-                      : "bg-blue-50/20 dark:bg-blue-900/5"
+                      ? "bg-[#F0F9FF] dark:bg-[#0D1626]" 
+                      : "bg-[#FCFDFF] dark:bg-[#0C121A]"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -216,11 +216,7 @@ export function AlternateLinesRow({
                     <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
                       <button
                         onClick={() => {
-                          if (isPro) {
-                            window.open(link, '_blank', 'noopener,noreferrer')
-                          } else if (setShowProGate) {
-                            setShowProGate(true)
-                          }
+                          window.open(link, '_blank', 'noopener,noreferrer')
                         }}
                         className="best-line best-line--sm w-full"
                       >
@@ -316,10 +312,8 @@ export function AlternateLinesRow({
                 <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
                   <button
                     onClick={() => {
-                      if (isPro && entry.u) {
+                      if (entry.u) {
                         window.open(entry.u, '_blank', 'noopener,noreferrer');
-                      } else if (setShowProGate) {
-                        setShowProGate(true);
                       }
                     }}
                     className={cn(

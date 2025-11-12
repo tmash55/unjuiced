@@ -1,27 +1,9 @@
 export const runtime = "edge";
 
 import { NextRequest } from "next/server";
-import { createClient } from "@/libs/supabase/server";
-
-async function assertPro(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
-  // Use entitlements view so trials and subscriptions both unlock live updates
-  const { data: ent } = await supabase
-    .from('current_entitlements')
-    .select('current_plan')
-    .eq('user_id', user.id)
-    .single();
-  if (!ent || ent.current_plan !== 'pro') {
-    return new Response(JSON.stringify({ error: 'pro required' }), { status: 403 });
-  }
-  return null;
-}
 
 export async function GET(req: NextRequest) {
-  const denied = await assertPro(req);
-  if (denied) return denied;
+  // Open access: allow free and unsigned users to subscribe to props SSE
 
   const sp = new URL(req.url).searchParams;
   const sport = (sp.get("sport") || "").trim().toLowerCase();

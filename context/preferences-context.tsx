@@ -131,6 +131,16 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Guest (unsigned) runtime-only overrides for odds screen
+  const [guestOdds, setGuestOdds] = useState<{
+    selectedBooks?: string[];
+    columnOrder?: string[];
+    sportsbookOrder?: string[];
+    includeAlternates?: boolean;
+    columnHighlighting?: boolean;
+    showBestLine?: boolean;
+    showAverageLine?: boolean;
+  }>({});
   
   // Keep track of pending updates to avoid race conditions
   const pendingUpdatesRef = useRef<Set<string>>(new Set());
@@ -491,6 +501,20 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     showBestLine?: boolean;
     showAverageLine?: boolean;
   }) => {
+    // If no signed-in user, update guest runtime preferences so changes persist until refresh
+    if (!user) {
+      setGuestOdds(prev => ({
+        ...prev,
+        ...(filters.selectedBooks !== undefined ? { selectedBooks: filters.selectedBooks } : {}),
+        ...(filters.columnOrder !== undefined ? { columnOrder: filters.columnOrder } : {}),
+        ...(filters.sportsbookOrder !== undefined ? { sportsbookOrder: filters.sportsbookOrder } : {}),
+        ...(filters.includeAlternates !== undefined ? { includeAlternates: filters.includeAlternates } : {}),
+        ...(filters.columnHighlighting !== undefined ? { columnHighlighting: filters.columnHighlighting } : {}),
+        ...(filters.showBestLine !== undefined ? { showBestLine: filters.showBestLine } : {}),
+        ...(filters.showAverageLine !== undefined ? { showAverageLine: filters.showAverageLine } : {}),
+      }));
+      return;
+    }
     const updates: UserPreferencesUpdate = {};
 
     if (filters.selectedBooks !== undefined) {
@@ -596,26 +620,26 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const getOddsPreferences = useCallback(() => {
     if (!preferences) {
       return {
-        selectedBooks: activeSportsbooks,
-        columnOrder: ['entity', 'event', 'best-line', 'average-line'],
-        sportsbookOrder: [] as string[],
-        includeAlternates: false,
-        columnHighlighting: true,
-        showBestLine: true,
-        showAverageLine: true,
+        selectedBooks: guestOdds.selectedBooks ?? activeSportsbooks,
+        columnOrder: guestOdds.columnOrder ?? ['entity', 'event', 'best-line', 'average-line'],
+        sportsbookOrder: guestOdds.sportsbookOrder ?? ([] as string[]),
+        includeAlternates: guestOdds.includeAlternates ?? true,
+        columnHighlighting: guestOdds.columnHighlighting ?? true,
+        showBestLine: guestOdds.showBestLine ?? true,
+        showAverageLine: guestOdds.showAverageLine ?? true,
       };
     }
 
     return {
-      selectedBooks: preferences.odds_selected_books?.length ? preferences.odds_selected_books : activeSportsbooks,
-      columnOrder: preferences.odds_column_order?.length ? preferences.odds_column_order : ['entity', 'event', 'best-line', 'average-line'],
-      sportsbookOrder: preferences.odds_sportsbook_order || [],
-      includeAlternates: preferences.include_alternates ?? false,
-      columnHighlighting: preferences.odds_column_highlighting ?? true,
-      showBestLine: preferences.odds_show_best_line ?? true,
-      showAverageLine: preferences.odds_show_average_line ?? true,
+      selectedBooks: (preferences.odds_selected_books?.length ? preferences.odds_selected_books : activeSportsbooks),
+      columnOrder: (preferences.odds_column_order?.length ? preferences.odds_column_order : ['entity', 'event', 'best-line', 'average-line']),
+      sportsbookOrder: (preferences.odds_sportsbook_order || []),
+      includeAlternates: (preferences.include_alternates ?? true),
+      columnHighlighting: (preferences.odds_column_highlighting ?? true),
+      showBestLine: (preferences.odds_show_best_line ?? true),
+      showAverageLine: (preferences.odds_show_average_line ?? true),
     };
-  }, [preferences, activeSportsbooks]);
+  }, [preferences, activeSportsbooks, guestOdds]);
 
   const getLadderFilters = useCallback(() => {
     // Get all active sportsbooks excluding Bodog and Bovada (same as ladders page)

@@ -58,8 +58,8 @@ function SportOddsContent({
   const isFree = !isPro
   const isLiveScope = scope === 'live'
   
-  // Pro users get SSE by default (can toggle off), Free users never get SSE
-  const shouldUseLiveUpdates = isPro && liveUpdatesEnabled
+  // All users can use SSE now (can toggle off)
+  const shouldUseLiveUpdates = liveUpdatesEnabled
 
   // Use shared entitlements cache (VC-grade efficiency)
   const { data: entitlements } = useEntitlements()
@@ -629,7 +629,7 @@ function SportOddsContent({
           <span className="flex items-center gap-2">
             {sport.toUpperCase()} Odds
             {/* Live Status Indicator - Mobile only (green dot after "Odds") */}
-            {isPro && (
+            {shouldUseLiveUpdates && (
               <span className={cn(
                 "md:hidden inline-flex h-2 w-2 rounded-full",
                 sseConnected ? "bg-green-500" : sseReconnecting ? "bg-amber-500 animate-pulse" : "bg-neutral-400"
@@ -657,14 +657,10 @@ function SportOddsContent({
             </button>
             <button
               type="button"
-              disabled={!isPro}
-              onClick={() => isPro && handleScopeChange('live')}
-              className={cn(scope === 'live' && isPro && 'active')}
+              onClick={() => handleScopeChange('live')}
+              className={cn(scope === 'live' && 'active')}
             >
               Live
-              {!isPro && (
-                <span className="ml-1 text-xs opacity-60">Pro</span>
-              )}
             </button>
           </div>
 
@@ -675,7 +671,7 @@ function SportOddsContent({
         </div>
 
         {/* Right side: Live Status Indicator */}
-        {isPro && (
+        {shouldUseLiveUpdates && (
           <div className={cn(
             "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium",
             sseConnected
@@ -782,12 +778,12 @@ function SportOddsContent({
               </div>
 
               {/* Settings */}
-              <div className="flex items-center">
-                <OddsFilters 
-                  isPro={isPro}
-                  liveUpdatesEnabled={liveUpdatesEnabled}
-                  onLiveUpdatesChange={setLiveUpdatesEnabled}
-                />
+            <div className="flex items-center">
+              <OddsFilters 
+                isPro={true}
+                liveUpdatesEnabled={liveUpdatesEnabled}
+                onLiveUpdatesChange={setLiveUpdatesEnabled}
+              />
               </div>
             </div>
 
@@ -867,7 +863,7 @@ function SportOddsContent({
             <FiltersBarSection align="right">
               {/* Filters Button */}
               <OddsFilters 
-                isPro={isPro}
+                isPro={true}
                 liveUpdatesEnabled={liveUpdatesEnabled}
                 onLiveUpdatesChange={setLiveUpdatesEnabled}
               />

@@ -1457,14 +1457,21 @@ export function OddsTable({
       }
     }
 
-    // Also include any books present in current data (union with above)
-    data.forEach((item) => {
-      const books = item.odds?.books || {}
-      Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
-      // Also include normalized books if available
-      const nbooks = item.odds?.normalized?.books || {}
-      Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
-    })
+    // Only union with data-present books when there is NO explicit subset selection.
+    const allActiveIds = new Set(allActiveSportsbooks.map((sb) => sb.id))
+    const selected = new Set(preferences.selectedBooks || [])
+    const hasExplicitSubset =
+      (visibleSportsbooks && visibleSportsbooks.length > 0) ||
+      (selected.size > 0 && selected.size < allActiveIds.size)
+    if (!hasExplicitSubset) {
+      data.forEach((item) => {
+        const books = item.odds?.books || {}
+        Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
+        // Also include normalized books if available
+        const nbooks = item.odds?.normalized?.books || {}
+        Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
+      })
+    }
 
     // Convert set to array and get book metadata
     const ids = Array.from(idSet)
