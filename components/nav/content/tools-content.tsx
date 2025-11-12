@@ -69,15 +69,12 @@ const largeLinks = [
     color: "#f97316", // Orange color for hover effect
   },
   {
-    title: "Parlay Builder",
-    description: "Build SGPs and SGP+ with the highest available prices across major books.",
-    href: "/parlay-builder",
+    title: "Hit Rates",
+    description: "Historical player prop hit rates and trends across books.",
+    href: "/hit-rates",
     comingSoon: true,
-    graphic: (
-      <div className="absolute -right-4 top-1/2 h-[180px] w-[240px] -translate-y-1/2 [mask-image:linear-gradient(90deg,black_50%,transparent_95%)] dark:opacity-80">
-        <Image src="/illustrations/native-tools-integration.svg" alt="" fill />
-      </div>
-    ),
+    graphic: null,
+    color: "#10b981",
   },
 ];
 

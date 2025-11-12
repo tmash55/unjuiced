@@ -20,30 +20,6 @@ const stats = [
     color: "#fbbf24", // Yellow
     comingSoon: false,
   },
-  {
-    icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-orange-400">
-        <BarChart3 className="size-2.5 text-orange-900" />
-      </div>
-    ),
-    title: "NFL Stats",
-    description: "Player performance tracking and fantasy insights.",
-    href: "/stats/nfl",
-    color: "#fb923c",
-    comingSoon: true,
-  },
-  {
-    icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-emerald-400">
-        <TrendingUp className="size-2.5 text-emerald-900" />
-      </div>
-    ),
-    title: "Props Analytics",
-    description: "Historical trends and line movement analysis.",
-    href: "/stats/props",
-    color: "#34d399",
-    comingSoon: true,
-  },
 ];
 
 export function StatsContent({ domain }: { domain: string }) {
