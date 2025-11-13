@@ -70,7 +70,7 @@ export default function ArbsPage() {
   // Fetch all results at once (no pagination)
   const limit = pro ? 1000 : 100;
   
-  const { rows, ids, changes, added, version, loading, connected, cursor, hasMore, nextPage, prevPage, refresh, prefs, prefsLoading, updateFilters, counts, authExpired, reconnectNow, hasActiveFilters, hasFailed } = useArbsView({ pro: pro, live: auto, eventId, limit, mode });
+  const { rows, ids, changes, added, version, loading, connected, cursor, hasMore, nextPage, prevPage, refresh, prefs, prefsLoading, updateFilters, counts, authExpired, reconnectNow, hasActiveFilters, hasFailed, filteredCount, filteredReason } = useArbsView({ pro: pro, live: auto, eventId, limit, mode });
   const [refreshing, setRefreshing] = useState(false);
   const [searchLocal, setSearchLocal] = useState("");
   const [showConnectionError, setShowConnectionError] = useState(false);
@@ -289,6 +289,8 @@ export default function ArbsPage() {
           roundBets={roundBets}
           isLoggedIn={loggedIn}
           isPro={pro}
+          filteredCount={filteredCount}
+          filteredReason={filteredReason}
         />
       )}
 

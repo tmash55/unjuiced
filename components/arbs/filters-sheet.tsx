@@ -13,6 +13,7 @@ import { getAllSports, getAllLeagues, getLeaguesBySport } from "@/lib/data/sport
 import { useArbitragePreferences } from "@/context/preferences-context";
 import { Filter, Building2, Percent, Trophy } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
+import Lock from "@/icons/lock";
 
 export function FiltersSheet({ children, pro = false }: { children?: React.ReactNode; pro?: boolean }) {
   const { filters, updateFilters } = useArbitragePreferences();
@@ -300,8 +301,8 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide outliers above this percent</p>
                     {!pro && (
-                      <p className="text-xs font-medium text-amber-600 dark:text-amber-500">
-                        🔒 Locked on Free plan (max 1%)
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-500">
+                        <Lock className="h-3 w-3" /> Locked on Free plan (max 1%)
                       </p>
                     )}
                   </div>

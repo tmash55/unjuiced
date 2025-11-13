@@ -29,7 +29,12 @@ export async function GET(req: NextRequest) {
     const requestedLimit = parseIntSafe(sp.get("limit"), 100);
     const planLimits = PLAN_LIMITS[userPlan].arbitrage;
     const maxAllowed = planLimits.maxResults === -1 ? 1000 : planLimits.maxResults;
-    const limit = Math.max(1, Math.min(maxAllowed, requestedLimit));
+    
+    // For free/anonymous users, we need to fetch MORE records from Redis because we'll filter them down
+    // Fetch 5x the requested amount to ensure we have enough after filtering
+    const isFreeUser = userPlan === 'free' || userPlan === 'anonymous';
+    const fetchLimit = isFreeUser ? Math.min(500, maxAllowed * 5) : Math.max(1, Math.min(maxAllowed, requestedLimit));
+    const limit = Math.max(1, Math.min(maxAllowed, requestedLimit)); // This is what we tell the client
     
     const cursor = Math.max(0, parseIntSafe(sp.get("cursor"), 0));
     const eventId = sp.get("event_id");
@@ -54,10 +59,10 @@ export async function GET(req: NextRequest) {
         const pairs = allIds
           .map((id, i) => [id, Number(scores?.[i] ?? 0)] as const)
           .sort((a, b) => b[1] - a[1]);
-        ids = pairs.slice(cursor, cursor + limit).map((p) => p[0]);
+        ids = pairs.slice(cursor, cursor + fetchLimit).map((p) => p[0]);
       }
     } else {
-      const zrUnknown = (await (redis as any).zrange(Z, cursor, cursor + limit - 1, { rev: true })) as unknown;
+      const zrUnknown = (await (redis as any).zrange(Z, cursor, cursor + fetchLimit - 1, { rev: true })) as unknown;
       const zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
       ids = zrArr.map((x) => String(x));
     }
@@ -79,11 +84,32 @@ export async function GET(req: NextRequest) {
       return null;
     };
     const rowsParsed = rawArr.map(parseRow);
-    const rows: ArbRow[] = rowsParsed.filter(Boolean) as ArbRow[];
+    let rows: ArbRow[] = rowsParsed.filter(Boolean) as ArbRow[];
     const missingIds: string[] = rowsParsed.reduce<string[]>((acc, r, i) => {
       if (!r) acc.push(ids[i]);
       return acc;
     }, []);
+
+    // Apply free user restrictions: ROI <= 1% and pregame only
+    // Apply to both 'free' and 'anonymous' (not logged in) users
+    let filteredCount = 0;
+    if (userPlan === 'free' || userPlan === 'anonymous') {
+      const originalCount = rows.length;
+      
+      rows = rows.filter((row) => {
+        const roiPercent = (row.roi_bps ?? 0) / 100;
+        const isLive = row.ev?.live === true;
+        // Free/anonymous users: only show pregame arbs with ROI <= 1%
+        return roiPercent <= 1.0 && !isLive;
+      });
+      
+      filteredCount = originalCount - rows.length;
+      
+      // Limit to the requested amount (e.g., 100)
+      if (rows.length > limit) {
+        rows = rows.slice(0, limit);
+      }
+    }
 
     const body: Record<string, any> = { 
       format: ROWS_FORMAT, 
@@ -101,6 +127,10 @@ export async function GET(req: NextRequest) {
       }
     };
     if (debug) body.missing = missingIds;
+    if (filteredCount > 0) {
+      body.filteredCount = filteredCount;
+      body.filteredReason = 'Free users limited to pregame arbs with ROI ≤ 1%';
+    }
 
     const headers: Record<string, string> = { 
       "Cache-Control": "no-store",

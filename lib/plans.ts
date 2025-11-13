@@ -12,7 +12,7 @@ export type UserPlan = "anonymous" | "free" | "pro";
 export const PLAN_LIMITS = {
   anonymous: {
     arbitrage: {
-      maxResults: 5,
+      maxResults: 100, // Increased to show filtered arbs (ROI <= 1%)
       refreshRate: 60000, // 60 seconds
       canFilter: false,
       canExport: false,
@@ -29,7 +29,7 @@ export const PLAN_LIMITS = {
   },
   free: {
     arbitrage: {
-      maxResults: 25,
+      maxResults: 100, // Increased to show filtered arbs (ROI <= 1%)
       refreshRate: 10000, // 10 seconds
       canFilter: true,
       canExport: false,

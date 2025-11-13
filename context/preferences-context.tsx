@@ -116,6 +116,7 @@ interface PreferencesContextType {
     selectedSports: string[];
     selectedLeagues: string[];
     selectedMarkets: string[];
+    marketLines: Record<string, number[]>;
     minImprovement: number;
     maxOdds?: number;
     minOdds?: number;
@@ -142,6 +143,17 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     columnHighlighting?: boolean;
     showBestLine?: boolean;
     showAverageLine?: boolean;
+  }>({});
+  // Guest (unsigned) runtime-only overrides for arbitrage filters
+  const [guestArb, setGuestArb] = useState<{
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedLeagues?: string[];
+    minArb?: number;
+    maxArb?: number;
+    totalBetAmount?: number;
+    searchQuery?: string;
+    roundBets?: boolean;
   }>({});
   
   // Keep track of pending updates to avoid race conditions
@@ -431,6 +443,12 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     totalBetAmount?: number;
     roundBets?: boolean;
   }) => {
+    // For anonymous users, update guest state instead of database
+    if (!user) {
+      setGuestArb(prev => ({ ...prev, ...filters }));
+      return;
+    }
+    
     const updates: UserPreferencesUpdate = {};
     
     if (filters.selectedBooks !== undefined) {
@@ -460,7 +478,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     
     await updatePreferences(updates);
-  }, [updatePreferences]);
+  }, [user, updatePreferences, setGuestArb]);
 
   const updateEvFilters = useCallback(async (filters: {
     selectedBooks?: string[];
@@ -558,7 +576,21 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey'];
     const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'];
     
-    // If preferences haven't loaded yet (logged-out user), default to all active books and all sports/leagues
+    // If logged-out user, use guest state with defaults
+    if (!user) {
+      return {
+        selectedBooks: guestArb.selectedBooks ?? activeSportsbooks,
+        selectedSports: guestArb.selectedSports ?? allSportsIds,
+        selectedLeagues: guestArb.selectedLeagues ?? allLeaguesIds,
+        minArb: guestArb.minArb ?? 0,
+        maxArb: guestArb.maxArb ?? 20,
+        totalBetAmount: guestArb.totalBetAmount ?? 200,
+        searchQuery: guestArb.searchQuery ?? "",
+        roundBets: guestArb.roundBets ?? false,
+      };
+    }
+    
+    // If preferences haven't loaded yet (logged-in user), default to all active books and all sports/leagues
     if (!preferences) {
       return {
         selectedBooks: activeSportsbooks,
@@ -591,7 +623,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       searchQuery: preferences.arbitrage_search_query || "",
       roundBets: (preferences as any).arbitrage_round_bets ?? false,
     };
-  }, [preferences, activeSportsbooks]);
+  }, [preferences, activeSportsbooks, user, guestArb]);
 
   const getEvFilters = useCallback(() => {
     // If preferences haven't loaded yet (logged-out user), default to all active books
@@ -705,6 +737,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         selectedSports: allSports,
         selectedLeagues: allLeagues,
         selectedMarkets: allMarkets,
+        marketLines: {},
         minImprovement: 0,
         maxOdds: undefined,
         minOdds: undefined,
@@ -721,6 +754,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       selectedSports: preferences.best_odds_selected_sports ?? allSports,
       selectedLeagues: preferences.best_odds_selected_leagues ?? allLeagues,
       selectedMarkets: preferences.best_odds_selected_markets ?? allMarkets,
+      marketLines: preferences.best_odds_market_lines ?? {},
       minImprovement: preferences.best_odds_min_improvement ?? 0,
       maxOdds: preferences.best_odds_max_odds ?? undefined,
       minOdds: preferences.best_odds_min_odds ?? undefined,
@@ -736,6 +770,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedSports?: string[];
     selectedLeagues?: string[];
     selectedMarkets?: string[];
+    marketLines?: Record<string, number[]>;
     minImprovement?: number;
     maxOdds?: number;
     minOdds?: number;
@@ -762,6 +797,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.selectedMarkets !== undefined) {
       updates.best_odds_selected_markets = filters.selectedMarkets;
+    }
+    if (filters.marketLines !== undefined) {
+      updates.best_odds_market_lines = filters.marketLines;
     }
     if (filters.minImprovement !== undefined) {
       updates.best_odds_min_improvement = filters.minImprovement;

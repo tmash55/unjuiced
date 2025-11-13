@@ -19,6 +19,8 @@ interface GatedArbTableProps {
   roundBets?: boolean;
   isLoggedIn: boolean;
   isPro: boolean;
+  filteredCount?: number; // Number of arbs hidden for free users
+  filteredReason?: string; // Reason for filtering
 }
 
 export function GatedArbTable({
@@ -30,6 +32,8 @@ export function GatedArbTable({
   roundBets = false,
   isLoggedIn,
   isPro,
+  filteredCount = 0,
+  filteredReason,
 }: GatedArbTableProps) {
   const [previewRows, setPreviewRows] = useState<ArbRow[]>([]);
   const [previewIds, setPreviewIds] = useState<string[]>([]);
@@ -107,175 +111,68 @@ export function GatedArbTable({
     }
   };
 
-  // Fetch preview data for non-pro users (not logged in or free plan)
-  useEffect(() => {
-    if (!isPro) {
-      const fetchPreview = async () => {
-        try {
-          setLoading(true);
-          const response = await fetch("/api/arbs/teaser?limit=8", { cache: "no-store" });
-          const data = await response.json();
-          setPreviewRows(data.rows || []);
-          setPreviewIds((data.rows || []).map((_: any, i: number) => `preview-${i}`));
-        } catch (error) {
-          console.error("Failed to fetch preview:", error);
-          setPreviewRows([]);
-          setPreviewIds([]);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchPreview();
-    }
-  }, [isPro]);
-
-  // Not pro (not logged in or free plan): Show blurred preview with auth gate
-  if (!isPro) {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading preview...</div>
-        </div>
-      );
-    }
-    return (
-      <div className="relative min-h-[600px] pb-24">
-        {/* Blurred table preview */}
-        <div className="pointer-events-none select-none blur-sm">
-          <ArbTableV2
-            rows={previewRows}
-            ids={previewIds}
-            changes={new Map()}
-            added={new Set()}
-            totalBetAmount={totalBetAmount}
-            roundBets={roundBets}
-          />
-        </div>
-
-        {/* Overlay CTA */}
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black">
-          <div className="relative z-10 mx-auto max-w-md rounded-2xl border border-[var(--tertiary)]/20 bg-white p-8 text-center shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-            {/* Icon with gradient glow */}
-            <div className="relative mx-auto mb-6 w-fit">
-              <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[var(--tertiary)]/20 via-[var(--tertiary)]/30 to-[var(--tertiary-strong)]/30 blur-2xl" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--tertiary)]/20 bg-white shadow-sm dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-                <Droplet className="h-8 w-8 text-[var(--tertiary-strong)]" />
-              </div>
+  // Free users now see filtered data (ROI <= 1%, pregame only) instead of a hard gate
+  // Show upgrade banner if there are filtered arbs
+  return (
+    <div>
+      {!isPro && filteredCount > 0 && (
+        <div className="mb-4 rounded-lg border border-[var(--tertiary)]/20 bg-gradient-to-r from-[var(--tertiary)]/5 to-[var(--tertiary-strong)]/5 p-4 dark:border-[var(--tertiary)]/30">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--tertiary)]/20 bg-white dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
+              <Lock className="h-5 w-5 text-[var(--tertiary-strong)]" />
             </div>
-
-            {/* Content */}
-            <h3 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white">
-              {isLoggedIn && !hasUnusedTrial 
-                ? "Upgrade to Pro" 
-                : "Start Your 7-Day Free Trial"
-              }
-            </h3>
-            <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-              {isLoggedIn && !hasUnusedTrial
-                ? "Unlock real-time arbitrage opportunities across 20+ sportsbooks with Pro access."
-                : "Join thousands of bettors finding risk-free profit opportunities across 20+ sportsbooks. Card required; you won’t be charged until the trial ends."
-              }
-            </p>
-
-            {/* Stats */}
-            <div className="mb-6 flex items-center justify-center gap-4 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/5 px-4 py-3 text-xs dark:border-[var(--tertiary)]/30 dark:bg-[var(--tertiary)]/10">
-              <div className="text-center">
-                <div className="font-bold text-neutral-900 dark:text-white">20+</div>
-                <div className="text-neutral-500 dark:text-neutral-400">Books</div>
-              </div>
-              <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
-              <div className="text-center">
-                <div className="font-bold text-neutral-900 dark:text-white">Live</div>
-                <div className="text-neutral-500 dark:text-neutral-400">Updates</div>
-              </div>
-              <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
-              <div className="text-center">
-                <div className="font-bold text-neutral-900 dark:text-white">Real-time</div>
-                <div className="text-neutral-500 dark:text-neutral-400">Odds</div>
-              </div>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col gap-3">
-              {isLoggedIn ? (
-                // Logged in but free plan
-                <>
-                  {hasUnusedTrial ? (
-                    // Show trial CTA if they haven't used it yet
-                    <>
-                      <button
-                        onClick={handleStartTrial}
-                        disabled={activatingTrial}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--tertiary)] to-[var(--tertiary-strong)] px-6 py-3 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {activatingTrial ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Activating...
-                          </>
-                        ) : (
-                          <>
-                            Start Free — 7-Day Trial
-                            <ArrowRight className="h-4 w-4" />
-                          </>
-                        )}
-                      </button>
-                      <ButtonLink
-                        href="/pricing"
-                        variant="outline"
-                        className="w-full justify-center text-sm"
-                      >
-                        Or upgrade to Pro
-                      </ButtonLink>
-                    </>
-                  ) : (
-                    // Trial already used - show only upgrade
-                    <ButtonLink
-                      href="/pricing"
-                      variant="pro"
-                      className="w-full justify-center gap-2"
-                    >
-                      Upgrade to Pro
-                      <ArrowRight className="h-4 w-4" />
-                    </ButtonLink>
-                  )}
-                </>
-              ) : (
-                // Not logged in - show trial + login CTAs
-                <>
+            <div className="flex-1">
+              <h4 className="mb-1 text-sm font-semibold text-neutral-900 dark:text-white">
+                {filteredCount} Premium Arb{filteredCount === 1 ? '' : 's'} Hidden
+              </h4>
+              <p className="mb-3 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                {filteredReason || 'Upgrade to Pro to access all arbitrage opportunities, including live arbs and those with ROI > 1%'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {hasUnusedTrial ? (
                   <button
                     onClick={handleStartTrial}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--tertiary)] to-[var(--tertiary-strong)] px-6 py-3 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90"
+                    disabled={activatingTrial}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-[var(--tertiary)] to-[var(--tertiary-strong)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Start Free Trial
-                    <ArrowRight className="h-4 w-4" />
+                    {activatingTrial ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        Start 7-Day Free Trial
+                        <ArrowRight className="h-3 w-3" />
+                      </>
+                    )}
                   </button>
+                ) : (
                   <ButtonLink
-                    href={`/login?redirectTo=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/arbitrage')}`}
-                    variant="outline"
-                    className="w-full justify-center text-sm"
+                    href="/pricing"
+                    variant="pro"
+                    className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold"
                   >
-                    Already have an account? Sign in
+                    Upgrade to Pro
+                    <ArrowRight className="h-3 w-3" />
                   </ButtonLink>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Pro user: Show full table
-  return (
-    <ArbTableV2
-      rows={rows}
-      ids={ids}
-      changes={changes}
-      added={added}
-      totalBetAmount={totalBetAmount}
-      roundBets={roundBets}
-    />
+      )}
+      
+      {/* Show the actual filtered table data */}
+      <ArbTableV2
+        rows={rows}
+        ids={ids}
+        changes={changes}
+        added={added}
+        totalBetAmount={totalBetAmount}
+        roundBets={roundBets}
+      />
+    </div>
   );
 }
 

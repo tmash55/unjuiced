@@ -23,7 +23,7 @@ export type ArbRow = {
     const res = await fetch(`/api/arbs?${sp.toString()}`, { credentials: "include" });
     if (res.status === 304) return { unchanged: true as const };
     if (!res.ok) throw new Error(`GET /api/arbs ${res.status}`);
-    return (await res.json()) as { format: number; v: number; ids: string[]; rows: ArbRow[] };
+    return (await res.json()) as { format: number; v: number; ids: string[]; rows: ArbRow[]; filteredCount?: number; filteredReason?: string };
   }
   
   export async function fetchRows(ids: string[]): Promise<Array<{ id: string; row: ArbRow | null }>> {

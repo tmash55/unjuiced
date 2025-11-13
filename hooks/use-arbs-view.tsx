@@ -95,5 +95,7 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
     prefsLoading,
     updateFilters,
     hasActiveFilters,
+    filteredCount: stream.filteredCount,
+    filteredReason: stream.filteredReason,
   };
 }

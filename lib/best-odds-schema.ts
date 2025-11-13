@@ -77,6 +77,7 @@ export interface BestOddsPrefs {
   selectedSports: string[]      // User's preferred sports (empty = all)
   selectedLeagues: string[]     // User's preferred leagues (empty = all)
   selectedMarkets: string[]     // User's preferred markets (empty = all)
+  marketLines: Record<string, number[]>  // Line values per market (e.g., {"touchdowns": [0.5, 1.5, 2.5]}). Empty object or empty array for a market = all lines
   minImprovement: number        // Minimum improvement % to show
   maxOdds?: number             // Maximum odds value
   minOdds?: number             // Minimum odds value

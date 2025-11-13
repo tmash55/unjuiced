@@ -39,6 +39,8 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   const [hasFailed, setHasFailed] = useState(false);
   const retryCountRef = useRef(0);
   const maxRetries = 10;
+  const [filteredCount, setFilteredCount] = useState<number>(0);
+  const [filteredReason, setFilteredReason] = useState<string | undefined>(undefined);
 
   // Fetch total counts from API
   const fetchTotalCounts = useCallback(async () => {
@@ -111,6 +113,9 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
         res.rows.forEach((r, i) => prev.set(res.ids[i], r));
         if (opts?.reset) setCursor(0);
         else if (opts?.cursor !== undefined) setCursor(opts.cursor);
+        // Store filtered count and reason from API response
+        setFilteredCount(res.filteredCount ?? 0);
+        setFilteredReason(res.filteredReason);
       }
     } catch (e: any) {
       setError(e.message || "fetch failed");
@@ -300,5 +305,5 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     try { location.reload(); } catch {}
   }, []);
 
-  return { rows, ids, changes, added, version, loading, connected, lastDiff, error, cursor, hasMore, nextPage, prevPage, setCursor, lastUpdated, refresh, authExpired, reconnectNow, totalCounts, hasFailed };
+  return { rows, ids, changes, added, version, loading, connected, lastDiff, error, cursor, hasMore, nextPage, prevPage, setCursor, lastUpdated, refresh, authExpired, reconnectNow, totalCounts, hasFailed, filteredCount, filteredReason };
 }

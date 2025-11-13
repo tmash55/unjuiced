@@ -13,7 +13,7 @@ import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { Filter, Building2, Target, TrendingUp } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, ChevronDown } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 
 interface BestOddsFiltersProps {
@@ -78,10 +78,12 @@ export function BestOddsFilters({
     prefs.selectedLeagues.length === 0 ? availableLeagues : prefs.selectedLeagues
   );
   const [localMarkets, setLocalMarkets] = useState<string[]>(prefs.selectedMarkets);
+  const [localMarketLines, setLocalMarketLines] = useState<Record<string, number[]>>(prefs.marketLines);
   const [localMinImprovement, setLocalMinImprovement] = useState<number>(prefs.minImprovement);
   const [localMaxOdds, setLocalMaxOdds] = useState<number | undefined>(prefs.maxOdds);
   const [localMinOdds, setLocalMinOdds] = useState<number | undefined>(prefs.minOdds);
   const [localHideCollegePlayerProps, setLocalHideCollegePlayerProps] = useState<boolean>(prefs.hideCollegePlayerProps ?? false);
+  const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Keep local UI state in sync when preferences load or change
@@ -89,6 +91,7 @@ export function BestOddsFilters({
     setLocalBooks(prefs.selectedBooks);
     setLocalLeagues(prefs.selectedLeagues.length === 0 ? availableLeagues : prefs.selectedLeagues);
     setLocalMarkets(prefs.selectedMarkets);
+    setLocalMarketLines(prefs.marketLines);
     setLocalMinImprovement(prefs.minImprovement);
     setLocalMaxOdds(prefs.maxOdds);
     setLocalMinOdds(prefs.minOdds);
@@ -111,6 +114,7 @@ export function BestOddsFilters({
 
   // Track changes to mark as unsaved
   useEffect(() => {
+    const marketLinesChanged = JSON.stringify(localMarketLines) !== JSON.stringify(prefs.marketLines);
     const changed =
       localBooks.length !== prefs.selectedBooks.length ||
       localBooks.some(id => !prefs.selectedBooks.includes(id)) ||
@@ -118,13 +122,14 @@ export function BestOddsFilters({
       localLeagues.some(id => !prefs.selectedLeagues.includes(id)) ||
       localMarkets.length !== prefs.selectedMarkets.length ||
       localMarkets.some(id => !prefs.selectedMarkets.includes(id)) ||
+      marketLinesChanged ||
       localMinImprovement !== prefs.minImprovement ||
       localMaxOdds !== prefs.maxOdds ||
       localMinOdds !== prefs.minOdds ||
       localHideCollegePlayerProps !== (prefs.hideCollegePlayerProps ?? false);
 
     setHasUnsavedChanges(changed);
-  }, [localBooks, localLeagues, localMarkets, localMinImprovement, localMaxOdds, localMinOdds, localHideCollegePlayerProps, prefs]);
+  }, [localBooks, localLeagues, localMarkets, localMarketLines, localMinImprovement, localMaxOdds, localMinOdds, localHideCollegePlayerProps, prefs]);
 
   // League display names
   const leagueLabels: Record<string, string> = {
@@ -135,6 +140,31 @@ export function BestOddsFilters({
     ncaab: 'NCAAB',
     mlb: 'MLB',
     wnba: 'WNBA',
+  };
+
+  // Define which markets have line options and what those options are
+  const marketLineOptions: Record<string, { lines: number[]; labels: string[] }> = {
+    player_touchdowns: {
+      lines: [0.5, 1.5, 2.5, 3.5],
+      labels: ['Anytime', '2+', '3+', '4+'],
+    },
+    player_goals: {
+      lines: [0.5, 1.5, 2.5],
+      labels: ['Anytime', '2+', '3+'],
+    },
+    // Add more markets as needed
+  };
+
+  // Helper to check if a market has line options
+  const hasLineOptions = (market: string): boolean => {
+    const normalized = market.toLowerCase();
+    return normalized === 'player_touchdowns' || normalized === 'player_goals';
+  };
+
+  // Helper to get line options for a market
+  const getLineOptions = (market: string): { lines: number[]; labels: string[] } | null => {
+    const normalized = market.toLowerCase();
+    return marketLineOptions[normalized] || null;
   };
 
   // Group markets by sport type
@@ -221,6 +251,17 @@ export function BestOddsFilters({
 
   const toggleMarket = (id: string) => {
     setLocalMarkets(prev => {
+      const isCurrentlySelected = prev.length === 0 || prev.includes(id);
+      const willBeDeselected = isCurrentlySelected && prev.length !== 0;
+      
+      // If deselecting a market, also clear its line selections
+      if (willBeDeselected) {
+        const marketKey = id.toLowerCase().replace(/_/g, '');
+        const newMarketLines = { ...localMarketLines };
+        delete newMarketLines[marketKey];
+        setLocalMarketLines(newMarketLines);
+      }
+      
       // If empty (all selected), clicking one means "deselect this one, keep all others"
       if (prev.length === 0) {
         return availableMarkets.filter(m => m !== id);
@@ -253,6 +294,7 @@ export function BestOddsFilters({
       selectedSports: [], // Not used by backend, only for UI state
       selectedLeagues: allLeaguesInUI ? [] : finalLeagues, // Empty = all selected
       selectedMarkets: allMarketsInUI ? [] : localMarkets, // Empty = all selected
+      marketLines: localMarketLines, // Market-specific line selections
       minImprovement: localMinImprovement,
       maxOdds: localMaxOdds,
       minOdds: localMinOdds,
@@ -267,6 +309,7 @@ export function BestOddsFilters({
     setLocalSports(allSports.map(s => s.id));
     setLocalLeagues(availableLeagues);
     setLocalMarkets(availableMarkets);
+    setLocalMarketLines({});
     setLocalMinImprovement(0);
     setLocalMaxOdds(undefined);
     setLocalMinOdds(undefined);
@@ -278,6 +321,7 @@ export function BestOddsFilters({
       selectedSports: [],
       selectedLeagues: [],
       selectedMarkets: [],
+      marketLines: {},
       minImprovement: 0,
       maxOdds: undefined,
       minOdds: undefined,
@@ -531,18 +575,141 @@ export function BestOddsFilters({
                         <div className="filter-grid">
                           {markets.map(market => {
                             const checked = allMarketsSelected || localMarkets.includes(market);
+                            const hasLines = hasLineOptions(market);
+                            const isExpanded = expandedMarkets.has(market);
+                            const lineOptions = hasLines ? getLineOptions(market) : null;
+                            const marketKey = market.toLowerCase().replace(/_/g, '');
+                            const selectedLinesForMarket = localMarketLines[marketKey] || [];
+                            
                             return (
-                              <label
-                                key={market}
-                                className={`filter-card flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm ${
-                                  checked
-                                    ? 'active'
-                                    : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
-                                }`}
-                              >
-                                <Checkbox checked={checked} onCheckedChange={() => toggleMarket(market)} />
-                                <span className="text-sm leading-none">{formatMarketLabel(market)}</span>
-                              </label>
+                              <div key={market} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <label
+                                    className={`filter-card flex-1 flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm ${
+                                      checked
+                                        ? 'active'
+                                        : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
+                                    }`}
+                                  >
+                                    <Checkbox checked={checked} onCheckedChange={() => toggleMarket(market)} />
+                                    <span className="text-sm leading-none">{formatMarketLabel(market)}</span>
+                                  </label>
+                                  {hasLines && (
+                                    <button
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedMarkets);
+                                        if (isExpanded) {
+                                          newExpanded.delete(market);
+                                        } else {
+                                          newExpanded.add(market);
+                                        }
+                                        setExpandedMarkets(newExpanded);
+                                      }}
+                                      className="flex h-[52px] w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                                      title="Filter by line"
+                                    >
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {hasLines && isExpanded && lineOptions && (
+                                  <div className="space-y-3 rounded-lg border border-neutral-200/60 bg-gradient-to-br from-neutral-50 to-neutral-50/30 p-4 shadow-sm dark:border-neutral-700/60 dark:from-neutral-800/50 dark:to-neutral-800/30">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">
+                                        Filter by Line
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const newMarketLines = { ...localMarketLines };
+                                          delete newMarketLines[marketKey];
+                                          setLocalMarketLines(newMarketLines);
+                                        }}
+                                        className="text-xs font-medium text-neutral-500 transition-colors hover:text-brand dark:text-neutral-400 dark:hover:text-brand"
+                                      >
+                                        Reset
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2">
+                                      {lineOptions.lines.map((line, idx) => {
+                                        // If market is not selected, disable all line buttons
+                                        const isMarketSelected = checked;
+                                        const lineChecked = isMarketSelected && (selectedLinesForMarket.length === 0 || selectedLinesForMarket.includes(line));
+                                        
+                                        return (
+                                          <button
+                                            key={line}
+                                            disabled={!isMarketSelected}
+                                            onClick={() => {
+                                              // If market is not selected, select it first
+                                              if (!isMarketSelected) {
+                                                toggleMarket(market);
+                                              }
+                                              
+                                              const newMarketLines = { ...localMarketLines };
+                                              const currentLines = newMarketLines[marketKey] || [];
+                                              
+                                              if (currentLines.length === 0) {
+                                                // If all were selected (empty array), start with all lines except this one
+                                                newMarketLines[marketKey] = lineOptions.lines.filter(l => l !== line);
+                                              } else if (currentLines.includes(line)) {
+                                                // Remove this line
+                                                newMarketLines[marketKey] = currentLines.filter(l => l !== line);
+                                                
+                                                // If no lines are selected, deselect the entire market
+                                                if (newMarketLines[marketKey].length === 0) {
+                                                  delete newMarketLines[marketKey];
+                                                  // Deselect the market itself
+                                                  toggleMarket(market);
+                                                }
+                                              } else {
+                                                // Add this line
+                                                newMarketLines[marketKey] = [...currentLines, line];
+                                                // If all lines are now selected, set to empty array
+                                                if (newMarketLines[marketKey].length === lineOptions.lines.length) {
+                                                  delete newMarketLines[marketKey];
+                                                }
+                                              }
+                                              
+                                              setLocalMarketLines(newMarketLines);
+                                            }}
+                                            className={`group relative flex flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 transition-all ${
+                                              !isMarketSelected
+                                                ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 opacity-50 dark:border-neutral-700 dark:bg-neutral-900'
+                                                : lineChecked
+                                                ? 'border-brand bg-brand shadow-sm shadow-brand/20'
+                                                : 'border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-neutral-500'
+                                            }`}
+                                          >
+                                            <div className={`flex h-4 w-4 items-center justify-center rounded border-2 transition-colors ${
+                                              lineChecked 
+                                                ? 'border-white bg-white' 
+                                                : 'border-neutral-300 dark:border-neutral-500'
+                                            }`}>
+                                              {lineChecked && (
+                                                <svg className="h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                              )}
+                                            </div>
+                                            <span className={`text-xs font-semibold transition-colors ${
+                                              lineChecked 
+                                                ? 'text-white' 
+                                                : 'text-neutral-700 dark:text-neutral-300'
+                                            }`}>
+                                              {lineOptions.labels[idx]}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                                      All lines selected by default. Deselecting all lines will remove this market from results.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
@@ -553,7 +720,7 @@ export function BestOddsFilters({
 
                 <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
                   <p className="text-xs text-blue-900 dark:text-blue-100">
-                    <strong>Tip:</strong> All leagues and markets are selected by default. Uncheck specific ones to narrow your results.
+                    <strong>Tip:</strong> All leagues and markets are selected by default. Uncheck specific ones to narrow your results. Some markets have line filters you can expand.
                   </p>
                 </div>
               </TabsContent>
@@ -623,6 +790,7 @@ export function BestOddsFilters({
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Filter out odds above this value</p>
                   </div>
                 </div>
+
               </TabsContent>
             </Tabs>
           </div>

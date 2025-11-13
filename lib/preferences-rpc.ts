@@ -45,6 +45,7 @@ export interface UserPreferences {
   best_odds_selected_sports?: string[];
   best_odds_selected_leagues?: string[];
   best_odds_selected_markets?: string[];
+  best_odds_market_lines?: Record<string, number[]>;
   best_odds_min_improvement?: number;
   best_odds_max_odds?: number;
   best_odds_min_odds?: number;
@@ -128,6 +129,7 @@ export class PreferencesRPC {
       best_odds_selected_sports: data?.best_odds_selected_sports !== null ? data?.best_odds_selected_sports : undefined,
       best_odds_selected_leagues: data?.best_odds_selected_leagues || [],
       best_odds_selected_markets: data?.best_odds_selected_markets || [],
+      best_odds_market_lines: data?.best_odds_market_lines || {},
       best_odds_min_improvement: data?.best_odds_min_improvement ?? 0,
       best_odds_max_odds: data?.best_odds_max_odds,
       best_odds_min_odds: data?.best_odds_min_odds,

@@ -9,6 +9,7 @@ export const DEFAULT_BEST_ODDS_PREFS: BestOddsPrefs = {
   selectedSports: [],
   selectedLeagues: [],
   selectedMarkets: [],
+  marketLines: {},
   minImprovement: 0,
   maxOdds: undefined,
   minOdds: undefined,
@@ -127,6 +128,14 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
   // Filter by odds range
   if (prefs.maxOdds !== undefined && deal.bestPrice > prefs.maxOdds) return false;
   if (prefs.minOdds !== undefined && deal.bestPrice < prefs.minOdds) return false;
+
+  // Filter by market-specific lines (e.g., {"touchdowns": [0.5, 1.5, 2.5]})
+  // Empty object or empty array for a market = all lines for that market
+  const marketKey = normalize(deal.mkt);
+  const selectedLinesForMarket = prefs.marketLines[marketKey];
+  if (selectedLinesForMarket && selectedLinesForMarket.length > 0) {
+    if (!selectedLinesForMarket.includes(deal.ln)) return false;
+  }
 
   // Filter by scope (pregame/live)
   if (prefs.scope !== 'all' && deal.scope !== prefs.scope) return false;

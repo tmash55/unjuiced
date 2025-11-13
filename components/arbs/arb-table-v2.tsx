@@ -671,7 +671,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         const roiPct = ((r.roi_bps || 0) / 100).toFixed(2);
 
         return (
-          <div className="text-right">
+          <div className="text-center">
             <div className="font-bold text-base bg-gradient-to-r from-[var(--accent-strong)] to-[var(--accent)] bg-clip-text text-transparent tabular-nums">
               {currency(profitValue)}
             </div>
