@@ -100,6 +100,34 @@ const AccordionItem = ({
   const [ref, { height }] = useMeasure();
   const targetHeight = useMemo(() => (isOpen ? height : 0), [isOpen, height]);
 
+  // Parse answer text and convert "/path" patterns to links
+  const renderAnswer = (text: string) => {
+    // Match patterns like "here: /path" or "here: /path."
+    const parts = text.split(/(\bhref:\s*\/[a-z-]+|\bhere:\s*\/[a-z-]+)/gi);
+    
+    return parts.map((part, i) => {
+      // Check if this part contains a link pattern
+      const linkMatch = part.match(/\b(href|here):\s*(\/[a-z-]+)/i);
+      if (linkMatch) {
+        const path = linkMatch[2];
+        const displayText = path.substring(1); // Remove leading slash for display
+        return (
+          <React.Fragment key={i}>
+            {linkMatch[1]}:{" "}
+            <a
+              href={path}
+              onClick={(e) => e.stopPropagation()}
+              className="text-brand hover:underline font-medium"
+            >
+              {displayText}
+            </a>
+          </React.Fragment>
+        );
+      }
+      return <React.Fragment key={i}>{part}</React.Fragment>;
+    });
+  };
+
   return (
     <div className="group">
       <button
@@ -130,7 +158,6 @@ const AccordionItem = ({
         animate={{ height: targetHeight, opacity: isOpen ? 1 : 0 }}
         transition={{ height: { duration: 0.35 }, opacity: { duration: 0.2 } }}
         className="overflow-hidden px-8"
-        onClick={onToggle}
       >
         <div ref={ref} className="pr-2 pb-5 pl-2 sm:pr-0 sm:pl-0">
           <AnimatePresence mode="popLayout">
@@ -143,7 +170,7 @@ const AccordionItem = ({
                 transition={{ duration: 0.25 }}
                 className="text-gray-600 dark:text-neutral-400"
               >
-                {answer}
+                {renderAnswer(answer)}
               </motion.p>
             )}
           </AnimatePresence>

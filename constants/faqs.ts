@@ -32,7 +32,7 @@ export const faqs = [
   {
     question: "Is sports betting legal in my state?",
     answer:
-      "Sports betting legality varies by state. Unjuiced is a comparison tool available nationwide, but you can only place bets through licensed sportsbooks in states where sports betting is legal. We filter sportsbooks based on your location to show only those available in your state. Always gamble responsibly.",
+      "Sports betting legality varies by state. Unjuiced is a comparison tool available nationwide, but you can only place bets through licensed sportsbooks in states where sports betting is legal. We filter sportsbooks based on your location to show only those available in your state. Note: Bovada is available in all states and ProphetX is available in almost every state, providing options even in states with limited legal sportsbooks. Always gamble responsibly.",
   },
   {
     question: "Does Unjuiced handle bets or process wagers?",

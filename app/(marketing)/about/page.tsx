@@ -38,13 +38,15 @@ export default function AboutPage() {
             </Heading>
             <SubHeading className="mt-6 mr-auto text-left">
               Founded by bettors for bettors, Unjuiced was born from a simple frustration: 
-              finding the best odds shouldn't require opening 20+ tabs. We set out to change 
-              that by creating a platform that gives you real-time odds, arbitrage detection, 
-              and line shopping tools—all in one place.
+              finding the best odds shouldn't require opening 20+ tabs, and the existing tools 
+              charged hundreds of dollars per month. We set out to change that by creating an 
+              affordable platform that gives you real-time odds, arbitrage detection, and line 
+              shopping tools—all in one place.
               <br /> <br />
               Today, Unjuiced helps thousands of bettors—from casual players to sharp 
               professionals—find better odds, maximize ROI, and make smarter betting decisions. 
-              No sponsored rankings. No conflicts of interest. Just real market data.
+              No sponsored rankings. No conflicts of interest. Just real market data at a price 
+              that makes sense.
             </SubHeading>
           </div>
           <div className="border-divide rounded-3xl border p-2">

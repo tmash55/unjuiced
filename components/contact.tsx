@@ -135,29 +135,12 @@ export const Contact = () => {
 };
 
 const ContactCard = () => {
-  const [copiedEmail, setCopiedEmail] = useState(false);
-  const [copiedX, setCopiedX] = useState(false);
+  const handleEmailClick = () => {
+    window.location.href = 'mailto:support@unjuiced.bet';
+  };
 
-  const copyToClipboard = async (text: string, type: 'email' | 'x') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      if (type === 'email') {
-        setCopiedEmail(true);
-        setTimeout(() => setCopiedEmail(false), 2000);
-      } else {
-        setCopiedX(true);
-        setTimeout(() => setCopiedX(false), 2000);
-      }
-      toast.success(`${type === 'email' ? 'Email' : 'X handle'} copied!`, {
-        description: `${text} copied to clipboard`,
-        duration: 2000,
-      });
-    } catch (err) {
-      toast.error('Failed to copy', {
-        description: 'Please try again',
-        duration: 2000,
-      });
-    }
+  const handleXClick = () => {
+    window.open('https://x.com/unjuicedApp', '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -183,68 +166,40 @@ const ContactCard = () => {
         
         <div className="mt-8 space-y-4">
           <button
-            onClick={() => copyToClipboard('support@unjuiced.bet', 'email')}
+            onClick={handleEmailClick}
             className="group flex w-full items-center gap-3 rounded-lg p-3 transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
           >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
-              copiedEmail 
-                ? 'bg-green-100 dark:bg-green-900/30' 
-                : 'bg-sky-100 dark:bg-brand/10 group-hover:bg-sky-200 dark:group-hover:bg-brand/20'
-            }`}>
-              {copiedEmail ? (
-                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <Mail className="h-5 w-5 text-sky-700 dark:text-brand transition-transform group-hover:scale-110" />
-              )}
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 transition-all group-hover:bg-sky-200 dark:bg-brand/10 dark:group-hover:bg-brand/20">
+              <Mail className="h-5 w-5 text-sky-700 transition-transform group-hover:scale-110 dark:text-brand" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-neutral-900 dark:text-white">Email</p>
-              <p className={`text-sm transition-colors ${
-                copiedEmail 
-                  ? 'text-green-600 dark:text-green-400 font-medium' 
-                  : 'text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-200'
-              }`}>
-                {copiedEmail ? 'Copied!' : 'support@unjuiced.bet'}
+              <p className="text-sm text-neutral-600 transition-colors group-hover:text-neutral-900 dark:text-neutral-400 dark:group-hover:text-neutral-200">
+                support@unjuiced.bet
               </p>
             </div>
             <svg className="h-4 w-4 text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </button>
           
           <button
-            onClick={() => copyToClipboard('@unjuicedApp', 'x')}
+            onClick={handleXClick}
             className="group flex w-full items-center gap-3 rounded-lg p-3 transition-all hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
           >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
-              copiedX 
-                ? 'bg-green-100 dark:bg-green-900/30' 
-                : 'bg-sky-100 dark:bg-brand/10 group-hover:bg-sky-200 dark:group-hover:bg-brand/20'
-            }`}>
-              {copiedX ? (
-                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" className="text-sky-700 dark:text-brand transition-transform group-hover:scale-110">
-                  <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
-                </svg>
-              )}
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 transition-all group-hover:bg-sky-200 dark:bg-brand/10 dark:group-hover:bg-brand/20">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" className="text-sky-700 transition-transform group-hover:scale-110 dark:text-brand">
+                <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
+              </svg>
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-neutral-900 dark:text-white">X</p>
-              <p className={`text-sm transition-colors ${
-                copiedX 
-                  ? 'text-green-600 dark:text-green-400 font-medium' 
-                  : 'text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-200'
-              }`}>
-                {copiedX ? 'Copied!' : '@unjuicedApp'}
+              <p className="text-sm text-neutral-600 transition-colors group-hover:text-neutral-900 dark:text-neutral-400 dark:group-hover:text-neutral-200">
+                @unjuicedApp
               </p>
             </div>
             <svg className="h-4 w-4 text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </button>
         </div>

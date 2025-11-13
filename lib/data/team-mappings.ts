@@ -439,15 +439,16 @@ export const MLB_TEAM_MAP: Record<string, string> = {
       return nhlVariationMap[teamName]
     }
   
-    // If no match found, check if it's already a valid abbreviation
-    const validAbbrs = new Set(Object.values(teamMaps[normalizedSport] || {}))
-    if (validAbbrs.has(teamName.toUpperCase())) {
-      return teamName.toUpperCase()
-    }
-  
-    // Last resort: take first 3 letters
-    return teamName.slice(0, 3).toUpperCase()
+  // If no match found, check if it's already a valid abbreviation
+  const validAbbrs = new Set(Object.values(teamMaps[normalizedSport] || {}))
+  if (validAbbrs.has(teamName.toUpperCase())) {
+    return teamName.toUpperCase()
   }
+
+  // Last resort: return the team name as-is (uppercase)
+  // This prevents partial matches like "UNCW" -> "UNC"
+  return teamName.toUpperCase()
+}
   
   // Get player image URL based on sport and player ID
   export function getPlayerImageUrl(playerId: string, sport: string): string {
