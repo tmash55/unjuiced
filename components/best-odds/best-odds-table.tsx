@@ -227,6 +227,19 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
             >
               <div className="flex items-center justify-center gap-1">
                 <span>Improvement %</span>
+                <Tooltip content="Improvement % = (Best − Avg) ÷ Avg in decimal odds. Higher means bigger edge vs market.">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    aria-hidden
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z"
+                    />
+                  </svg>
+                </Tooltip>
                 {sortField === 'improvement' && (
                   sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                 )}

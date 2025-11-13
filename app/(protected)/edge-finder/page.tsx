@@ -6,6 +6,7 @@ import { GatedBestOddsView } from "@/components/best-odds/gated-best-odds-view";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
 import { ToolHeading } from "@/components/common/tool-heading";
 import { ToolSubheading } from "@/components/common/tool-subheading";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
@@ -95,6 +96,18 @@ export default function BestOddsPage() {
   // Apply client-side filtering and sorting
   const filteredDeals = useMemo(() => {
     let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefs));
+    
+    // Apply college player props filter if enabled
+    if (prefs.hideCollegePlayerProps) {
+      filtered = filtered.filter((deal: BestOddsDeal) => {
+        // Keep game markets (ent === 'game')
+        if (deal.ent === 'game') return true;
+        // Hide NCAAF and NCAAB player props
+        const isCollegePlayerProp = (deal.sport === 'ncaaf' || deal.sport === 'ncaab') && deal.ent !== 'game';
+        return !isCollegePlayerProp;
+      });
+    }
+    
     filtered = sortDeals(filtered, prefs.sortBy);
     return filtered;
   }, [deals, prefs]);
@@ -126,9 +139,60 @@ export default function BestOddsPage() {
       {/* Header */}
       <div className="mb-8">
         <ToolHeading>Edge Finder</ToolHeading>
-        <ToolSubheading>
-        Track real-time discrepancies between sportsbooks to uncover edges before the market adjusts.
-        </ToolSubheading>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <ToolSubheading>
+            Track real-time discrepancies between sportsbooks to uncover edges before the market adjusts.
+          </ToolSubheading>
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="text-xs sm:text-sm font-medium text-brand hover:underline underline-offset-2 self-start sm:self-auto"
+              >
+                How improvement % is calculated
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md border-[var(--tertiary)]/20 bg-white p-0 shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
+              <div className="p-6 sm:p-8 text-center">
+                {/* Icon with gradient glow (match ProGate style) */}
+                <div className="relative mx-auto mb-6 w-fit">
+                  <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[var(--tertiary)]/20 via-[var(--tertiary)]/30 to-[var(--tertiary-strong)]/30 blur-2xl" />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--tertiary)]/20 bg-white shadow-sm dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
+                    <TrendingUp className="h-7 w-7 text-[var(--tertiary-strong)]" />
+                  </div>
+                </div>
+
+                <DialogHeader>
+                  <DialogTitle className="text-xl">Improvement %</DialogTitle>
+                  <DialogDescription className="text-sm">
+                    Best vs. market average in decimal odds.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="mt-4 space-y-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 text-left">
+                  <p className="text-neutral-600 dark:text-neutral-400">
+                    1) Collect all book prices for the same line/side (need ≥ 2).
+                  </p>
+                  <p className="text-neutral-600 dark:text-neutral-400">
+                    2) Convert American → Decimal:
+                    <br />o &gt; 0 → 1 + o/100
+                    <br />o ≤ 0 → 1 + 100/|o|
+                  </p>
+                  <p className="text-neutral-600 dark:text-neutral-400">
+                    3) average_decimal = mean(all decimals)
+                    <br />4) best_decimal = decimal of the highest American price
+                  </p>
+                  <p className="font-semibold">
+                    Improvement % = ((best_decimal − average_decimal) / average_decimal) × 100
+                  </p>
+                  <p className="mt-2">
+                    A higher Improvement % means you’re getting a better deal compared to the market average.
+                  </p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Pregame/Live Toggle - Above Filter Bar */}

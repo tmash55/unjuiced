@@ -108,6 +108,7 @@ interface PreferencesContextType {
     scope?: string;
     sortBy?: string;
     searchQuery?: string;
+    hideCollegePlayerProps?: boolean;
   }) => Promise<void>;
   
   getBestOddsFilters: () => {
@@ -121,6 +122,7 @@ interface PreferencesContextType {
     scope: 'all' | 'pregame' | 'live';
     sortBy: 'improvement' | 'odds';
     searchQuery: string;
+    hideCollegePlayerProps: boolean;
   };
 }
 
@@ -709,6 +711,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         scope: 'pregame' as const,
         sortBy: 'improvement' as const,
         searchQuery: '',
+        hideCollegePlayerProps: false,
       };
     }
     
@@ -724,6 +727,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       scope: (preferences.best_odds_scope as 'all' | 'pregame' | 'live') ?? 'pregame',
       sortBy: (preferences.best_odds_sort_by as 'improvement' | 'odds') ?? 'improvement',
       searchQuery: preferences.best_odds_search_query ?? '',
+      hideCollegePlayerProps: preferences.best_odds_hide_college_player_props ?? false,
     };
   }, [preferences, activeSportsbooks]);
   
@@ -738,6 +742,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     scope?: string;
     sortBy?: string;
     searchQuery?: string;
+    hideCollegePlayerProps?: boolean;
   }) => {
     if (!user) {
       if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update best odds filters - no user');
@@ -777,6 +782,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.searchQuery !== undefined) {
       updates.best_odds_search_query = filters.searchQuery;
+    }
+    if (filters.hideCollegePlayerProps !== undefined) {
+      updates.best_odds_hide_college_player_props = filters.hideCollegePlayerProps;
     }
     
     if (Object.keys(updates).length > 0) {

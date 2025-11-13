@@ -51,6 +51,7 @@ export interface UserPreferences {
   best_odds_scope?: string;
   best_odds_sort_by?: string;
   best_odds_search_query?: string;
+  best_odds_hide_college_player_props?: boolean;
   
   created_at?: string;
   updated_at?: string;
@@ -133,6 +134,7 @@ export class PreferencesRPC {
       best_odds_scope: data?.best_odds_scope || 'pregame',
       best_odds_sort_by: data?.best_odds_sort_by || 'improvement',
       best_odds_search_query: data?.best_odds_search_query || '',
+      best_odds_hide_college_player_props: data?.best_odds_hide_college_player_props ?? false,
       
       created_at: data?.created_at,
       updated_at: data?.updated_at,
@@ -249,6 +251,7 @@ export class PreferencesRPC {
         best_odds_scope: 'pregame',
         best_odds_sort_by: 'improvement',
         best_odds_search_query: '',
+        best_odds_hide_college_player_props: false,
         updated_at: new Date().toISOString(),
       })
       .select()

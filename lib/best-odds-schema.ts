@@ -83,6 +83,7 @@ export interface BestOddsPrefs {
   scope: 'all' | 'pregame' | 'live'
   sortBy: 'improvement' | 'odds'
   searchQuery: string
+  hideCollegePlayerProps: boolean  // Hide NCAAF/NCAAB player props (for restricted states)
 }
 
 /**

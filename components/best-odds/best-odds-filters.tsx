@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/seperator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel } from "@/lib/data/markets";
@@ -80,6 +81,7 @@ export function BestOddsFilters({
   const [localMinImprovement, setLocalMinImprovement] = useState<number>(prefs.minImprovement);
   const [localMaxOdds, setLocalMaxOdds] = useState<number | undefined>(prefs.maxOdds);
   const [localMinOdds, setLocalMinOdds] = useState<number | undefined>(prefs.minOdds);
+  const [localHideCollegePlayerProps, setLocalHideCollegePlayerProps] = useState<boolean>(prefs.hideCollegePlayerProps ?? false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Keep local UI state in sync when preferences load or change
@@ -90,6 +92,7 @@ export function BestOddsFilters({
     setLocalMinImprovement(prefs.minImprovement);
     setLocalMaxOdds(prefs.maxOdds);
     setLocalMinOdds(prefs.minOdds);
+    setLocalHideCollegePlayerProps(prefs.hideCollegePlayerProps ?? false);
     
     // Derive sports from leagues
     let selectedSports: string[];
@@ -117,10 +120,11 @@ export function BestOddsFilters({
       localMarkets.some(id => !prefs.selectedMarkets.includes(id)) ||
       localMinImprovement !== prefs.minImprovement ||
       localMaxOdds !== prefs.maxOdds ||
-      localMinOdds !== prefs.minOdds;
+      localMinOdds !== prefs.minOdds ||
+      localHideCollegePlayerProps !== (prefs.hideCollegePlayerProps ?? false);
 
     setHasUnsavedChanges(changed);
-  }, [localBooks, localLeagues, localMarkets, localMinImprovement, localMaxOdds, localMinOdds, prefs]);
+  }, [localBooks, localLeagues, localMarkets, localMinImprovement, localMaxOdds, localMinOdds, localHideCollegePlayerProps, prefs]);
 
   // League display names
   const leagueLabels: Record<string, string> = {
@@ -252,6 +256,7 @@ export function BestOddsFilters({
       minImprovement: localMinImprovement,
       maxOdds: localMaxOdds,
       minOdds: localMinOdds,
+      hideCollegePlayerProps: localHideCollegePlayerProps,
     });
     setOpen(false);
   };
@@ -265,6 +270,7 @@ export function BestOddsFilters({
     setLocalMinImprovement(0);
     setLocalMaxOdds(undefined);
     setLocalMinOdds(undefined);
+    setLocalHideCollegePlayerProps(false);
     
     onPrefsChange({
       ...prefs,
@@ -275,6 +281,7 @@ export function BestOddsFilters({
       minImprovement: 0,
       maxOdds: undefined,
       minOdds: undefined,
+      hideCollegePlayerProps: false,
     });
   };
 
@@ -553,6 +560,22 @@ export function BestOddsFilters({
 
               {/* Edge & Odds Tab */}
               <TabsContent value="odds" className="mt-6 space-y-6">
+                {/* College Player Props Toggle */}
+                <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">Hide College Player Props</div>
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Hide NCAAF and NCAAB player prop markets (for restricted states)
+                    </div>
+                  </div>
+                  <Switch 
+                    checked={localHideCollegePlayerProps} 
+                    fn={(v: boolean) => setLocalHideCollegePlayerProps(!!v)} 
+                  />
+                </div>
+
+                <Separator />
+
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Min Edge %</Label>
                   <Input
