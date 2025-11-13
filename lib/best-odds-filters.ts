@@ -15,6 +15,7 @@ export const DEFAULT_BEST_ODDS_PREFS: BestOddsPrefs = {
   scope: 'pregame',
   sortBy: 'improvement',
   searchQuery: '',
+  hideCollegePlayerProps: false,
 };
 
 /**
