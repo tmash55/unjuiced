@@ -278,7 +278,7 @@ export default function ArbsPage() {
               </button>
               
               {/* Filters Button */}
-              <FiltersSheet pro={pro} />
+              <FiltersSheet pro={pro} isLoggedIn={loggedIn} />
             </FiltersBarSection>
           </FiltersBar>
         </div>

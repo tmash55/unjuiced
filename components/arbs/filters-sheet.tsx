@@ -14,8 +14,9 @@ import { useArbitragePreferences } from "@/context/preferences-context";
 import { Filter, Building2, Percent, Trophy } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import Lock from "@/icons/lock";
+import { ButtonLink } from "@/components/button-link";
 
-export function FiltersSheet({ children, pro = false }: { children?: React.ReactNode; pro?: boolean }) {
+export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { children?: React.ReactNode; pro?: boolean; isLoggedIn?: boolean }) {
   const { filters, updateFilters } = useArbitragePreferences();
   const allBooks = useMemo(() => getAllActiveSportsbooks(), []);
   const allSports = useMemo(() => getAllSports(), []);
@@ -127,9 +128,14 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                   <Lock className="h-4 w-4 text-[var(--tertiary)]" />
                   <div>
                     <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">Upgrade to unlock full filtering capabilities</p>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      {isLoggedIn ? 'Upgrade to unlock full filtering capabilities' : 'Try free to unlock full filtering capabilities'}
+                    </p>
                   </div>
                 </div>
+                <ButtonLink href="/pricing" variant="pro" className="justify-center text-xs">
+                  {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+                </ButtonLink>
               </div>
             </div>
           )}
