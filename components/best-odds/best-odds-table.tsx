@@ -11,6 +11,8 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { motion, AnimatePresence } from "motion/react";
+import { ButtonLink } from "@/components/button-link";
+import LockIcon from "@/icons/lock";
 
 type SortField = 'improvement' | 'time';
 type SortDirection = 'asc' | 'desc';
@@ -18,9 +20,18 @@ type SortDirection = 'asc' | 'desc';
 interface BestOddsTableProps {
   deals: BestOddsDeal[];
   loading?: boolean;
+  isPro?: boolean;
+  isLimitedPreview?: boolean;
+  previewPerSport?: number;
 }
 
-export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
+export function BestOddsTable({
+  deals,
+  loading,
+  isPro = true,
+  isLimitedPreview = false,
+  previewPerSport = 2,
+}: BestOddsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('improvement');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -63,30 +74,69 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
 
   // Sort deals based on current sort field and direction
   const sortedDeals = useMemo(() => {
-    const sorted = [...deals].sort((a, b) => {
-      let aValue: number;
-      let bValue: number;
+    let sorted = [...deals];
+    
+    // If limited preview mode, group by sport first, then sort within each sport
+    if (isLimitedPreview) {
+      // Group by sport
+      const dealsBySport = sorted.reduce((acc, deal) => {
+        if (!acc[deal.sport]) acc[deal.sport] = [];
+        acc[deal.sport].push(deal);
+        return acc;
+      }, {} as Record<string, BestOddsDeal[]>);
+      
+      // Sort within each sport group
+      Object.keys(dealsBySport).forEach(sport => {
+        dealsBySport[sport].sort((a, b) => {
+          let aValue: number;
+          let bValue: number;
 
-      if (sortField === 'improvement') {
-        aValue = Number(a.priceImprovement || 0);
-        bValue = Number(b.priceImprovement || 0);
-      } else {
-        // Sort by time
-        const aTime = (a.startTime || (a as any).game_start) ? new Date(a.startTime || (a as any).game_start).getTime() : 0;
-        const bTime = (b.startTime || (b as any).game_start) ? new Date(b.startTime || (b as any).game_start).getTime() : 0;
-        aValue = aTime;
-        bValue = bTime;
-      }
+          if (sortField === 'improvement') {
+            aValue = Number(a.priceImprovement || 0);
+            bValue = Number(b.priceImprovement || 0);
+          } else {
+            const aTime = (a.startTime || (a as any).game_start) ? new Date(a.startTime || (a as any).game_start).getTime() : 0;
+            const bTime = (b.startTime || (b as any).game_start) ? new Date(b.startTime || (b as any).game_start).getTime() : 0;
+            aValue = aTime;
+            bValue = bTime;
+          }
 
-      if (sortDirection === 'asc') {
-        return aValue - bValue;
-      } else {
-        return bValue - aValue;
-      }
-    });
+          if (sortDirection === 'asc') {
+            return aValue - bValue;
+          } else {
+            return bValue - aValue;
+          }
+        });
+      });
+      
+      // Flatten back into single array, maintaining sport groups
+      sorted = Object.values(dealsBySport).flat();
+    } else {
+      // Normal sorting for pro users
+      sorted.sort((a, b) => {
+        let aValue: number;
+        let bValue: number;
+
+        if (sortField === 'improvement') {
+          aValue = Number(a.priceImprovement || 0);
+          bValue = Number(b.priceImprovement || 0);
+        } else {
+          const aTime = (a.startTime || (a as any).game_start) ? new Date(a.startTime || (a as any).game_start).getTime() : 0;
+          const bTime = (b.startTime || (b as any).game_start) ? new Date(b.startTime || (b as any).game_start).getTime() : 0;
+          aValue = aTime;
+          bValue = bTime;
+        }
+
+        if (sortDirection === 'asc') {
+          return aValue - bValue;
+        } else {
+          return bValue - aValue;
+        }
+      });
+    }
 
     return sorted;
-  }, [deals, sortField, sortDirection]);
+  }, [deals, sortField, sortDirection, isLimitedPreview]);
 
   if (loading) {
     return (
@@ -276,7 +326,11 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
             </th>
           </tr>
         </thead>
-        <tbody>
+        {(() => {
+          const sportRenderCounts: Record<string, number> = {};
+
+          return (
+            <tbody>
           {sortedDeals.map((deal, index) => {
             const improvementPct = Number(deal.priceImprovement || 0).toFixed(1);
             const improvementValue = Number(deal.priceImprovement || 0);
@@ -296,6 +350,11 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
             
             // High-tier opportunities (>5% improvement) get extra glow
             const isHighTier = improvementValue >= 5;
+
+            sportRenderCounts[deal.sport] = (sportRenderCounts[deal.sport] || 0) + 1;
+            const sportRenderedCount = sportRenderCounts[deal.sport];
+            const nextSport = sortedDeals[index + 1]?.sport;
+            const isLastOfSportPreview = isLimitedPreview && sportRenderedCount === previewPerSport && nextSport !== deal.sport;
 
             return (
               <React.Fragment key={deal.key}>
@@ -338,7 +397,7 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
                   </td>
 
                 {/* League */}
-                <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
                   <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                     <SportIcon sport={sportForLeague} className="h-3.5 w-3.5" />
                     {getLeagueLabel(deal.sport)}
@@ -691,10 +750,30 @@ export function BestOddsTable({ deals, loading }: BestOddsTableProps) {
                   </motion.tr>
                 )}
               </AnimatePresence>
-            </React.Fragment>
+                {isLastOfSportPreview && (
+                  <tr key={`${deal.key}-limited`}>
+                    <td colSpan={8} className="border-b border-neutral-200/70 bg-gradient-to-r from-[var(--tertiary)]/5 via-transparent to-transparent px-4 py-3 text-sm text-neutral-700 dark:border-neutral-800/70 dark:text-neutral-300">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2">
+                          <LockIcon className="h-4 w-4 text-[var(--tertiary)]" />
+                          <div>
+                            <p className="font-semibold text-neutral-900 dark:text-white">Only showing {previewPerSport} {deal.sport.toUpperCase()} edges.</p>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Unlock all edges, filters and more.</p>
+                          </div>
+                        </div>
+                        <ButtonLink href="/pricing" variant="outline" className="justify-center border border-[var(--tertiary)]/20 text-[var(--tertiary)] hover:bg-[var(--tertiary)]/10 dark:border-[var(--tertiary)]/30">
+                          Unlock All Edges
+                        </ButtonLink>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
-        </tbody>
+            </tbody>
+          );
+        })()}
       </table>
     </div>
   );

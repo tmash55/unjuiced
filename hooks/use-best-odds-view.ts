@@ -27,14 +27,24 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
     queryFn: async () => {
       // Don't fetch if still checking plan status
       if (planLoading) {
-        return { deals: [] as BestOddsDeal[] };
+        return { deals: [] as BestOddsDeal[], premiumCount: 0 };
       }
 
       if (!isPro) {
-        // Non-Pro: Fetch preview data from teaser endpoint
-        const response = await fetch("/api/best-odds/teaser?limit=10", { cache: "no-store" });
-        const data = await response.json();
-        return { deals: data.deals || [] };
+        // Non-Pro: Fetch preview data (server already limits to 2 per sport)
+        const previewResponse = await fetch(
+          `/api/best-odds?scope=${prefs.scope}&sortBy=${prefs.sortBy}&limit=500`,
+          { cache: "no-store" }
+        );
+
+        const previewData = await previewResponse.json();
+
+        console.log('[use-best-odds-view] Free user data:', {
+          previewDeals: previewData.deals?.length || 0,
+          premiumCount: previewData.premiumCount || 0,
+        });
+
+        return { deals: previewData.deals || [], premiumCount: previewData.premiumCount || 0 };
       } else {
         // Pro: Fetch ALL deals without filters (filter client-side)
         const response = await fetchBestOdds({
@@ -43,7 +53,7 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
           limit: 2000,
           minImprovement: 0, // Get all, filter client-side
         });
-        return { deals: response.deals };
+        return { deals: response.deals, premiumCount: 0 };
       }
     },
     staleTime: 30_000, // Consider data fresh for 30 seconds
@@ -64,6 +74,7 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
 
   return {
     deals: data?.deals || [],
+    premiumCount: data?.premiumCount ?? 0,
     // Only show loading if we don't have data yet (not when refetching with cached data)
     loading: isLoading && !data,
     error: error ? (error instanceof Error ? error.message : 'Failed to load deals') : null,

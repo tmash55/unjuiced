@@ -649,7 +649,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       kellyPercent: preferences.ev_kelly_percent ?? 50,
       searchQuery: preferences.ev_search_query || "",
     };
-  }, [preferences, activeSportsbooks]);
+  }, [preferences]);
 
   const getOddsPreferences = useCallback(() => {
     if (!preferences) {
@@ -730,13 +730,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       'pitcher_strikeouts', 'pitcher_hits_allowed', 'pitcher_walks',
     ];
     
-    // If preferences haven't loaded yet (logged-out user), default to all
+    // If preferences haven't loaded yet (logged-out user), default to all (empty arrays mean "all selected")
     if (!preferences) {
       return {
-        selectedBooks: activeSportsbooks,
-        selectedSports: allSports,
-        selectedLeagues: allLeagues,
-        selectedMarkets: allMarkets,
+        selectedBooks: [],
+        selectedSports: [],
+        selectedLeagues: [],
+        selectedMarkets: [],
         marketLines: {},
         minImprovement: 0,
         maxOdds: undefined,
@@ -748,12 +748,12 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       };
     }
     
-    // If undefined (NULL in DB), default to ALL. If empty array [], user deselected all.
+    // If undefined (NULL in DB), default to ALL (empty arrays mean "all selected")
     return {
-      selectedBooks: preferences.best_odds_selected_books ?? activeSportsbooks,
-      selectedSports: preferences.best_odds_selected_sports ?? allSports,
-      selectedLeagues: preferences.best_odds_selected_leagues ?? allLeagues,
-      selectedMarkets: preferences.best_odds_selected_markets ?? allMarkets,
+      selectedBooks: preferences.best_odds_selected_books ?? [],
+      selectedSports: preferences.best_odds_selected_sports ?? [],
+      selectedLeagues: preferences.best_odds_selected_leagues ?? [],
+      selectedMarkets: preferences.best_odds_selected_markets ?? [],
       marketLines: preferences.best_odds_market_lines ?? {},
       minImprovement: preferences.best_odds_min_improvement ?? 0,
       maxOdds: preferences.best_odds_max_odds ?? undefined,
@@ -763,7 +763,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       searchQuery: preferences.best_odds_search_query ?? '',
       hideCollegePlayerProps: preferences.best_odds_hide_college_player_props ?? false,
     };
-  }, [preferences, activeSportsbooks]);
+  }, [preferences]);
   
   const updateBestOddsFilters = useCallback(async (filters: {
     selectedBooks?: string[];

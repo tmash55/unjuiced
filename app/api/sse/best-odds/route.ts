@@ -50,6 +50,18 @@ export async function GET(req: NextRequest) {
       isPro 
     });
     
+    // Disable SSE for free/anon users (auto-refresh is a Pro feature)
+    if (!isPro) {
+      console.log('[/api/sse/best-odds] Rejecting connection: Pro only');
+      return new Response(
+        JSON.stringify({ error: 'Pro subscription required for real-time updates' }),
+        { 
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
     // Parse params (currently only 'all' is supported)
     const url = new URL(req.url);
     const sport = url.searchParams.get('sport') || 'all';

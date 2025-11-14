@@ -56,14 +56,16 @@ export async function GET(req: NextRequest) {
     const books = sp.get('books')?.split(',').filter(Boolean) || [];
     const scope = (sp.get('scope') || 'all') as 'all' | 'pregame' | 'live';
     const sortBy = (sp.get('sortBy') || 'improvement') as 'improvement' | 'odds';
-    const limit = Math.min(parseInt(sp.get('limit') || String(DEFAULT_LIMIT)), MAX_LIMIT);
+    // For free users, fetch more to account for filtering
+    const requestedLimit = parseInt(sp.get('limit') || String(DEFAULT_LIMIT));
+    const limit = !isPro ? Math.min(requestedLimit * 3, MAX_LIMIT) : Math.min(requestedLimit, MAX_LIMIT);
     const offset = parseInt(sp.get('offset') || '0');
     const minImprovement = parseFloat(sp.get('minImprovement') || '0');
     const maxOdds = sp.get('maxOdds') ? parseFloat(sp.get('maxOdds')!) : undefined;
     const minOdds = sp.get('minOdds') ? parseFloat(sp.get('minOdds')!) : undefined;
     
     console.log('[/api/best-odds] Query:', { 
-      sport, leagues, markets, books, scope, sortBy, limit, offset, isPro, 
+      sport, leagues, markets, books, scope, sortBy, requestedLimit, actualLimit: limit, offset, isPro, 
       minImprovement, maxOdds, minOdds 
     });
     
@@ -99,19 +101,16 @@ export async function GET(req: NextRequest) {
     
     // 5. Parse results (alternating key/score)
     const entries: Array<{key: string, score: number}> = [];
+    
     for (let i = 0; i < results.length; i += 2) {
       const key = results[i] as string;
       const score = results[i + 1] as number;
       
-      // Apply free user filter: block improvements >= threshold
-      if (!isPro && score >= FREE_USER_IMPROVEMENT_LIMIT) {
-        console.log('[/api/best-odds] Filtering out deal for free user:', key, 'improvement:', score);
-        continue;
-      }
-      
       // Apply minImprovement filter
       if (score < minImprovement) continue;
       
+      // For free users: collect ALL entries (we'll sample later)
+      // For pro users: collect ALL entries
       entries.push({key, score});
     }
     
@@ -143,6 +142,7 @@ export async function GET(req: NextRequest) {
     console.log('[/api/best-odds] Batching by sport:', Object.keys(entriesBySport).map(s => `${s}:${entriesBySport[s].length}`).join(', '));
     
     const deals: BestOddsDeal[] = [];
+    let gamesFilteredOut = 0;
     
     // Batch fetch per sport
     for (const [sport, sportEntries] of Object.entries(entriesBySport)) {
@@ -205,15 +205,7 @@ export async function GET(req: NextRequest) {
           const timeDiff = now - gameTime;
           
           if (gameTime < (now - BUFFER_MS)) {
-            if (process.env.NODE_ENV === 'development') {
-              const minutesAgo = Math.floor(timeDiff / 60000);
-              console.log(`[/api/best-odds] Filtering out game that started ${minutesAgo} minutes ago:`, {
-                gameStart: new Date(gameStartTime).toISOString(),
-                now: new Date(now).toISOString(),
-                player: deal.player_name || deal.playerName,
-                sport
-              });
-            }
+            gamesFilteredOut++;
             continue; // Skip this deal - game already started
           }
         }
@@ -280,6 +272,38 @@ export async function GET(req: NextRequest) {
     }
     
     console.log('[/api/best-odds] Deals after filtering:', deals.length);
+    console.log('[/api/best-odds] Games filtered out (already started):', gamesFilteredOut);
+    
+    // 6.5. For free users: Sample 2 deals per sport as preview
+    let finalDeals = deals;
+    let premiumCount = 0;
+    
+    if (!isPro && deals.length > 0) {
+      // Group deals by sport
+      const dealsBySport = deals.reduce((acc, deal) => {
+        const sport = deal.sport;
+        if (!acc[sport]) acc[sport] = [];
+        acc[sport].push(deal);
+        return acc;
+      }, {} as Record<string, BestOddsDeal[]>);
+      
+      console.log('[/api/best-odds] Deals by sport:', Object.entries(dealsBySport).map(([sport, deals]) => `${sport}: ${deals.length}`).join(', '));
+      
+      // Sample exactly 2 deals per sport for preview (consistent, not random)
+      const sampledDeals: BestOddsDeal[] = [];
+      for (const [sport, sportDeals] of Object.entries(dealsBySport)) {
+        // Take first 2 deals from each sport (already sorted by improvement)
+        const sample = sportDeals.slice(0, 2);
+        sampledDeals.push(...sample);
+        // Count the rest as premium
+        premiumCount += Math.max(0, sportDeals.length - 2);
+      }
+      
+      console.log(`[/api/best-odds] Free user preview: ${sampledDeals.length} deals (2 per sport) from ${Object.keys(dealsBySport).length} sports, ${premiumCount} premium hidden`);
+      finalDeals = sampledDeals;
+    } else if (!isPro) {
+      console.log('[/api/best-odds] ⚠️ No deals found for free user!');
+    }
     
     // 7. Get version
     const versionKey = 'best_odds:all:v';
@@ -291,8 +315,9 @@ export async function GET(req: NextRequest) {
     const response: BestOddsResponse = {
       version: parseInt(String(version)),
       total: entries.length,
-      deals,
-      hasMore: deals.length === limit
+      deals: finalDeals,
+      hasMore: deals.length === limit,
+      premiumCount: !isPro ? premiumCount : undefined, // Include premium count for free users
     };
     
     return NextResponse.json(response, {

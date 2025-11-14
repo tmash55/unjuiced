@@ -30,7 +30,7 @@ export default function BestOddsPage() {
   const isLoggedIn = !!user;
   
   // Custom hook handles all data fetching (Pro vs non-Pro)
-  const { deals, loading, error, refresh, prefs, prefsLoading, updateFilters } = useBestOddsView({ 
+  const { deals, premiumCount, loading, error, refresh, prefs, prefsLoading, updateFilters } = useBestOddsView({ 
     isPro, 
     planLoading 
   });
@@ -95,7 +95,20 @@ export default function BestOddsPage() {
 
   // Apply client-side filtering and sorting
   const filteredDeals = useMemo(() => {
+    console.log('[edge-finder] Filtering deals:', { 
+      totalDeals: deals.length, 
+      prefs: {
+        selectedBooks: prefs.selectedBooks,
+        selectedSports: prefs.selectedSports,
+        selectedLeagues: prefs.selectedLeagues,
+        selectedMarkets: prefs.selectedMarkets,
+        minImprovement: prefs.minImprovement,
+      }
+    });
+    
     let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefs));
+    
+    console.log('[edge-finder] After matchesBestOddsDeal:', filtered.length);
     
     // Apply college player props filter if enabled
     if (prefs.hideCollegePlayerProps) {
@@ -109,6 +122,9 @@ export default function BestOddsPage() {
     }
     
     filtered = sortDeals(filtered, prefs.sortBy);
+    
+    console.log('[edge-finder] Final filtered deals:', filtered.length);
+    
     return filtered;
   }, [deals, prefs]);
 
@@ -344,27 +360,16 @@ export default function BestOddsPage() {
               </Tooltip>
 
               {/* Filters Button */}
-              {isPro ? (
-                <BestOddsFilters
-                  prefs={prefs}
-                  onPrefsChange={handlePrefsChange}
-                  availableLeagues={availableLeagues}
-                  availableMarkets={availableMarkets}
-                  availableSportsbooks={availableSportsbooks}
-                  deals={deals}
-                />
-              ) : (
-                <Tooltip content="Pro only">
-                  <button
-                    type="button"
-                    disabled
-                    className="filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all opacity-50 cursor-not-allowed"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span className="hidden sm:inline">Filters</span>
-                  </button>
-                </Tooltip>
-              )}
+              <BestOddsFilters
+                prefs={prefs}
+                onPrefsChange={handlePrefsChange}
+                availableLeagues={availableLeagues}
+                availableMarkets={availableMarkets}
+                availableSportsbooks={availableSportsbooks}
+                deals={deals}
+                locked={!isPro}
+                isLoggedIn={isLoggedIn}
+              />
             </FiltersBarSection>
           </FiltersBar>
         </div>
@@ -385,6 +390,7 @@ export default function BestOddsPage() {
         viewMode={viewMode}
         isLoggedIn={isLoggedIn}
         isPro={isPro}
+        premiumCount={premiumCount}
       />
     </div>
   );

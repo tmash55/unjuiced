@@ -40,7 +40,10 @@ export default function ArbsPage() {
     }
   }, [pro]);
 
-  // Fetch preview counts and best ROI for non-pro users (not logged in or free plan)
+  // State for premium teaser arbs (for free users)
+  const [premiumTeaserArbs, setPremiumTeaserArbs] = useState<any[]>([]);
+
+  // Fetch preview counts, best ROI, and premium teaser arbs for non-pro users
   useEffect(() => {
     if (!pro && !planLoading) {
       const fetchPreviewData = async () => {
@@ -50,17 +53,22 @@ export default function ArbsPage() {
           const countsData = await countsResponse.json();
           setPreviewCounts({ pregame: countsData.pregame || 0, live: countsData.live || 0 });
           
-          // Fetch preview rows to calculate best ROI
-          const previewResponse = await fetch("/api/arbs/teaser?limit=8", { cache: "no-store" });
-          const previewData = await previewResponse.json();
-          if (previewData.rows && previewData.rows.length > 0) {
-            const maxRoi = Math.max(...previewData.rows.map((r: any) => (r.roi_bps || 0) / 100));
+          // Fetch premium arbs for teasers (bypasses free user filtering)
+          const premiumResponse = await fetch("/api/arbs/premium-teasers", { cache: "no-store" });
+          const premiumData = await premiumResponse.json();
+          
+          if (premiumData.rows && premiumData.rows.length > 0) {
+            setPremiumTeaserArbs(premiumData.rows);
+            
+            // Calculate best ROI from premium rows
+            const maxRoi = Math.max(...premiumData.rows.map((r: any) => (r.roi_bps || 0) / 100));
             setPreviewBestRoi(maxRoi.toFixed(2));
           }
         } catch (error) {
           console.error("Failed to fetch preview data:", error);
           setPreviewCounts({ pregame: 0, live: 0 });
           setPreviewBestRoi("0.00");
+          setPremiumTeaserArbs([]);
         }
       };
       fetchPreviewData();
@@ -291,6 +299,7 @@ export default function ArbsPage() {
           isPro={pro}
           filteredCount={filteredCount}
           filteredReason={filteredReason}
+          premiumTeaserArbs={premiumTeaserArbs}
         />
       )}
 

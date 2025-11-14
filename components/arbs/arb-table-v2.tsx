@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink, AlertTriangle } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle, Lock } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -20,17 +20,19 @@ interface ArbTableProps {
   added?: Set<string>;
   totalBetAmount?: number;
   roundBets?: boolean;
+  isPro?: boolean;
 }
 
 interface ArbRowWithId extends ArbRow {
   _id: string;
   _isNew?: boolean;
   _hasChange?: boolean;
+  _isTeaser?: boolean;
 }
 
 const columnHelper = createColumnHelper<ArbRowWithId>();
 
-export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundBets = false }: ArbTableProps) {
+export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundBets = false, isPro = true }: ArbTableProps) {
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
   const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
 
@@ -422,6 +424,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         _id: id,
         _isNew: added?.has(id),
         _hasChange: changes.has(id) && Object.keys(changes.get(id) || {}).length > 0,
+        _isTeaser: (r as any)._isTeaser || false,
       };
     });
   }, [rows, ids, added, changes]);
@@ -461,6 +464,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       sortingFn: "alphanumeric",
       cell: (info) => {
         const r = info.row.original;
+        
         if (!r.lg) {
           return null;
         }
@@ -485,6 +489,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         const r = info.row.original;
         const roiPct = ((r.roi_bps ?? 0) / 100).toFixed(2);
         const isHighROI = (r.roi_bps ?? 0) / 100 > 10;
+        const isTeaser = r._isTeaser;
         
         return (
           <div className="flex items-start gap-2">
@@ -494,7 +499,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                 {r.ev?.away?.abbr} @ {r.ev?.home?.abbr}
               </div>
             </div>
-            {isHighROI && (
+            {isHighROI && !isTeaser && (
               <Tooltip content="Caution: High ROI. Double-check market and odds before placing bet.">
                 <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               </Tooltip>
@@ -550,11 +555,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         const overLogo = logo(r.o?.bk);
         const underLogo = logo(r.u?.bk);
         const isHighlighted = r._isNew || r._hasChange;
+        const isTeaser = r._isTeaser;
 
         return (
-          <div className={cn("rounded-lg", isHighlighted && "ring-1 ring-emerald-500/40")}>
-            {/* Market Label */}
-            <div className="mb-2 flex items-center gap-2 pl-2">
+          <div className="relative">
+            {/* Content wrapper - blurred for teaser rows only */}
+            <div
+              className={cn(
+                "rounded-lg",
+                isHighlighted && "ring-1 ring-emerald-500/40",
+                isTeaser && "blur-sm select-none pointer-events-none"
+              )}
+            >
+              {/* Market Label */}
+              <div className="mb-2 flex items-center gap-2 pl-2">
               <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded border border-neutral-200/60 bg-neutral-50/50 dark:border-neutral-700/60 dark:bg-neutral-800/50">
                 <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                   {(() => {
@@ -569,7 +583,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             </div>
 
             {/* Over/Under with Dual Bet Button - Grouped Action Card */}
-            <div className="market-action-card relative rounded-lg border border-transparent bg-gradient-to-br from-transparent to-transparent transition-all duration-200 pl-2 pr-2 py-2">
+            <div className={cn("market-action-card relative rounded-lg border border-transparent bg-gradient-to-br from-transparent to-transparent transition-all duration-200 pl-2 pr-2 py-2")}>
               <div className="pr-12 space-y-1.5">
                 {/* Over Side - Clickable Card */}
                 <Tooltip content={`Place bet on ${bookName(r.o?.bk)}`}>
@@ -627,6 +641,22 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                 </button>
               </Tooltip>
             </div>
+            </div>
+            
+            {/* Unlock button - positioned absolutely, NOT blurred */}
+            {isTeaser && (
+              <div className="absolute inset-0 flex items-center justify-center z-[5] pointer-events-none">
+                <Tooltip content="Upgrade to Pro to unlock premium arbitrage opportunities">
+                  <button
+                    onClick={() => window.location.href = '/pricing'}
+                    className="flex items-center gap-2 rounded-lg border-2 border-white/20 px-4 py-2 text-sm font-semibold shadow-xl transition-all hover:scale-105 cursor-pointer pointer-events-auto bg-[var(--tertiary)] text-white dark:text-[var(--on-tertiary)]"
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>Unlock</span>
+                  </button>
+                </Tooltip>
+              </div>
+            )}
           </div>
         );
       },
@@ -681,13 +711,13 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     }),
   ], [totalBetAmount, added, changes]);
 
-  // Create table instance
+  // Create table instance with custom sorting that preserves teaser row positions
   const tableProps = useTable({
     data,
     columns,
     getRowId: (row) => row._id,
     enableColumnResizing: false,
-    initialSorting: [
+    initialSorting: !isPro ? [] : [ // Disable initial sorting for free users (to preserve teaser positions)
       {
         id: "roi",
         desc: true, // Sort by ROI descending (highest first)
@@ -725,6 +755,12 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             // Zebra striping
             row.index % 2 === 0 ? "table-row-even" : "table-row-odd",
             (row.original as ArbRowWithId)._isNew && "bg-emerald-50/30 dark:bg-emerald-950/20",
+            // Blur teaser rows but NOT the ROI/Profit columns (to show FOMO)
+            (row.original as ArbRowWithId)._isTeaser && columnId !== "roi" && columnId !== "profit" && columnId !== "market" && "blur-sm select-none pointer-events-none",
+            // Market column needs to be relative for unlock button positioning
+            (row.original as ArbRowWithId)._isTeaser && columnId === "market" && "relative",
+            // Add slight backdrop blur behind ROI and Profit for teaser rows
+            (row.original as ArbRowWithId)._isTeaser && (columnId === "roi" || columnId === "profit") && "relative backdrop-blur-[2px]",
             columnId === "roi" && "text-center pr-6",
             columnId === "league" && "pl-6",
             columnId === "game" && "pr-6",
@@ -733,14 +769,23 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             columnId === "bet-size" && "pl-6 pr-6",
             columnId === "profit" && "text-right pl-6",
           )}
-          rowProps={(row) => ({
-            className: cn(
-              "group/row transition-all duration-200 ease-out cursor-pointer",
-              "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)]",
-              "hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
-              (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10"
-            )
-          })}
+          rowProps={(row) => {
+            const isTeaser = (row.original as ArbRowWithId)._isTeaser;
+            return {
+              className: cn(
+                "group/row transition-all duration-200 ease-out",
+                !isTeaser && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
+                (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10",
+                isTeaser && "relative bg-gradient-to-r from-[var(--tertiary)]/5 to-[var(--tertiary-strong)]/5 border-l-2 border-[var(--tertiary)]"
+              ),
+              ...(isTeaser && {
+                onClick: (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              })
+            };
+          }}
     />
   );
 }

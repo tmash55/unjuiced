@@ -120,6 +120,20 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
             <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
           </SheetHeader>
 
+          {!pro && (
+            <div className="mx-6 mt-4 rounded-lg border border-[var(--tertiary)]/20 bg-gradient-to-br from-[var(--tertiary)]/5 via-transparent to-transparent p-4 dark:border-[var(--tertiary)]/30">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-[var(--tertiary)]" />
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400">Upgrade to unlock full filtering capabilities</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <Tabs defaultValue="books" className="w-full">
               <TabsList className="filter-tabs grid w-full grid-cols-3">
@@ -142,14 +156,18 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">Choose sportsbooks to include in results</p>
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => setLocalBooks(allBooks.map(b => b.id))} 
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
+                      onClick={() => pro && setLocalBooks(allBooks.map(b => b.id))} 
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
                     >
                       Select All
                     </button>
                     <button 
-                      onClick={() => setLocalBooks([])} 
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                      onClick={() => pro && setLocalBooks([])} 
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
                     >
                       Clear
                     </button>
@@ -163,13 +181,16 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                       return (
                         <label
                           key={sb.id}
-                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm ${
+                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 ${
+                            !pro ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-sm'
+                          } ${
                             checked 
                               ? 'active' 
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
+                          title={!pro ? "Pro only" : ""}
                         >
-                          <Checkbox checked={checked} onCheckedChange={() => toggleBook(sb.id)} />
+                          <Checkbox checked={checked} onCheckedChange={() => toggleBook(sb.id)} disabled={!pro} />
                           {sb.image?.light && (
                             <img src={sb.image.light} alt={sb.name} className="h-6 w-6 object-contain" />
                           )}
@@ -186,21 +207,27 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                   <div className="flex gap-2">
                     <button 
                       onClick={() => {
+                        if (!pro) return;
                         const allSportsIds = allSports.map(s => s.id);
                         const allLeaguesIds = allLeagues.map(l => l.id);
                         setLocalSports(allSportsIds);
                         setLocalLeagues(allLeaguesIds);
                       }} 
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
                     >
                       Select All
                     </button>
                     <button 
                       onClick={() => {
+                        if (!pro) return;
                         setLocalSports([]);
                         setLocalLeagues([]);
                       }} 
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
                     >
                       Clear All
                     </button>
@@ -218,13 +245,16 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                       return (
                         <label
                           key={sport.id}
-                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm ${
+                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 ${
+                            !pro ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-sm'
+                          } ${
                             checked 
                               ? 'active' 
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
+                          title={!pro ? "Pro only" : ""}
                         >
-                          <Checkbox checked={checked} onCheckedChange={() => toggleSport(sport.id)} />
+                          <Checkbox checked={checked} onCheckedChange={() => toggleSport(sport.id)} disabled={!pro} />
                           <SportIcon sport={sport.name.toLowerCase()} className="h-5 w-5" />
                           <span className="text-sm leading-none">{sport.name}</span>
                         </label>
@@ -244,24 +274,28 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                     {allLeagues.map((league) => {
                       const checked = localLeagues.includes(league.id);
                       const sportSelected = localSports.length === 0 || localSports.includes(league.sportId);
+                      const isDisabled = !pro || !sportSelected;
                       return (
                         <label
                           key={league.id}
-                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:shadow-sm ${
-                            !sportSelected
+                          className={`filter-card flex items-center gap-3 rounded-lg border p-3 ${
+                            isDisabled
                               ? 'opacity-50 cursor-not-allowed'
-                              : checked 
-                                ? 'active' 
-                                : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
+                              : 'cursor-pointer hover:shadow-sm'
+                          } ${
+                            checked && !isDisabled
+                              ? 'active' 
+                              : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
                           onClick={(e) => {
-                            if (!sportSelected) e.preventDefault();
+                            if (isDisabled) e.preventDefault();
                           }}
+                          title={!pro ? "Pro only" : !sportSelected ? "Select sport first" : ""}
                         >
                           <Checkbox 
                             checked={checked} 
-                            onCheckedChange={() => sportSelected && toggleLeague(league.id)}
-                            disabled={!sportSelected}
+                            onCheckedChange={() => !isDisabled && toggleLeague(league.id)}
+                            disabled={isDisabled}
                           />
                           <SportIcon sport={league.sportId.toLowerCase()} className="h-4 w-4" />
                           <span className="text-sm leading-none">{league.name}</span>
@@ -285,8 +319,10 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                     <Input 
                       type="number" 
                       value={minArb} 
-                      onChange={(e) => setMinArb(Number(e.target.value))}
+                      onChange={(e) => pro && setMinArb(Number(e.target.value))}
+                      disabled={!pro}
                       className="h-10"
+                      title={!pro ? "Pro only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Only show opportunities at or above this percent</p>
                   </div>
@@ -295,9 +331,10 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                     <Input
                       type="number"
                       value={pro ? maxArb : Math.min(maxArb, 1)}
-                      onChange={(e) => setMaxArb(Number(e.target.value))}
+                      onChange={(e) => pro && setMaxArb(Number(e.target.value))}
                       disabled={!pro}
                       className="h-10"
+                      title={!pro ? "Pro only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide outliers above this percent</p>
                     {!pro && (
@@ -313,8 +350,10 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                   <Input 
                     type="number" 
                     value={totalBetAmount} 
-                    onChange={(e) => setTotalBetAmount(Number(e.target.value))}
+                    onChange={(e) => pro && setTotalBetAmount(Number(e.target.value))}
+                    disabled={!pro}
                     className="h-10"
+                    title={!pro ? "Pro only" : ""}
                   />
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Default total stake for equal-profit splits</p>
                 </div>
@@ -326,7 +365,9 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
             <div className="flex items-center justify-between gap-3">
               <button 
                 onClick={reset}
-                className="h-10 rounded-lg border border-transparent px-4 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+                disabled={!pro}
+                className="h-10 rounded-lg border border-transparent px-4 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                title={!pro ? "Pro only" : ""}
               >
                 Reset All
               </button>
@@ -335,11 +376,13 @@ export function FiltersSheet({ children, pro = false }: { children?: React.React
                   onClick={() => setOpen(false)}
                   className="h-10 rounded-lg border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
                 >
-                  Cancel
+                  {pro ? 'Cancel' : 'Close'}
                 </button>
                 <button 
                   onClick={apply}
-                  className={`apply-btn h-10 rounded-lg border border-brand bg-brand px-5 text-sm font-medium text-white hover:bg-brand/90 ${hasUnsavedChanges ? 'active' : ''}`}
+                  disabled={!pro}
+                  className={`apply-btn h-10 rounded-lg border border-brand bg-brand px-5 text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand ${hasUnsavedChanges ? 'active' : ''}`}
+                  title={!pro ? "Pro only" : ""}
                 >
                   Apply Filters
                 </button>

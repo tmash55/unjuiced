@@ -847,7 +847,7 @@ const renderAlternateRow = (
             onClick={(e) => {
               e.stopPropagation()
               if (priceOdds.link) {
-                window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
+                  window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
@@ -1464,13 +1464,13 @@ export function OddsTable({
       (visibleSportsbooks && visibleSportsbooks.length > 0) ||
       (selected.size > 0 && selected.size < allActiveIds.size)
     if (!hasExplicitSubset) {
-      data.forEach((item) => {
-        const books = item.odds?.books || {}
-        Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
-        // Also include normalized books if available
-        const nbooks = item.odds?.normalized?.books || {}
-        Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
-      })
+    data.forEach((item) => {
+      const books = item.odds?.books || {}
+      Object.keys(books).forEach((id) => idSet.add(normalizeBookId(id)))
+      // Also include normalized books if available
+      const nbooks = item.odds?.normalized?.books || {}
+      Object.keys(nbooks).forEach((id) => idSet.add(normalizeBookId(id)))
+    })
     }
 
     // Convert set to array and get book metadata
@@ -1911,7 +1911,7 @@ export function OddsTable({
                 <button
                   onClick={() => {
                     if (book.links.desktop) {
-                      window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
+                        window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
                     }
                   }}
                   className="flex flex-col items-center space-y-1 min-w-[96px] sm:min-w-[120px] hover:opacity-80 transition-opacity"
@@ -1988,7 +1988,7 @@ export function OddsTable({
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        window.open(odds.link, '_blank', 'noopener,noreferrer')
+                          window.open(odds.link, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, firstSide, book.id)
                       }
@@ -2042,7 +2042,7 @@ export function OddsTable({
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
                       if (typeof odds.link === 'string' && odds.link.length > 0) {
-                        window.open(odds.link, '_blank', 'noopener,noreferrer')
+                          window.open(odds.link, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, secondSide, book.id)
                       }
@@ -2284,7 +2284,7 @@ export function OddsTable({
         <button
           onClick={(e) => {
             e.stopPropagation()
-              if (displayOdds.link) {
+            if (displayOdds.link) {
                 window.open(displayOdds.link, '_blank', 'noopener,noreferrer')
             } else if (firstBookId) {
               onOddsClick?.(rowItem, side, firstBookId)

@@ -778,12 +778,12 @@ function SportOddsContent({
               </div>
 
               {/* Settings */}
-            <div className="flex items-center">
-              <OddsFilters 
+              <div className="flex items-center">
+                <OddsFilters 
                 isPro={true}
-                liveUpdatesEnabled={liveUpdatesEnabled}
-                onLiveUpdatesChange={setLiveUpdatesEnabled}
-              />
+                  liveUpdatesEnabled={liveUpdatesEnabled}
+                  onLiveUpdatesChange={setLiveUpdatesEnabled}
+                />
               </div>
             </div>
 

@@ -45,6 +45,7 @@ export interface BestOddsDeal {
   startTime?: string            // ISO timestamp (camelCase)
   game_start?: string           // ISO timestamp (snake_case from API)
   sid?: string                  // For drilldown to full ladder (optional)
+  _isTeaser?: boolean           // Flag for teaser rows (free user preview)
 }
 
 export interface BestOddsResponse {
@@ -52,6 +53,7 @@ export interface BestOddsResponse {
   total: number                 // Total number of deals returned
   deals: BestOddsDeal[]
   hasMore?: boolean            // For pagination
+  premiumCount?: number        // Number of premium deals hidden (free users only)
 }
 
 export interface BestOddsFilters {

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         console.warn('⚠️ Could not ensure Stripe customer on auth callback:', (e as any)?.message)
       }
-
+      
       console.log('✨ Redirecting to:', next)
       
       // Redirect to next page

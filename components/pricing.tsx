@@ -147,12 +147,12 @@ export const Pricing = () => {
 
                       {/* Secondary CTA - Go Pro Now (Stripe Checkout) — only for signed-in users */}
                       {user && (
-                        <BuyButton
-                          priceId={getPriceId(isYearly ? "yearly" : "monthly")}
-                          mode="subscription"
-                          label="Unlock Pro Now"
-                          className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
-                        />
+                      <BuyButton
+                        priceId={getPriceId(isYearly ? "yearly" : "monthly")}
+                        mode="subscription"
+                        label="Unlock Pro Now"
+                        className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
+                      />
                       )}
                     </>
                   ) : (

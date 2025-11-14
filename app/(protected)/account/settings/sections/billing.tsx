@@ -274,14 +274,14 @@ export default function BillingSettings({ user }: { user: any }) {
           <div className="mt-6 space-y-2">
             {isLegacyTrial ? (
               <>
-                <a
+            <a
                   href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=7`}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow"
-                >
+            >
                   Upgrade to Pro
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
                   Complete checkout to continue after your trial ends.
                 </p>
               </>

@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import type { BestOddsDeal } from "@/lib/best-odds-schema";
 import { BestOddsTable } from "./best-odds-table";
 import { BestOddsCards } from "./best-odds-cards";
 import { ButtonLink } from "@/components/button-link";
-import { ArrowRight, Droplet, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { getPriceId } from "@/constants/billing";
-import config from "@/config";
+import LockIcon from "@/icons/lock";
+import { RefreshCw, TrendingUp, Filter, Infinity, ArrowRight } from "lucide-react";
 
 interface GatedBestOddsViewProps {
   deals: BestOddsDeal[];
@@ -16,6 +14,7 @@ interface GatedBestOddsViewProps {
   viewMode: 'table' | 'cards';
   isLoggedIn: boolean;
   isPro: boolean;
+  premiumCount?: number;
 }
 
 export function GatedBestOddsView({
@@ -24,90 +23,17 @@ export function GatedBestOddsView({
   viewMode,
   isLoggedIn,
   isPro,
+  premiumCount = 0,
 }: GatedBestOddsViewProps) {
-  const [hasUnusedTrial, setHasUnusedTrial] = useState(false);
-  const [activatingTrial, setActivatingTrial] = useState(false);
-
-  // Fetch trial status for logged-in users
-  useEffect(() => {
-    if (isLoggedIn && !isPro) {
-      const fetchTrialStatus = async () => {
-        try {
-          const response = await fetch("/api/me/plan", { cache: "no-store" });
-          const data = await response.json();
-          setHasUnusedTrial(data.trial?.trial_used === false);
-        } catch (error) {
-          console.error("Failed to fetch trial status:", error);
-          setHasUnusedTrial(false);
-        }
-      };
-      fetchTrialStatus();
-    }
-  }, [isLoggedIn, isPro]);
-
-  // Handle trial activation via Stripe Checkout (requires card, with trial)
-  const handleStartTrial = async () => {
-    const priceId = getPriceId("monthly", config.stripe.plans[0]?.priceId);
-    if (!priceId) {
-      toast.error("Trial unavailable: missing price configuration.");
-      return;
-    }
-
-    if (!isLoggedIn) {
-      // Not logged in - start Checkout; backend will redirect to login preserving redirect
-      const params = new URLSearchParams({
-        priceId,
-        mode: "subscription",
-        trialDays: String(7),
-      }).toString();
-      window.location.href = `/billing/start?${params}`;
-      return;
-    }
-
-    // Logged in - create Checkout session then redirect to Stripe
-    setActivatingTrial(true);
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          priceId,
-          mode: "subscription",
-          trialDays: 7,
-        }),
-      });
-      if (res.status === 401) {
-        const params = new URLSearchParams({
-          priceId,
-          mode: "subscription",
-          trialDays: String(7),
-        }).toString();
-        window.location.assign(`/billing/start?${params}`);
-        return;
-      }
-      const json = await res.json();
-      if (json?.url) {
-        window.location.assign(json.url);
-        return;
-      }
-      toast.error("Failed to start trial checkout. Please try again.");
-    } catch (error) {
-      console.error("Error activating trial:", error);
-      toast.error("Failed to start trial. Please try again.");
-      setActivatingTrial(false);
-    } 
-  };
-
   // Pro user: Show full data
   if (isPro) {
     if (viewMode === 'table') {
-      return <BestOddsTable deals={deals} loading={loading} />;
+      return <BestOddsTable deals={deals} loading={loading} isPro={isPro} />;
     }
     return <BestOddsCards deals={deals} loading={loading} />;
   }
 
-  // Non-pro: Show blurred preview with auth gate (using the deals passed from parent)
-  // The parent page fetches preview data via the teaser endpoint when not Pro
+  // Non-pro: Show preview deals with messaging
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -116,128 +42,87 @@ export function GatedBestOddsView({
     );
   }
 
+  const previewPerSport = 2;
+  const premiumLabel = premiumCount >= 1000 ? '1k+' : `${premiumCount}`;
+
   return (
-    <div className="relative min-h-[600px]">
-      {/* Blurred preview - use deals from parent (which are preview deals for non-pro) */}
-      <div className="pointer-events-none select-none blur-sm">
-        {viewMode === 'table' ? (
-          <BestOddsTable deals={deals} loading={false} />
-        ) : (
-          <BestOddsCards deals={deals} />
-        )}
-      </div>
-
-      {/* Overlay CTA - Fixed positioning to keep it centered in viewport */}
-      <div className="absolute inset-0 z-30 flex items-start justify-center pt-12 bg-gradient-to-b from-transparent via-white/80 to-white dark:via-black/80 dark:to-black">
-        <div className="relative z-10 mx-auto max-w-md rounded-2xl border border-[var(--tertiary)]/20 bg-white p-8 text-center shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-          {/* Icon with gradient glow */}
-          <div className="relative mx-auto mb-6 w-fit">
-            <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[var(--tertiary)]/20 via-[var(--tertiary)]/30 to-[var(--tertiary-strong)]/30 blur-2xl" />
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--tertiary)]/20 bg-white shadow-sm dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-              <Droplet className="h-8 w-8 text-[var(--tertiary-strong)]" />
+    <div className="space-y-4">
+      <div className="relative mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-gradient-to-br from-white via-neutral-50 to-neutral-100 p-4 shadow-sm dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-950 sm:p-5">
+        <div className="relative z-10 flex flex-col gap-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900/5 text-neutral-900 shadow-inner dark:bg-white/10 dark:text-white">
+                <LockIcon className="h-5 w-5 text-[var(--tertiary)]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                  {premiumLabel} Premium Edge{premiumCount === 1 ? "" : "s"} Hidden
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-200/80">
+                  Free users can view {previewPerSport} edges per sport. Unlock full filters, auto-refresh, and unlimited edges — all in real-time.
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Content */}
-          <h3 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white">
-            {isLoggedIn && !hasUnusedTrial 
-              ? "Upgrade to Pro" 
-              : "Start Your 7-Day Free Trial"
-            }
-          </h3>
-          <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-            {isLoggedIn && !hasUnusedTrial
-              ? "Unlock real-time edge opportunities across 20+ sportsbooks with Pro access."
-              : "Join thousands of bettors finding the best odds across 20+ sportsbooks. Card required; you won’t be charged until the trial ends."
-            }
-          </p>
-
-          {/* Stats */}
-          <div className="mb-6 flex items-center justify-center gap-4 rounded-lg border border-[var(--tertiary)]/20 bg-[var(--tertiary)]/5 px-4 py-3 text-xs dark:border-[var(--tertiary)]/30 dark:bg-[var(--tertiary)]/10">
-            <div className="text-center">
-              <div className="font-bold text-neutral-900 dark:text-white">20+</div>
-              <div className="text-neutral-500 dark:text-neutral-400">Books</div>
+          <div className="grid gap-2 text-sm text-neutral-800 dark:text-neutral-100 sm:grid-cols-2">
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
+              <RefreshCw className="h-4 w-4 text-[var(--tertiary)]" />
+              <div>
+                <p className="font-semibold leading-none">Real-time Auto Refresh</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Stay synced with every market swing.</p>
+              </div>
             </div>
-            <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
-            <div className="text-center">
-              <div className="font-bold text-neutral-900 dark:text-white">Live</div>
-              <div className="text-neutral-500 dark:text-neutral-400">Updates</div>
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
+              <TrendingUp className="h-4 w-4 text-[var(--tertiary)]" />
+              <div>
+                <p className="font-semibold leading-none">Premium Edges (All %)</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Chase the edges that truly move bankrolls.</p>
+              </div>
             </div>
-            <div className="h-8 w-px bg-[var(--tertiary)]/20 dark:bg-[var(--tertiary)]/30" />
-            <div className="text-center">
-              <div className="font-bold text-neutral-900 dark:text-white">Real-time</div>
-              <div className="text-neutral-500 dark:text-neutral-400">Odds</div>
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
+              <Filter className="h-4 w-4 text-[var(--tertiary)]" />
+              <div>
+                <p className="font-semibold leading-none">Advanced Filters</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Fine-tune by sport, market, book, and odds.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
+              <Infinity className="h-4 w-4 text-[var(--tertiary)]" />
+              <div>
+                <p className="font-semibold leading-none">Unlimited Opportunities</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-300/70">No throttle. Capture everything in one stream.</p>
+              </div>
             </div>
           </div>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col gap-3">
-            {isLoggedIn ? (
-              // Logged in but free plan
-              <>
-                {hasUnusedTrial ? (
-                  // Show trial CTA if they haven't used it yet
-                  <>
-                    <button
-                      onClick={handleStartTrial}
-                      disabled={activatingTrial}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--tertiary)] to-[var(--tertiary-strong)] px-6 py-3 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {activatingTrial ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Activating...
-                        </>
-                      ) : (
-                        <>
-                          Start Free — 7-Day Trial
-                          <ArrowRight className="h-4 w-4" />
-                        </>
-                      )}
-                    </button>
-                    <ButtonLink
-                      href="/pricing"
-                      variant="outline"
-                      className="w-full justify-center text-sm"
-                    >
-                      Or upgrade to Pro
-                    </ButtonLink>
-                  </>
-                ) : (
-                  // Trial already used - show only upgrade
-                  <ButtonLink
-                    href="/pricing"
-                    variant="pro"
-                    className="w-full justify-center gap-2"
-                  >
-                    Upgrade to Pro
-                    <ArrowRight className="h-4 w-4" />
-                  </ButtonLink>
-                )}
-              </>
-            ) : (
-              // Not logged in - show trial + login CTAs
-              <>
-                <button
-                  onClick={handleStartTrial}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--tertiary)] to-[var(--tertiary-strong)] px-6 py-3 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90"
-                >
-                  Start Free Trial
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-                <ButtonLink
-                  href={`/login?redirectTo=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/edge-finder')}`}
-                  variant="outline"
-                  className="w-full justify-center text-sm"
-                >
-                  Already have an account? Sign in
-                </ButtonLink>
-              </>
-            )}
+          <div className="flex flex-wrap items-center gap-3">
+            <ButtonLink
+              href="/pricing"
+              variant="outline"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
+            >
+              {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+              <ArrowRight className="h-4 w-4" />
+            </ButtonLink>
+            <span className="text-xs text-neutral-500 dark:text-neutral-300/70">
+              Unlock all edges, filters and more.
+            </span>
           </div>
         </div>
       </div>
+
+      {viewMode === 'table' ? (
+        <BestOddsTable
+          deals={deals}
+          loading={false}
+          isPro={false}
+          isLimitedPreview
+          previewPerSport={previewPerSport}
+        />
+      ) : (
+        <BestOddsCards deals={deals} loading={false} />
+      )}
     </div>
   );
 }
-

@@ -104,8 +104,8 @@ export async function POST(req: NextRequest) {
         .eq('id', user.id)
       stripePortalUrl = await createCustomerPortal({
         customerId: customer.id,
-        returnUrl,
-      })
+      returnUrl,
+    })
     }
 
     return NextResponse.json({ url: stripePortalUrl })
