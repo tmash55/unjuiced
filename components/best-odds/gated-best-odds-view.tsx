@@ -61,7 +61,7 @@ export function GatedBestOddsView({
                 <p className="text-xs text-neutral-600 dark:text-neutral-200/80">
                   Free users can view {previewPerSport} edges per sport. Unlock full filters, auto-refresh, and unlimited edges — all in real-time.
                 </p>
-              </div>
+      </div>
             </div>
           </div>
 
@@ -97,14 +97,14 @@ export function GatedBestOddsView({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <ButtonLink
-              href="/pricing"
-              variant="outline"
+                    <ButtonLink
+                      href="/pricing"
+                      variant="outline"
               className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
-            >
+                  >
               {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
-              <ArrowRight className="h-4 w-4" />
-            </ButtonLink>
+                    <ArrowRight className="h-4 w-4" />
+                  </ButtonLink>
             <span className="text-xs text-neutral-500 dark:text-neutral-300/70">
               Unlock all edges, filters and more.
             </span>

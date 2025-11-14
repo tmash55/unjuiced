@@ -145,10 +145,31 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
   // Array with IDs = those books are DESELECTED (hide them)
   if (prefs.selectedBooks.length > 0) {
     const normalizedDeselectedBooks = prefs.selectedBooks.map(b => normalizeSportsbookName(b));
-    const bestBookNormalized = normalizeSportsbookName(deal.bestBook);
-    
-    // If the best book is in the deselected list, filter it out
-    if (normalizedDeselectedBooks.includes(bestBookNormalized)) {
+    const booksWithBestPrice = deal.allBooks?.filter(book => book.price === deal.bestPrice) || [];
+    const normalizedBestBooks =
+      booksWithBestPrice.length > 0
+        ? booksWithBestPrice.map(book => normalizeSportsbookName(book.book))
+        : [normalizeSportsbookName(deal.bestBook)];
+
+    const allDeselected = normalizedBestBooks.every(book =>
+      normalizedDeselectedBooks.includes(book)
+    );
+
+    // Debug logging in development for tricky books
+    if (
+      process.env.NODE_ENV === 'development' &&
+      normalizedBestBooks.some(book => ['prophetx', 'bwin', 'sports-interaction'].includes(book))
+    ) {
+      console.log('[FILTER DEBUG] Best book check:', {
+        dealBestBook: deal.bestBook,
+        normalizedBestBooks,
+        deselectedBooks: prefs.selectedBooks,
+        normalizedDeselectedBooks,
+        allDeselected,
+      });
+    }
+
+    if (allDeselected) {
       return false;
     }
   }

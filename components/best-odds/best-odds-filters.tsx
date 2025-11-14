@@ -555,8 +555,8 @@ export function BestOddsFilters({
                               : 'cursor-pointer hover:shadow-sm'
                           } ${
                             checked && !isDisabled
-                              ? 'active'
-                              : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
+                                ? 'active'
+                                : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
                           onClick={(e) => {
                             if (isDisabled) e.preventDefault();

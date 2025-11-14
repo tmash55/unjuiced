@@ -1,8 +1,8 @@
 export type PropsScope = "pregame" | "live";
 
 export type BookQuote = {
-  over?: { price: number; u?: string } | null;
-  under?: { price: number; u?: string } | null;
+  over?: { price: number; u?: string; m?: string; limit_max?: number | null } | null;
+  under?: { price: number; u?: string; m?: string; limit_max?: number | null } | null;
 };
 
 export type BestQuote = {

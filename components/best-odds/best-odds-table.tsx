@@ -14,6 +14,13 @@ import { motion, AnimatePresence } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
 
+const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
+  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
+    return mobile || desktop || fallback || undefined;
+  }
+  return desktop || mobile || fallback || undefined;
+};
+
 type SortField = 'improvement' | 'time';
 type SortDirection = 'asc' | 'desc';
 
@@ -214,8 +221,9 @@ export function BestOddsTable({
     return `${last}, ${firstInitial}`;
   };
 
-  const openLink = (bookId?: string, href?: string | null) => {
-    const target = href || getBookFallbackUrl(bookId);
+  const openLink = (bookId?: string, desktopHref?: string | null, mobileHref?: string | null) => {
+    const fallback = getBookFallbackUrl(bookId);
+    const target = chooseBookLink(desktopHref, mobileHref, fallback);
     if (!target) return;
     try {
       window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
@@ -600,8 +608,15 @@ export function BestOddsTable({
                         </div>
                       )}
                     </div>
-                    <div className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">
-                      {formatOdds(deal.bestPrice)}
+                    <div className="flex flex-col items-center leading-tight">
+                      <div className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">
+                        {formatOdds(deal.bestPrice)}
+                      </div>
+                      {deal.bestLimit && (
+                        <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal leading-none mt-0.5">
+                          ${deal.bestLimit}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -624,12 +639,12 @@ export function BestOddsTable({
                     <div className="relative">
                       {bestBooksWithPrice.length === 1 ? (
                         // Single best book - direct link
-                        <Tooltip content={`Place bet on ${bookName(deal.bestBook)}`}>
+                        <Tooltip content={deal.bestLimit ? `Place bet on ${bookName(deal.bestBook)} (Max: $${deal.bestLimit})` : `Place bet on ${bookName(deal.bestBook)}`}>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              openLink(deal.bestBook, deal.bestLink);
+                              openLink(deal.bestBook, deal.bestLink, deal.bestLinkMobile);
                             }}
                             className="inline-flex items-center justify-center gap-1 h-9 px-4 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all font-medium text-sm"
                           >
@@ -662,7 +677,7 @@ export function BestOddsTable({
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openLink(book.book, book.link);
+                                      openLink(book.book, book.link, book.mobileLink ?? null);
                                       setOpenBetDropdown(null);
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors text-left"
@@ -705,19 +720,27 @@ export function BestOddsTable({
                             const bookLogo = logo(book.book);
                             // Highlight all books with the best price
                             const isBest = book.price === deal.bestPrice;
-                            const bookLink = book.link || getBookFallbackUrl(book.book);
+                            const bookLink = chooseBookLink(book.link, book.mobileLink, getBookFallbackUrl(book.book));
+                            const hasLink = !!bookLink;
+                            
+                            // Build tooltip with limit if available
+                            const tooltipContent = book.limit_max 
+                              ? `Place bet on ${bookName(book.book)} (Max: $${book.limit_max})`
+                              : bookLink 
+                                ? `Place bet on ${bookName(book.book)}` 
+                                : `${bookName(book.book)} - No link available`;
                             
                             return (
                               <Tooltip 
                                 key={`${deal.key}-${book.book}`}
-                                content={bookLink ? `Place bet on ${bookName(book.book)}` : `${bookName(book.book)} - No link available`}
+                                content={tooltipContent}
                               >
                                 <button
-                                  onClick={() => bookLink && openLink(book.book, bookLink)}
-                                  disabled={!bookLink}
+                                  onClick={() => openLink(book.book, book.link ?? null, book.mobileLink ?? null)}
+                                  disabled={!hasLink}
                                   className={cn(
                                     "flex items-center gap-2.5 px-4 py-3 rounded-lg border transition-all",
-                                    bookLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+                                    hasLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
                                     isBest
                                       ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 shadow-sm"
                                       : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md"
@@ -730,15 +753,22 @@ export function BestOddsTable({
                                       className="h-6 w-6 object-contain shrink-0"
                                     />
                                   )}
-                                  <span className={cn(
-                                    "text-base font-bold",
-                                    isBest
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-neutral-900 dark:text-neutral-100"
-                                  )}>
-                                    {formatOdds(book.price)}
-                                  </span>
-                                  {bookLink && (
+                                  <div className="flex flex-col items-start leading-tight">
+                                    <span className={cn(
+                                      "text-base font-bold",
+                                      isBest
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-neutral-900 dark:text-neutral-100"
+                                    )}>
+                                      {formatOdds(book.price)}
+                                    </span>
+                                    {book.limit_max && (
+                                      <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal leading-none mt-0.5">
+                                        ${book.limit_max}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {hasLink && (
                                     <ExternalLink className="h-4 w-4 text-neutral-400 dark:text-neutral-500 ml-1" />
                                   )}
                                 </button>

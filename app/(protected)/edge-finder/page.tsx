@@ -156,9 +156,9 @@ export default function BestOddsPage() {
       <div className="mb-8">
         <ToolHeading>Edge Finder</ToolHeading>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <ToolSubheading>
-            Track real-time discrepancies between sportsbooks to uncover edges before the market adjusts.
-          </ToolSubheading>
+        <ToolSubheading>
+        Track real-time discrepancies between sportsbooks to uncover edges before the market adjusts.
+        </ToolSubheading>
           <Dialog>
             <DialogTrigger asChild>
               <button
@@ -360,16 +360,16 @@ export default function BestOddsPage() {
               </Tooltip>
 
               {/* Filters Button */}
-              <BestOddsFilters
-                prefs={prefs}
-                onPrefsChange={handlePrefsChange}
-                availableLeagues={availableLeagues}
-                availableMarkets={availableMarkets}
-                availableSportsbooks={availableSportsbooks}
-                deals={deals}
-                locked={!isPro}
-                isLoggedIn={isLoggedIn}
-              />
+                <BestOddsFilters
+                  prefs={prefs}
+                  onPrefsChange={handlePrefsChange}
+                  availableLeagues={availableLeagues}
+                  availableMarkets={availableMarkets}
+                  availableSportsbooks={availableSportsbooks}
+                  deals={filteredDeals}
+                  locked={!isPro}
+                  isLoggedIn={isLoggedIn}
+                />
             </FiltersBarSection>
           </FiltersBar>
         </div>

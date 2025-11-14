@@ -40,6 +40,13 @@ import { useIsPro } from '@/hooks/use-entitlements'
 import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 
+const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
+  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
+    return mobileLink || link || undefined;
+  }
+  return link || mobileLink || undefined;
+};
+
 interface AlternateRowData {
   key: string
   lineValue: number
@@ -57,7 +64,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   sportsbookId: string
   sportsbookName: string
   side: 'over' | 'under'
-  odds: { line: number; price: number; link?: string | null }
+  odds: { line: number; price: number; link?: string | null; mobileLink?: string | null; limit_max?: number | null }
   isHighlighted: boolean
   priceChanged: boolean
   lineChanged: boolean
@@ -70,8 +77,14 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   formatLine: (line: number, side: 'over' | 'under') => string
 }) {
   const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isPositiveChange, isNegativeChange, isMoneyline, onClick, formatOdds, formatLine } = props
+  
+  // Build tooltip content with limit info if available
+  const tooltipContent = odds.limit_max 
+    ? `Place bet on ${sportsbookName} (Max: $${odds.limit_max})`
+    : `Place bet on ${sportsbookName}`
+  
   return (
-    <Tooltip content={`Place bet on ${sportsbookName}`}>
+    <Tooltip content={tooltipContent}>
         <button
           onClick={onClick}
           className={cn(
@@ -84,7 +97,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
           <div className="text-center">
             {isMoneyline ? (
               // Moneylines: Show only the odds, no line/team label
-                <div className="text-sm font-semibold">
+                <div className="text-sm font-semibold leading-tight">
                   <span
                     className={cn(
                       priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'),
@@ -93,19 +106,31 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                   >
                     {formatOdds(odds.price)}
                   </span>
+                  {odds.limit_max && (
+                    <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal mt-0.5 leading-none">
+                      ${odds.limit_max}
+                    </div>
+                  )}
                 </div>
             ) : (
               // Other markets: Show line and odds
-              <div className="text-xs font-medium">
-                <span className={`opacity-75 ${lineChanged ? 'animate-odds-flash-line px-1 rounded' : ''}`}>{formatLine(odds.line, side)}</span>
-                <span
-                  className={cn(
-                    'ml-1 font-semibold transition-colors',
-                    priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400')
-                  )}
-                >
-                  {formatOdds(odds.price)}
-                </span>
+              <div className="text-xs font-medium leading-tight">
+                <div>
+                  <span className={`opacity-75 ${lineChanged ? 'animate-odds-flash-line px-1 rounded' : ''}`}>{formatLine(odds.line, side)}</span>
+                  <span
+                    className={cn(
+                      'ml-1 font-semibold transition-colors',
+                      priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400')
+                    )}
+                  >
+                    {formatOdds(odds.price)}
+                  </span>
+                </div>
+                {odds.limit_max && (
+                  <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal mt-0.5 leading-none">
+                    ${odds.limit_max}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -120,6 +145,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
     prev.side === next.side &&
     prev.odds.price === next.odds.price &&
     prev.odds.line === next.odds.line &&
+    prev.odds.limit_max === next.odds.limit_max &&
     prev.isPositiveChange === next.isPositiveChange &&
     prev.isNegativeChange === next.isNegativeChange &&
     prev.isHighlighted === next.isHighlighted &&
@@ -306,7 +332,8 @@ const calculateUserBestOdds = (
       price: bestPrice,
       line: bestLine,
       book: allBestBooks.map(b => b.bookId).join(', '), // Join all book IDs
-      link: bestUserBook.odds!.link ?? undefined // Use first link for clickthrough
+      link: bestUserBook.odds!.link ?? undefined, // Use first link for clickthrough
+      mobileLink: bestUserBook.odds!.mobileLink ?? undefined
     }
   }
   
@@ -332,7 +359,8 @@ const calculateUserBestOdds = (
       price: bestPrice,
       line: bestLine,
       book: allBestBooks.map(b => b.bookId).join(', '), // Join all book IDs
-      link: bestGlobalBook.odds!.link ?? undefined // Use first link for clickthrough
+      link: bestGlobalBook.odds!.link ?? undefined,
+      mobileLink: bestGlobalBook.odds!.mobileLink ?? undefined
     }
   }
   
@@ -846,8 +874,9 @@ const renderAlternateRow = (
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              if (priceOdds.link) {
-                  window.open(priceOdds.link, '_blank', 'noopener,noreferrer')
+              const preferredLink = getPreferredLink(priceOdds.link, priceOdds.mobileLink)
+              if (preferredLink) {
+                window.open(preferredLink, '_blank', 'noopener,noreferrer')
               } else if (onOddsClick) {
                 onOddsClick(book.id, side, priceOdds)
               }
@@ -1987,8 +2016,9 @@ export function OddsTable({
                     const isNegativeChange = negativeOddsChanges.has(cellKeyBase)
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
-                      if (typeof odds.link === 'string' && odds.link.length > 0) {
-                          window.open(odds.link, '_blank', 'noopener,noreferrer')
+                      const preferredLink = getPreferredLink(odds.link, odds.mobileLink)
+                      if (preferredLink) {
+                        window.open(preferredLink, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, firstSide, book.id)
                       }
@@ -2041,8 +2071,9 @@ export function OddsTable({
                     const isNegativeChange = negativeOddsChanges.has(cellKeyBase)
                     const onClick = (e: React.MouseEvent) => {
                       e.stopPropagation()
-                      if (typeof odds.link === 'string' && odds.link.length > 0) {
-                          window.open(odds.link, '_blank', 'noopener,noreferrer')
+                      const preferredLink = getPreferredLink(odds.link, odds.mobileLink)
+                      if (preferredLink) {
+                        window.open(preferredLink, '_blank', 'noopener,noreferrer')
                       } else {
                         onOddsClick?.(item, secondSide, book.id)
                       }
@@ -2279,13 +2310,21 @@ export function OddsTable({
     )
 
     const sbName = firstBookId ? (getSportsbookById(firstBookId)?.name ?? 'Sportsbook') : 'Sportsbook'
+    
+    // Build tooltip content with limit info if available
+    const bestLineTooltip = displayOdds.limit_max 
+      ? `Place bet on ${sbName} (Max: $${displayOdds.limit_max})`
+      : `Place bet on ${sbName}`
+    
+    const preferredDisplayLink = getPreferredLink(displayOdds.link, displayOdds.mobileLink)
+
     const interactive = (
-      displayOdds.link || firstBookId ? (
+      preferredDisplayLink || firstBookId ? (
         <button
           onClick={(e) => {
             e.stopPropagation()
-            if (displayOdds.link) {
-                window.open(displayOdds.link, '_blank', 'noopener,noreferrer')
+            if (preferredDisplayLink) {
+              window.open(preferredDisplayLink, '_blank', 'noopener,noreferrer')
             } else if (firstBookId) {
               onOddsClick?.(rowItem, side, firstBookId)
             }
@@ -2301,7 +2340,7 @@ export function OddsTable({
 
     return (
       <div className="flex items-center gap-1">
-        <Tooltip content={`Place bet on ${sbName}`}>
+        <Tooltip content={bestLineTooltip}>
           <div>{interactive}</div>
         </Tooltip>
         {betterOddsIndicator}

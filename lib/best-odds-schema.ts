@@ -28,7 +28,13 @@ export interface BestOddsDeal {
     book: string
     price: number
     link: string
+    mobileLink?: string | null
+    limit_max?: number | null
   }>
+  
+  // Best book limit (if available)
+  bestLimit?: number | null
+  bestLinkMobile?: string | null
   
   scope: 'pregame' | 'live'
   lastUpdated: number           // Unix timestamp

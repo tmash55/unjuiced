@@ -121,7 +121,15 @@ export async function GET(req: NextRequest) {
           }
           
           // Normalize field names to camelCase (matching main API)
-          const normalizedDeal: BestOddsDeal = {
+        const normalizedAllBooks = (deal.all_books || deal.allBooks || []).map((book: any) => ({
+          book: book.book,
+          price: book.price,
+          link: book.link,
+          mobileLink: book.mobile_link ?? book.mobileLink ?? book.m ?? null,
+          limit_max: book.limit_max ?? book.limitMax ?? book.max_limit ?? null,
+        }));
+
+        const normalizedDeal: BestOddsDeal = {
             key: originalKey,
             sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'mlb' | 'wnba',
             eid: deal.eid || '',
@@ -129,13 +137,14 @@ export async function GET(req: NextRequest) {
             mkt: deal.mkt || '',
             ln: deal.ln || 0,
             side: deal.side || 'o',
-            bestBook: deal.best_book || deal.bestBook || '',
-            bestPrice: deal.best_price || deal.bestPrice || 0,
-            bestLink: deal.best_link || deal.bestLink || '',
+          bestBook: deal.best_book || deal.bestBook || '',
+          bestPrice: deal.best_price || deal.bestPrice || 0,
+          bestLink: deal.best_link || deal.bestLink || '',
+          bestLinkMobile: deal.best_link_mobile || deal.bestLinkMobile || null,
             numBooks: deal.num_books || deal.numBooks || 0,
             avgPrice: deal.avg_price || deal.avgPrice || 0,
             priceImprovement: deal.price_improvement || deal.priceImprovement || score,
-            allBooks: deal.all_books || deal.allBooks || [],
+          allBooks: normalizedAllBooks,
             scope: deal.scope || 'pregame',
             lastUpdated: deal.last_updated || deal.lastUpdated || Date.now(),
             playerName: deal.player_name || deal.playerName,

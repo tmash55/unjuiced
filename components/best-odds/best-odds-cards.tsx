@@ -11,6 +11,13 @@ import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
+const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
+  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
+    return mobile || desktop || fallback || undefined;
+  }
+  return desktop || mobile || fallback || undefined;
+};
+
 interface BestOddsCardsProps {
   deals: BestOddsDeal[];
   loading?: boolean;
@@ -55,9 +62,10 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
   };
 
   // Helper to open link
-  const openLink = (url: string | undefined) => {
-    if (!url) return;
-    const finalUrl = url.startsWith('http') ? url : getBookFallbackUrl(url);
+  const openLink = (desktop?: string | null, mobile?: string | null, bookId?: string) => {
+    const fallback = getBookFallbackUrl(bookId || '');
+    const finalUrl = chooseBookLink(desktop, mobile, fallback);
+    if (!finalUrl) return;
     window.open(finalUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -346,7 +354,11 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
             <div className="relative flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
               {/* Left: Add to Bet Slip (Outline Button) */}
               <button
-                onClick={() => openLink(bestBooksWithPrice[0]?.link)}
+                onClick={() => {
+                  const primary = bestBooksWithPrice[0];
+                  if (!primary) return;
+                  openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
+                }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
               >
                 Add to Bet Slip
@@ -369,22 +381,27 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   {deal.allBooks
                     .sort((a: { price: number }, b: { price: number }) => b.price - a.price)
-                    .map((book: { book: string; price: number; link: string }, idx: number) => {
+                    .map((book: { book: string; price: number; link: string; mobileLink?: string | null; limit_max?: number | null }, idx: number) => {
                       const bookLogo = logo(book.book);
                       const isBest = book.price === deal.bestPrice;
-                      const bookLink = book.link || getBookFallbackUrl(book.book);
+                      const preferredLink = chooseBookLink(book.link, book.mobileLink ?? null, getBookFallbackUrl(book.book));
+                      const hasLink = !!preferredLink;
                       
                       return (
                         <Tooltip 
                           key={idx} 
-                          content={bookLink ? `Place bet on ${bookName(book.book)}` : `${bookName(book.book)} - No link available`}
+                          content={
+                            hasLink
+                              ? `Place bet on ${bookName(book.book)}${book.limit_max ? ` (Max: $${book.limit_max})` : ''}`
+                              : `${bookName(book.book)} - No link available`
+                          }
                         >
                           <button
-                            onClick={() => bookLink && openLink(bookLink)}
-                            disabled={!bookLink}
+                            onClick={() => openLink(book.link ?? null, book.mobileLink ?? null, book.book)}
+                            disabled={!hasLink}
                             className={cn(
                               "flex items-center gap-2.5 px-4 py-3 rounded-lg border transition-all",
-                              bookLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+                              hasLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
                               isBest
                                 ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 shadow-sm"
                                 : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md"
@@ -405,7 +422,7 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
                             )}>
                               {formatOdds(book.price)}
                             </span>
-                            {bookLink && (
+                            {hasLink && (
                               <ExternalLink className="h-4 w-4 text-neutral-400 dark:text-neutral-500 ml-1" />
                             )}
                           </button>

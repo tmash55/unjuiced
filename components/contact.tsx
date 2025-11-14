@@ -189,8 +189,8 @@ const ContactCard = () => {
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 transition-all group-hover:bg-sky-200 dark:bg-brand/10 dark:group-hover:bg-brand/20">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" className="text-sky-700 transition-transform group-hover:scale-110 dark:text-brand">
-                <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
-              </svg>
+                  <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
+                </svg>
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-neutral-900 dark:text-white">X</p>

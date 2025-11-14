@@ -51,11 +51,15 @@ export interface PropsRow {
         price: number
         line: number
         u: string // URL
+        m?: string // Mobile URL
+        limit_max?: number | null
       }
       under?: {
         price: number
         line: number
         u: string // URL
+        m?: string // Mobile URL
+        limit_max?: number | null
       }
     }
   >
@@ -182,11 +186,32 @@ export function transformPropsRowToOddsItem(
     }
     Object.entries(row.books).forEach(([bookId, bookData]) => {
       const canonicalId = normalizeBookId(bookId)
+      
+      // Debug logging for limit_max (development only)
+      if (process.env.NODE_ENV === 'development' && (bookData.over?.limit_max || bookData.under?.limit_max)) {
+        console.log(`[ADAPTER] ${canonicalId} has limit_max:`, {
+          over: bookData.over?.limit_max,
+          under: bookData.under?.limit_max
+        })
+      }
+      
       const over: OddsPrice | undefined = bookData.over
-        ? { price: bookData.over.price, line: isMoneyline ? 0 : bookData.over.line, link: bookData.over.u || null }
+        ? { 
+            price: bookData.over.price, 
+            line: isMoneyline ? 0 : bookData.over.line, 
+            link: bookData.over.u || bookData.over.m || null,
+            mobileLink: bookData.over.m || null,
+            limit_max: bookData.over.limit_max
+          }
         : undefined
       const under: OddsPrice | undefined = bookData.under
-        ? { price: bookData.under.price, line: isMoneyline ? 0 : bookData.under.line, link: bookData.under.u || null }
+        ? { 
+            price: bookData.under.price, 
+            line: isMoneyline ? 0 : bookData.under.line, 
+            link: bookData.under.u || bookData.under.m || null,
+            mobileLink: bookData.under.m || null,
+            limit_max: bookData.under.limit_max
+          }
         : undefined
 
       odds.books[canonicalId] = {

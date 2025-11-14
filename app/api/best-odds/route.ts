@@ -216,6 +216,14 @@ export async function GET(req: NextRequest) {
         if (minOdds !== undefined && dealPrice < minOdds) continue;
         
         // Normalize field names to camelCase and add metadata
+        const normalizedAllBooks = (deal.all_books || deal.allBooks || []).map((book: any) => ({
+          book: book.book,
+          price: book.price,
+          link: book.link,
+          mobileLink: book.mobile_link ?? book.mobileLink ?? book.m ?? null,
+          limit_max: book.limit_max ?? book.limitMax ?? book.max_limit ?? null,
+        }));
+
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
           sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'mlb' | 'wnba',  // Use sport from batch key
@@ -227,10 +235,12 @@ export async function GET(req: NextRequest) {
           bestBook: deal.best_book || deal.bestBook || '',
           bestPrice: deal.best_price || deal.bestPrice || 0,
           bestLink: deal.best_link || deal.bestLink || '',
+          bestLinkMobile: deal.best_link_mobile || deal.bestLinkMobile || null,
           numBooks: deal.num_books || deal.numBooks || 0,
           avgPrice: deal.avg_price || deal.avgPrice || 0,
           priceImprovement: deal.price_improvement || deal.priceImprovement || score,
-          allBooks: deal.all_books || deal.allBooks || [],
+          allBooks: normalizedAllBooks,
+          bestLimit: deal.best_limit_max ?? deal.bestLimit ?? null,
           scope: deal.scope || 'pregame',
           lastUpdated: deal.last_updated || deal.lastUpdated || Date.now(),
           // Optional enriched fields (now embedded in backend data)

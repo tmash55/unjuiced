@@ -567,8 +567,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                 isTeaser && "blur-sm select-none pointer-events-none"
               )}
             >
-              {/* Market Label */}
-              <div className="mb-2 flex items-center gap-2 pl-2">
+            {/* Market Label */}
+            <div className="mb-2 flex items-center gap-2 pl-2">
               <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded border border-neutral-200/60 bg-neutral-50/50 dark:border-neutral-700/60 dark:bg-neutral-800/50">
                 <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                   {(() => {
@@ -772,7 +772,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
           rowProps={(row) => {
             const isTeaser = (row.original as ArbRowWithId)._isTeaser;
             return {
-              className: cn(
+            className: cn(
                 "group/row transition-all duration-200 ease-out",
                 !isTeaser && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
                 (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10",
