@@ -16,20 +16,7 @@ import LockIcon from "@/icons/lock";
 
 const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
-  const selectedLink = isMobile ? (mobile || desktop || fallback) : (desktop || mobile || fallback);
-  
-  // Debug logging (development only)
-  if (process.env.NODE_ENV === 'development' && (desktop || mobile)) {
-    console.log('[BestOddsTable] Link selection:', {
-      isMobile,
-      desktopLink: desktop ? String(desktop).substring(0, 50) + '...' : 'none',
-      mobileLink: mobile ? String(mobile).substring(0, 50) + '...' : 'none',
-      fallback: fallback ? String(fallback).substring(0, 50) + '...' : 'none',
-      selected: selectedLink ? String(selectedLink).substring(0, 50) + '...' : 'none'
-    });
-  }
-  
-  return selectedLink || undefined;
+  return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
 };
 
 type SortField = 'improvement' | 'time';
@@ -54,6 +41,16 @@ export function BestOddsTable({
   const [sortField, setSortField] = useState<SortField>('improvement');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
+
+  // Restore scroll position on mount (for mobile UX)
+  useEffect(() => {
+    const savedScrollPos = sessionStorage.getItem('edgeFinder_scrollPos');
+    if (savedScrollPos) {
+      const scrollY = parseInt(savedScrollPos, 10);
+      window.scrollTo(0, scrollY);
+      sessionStorage.removeItem('edgeFinder_scrollPos');
+    }
+  }, []);
 
   const toggleRow = (key: string) => {
     setExpandedRows(prev => {
@@ -236,6 +233,10 @@ export function BestOddsTable({
     const fallback = getBookFallbackUrl(bookId);
     const target = chooseBookLink(desktopHref, mobileHref, fallback);
     if (!target) return;
+    
+    // Save scroll position before opening link (for mobile UX)
+    sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
+    
     try {
       window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
     } catch {void 0;}

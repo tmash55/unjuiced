@@ -13,20 +13,7 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
 const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
-  const selectedLink = isMobile ? (mobile || desktop || fallback) : (desktop || mobile || fallback);
-  
-  // Debug logging (development only)
-  if (process.env.NODE_ENV === 'development' && (desktop || mobile)) {
-    console.log('[BestOddsCards] Link selection:', {
-      isMobile,
-      desktopLink: desktop ? String(desktop).substring(0, 50) + '...' : 'none',
-      mobileLink: mobile ? String(mobile).substring(0, 50) + '...' : 'none',
-      fallback: fallback ? String(fallback).substring(0, 50) + '...' : 'none',
-      selected: selectedLink ? String(selectedLink).substring(0, 50) + '...' : 'none'
-    });
-  }
-  
-  return selectedLink || undefined;
+  return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
 };
 
 interface BestOddsCardsProps {
@@ -38,6 +25,16 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const allLeagues = getAllLeagues();
+
+  // Restore scroll position on mount (for mobile UX)
+  React.useEffect(() => {
+    const savedScrollPos = sessionStorage.getItem('edgeFinder_scrollPos');
+    if (savedScrollPos) {
+      const scrollY = parseInt(savedScrollPos, 10);
+      window.scrollTo(0, scrollY);
+      sessionStorage.removeItem('edgeFinder_scrollPos');
+    }
+  }, []);
 
   // Helper to get league info
   const getLeagueLabel = (sport: string) => {
@@ -77,6 +74,10 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
     const fallback = getBookFallbackUrl(bookId || '');
     const finalUrl = chooseBookLink(desktop, mobile, fallback);
     if (!finalUrl) return;
+    
+    // Save scroll position before opening link (for mobile UX)
+    sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
+    
     window.open(finalUrl, '_blank', 'noopener,noreferrer');
   };
 

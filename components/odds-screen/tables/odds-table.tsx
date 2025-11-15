@@ -42,19 +42,7 @@ import { ProGateModal } from '../pro-gate-modal'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
-  const selectedLink = isMobile ? (mobileLink || link) : (link || mobileLink);
-  
-  // Debug logging (development only)
-  if (process.env.NODE_ENV === 'development' && (link || mobileLink)) {
-    console.log('[OddsTable] Link selection:', {
-      isMobile,
-      desktopLink: link ? String(link).substring(0, 50) + '...' : 'none',
-      mobileLink: mobileLink ? String(mobileLink).substring(0, 50) + '...' : 'none',
-      selected: selectedLink ? String(selectedLink).substring(0, 50) + '...' : 'none'
-    });
-  }
-  
-  return selectedLink || undefined;
+  return isMobile ? (mobileLink || link || undefined) : (link || mobileLink || undefined);
 };
 
 interface AlternateRowData {

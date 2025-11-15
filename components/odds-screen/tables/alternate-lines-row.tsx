@@ -57,19 +57,7 @@ export function AlternateLinesRow({
   // Helper to get preferred link based on device type
   const getPreferredLink = (desktopLink?: string, mobileLink?: string) => {
     const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
-    const selectedLink = isMobile ? (mobileLink || desktopLink) : (desktopLink || mobileLink);
-    
-    // Debug logging (development only)
-    if (process.env.NODE_ENV === 'development' && (desktopLink || mobileLink)) {
-      console.log('[AlternateLines] Link selection:', {
-        isMobile,
-        desktopLink: desktopLink ? desktopLink.substring(0, 50) + '...' : 'none',
-        mobileLink: mobileLink ? mobileLink.substring(0, 50) + '...' : 'none',
-        selected: selectedLink ? selectedLink.substring(0, 50) + '...' : 'none'
-      });
-    }
-    
-    return selectedLink || undefined;
+    return isMobile ? (mobileLink || desktopLink || undefined) : (desktopLink || mobileLink || undefined);
   };
 
   // Helpers for average/best on alternates

@@ -39,11 +39,6 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
 
         const previewData = await previewResponse.json();
 
-        console.log('[use-best-odds-view] Free user data:', {
-          previewDeals: previewData.deals?.length || 0,
-          premiumCount: previewData.premiumCount || 0,
-        });
-
         return { deals: previewData.deals || [], premiumCount: previewData.premiumCount || 0 };
       } else {
         // Pro: Fetch ALL deals without filters (filter client-side)
