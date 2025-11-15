@@ -12,10 +12,21 @@ import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
 const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
-  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
-    return mobile || desktop || fallback || undefined;
+  const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+  const selectedLink = isMobile ? (mobile || desktop || fallback) : (desktop || mobile || fallback);
+  
+  // Debug logging (development only)
+  if (process.env.NODE_ENV === 'development' && (desktop || mobile)) {
+    console.log('[BestOddsCards] Link selection:', {
+      isMobile,
+      desktopLink: desktop ? String(desktop).substring(0, 50) + '...' : 'none',
+      mobileLink: mobile ? String(mobile).substring(0, 50) + '...' : 'none',
+      fallback: fallback ? String(fallback).substring(0, 50) + '...' : 'none',
+      selected: selectedLink ? String(selectedLink).substring(0, 50) + '...' : 'none'
+    });
   }
-  return desktop || mobile || fallback || undefined;
+  
+  return selectedLink || undefined;
 };
 
 interface BestOddsCardsProps {

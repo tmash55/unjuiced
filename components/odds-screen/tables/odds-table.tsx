@@ -41,10 +41,20 @@ import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
-  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) {
-    return mobileLink || link || undefined;
+  const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+  const selectedLink = isMobile ? (mobileLink || link) : (link || mobileLink);
+  
+  // Debug logging (development only)
+  if (process.env.NODE_ENV === 'development' && (link || mobileLink)) {
+    console.log('[OddsTable] Link selection:', {
+      isMobile,
+      desktopLink: link ? String(link).substring(0, 50) + '...' : 'none',
+      mobileLink: mobileLink ? String(mobileLink).substring(0, 50) + '...' : 'none',
+      selected: selectedLink ? String(selectedLink).substring(0, 50) + '...' : 'none'
+    });
   }
-  return link || mobileLink || undefined;
+  
+  return selectedLink || undefined;
 };
 
 interface AlternateRowData {

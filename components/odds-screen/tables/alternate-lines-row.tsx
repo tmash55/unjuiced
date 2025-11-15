@@ -10,8 +10,8 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 interface AlternateLine {
   ln: number; // Line value
   books: Record<string, {
-    over?: { price: number; u?: string }; // u = URL
-    under?: { price: number; u?: string };
+    over?: { price: number; u?: string; m?: string }; // u = desktop URL, m = mobile URL
+    under?: { price: number; u?: string; m?: string };
   }>;
   best?: {
     over?: { bk: string; price: number };
@@ -52,6 +52,24 @@ export function AlternateLinesRow({
 
   const formatLine = (line: number, side: 'over' | 'under') => {
     return side === 'over' ? `o${line}` : `u${line}`;
+  };
+
+  // Helper to get preferred link based on device type
+  const getPreferredLink = (desktopLink?: string, mobileLink?: string) => {
+    const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+    const selectedLink = isMobile ? (mobileLink || desktopLink) : (desktopLink || mobileLink);
+    
+    // Debug logging (development only)
+    if (process.env.NODE_ENV === 'development' && (desktopLink || mobileLink)) {
+      console.log('[AlternateLines] Link selection:', {
+        isMobile,
+        desktopLink: desktopLink ? desktopLink.substring(0, 50) + '...' : 'none',
+        mobileLink: mobileLink ? mobileLink.substring(0, 50) + '...' : 'none',
+        selected: selectedLink ? selectedLink.substring(0, 50) + '...' : 'none'
+      });
+    }
+    
+    return selectedLink || undefined;
   };
 
   // Helpers for average/best on alternates
@@ -199,7 +217,8 @@ export function AlternateLinesRow({
                   )
                 }
                 const sb = getSportsbookById(best.bk)
-                const link = alt.books?.[best.bk]?.[side]?.u
+                const bookData = alt.books?.[best.bk]?.[side]
+                const link = getPreferredLink(bookData?.u, bookData?.m)
                 const content = (
                   <div className="flex items-center justify-center gap-1">
                     {sb?.image?.light && (
@@ -307,13 +326,14 @@ export function AlternateLinesRow({
               );
 
               const isBest = side === 'over' ? isBestOver : isBestUnder;
+              const link = getPreferredLink(entry.u, entry.m);
 
               return (
                 <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
                   <button
                     onClick={() => {
-                      if (entry.u) {
-                        window.open(entry.u, '_blank', 'noopener,noreferrer');
+                      if (link) {
+                        window.open(link, '_blank', 'noopener,noreferrer');
                       }
                     }}
                     className={cn(
