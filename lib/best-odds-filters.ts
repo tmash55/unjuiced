@@ -155,20 +155,6 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
       normalizedDeselectedBooks.includes(book)
     );
 
-    // Debug logging in development for tricky books
-    if (
-      process.env.NODE_ENV === 'development' &&
-      normalizedBestBooks.some(book => ['prophetx', 'bwin', 'sports-interaction'].includes(book))
-    ) {
-      console.log('[FILTER DEBUG] Best book check:', {
-        dealBestBook: deal.bestBook,
-        normalizedBestBooks,
-        deselectedBooks: prefs.selectedBooks,
-        normalizedDeselectedBooks,
-        allDeselected,
-      });
-    }
-
     if (allDeselected) {
       return false;
     }

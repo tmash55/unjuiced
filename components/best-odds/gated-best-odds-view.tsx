@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { BestOddsDeal } from "@/lib/best-odds-schema";
+import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { BestOddsTable } from "./best-odds-table";
 import { BestOddsCards } from "./best-odds-cards";
 import { ButtonLink } from "@/components/button-link";
@@ -15,6 +15,7 @@ interface GatedBestOddsViewProps {
   isLoggedIn: boolean;
   isPro: boolean;
   premiumCount?: number;
+  prefs?: BestOddsPrefs;
 }
 
 export function GatedBestOddsView({
@@ -24,11 +25,12 @@ export function GatedBestOddsView({
   isLoggedIn,
   isPro,
   premiumCount = 0,
+  prefs,
 }: GatedBestOddsViewProps) {
   // Pro user: Show full data
   if (isPro) {
     if (viewMode === 'table') {
-      return <BestOddsTable deals={deals} loading={loading} isPro={isPro} />;
+      return <BestOddsTable deals={deals} loading={loading} isPro={isPro} prefs={prefs} />;
     }
     return <BestOddsCards deals={deals} loading={loading} />;
   }
@@ -119,6 +121,7 @@ export function GatedBestOddsView({
           isPro={false}
           isLimitedPreview
           previewPerSport={previewPerSport}
+          prefs={prefs}
         />
       ) : (
         <BestOddsCards deals={deals} loading={false} />

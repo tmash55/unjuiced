@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import type { BestOddsDeal } from "@/lib/best-odds-schema";
+import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
@@ -19,6 +19,48 @@ const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallbac
   return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
 };
 
+// Compute baseline price for comparison based on user prefs
+const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
+  if (!prefs) return deal.avgPrice ?? null;
+
+  const mode = prefs.comparisonMode ?? 'average';
+  if (mode === 'average') {
+    return deal.avgPrice ?? null;
+  }
+
+  if (mode === 'book') {
+    const targetBook = prefs.comparisonBook;
+    if (!targetBook) return deal.avgPrice ?? null;
+    const entry = deal.allBooks.find(b => b.book.toLowerCase() === targetBook.toLowerCase());
+    return entry?.price ?? null;
+  }
+
+  if (mode === 'next_best') {
+    const sorted = [...(deal.allBooks || [])].sort((a, b) => b.price - a.price);
+    if (!sorted.length) return null;
+    const best = sorted[0].price;
+    const tiedBestCount = sorted.filter(book => book.price === best).length;
+    if (tiedBestCount > 1) {
+      // Another book already matches this price; no improvement versus "next best".
+      return best;
+    }
+    const next = sorted.find(b => b.price < best);
+    return next?.price ?? null;
+  }
+
+  return deal.avgPrice ?? null;
+};
+
+// Compute improvement vs chosen baseline
+const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
+  const baseline = getBaselinePrice(deal, prefs);
+  if (baseline == null || !Number.isFinite(baseline) || !Number.isFinite(deal.bestPrice)) {
+    return null;
+  }
+  const diff = deal.bestPrice - baseline;
+  return (diff / Math.abs(baseline)) * 100;
+};
+
 type SortField = 'improvement' | 'time';
 type SortDirection = 'asc' | 'desc';
 
@@ -28,6 +70,7 @@ interface BestOddsTableProps {
   isPro?: boolean;
   isLimitedPreview?: boolean;
   previewPerSport?: number;
+  prefs?: BestOddsPrefs;
 }
 
 export function BestOddsTable({
@@ -36,6 +79,7 @@ export function BestOddsTable({
   isPro = true,
   isLimitedPreview = false,
   previewPerSport = 2,
+  prefs,
 }: BestOddsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('improvement');
@@ -107,8 +151,8 @@ export function BestOddsTable({
           let bValue: number;
 
           if (sortField === 'improvement') {
-            aValue = Number(a.priceImprovement || 0);
-            bValue = Number(b.priceImprovement || 0);
+            aValue = Number(getDisplayImprovement(a, prefs) ?? a.priceImprovement ?? 0);
+            bValue = Number(getDisplayImprovement(b, prefs) ?? b.priceImprovement ?? 0);
           } else {
             const aTime = (a.startTime || (a as any).game_start) ? new Date(a.startTime || (a as any).game_start).getTime() : 0;
             const bTime = (b.startTime || (b as any).game_start) ? new Date(b.startTime || (b as any).game_start).getTime() : 0;
@@ -133,8 +177,8 @@ export function BestOddsTable({
         let bValue: number;
 
         if (sortField === 'improvement') {
-          aValue = Number(a.priceImprovement || 0);
-          bValue = Number(b.priceImprovement || 0);
+          aValue = Number(getDisplayImprovement(a, prefs) ?? a.priceImprovement ?? 0);
+          bValue = Number(getDisplayImprovement(b, prefs) ?? b.priceImprovement ?? 0);
         } else {
           const aTime = (a.startTime || (a as any).game_start) ? new Date(a.startTime || (a as any).game_start).getTime() : 0;
           const bTime = (b.startTime || (b as any).game_start) ? new Date(b.startTime || (b as any).game_start).getTime() : 0;
@@ -151,7 +195,7 @@ export function BestOddsTable({
     }
 
     return sorted;
-  }, [deals, sortField, sortDirection, isLimitedPreview]);
+  }, [deals, sortField, sortDirection, isLimitedPreview, prefs]);
 
   if (loading) {
     return (
@@ -352,8 +396,9 @@ export function BestOddsTable({
           return (
             <tbody>
           {sortedDeals.map((deal, index) => {
-            const improvementPct = Number(deal.priceImprovement || 0).toFixed(1);
-            const improvementValue = Number(deal.priceImprovement || 0);
+            const improvement = getDisplayImprovement(deal, prefs) ?? deal.priceImprovement ?? 0;
+            const improvementPct = Number(improvement).toFixed(1);
+            const improvementValue = Number(improvement);
             const bestLogo = logo(deal.bestBook);
             
             // Find all books with the best price

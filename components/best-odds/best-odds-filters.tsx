@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -90,6 +90,8 @@ export function BestOddsFilters({
   const [localHideCollegePlayerProps, setLocalHideCollegePlayerProps] = useState<boolean>(prefs.hideCollegePlayerProps ?? false);
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [localComparisonMode, setLocalComparisonMode] = useState<BestOddsPrefs['comparisonMode']>(prefs.comparisonMode ?? 'average');
+  const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
 
   // Keep local UI state in sync when preferences load or change
   useEffect(() => {
@@ -101,6 +103,8 @@ export function BestOddsFilters({
     setLocalMaxOdds(prefs.maxOdds);
     setLocalMinOdds(prefs.minOdds);
     setLocalHideCollegePlayerProps(prefs.hideCollegePlayerProps ?? false);
+    setLocalComparisonMode(prefs.comparisonMode ?? 'average');
+    setLocalComparisonBook(prefs.comparisonBook ?? null);
     
     // Derive sports from leagues
     let selectedSports: string[];
@@ -131,7 +135,9 @@ export function BestOddsFilters({
       localMinImprovement !== prefs.minImprovement ||
       localMaxOdds !== prefs.maxOdds ||
       localMinOdds !== prefs.minOdds ||
-      localHideCollegePlayerProps !== (prefs.hideCollegePlayerProps ?? false);
+      localHideCollegePlayerProps !== (prefs.hideCollegePlayerProps ?? false) ||
+      localComparisonMode !== (prefs.comparisonMode ?? 'average') ||
+      localComparisonBook !== (prefs.comparisonBook ?? null);
 
     setHasUnsavedChanges(changed);
   }, [localBooks, localLeagues, localMarkets, localMarketLines, localMinImprovement, localMaxOdds, localMinOdds, localHideCollegePlayerProps, prefs]);
@@ -280,6 +286,23 @@ export function BestOddsFilters({
     });
   };
 
+  const emitComparisonChange = useCallback((mode: BestOddsPrefs['comparisonMode'], book: string | null) => {
+    const nextPrefs = {
+      ...prefs,
+      comparisonMode: mode,
+      comparisonBook: mode === 'book' ? (book || null) : null,
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[BestOddsFilters] Comparison change', {
+        comparisonMode: nextPrefs.comparisonMode,
+        comparisonBook: nextPrefs.comparisonBook,
+      });
+    }
+
+    onPrefsChange(nextPrefs);
+  }, [prefs, onPrefsChange]);
+
   const apply = () => {
     if (locked) return;
     // Convert UI state to backend format:
@@ -298,7 +321,7 @@ export function BestOddsFilters({
       });
     }
     
-    onPrefsChange({
+    const nextPrefs = {
       ...prefs,
       selectedBooks: localBooks, // Empty = all selected (deselection logic)
       selectedSports: [], // Not used by backend, only for UI state
@@ -309,7 +332,18 @@ export function BestOddsFilters({
       maxOdds: localMaxOdds,
       minOdds: localMinOdds,
       hideCollegePlayerProps: localHideCollegePlayerProps,
-    });
+      comparisonMode: localComparisonMode,
+      comparisonBook: localComparisonMode === 'book' ? (localComparisonBook || null) : null,
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[BestOddsFilters] Apply clicked with comparison prefs:', {
+        comparisonMode: nextPrefs.comparisonMode,
+        comparisonBook: nextPrefs.comparisonBook,
+      });
+    }
+
+    onPrefsChange(nextPrefs);
     setOpen(false);
   };
 
@@ -325,6 +359,8 @@ export function BestOddsFilters({
     setLocalMaxOdds(undefined);
     setLocalMinOdds(undefined);
     setLocalHideCollegePlayerProps(false);
+    setLocalComparisonMode('average');
+    setLocalComparisonBook(null);
     
     onPrefsChange({
       ...prefs,
@@ -337,6 +373,8 @@ export function BestOddsFilters({
       maxOdds: undefined,
       minOdds: undefined,
       hideCollegePlayerProps: false,
+      comparisonMode: 'average',
+      comparisonBook: null,
     });
   };
 
@@ -356,22 +394,68 @@ export function BestOddsFilters({
     (localMinOdds !== undefined ? 1 : 0);
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className="filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all"
-          title="Filters"
+    <div className="flex items-center gap-3">
+      {/* Comparison dropdown (compact) */}
+      <div className="hidden sm:flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+        <span className="whitespace-nowrap">Compare vs</span>
+        <select
+          value={localComparisonMode}
+          onChange={(e) => {
+            if (locked) return;
+            const mode = e.target.value as BestOddsPrefs['comparisonMode'];
+            setLocalComparisonMode(mode);
+            if (mode !== 'book') {
+              setLocalComparisonBook(null);
+            }
+            emitComparisonChange(mode, mode === 'book' ? (localComparisonBook || null) : null);
+          }}
+          disabled={locked}
+          title={locked ? "Pro only" : ""}
+          className="h-8 rounded-md border border-neutral-300 bg-white px-2 text-xs font-medium text-neutral-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
         >
-          <Filter className="h-4 w-4" />
-          <span className="hidden sm:inline">Filters</span>
-          {activeFiltersCount > 0 && (
-            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1.5 text-xs font-semibold text-white">
-              {activeFiltersCount}
-            </span>
-          )}
-        </button>
-      </SheetTrigger>
+          <option value="average">Market average</option>
+          <option value="book">Specific book</option>
+          <option value="next_best">Next-best price</option>
+        </select>
+        {localComparisonMode === 'book' && (
+          <select
+            value={localComparisonBook ?? ''}
+            onChange={(e) => {
+              if (locked) return;
+              const v = e.target.value || null;
+              setLocalComparisonBook(v);
+              emitComparisonChange(localComparisonMode, v);
+            }}
+            disabled={locked}
+            title={locked ? "Pro only" : ""}
+            className="h-8 rounded-md border border-neutral-300 bg-white px-2 text-xs font-medium text-neutral-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+          >
+            <option value="">Select book</option>
+            {allSportsbooks.map((sb) => (
+              <option key={sb.id} value={sb.id}>
+                {sb.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className="filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all"
+            title="Filters"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {activeFiltersCount > 0 && (
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1.5 text-xs font-semibold text-white">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+        </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
@@ -902,6 +986,7 @@ export function BestOddsFilters({
           </div>
         </div>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+    </div>
   );
 }

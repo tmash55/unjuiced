@@ -95,20 +95,7 @@ export default function BestOddsPage() {
 
   // Apply client-side filtering and sorting
   const filteredDeals = useMemo(() => {
-    console.log('[edge-finder] Filtering deals:', { 
-      totalDeals: deals.length, 
-      prefs: {
-        selectedBooks: prefs.selectedBooks,
-        selectedSports: prefs.selectedSports,
-        selectedLeagues: prefs.selectedLeagues,
-        selectedMarkets: prefs.selectedMarkets,
-        minImprovement: prefs.minImprovement,
-      }
-    });
-    
     let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefs));
-    
-    console.log('[edge-finder] After matchesBestOddsDeal:', filtered.length);
     
     // Apply college player props filter if enabled
     if (prefs.hideCollegePlayerProps) {
@@ -122,9 +109,6 @@ export default function BestOddsPage() {
     }
     
     filtered = sortDeals(filtered, prefs.sortBy);
-    
-    console.log('[edge-finder] Final filtered deals:', filtered.length);
-    
     return filtered;
   }, [deals, prefs]);
 
@@ -391,6 +375,7 @@ export default function BestOddsPage() {
         isLoggedIn={isLoggedIn}
         isPro={isPro}
         premiumCount={premiumCount}
+        prefs={prefs}
       />
     </div>
   );

@@ -124,6 +124,8 @@ interface PreferencesContextType {
     sortBy: 'improvement' | 'odds';
     searchQuery: string;
     hideCollegePlayerProps: boolean;
+    comparisonMode: 'average' | 'book' | 'next_best';
+    comparisonBook: string | null;
   };
 }
 
@@ -731,6 +733,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     ];
     
     // If preferences haven't loaded yet (logged-out user), default to all (empty arrays mean "all selected")
+    const comparisonMode =
+      (preferences?.best_odds_comparison_mode as 'average' | 'book' | 'next_best') ?? 'average';
+    const comparisonBook = preferences?.best_odds_comparison_book ?? null;
+
     if (!preferences) {
       return {
         selectedBooks: [],
@@ -745,6 +751,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         sortBy: 'improvement' as const,
         searchQuery: '',
         hideCollegePlayerProps: false,
+        comparisonMode,
+        comparisonBook,
       };
     }
     
@@ -762,6 +770,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       sortBy: (preferences.best_odds_sort_by as 'improvement' | 'odds') ?? 'improvement',
       searchQuery: preferences.best_odds_search_query ?? '',
       hideCollegePlayerProps: preferences.best_odds_hide_college_player_props ?? false,
+      comparisonMode,
+      comparisonBook,
     };
   }, [preferences]);
   
@@ -778,6 +788,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     sortBy?: string;
     searchQuery?: string;
     hideCollegePlayerProps?: boolean;
+    comparisonMode?: 'average' | 'book' | 'next_best';
+    comparisonBook?: string | null;
   }) => {
     if (!user) {
       if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update best odds filters - no user');
@@ -824,8 +836,21 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (filters.hideCollegePlayerProps !== undefined) {
       updates.best_odds_hide_college_player_props = filters.hideCollegePlayerProps;
     }
+    if (filters.comparisonMode !== undefined) {
+      updates.best_odds_comparison_mode = filters.comparisonMode;
+    }
+    if (filters.comparisonBook !== undefined) {
+      updates.best_odds_comparison_book = filters.comparisonBook;
+    }
     
     if (Object.keys(updates).length > 0) {
+      if (DEV_LOGGING) {
+        console.log('[BestOdds] Updating comparison prefs', {
+          comparisonMode: filters.comparisonMode,
+          comparisonBook: filters.comparisonBook,
+          updates,
+        });
+      }
       await updatePreferences(updates, true);
     }
   }, [user, updatePreferences]);

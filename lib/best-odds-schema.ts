@@ -93,6 +93,8 @@ export interface BestOddsPrefs {
   sortBy: 'improvement' | 'odds'
   searchQuery: string
   hideCollegePlayerProps: boolean  // Hide NCAAF/NCAAB player props (for restricted states)
+  comparisonMode: 'average' | 'book' | 'next_best'
+  comparisonBook: string | null
 }
 
 /**
