@@ -17,6 +17,8 @@ export const DEFAULT_BEST_ODDS_PREFS: BestOddsPrefs = {
   sortBy: 'improvement',
   searchQuery: '',
   hideCollegePlayerProps: false,
+  comparisonMode: 'average',
+  comparisonBook: null,
 };
 
 /**
