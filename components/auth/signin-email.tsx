@@ -56,7 +56,7 @@ export const SignInEmail = () => {
 
           // Check for redirect URL
           const redirectTo = searchParams.get("redirectTo");
-          const destination = redirectTo || "/arbitrage";
+          const destination = redirectTo || "/edge-finder";
 
           setTimeout(() => {
             router.push(destination);
