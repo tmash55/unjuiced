@@ -113,9 +113,6 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
     '2nd_quarter_spread',
     '3rd_quarter_spread',
     '4th_quarter_spread',
-    // Player props to exclude
-    'triple_double',
-    'player_triple_double',
   ];
   
   const marketLower = deal.mkt.toLowerCase();
