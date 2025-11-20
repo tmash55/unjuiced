@@ -267,7 +267,7 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
                           <img
                             src={bookLogo}
                             alt={shortName}
-                            className="h-6 w-6 rounded object-contain"
+                            className="h-6 w-10 rounded object-contain"
                           />
                         ) : (
                           <div className="flex h-6 w-6 items-center justify-center rounded bg-neutral-200 text-xs font-bold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
@@ -320,7 +320,7 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
                           <img
                             src={getTeamLogoUrl(awayTeam, deal.sport)}
                             alt={awayTeam}
-                            className="w-3.5 h-3.5 object-contain"
+                            className="w-6 h-3.5 object-contain"
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).style.display = 'none';
                             }}
@@ -336,7 +336,7 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
                           <img
                             src={getTeamLogoUrl(homeTeam, deal.sport)}
                             alt={homeTeam}
-                            className="w-3.5 h-3.5 object-contain"
+                            className="w-6 h-3.5 object-contain"
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).style.display = 'none';
                             }}
@@ -478,7 +478,7 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
                               <img
                                 src={bookLogo}
                                 alt={book.book}
-                                className="h-6 w-6 object-contain shrink-0"
+                                className="h-6 w-10 object-contain shrink-0"
                               />
                             )}
                             <span className={cn(

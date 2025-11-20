@@ -84,6 +84,25 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     requiresState: false
   },
 
+  "fanduelyourway": {
+    id: "fanduelyourway",
+    name: "FanDuel YourWay",
+    sgp: false,
+    legalStates: ["AZ","CO","CT","IA","IL","IN","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV","WY"],
+    links: {
+      desktop: "https://sportsbook.fanduel.com/",
+      mobile: "https://m.fanduel.com/sportsbook"
+    },
+    image: {
+      light: "/images/sports-books/fanduel_yourway.png",
+      long: "/images/sports-books/fanduel_long.png"
+    },
+    brandColor: "#1E3A8A",
+    priority: 9,
+    isActive: true,
+    requiresState: false
+  },
+
   "betmgm": {
     id: "betmgm", 
     name: "BetMGM",
@@ -505,6 +524,8 @@ function normalizeSportsbookId(id: string): string {
     'betparx': 'betparx',
     'betrivers': 'betrivers',
     'betonline': 'betonline',
+    'fanduel-yourway': 'fanduelyourway',
+    'fanduel_yourway': 'fanduelyourway',
   };
   
   // Return mapped ID if exists, otherwise return original (lowercase)

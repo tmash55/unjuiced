@@ -354,39 +354,39 @@ export default function BestOddsPage() {
 
               {/* View Toggle - Shows on right on desktop only */}
               <Tooltip content="Pro only" disabled={isPro}>
-                <div className={cn(
-                  "hidden md:flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
-                  !isPro && "opacity-50"
-                )}>
-                  <button
-                    onClick={() => isPro && setViewMode('table')}
-                    disabled={!isPro}
-                    className={cn(
-                      "flex items-center justify-center h-7 w-7 rounded transition-all",
-                      viewMode === 'table'
-                        ? "bg-brand text-white"
-                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                      !isPro && "cursor-not-allowed"
-                    )}
-                    title={!isPro ? "Pro only" : "Table view"}
-                  >
-                    <TableIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => isPro && setViewMode('cards')}
-                    disabled={!isPro}
-                    className={cn(
-                      "flex items-center justify-center h-7 w-7 rounded transition-all",
-                      viewMode === 'cards'
-                        ? "bg-brand text-white"
-                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                      !isPro && "cursor-not-allowed"
-                    )}
-                    title={!isPro ? "Pro only" : "Card view"}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </button>
-                </div>
+              <div className={cn(
+                "hidden md:flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
+                !isPro && "opacity-50"
+              )}>
+                <button
+                  onClick={() => isPro && setViewMode('table')}
+                  disabled={!isPro}
+                  className={cn(
+                    "flex items-center justify-center h-7 w-7 rounded transition-all",
+                    viewMode === 'table'
+                      ? "bg-brand text-white"
+                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
+                    !isPro && "cursor-not-allowed"
+                  )}
+                  title={!isPro ? "Pro only" : "Table view"}
+                >
+                  <TableIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => isPro && setViewMode('cards')}
+                  disabled={!isPro}
+                  className={cn(
+                    "flex items-center justify-center h-7 w-7 rounded transition-all",
+                    viewMode === 'cards'
+                      ? "bg-brand text-white"
+                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
+                    !isPro && "cursor-not-allowed"
+                  )}
+                  title={!isPro ? "Pro only" : "Card view"}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+              </div>
               </Tooltip>
             </FiltersBarSection>
           </FiltersBar>
