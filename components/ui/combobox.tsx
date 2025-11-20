@@ -106,7 +106,7 @@ export function Combobox<TMeta = any>({
         data-state={isOpen ? "open" : "closed"}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {icon}
+          {selected?.icon ? selected.icon : icon}
           <span
             className={cn(
               "min-w-0 truncate text-left text-sm font-medium leading-6 text-neutral-900 dark:text-neutral-100",

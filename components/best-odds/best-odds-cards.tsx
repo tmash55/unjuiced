@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import type { BestOddsDeal } from "@/lib/best-odds-schema";
+import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getAllLeagues } from "@/lib/data/sports";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -16,15 +16,70 @@ const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallbac
   return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
 };
 
+// Compute baseline price for comparison based on user prefs
+const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
+  if (!prefs) return deal.avgPrice ?? null;
+
+  const mode = prefs.comparisonMode ?? 'average';
+  if (mode === 'average') {
+    return deal.avgPrice ?? null;
+  }
+
+  if (mode === 'book') {
+    const targetBook = prefs.comparisonBook;
+    if (!targetBook) return deal.avgPrice ?? null;
+    const entry = deal.allBooks.find(b => b.book.toLowerCase() === targetBook.toLowerCase());
+    return entry?.price ?? null;
+  }
+
+  if (mode === 'next_best') {
+    const sorted = [...(deal.allBooks || [])].sort((a, b) => b.price - a.price);
+    if (!sorted.length) return null;
+    const bestPrice = sorted[0]?.price ?? null;
+    if (bestPrice === null) return null;
+    const nextBest = sorted.find(b => b.price < bestPrice)?.price ?? null;
+    if (nextBest === null) return bestPrice;
+    return nextBest;
+  }
+  return null;
+};
+
+// Compute improvement % using the baseline
+const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
+  // If comparing to market average, use the backend's pre-computed priceImprovement
+  const mode = prefs?.comparisonMode ?? 'average';
+  if (mode === 'average') {
+    return deal.priceImprovement ?? null;
+  }
+
+  // For other comparison modes, calculate on the fly
+  const baseline = getBaselinePrice(deal, prefs);
+  if (baseline == null || !Number.isFinite(baseline) || !Number.isFinite(deal.bestPrice)) return null;
+
+  const diff = deal.bestPrice - baseline;
+  if (baseline === 0) return 0;
+  return (diff / Math.abs(baseline)) * 100;
+};
+
 interface BestOddsCardsProps {
   deals: BestOddsDeal[];
   loading?: boolean;
+  prefs?: BestOddsPrefs;
 }
 
-export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
+export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const allLeagues = getAllLeagues();
+
+  // Sort deals by improvement % (descending) - respects comparison mode
+  const sortedDeals = React.useMemo(() => {
+    return [...deals].sort((a, b) => {
+      const aImprovement = getDisplayImprovement(a, prefs) ?? 0;
+      const bImprovement = getDisplayImprovement(b, prefs) ?? 0;
+      return bImprovement - aImprovement; // Descending order (highest % first)
+    });
+  }, [deals, prefs]);
 
   // Restore scroll position on mount (for mobile UX)
   React.useEffect(() => {
@@ -142,17 +197,17 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
     );
   }
 
-  if (deals.length === 0) {
+  if (sortedDeals.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-neutral-600 dark:text-neutral-400">No deals found matching your filters.</p>
+        <p className="text-neutral-600 dark:text-neutral-400">No edges found matching your filters.</p>
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {deals.map((deal: BestOddsDeal, index: number) => {
+      {sortedDeals.map((deal: BestOddsDeal, index: number) => {
         const uniqueKey = `${deal.key}-${index}`;
         const isExpanded = expandedCard === uniqueKey;
         const startTime = deal.startTime || (deal as any).game_start;
@@ -227,7 +282,7 @@ export function BestOddsCards({ deals, loading }: BestOddsCardsProps) {
                   {/* Edge Badge */}
                   <div className="edge-badge up flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold">
                     <span className="caret"></span>
-                    {Number(deal.priceImprovement || 0).toFixed(1)}%
+                    {Number(getDisplayImprovement(deal, prefs) ?? deal.priceImprovement ?? 0).toFixed(1)}%
                   </div>
                 </div>
 

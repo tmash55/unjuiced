@@ -223,7 +223,7 @@ export function AlternateLinesRow({
                     <Tooltip content={`Place bet on ${sb?.name ?? 'Sportsbook'}`}>
                       <button
                         onClick={() => {
-                          window.open(link, '_blank', 'noopener,noreferrer')
+                            window.open(link, '_blank', 'noopener,noreferrer')
                         }}
                         className="best-line best-line--sm w-full"
                       >

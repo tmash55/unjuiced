@@ -17,7 +17,7 @@ import { Tooltip } from "@/components/tooltip";
 
 import { useBestOddsView } from "@/hooks/use-best-odds-view";
 import { matchesBestOddsDeal, sortDeals, getUniqueLeagues, getUniqueMarkets, getUniqueSportsbooks } from "@/lib/best-odds-filters";
-import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
+import { getAllActiveSportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import { SUPPORTED_SPORTS } from "@/lib/data/markets";
 import { Lock } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -108,6 +108,21 @@ export default function BestOddsPage() {
       });
     }
     
+    // If comparing to a specific book, only show deals where that book has odds
+    // AND where the best book is NOT the comparison book (otherwise it's 0% improvement)
+    if (prefs.comparisonMode === 'book' && prefs.comparisonBook) {
+      const targetBook = prefs.comparisonBook.toLowerCase();
+      filtered = filtered.filter((deal: BestOddsDeal) => {
+        // Check if the comparison book has odds for this deal
+        const hasOdds = deal.allBooks?.some(b => b.book.toLowerCase() === targetBook);
+        if (!hasOdds) return false;
+        
+        // Filter out deals where the best book is the same as the comparison book
+        const bestBookNormalized = deal.bestBook?.toLowerCase();
+        return bestBookNormalized !== targetBook;
+      });
+    }
+    
     filtered = sortDeals(filtered, prefs.sortBy);
     return filtered;
   }, [deals, prefs]);
@@ -124,6 +139,32 @@ export default function BestOddsPage() {
       ? (filteredDeals.reduce((sum: number, d: BestOddsDeal) => sum + Number(d.priceImprovement || 0), 0) / filteredDeals.length).toFixed(1)
       : '0'
   };
+
+  const comparisonBaseline = useMemo(() => {
+    const mode = prefs.comparisonMode ?? 'average';
+    if (mode === 'book') {
+      const name = prefs.comparisonBook
+        ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
+        : 'the selected book';
+      return {
+        dialogDescription: `the quote from ${name}`,
+        baselineStep: `decimal odds from ${name}`,
+        meaning: `${name} (or the book you selected)`,
+      };
+    }
+    if (mode === 'next_best') {
+      return {
+        dialogDescription: 'the next-best price offered by any other book',
+        baselineStep: 'decimal odds from the best price offered by any other book (ties count as zero edge)',
+        meaning: 'the next-best sportsbook',
+      };
+    }
+    return {
+      dialogDescription: 'the market average across all books',
+      baselineStep: 'the average of all decimal odds',
+      meaning: 'the rest of the market',
+    };
+  }, [prefs.comparisonMode, prefs.comparisonBook]);
 
   // Show loading state while checking plan
   if (planLoading) {
@@ -165,7 +206,7 @@ export default function BestOddsPage() {
                 <DialogHeader>
                   <DialogTitle className="text-xl">Improvement %</DialogTitle>
                   <DialogDescription className="text-sm">
-                    Best vs. market average in decimal odds.
+                    Currently comparing the best price vs {comparisonBaseline.dialogDescription}.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -179,14 +220,14 @@ export default function BestOddsPage() {
                     <br />o ≤ 0 → 1 + 100/|o|
                   </p>
                   <p className="text-neutral-600 dark:text-neutral-400">
-                    3) average_decimal = mean(all decimals)
+                    3) baseline_decimal = {comparisonBaseline.baselineStep}
                     <br />4) best_decimal = decimal of the highest American price
                   </p>
                   <p className="font-semibold">
-                    Improvement % = ((best_decimal − average_decimal) / average_decimal) × 100
+                    Improvement % = ((best_decimal − baseline_decimal) / baseline_decimal) × 100
                   </p>
                   <p className="mt-2">
-                    A higher Improvement % means you’re getting a better deal compared to the market average.
+                    A higher Improvement % means you’re getting a better deal compared to {comparisonBaseline.meaning}.
                   </p>
                 </div>
               </div>
@@ -234,6 +275,43 @@ export default function BestOddsPage() {
         <div className="sticky top-14 z-30">
           <FiltersBar useDots={true}>
             <FiltersBarSection align="left">
+              {/* View Toggle - Shows on left on mobile only */}
+              <Tooltip content="Pro only" disabled={isPro}>
+                <div className={cn(
+                  "flex md:hidden items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
+                  !isPro && "opacity-50"
+                )}>
+                  <button
+                    onClick={() => isPro && setViewMode('table')}
+                    disabled={!isPro}
+                    className={cn(
+                      "flex items-center justify-center h-7 w-7 rounded transition-all",
+                      viewMode === 'table'
+                        ? "bg-brand text-white"
+                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
+                      !isPro && "cursor-not-allowed"
+                    )}
+                    title={!isPro ? "Pro only" : "Table view"}
+                  >
+                    <TableIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => isPro && setViewMode('cards')}
+                    disabled={!isPro}
+                    className={cn(
+                      "flex items-center justify-center h-7 w-7 rounded transition-all",
+                      viewMode === 'cards'
+                        ? "bg-brand text-white"
+                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
+                      !isPro && "cursor-not-allowed"
+                    )}
+                    title={!isPro ? "Pro only" : "Card view"}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                </div>
+              </Tooltip>
+
               {/* Search Input - Hidden on mobile, disabled for non-pro */}
               <Tooltip content="Pro only" disabled={isPro}>
                 <div className="relative hidden md:block">
@@ -248,11 +326,36 @@ export default function BestOddsPage() {
                   />
                 </div>
               </Tooltip>
+            </FiltersBarSection>
 
-              {/* View Toggle - Shows on left on mobile, right on desktop */}
+            <FiltersBarSection align="right">
+              {/* Filters Button */}
+                <BestOddsFilters
+                  prefs={prefs}
+                  onPrefsChange={handlePrefsChange}
+                  availableLeagues={availableLeagues}
+                  availableMarkets={availableMarkets}
+                  availableSportsbooks={availableSportsbooks}
+                  deals={filteredDeals}
+                  locked={!isPro}
+                  isLoggedIn={isLoggedIn}
+                  isPro={isPro}
+                  refreshing={refreshing}
+                  onRefresh={async () => {
+                    if (!isPro) return;
+                    try { 
+                      setRefreshing(true); 
+                      await refresh(); 
+                    } finally { 
+                      setRefreshing(false); 
+                    }
+                  }}
+                />
+
+              {/* View Toggle - Shows on right on desktop only */}
               <Tooltip content="Pro only" disabled={isPro}>
                 <div className={cn(
-                  "flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900 md:hidden",
+                  "hidden md:flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
                   !isPro && "opacity-50"
                 )}>
                   <button
@@ -265,6 +368,7 @@ export default function BestOddsPage() {
                         : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
                       !isPro && "cursor-not-allowed"
                     )}
+                    title={!isPro ? "Pro only" : "Table view"}
                   >
                     <TableIcon className="h-4 w-4" />
                   </button>
@@ -278,82 +382,12 @@ export default function BestOddsPage() {
                         : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
                       !isPro && "cursor-not-allowed"
                     )}
+                    title={!isPro ? "Pro only" : "Card view"}
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </button>
                 </div>
               </Tooltip>
-            </FiltersBarSection>
-
-            <FiltersBarSection align="right">
-              {/* View Toggle - Shows on right on desktop, hidden on mobile */}
-              <div className={cn(
-                "hidden md:flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
-                !isPro && "opacity-50"
-              )}>
-                <button
-                  onClick={() => isPro && setViewMode('table')}
-                  disabled={!isPro}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded transition-all",
-                    viewMode === 'table'
-                      ? "bg-brand text-white"
-                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                    !isPro && "cursor-not-allowed"
-                  )}
-                  title={!isPro ? "Pro only" : "Table view"}
-                >
-                  <TableIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => isPro && setViewMode('cards')}
-                  disabled={!isPro}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded transition-all",
-                    viewMode === 'cards'
-                      ? "bg-brand text-white"
-                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                    !isPro && "cursor-not-allowed"
-                  )}
-                  title={!isPro ? "Pro only" : "Card view"}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Refresh Button */}
-              <Tooltip content="Pro only" disabled={isPro}>
-                <button
-                  onClick={async () => {
-                    if (!isPro) return;
-                    try { 
-                      setRefreshing(true); 
-                      await refresh(); 
-                    } finally { 
-                      setRefreshing(false); 
-                    }
-                  }}
-                  disabled={refreshing || !isPro}
-                  className={cn(
-                    "refresh-btn flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium transition-all",
-                    !isPro && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-                </button>
-              </Tooltip>
-
-              {/* Filters Button */}
-                <BestOddsFilters
-                  prefs={prefs}
-                  onPrefsChange={handlePrefsChange}
-                  availableLeagues={availableLeagues}
-                  availableMarkets={availableMarkets}
-                  availableSportsbooks={availableSportsbooks}
-                  deals={filteredDeals}
-                  locked={!isPro}
-                  isLoggedIn={isLoggedIn}
-                />
             </FiltersBarSection>
           </FiltersBar>
         </div>

@@ -152,7 +152,7 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
       booksWithBestPrice.length > 0
         ? booksWithBestPrice.map(book => normalizeSportsbookName(book.book))
         : [normalizeSportsbookName(deal.bestBook)];
-
+    
     const allDeselected = normalizedBestBooks.every(book =>
       normalizedDeselectedBooks.includes(book)
     );

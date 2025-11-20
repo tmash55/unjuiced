@@ -13,9 +13,13 @@ import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, ChevronsUpDown } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { ButtonLink } from "@/components/button-link";
+import { Tooltip } from "@/components/tooltip";
+import { cn } from "@/lib/utils";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { toast } from "sonner";
 
 interface BestOddsFiltersProps {
   prefs: BestOddsPrefs;
@@ -30,6 +34,9 @@ interface BestOddsFiltersProps {
   }>;  // For counting deals per sportsbook (including ties)
   locked?: boolean;
   isLoggedIn?: boolean;
+  isPro?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void | Promise<void>;
 }
 
 export function BestOddsFilters({
@@ -41,6 +48,9 @@ export function BestOddsFilters({
   deals = [],
   locked = false,
   isLoggedIn = false,
+  isPro = false,
+  refreshing = false,
+  onRefresh,
 }: BestOddsFiltersProps) {
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), []);
   const allSports = useMemo(() => getAllSports(), []);
@@ -92,6 +102,78 @@ export function BestOddsFilters({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [localComparisonMode, setLocalComparisonMode] = useState<BestOddsPrefs['comparisonMode']>(prefs.comparisonMode ?? 'average');
   const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
+  const [localSearchQuery, setLocalSearchQuery] = useState<string>(prefs.searchQuery || '');
+
+  const comparisonOptions: ComboboxOption[] = useMemo(() => {
+    const baseOptions = [
+      { value: 'average', label: 'Market average' },
+      { value: 'next_best', label: 'Next-best price' },
+    ];
+    
+    // Add all sportsbooks as individual options
+    const bookOptions = allSportsbooks.map((sb) => ({
+      value: `book:${sb.id}`,
+      label: sb.name,
+      icon: sb.image?.light ? (
+        <img
+          src={sb.image.light}
+          alt={sb.name}
+          className="h-4 w-4 flex-shrink-0 rounded-sm object-contain"
+        />
+      ) : null,
+    }));
+    
+    return [...baseOptions, ...bookOptions];
+  }, [allSportsbooks]);
+
+  const selectedComparisonOption = useMemo(() => {
+    if (localComparisonMode === 'book' && localComparisonBook) {
+      // Find the specific book option
+      return comparisonOptions.find((opt) => opt.value === `book:${localComparisonBook}`) ?? comparisonOptions[0];
+    }
+    return comparisonOptions.find((opt) => opt.value === localComparisonMode) ?? comparisonOptions[0];
+  }, [comparisonOptions, localComparisonMode, localComparisonBook]);
+
+  const handleComparisonSelect = (opt: ComboboxOption | null) => {
+    if (locked || !opt) return;
+    
+    // Check if it's a book option
+    if (opt.value.startsWith('book:')) {
+      const bookId = opt.value.replace('book:', '');
+      setLocalComparisonMode('book');
+      setLocalComparisonBook(bookId);
+      emitComparisonChange('book', bookId);
+    } else {
+      const mode = opt.value as BestOddsPrefs['comparisonMode'];
+      setLocalComparisonMode(mode);
+      setLocalComparisonBook(null);
+      emitComparisonChange(mode, null);
+    }
+  };
+
+  // Show toast when comparison book changes and deals are filtered
+  useEffect(() => {
+    if (prefs.comparisonMode === 'book' && prefs.comparisonBook && deals && deals.length > 0) {
+      // Find the book name from the options
+      const bookOption = comparisonOptions.find(opt => opt.value === `book:${prefs.comparisonBook}`);
+      const bookName = bookOption && typeof bookOption.label === 'string' ? bookOption.label : prefs.comparisonBook;
+      
+      // The deals prop is already filtered by the parent component, so just use its length
+      toast.success(`Showing ${deals.length} edge${deals.length !== 1 ? 's' : ''} better than ${bookName}`, {
+        duration: 3000,
+      });
+    }
+  }, [prefs.comparisonMode, prefs.comparisonBook, deals?.length, comparisonOptions]);
+
+  // Debounce search query updates (400ms like desktop search)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearchQuery !== prefs.searchQuery) {
+        onPrefsChange({ ...prefs, searchQuery: localSearchQuery });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearchQuery, prefs, onPrefsChange]);
 
   // Keep local UI state in sync when preferences load or change
   useEffect(() => {
@@ -105,6 +187,7 @@ export function BestOddsFilters({
     setLocalHideCollegePlayerProps(prefs.hideCollegePlayerProps ?? false);
     setLocalComparisonMode(prefs.comparisonMode ?? 'average');
     setLocalComparisonBook(prefs.comparisonBook ?? null);
+    setLocalSearchQuery(prefs.searchQuery || '');
     
     // Derive sports from leagues
     let selectedSports: string[];
@@ -398,69 +481,103 @@ export function BestOddsFilters({
       {/* Comparison dropdown (compact) */}
       <div className="hidden sm:flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
         <span className="whitespace-nowrap">Compare vs</span>
-        <select
-          value={localComparisonMode}
-          onChange={(e) => {
-            if (locked) return;
-            const mode = e.target.value as BestOddsPrefs['comparisonMode'];
-            setLocalComparisonMode(mode);
-            if (mode !== 'book') {
-              setLocalComparisonBook(null);
-            }
-            emitComparisonChange(mode, mode === 'book' ? (localComparisonBook || null) : null);
+        <Combobox
+          selected={selectedComparisonOption}
+          setSelected={handleComparisonSelect}
+          options={comparisonOptions}
+          caret={<ChevronsUpDown className="h-3.5 w-3.5 text-white/70" />}
+          buttonProps={{
+            className: cn(
+              "h-9 rounded-xl border border-white/10 bg-[#0b111f] px-3 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.05)]",
+              locked && "opacity-50 cursor-not-allowed text-white/40"
+            ),
+            textWrapperClassName: "text-sm font-medium text-white",
           }}
-          disabled={locked}
-          title={locked ? "Pro only" : ""}
-          className="h-8 rounded-md border border-neutral-300 bg-white px-2 text-xs font-medium text-neutral-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-        >
-          <option value="average">Market average</option>
-          <option value="book">Specific book</option>
-          <option value="next_best">Next-best price</option>
-        </select>
-        {localComparisonMode === 'book' && (
-          <select
-            value={localComparisonBook ?? ''}
-            onChange={(e) => {
-              if (locked) return;
-              const v = e.target.value || null;
-              setLocalComparisonBook(v);
-              emitComparisonChange(localComparisonMode, v);
-            }}
-            disabled={locked}
-            title={locked ? "Pro only" : ""}
-            className="h-8 rounded-md border border-neutral-300 bg-white px-2 text-xs font-medium text-neutral-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          >
-            <option value="">Select book</option>
-            {allSportsbooks.map((sb) => (
-              <option key={sb.id} value={sb.id}>
-                {sb.name}
-              </option>
-            ))}
-          </select>
-        )}
+        />
       </div>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
+      {/* Refresh Button */}
+      {onRefresh && (
+        <Tooltip content="Pro only" disabled={isPro}>
           <button
-            type="button"
-            className="filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all"
-            title="Filters"
-          >
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filters</span>
-            {activeFiltersCount > 0 && (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1.5 text-xs font-semibold text-white">
-                {activeFiltersCount}
-              </span>
+            onClick={onRefresh}
+            disabled={refreshing || !isPro}
+            className={cn(
+              "refresh-btn flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium transition-all",
+              !isPro && "opacity-50 cursor-not-allowed"
             )}
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
           </button>
-        </SheetTrigger>
+        </Tooltip>
+      )}
+
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all"
+          title="Filters"
+        >
+          <Filter className="h-4 w-4" />
+          <span className="hidden sm:inline">Filters</span>
+          {activeFiltersCount > 0 && (
+            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 px-1.5 text-xs font-semibold text-white">
+              {activeFiltersCount}
+            </span>
+          )}
+        </button>
+      </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
             <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
           </SheetHeader>
+
+          {/* Mobile-only: View Options Section */}
+          <div className="sm:hidden border-b border-neutral-200 dark:border-neutral-800 px-6 py-4 space-y-4">
+            <div>
+              <Label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 block">
+                Compare vs
+              </Label>
+              <Combobox
+                selected={selectedComparisonOption}
+                setSelected={handleComparisonSelect}
+                options={comparisonOptions}
+                caret={<ChevronsUpDown className="h-4 w-4 text-white/70" />}
+                buttonProps={{
+                  className: cn(
+                    "h-11 w-full rounded-2xl border border-white/10 bg-[#0b111f] px-4 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.05)]",
+                    locked && "opacity-50 cursor-not-allowed text-white/40"
+                  ),
+                  textWrapperClassName: "text-base font-medium text-white",
+                }}
+                matchTriggerWidth
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2 block">
+                Search
+              </Label>
+              <Input
+                type="text"
+                placeholder="Search player or team..."
+                value={localSearchQuery}
+                onChange={(e) => {
+                  if (locked) return;
+                  setLocalSearchQuery(e.target.value);
+                }}
+                disabled={locked}
+                className="w-full h-11 text-base"
+              />
+              {locked && (
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  Pro only
+                </p>
+              )}
+            </div>
+          </div>
 
           {locked && (
             <div className="mx-6 mt-4 rounded-lg border border-[var(--tertiary)]/20 bg-gradient-to-br from-[var(--tertiary)]/5 via-transparent to-transparent p-4 dark:border-[var(--tertiary)]/30">
@@ -986,7 +1103,7 @@ export function BestOddsFilters({
           </div>
         </div>
       </SheetContent>
-      </Sheet>
+    </Sheet>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function GatedBestOddsView({
     if (viewMode === 'table') {
       return <BestOddsTable deals={deals} loading={loading} isPro={isPro} prefs={prefs} />;
     }
-    return <BestOddsCards deals={deals} loading={loading} />;
+    return <BestOddsCards deals={deals} loading={loading} prefs={prefs} />;
   }
 
   // Non-pro: Show preview deals with messaging
@@ -124,7 +124,7 @@ export function GatedBestOddsView({
           prefs={prefs}
         />
       ) : (
-        <BestOddsCards deals={deals} loading={false} />
+        <BestOddsCards deals={deals} loading={false} prefs={prefs} />
       )}
     </div>
   );

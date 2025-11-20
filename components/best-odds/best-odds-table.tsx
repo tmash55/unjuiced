@@ -53,6 +53,13 @@ const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | n
 
 // Compute improvement vs chosen baseline
 const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
+  // If comparing to market average, use the backend's pre-computed priceImprovement
+  const mode = prefs?.comparisonMode ?? 'average';
+  if (mode === 'average') {
+    return deal.priceImprovement ?? null;
+  }
+
+  // For other comparison modes, calculate on the fly
   const baseline = getBaselinePrice(deal, prefs);
   if (baseline == null || !Number.isFinite(baseline) || !Number.isFinite(deal.bestPrice)) {
     return null;
@@ -214,7 +221,7 @@ export function BestOddsTable({
         <div className="text-center">
           <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
           <p className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
-            No deals found
+            No edges found
           </p>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Try adjusting your filters to see more opportunities
@@ -245,6 +252,24 @@ export function BestOddsTable({
     if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
     return base;
   };
+
+  const comparisonMode = prefs?.comparisonMode ?? "average";
+  const comparisonBookLabel =
+    comparisonMode === "book"
+      ? prefs?.comparisonBook
+        ? bookName(prefs.comparisonBook)
+        : "the selected book"
+      : undefined;
+  const improvementTooltip = (() => {
+    const base = "Improvement % = (Best − Baseline) ÷ Baseline (decimal odds).";
+    if (comparisonMode === "book") {
+      return `${base} Baseline = quote from ${comparisonBookLabel}.`;
+    }
+    if (comparisonMode === "next_best") {
+      return `${base} Baseline = next-best price offered by another book (ties count as zero edge).`;
+    }
+    return `${base} Baseline = market average across all books.`;
+  })();
 
   const formatOdds = (od: number) => (od > 0 ? `+${od}` : String(od));
 
@@ -331,6 +356,7 @@ export function BestOddsTable({
           <col style={{ width: 200 }} />
           <col style={{ width: 180 }} />
           <col style={{ width: 120 }} />
+          <col style={{ width: 180 }} />
           <col style={{ width: 100 }} />
         </colgroup>
         <thead className="table-header-gradient sticky top-0 z-10">
@@ -341,7 +367,7 @@ export function BestOddsTable({
             >
               <div className="flex items-center justify-center gap-1">
                 <span>Improvement %</span>
-                <Tooltip content="Improvement % = (Best − Avg) ÷ Avg in decimal odds. Higher means bigger edge vs market.">
+                <Tooltip content={improvementTooltip}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -381,6 +407,9 @@ export function BestOddsTable({
             </th>
             <th className="bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
               Best Book
+            </th>
+            <th className="bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              Next Best
             </th>
             <th className="bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
               Average
@@ -678,6 +707,56 @@ export function BestOddsTable({
                   </div>
                 </td>
 
+                {/* Next Best Book */}
+                <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                  {(() => {
+                    // Sort books by price descending to find next best
+                    const sortedBooks = [...(deal.allBooks || [])].sort((a, b) => b.price - a.price);
+                    const bestPrice = sortedBooks[0]?.price;
+                    
+                    // Find the next best price (strictly worse than best)
+                    const nextBestBook = sortedBooks.find(b => b.price < bestPrice);
+                    
+                    if (!nextBestBook) {
+                      return (
+                        <span className="text-xs text-neutral-400 dark:text-neutral-500">
+                          N/A
+                        </span>
+                      );
+                    }
+                    
+                    const nextBestLogo = logo(nextBestBook.book);
+                    
+                    return (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {nextBestLogo ? (
+                            <img
+                              src={nextBestLogo}
+                              alt={bookName(nextBestBook.book)}
+                              className="w-5 h-5 object-contain"
+                            />
+                          ) : (
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                              {bookName(nextBestBook.book)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-center leading-tight">
+                          <div className="text-neutral-700 dark:text-neutral-300 font-bold text-base">
+                            {formatOdds(nextBestBook.price)}
+                          </div>
+                          {nextBestBook.limit_max && (
+                            <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal leading-none mt-0.5">
+                              ${nextBestBook.limit_max}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </td>
+
                 {/* Average Odds */}
                 <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
                   <div className="flex items-center justify-center gap-1.5">
@@ -839,7 +918,7 @@ export function BestOddsTable({
               </AnimatePresence>
                 {isLastOfSportPreview && (
                   <tr key={`${deal.key}-limited`}>
-                    <td colSpan={8} className="border-b border-neutral-200/70 bg-gradient-to-r from-[var(--tertiary)]/5 via-transparent to-transparent px-4 py-3 text-sm text-neutral-700 dark:border-neutral-800/70 dark:text-neutral-300">
+                    <td colSpan={9} className="border-b border-neutral-200/70 bg-gradient-to-r from-[var(--tertiary)]/5 via-transparent to-transparent px-4 py-3 text-sm text-neutral-700 dark:border-neutral-800/70 dark:text-neutral-300">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-2">
                           <LockIcon className="h-4 w-4 text-[var(--tertiary)]" />
