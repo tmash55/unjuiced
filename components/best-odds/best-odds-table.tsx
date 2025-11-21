@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
-import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
+import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown, EyeOff, Eye } from "lucide-react";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -38,14 +38,11 @@ const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | n
   if (mode === 'next_best') {
     const sorted = [...(deal.allBooks || [])].sort((a, b) => b.price - a.price);
     if (!sorted.length) return null;
-    const best = sorted[0].price;
-    const tiedBestCount = sorted.filter(book => book.price === best).length;
-    if (tiedBestCount > 1) {
-      // Another book already matches this price; no improvement versus "next best".
-      return best;
-    }
-    const next = sorted.find(b => b.price < best);
-    return next?.price ?? null;
+    const bestPrice = sorted[0]?.price ?? null;
+    if (bestPrice === null) return null;
+    const nextBest = sorted.find(b => b.price < bestPrice)?.price ?? null;
+    if (nextBest === null) return bestPrice;
+    return nextBest;
   }
 
   return deal.avgPrice ?? null;
@@ -71,6 +68,17 @@ const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): numbe
 type SortField = 'improvement' | 'time';
 type SortDirection = 'asc' | 'desc';
 
+interface HideEdgeParams {
+  edgeKey: string;
+  eventId?: string;
+  eventDate?: string;
+  sport?: string;
+  playerName?: string;
+  market?: string;
+  line?: number;
+  autoUnhideHours?: number;
+}
+
 interface BestOddsTableProps {
   deals: BestOddsDeal[];
   loading?: boolean;
@@ -78,6 +86,10 @@ interface BestOddsTableProps {
   isLimitedPreview?: boolean;
   previewPerSport?: number;
   prefs?: BestOddsPrefs;
+  showHidden?: boolean;
+  onHideEdge?: (params: HideEdgeParams) => void;
+  onUnhideEdge?: (edgeKey: string) => void;
+  isHidden?: (edgeKey: string) => boolean;
 }
 
 export function BestOddsTable({
@@ -87,6 +99,10 @@ export function BestOddsTable({
   isLimitedPreview = false,
   previewPerSport = 2,
   prefs,
+  showHidden = false,
+  onHideEdge,
+  onUnhideEdge,
+  isHidden,
 }: BestOddsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('improvement');
@@ -266,7 +282,7 @@ export function BestOddsTable({
       return `${base} Baseline = quote from ${comparisonBookLabel}.`;
     }
     if (comparisonMode === "next_best") {
-      return `${base} Baseline = next-best price offered by another book (ties count as zero edge).`;
+      return `${base} Baseline = next-best price offered by another book (skips tied best prices).`;
     }
     return `${base} Baseline = market average across all books.`;
   })();
@@ -441,6 +457,7 @@ export function BestOddsTable({
             const sportForLeague = getSportForLeague(deal.sport);
             const showLogos = hasTeamLogos(deal.sport);
             const isExpanded = expandedRows.has(deal.key);
+            const isHiddenRow = showHidden && isHidden?.(deal.key);
             
             // High-tier opportunities (>5% improvement) get extra glow
             const isHighTier = improvementValue >= 5;
@@ -456,7 +473,8 @@ export function BestOddsTable({
                   onClick={() => toggleRow(deal.key)}
                   className={cn(
                     "group/row transition-colors cursor-pointer hover:!bg-neutral-100 dark:hover:!bg-neutral-800/50",
-                    index % 2 === 0 ? "table-row-even" : "table-row-odd"
+                    index % 2 === 0 ? "table-row-even" : "table-row-odd",
+                    isHiddenRow && "opacity-40 bg-neutral-100/50 dark:bg-neutral-800/30"
                   )}
                 >
                   {/* Improvement % */}
@@ -772,7 +790,7 @@ export function BestOddsTable({
                 {/* Action */}
                 <td className="p-2 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
                   {bestBooksWithPrice.length > 0 && (
-                    <div className="relative">
+                    <div className="relative flex items-center justify-center gap-2">
                       {bestBooksWithPrice.length === 1 ? (
                         // Single best book - direct link
                         <Tooltip content={deal.bestLimit ? `Place bet on ${bookName(deal.bestBook)} (Max: $${deal.bestLimit})` : `Place bet on ${bookName(deal.bestBook)}`}>
@@ -831,6 +849,39 @@ export function BestOddsTable({
                             </div>
                           )}
                         </>
+                      )}
+                      
+                      {/* Hide/Unhide Button */}
+                      {onHideEdge && onUnhideEdge && (
+                        <Tooltip content={isHidden?.(deal.key) ? "Unhide this edge" : "Hide this edge"}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isHidden?.(deal.key)) {
+                                onUnhideEdge(deal.key);
+                              } else {
+                                onHideEdge({
+                                  edgeKey: deal.key,
+                                  eventId: deal.eid,
+                                  eventDate: deal.startTime || (deal as any).game_start,
+                                  sport: deal.sport,
+                                  playerName: deal.playerName || (deal as any).player_name,
+                                  market: deal.mkt,
+                                  line: deal.ln,
+                                  autoUnhideHours: 24
+                                });
+                              }
+                            }}
+                            className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-700 dark:hover:text-neutral-300 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all"
+                          >
+                            {isHidden?.(deal.key) ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <EyeOff className="h-4 w-4" />
+                            )}
+                          </button>
+                        </Tooltip>
                       )}
                     </div>
                   )}
@@ -944,3 +995,4 @@ export function BestOddsTable({
     </div>
   );
 }
+

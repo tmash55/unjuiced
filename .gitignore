@@ -46,3 +46,9 @@ next-env.d.ts
 .vscode/
 .vs/
 .idea/
+
+# Documentation
+*.md
+
+# SQL files
+*.sql

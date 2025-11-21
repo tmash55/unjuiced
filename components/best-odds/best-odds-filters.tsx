@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/seperator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, ChevronsUpDown } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, ChevronsUpDown, Trash2 } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
@@ -37,6 +38,10 @@ interface BestOddsFiltersProps {
   isPro?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
+  hiddenCount?: number;
+  showHidden?: boolean;
+  onToggleShowHidden?: () => void;
+  onClearAllHidden?: () => void;
 }
 
 export function BestOddsFilters({
@@ -48,6 +53,10 @@ export function BestOddsFilters({
   deals = [],
   locked = false,
   isLoggedIn = false,
+  hiddenCount = 0,
+  showHidden = false,
+  onToggleShowHidden,
+  onClearAllHidden,
   isPro = false,
   refreshing = false,
   onRefresh,
@@ -73,6 +82,7 @@ export function BestOddsFilters({
     return counts;
   }, [deals]);
   const [open, setOpen] = useState(false);
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
 
   // Derive initial sports from leagues
   const getInitialSports = () => {
@@ -1009,6 +1019,79 @@ export function BestOddsFilters({
                     disabled={locked}
                   />
                 </div>
+
+                {/* Hidden Edges Controls */}
+                {hiddenCount > 0 && (
+                  <>
+                    <Separator />
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">Show Hidden Edges</div>
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Display {hiddenCount} hidden edge{hiddenCount !== 1 ? 's' : ''} with dimmed styling
+                          </div>
+                        </div>
+                        <Switch 
+                          checked={showHidden} 
+                          fn={(v: boolean) => onToggleShowHidden?.()} 
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => setIsClearDialogOpen(true)}
+                        className="w-full h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                      >
+                        Clear All Hidden Edges ({hiddenCount})
+                      </button>
+
+                      <Dialog open={isClearDialogOpen} onOpenChange={setIsClearDialogOpen}>
+                        <DialogContent className="sm:max-w-md border-neutral-200 bg-white p-0 dark:border-neutral-800 dark:bg-neutral-900">
+                          <div className="p-8 text-center">
+                            {/* Icon with gradient glow */}
+                            <div className="relative mx-auto mb-6 w-fit">
+                              <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-red-500/20 via-red-500/30 to-red-600/30 blur-2xl" />
+                              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/20 bg-white shadow-sm dark:border-red-500/30 dark:bg-neutral-900">
+                                <Trash2 className="h-8 w-8 text-red-600 dark:text-red-400" />
+                              </div>
+                            </div>
+
+                            {/* Headline */}
+                            <DialogTitle className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white text-center">
+                              Clear Hidden Edges
+                            </DialogTitle>
+                            <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+                              Are you sure you want to clear all {hiddenCount} hidden edge{hiddenCount !== 1 ? 's' : ''}? They will reappear in your results immediately.
+                            </p>
+
+                            {/* CTA Buttons */}
+                            <div className="flex flex-col gap-3">
+                              <button
+                                onClick={() => {
+                                  if (onClearAllHidden) {
+                                    onClearAllHidden();
+                                    toast.success('All hidden edges cleared');
+                                  }
+                                  setIsClearDialogOpen(false);
+                                }}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md dark:border-red-500 dark:bg-red-500 dark:hover:bg-red-400"
+                              >
+                                Clear All Edges
+                              </button>
+                              <button
+                                onClick={() => setIsClearDialogOpen(false)}
+                                className="w-full rounded-lg border border-transparent px-4 py-2.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 

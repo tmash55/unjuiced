@@ -109,6 +109,7 @@ interface PreferencesContextType {
     sortBy?: string;
     searchQuery?: string;
     hideCollegePlayerProps?: boolean;
+    showHidden?: boolean;
   }) => Promise<void>;
   
   getBestOddsFilters: () => {
@@ -126,6 +127,7 @@ interface PreferencesContextType {
     hideCollegePlayerProps: boolean;
     comparisonMode: 'average' | 'book' | 'next_best';
     comparisonBook: string | null;
+    showHidden: boolean;
   };
 }
 
@@ -753,6 +755,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         hideCollegePlayerProps: false,
         comparisonMode,
         comparisonBook,
+        showHidden: false,
       };
     }
     
@@ -772,6 +775,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       hideCollegePlayerProps: preferences.best_odds_hide_college_player_props ?? false,
       comparisonMode,
       comparisonBook,
+      showHidden: preferences.best_odds_show_hidden ?? false,
     };
   }, [preferences]);
   
@@ -790,6 +794,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     hideCollegePlayerProps?: boolean;
     comparisonMode?: 'average' | 'book' | 'next_best';
     comparisonBook?: string | null;
+    showHidden?: boolean;
   }) => {
     if (!user) {
       if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update best odds filters - no user');
@@ -841,6 +846,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.comparisonBook !== undefined) {
       updates.best_odds_comparison_book = filters.comparisonBook;
+    }
+    if (filters.showHidden !== undefined) {
+      updates.best_odds_show_hidden = filters.showHidden;
     }
     
     if (Object.keys(updates).length > 0) {

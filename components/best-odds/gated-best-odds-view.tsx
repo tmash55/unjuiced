@@ -8,6 +8,17 @@ import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
 import { RefreshCw, TrendingUp, Filter, Infinity, ArrowRight } from "lucide-react";
 
+interface HideEdgeParams {
+  edgeKey: string;
+  eventId?: string;
+  eventDate?: string;
+  sport?: string;
+  playerName?: string;
+  market?: string;
+  line?: number;
+  autoUnhideHours?: number;
+}
+
 interface GatedBestOddsViewProps {
   deals: BestOddsDeal[];
   loading: boolean;
@@ -16,6 +27,13 @@ interface GatedBestOddsViewProps {
   isPro: boolean;
   premiumCount?: number;
   prefs?: BestOddsPrefs;
+  hiddenCount?: number;
+  showHidden?: boolean;
+  onToggleShowHidden?: () => void;
+  onHideEdge?: (params: HideEdgeParams) => void;
+  onUnhideEdge?: (edgeKey: string) => void;
+  onClearAllHidden?: () => void;
+  isHidden?: (edgeKey: string) => boolean;
 }
 
 export function GatedBestOddsView({
@@ -26,13 +44,41 @@ export function GatedBestOddsView({
   isPro,
   premiumCount = 0,
   prefs,
+  hiddenCount = 0,
+  showHidden = false,
+  onToggleShowHidden,
+  onHideEdge,
+  onUnhideEdge,
+  onClearAllHidden,
+  isHidden,
 }: GatedBestOddsViewProps) {
   // Pro user: Show full data
   if (isPro) {
     if (viewMode === 'table') {
-      return <BestOddsTable deals={deals} loading={loading} isPro={isPro} prefs={prefs} />;
+      return (
+        <BestOddsTable 
+          deals={deals} 
+          loading={loading} 
+          isPro={isPro} 
+          prefs={prefs}
+          showHidden={showHidden}
+          onHideEdge={onHideEdge}
+          onUnhideEdge={onUnhideEdge}
+          isHidden={isHidden}
+        />
+      );
     }
-    return <BestOddsCards deals={deals} loading={loading} prefs={prefs} />;
+    return (
+      <BestOddsCards 
+        deals={deals} 
+        loading={loading} 
+        prefs={prefs}
+        showHidden={showHidden}
+        onHideEdge={onHideEdge}
+        onUnhideEdge={onUnhideEdge}
+        isHidden={isHidden}
+      />
+    );
   }
 
   // Non-pro: Show preview deals with messaging

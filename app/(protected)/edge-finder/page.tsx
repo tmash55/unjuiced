@@ -22,6 +22,7 @@ import { SUPPORTED_SPORTS } from "@/lib/data/markets";
 import { Lock } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
+import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 
 export default function BestOddsPage() {
   // VC-Grade: Use centralized, cached Pro status and custom hook for data fetching
@@ -34,6 +35,9 @@ export default function BestOddsPage() {
     isPro, 
     planLoading 
   });
+  
+  // Hidden edges management
+  const { hiddenEdges, hiddenCount, isLoading: hiddenLoading, hideEdge, unhideEdge, clearAllHidden, isHidden } = useHiddenEdges();
   
   const [refreshing, setRefreshing] = useState(false);
   
@@ -123,9 +127,14 @@ export default function BestOddsPage() {
       });
     }
     
+    // Filter out hidden edges (unless showHidden is true)
+    if (!prefs.showHidden && !hiddenLoading) {
+      filtered = filtered.filter((deal: BestOddsDeal) => !isHidden(deal.key));
+    }
+    
     filtered = sortDeals(filtered, prefs.sortBy);
     return filtered;
-  }, [deals, prefs]);
+  }, [deals, prefs, hiddenLoading, isHidden]);
 
   // Calculate counts by scope for toggle buttons (using filtered deals)
   const pregameCount = filteredDeals.filter((d: BestOddsDeal) => d.scope === 'pregame').length;
@@ -341,6 +350,10 @@ export default function BestOddsPage() {
                   isLoggedIn={isLoggedIn}
                   isPro={isPro}
                   refreshing={refreshing}
+                  hiddenCount={hiddenCount}
+                  showHidden={prefs.showHidden}
+                  onToggleShowHidden={() => updateFilters({ ...prefs, showHidden: !prefs.showHidden })}
+                  onClearAllHidden={clearAllHidden}
                   onRefresh={async () => {
                     if (!isPro) return;
                     try { 
@@ -410,6 +423,13 @@ export default function BestOddsPage() {
         isPro={isPro}
         premiumCount={premiumCount}
         prefs={prefs}
+        hiddenCount={hiddenCount}
+        showHidden={prefs.showHidden}
+        onToggleShowHidden={() => updateFilters({ ...prefs, showHidden: !prefs.showHidden })}
+        onHideEdge={hideEdge}
+        onUnhideEdge={unhideEdge}
+        onClearAllHidden={clearAllHidden}
+        isHidden={isHidden}
       />
     </div>
   );

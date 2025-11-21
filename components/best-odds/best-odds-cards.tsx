@@ -6,7 +6,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getAllLeagues } from "@/lib/data/sports";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { formatMarketLabel } from "@/lib/data/markets";
-import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -61,13 +61,28 @@ const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): numbe
   return (diff / Math.abs(baseline)) * 100;
 };
 
+interface HideEdgeParams {
+  edgeKey: string;
+  eventId?: string;
+  eventDate?: string;
+  sport?: string;
+  playerName?: string;
+  market?: string;
+  line?: number;
+  autoUnhideHours?: number;
+}
+
 interface BestOddsCardsProps {
   deals: BestOddsDeal[];
   loading?: boolean;
   prefs?: BestOddsPrefs;
+  showHidden?: boolean;
+  onHideEdge?: (params: HideEdgeParams) => void;
+  onUnhideEdge?: (edgeKey: string) => void;
+  isHidden?: (edgeKey: string) => boolean;
 }
 
-export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
+export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, onUnhideEdge, isHidden }: BestOddsCardsProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const allLeagues = getAllLeagues();
@@ -239,17 +254,30 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
           return marketLower.includes(normalized);
         });
 
+        const isHiddenCard = showHidden && isHidden?.(deal.key);
+
         return (
           <div
             key={uniqueKey}
-            className="group relative flex flex-col overflow-hidden rounded-lg border border-neutral-200/80 bg-white shadow-sm transition-all hover:shadow-xl hover:border-sky-200/50 dark:border-neutral-800/80 dark:bg-neutral-900 dark:hover:border-sky-800/30"
+            className={cn(
+              "group relative flex flex-col overflow-hidden rounded-lg border shadow-sm transition-all",
+              isHiddenCard
+                ? "opacity-40 bg-neutral-100 dark:bg-neutral-900/30 border-neutral-300/60 dark:border-neutral-700/60 grayscale-[0.5]"
+                : "bg-white dark:bg-neutral-900 border-neutral-200/80 dark:border-neutral-800/80 hover:shadow-xl hover:border-sky-200/50 dark:hover:border-sky-800/30"
+            )}
           >
+            {/* Overlay for hidden cards to reduce contrast */}
+            {isHiddenCard && (
+              <div className="absolute inset-0 z-[2] bg-neutral-200/70 dark:bg-neutral-900/80 backdrop-blur-[1.5px] pointer-events-none" />
+            )}
+
             {/* Subtle brand tint overlay */}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-500/[0.015] via-transparent to-transparent dark:from-sky-500/[0.02]" />
-            
-            {/* Header - Odds with Sportsbook Logo */}
-            <div className="relative border-b border-neutral-200/80 bg-neutral-50/60 px-3 py-2.5 dark:border-neutral-800/80 dark:bg-neutral-950/40">
-              <div className="flex flex-col gap-1.5">
+            <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-sky-500/[0.015] via-transparent to-transparent dark:from-sky-500/[0.02]" />
+
+            <div className="relative z-10 flex h-full flex-col">
+              {/* Header - Odds with Sportsbook Logo */}
+              <div className="border-b border-neutral-200/80 bg-neutral-50/60 px-3 py-2.5 dark:border-neutral-800/80 dark:bg-neutral-950/40">
+                <div className="flex flex-col gap-1.5">
                 {/* Top row: Best Odds + Logo and Edge Badge */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -420,16 +448,56 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
             {/* Action Buttons - Supportive Layout */}
             <div className="relative flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
               {/* Left: Add to Bet Slip (Outline Button) */}
-              <button
-                onClick={() => {
-                  const primary = bestBooksWithPrice[0];
-                  if (!primary) return;
-                  openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
-              >
-                Add to Bet Slip
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const primary = bestBooksWithPrice[0];
+                    if (!primary) return;
+                    openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
+                >
+                  Add to Bet Slip
+                </button>
+                
+                {/* Hide/Unhide Button */}
+                {onHideEdge && onUnhideEdge && (
+                  <Tooltip content={isHidden?.(deal.key) ? "Unhide this edge" : "Hide this edge"}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isHidden?.(deal.key)) {
+                          onUnhideEdge(deal.key);
+                        } else {
+                          onHideEdge({
+                            edgeKey: deal.key,
+                            eventId: deal.eid,
+                            eventDate: deal.startTime || (deal as any).game_start,
+                            sport: deal.sport,
+                            playerName: deal.playerName || (deal as any).player_name,
+                            market: deal.mkt,
+                            line: deal.ln,
+                            autoUnhideHours: 24
+                          });
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex items-center justify-center h-9 w-9 rounded-full border transition-all",
+                        isHidden?.(deal.key)
+                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-neutral-700"
+                          : "border-transparent text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      )}
+                    >
+                      {isHidden?.(deal.key) ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </button>
+                  </Tooltip>
+                )}
+              </div>
 
               {/* Right: View Books (Text Button with Icon) */}
               <button
@@ -500,6 +568,7 @@ export function BestOddsCards({ deals, loading, prefs }: BestOddsCardsProps) {
               </div>
             )}
           </div>
+        </div>
         );
       })}
     </div>

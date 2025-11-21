@@ -19,6 +19,7 @@ export const DEFAULT_BEST_ODDS_PREFS: BestOddsPrefs = {
   hideCollegePlayerProps: false,
   comparisonMode: 'average',
   comparisonBook: null,
+  showHidden: false,
 };
 
 /**
@@ -113,6 +114,11 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
     '2nd_quarter_spread',
     '3rd_quarter_spread',
     '4th_quarter_spread',
+    // Specialty props to hide (backend issue)
+    'triple_double',
+    'triple-doubles',
+    'tripledouble',
+    'player_triple_double',
   ];
   
   const marketLower = deal.mkt.toLowerCase();

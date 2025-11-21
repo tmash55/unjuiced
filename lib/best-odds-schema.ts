@@ -95,6 +95,7 @@ export interface BestOddsPrefs {
   hideCollegePlayerProps: boolean  // Hide NCAAF/NCAAB player props (for restricted states)
   comparisonMode: 'average' | 'book' | 'next_best'
   comparisonBook: string | null
+  showHidden: boolean          // Show hidden edges with dimmed styling
 }
 
 /**

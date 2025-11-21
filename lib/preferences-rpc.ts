@@ -55,6 +55,7 @@ export interface UserPreferences {
   best_odds_hide_college_player_props?: boolean;
   best_odds_comparison_mode?: 'average' | 'book' | 'next_best';
   best_odds_comparison_book?: string | null;
+  best_odds_show_hidden?: boolean;
   
   created_at?: string;
   updated_at?: string;
@@ -141,6 +142,7 @@ export class PreferencesRPC {
       best_odds_hide_college_player_props: data?.best_odds_hide_college_player_props ?? false,
       best_odds_comparison_mode: data?.best_odds_comparison_mode ?? 'average',
       best_odds_comparison_book: data?.best_odds_comparison_book ?? null,
+      best_odds_show_hidden: data?.best_odds_show_hidden ?? false,
       
       created_at: data?.created_at,
       updated_at: data?.updated_at,
