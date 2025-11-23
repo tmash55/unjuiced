@@ -8,7 +8,6 @@ import { useBestOddsPreferences } from "@/context/preferences-context";
 
 interface UseBestOddsViewOptions {
   isPro: boolean;
-  planLoading: boolean;
 }
 
 /**
@@ -16,20 +15,15 @@ interface UseBestOddsViewOptions {
  * Uses React Query to prevent unnecessary refetches when switching tabs
  * Follows the same pattern as the odds screen for consistency
  */
-export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) {
+export function useBestOddsView({ isPro }: UseBestOddsViewOptions) {
   const { filters: prefs, isLoading: prefsLoading, updateFilters } = useBestOddsPreferences();
 
   // Use React Query for intelligent caching and refetch control
   const queryKey = ['best-odds', isPro, prefs.scope, prefs.sortBy];
   
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      // Don't fetch if still checking plan status
-      if (planLoading) {
-        return { deals: [] as BestOddsDeal[], premiumCount: 0 };
-      }
-
       if (!isPro) {
         // Non-Pro: Fetch preview data (server already limits to 2 per sport)
         const previewResponse = await fetch(
@@ -56,7 +50,6 @@ export function useBestOddsView({ isPro, planLoading }: UseBestOddsViewOptions) 
     refetchOnWindowFocus: false, // Don't refetch when switching back to tab
     refetchOnReconnect: true, // Refetch when internet reconnects
     refetchInterval: false, // No automatic polling (user can manually refresh)
-    enabled: !planLoading, // Only run query when plan status is loaded
     placeholderData: (previousData) => previousData, // Keep previous data during refetch
     retry: 3, // Retry failed requests up to 3 times
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s (max 30s)

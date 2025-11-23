@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import type { BestOddsPrefs, BestOddsDeal } from "@/lib/best-odds-schema";
 import { GatedBestOddsView } from "@/components/best-odds/gated-best-odds-view";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
@@ -24,16 +24,27 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 
+const WINDOW_SCROLL_KEY = "edgeFinder_windowScroll";
+
 export default function BestOddsPage() {
   // VC-Grade: Use centralized, cached Pro status and custom hook for data fetching
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
   const isLoggedIn = !!user;
+  const stablePlanRef = useRef(isPro);
+  const [hasResolvedPlan, setHasResolvedPlan] = useState(!planLoading);
+  useEffect(() => {
+    if (!planLoading) {
+      stablePlanRef.current = isPro;
+      setHasResolvedPlan(true);
+    }
+  }, [planLoading, isPro]);
+  const effectiveIsPro = planLoading ? stablePlanRef.current : isPro;
+  const windowScrollRestoredRef = useRef(false);
   
   // Custom hook handles all data fetching (Pro vs non-Pro)
   const { deals, premiumCount, loading, error, refresh, prefs, prefsLoading, updateFilters } = useBestOddsView({ 
-    isPro, 
-    planLoading 
+    isPro: effectiveIsPro 
   });
   
   // Hidden edges management
@@ -47,6 +58,36 @@ export default function BestOddsPage() {
   // View mode state (default to table, will adjust on mount)
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   
+  // Persist window scroll across refreshes / app resumes
+  useEffect(() => {
+    if (windowScrollRestoredRef.current) return;
+    if (typeof window === "undefined") return;
+    if (loading || prefsLoading) return;
+    const saved = sessionStorage.getItem(WINDOW_SCROLL_KEY);
+    if (saved) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, parseInt(saved, 10));
+      });
+    }
+    windowScrollRestoredRef.current = true;
+  }, [loading, prefsLoading]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let rafId: number | null = null;
+    const handleScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        sessionStorage.setItem(WINDOW_SCROLL_KEY, window.scrollY.toString());
+      });
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
   // Set initial view mode based on screen size (client-side only, after mount)
   useEffect(() => {
     const handleResize = () => {
@@ -176,7 +217,7 @@ export default function BestOddsPage() {
   }, [prefs.comparisonMode, prefs.comparisonBook]);
 
   // Show loading state while checking plan
-  if (planLoading) {
+  if (planLoading && !hasResolvedPlan) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
         <LoadingState type="account" />

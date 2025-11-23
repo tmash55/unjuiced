@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown, EyeOff, Eye } from "lucide-react";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -13,6 +13,8 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { motion, AnimatePresence } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
+
+const TABLE_SCROLL_KEY = 'edgeFinder_tableScrollTop';
 
 const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -108,6 +110,8 @@ export function BestOddsTable({
   const [sortField, setSortField] = useState<SortField>('improvement');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRestoredRef = useRef(false);
 
   // Restore scroll position on mount (for mobile UX)
   useEffect(() => {
@@ -118,6 +122,35 @@ export function BestOddsTable({
       sessionStorage.removeItem('edgeFinder_scrollPos');
     }
   }, []);
+
+  useEffect(() => {
+    if (tableScrollRestoredRef.current) return;
+    if (loading) return;
+    const container = tableRef.current;
+    if (!container) return;
+    const saved = sessionStorage.getItem(TABLE_SCROLL_KEY);
+    if (saved) {
+      container.scrollTop = parseInt(saved, 10);
+    }
+    tableScrollRestoredRef.current = true;
+  }, [loading, deals.length]);
+
+  useEffect(() => {
+    const container = tableRef.current;
+    if (!container) return;
+    let rafId: number | null = null;
+    const handleScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        sessionStorage.setItem(TABLE_SCROLL_KEY, container.scrollTop.toString());
+      });
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [deals.length]);
 
   const toggleRow = (key: string) => {
     setExpandedRows(prev => {
@@ -362,7 +395,10 @@ export function BestOddsTable({
   };
 
   return (
-    <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800">
+    <div
+      ref={tableRef}
+      className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
+    >
       <table className="min-w-full text-sm table-fixed">
         <colgroup>
           <col style={{ width: 100 }} />
