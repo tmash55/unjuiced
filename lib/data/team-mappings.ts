@@ -450,6 +450,15 @@ export const MLB_TEAM_MAP: Record<string, string> = {
   return teamName.toUpperCase()
 }
   
+  // Get team logo URL
+  export function getTeamLogoUrl(teamName: string, sport: string): string {
+    if (!teamName) return "";
+    const abbr = getStandardAbbreviation(teamName, sport);
+    // NCAAB shares logos with NCAAF (same schools)
+    const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+    return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
+  }
+
   // Get player image URL based on sport and player ID
   export function getPlayerImageUrl(playerId: string, sport: string): string {
     switch(sport) {

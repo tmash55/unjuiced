@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        protocol: "https",
+        hostname: "cdn.nba.com",
+        pathname: "/headshots/nba/latest/**",
+      },
     ],
   },
   /* config options here */
