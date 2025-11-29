@@ -35,6 +35,7 @@ export interface RawHitRateProfile {
     nba_player_id: number;
     name: string;
     position: string | null;
+    depth_chart_pos: string | null; // Specific position: PG, SG, SF, PF, C
     jersey_number: number | null;
   } | null;
   nba_games_hr?: {

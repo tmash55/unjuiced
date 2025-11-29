@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
-import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse } from "lucide-react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
@@ -11,6 +11,7 @@ import { useHitRateOdds, type LineOdds } from "@/hooks/use-hit-rate-odds";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl, getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Map of combo market keys to their full descriptions (only abbreviated combos need tooltips)
 const COMBO_MARKET_DESCRIPTIONS: Record<string, string> = {
@@ -28,11 +29,37 @@ const getMarketTooltip = (market: string): string | null => {
 type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct";
 type SortDirection = "asc" | "desc";
 
+// Market options for filter
+const MARKET_OPTIONS = [
+  { value: "player_points", label: "Points" },
+  { value: "player_rebounds", label: "Rebounds" },
+  { value: "player_assists", label: "Assists" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_points_rebounds", label: "P+R" },
+  { value: "player_points_assists", label: "P+A" },
+  { value: "player_rebounds_assists", label: "R+A" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_steals", label: "Steals" },
+  { value: "player_blocks", label: "Blocks" },
+  { value: "player_blocks_steals", label: "Blk+Stl" },
+  { value: "player_turnovers", label: "Turnovers" },
+];
+
 interface HitRateTableProps {
   rows: HitRateProfile[];
   loading?: boolean;
   error?: string | null;
   onRowClick?: (row: HitRateProfile) => void;
+  // Pagination props
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  totalCount?: number;
+  // Filter props
+  selectedMarkets: string[];
+  onMarketsChange: (markets: string[]) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 const formatPercentage = (value: number | null) => {
@@ -107,13 +134,27 @@ const getAvgColorClass = (avg: number | null, line: number | null) => {
   return "text-neutral-700 dark:text-neutral-300"; // Neutral - exactly at the line
 };
 
+// Position labels for display
+const POSITION_LABELS: Record<string, string> = {
+  'PG': 'Point Guard',
+  'SG': 'Shooting Guard',
+  'SF': 'Small Forward',
+  'PF': 'Power Forward',
+  'C': 'Center',
+  'G': 'Guard',
+  'F': 'Forward',
+  'GF': 'Guard-Forward',
+  'FC': 'Forward-Center',
+};
+
 const formatPosition = (position: string | null) => {
   if (!position) return "—";
-  // If it's exactly 2 letters and not "PF", split with a slash
-  if (position.length === 2 && position !== "PF") {
-    return `${position[0]}/${position[1]}`;
-  }
-  return position;
+  return position; // Now just return the position code (PG, SG, SF, PF, C, etc.)
+};
+
+const getPositionLabel = (position: string | null): string => {
+  if (!position) return "Unknown";
+  return POSITION_LABELS[position] || position;
 };
 
 const getStatusBorderClass = (status: string | null) => {
@@ -167,9 +208,51 @@ const getSortValue = (row: HitRateProfile, field: SortField): number | null => {
   }
 };
 
-export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableProps) {
+export function HitRateTable({ 
+  rows, 
+  loading, 
+  error, 
+  onRowClick,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
+  totalCount,
+  selectedMarkets,
+  onMarketsChange,
+  searchQuery,
+  onSearchChange,
+}: HitRateTableProps) {
   const [sortField, setSortField] = useState<SortField | null>("l10Pct");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setMarketDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleMarket = useCallback((value: string) => {
+    onMarketsChange(
+      selectedMarkets.includes(value) 
+        ? selectedMarkets.filter((v) => v !== value) 
+        : [...selectedMarkets, value]
+    );
+  }, [selectedMarkets, onMarketsChange]);
+
+  const selectAllMarkets = useCallback(() => {
+    onMarketsChange(MARKET_OPTIONS.map((o) => o.value));
+  }, [onMarketsChange]);
+
+  const deselectAllMarkets = useCallback(() => {
+    onMarketsChange([]);
+  }, [onMarketsChange]);
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
@@ -199,14 +282,12 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
     });
   }, [rows, sortField, sortDirection]);
 
-  // Fetch odds for all rows in one batch
-  // Pass playerId and market for proper SID resolution when lines change
+  // Fetch odds for all rows using the new stable key system
+  // The oddsSelectionId is now a stable hash that never changes
   // Progressive odds loading - first 50 rows load immediately, rest in background
-  const { getOdds, isLoading: oddsLoading, loadedCount, totalCount } = useHitRateOdds({
+  const { getOdds, isLoading: oddsLoading, loadedCount, totalCount: oddsTotalCount } = useHitRateOdds({
     rows: rows.map((r) => ({ 
-      oddsSelectionId: r.oddsSelectionId, 
-      playerId: r.playerId,
-      market: r.market,
+      oddsSelectionId: r.oddsSelectionId,
       line: r.line 
     })),
     enabled: rows.length > 0,
@@ -221,44 +302,142 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
       : <ChevronDown className="h-3.5 w-3.5" />;
   };
 
+  // Render filter bar component (extracted for reuse)
+  const filterBar = (
+    <div className="flex items-center gap-4 px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/80 shrink-0">
+        {/* Markets Dropdown */}
+        <div ref={dropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700 w-[180px]"
+            )}
+          >
+            <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
+              {selectedMarkets.length === 0
+                ? "No markets"
+                : selectedMarkets.length === MARKET_OPTIONS.length
+                ? "All Markets"
+                : `${selectedMarkets.length} selected`}
+            </span>
+            <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform shrink-0", marketDropdownOpen && "rotate-180")} />
+          </button>
+
+          {marketDropdownOpen && (
+            <div className="absolute left-0 top-full z-[100] mt-1 w-[200px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+              <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">
+                <button type="button" onClick={selectAllMarkets} className="text-xs font-medium text-brand hover:underline">
+                  Select All
+                </button>
+                <button type="button" onClick={deselectAllMarkets} className="text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                  Deselect All
+                </button>
+              </div>
+              <div className="flex flex-col gap-0.5 max-h-64 overflow-auto">
+                {MARKET_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
+                    <Checkbox checked={selectedMarkets.includes(opt.value)} onCheckedChange={() => toggleMarket(opt.value)} />
+                    <span className="text-sm font-medium text-neutral-900 dark:text-white">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search player or team..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-neutral-200 bg-white shadow-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand dark:border-neutral-700 dark:bg-neutral-800 dark:placeholder:text-neutral-500 dark:text-white"
+          />
+          {searchQuery && (
+            <button type="button" onClick={() => onSearchChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Count indicator - show filtered count when markets are filtered */}
+        <div className="text-xs text-neutral-500 dark:text-neutral-400 ml-auto">
+          {selectedMarkets.length < MARKET_OPTIONS.length ? (
+            // Markets are filtered - just show current count
+            <span>{rows.length} props</span>
+          ) : totalCount !== undefined ? (
+            // All markets - show pagination info
+            <span>{rows.length} of {totalCount} props</span>
+          ) : (
+            <span>{rows.length} props</span>
+          )}
+        </div>
+      </div>
+  );
+
+  // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4" />
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading hit rates...</p>
+      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        {filterBar}
+        <div className="flex items-center justify-center py-12 flex-1">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading hit rates...</p>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-        <p className="font-semibold">Unable to load hit rates</p>
-        <p className="text-sm mt-1 opacity-80">{error}</p>
+      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        {filterBar}
+        <div className="flex items-center justify-center py-12 flex-1">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+            <p className="font-semibold">Unable to load hit rates</p>
+            <p className="text-sm mt-1 opacity-80">{error}</p>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // Empty state (no markets selected or no data)
   if (!rows.length) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
-          <p className="text-lg font-medium text-neutral-900 dark:text-white mb-2">No hit rates available</p>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Check back closer to tip-off or adjust your filters.
-          </p>
+      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        {filterBar}
+        <div className="flex items-center justify-center py-12 flex-1">
+          <div className="text-center">
+            <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
+            <p className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+              {selectedMarkets.length === 0 ? "No markets selected" : "No hit rates available"}
+            </p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              {selectedMarkets.length === 0 
+                ? "Select one or more markets from the dropdown above."
+                : "Check back closer to tip-off or adjust your filters."}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="overflow-auto h-full rounded-xl border border-neutral-200 dark:border-neutral-800">
-      <table className="min-w-full text-sm table-fixed">
-        <colgroup><col style={{ width: 240 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 140 }} /><col style={{ width: 80 }} /></colgroup>
+    <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      {filterBar}
+
+      {/* Table */}
+      <div className="overflow-auto flex-1">
+        <table className="min-w-full text-sm table-fixed">
+          <colgroup><col style={{ width: 240 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
         <thead className="table-header-gradient sticky top-0 z-10">
           <tr>
             {/* Non-sortable columns */}
@@ -321,33 +500,62 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
             {/* Sortable: Streak */}
             <th
               onClick={() => handleSort("streak")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-12 px-2 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
             >
-              <div className="flex items-center justify-center gap-1">
-                Streak
-                <SortIcon field="streak" />
-              </div>
+              <Tooltip content="Hit Streak - Consecutive games hitting this line" side="top">
+                <div className="flex items-center justify-center gap-0.5">
+                  <span>Str</span>
+                  <SortIcon field="streak" />
+                </div>
+              </Tooltip>
             </th>
             
-            {/* Sortable: L20 % */}
-            <th
-              onClick={() => handleSort("l20Pct")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
-            >
+            {/* Sortable: L20 / L10 / L5 - Each clickable individually */}
+            <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
               <div className="flex items-center justify-center gap-1">
-                L20
-                <SortIcon field="l20Pct" />
-              </div>
-            </th>
-            
-            {/* Sortable: L10 / L5 Combined */}
-            <th
-              onClick={() => handleSort("l10Pct")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
-            >
-              <div className="flex items-center justify-center gap-1">
-                L10 / L5
-                <SortIcon field="l10Pct" />
+                <button
+                  type="button"
+                  onClick={() => handleSort("l20Pct")}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded transition-colors",
+                    sortField === "l20Pct" 
+                      ? "bg-brand/20 text-brand font-bold" 
+                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                  )}
+                >
+                  L20
+                </button>
+                <span className="text-neutral-300 dark:text-neutral-600">/</span>
+                <button
+                  type="button"
+                  onClick={() => handleSort("l10Pct")}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded transition-colors",
+                    sortField === "l10Pct" 
+                      ? "bg-brand/20 text-brand font-bold" 
+                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                  )}
+                >
+                  L10
+                </button>
+                <span className="text-neutral-300 dark:text-neutral-600">/</span>
+                <button
+                  type="button"
+                  onClick={() => handleSort("l5Pct")}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded transition-colors",
+                    sortField === "l5Pct" 
+                      ? "bg-brand/20 text-brand font-bold" 
+                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                  )}
+                >
+                  L5
+                </button>
+                {(sortField === "l20Pct" || sortField === "l10Pct" || sortField === "l5Pct") && (
+                  sortDirection === "asc" 
+                    ? <ChevronUp className="h-3.5 w-3.5 text-brand" />
+                    : <ChevronDown className="h-3.5 w-3.5 text-brand" />
+                )}
               </div>
             </th>
             
@@ -447,7 +655,9 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
                             className="h-4 w-4 object-contain"
                           />
                         )}
-                        <span>{formatPosition(row.position)}</span>
+                        <Tooltip content={getPositionLabel(row.position)} side="top">
+                          <span className="cursor-help">{formatPosition(row.position)}</span>
+                        </Tooltip>
                         <span className="text-neutral-300 dark:text-neutral-600">•</span>
                         <span>#{row.jerseyNumber ?? "—"}</span>
                       </div>
@@ -519,7 +729,7 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
                 </td>
 
                 {/* Streak Column */}
-                <td className="px-3 py-4 align-middle text-center">
+                <td className="px-1 py-4 align-middle text-center">
                   {row.hitStreak !== null && row.hitStreak !== undefined ? (
                     <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                       {row.hitStreak}
@@ -529,30 +739,29 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
                   )}
                 </td>
 
-                {/* L20 % */}
+                {/* L20 / L10 / L5 Combined with full 20-game sparkline */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
-                      hitRateBadgeClass(row.last20Pct)
-                    )}
-                  >
-                    {formatPercentage(row.last20Pct)}
-                  </span>
-                </td>
-
-                {/* L10 / L5 Combined with full 10-game sparkline */}
-                <td className="px-3 py-4 align-middle text-center">
-                  <div className="flex flex-col items-center gap-1.5">
-                    {/* Full 10-game sparkline - oldest on left, newest on right */}
+                  <div className="flex flex-col items-center gap-2">
+                    {/* Full 20-game sparkline - oldest on left, newest on right */}
+                    {/* Gray bars for games not yet played */}
                     <MiniSparkline 
                       gameLogs={row.gameLogs as any} 
                       line={row.line} 
-                      count={10} 
-                      className="h-5"
+                      count={20} 
+                      className="h-8"
                     />
-                    {/* Both percentages below */}
-                    <div className="flex items-center gap-2 text-[10px] font-medium">
+                    {/* All three percentages below */}
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium">
+                      <span className={cn(
+                        row.last20Pct !== null && row.last20Pct >= 70 
+                          ? "text-emerald-600 dark:text-emerald-400" 
+                          : row.last20Pct !== null && row.last20Pct >= 50
+                            ? "text-neutral-600 dark:text-neutral-400"
+                            : "text-red-500 dark:text-red-400"
+                      )}>
+                        L20: {formatPercentage(row.last20Pct)}
+                      </span>
+                      <span className="text-neutral-300 dark:text-neutral-600">|</span>
                       <span className={cn(
                         row.last10Pct !== null && row.last10Pct >= 70 
                           ? "text-emerald-600 dark:text-emerald-400" 
@@ -592,6 +801,39 @@ export function HitRateTable({ rows, loading, error, onRowClick }: HitRateTableP
           })}
         </tbody>
       </table>
+      
+      {/* Load More Button */}
+      {hasMore && onLoadMore && (
+        <div className="sticky bottom-0 flex items-center justify-center py-4 bg-gradient-to-t from-white via-white dark:from-neutral-900 dark:via-neutral-900">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2 rounded-lg font-medium text-sm transition-all",
+              "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700",
+              isLoadingMore && "opacity-70 cursor-not-allowed"
+            )}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                Load More
+                {totalCount !== undefined && (
+                  <span className="text-neutral-400 dark:text-neutral-500">
+                    ({rows.length} of {totalCount})
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

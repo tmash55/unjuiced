@@ -8,7 +8,7 @@ import { Zap, TrendingUp, ExternalLink, ChevronDown } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
 interface AlternateLinesMatrixProps {
-  sid: string | null;
+  stableKey: string | null;  // The stable key from odds_selection_id
   playerId: number | null;
   market: string | null;
   currentLine: number | null;
@@ -49,18 +49,18 @@ const getBookName = (bookKey: string): string => {
 };
 
 export function AlternateLinesMatrix({
-  sid,
+  stableKey,
   playerId,
   market,
   currentLine,
   className,
 }: AlternateLinesMatrixProps) {
   const { lines, isLoading, error } = useAlternateLines({
-    sid,
+    stableKey,
     playerId,
     market,
     currentLine,
-    enabled: !!sid && !!playerId && !!market,
+    enabled: !!stableKey && !!playerId && !!market,
   });
 
   if (isLoading) {
@@ -300,14 +300,16 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
         onClick={(e) => {
           e.stopPropagation();
           if (sortedBooks.length > 1) {
+            // Multiple books - toggle dropdown
             setIsOpen(!isOpen);
+          } else {
+            // Single book - go directly to the URL
+            handleBookClick(bestBookData, e);
           }
         }}
         className={cn(
-          "flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all w-full",
+          "flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all w-full cursor-pointer",
           "bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-700 dark:hover:bg-neutral-600",
-          sortedBooks.length > 1 && "cursor-pointer",
-          sortedBooks.length === 1 && "cursor-default",
           isOpen && "ring-2 ring-blue-500/50"
         )}
       >
@@ -321,18 +323,20 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
         <span className="text-xs font-semibold text-neutral-900 dark:text-white">
           {formatOdds(bestBookData.price)}
         </span>
-        {sortedBooks.length > 1 && (
+        {sortedBooks.length > 1 ? (
           <ChevronDown className={cn(
             "h-3 w-3 text-neutral-400 transition-transform",
             isOpen && "rotate-180"
           )} />
+        ) : (
+          <ExternalLink className="h-3 w-3 text-neutral-400" />
         )}
       </button>
 
       {/* Dropdown */}
       {isOpen && (
         <div className="absolute z-50 mt-1 right-0 min-w-[180px] rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden">
-          <div className="py-1 max-h-[200px] overflow-y-auto">
+          <div className="py-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
             {sortedBooks.map((book, idx) => {
               const logo = getBookLogo(book.book);
               const name = getBookName(book.book);

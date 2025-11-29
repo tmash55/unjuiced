@@ -28,7 +28,13 @@ const formatMinutes = (minutes: number) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-const getStatVsLineClass = () => {
+const getStatVsLineClass = (stat?: number | null, line?: number | null) => {
+  if (stat == null || line == null) {
+    return "text-neutral-900 dark:text-white";
+  }
+  if (stat >= line) {
+    return "text-emerald-600 dark:text-emerald-400";
+  }
   return "text-neutral-900 dark:text-white";
 };
 
@@ -182,7 +188,6 @@ export function PositionVsTeam({
               <PlayerMatchupRow 
                 key={`${player.gameDate}-${player.playerName}-${idx}`} 
                 player={player} 
-                position={position}
               />
             ))}
           </tbody>
@@ -206,10 +211,8 @@ export function PositionVsTeam({
 
 function PlayerMatchupRow({ 
   player, 
-  position,
 }: { 
   player: PositionVsTeamPlayer; 
-  position: string | null;
 }) {
   return (
     <tr className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700/30">
@@ -234,7 +237,7 @@ function PlayerMatchupRow({
             {player.playerName}
           </span>
           <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-700 px-1.5 py-0.5 rounded">
-            {position}
+            {player.position}
           </span>
         </div>
       </td>

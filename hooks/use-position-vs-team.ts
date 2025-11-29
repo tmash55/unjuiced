@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 export interface PositionVsTeamPlayer {
   playerName: string;
   teamAbbr: string;
+  position: string; // Player's actual position (PG, SG, SF, PF, C)
   stat: number;
   gameDate: string;
   pts: number;

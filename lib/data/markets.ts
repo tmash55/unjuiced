@@ -992,7 +992,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_threes': "3's Made",
       'player_blocks': 'Blocks',
       'player_steals': 'Steals',
-      'player_blocks_steals': 'BS',
+      'player_blocks_steals': 'Blk+Stl',
       'player_turnovers': 'Turnovers',
       'player_double_double': 'Double Double',
       'player_triple_double': 'Triple Double',
@@ -1083,7 +1083,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'pr': 'PR',
       'pa': 'PA',
       'ra': 'RA',
-      'bs': 'BS',
+      'bs': 'Blk+Stl',
       'double_double': 'Double Double',
       'triple_double': 'Triple Double',
       // Football phrasing preferences

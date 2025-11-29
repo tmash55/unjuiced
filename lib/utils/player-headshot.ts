@@ -1,8 +1,9 @@
 const NBA_CDN_BASE = "https://cdn.nba.com/headshots/nba/latest";
 
-export type PlayerHeadshotSize = "small" | "large";
+export type PlayerHeadshotSize = "tiny" | "small" | "large";
 
 const SIZE_CONFIG: Record<PlayerHeadshotSize, { path: string; width: number; height: number }> = {
+  tiny: { path: "260x190", width: 28, height: 28 }, // Uses small CDN image, renders at 28x28
   small: { path: "260x190", width: 260, height: 190 },
   large: { path: "1040x760", width: 1040, height: 760 },
 };

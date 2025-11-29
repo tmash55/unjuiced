@@ -12,13 +12,16 @@ interface BoxScoreTableProps {
   currentLine?: number | null;
   season?: string;
   className?: string;
+  // Optional pre-fetched data to avoid duplicate API calls
+  prefetchedGames?: BoxScoreGame[];
+  prefetchedSeasonSummary?: SeasonSummary | null;
 }
 
 type SortField = "date" | "pts" | "reb" | "ast" | "pra" | "fg3m" | "stl" | "blk" | "minutes" | "plusMinus";
 type SortDirection = "asc" | "desc";
 
 // Get the stat value based on market
-const getMarketStat = (game: BoxScoreGame, market: string | null): number => {
+const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): number => {
   if (!market) return game.pts;
   
   switch (market) {
@@ -49,17 +52,24 @@ export function BoxScoreTable({
   currentLine,
   season,
   className,
+  prefetchedGames,
+  prefetchedSeasonSummary,
 }: BoxScoreTableProps) {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const { games, seasonSummary, isLoading, error } = usePlayerBoxScores({
+  // Only fetch if we don't have prefetched data
+  const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
     playerId,
     season,
     limit: 50,
-    enabled: !!playerId,
+    enabled: !!playerId && !prefetchedGames,
   });
+
+  // Use prefetched data if available, otherwise use fetched data
+  const games = prefetchedGames ?? fetchedGames;
+  const seasonSummary = prefetchedSeasonSummary !== undefined ? prefetchedSeasonSummary : fetchedSeasonSummary;
 
   // Sort games
   const sortedGames = useMemo(() => {
@@ -317,7 +327,7 @@ export function BoxScoreTable({
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
             {sortedGames.map((game, idx) => {
               const marketStat = getMarketStat(game, market);
-              const isOverLine = currentLine !== null && marketStat > currentLine;
+              const isOverLine = currentLine != null && marketStat > currentLine;
               
               return (
                 <tr 

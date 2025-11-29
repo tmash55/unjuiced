@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import type { BookOdds, LineOdds } from "@/hooks/use-hit-rate-odds";
+import type { LineOdds } from "@/hooks/use-hit-rate-odds";
 
 interface OddsDropdownProps {
   odds: LineOdds | null;
@@ -16,7 +16,7 @@ const formatOdds = (price: number): string => {
   return String(price);
 };
 
-// Helper to get sportsbook logo (same pattern as best-odds-table)
+// Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
   if (!bookId) return null;
   const sb = getSportsbookById(bookId);
@@ -35,14 +35,18 @@ const getBookFallbackUrl = (bookId?: string): string | null => {
   if (!bookId) return null;
   const sb = getSportsbookById(bookId);
   if (!sb) return null;
-  // Use affiliate link if available, otherwise desktop link
   return sb.affiliateLink || sb.links?.desktop || null;
 };
 
+// Book odds structure for display
+interface BookOddsDisplay {
+  book: string;
+  price: number;
+  url: string | null;       // Desktop deep link
+  mobileUrl: string | null; // Mobile deep link
+}
+
 // Choose the best link based on device type
-// Priority: 
-// - Mobile: mobileUrl -> url -> fallback
-// - Desktop: url -> mobileUrl -> fallback
 const chooseBookLink = (
   bookId: string,
   desktopUrl: string | null,
@@ -78,6 +82,44 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Build the list of books with odds for the current line
+  const booksForCurrentLine = useMemo((): BookOddsDisplay[] => {
+    if (!odds) return [];
+
+    // Find the current line in allLines
+    const lineData = odds.allLines.find((l) => l.line === odds.currentLine);
+    
+    if (!lineData?.books) {
+      // Fall back to bestOver if we have it
+      if (odds.bestOver) {
+        return [{
+          book: odds.bestOver.book,
+          price: odds.bestOver.price,
+          url: odds.bestOver.url,
+          mobileUrl: odds.bestOver.mobileUrl,
+        }];
+      }
+      return [];
+    }
+
+    // Extract all books with over odds, sorted by price (best first)
+    const books: BookOddsDisplay[] = [];
+    for (const [bookId, bookOdds] of Object.entries(lineData.books)) {
+      if (bookOdds.over !== undefined) {
+        books.push({
+          book: bookId,
+          price: bookOdds.over.price,
+          url: bookOdds.over.url,
+          mobileUrl: bookOdds.over.mobileUrl,
+        });
+      }
+    }
+
+    // Sort by price descending (higher/better odds first)
+    books.sort((a, b) => b.price - a.price);
+    return books;
+  }, [odds]);
+
   // Loading state
   if (loading) {
     return (
@@ -88,22 +130,22 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
   }
 
   // No odds available
-  if (!odds || !odds.books.length) {
+  if (!odds || booksForCurrentLine.length === 0) {
     return (
       <span className="text-sm text-neutral-400 dark:text-neutral-500">—</span>
     );
   }
 
-  const bestBook = odds.books[0];
+  const bestBook = booksForCurrentLine[0];
   const bestBookLogo = getBookLogo(bestBook.book);
   const bestBookName = getBookName(bestBook.book);
 
   // Get the appropriate link for a book based on device
-  const getBookLink = (book: BookOdds): string | null => {
+  const getBookLink = (book: BookOddsDisplay): string | null => {
     return chooseBookLink(book.book, book.url, book.mobileUrl, isMobile);
   };
 
-  const handleBookClick = (book: BookOdds, e: React.MouseEvent) => {
+  const handleBookClick = (book: BookOddsDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     const link = getBookLink(book);
     if (link) {
@@ -112,7 +154,7 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
   };
 
   const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from triggering
+    e.stopPropagation();
     setIsOpen(!isOpen);
   };
 
@@ -135,28 +177,31 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
           />
         )}
         <span>{formatOdds(bestBook.price)}</span>
-        <ChevronDown className={cn(
-          "h-3.5 w-3.5 opacity-50 transition-transform",
-          isOpen && "rotate-180"
-        )} />
+        {booksForCurrentLine.length > 1 && (
+          <ChevronDown className={cn(
+            "h-3.5 w-3.5 opacity-50 transition-transform",
+            isOpen && "rotate-180"
+          )} />
+        )}
       </button>
 
-      {isOpen && (
+      {isOpen && booksForCurrentLine.length > 1 && (
         <div className="absolute left-1/2 top-full z-[70] mt-1 -translate-x-1/2 min-w-[180px] rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          <div className="flex flex-col gap-0.5">
-            {odds.books.map((book, idx) => {
+          <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
+            {booksForCurrentLine.map((book, idx) => {
               const bookLogo = getBookLogo(book.book);
               const bookName = getBookName(book.book);
               const isBest = idx === 0;
               
+              const bookLink = getBookLink(book);
               return (
                 <button
                   key={book.book}
                   onClick={(e) => handleBookClick(book, e)}
-                  disabled={!book.url}
+                  disabled={!bookLink}
                   className={cn(
                     "flex items-center justify-between gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
-                    book.url 
+                    bookLink 
                       ? "cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700" 
                       : "cursor-default opacity-60",
                     isBest && "bg-emerald-50 dark:bg-emerald-900/20"
@@ -189,10 +234,10 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
             })}
           </div>
           
-          {odds.books.length > 1 && (
+          {booksForCurrentLine.length > 1 && (
             <div className="mt-1.5 border-t border-neutral-200 dark:border-neutral-700 pt-1.5">
               <p className="px-2 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                {odds.books.length} books • Best: {formatOdds(bestBook.price)}
+                {booksForCurrentLine.length} books • Best: {formatOdds(bestBook.price)}
               </p>
             </div>
           )}
@@ -201,4 +246,3 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
     </div>
   );
 }
-

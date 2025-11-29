@@ -2,6 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+/**
+ * Alternate Lines Hook - Updated for new stable key system
+ */
+
 export interface BookOdds {
   book: string;
   price: number;
@@ -36,7 +40,7 @@ export interface AlternateLinesResponse {
 }
 
 export interface UseAlternateLinesOptions {
-  sid: string | null;
+  stableKey: string | null;  // The stable key from odds_selection_id
   playerId: number | null;
   market: string | null;
   currentLine?: number | null;
@@ -44,7 +48,7 @@ export interface UseAlternateLinesOptions {
 }
 
 async function fetchAlternateLines(
-  sid: string,
+  stableKey: string,
   playerId: number,
   market: string,
   currentLine?: number | null
@@ -53,7 +57,7 @@ async function fetchAlternateLines(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      sid,
+      stableKey,
       playerId,
       market,
       currentLine: currentLine ?? undefined,
@@ -69,16 +73,16 @@ async function fetchAlternateLines(
 }
 
 export function useAlternateLines(options: UseAlternateLinesOptions) {
-  const { sid, playerId, market, currentLine, enabled = true } = options;
+  const { stableKey, playerId, market, currentLine, enabled = true } = options;
 
-  const isValid = !!sid && !!playerId && !!market;
+  const isValid = !!stableKey && !!playerId && !!market;
 
   const query = useQuery<AlternateLinesResponse>({
-    queryKey: ["alternate-lines", sid, playerId, market, currentLine],
-    queryFn: () => fetchAlternateLines(sid!, playerId!, market!, currentLine),
+    queryKey: ["alternate-lines", stableKey, playerId, market, currentLine],
+    queryFn: () => fetchAlternateLines(stableKey!, playerId!, market!, currentLine),
     enabled: enabled && isValid,
-    staleTime: 30_000, // 30 seconds
-    gcTime: 5 * 60_000, // 5 minutes
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
   });
 
   return {
@@ -92,4 +96,3 @@ export function useAlternateLines(options: UseAlternateLinesOptions) {
     refetch: query.refetch,
   };
 }
-

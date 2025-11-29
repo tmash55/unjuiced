@@ -15,6 +15,7 @@ const QuerySchema = z.object({
 interface RpcRecentGame {
   player_name: string;
   team_abbr: string;
+  position: string; // Player's actual position from depth_chart_pos
   date: string;
   stat: number;
   pts: number;
@@ -39,6 +40,7 @@ interface RpcResponse {
 interface PositionVsTeamPlayer {
   playerName: string;
   teamAbbr: string;
+  position: string; // Player's actual position
   stat: number;
   gameDate: string;
   pts: number;
@@ -135,6 +137,7 @@ export async function GET(req: NextRequest) {
     const players: PositionVsTeamPlayer[] = (data.recent_games || []).map((game) => ({
       playerName: game.player_name,
       teamAbbr: game.team_abbr,
+      position: game.position || position, // Use player's actual position, fallback to queried
       stat: game.stat,
       gameDate: game.date,
       pts: game.pts,

@@ -3,9 +3,16 @@ import { redis } from "@/lib/redis";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { z } from "zod";
 
+/**
+ * Alternate Lines API - Updated for new stable key system
+ * 
+ * Uses the stable key from odds_selection_id to fetch from props:nba:hitrate
+ * Then calculates hit rates for each alternate line using game logs
+ */
+
 // Request validation
 const RequestSchema = z.object({
-  sid: z.string().min(1),
+  stableKey: z.string().min(1),  // The stable key from odds_selection_id
   playerId: z.number().int().positive(),
   market: z.string().min(1),
   currentLine: z.number().optional(),
@@ -20,7 +27,6 @@ const MARKET_TO_STAT: Record<string, string> = {
   player_blocks: "blk",
   player_steals: "stl",
   player_turnovers: "tov",
-  // Combo markets need special handling
   player_points_rebounds_assists: "pra",
   player_points_rebounds: "pr",
   player_points_assists: "pa",
@@ -50,7 +56,7 @@ interface AlternateLine {
   bestUrl: string | null;
   books: BookOdds[];
   isCurrentLine: boolean;
-  edge: "strong" | "moderate" | null; // Edge detection
+  edge: "strong" | "moderate" | null;
 }
 
 interface AlternateLinesResponse {
@@ -59,6 +65,8 @@ interface AlternateLinesResponse {
   market: string;
   currentLine: number | null;
 }
+
+const REDIS_KEY = "props:nba:hitrate";
 
 /**
  * Calculate hit rate for a given line using game logs
@@ -72,9 +80,7 @@ function calculateHitRate(
     return { l5Pct: null, l10Pct: null, l20Pct: null, seasonPct: null };
   }
 
-  // Get the stat value from each game log
   const stats = gameLogs.map((log) => {
-    // Handle combo markets
     if (market === "player_points_rebounds_assists") {
       return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
     } else if (market === "player_points_rebounds") {
@@ -86,8 +92,6 @@ function calculateHitRate(
     } else if (market === "player_blocks_steals") {
       return (log.blk ?? 0) + (log.stl ?? 0);
     }
-    
-    // Simple markets - use market_stat if available, otherwise look up the stat
     return log.market_stat ?? log[MARKET_TO_STAT[market]] ?? null;
   }).filter((v) => v !== null);
 
@@ -98,7 +102,7 @@ function calculateHitRate(
   const calcPct = (arr: number[]) => {
     if (arr.length === 0) return null;
     const hits = arr.filter((v) => v > line).length;
-    return Math.round((hits / arr.length) * 1000) / 10; // One decimal place
+    return Math.round((hits / arr.length) * 1000) / 10;
   };
 
   return {
@@ -136,18 +140,14 @@ function calculateAverage(gameLogs: any[], market: string, window: number): numb
 
 /**
  * Detect if there's an edge based on hit rate vs odds
- * Strong edge: >75% hit rate with -130 or worse odds
- * Moderate edge: >65% hit rate with -120 or worse odds
  */
 function detectEdge(hitRate: number | null, bestPrice: number | null): "strong" | "moderate" | null {
   if (hitRate === null || bestPrice === null) return null;
   
-  // Convert American odds to implied probability
   const impliedProb = bestPrice > 0 
     ? 100 / (bestPrice + 100) * 100
     : Math.abs(bestPrice) / (Math.abs(bestPrice) + 100) * 100;
   
-  // Edge = actual hit rate significantly higher than implied probability
   const edgePct = hitRate - impliedProb;
   
   if (edgePct >= 15) return "strong";
@@ -167,11 +167,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { sid, playerId, market, currentLine } = parsed.data;
+    const { stableKey, playerId, market, currentLine } = parsed.data;
 
-    // Fetch alternate lines from Redis
-    const redisKey = `props:nba:rows:alt:${sid}`;
-    const rawRedis = await redis.get(redisKey);
+    // Fetch odds data from Redis using stable key
+    const rawRedis = await redis.hget(REDIS_KEY, stableKey);
 
     if (!rawRedis) {
       return NextResponse.json(
@@ -191,14 +190,15 @@ export async function POST(req: NextRequest) {
     }
 
     const redisLines = redisData?.lines || [];
+    const playerName = redisData?.player || "Unknown Player";
 
-    // Fetch game logs from Supabase (we need more than what's in the profile for L20/season)
+    // Fetch game logs from Supabase for hit rate calculations
     const supabase = createServerSupabaseClient();
     
     // First, try to get game logs from the hit rate profile
     const { data: profile } = await supabase
       .from("nba_hit_rate_profiles")
-      .select("game_logs, nba_players_hr(name)")
+      .select("game_logs")
       .eq("player_id", playerId)
       .eq("market", market)
       .order("game_date", { ascending: false })
@@ -206,13 +206,11 @@ export async function POST(req: NextRequest) {
       .single();
 
     let gameLogs = profile?.game_logs || [];
-    const playerName = (profile?.nba_players_hr as any)?.name || "Unknown Player";
 
     // If we need more games for L20/season, fetch from box scores
     if (gameLogs.length < 20) {
       const statColumn = MARKET_TO_STAT[market];
       
-      // For combo markets, we need to fetch multiple columns
       let selectColumns = "*";
       if (market.includes("points_rebounds_assists")) {
         selectColumns = "game_id, game_date, pts, reb, ast";
@@ -251,7 +249,7 @@ export async function POST(req: NextRequest) {
       // Calculate hit rates for this line
       const hitRates = calculateHitRate(gameLogs, line, market);
 
-      // Extract book odds
+      // Extract book odds with deep links
       const books: BookOdds[] = [];
       const booksData = redisLine.books || {};
 
@@ -316,4 +314,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

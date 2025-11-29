@@ -10,6 +10,7 @@ export interface UseHitRateTableOptions {
   minHitRate?: number;
   limit?: number;
   offset?: number;
+  search?: string; // Player name search (server-side)
   enabled?: boolean;
 }
 
@@ -20,14 +21,15 @@ interface HitRateTableResult {
 }
 
 async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<HitRateTableResult> {
-  const search = new URLSearchParams();
-  if (params.date) search.set("date", params.date);
-  if (params.market) search.set("market", params.market);
-  if (typeof params.minHitRate === "number") search.set("minHitRate", String(params.minHitRate));
-  if (typeof params.limit === "number") search.set("limit", String(params.limit));
-  if (typeof params.offset === "number") search.set("offset", String(params.offset));
+  const searchParams = new URLSearchParams();
+  if (params.date) searchParams.set("date", params.date);
+  if (params.market) searchParams.set("market", params.market);
+  if (typeof params.minHitRate === "number") searchParams.set("minHitRate", String(params.minHitRate));
+  if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
+  if (params.search?.trim()) searchParams.set("search", params.search.trim());
 
-  const url = `/api/nba/hit-rates${search.toString() ? `?${search.toString()}` : ""}`;
+  const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
@@ -73,7 +75,8 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     total: profile.total,
     injuryStatus: profile.injury_status,
     injuryNotes: profile.injury_notes,
-    position: player?.position ?? profile.position,
+    // Prefer depth_chart_pos (PG, SG, SF, PF, C) over generic position (G, F, C)
+    position: player?.depth_chart_pos ?? player?.position ?? profile.position,
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,
     gameDate: game?.game_date ?? profile.game_date,
     gameStatus: game?.game_status ?? null,
@@ -91,15 +94,15 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
 }
 
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
-  const { date, market, minHitRate, limit, offset, enabled = true } = options;
+  const { date, market, minHitRate, limit, offset, search, enabled = true } = options;
 
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset }),
+    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search }],
+    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search }),
     enabled,
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    keepPreviousData: true,
+    staleTime: 30_000, // 30 seconds - fresher data
+    gcTime: 2 * 60_000, // 2 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 
   const rows = queryResult.data?.rows ?? [];

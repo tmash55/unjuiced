@@ -65,14 +65,14 @@ export function Tooltip({
         <TooltipPrimitive.Content
           sideOffset={8}
           side={side}
-          className="animate-slide-up-fade pointer-events-auto z-[99] items-center overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm"
+          className="animate-slide-up-fade pointer-events-auto z-[99] items-center overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
           collisionPadding={0}
           {...rest}
         >
           {typeof content === "string" ? (
             <span
               className={cn(
-                "block max-w-xs text-pretty px-4 py-2 text-center text-sm text-neutral-700",
+                "block max-w-xs text-pretty px-4 py-2 text-center text-sm text-neutral-700 dark:text-neutral-200",
                 contentClassName,
               )}
             >
@@ -104,7 +104,7 @@ export function TooltipContent({
 }) {
   return (
     <div className="flex max-w-xs flex-col items-center space-y-3 p-4 text-center">
-      <p className="text-sm text-neutral-700">{title}</p>
+      <p className="text-sm text-neutral-700 dark:text-neutral-200">{title}</p>
       {cta &&
         (href ? (
           <Link
@@ -139,7 +139,7 @@ export function SimpleTooltipContent({
   href?: string;
 }) {
   return (
-    <div className="max-w-xs px-4 py-2 text-center text-sm text-neutral-700">
+    <div className="max-w-xs px-4 py-2 text-center text-sm text-neutral-700 dark:text-neutral-200">
       {title}
       {cta && href && (
         <>
@@ -149,7 +149,7 @@ export function SimpleTooltipContent({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex text-neutral-500 underline underline-offset-4 hover:text-neutral-800"
+            className="inline-flex text-neutral-500 underline underline-offset-4 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
           >
             {cta}
           </a>
@@ -171,7 +171,7 @@ export function LinkifyTooltipContent({
   return (
     <div
       className={cn(
-        "block max-w-xs whitespace-pre-wrap text-balance px-4 py-2 text-center text-sm text-neutral-700",
+        "block max-w-xs whitespace-pre-wrap text-balance px-4 py-2 text-center text-sm text-neutral-700 dark:text-neutral-200",
         tooltipClassName,
       )}
     >
@@ -181,7 +181,7 @@ export function LinkifyTooltipContent({
           target: "_blank",
           rel: "noopener noreferrer nofollow",
           className: cn(
-            "underline underline-offset-4 text-neutral-400 hover:text-neutral-700",
+            "underline underline-offset-4 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200",
             className,
           ),
         }}
@@ -219,14 +219,14 @@ export function NumberTooltip({
   return (
     <Tooltip
       content={
-        <div className="block max-w-xs px-4 py-2 text-center text-sm text-neutral-700">
-          <p className="text-sm font-semibold text-neutral-700">
+        <div className="block max-w-xs px-4 py-2 text-center text-sm text-neutral-700 dark:text-neutral-200">
+          <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             {prefix}
             {nFormatter(value || 0, { full: true })} {unit}
           </p>
           {lastClicked && (
             <p
-              className="mt-1 text-xs text-neutral-500"
+              className="mt-1 text-xs text-neutral-500 dark:text-neutral-400"
               suppressHydrationWarning
             >
               Last clicked {timeAgo(lastClicked, { withAgo: true })}

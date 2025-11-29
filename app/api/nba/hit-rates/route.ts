@@ -16,6 +16,7 @@ const QuerySchema = z.object({
   minHitRate: z.coerce.number().min(0).max(100).optional(),
   limit: z.coerce.number().min(1).max(5000).optional(), // Increased max to handle all markets
   offset: z.coerce.number().min(0).optional(),
+  search: z.string().optional(), // Player/team name search
 });
 
 const DEFAULT_LIMIT = 500;
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
     minHitRate: url.searchParams.get("minHitRate") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
+    search: url.searchParams.get("search") ?? undefined,
   });
 
   if (!query.success) {
@@ -37,7 +39,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { date, market, minHitRate, limit, offset } = query.data;
+  const { date, market, minHitRate, limit, offset, search } = query.data;
   
   // Use Eastern Time for default "today" since NBA games are scheduled in ET
   // This prevents timezone issues where UTC date is already "tomorrow"
@@ -86,6 +88,7 @@ export async function GET(request: Request) {
           nba_player_id,
           name,
           position,
+          depth_chart_pos,
           jersey_number
         ),
         nba_games_hr (
@@ -118,6 +121,16 @@ export async function GET(request: Request) {
     builder = builder.gte("last_10_pct", minHitRate);
   }
 
+  // Search filter - searches player name (primary), team abbr, opponent team abbr
+  if (search && search.trim()) {
+    const searchTerm = search.trim().toLowerCase();
+    const searchPattern = `%${searchTerm}%`;
+    
+    // For player name search, filter on the joined table
+    // This is the primary search use case
+    builder = builder.ilike("nba_players_hr.name", searchPattern);
+  }
+
   builder = builder.range(
     offset ?? 0,
     (offset ?? 0) + (limit ?? DEFAULT_LIMIT) - 1
@@ -132,16 +145,23 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({
-    data: data ?? [],
-    count: count ?? 0,
-    meta: {
-      date: targetDate,
-      market: market ?? null,
-      minHitRate: minHitRate ?? null,
-      limit: limit ?? DEFAULT_LIMIT,
-      offset: offset ?? 0,
+  return NextResponse.json(
+    {
+      data: data ?? [],
+      count: count ?? 0,
+      meta: {
+        date: targetDate,
+        market: market ?? null,
+        minHitRate: minHitRate ?? null,
+        limit: limit ?? DEFAULT_LIMIT,
+        offset: offset ?? 0,
+      },
     },
-  });
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    }
+  );
 }
 

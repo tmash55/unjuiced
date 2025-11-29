@@ -1,321 +1,251 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 
-interface SelectionRequest {
-  sid: string;        // Original SID from hit rate profile (may be stale)
-  playerId: number;   // NBA player ID for SID lookup
-  market: string;     // Market type (e.g., "player_points")
-  line: number;       // Line value to match
+/**
+ * New Stable Key System for Hit Rate Odds
+ * 
+ * The odds_selection_id now contains a stable hash key that never changes,
+ * even when betting lines move. This replaces the old SID-based system.
+ * 
+ * Redis Key: props:nba:hitrate (hash map)
+ * Lookup: stable_key → JSON with all odds data
+ */
+
+interface OddsRequest {
+  stableKey: string;  // The stable key from odds_selection_id
+  line?: number;      // Optional: specific line to highlight (for table view)
 }
 
-interface BookOdds {
-  book: string;
+// Response structure from Redis
+interface RedisOddsData {
+  sid?: string;           // Current SID (for deep links if needed)
+  eid?: string;           // Event ID
+  ent?: string;           // Entity (e.g., "pid:player-uuid")
+  mkt?: string;           // Market type
+  primary_ln?: number;    // Current primary line
+  player?: string;        // Player name
+  team?: string;          // Team abbreviation
+  position?: string;      // Player position
+  live?: boolean;         // Is game live
+  best?: {                // Best prices for PRIMARY line
+    o?: { bk: string; price: number };  // Over
+    u?: { bk: string; price: number };  // Under
+  };
+  lines?: Array<{         // ALL alternate lines
+    ln: number;
+    books?: Record<string, {
+      over?: { price: number; u?: string; m?: string };
+      under?: { price: number; u?: string; m?: string };
+    }>;
+    best?: {
+      over?: { bk: string; price: number };
+      under?: { bk: string; price: number };
+    };
+    avg?: { over?: number; under?: number };
+  }>;
+  ts?: number;            // Last update timestamp
+}
+
+// Book odds with deep links
+interface BookOddsData {
   price: number;
-  url: string | null;
-  mobileUrl: string | null;
+  url: string | null;      // Desktop deep link
+  mobileUrl: string | null; // Mobile deep link
 }
 
-interface LineOdds {
-  sid: string;
-  resolvedSid: string | null;
-  line: number;
-  bestBook: string | null;
-  bestPrice: number | null;
-  bestUrl: string | null;
-  books: BookOdds[];
+// Simplified response for frontend
+interface LineOddsResponse {
+  stableKey: string;
+  primaryLine: number | null;
+  currentLine: number | null;      // The line we're showing odds for
+  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+  allLines: Array<{
+    line: number;
+    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    books: Record<string, { 
+      over?: BookOddsData; 
+      under?: BookOddsData;
+    }>;
+  }>;
+  live: boolean;
+  timestamp: number | null;
 }
 
-const MAX_SELECTIONS = 500;
-const SPORT = "nba";
+const MAX_KEYS = 500;
+const REDIS_KEY = "props:nba:hitrate";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const selections: SelectionRequest[] = Array.isArray(body?.selections) 
-      ? body.selections.slice(0, MAX_SELECTIONS) 
+    const requests: OddsRequest[] = Array.isArray(body?.selections) 
+      ? body.selections.slice(0, MAX_KEYS) 
       : [];
 
-    if (!selections.length) {
+    if (!requests.length) {
       return NextResponse.json(
         { odds: {} },
         { headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // Validate selections
-    const validSelections = selections.filter(
-      (s) => 
-        typeof s.sid === "string" && 
-        s.sid.trim() && 
-        typeof s.line === "number" &&
-        typeof s.playerId === "number" &&
-        typeof s.market === "string" &&
-        s.market.trim()
+    // Filter valid requests
+    const validRequests = requests.filter(
+      (r) => typeof r.stableKey === "string" && r.stableKey.trim()
     );
 
-    if (!validSelections.length) {
+    if (!validRequests.length) {
       return NextResponse.json(
         { odds: {} },
         { headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // =========================================================================
-    // STEP 1: Deduplicate by player+market (most efficient - fewer lookups)
-    // =========================================================================
-    const playerMarketMap = new Map<string, { playerId: number; market: string; originalSids: string[] }>();
-    const allOriginalSids = new Set<string>();
-    
-    for (const s of validSelections) {
-      const key = `${s.playerId}:${s.market}`;
-      allOriginalSids.add(s.sid.trim());
-      
-      if (!playerMarketMap.has(key)) {
-        playerMarketMap.set(key, { 
-          playerId: s.playerId, 
-          market: s.market, 
-          originalSids: [s.sid.trim()] 
-        });
-      } else {
-        playerMarketMap.get(key)!.originalSids.push(s.sid.trim());
-      }
-    }
+    // Deduplicate keys
+    const uniqueKeys = [...new Set(validRequests.map((r) => r.stableKey.trim()))];
 
-    // =========================================================================
-    // STEP 2: Batch fetch all SID sets in ONE pipeline call
-    // =========================================================================
-    const playerMarketEntries = Array.from(playerMarketMap.entries());
-    const sidsSetKeys = playerMarketEntries.map(
-      ([, { playerId, market }]) => `props:${SPORT}:sids:ent:pid:${playerId}:mkt:${market}`
-    );
+    // Single batch fetch from Redis hash
+    const rawResultsRaw = await redis.hmget(REDIS_KEY, ...uniqueKeys);
     
-    // Single MGET-style batch for all SMEMBERS (using pipeline)
-    const pipeline = redis.pipeline();
-    for (const key of sidsSetKeys) {
-      pipeline.smembers(key);
-    }
-    const sidsResults = await pipeline.exec<string[][]>();
+    // Normalize results to array (Redis can return Record<string, unknown> or array)
+    const rawResults: (string | null)[] = Array.isArray(rawResultsRaw) 
+      ? (rawResultsRaw as (string | null)[])
+      : uniqueKeys.map((key) => (rawResultsRaw as Record<string, unknown>)?.[key] as string | null ?? null);
 
-    // =========================================================================
-    // STEP 3: Collect ALL candidate SIDs + original SIDs for batch EXISTS check
-    // =========================================================================
-    const allCandidateSids = new Set<string>();
-    const playerMarketToCandidates = new Map<string, string[]>();
-    
-    for (let i = 0; i < playerMarketEntries.length; i++) {
-      const [key] = playerMarketEntries[i];
-      const candidates = sidsResults[i] || [];
-      playerMarketToCandidates.set(key, candidates);
-      candidates.forEach((sid) => allCandidateSids.add(sid));
-    }
-    
-    // Also include original SIDs as fallback candidates
-    allOriginalSids.forEach((sid) => allCandidateSids.add(sid));
-    
-    const candidateSidsArray = Array.from(allCandidateSids);
-    
-    // =========================================================================
-    // STEP 4: Batch EXISTS check for ALL candidate SIDs (single pipeline)
-    // =========================================================================
-    const existsPipeline = redis.pipeline();
-    for (const sid of candidateSidsArray) {
-      existsPipeline.exists(`props:${SPORT}:rows:alt:${sid}`);
-    }
-    const existsResults = await existsPipeline.exec<number[]>();
-    
-    // Build a set of valid SIDs
-    const validSidsSet = new Set<string>();
-    for (let i = 0; i < candidateSidsArray.length; i++) {
-      if (existsResults[i] === 1) {
-        validSidsSet.add(candidateSidsArray[i]);
-      }
-    }
+    // Build response map
+    const odds: Record<string, LineOddsResponse> = {};
 
-    // =========================================================================
-    // STEP 5: For invalid SIDs, batch resolve via sid2primary
-    // =========================================================================
-    const invalidSids = candidateSidsArray.filter((sid) => !validSidsSet.has(sid));
-    
-    if (invalidSids.length > 0) {
-      // Batch HMGET for all invalid SIDs
-      const sid2primaryKey = `props:${SPORT}:sid2primary`;
-      const primarySidsRaw = await redis.hmget(sid2primaryKey, ...invalidSids);
-      
-      // Collect unique primary SIDs that need EXISTS check
-      const primarySidsToCheck = new Set<string>();
-      const invalidToPrimary = new Map<string, string>();
-      
-      // Convert to array if it's an object (Redis can return Record<string, unknown>)
-      const primarySidsArray: (string | null)[] = Array.isArray(primarySidsRaw) 
-        ? (primarySidsRaw as (string | null)[])
-        : (Object.values(primarySidsRaw || {}) as (string | null)[]);
-        
-      for (let i = 0; i < invalidSids.length; i++) {
-        const primary = primarySidsArray[i];
-        if (primary && typeof primary === "string" && !validSidsSet.has(primary)) {
-          primarySidsToCheck.add(primary);
-          invalidToPrimary.set(invalidSids[i], primary);
-        }
-      }
-      
-      // Batch EXISTS for primary SIDs
-      if (primarySidsToCheck.size > 0) {
-        const primaryArray = Array.from(primarySidsToCheck);
-        const primaryExistsPipeline = redis.pipeline();
-        for (const sid of primaryArray) {
-          primaryExistsPipeline.exists(`props:${SPORT}:rows:alt:${sid}`);
-        }
-        const primaryExistsResults = await primaryExistsPipeline.exec<number[]>();
-        
-        for (let i = 0; i < primaryArray.length; i++) {
-          if (primaryExistsResults[i] === 1) {
-            validSidsSet.add(primaryArray[i]);
-          }
-        }
-      }
-      
-      // Update invalid -> primary mapping for those that resolved
-      for (const [invalid, primary] of invalidToPrimary) {
-        if (validSidsSet.has(primary)) {
-          // Mark the invalid SID as resolving to this primary
-          validSidsSet.add(invalid); // We'll handle the mapping below
-        }
-      }
-    }
+    for (let i = 0; i < uniqueKeys.length; i++) {
+      const stableKey = uniqueKeys[i];
+      const raw = rawResults[i];
 
-    // =========================================================================
-    // STEP 6: Resolve each player+market to its best valid SID
-    // =========================================================================
-    const playerMarketToValidSid = new Map<string, string | null>();
-    
-    for (const [key, { originalSids }] of playerMarketMap) {
-      const candidates = playerMarketToCandidates.get(key) || [];
-      
-      // First, check candidates from the set
-      let foundSid: string | null = null;
-      for (const sid of candidates) {
-        if (validSidsSet.has(sid)) {
-          foundSid = sid;
-          break;
-        }
-      }
-      
-      // Fallback to original SIDs
-      if (!foundSid) {
-        for (const sid of originalSids) {
-          if (validSidsSet.has(sid)) {
-            foundSid = sid;
-            break;
-          }
-        }
-      }
-      
-      // Last resort: check sid2primary for candidates
-      if (!foundSid && invalidSids.length > 0) {
-        const sid2primaryKey = `props:${SPORT}:sid2primary`;
-        for (const sid of [...candidates, ...originalSids]) {
-          if (!validSidsSet.has(sid)) {
-            const primary = await redis.hget<string>(sid2primaryKey, sid);
-            if (primary && validSidsSet.has(primary)) {
-              foundSid = primary;
-              break;
-            }
-          }
-        }
-      }
-      
-      playerMarketToValidSid.set(key, foundSid);
-    }
-
-    // =========================================================================
-    // STEP 7: Batch fetch ALL valid alternate data (single MGET)
-    // =========================================================================
-    const uniqueValidSids = [...new Set(
-      Array.from(playerMarketToValidSid.values()).filter(Boolean) as string[]
-    )];
-    
-    let altDataMap: Record<string, any> = {};
-    if (uniqueValidSids.length > 0) {
-      const altKeys = uniqueValidSids.map((sid) => `props:${SPORT}:rows:alt:${sid}`);
-      const rawResults = await redis.mget(...altKeys);
-      
-      for (let i = 0; i < uniqueValidSids.length; i++) {
-        const raw = rawResults[i];
-        if (raw) {
-          try {
-            altDataMap[uniqueValidSids[i]] = typeof raw === "string" ? JSON.parse(raw) : raw;
-          } catch {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-
-    // =========================================================================
-    // STEP 8: Build final response (pure computation, no I/O)
-    // =========================================================================
-    const odds: Record<string, LineOdds> = {};
-
-    for (const selection of validSelections) {
-      const originalSid = selection.sid.trim();
-      const pmKey = `${selection.playerId}:${selection.market}`;
-      const resolvedSid = playerMarketToValidSid.get(pmKey);
-
-      if (!resolvedSid || !altDataMap[resolvedSid]) {
-        odds[originalSid] = {
-          sid: originalSid,
-          resolvedSid: null,
-          line: selection.line,
-          bestBook: null,
-          bestPrice: null,
-          bestUrl: null,
-          books: [],
+      if (!raw) {
+        // No data found for this key
+        odds[stableKey] = {
+          stableKey,
+          primaryLine: null,
+          currentLine: null,
+          bestOver: null,
+          bestUnder: null,
+          allLines: [],
+          live: false,
+          timestamp: null,
         };
         continue;
       }
 
-      const parsed = altDataMap[resolvedSid];
-      const lines = parsed?.lines || [];
-      const matchingLine = lines.find((l: any) => l.ln === selection.line);
-
-      if (!matchingLine || !matchingLine.books) {
-        odds[originalSid] = {
-          sid: originalSid,
-          resolvedSid,
-          line: selection.line,
-          bestBook: null,
-          bestPrice: null,
-          bestUrl: null,
-          books: [],
+      // Parse Redis data
+      let data: RedisOddsData;
+      try {
+        data = typeof raw === "string" ? JSON.parse(raw) : (raw as RedisOddsData);
+      } catch {
+        odds[stableKey] = {
+          stableKey,
+          primaryLine: null,
+          currentLine: null,
+          bestOver: null,
+          bestUnder: null,
+          allLines: [],
+          live: false,
+          timestamp: null,
         };
         continue;
       }
 
-      // Extract all book odds for "over"
-      const books: BookOdds[] = [];
-      for (const [bookKey, bookData] of Object.entries(matchingLine.books)) {
-        const data = bookData as any;
-        if (data?.over?.price !== undefined) {
-          books.push({
-            book: bookKey,
-            price: data.over.price,
-            url: data.over.u || null,
-            mobileUrl: data.over.m || null,
-          });
+      // Find the request to get the specific line they want
+      const request = validRequests.find((r) => r.stableKey.trim() === stableKey);
+      const requestedLine = request?.line ?? data.primary_ln ?? null;
+
+      // Helper to get URLs for a book from line data
+      const getBookUrls = (lineData: any, bookId: string, side: 'over' | 'under') => {
+        if (!lineData?.books?.[bookId]?.[side]) return { url: null, mobileUrl: null };
+        const bookOdds = lineData.books[bookId][side];
+        return {
+          url: bookOdds?.u || null,
+          mobileUrl: bookOdds?.m || null,
+        };
+      };
+
+      // Find best odds for the requested line (or primary line)
+      let bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
+      let bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
+
+      if (requestedLine !== null && data.lines) {
+        const matchingLine = data.lines.find((l) => l.ln === requestedLine);
+        if (matchingLine?.best) {
+          if (matchingLine.best.over) {
+            const urls = getBookUrls(matchingLine, matchingLine.best.over.bk, 'over');
+            bestOver = { 
+              book: matchingLine.best.over.bk, 
+              price: matchingLine.best.over.price,
+              ...urls,
+            };
+          }
+          if (matchingLine.best.under) {
+            const urls = getBookUrls(matchingLine, matchingLine.best.under.bk, 'under');
+            bestUnder = { 
+              book: matchingLine.best.under.bk, 
+              price: matchingLine.best.under.price,
+              ...urls,
+            };
+          }
+        }
+      } else if (data.best) {
+        // Fall back to primary line best (no URLs available at top level)
+        if (data.best.o) {
+          bestOver = { book: data.best.o.bk, price: data.best.o.price, url: null, mobileUrl: null };
+        }
+        if (data.best.u) {
+          bestUnder = { book: data.best.u.bk, price: data.best.u.price, url: null, mobileUrl: null };
         }
       }
 
-      books.sort((a, b) => b.price - a.price);
-      const bestBook = books[0] || null;
+      // Build all lines array for matrix view (with deep links)
+      const allLines = (data.lines || []).map((line) => ({
+        line: line.ln,
+        bestOver: line.best?.over 
+          ? { 
+              book: line.best.over.bk, 
+              price: line.best.over.price,
+              ...getBookUrls(line, line.best.over.bk, 'over'),
+            } 
+          : null,
+        bestUnder: line.best?.under 
+          ? { 
+              book: line.best.under.bk, 
+              price: line.best.under.price,
+              ...getBookUrls(line, line.best.under.bk, 'under'),
+            } 
+          : null,
+        books: Object.fromEntries(
+          Object.entries(line.books || {}).map(([book, bookOdds]) => [
+            book,
+            { 
+              over: bookOdds.over ? {
+                price: bookOdds.over.price,
+                url: bookOdds.over.u || null,
+                mobileUrl: bookOdds.over.m || null,
+              } : undefined,
+              under: bookOdds.under ? {
+                price: bookOdds.under.price,
+                url: bookOdds.under.u || null,
+                mobileUrl: bookOdds.under.m || null,
+              } : undefined,
+            },
+          ])
+        ),
+      }));
 
-      odds[originalSid] = {
-        sid: originalSid,
-        resolvedSid,
-        line: selection.line,
-        bestBook: bestBook?.book || null,
-        bestPrice: bestBook?.price || null,
-        bestUrl: bestBook?.url || null,
-        books,
+      odds[stableKey] = {
+        stableKey,
+        primaryLine: data.primary_ln ?? null,
+        currentLine: requestedLine,
+        bestOver,
+        bestUnder,
+        allLines,
+        live: data.live ?? false,
+        timestamp: data.ts ?? null,
       };
     }
 
