@@ -71,8 +71,8 @@ const largeLinks = [
   {
     title: "Hit Rates",
     description: "Historical player prop hit rates and trends across books.",
-    href: "/hit-rates",
-    comingSoon: true,
+    href: "/hit-rates/nba",
+    comingSoon: false,
     graphic: null,
     color: "#10b981",
   },
