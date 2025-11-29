@@ -167,10 +167,10 @@ const isPlayerOut = (status: string | null) => status === "out";
 // Get injury icon color class based on status
 const getInjuryIconColorClass = (status: string | null): string => {
   if (!status || status === "active" || status === "available") return "";
-  if (status === "questionable" || status === "game_time_decision") return "text-amber-500";
-  if (status === "doubtful") return "text-orange-500";
-  if (status === "out") return "text-red-500";
-  if (status === "probable") return "text-neutral-400";
+  const s = status.toLowerCase();
+  if (s === "out") return "text-red-500";
+  if (s === "questionable" || s === "gtd" || s === "game_time_decision") return "text-amber-500";
+  if (s === "probable") return "text-emerald-500";
   return "";
 };
 

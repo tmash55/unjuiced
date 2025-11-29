@@ -21,8 +21,9 @@ const getInjuryIconColor = (status: string | null): string => {
   if (!status) return "text-amber-500";
   const s = status.toLowerCase();
   if (s === "out") return "text-red-500";
-  if (s === "doubtful") return "text-orange-500";
-  return "text-amber-500"; // questionable, gtd, day-to-day, etc.
+  if (s === "questionable" || s === "gtd" || s === "game time decision") return "text-amber-500";
+  if (s === "probable") return "text-emerald-500";
+  return "text-amber-500"; // fallback
 };
 
 // Position labels for display

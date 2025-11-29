@@ -564,9 +564,9 @@ export function GamesSidebar({
                                       // Injury status helpers
                                       const injuryStatus = player.injuryStatus?.toLowerCase();
                                       const isQuestionable = injuryStatus === "questionable" || injuryStatus === "gtd" || injuryStatus === "game time decision";
-                                      const isDoubtful = injuryStatus === "doubtful";
+                                      const isProbable = injuryStatus === "probable";
                                       const isOut = injuryStatus === "out";
-                                      const hasInjury = isQuestionable || isDoubtful || isOut;
+                                      const hasInjury = isQuestionable || isProbable || isOut;
                                       
                                       // Position now comes from depth_chart_pos (PG, SG, SF, PF, C)
                                       const position = player.position || "";
@@ -626,8 +626,8 @@ export function GamesSidebar({
                                             <HeartPulse className={cn(
                                               "h-3.5 w-3.5 shrink-0",
                                               isOut && "text-red-500",
-                                              isDoubtful && "text-orange-500",
-                                              isQuestionable && "text-amber-500"
+                                              isQuestionable && "text-amber-500",
+                                              isProbable && "text-emerald-500"
                                             )} />
                                           )}
                                           

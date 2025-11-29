@@ -19,9 +19,9 @@ const getInjuryColor = (status: string | null) => {
   if (!status) return null;
   const s = status.toLowerCase();
   if (s === "out") return "text-red-500";
-  if (s === "doubtful") return "text-orange-500";
-  if (s === "questionable" || s === "gtd") return "text-amber-500";
-  if (s === "probable") return "text-neutral-400";
+  if (s === "questionable" || s === "gtd" || s === "game time decision") return "text-amber-500";
+  if (s === "probable") return "text-emerald-500";
+  if (s === "available" || s === "active") return null;
   return null;
 };
 
@@ -29,8 +29,8 @@ const getInjuryBgColor = (status: string | null) => {
   if (!status) return null;
   const s = status.toLowerCase();
   if (s === "out") return "bg-red-500/10";
-  if (s === "doubtful") return "bg-orange-500/10";
-  if (s === "questionable" || s === "gtd") return "bg-amber-500/10";
+  if (s === "questionable" || s === "gtd" || s === "game time decision") return "bg-amber-500/10";
+  if (s === "probable") return "bg-emerald-500/10";
   return null;
 };
 
