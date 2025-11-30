@@ -84,8 +84,21 @@ interface BestOddsCardsProps {
 
 export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, onUnhideEdge, isHidden }: BestOddsCardsProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
 
   const allLeagues = getAllLeagues();
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = () => {
+      if (openBetDropdown) {
+        setOpenBetDropdown(null);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openBetDropdown]);
 
   // Sort deals by improvement % (descending) - respects comparison mode
   const sortedDeals = React.useMemo(() => {
@@ -448,17 +461,62 @@ export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, o
             {/* Action Buttons - Supportive Layout */}
             <div className="relative flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
               {/* Left: Add to Bet Slip (Outline Button) */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const primary = bestBooksWithPrice[0];
-                    if (!primary) return;
-                    openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
-                >
-                  Add to Bet Slip
-                </button>
+              <div className="relative flex items-center gap-2">
+                {bestBooksWithPrice.length === 1 ? (
+                  // Single best book - direct link
+                  <button
+                    onClick={() => {
+                      const primary = bestBooksWithPrice[0];
+                      if (!primary) return;
+                      openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
+                  >
+                    Add to Bet Slip
+                  </button>
+                ) : (
+                  // Multiple best books - show dropdown
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenBetDropdown(openBetDropdown === uniqueKey ? null : uniqueKey);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
+                    >
+                      Add to Bet Slip
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                    
+                    {openBetDropdown === uniqueKey && (
+                      <div className="absolute left-0 bottom-full mb-1 z-50 min-w-[180px] rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg py-1">
+                        {bestBooksWithPrice.map((book: { book: string; price: number; link: string; mobileLink?: string | null }) => {
+                          const bookLogo = logo(book.book);
+                          return (
+                            <button
+                              key={book.book}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openLink(book.link ?? null, book.mobileLink ?? null, book.book);
+                                setOpenBetDropdown(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors text-left"
+                            >
+                              {bookLogo && (
+                                <img src={bookLogo} alt={book.book} className="h-5 w-5 object-contain" />
+                              )}
+                              <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                {bookName(book.book)}
+                              </span>
+                              <ExternalLink className="h-3 w-3 ml-auto text-neutral-400" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
                 
                 {/* Hide/Unhide Button */}
                 {onHideEdge && onUnhideEdge && (
