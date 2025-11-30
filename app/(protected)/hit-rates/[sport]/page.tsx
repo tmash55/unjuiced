@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, use, useEffect, useCallback } from "react";
+import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
 import { notFound } from "next/navigation";
 import { HitRateTable } from "@/components/hit-rates/hit-rate-table";
 import { GamesSidebar } from "@/components/hit-rates/games-sidebar";
@@ -59,6 +59,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
   // Track the preferred market for drilldown - persists when switching players
   const [preferredMarket, setPreferredMarket] = useState<string | null>(null);
+  
+  // Scroll position restoration - save position when entering drilldown
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [savedScrollPosition, setSavedScrollPosition] = useState<number>(0);
 
   const toggleGame = useCallback((gameId: string) => {
     setSelectedGameIds((prev) =>
@@ -83,6 +87,17 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const handleBackToTable = useCallback(() => {
     setSelectedPlayer(null);
   }, []);
+
+  // Escape key to exit drilldown
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedPlayer) {
+        setSelectedPlayer(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedPlayer]);
 
   // Debounce search query for server-side search
   useEffect(() => {
@@ -137,6 +152,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Player drill-down handler for TABLE clicks - always use exact profile clicked
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
+    // Save scroll position before entering drilldown
+    if (tableScrollRef.current) {
+      setSavedScrollPosition(tableScrollRef.current.scrollTop);
+    }
     setSelectedPlayer(player);
     setPreferredMarket(player.market);
   }, []);
@@ -255,6 +274,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
               onMarketsChange={setSelectedMarkets}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              scrollRef={tableScrollRef}
+              initialScrollTop={savedScrollPosition}
             />
           )}
         </div>

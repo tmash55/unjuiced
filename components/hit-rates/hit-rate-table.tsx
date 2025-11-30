@@ -60,6 +60,9 @@ interface HitRateTableProps {
   onMarketsChange: (markets: string[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  // Scroll position restoration
+  scrollRef?: React.RefObject<HTMLDivElement>;
+  initialScrollTop?: number;
 }
 
 const formatPercentage = (value: number | null) => {
@@ -299,6 +302,8 @@ export function HitRateTable({
   onMarketsChange,
   searchQuery,
   onSearchChange,
+  scrollRef,
+  initialScrollTop,
 }: HitRateTableProps) {
   const [sortField, setSortField] = useState<SortField | null>("l10Pct");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -315,6 +320,16 @@ export function HitRateTable({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Restore scroll position when returning from drilldown
+  useEffect(() => {
+    if (scrollRef?.current && initialScrollTop !== undefined && initialScrollTop > 0) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ top: initialScrollTop, behavior: "instant" });
+      });
+    }
+  }, [initialScrollTop, scrollRef]);
 
   const toggleMarket = useCallback((value: string) => {
     onMarketsChange(
@@ -513,7 +528,7 @@ export function HitRateTable({
       {filterBar}
 
       {/* Table */}
-      <div className="overflow-auto flex-1">
+      <div ref={scrollRef} className="overflow-auto flex-1">
       <table className="min-w-full text-sm table-fixed">
           <colgroup><col style={{ width: 240 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
         <thead className="table-header-gradient sticky top-0 z-10">
