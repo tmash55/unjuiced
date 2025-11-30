@@ -237,18 +237,7 @@ export function GamesSidebar({
   // Get players for a specific game
   const getPlayersForGame = (gameId: string): HitRateProfile[] => {
     if (!gamePlayers) return [];
-    // Filter to players from this specific game
-    const filtered = gamePlayers.filter(p => p.gameId === gameId);
-    
-    // Debug: log when few players found
-    if (filtered.length < 50 && gamePlayers.length > 0) {
-      const uniqueGameIds = [...new Set(gamePlayers.map(p => p.gameId))];
-      console.log(`[Sidebar Debug] Looking for gameId: ${gameId}`);
-      console.log(`[Sidebar Debug] Found ${filtered.length} profiles from ${gamePlayers.length} total`);
-      console.log(`[Sidebar Debug] Available gameIds in data:`, uniqueGameIds.slice(0, 5));
-    }
-    
-    return filtered;
+    return gamePlayers.filter(p => p.gameId === gameId);
   };
 
   // Get unique players for a game

@@ -207,7 +207,6 @@ export async function GET(request: Request) {
       }
     }
     
-    console.log(`[Hit Rates API] Fetched ${allData.length} profiles in batches (total count: ${totalCount ?? 0}, requested: ${requestedLimit})`);
   } else {
     // Small request, single fetch
     builder = builder.range(startOffset, startOffset + requestedLimit - 1);
@@ -215,7 +214,6 @@ export async function GET(request: Request) {
     allData = data ?? [];
     totalCount = count;
     fetchError = error;
-    console.log(`[Hit Rates API] Fetched ${allData.length} profiles (total count: ${totalCount ?? 0}, limit: ${requestedLimit})`);
   }
   
   const data = allData;
@@ -264,11 +262,9 @@ export async function GET(request: Request) {
     p_opponent_team_ids: opponentIds,
   });
 
-  // Log matchup fetch results for debugging
+  // Log matchup errors (but not success to reduce noise)
   if (matchupError) {
     console.error("[Hit Rates API] Matchup RPC error:", matchupError.message);
-  } else {
-    console.log(`[Hit Rates API] Fetched ${matchups?.length ?? 0} matchup ranks`);
   }
 
   // Create O(1) lookup Map instead of O(n²) .find() loop

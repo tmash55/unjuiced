@@ -123,20 +123,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       }
     }
     
-    const result = [...marketMap.values()].sort((a, b) => {
+    return [...marketMap.values()].sort((a, b) => {
       const aIndex = MARKET_ORDER.indexOf(a.market);
       const bIndex = MARKET_ORDER.indexOf(b.market);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
     });
-    
-    // Debug: check for duplicates
-    const markets = result.map(r => r.market);
-    const uniqueMarkets = [...new Set(markets)];
-    if (markets.length !== uniqueMarkets.length) {
-      console.warn('[Drilldown] Duplicate markets after dedupe:', markets);
-    }
-    
-    return result;
   }, [allPlayerProfiles, initialProfile]);
 
   // Reset to initial market and custom line when player changes

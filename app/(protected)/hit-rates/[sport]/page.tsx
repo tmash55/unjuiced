@@ -30,11 +30,10 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings
-// Each player has ~12 markets, each game has ~30 players = ~360 profiles per game
-// With 15 games over 2 days = ~5,400 profiles total
-// Load enough to ensure we have complete data for sidebar player lists
-const INITIAL_PAGE_SIZE = 2000; // Load 2000 on initial page load
-const LOAD_MORE_SIZE = 1000; // Load 1000 more each time
+// Fast initial load, then expand when user interacts
+const INITIAL_PAGE_SIZE = 50; // Fast initial load
+const LOAD_MORE_SIZE = 100; // Standard pagination
+const FULL_DATA_SIZE = 15000; // Load all when in drilldown or filtering
 
 export default function HitRatesSportPage({ params }: { params: Promise<{ sport: string }> }) {
   const resolvedParams = use(params);
@@ -111,15 +110,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Check if markets are filtered (not all selected)
   const hasMarketFilter = selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length;
 
+  // Determine how much data to fetch
+  // - Drilldown mode: need all data for sidebar player lists
+  // - Searching: need all to search across everything
+  // - Game filter: need all players for that game
+  // - Market filter: need all to filter client-side
+  // - Otherwise: just paginate for fast initial load
+  const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasMarketFilter;
+  
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
-    // Don't pass date - API fetches today + tomorrow automatically
-    // Don't pass market - we filter client-side for instant response
-    // Load all data when in drilldown mode, searching, filtering by game, or filtering by market
-    // (market filtering is client-side, so we need all data to filter from)
-    // With 2 days × ~15 games × ~30 players × 12 markets = ~10,800 profiles
-    // BUT tomorrow's profiles have NULL hit rates and get pushed to the end
-    // So we need a higher limit to get them all
-    limit: isInDrilldown ? 15000 : (debouncedSearch || hasGameFilter || hasMarketFilter ? 12000 : pageSize),
+    limit: needsFullData ? FULL_DATA_SIZE : pageSize,
     search: debouncedSearch || undefined,
   });
   
