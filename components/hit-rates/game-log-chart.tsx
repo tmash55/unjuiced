@@ -656,11 +656,88 @@ export function GameLogChart({
     };
   }, [isDragging, dragLine, onLineChange, calculateLineFromY]);
 
-  // Early return for empty data - AFTER all hooks
-  if (!inputGames || inputGames.length === 0) {
+  // Empty state - keep the controls visible so users can adjust filters
+  const isEmptyData = !inputGames || inputGames.length === 0;
+  
+  if (isEmptyData) {
     return (
-      <div className={cn("flex items-center justify-center h-64 text-neutral-400", className)}>
-        No game log data available
+      <div className={cn("relative", className)}>
+        {/* Empty Chart Area with Message */}
+        <div className="flex items-center justify-center h-64 text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-700 rounded-lg bg-neutral-50/50 dark:bg-neutral-800/20">
+          <div className="text-center">
+            <p className="text-sm font-medium">No games match current filters</p>
+            <p className="text-xs mt-1 text-neutral-400">Try adjusting your filters below</p>
+          </div>
+        </div>
+        
+        {/* Quick Filters, Legend & Odds Row - Still visible for adjustment */}
+        <div className="mt-4 flex items-center justify-between">
+          {/* Quick Filters - Left */}
+          {onQuickFilterToggle ? (
+            <div className="flex items-center gap-1.5 flex-wrap flex-1">
+              {([
+                { key: "home" as QuickFilterKey, label: "Home" },
+                { key: "away" as QuickFilterKey, label: "Away" },
+                { key: "win" as QuickFilterKey, label: "Win" },
+                { key: "loss" as QuickFilterKey, label: "Loss" },
+                { key: "wonBy10" as QuickFilterKey, label: "Won 10+" },
+                { key: "lostBy10" as QuickFilterKey, label: "Lost 10+" },
+              ]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onQuickFilterToggle(key)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-all",
+                    quickFilters?.has(key)
+                      ? "bg-brand text-white border-brand shadow-sm"
+                      : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              {quickFilters && quickFilters.size > 0 && onQuickFiltersClear && (
+                <button
+                  type="button"
+                  onClick={onQuickFiltersClear}
+                  className="px-2 py-1 text-[10px] font-medium text-red-500 hover:text-red-600"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex-1" /> 
+          )}
+
+          {/* Legend - Center (simplified for empty state) */}
+          <div className="flex items-center justify-center gap-4 text-[10px] flex-1">
+            <span className="text-neutral-400">No data to display</span>
+          </div>
+
+          {/* Odds - Right (using MiniOddsButton like the main chart) */}
+          <div className="flex items-center justify-end gap-2 text-[10px] flex-1">
+            {(odds?.bestOver || odds?.bestUnder) && (
+              <>
+                {odds?.bestOver && (
+                  <MiniOddsButton
+                    type="over"
+                    best={odds.bestOver}
+                    allBooks={odds.allBooks?.over || []}
+                  />
+                )}
+                {odds?.bestUnder && (
+                  <MiniOddsButton
+                    type="under"
+                    best={odds.bestUnder}
+                    allBooks={odds.allBooks?.under || []}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -725,17 +802,17 @@ export function GameLogChart({
                           className="w-5 h-5 object-contain"
                         />
                       )}
-                      <span className="text-sm font-semibold text-white">
-                        {formatDate(game.date)} {game.homeAway === "H" ? "vs" : "@"} {game.opponentAbbr}
-                      </span>
+                  <span className="text-sm font-semibold text-white">
+                    {formatDate(game.date)} {game.homeAway === "H" ? "vs" : "@"} {game.opponentAbbr}
+                  </span>
                     </div>
                     {/* Result Pill */}
                     <div className={cn(
                       "px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wide",
-                      game.result === "W" 
+                    game.result === "W" 
                         ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30" 
                         : "bg-red-500/20 text-red-400 ring-1 ring-red-500/30"
-                    )}>
+                  )}>
                       {game.result === "W" ? `W +${Math.abs(game.margin)}` : `L ${game.margin}`}
                     </div>
                   </div>
@@ -743,15 +820,15 @@ export function GameLogChart({
 
                 {/* ═══ BODY ═══ */}
                 <div className="px-4 py-4">
-                  {/* Main Stat - Hero */}
-                  <div className="flex items-baseline gap-2 mb-4">
+                {/* Main Stat - Hero */}
+                <div className="flex items-baseline gap-2 mb-4">
                     <span className="text-4xl font-black text-white tracking-tight leading-none">{statValue}</span>
                     <span className="text-sm font-medium text-neutral-400 uppercase tracking-wide">{marketLabel}</span>
-                  </div>
+                </div>
 
-                  {/* Market-specific Stats Grid */}
+                {/* Market-specific Stats Grid */}
                   <div className="space-y-0">
-                    {getMarketStats(game, market)}
+                  {getMarketStats(game, market)}
                   </div>
                 </div>
 
@@ -761,7 +838,7 @@ export function GameLogChart({
                     {/* Title Row */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                        Teammates Out
+                      Teammates Out
                       </span>
                       {teammatesOut.length > 3 && (
                         <span className="text-[10px] font-medium text-amber-500">
@@ -804,17 +881,17 @@ export function GameLogChart({
                               {/* Name + Average */}
                               <div className="flex-1 flex items-center justify-between min-w-0">
                                 <span className="text-[11px] font-medium text-neutral-200 truncate">
-                                  {teammate.name}
-                                </span>
-                                {teammate.avg !== null && (
+                              {teammate.name}
+                            </span>
+                            {teammate.avg !== null && (
                                   <span className={cn(
                                     "text-[11px] font-semibold ml-2 tabular-nums",
                                     getAvgColor(teammate.avg)
                                   )}>
                                     {teammate.avg.toFixed(1)}
-                                  </span>
-                                )}
-                              </div>
+                              </span>
+                            )}
+                          </div>
                             </div>
                           );
                         })}
@@ -841,21 +918,21 @@ export function GameLogChart({
                       )}>
                         {statValue}
                       </span>
-                      <div
-                        className={cn(
+                  <div
+                    className={cn(
                           "w-full rounded-t transition-all duration-200 group-hover:opacity-90 relative flex flex-col-reverse overflow-hidden",
-                          isHit
+                      isHit
                             ? "bg-gradient-to-t from-emerald-600 to-emerald-500 dark:from-emerald-700 dark:to-emerald-600"
                             : "bg-gradient-to-t from-red-600 to-red-500 dark:from-red-700 dark:to-red-600"
-                        )}
-                        style={{ 
+                    )}
+                    style={{ 
                           width: barWidth,
-                          height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                          boxShadow: isHit 
-                            ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                            : undefined
-                        }}
-                      >
+                      height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
+                      boxShadow: isHit 
+                        ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
+                        : undefined
+                    }}
+                  >
                         {(() => {
                           const segments = getComboSegments(game, market);
                           // Filter out segments with 0 value
@@ -905,14 +982,14 @@ export function GameLogChart({
                     // Solid bar for single stat markets
                     <div className="flex flex-col items-center">
                       {/* Stat value above the bar */}
-                      {statValue > 0 && (
+                    {statValue > 0 && (
                         <span className={cn(
                           "text-xs font-bold mb-1",
                           isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
                         )}>
-                          {statValue}
-                        </span>
-                      )}
+                        {statValue}
+                      </span>
+                    )}
                       <div
                         className={cn(
                           "rounded-t transition-all duration-200 group-hover:opacity-90",
@@ -928,7 +1005,7 @@ export function GameLogChart({
                             : undefined
                         }}
                       />
-                    </div>
+                  </div>
                   )}
                   
                   {/* Value above bar for 0 */}
@@ -1058,17 +1135,17 @@ export function GameLogChart({
 
         {/* Legend - Center */}
         <div className="flex items-center justify-center gap-4 text-[10px] flex-1">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-500 to-emerald-400" />
-            <span className="text-neutral-500 dark:text-neutral-400">Over</span>
-          </div>
-          <div className="flex items-center gap-1.5">
+          <span className="text-neutral-500 dark:text-neutral-400">Over</span>
+        </div>
+        <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-red-500 to-red-400" />
-            <span className="text-neutral-500 dark:text-neutral-400">Under</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 border-t-2 border-dashed border-primary dark:border-primary-weak" />
-            <span className="text-neutral-500 dark:text-neutral-400">Line ({line})</span>
+          <span className="text-neutral-500 dark:text-neutral-400">Under</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 border-t-2 border-dashed border-primary dark:border-primary-weak" />
+          <span className="text-neutral-500 dark:text-neutral-400">Line ({line})</span>
           </div>
         </div>
 

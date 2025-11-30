@@ -297,7 +297,7 @@ function MobileNav({ domain }: { domain: string }) {
     { title: "Arbitrage", href: "/arbitrage" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Edge Finder", href: "/edge-finder" },
-    { title: "Ladder", href: "/ladders" },
+    { title: "Ladder", href: "/ladders" },    
     { title: "Hit Rates", href: "/hit-rates/nba" },
     { title: "NBA Stats", href: "/stats/nba" },
     { title: "Sportsbooks", href: "/sportsbooks" },

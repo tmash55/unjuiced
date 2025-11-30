@@ -178,10 +178,10 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
         )}
         <span>{formatOdds(bestBook.price)}</span>
         {booksForCurrentLine.length > 1 && (
-          <ChevronDown className={cn(
-            "h-3.5 w-3.5 opacity-50 transition-transform",
-            isOpen && "rotate-180"
-          )} />
+        <ChevronDown className={cn(
+          "h-3.5 w-3.5 opacity-50 transition-transform",
+          isOpen && "rotate-180"
+        )} />
         )}
       </button>
 

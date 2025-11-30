@@ -49,6 +49,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
   const player = profile.nba_players_hr;
   const game = profile.nba_games_hr;
   const team = profile.nba_teams;
+  const matchup = profile.matchup;
   return {
     id: profile.id,
     playerId: player?.nba_player_id ?? profile.player_id,
@@ -90,6 +91,11 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     nationalBroadcast: profile.national_broadcast ?? null,
     homeAway: profile.home_away ?? null,
     oddsSelectionId: profile.odds_selection_id ?? null,
+    // Matchup data
+    matchupRank: matchup?.matchup_rank ?? null,
+    matchupRankLabel: matchup?.rank_label ?? null,
+    matchupAvgAllowed: matchup?.avg_allowed ?? null,
+    matchupQuality: matchup?.matchup_quality ?? null,
   };
 }
 
@@ -108,18 +114,20 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
   const rows = queryResult.data?.rows ?? [];
   const count = queryResult.data?.count ?? 0;
   const meta = queryResult.data?.meta;
+  const availableDates = meta?.availableDates ?? [];
 
   return useMemo(
     () => ({
       rows,
       count,
       meta,
+      availableDates,
       isLoading: queryResult.isLoading,
       isFetching: queryResult.isFetching,
       error: queryResult.error as Error | null,
       refetch: queryResult.refetch,
     }),
-    [rows, count, meta, queryResult.isLoading, queryResult.isFetching, queryResult.error, queryResult.refetch]
+    [rows, count, meta, availableDates, queryResult.isLoading, queryResult.isFetching, queryResult.error, queryResult.refetch]
   );
 }
 

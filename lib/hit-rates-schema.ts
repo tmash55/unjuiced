@@ -1,3 +1,15 @@
+// Matchup rank data from get_matchup_ranks_batch RPC
+export interface MatchupRank {
+  player_id: number;
+  market: string;
+  opponent_team_id: number;
+  player_position: string | null;
+  matchup_rank: number | null;
+  rank_label: string | null;
+  avg_allowed: number | null;
+  matchup_quality: "favorable" | "neutral" | "unfavorable" | null;
+}
+
 export interface RawHitRateProfile {
   id: string;
   player_id: number;
@@ -31,6 +43,8 @@ export interface RawHitRateProfile {
   national_broadcast: string | null;
   home_away: string | null; // "H" or "A"
   odds_selection_id: string | null;
+  // Matchup data (merged from RPC)
+  matchup?: MatchupRank | null;
   nba_players_hr?: {
     nba_player_id: number;
     name: string;
@@ -91,6 +105,11 @@ export interface HitRateProfile {
   nationalBroadcast: string | null;
   homeAway: string | null; // "H" or "A"
   oddsSelectionId: string | null;
+  // Matchup data
+  matchupRank: number | null;
+  matchupRankLabel: string | null;
+  matchupAvgAllowed: number | null;
+  matchupQuality: "favorable" | "neutral" | "unfavorable" | null;
 }
 
 export interface HitRateResponse {
@@ -98,6 +117,7 @@ export interface HitRateResponse {
   count: number;
   meta: {
     date: string;
+    availableDates: string[]; // Dates with profiles (today, tomorrow, etc.)
     market: string | null;
     minHitRate: number | null;
     limit: number;

@@ -238,7 +238,17 @@ export function GamesSidebar({
   const getPlayersForGame = (gameId: string): HitRateProfile[] => {
     if (!gamePlayers) return [];
     // Filter to players from this specific game
-    return gamePlayers.filter(p => p.gameId === gameId);
+    const filtered = gamePlayers.filter(p => p.gameId === gameId);
+    
+    // Debug: log when few players found
+    if (filtered.length < 50 && gamePlayers.length > 0) {
+      const uniqueGameIds = [...new Set(gamePlayers.map(p => p.gameId))];
+      console.log(`[Sidebar Debug] Looking for gameId: ${gameId}`);
+      console.log(`[Sidebar Debug] Found ${filtered.length} profiles from ${gamePlayers.length} total`);
+      console.log(`[Sidebar Debug] Available gameIds in data:`, uniqueGameIds.slice(0, 5));
+    }
+    
+    return filtered;
   };
 
   // Get unique players for a game
@@ -414,7 +424,7 @@ export function GamesSidebar({
                           
                           {/* Card content with padding */}
                           <div className="px-3 py-3">
-                            <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between">
                             {/* Away Team */}
                             <div className="flex flex-col items-center w-16">
                               <img
@@ -483,19 +493,19 @@ export function GamesSidebar({
                             </div>
                           </div>
 
-                            {/* Expand indicator for drilldown mode */}
-                            {selectedPlayer && gamePlayers.length > 0 && (
-                              <div className="flex items-center justify-center mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50">
-                                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mr-1">
-                                  {gamePlayers.length} players
-                                </span>
-                                {isExpanded ? (
-                                  <ChevronUp className="h-3 w-3 text-neutral-400" />
-                                ) : (
-                                  <ChevronDown className="h-3 w-3 text-neutral-400" />
-                                )}
-                              </div>
-                            )}
+                          {/* Expand indicator for drilldown mode */}
+                          {selectedPlayer && gamePlayers.length > 0 && (
+                            <div className="flex items-center justify-center mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50">
+                              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mr-1">
+                                {gamePlayers.length} players
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp className="h-3 w-3 text-neutral-400" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3 text-neutral-400" />
+                              )}
+                            </div>
+                          )}
                           </div>
                         </button>
 

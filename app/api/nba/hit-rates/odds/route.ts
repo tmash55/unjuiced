@@ -61,7 +61,7 @@ interface LineOddsResponse {
   bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
   bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
   allLines: Array<{
-    line: number;
+  line: number;
     bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
     bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
     books: Record<string, { 
@@ -104,10 +104,10 @@ export async function POST(req: NextRequest) {
 
     // Deduplicate keys
     const uniqueKeys = [...new Set(validRequests.map((r) => r.stableKey.trim()))];
-
+    
     // Single batch fetch from Redis hash
     const rawResultsRaw = await redis.hmget(REDIS_KEY, ...uniqueKeys);
-    
+      
     // Normalize results to array (Redis can return Record<string, unknown> or array)
     const rawResults: (string | null)[] = Array.isArray(rawResultsRaw) 
       ? (rawResultsRaw as (string | null)[])
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < uniqueKeys.length; i++) {
       const stableKey = uniqueKeys[i];
-      const raw = rawResults[i];
+        const raw = rawResults[i];
 
       if (!raw) {
         // No data found for this key
@@ -189,8 +189,8 @@ export async function POST(req: NextRequest) {
               price: matchingLine.best.under.price,
               ...urls,
             };
-          }
         }
+      }
       } else if (data.best) {
         // Fall back to primary line best (no URLs available at top level)
         if (data.best.o) {

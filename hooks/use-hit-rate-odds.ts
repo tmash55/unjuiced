@@ -23,7 +23,7 @@ export interface LineOdds {
   bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
   bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
   allLines: Array<{
-    line: number;
+  line: number;
     bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
     bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
     books: Record<string, { over?: BookOddsData; under?: BookOddsData }>;

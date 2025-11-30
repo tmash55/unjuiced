@@ -13,6 +13,8 @@ import { GameLogChart } from "./game-log-chart";
 import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
+import { InjuryReport, InjuryFilter } from "./injury-report";
+import { PlayerImpactFilters, ImpactFilter } from "./player-impact-filters";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { Tooltip } from "@/components/tooltip";
 
@@ -90,6 +92,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const [isEditingLine, setIsEditingLine] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [chartFilters, setChartFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
+  const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
+  const [impactFilters, setImpactFilters] = useState<ImpactFilter[]>([]);
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
@@ -101,14 +105,40 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   }, [allPlayerProfiles, selectedMarket, initialProfile]);
 
   // Sort available markets by the predefined order
+  // Deduplicate by market (player might have profiles for today AND tomorrow)
   const sortedMarkets = useMemo(() => {
     if (allPlayerProfiles.length === 0) return [initialProfile];
     
-    return [...allPlayerProfiles].sort((a, b) => {
+    // Dedupe: prefer profile with a line, then prefer today's game
+    const marketMap = new Map<string, HitRateProfile>();
+    for (const p of allPlayerProfiles) {
+      const existing = marketMap.get(p.market);
+      if (!existing) {
+        marketMap.set(p.market, p);
+      } else {
+        // Prefer profile with a line over one without
+        const existingHasLine = existing.line !== null;
+        const currentHasLine = p.line !== null;
+        if (!existingHasLine && currentHasLine) {
+          marketMap.set(p.market, p);
+        }
+      }
+    }
+    
+    const result = [...marketMap.values()].sort((a, b) => {
       const aIndex = MARKET_ORDER.indexOf(a.market);
       const bIndex = MARKET_ORDER.indexOf(b.market);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
     });
+    
+    // Debug: check for duplicates
+    const markets = result.map(r => r.market);
+    const uniqueMarkets = [...new Set(markets)];
+    if (markets.length !== uniqueMarkets.length) {
+      console.warn('[Drilldown] Duplicate markets after dedupe:', markets);
+    }
+    
+    return result;
   }, [allPlayerProfiles, initialProfile]);
 
   // Reset to initial market and custom line when player changes
@@ -116,6 +146,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     setSelectedMarketInternal(initialProfile.market);
     setCustomLine(null);
     setChartFilters(DEFAULT_FILTERS);
+    setInjuryFilters([]);
+    setImpactFilters([]);
     setQuickFilters(new Set());
   }, [initialProfile.playerId]);
 
@@ -332,13 +364,25 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   }, [boxScoreGames, gameCount, allPlayerProfiles]);
 
   // Calculate chart stats (for filtered games)
+  // Always calculate average even if no line, but only calculate hit rate if line exists
   const chartStats = useMemo(() => {
-    if (filteredGames.length === 0 || activeLine === null) {
+    if (filteredGames.length === 0) {
       return { avg: null, hitRate: null, hits: 0, total: 0 };
     }
     
     const stats = filteredGames.map(g => getMarketStat(g, profile.market));
     const avg = stats.reduce((a, b) => a + b, 0) / stats.length;
+    
+    // Only calculate hit rate if we have a line
+    if (activeLine === null) {
+      return {
+        avg: Math.round(avg * 10) / 10,
+        hitRate: null,
+        hits: 0,
+        total: stats.length,
+      };
+    }
+    
     // >= so that hitting exactly the line counts as a hit (e.g., 1 block when line is 1)
     const hits = stats.filter(s => s >= activeLine).length;
     const hitRate = (hits / stats.length) * 100;
@@ -356,7 +400,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY PLAYER HEADER - Unified Two-Section Card
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-20 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-sm">
+      <div className="sticky top-0 z-40 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-sm">
         <div 
           className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm"
           style={{ 
@@ -371,38 +415,38 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 ════════════════════════════════════════════════════════════════ */}
             <div className="flex-1 flex items-center gap-5 p-4 bg-white/50 dark:bg-neutral-900/50">
               {/* Back Button */}
-              <button
-                type="button"
-                onClick={onBack}
+          <button
+            type="button"
+            onClick={onBack}
                 className="p-2 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
 
-              {/* Player Headshot */}
-              <div 
+          {/* Player Headshot */}
+          <div 
                 className="h-[72px] w-[72px] rounded-xl overflow-hidden shadow-lg shrink-0 ring-2 ring-white dark:ring-neutral-800"
-                style={{ 
-                  background: profile.primaryColor && profile.secondaryColor 
-                    ? `linear-gradient(180deg, ${profile.primaryColor} 0%, ${profile.secondaryColor} 100%)`
-                    : profile.primaryColor || '#374151'
-                }}
-              >
-                <PlayerHeadshot
-                  nbaPlayerId={profile.playerId}
-                  name={profile.playerName}
-                  size="small"
-                  className="h-full w-full object-cover"
-                />
-              </div>
+            style={{ 
+              background: profile.primaryColor && profile.secondaryColor 
+                ? `linear-gradient(180deg, ${profile.primaryColor} 0%, ${profile.secondaryColor} 100%)`
+                : profile.primaryColor || '#374151'
+            }}
+          >
+            <PlayerHeadshot
+              nbaPlayerId={profile.playerId}
+              name={profile.playerName}
+              size="small"
+              className="h-full w-full object-cover"
+            />
+          </div>
 
               {/* Player Info Stack */}
               <div className="flex flex-col gap-1">
                 {/* Name + Injury Icon */}
-                <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
                   <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
-                    {profile.playerName}
-                  </h1>
+                {profile.playerName}
+              </h1>
                   {profile.injuryStatus && 
                    profile.injuryStatus.toLowerCase() !== "available" && 
                    profile.injuryStatus.toLowerCase() !== "active" && (
@@ -456,8 +500,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       />
                       <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                         {profile.teamAbbr}
-                      </span>
-                    </div>
+              </span>
+            </div>
                   )}
                 </div>
                 
@@ -475,13 +519,13 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                     <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
                       {profile.homeAway === "H" ? "vs" : "@"}
                     </span>
-                    {profile.opponentTeamAbbr && (
-                      <img
-                        src={`/team-logos/nba/${profile.opponentTeamAbbr.toUpperCase()}.svg`}
-                        alt={profile.opponentTeamAbbr}
-                        className="h-4 w-4 object-contain"
-                      />
-                    )}
+              {profile.opponentTeamAbbr && (
+                <img
+                  src={`/team-logos/nba/${profile.opponentTeamAbbr.toUpperCase()}.svg`}
+                  alt={profile.opponentTeamAbbr}
+                  className="h-4 w-4 object-contain"
+                />
+              )}
                     <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
                       {profile.opponentTeamAbbr}
                     </span>
@@ -490,9 +534,9 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   <span className="text-xs text-neutral-500 dark:text-neutral-500">
                     {profile.gameStatus}
                   </span>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
 
             {/* ════════════════════════════════════════════════════════════════
                 RIGHT SECTION - Stat Cluster
@@ -500,7 +544,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             <div className="flex items-center gap-4 p-4 border-l border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/80">
               {/* Hit Rates Grid - Clickable to change chart view */}
               <div className="grid grid-cols-2 gap-1.5">
-                {[
+            {[
                   { label: "L5", value: profile.last5Pct, count: 5 as const },
                   { label: "L10", value: profile.last10Pct, count: 10 as const },
                   { label: "L20", value: profile.last20Pct, count: 20 as const },
@@ -510,7 +554,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   return (
                     <button
                       type="button"
-                      key={stat.label}
+                key={stat.label}
                       onClick={() => setGameCount(stat.count)}
                       className={cn(
                         "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all",
@@ -519,16 +563,16 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                           ? "bg-brand/10 dark:bg-brand/20 border-brand ring-1 ring-brand/30" 
                           : "bg-white dark:bg-neutral-800 border-neutral-100 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
                       )}
-                    >
+              >
                       <span className={cn(
                         "text-[10px] font-semibold uppercase w-6",
                         isSelected ? "text-brand" : "text-neutral-400"
                       )}>
-                        {stat.label}
-                      </span>
+                  {stat.label}
+                </span>
                       <span className={cn("text-sm font-bold tabular-nums", getPctColor(stat.value))}>
-                        {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
-                      </span>
+                  {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
+                </span>
                     </button>
                   );
                 })}
@@ -543,18 +587,18 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       <div className="text-xs text-neutral-400 mt-0.5">
                         Or drag the chart line to adjust
                       </div>
-                    </div>
+          </div>
                   } 
                   side="left"
                 >
-                  <div 
+          <div 
                     className={cn(
                       "flex flex-col items-center justify-center px-5 py-3 rounded-xl shadow-md min-w-[100px] transition-all cursor-pointer",
                       customLine !== null 
                         ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900" 
                         : "hover:ring-2 hover:ring-white/30 hover:ring-offset-2 hover:ring-offset-white dark:hover:ring-offset-neutral-900"
                     )}
-                    style={{ 
+            style={{ 
                       background: `linear-gradient(135deg, ${profile.primaryColor || '#6366f1'} 0%, ${profile.secondaryColor || profile.primaryColor || '#4f46e5'} 100%)`,
                     }}
                     onClick={() => {
@@ -606,11 +650,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                           <Pencil className="h-3 w-3 text-white/50" />
                           <span className="text-2xl font-black text-white tracking-tight leading-none">
                             {activeLine}+
-                          </span>
+            </span>
                         </div>
                         <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider mt-1">
-                          {formatMarketLabel(profile.market)}
-                        </span>
+              {formatMarketLabel(profile.market)}
+            </span>
                       </>
                     )}
                   </div>
@@ -640,7 +684,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       {sortedMarkets.length > 1 && (
         <div className="mb-4 -mx-3 px-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
-            {sortedMarkets.map((marketProfile) => {
+            {sortedMarkets.map((marketProfile, idx) => {
               const isActive = marketProfile.market === selectedMarket;
               // Use dynamic hit rate based on game count filter, fallback to stored value if loading
               const dynamicHitRate = marketHitRates.get(marketProfile.market);
@@ -648,7 +692,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
               
               return (
                 <button
-                  key={marketProfile.market}
+                  key={`${marketProfile.market}-${idx}`}
                   type="button"
                   onClick={() => setSelectedMarket(marketProfile.market)}
                   className={cn(
@@ -782,8 +826,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             <div className="flex items-center gap-1.5 text-sm">
               <span className="text-neutral-400 dark:text-neutral-500">Szn Avg:</span>
               <span className="font-bold text-neutral-600 dark:text-neutral-300">
-                {profile.seasonAvg?.toFixed(1) ?? "—"}
-              </span>
+              {profile.seasonAvg?.toFixed(1) ?? "—"}
+            </span>
             </div>
           </div>
         </div>
@@ -818,8 +862,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             games={gameCount === "season" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
             filters={chartFilters}
             onFiltersChange={setChartFilters}
-            market={profile.market}
-          />
+          market={profile.market}
+        />
         </div>
       )}
 
@@ -837,7 +881,32 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          TEAM ROSTERS & INJURIES (Depth Chart)
+          PLAYER IMPACT FILTERS (Historical Injury Context)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6">
+        <PlayerImpactFilters
+          playerId={profile.playerId}
+          teamId={profile.teamId}
+          filters={impactFilters}
+          onFiltersChange={setImpactFilters}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          INJURY REPORT (Current Game Injuries)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6">
+        <InjuryReport
+          playerTeamId={profile.teamId}
+          opponentTeamId={profile.opponentTeamId}
+          currentPlayerId={profile.playerId}
+          filters={injuryFilters}
+          onFiltersChange={setInjuryFilters}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          TEAM ROSTERS (Depth Chart)
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
         <TeamRoster

@@ -93,6 +93,28 @@ const formatDate = (value: string | null) => {
   });
 };
 
+// Check if a game date is tomorrow (in ET timezone)
+const isTomorrow = (gameDate: string | null): boolean => {
+  if (!gameDate) return false;
+  
+  // Get today's date in ET
+  const now = new Date();
+  const etFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayET = etFormatter.format(now);
+  
+  // Get tomorrow's date in ET
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowET = etFormatter.format(tomorrow);
+  
+  return gameDate === tomorrowET;
+};
+
 // Convert ET time string (e.g., "7:00 pm ET") to user's local timezone
 const formatGameTime = (gameStatus: string | null, gameDate: string | null) => {
   if (!gameStatus) return "TBD";
@@ -178,6 +200,62 @@ const getInjuryIconColorClass = (status: string | null): string => {
 const hasInjuryStatus = (status: string | null): boolean => {
   if (!status) return false;
   return status !== "active" && status !== "available";
+};
+
+// Get matchup tier based on rank (5-tier system)
+type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst" | null;
+
+const getMatchupTier = (rank: number | null): MatchupTier => {
+  if (rank === null) return null;
+  if (rank <= 5) return "elite";      // 1-5: Elite matchup (SMASH)
+  if (rank <= 10) return "strong";    // 6-10: Strong matchup
+  if (rank <= 20) return "neutral";   // 11-20: Neutral matchup
+  if (rank <= 25) return "bad";       // 21-25: Bad matchup
+  return "worst";                      // 26-30: Worst matchup (FADE)
+};
+
+// Get matchup background classes (5-tier system) - More vivid for top/bottom 5
+const getMatchupBgClass = (rank: number | null): string => {
+  const tier = getMatchupTier(rank);
+  if (!tier) return "";
+  switch (tier) {
+    case "elite":
+      // Bold green - stands out significantly
+      return "bg-emerald-200 dark:bg-emerald-700/40 ring-1 ring-emerald-400/50 dark:ring-emerald-500/30";
+    case "strong":
+      return "bg-emerald-50 dark:bg-emerald-900/20";
+    case "neutral":
+      return "bg-neutral-100/40 dark:bg-neutral-700/20";
+    case "bad":
+      return "bg-red-50 dark:bg-red-900/20";
+    case "worst":
+      // Bold red - stands out significantly
+      return "bg-red-200 dark:bg-red-700/40 ring-1 ring-red-400/50 dark:ring-red-500/30";
+    default:
+      return "";
+  }
+};
+
+// Get matchup rank text color (5-tier system)
+const getMatchupRankColor = (rank: number | null): string => {
+  const tier = getMatchupTier(rank);
+  if (!tier) return "text-neutral-500 dark:text-neutral-400";
+  switch (tier) {
+    case "elite":
+      // Bold green text
+      return "text-emerald-800 dark:text-emerald-200 font-bold";
+    case "strong":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "neutral":
+      return "text-neutral-500 dark:text-neutral-400";
+    case "bad":
+      return "text-red-500 dark:text-red-400";
+    case "worst":
+      // Bold red text
+      return "text-red-800 dark:text-red-200 font-bold";
+    default:
+      return "text-neutral-500 dark:text-neutral-400";
+  }
 };
 
 // Column definitions for sortable headers
@@ -287,7 +365,7 @@ export function HitRateTable({
   // Progressive odds loading - first 50 rows load immediately, rest in background
   const { getOdds, isLoading: oddsLoading, loadedCount, totalCount: oddsTotalCount } = useHitRateOdds({
     rows: rows.map((r) => ({ 
-      oddsSelectionId: r.oddsSelectionId,
+      oddsSelectionId: r.oddsSelectionId, 
       line: r.line 
     })),
     enabled: rows.length > 0,
@@ -384,9 +462,9 @@ export function HitRateTable({
       <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
         {filterBar}
         <div className="flex items-center justify-center py-12 flex-1">
-          <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4" />
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading hit rates...</p>
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4" />
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading hit rates...</p>
           </div>
         </div>
       </div>
@@ -399,9 +477,9 @@ export function HitRateTable({
       <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
         {filterBar}
         <div className="flex items-center justify-center py-12 flex-1">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-            <p className="font-semibold">Unable to load hit rates</p>
-            <p className="text-sm mt-1 opacity-80">{error}</p>
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+        <p className="font-semibold">Unable to load hit rates</p>
+        <p className="text-sm mt-1 opacity-80">{error}</p>
           </div>
         </div>
       </div>
@@ -414,16 +492,16 @@ export function HitRateTable({
       <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
         {filterBar}
         <div className="flex items-center justify-center py-12 flex-1">
-          <div className="text-center">
-            <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
+        <div className="text-center">
+          <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
             <p className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
               {selectedMarkets.length === 0 ? "No markets selected" : "No hit rates available"}
             </p>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
               {selectedMarkets.length === 0 
                 ? "Select one or more markets from the dropdown above."
                 : "Check back closer to tip-off or adjust your filters."}
-            </p>
+          </p>
           </div>
         </div>
       </div>
@@ -436,7 +514,7 @@ export function HitRateTable({
 
       {/* Table */}
       <div className="overflow-auto flex-1">
-        <table className="min-w-full text-sm table-fixed">
+      <table className="min-w-full text-sm table-fixed">
           <colgroup><col style={{ width: 240 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
         <thead className="table-header-gradient sticky top-0 z-10">
           <tr>
@@ -505,8 +583,8 @@ export function HitRateTable({
               <Tooltip content="Hit Streak - Consecutive games hitting this line" side="top">
                 <div className="flex items-center justify-center gap-0.5">
                   <span>Str</span>
-                  <SortIcon field="streak" />
-                </div>
+                <SortIcon field="streak" />
+              </div>
               </Tooltip>
             </th>
             
@@ -576,10 +654,12 @@ export function HitRateTable({
             const opponent = row.opponentTeamAbbr ?? row.opponentTeamName ?? "Opponent";
             const matchup = row.teamAbbr ? `${row.teamAbbr} vs ${opponent}` : opponent;
             const isHighConfidence = (row.last10Pct ?? 0) >= 70;
+            // Use composite key: id + gameId + market to handle players with multiple games
+            const rowKey = `${row.id}-${row.gameId ?? idx}-${row.market}`;
 
             return (
               <tr
-                key={row.id}
+                key={rowKey}
                 onClick={() => onRowClick?.(row)}
                 className={cn(
                   "border-b border-neutral-100 dark:border-neutral-800 transition-all duration-150 group cursor-pointer",
@@ -666,20 +746,40 @@ export function HitRateTable({
                 </td>
 
                 {/* Matchup Column */}
-                <td className="px-3 py-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    {/* vs / @ */}
-                    <span className="text-xs text-neutral-400 font-medium">
-                      {row.homeAway === "H" ? "vs" : "@"}
-                    </span>
+                <td className={cn(
+                  "px-3 py-3 text-center rounded-lg",
+                  getMatchupBgClass(row.matchupRank)
+                )}>
+                  <div className="flex flex-col items-center gap-1.5">
+                    {/* Tomorrow label */}
+                    {isTomorrow(row.gameDate) && (
+                      <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                        Tomorrow
+                      </span>
+                    )}
                     
-                    {/* Opponent Logo */}
-                    {row.opponentTeamAbbr && (
-                      <img
-                        src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
-                        alt={row.opponentTeamAbbr}
-                        className="h-7 w-7 object-contain"
-                      />
+                    {/* Opponent with vs/@ */}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="text-xs text-neutral-400 font-medium">
+                        {row.homeAway === "H" ? "vs" : "@"}
+                      </span>
+                      {row.opponentTeamAbbr && (
+                        <img
+                          src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
+                          alt={row.opponentTeamAbbr}
+                          className="h-6 w-6 object-contain"
+                        />
+                      )}
+                    </div>
+                    
+                    {/* Matchup Rank */}
+                    {row.matchupRankLabel && (
+                      <span className={cn(
+                        "text-[10px] font-semibold mt-0.5",
+                        getMatchupRankColor(row.matchupRank)
+                      )}>
+                        {row.matchupRankLabel}
+                      </span>
                     )}
                   </div>
                 </td>

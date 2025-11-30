@@ -30,8 +30,11 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings
-const INITIAL_PAGE_SIZE = 50; // Load 50 on initial page load (fast)
-const LOAD_MORE_SIZE = 100; // Load 100 more each time
+// Each player has ~12 markets, each game has ~30 players = ~360 profiles per game
+// With 15 games over 2 days = ~5,400 profiles total
+// Load enough to ensure we have complete data for sidebar player lists
+const INITIAL_PAGE_SIZE = 2000; // Load 2000 on initial page load
+const LOAD_MORE_SIZE = 1000; // Load 1000 more each time
 
 export default function HitRatesSportPage({ params }: { params: Promise<{ sport: string }> }) {
   const resolvedParams = use(params);
@@ -107,13 +110,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Check if markets are filtered (not all selected)
   const hasMarketFilter = selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length;
-  
+
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
-    // Don't pass date - let API auto-detect (today, or next day with profiles)
+    // Don't pass date - API fetches today + tomorrow automatically
     // Don't pass market - we filter client-side for instant response
     // Load all data when in drilldown mode, searching, filtering by game, or filtering by market
     // (market filtering is client-side, so we need all data to filter from)
-    limit: isInDrilldown || debouncedSearch || hasGameFilter || hasMarketFilter ? 2000 : pageSize,
+    // With 2 days × ~15 games × ~30 players × 12 markets = ~10,800 profiles
+    // BUT tomorrow's profiles have NULL hit rates and get pushed to the end
+    // So we need a higher limit to get them all
+    limit: isInDrilldown ? 15000 : (debouncedSearch || hasGameFilter || hasMarketFilter ? 12000 : pageSize),
     search: debouncedSearch || undefined,
   });
   
@@ -230,9 +236,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         <div className="w-[80%] min-w-0 h-full">
           {selectedPlayer ? (
             <PlayerDrilldown 
-              profile={selectedPlayer}
+              profile={selectedPlayer} 
               allPlayerProfiles={selectedPlayerAllProfiles}
-              onBack={handleBackToTable}
+              onBack={handleBackToTable} 
               onMarketChange={setPreferredMarket}
             />
           ) : (
