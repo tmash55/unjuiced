@@ -14,7 +14,6 @@ import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
 import { InjuryReport, InjuryFilter } from "./injury-report";
-import { PlayerImpactFilters, ImpactFilter } from "./player-impact-filters";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { Tooltip } from "@/components/tooltip";
 
@@ -93,7 +92,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const [editValue, setEditValue] = useState("");
   const [chartFilters, setChartFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
-  const [impactFilters, setImpactFilters] = useState<ImpactFilter[]>([]);
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
@@ -147,7 +145,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     setCustomLine(null);
     setChartFilters(DEFAULT_FILTERS);
     setInjuryFilters([]);
-    setImpactFilters([]);
     setQuickFilters(new Set());
   }, [initialProfile.playerId]);
 
@@ -276,7 +273,24 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     });
   };
 
-  // Filter games based on quick filters, chart filters, THEN limit by game count
+  // Build a map of gameId -> teammates out (player IDs who were out for that game)
+  const teammatesOutByGame = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
+    
+    if (!gameLogs) return map;
+    
+    for (const log of gameLogs) {
+      if (log.game_id && log.teammates_out) {
+        const normalizedId = log.game_id.replace(/^0+/, ""); // Remove leading zeros
+        const playerIds = new Set(log.teammates_out.map(t => t.player_id));
+        map.set(normalizedId, playerIds);
+      }
+    }
+    return map;
+  }, [profile.gameLogs]);
+
+  // Filter games based on quick filters, chart filters, injury filters, THEN limit by game count
   // This way "L5 + Win" shows the last 5 wins, not wins from the last 5 games
   const filteredGames = useMemo(() => {
     if (boxScoreGames.length === 0) return [];
@@ -309,13 +323,35 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     // Then apply chart filters
     games = applyChartFilters(games, chartFilters);
     
+    // Apply injury filters (with/without specific players)
+    if (injuryFilters.length > 0) {
+      games = games.filter(game => {
+        const gameIdStr = game.gameId ? String(game.gameId) : "";
+        const normalizedGameId = gameIdStr.replace(/^0+/, "");
+        const playersOutThisGame = teammatesOutByGame.get(normalizedGameId) || new Set<number>();
+        
+        for (const filter of injuryFilters) {
+          const wasPlayerOut = playersOutThisGame.has(filter.playerId);
+          
+          if (filter.mode === "with") {
+            // "With" = player was playing (NOT out) 
+            if (wasPlayerOut) return false;
+          } else if (filter.mode === "without") {
+            // "Without" = player was out
+            if (!wasPlayerOut) return false;
+          }
+        }
+        return true;
+      });
+    }
+    
     // Finally, limit by game count
     if (gameCount !== "season") {
       games = games.slice(0, gameCount);
     }
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, chartFilters]);
+  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame]);
 
   // Get stat value from a game based on market
   const getMarketStat = (game: typeof boxScoreGames[0], market: string): number => {
@@ -877,18 +913,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamAbbr={profile.opponentTeamAbbr}
           market={profile.market}
           currentLine={profile.line}
-        />
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          PLAYER IMPACT FILTERS (Historical Injury Context)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
-        <PlayerImpactFilters
-          playerId={profile.playerId}
-          teamId={profile.teamId}
-          filters={impactFilters}
-          onFiltersChange={setImpactFilters}
         />
       </div>
 

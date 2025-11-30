@@ -654,8 +654,9 @@ export function HitRateTable({
             const opponent = row.opponentTeamAbbr ?? row.opponentTeamName ?? "Opponent";
             const matchup = row.teamAbbr ? `${row.teamAbbr} vs ${opponent}` : opponent;
             const isHighConfidence = (row.last10Pct ?? 0) >= 70;
-            // Use composite key: id + gameId + market to handle players with multiple games
-            const rowKey = `${row.id}-${row.gameId ?? idx}-${row.market}`;
+            // Use composite key with index to guarantee uniqueness
+            // (same player can have duplicate profiles for same game in data)
+            const rowKey = `${row.id}-${row.gameId ?? "no-game"}-${row.market}-${idx}`;
 
             return (
               <tr
