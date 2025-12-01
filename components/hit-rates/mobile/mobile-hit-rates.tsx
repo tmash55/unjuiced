@@ -1,0 +1,280 @@
+"use client";
+
+import React, { useState, useMemo, useCallback } from "react";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { MobileHeader } from "./mobile-header";
+import { PlayerCard } from "./player-card";
+import { HitRateProfile } from "@/lib/hit-rates-schema";
+import type { NbaGame } from "@/hooks/use-nba-games";
+import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
+
+const MARKET_OPTIONS = [
+  { value: "player_points", label: "Points" },
+  { value: "player_rebounds", label: "Rebounds" },
+  { value: "player_assists", label: "Assists" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_points_rebounds", label: "P+R" },
+  { value: "player_points_assists", label: "P+A" },
+  { value: "player_rebounds_assists", label: "R+A" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_steals", label: "Steals" },
+  { value: "player_blocks", label: "Blocks" },
+  { value: "player_blocks_steals", label: "Blk+Stl" },
+  { value: "player_turnovers", label: "TO" },
+];
+
+const SORT_OPTIONS: Array<{ value: string; label: string; field: string; dir: "asc" | "desc" }> = [
+  { value: "l10Pct_desc", label: "L10 % (Best)", field: "l10Pct", dir: "desc" },
+  { value: "l10Pct_asc", label: "L10 % (Worst)", field: "l10Pct", dir: "asc" },
+  { value: "l5Pct_desc", label: "L5 % (Best)", field: "l5Pct", dir: "desc" },
+  { value: "l5Pct_asc", label: "L5 % (Worst)", field: "l5Pct", dir: "asc" },
+  { value: "l20Pct_desc", label: "L20 % (Best)", field: "l20Pct", dir: "desc" },
+  { value: "l20Pct_asc", label: "L20 % (Worst)", field: "l20Pct", dir: "asc" },
+  { value: "seasonPct_desc", label: "Season % (Best)", field: "seasonPct", dir: "desc" },
+  { value: "seasonPct_asc", label: "Season % (Worst)", field: "seasonPct", dir: "asc" },
+  { value: "line_desc", label: "Line (High → Low)", field: "line", dir: "desc" },
+  { value: "line_asc", label: "Line (Low → High)", field: "line", dir: "asc" },
+  { value: "name_asc", label: "Player Name (A → Z)", field: "name", dir: "asc" },
+  { value: "name_desc", label: "Player Name (Z → A)", field: "name", dir: "desc" },
+];
+
+interface MobileHitRatesProps {
+  rows: HitRateProfile[];
+  games: NbaGame[];
+  loading: boolean;
+  error?: string | null;
+  onPlayerClick: (player: HitRateProfile) => void;
+}
+
+export function MobileHitRates({
+  rows,
+  games,
+  loading,
+  error,
+  onPlayerClick,
+}: MobileHitRatesProps) {
+  // Filter state
+  const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(
+    MARKET_OPTIONS.map(m => m.value)
+  );
+  const [sortField, setSortField] = useState("l10Pct_desc");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+
+  // Transform games for header with team tricodes for logos and date
+  const gameOptions = useMemo(() => 
+    games.map(g => ({
+      id: g.game_id,
+      label: `${g.away_team_tricode} @ ${g.home_team_tricode}`,
+      time: g.game_status ?? "TBD",
+      awayTeam: g.away_team_tricode,
+      homeTeam: g.home_team_tricode,
+      date: g.game_date, // YYYY-MM-DD format
+    })),
+    [games]
+  );
+
+  // Filter and sort rows
+  const filteredRows = useMemo(() => {
+    let result = rows;
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        r.playerName.toLowerCase().includes(query) ||
+        r.teamAbbr?.toLowerCase().includes(query)
+      );
+    }
+    
+    // Market filter
+    if (selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length) {
+      result = result.filter(r => selectedMarkets.includes(r.market));
+    }
+    
+    // Game filter
+    if (selectedGameIds.length > 0) {
+      const normalizeId = (id: string | number | null) => 
+        String(id ?? "").replace(/^0+/, "") || "0";
+      const normalizedIds = selectedGameIds.map(normalizeId);
+      result = result.filter(r => normalizedIds.includes(normalizeId(r.gameId)));
+    }
+    
+    // Sort - parse field and direction from sortField (e.g., "l10Pct_desc")
+    const sortOption = SORT_OPTIONS.find(o => o.value === sortField);
+    const field = sortOption?.field ?? "l10Pct";
+    const dir = sortOption?.dir ?? "desc";
+    
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      
+      if (field === "name") {
+        // Sort by player name alphabetically
+        const nameA = a.playerName?.toLowerCase() ?? "";
+        const nameB = b.playerName?.toLowerCase() ?? "";
+        comparison = nameA.localeCompare(nameB);
+      } else {
+        // Sort by numeric value
+        const getValue = (row: HitRateProfile) => {
+          switch (field) {
+            case "l5Pct": return row.last5Pct ?? -1;
+            case "l10Pct": return row.last10Pct ?? -1;
+            case "l20Pct": return row.last20Pct ?? -1;
+            case "seasonPct": return row.seasonPct ?? -1;
+            case "line": return row.line ?? -1;
+            default: return row.last10Pct ?? -1;
+          }
+        };
+        comparison = getValue(a) - getValue(b);
+      }
+      
+      // Apply direction
+      return dir === "desc" ? -comparison : comparison;
+    });
+    
+    return result;
+  }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField]);
+
+  // Paginated rows
+  const visibleRows = useMemo(() => 
+    filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount]
+  );
+
+  const hasMore = filteredRows.length > visibleCount;
+
+  // Fetch odds for visible rows
+  const { getOdds } = useHitRateOdds({
+    rows: visibleRows.map((r) => ({ 
+      oddsSelectionId: r.oddsSelectionId, 
+      line: r.line 
+    })),
+    enabled: visibleRows.length > 0,
+  });
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount(prev => prev + 20);
+  }, []);
+
+  // Loading state
+  if (loading && rows.length === 0) {
+    return (
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          <span className="text-sm text-neutral-500">Loading hit rates...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-red-500 font-medium">Error loading data</p>
+          <p className="text-sm text-neutral-500 mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Calculate header height for content padding
+  // Expanded: Filter rows (2 rows × ~44px) + pill strip (~40px) = ~128px
+  // Collapsed: Single minimal row = ~40px
+  const FILTER_HEADER_HEIGHT = isHeaderCollapsed ? 40 : 128;
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 overflow-x-hidden">
+      {/* Fixed Header - stays at top when scrolling */}
+      <div className="fixed top-14 left-0 right-0 z-40 bg-white dark:bg-neutral-950 shadow-sm">
+        <MobileHeader
+          sport="nba"
+          selectedGameIds={selectedGameIds}
+          games={gameOptions}
+          onGamesChange={setSelectedGameIds}
+          selectedMarkets={selectedMarkets}
+          marketOptions={MARKET_OPTIONS}
+          onMarketsChange={setSelectedMarkets}
+          sortField={sortField}
+          sortOptions={SORT_OPTIONS}
+          onSortChange={setSortField}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          isCollapsed={isHeaderCollapsed}
+          onCollapsedChange={setIsHeaderCollapsed}
+        />
+      </div>
+      
+      {/* Spacer for fixed header - adjusts based on collapsed state */}
+      <div 
+        className="transition-all duration-200"
+        style={{ height: `${FILTER_HEADER_HEIGHT}px` }} 
+      />
+      
+      {/* Results Count */}
+      <div className="px-4 py-2 text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900/50">
+        Showing {visibleRows.length} of {filteredRows.length} props
+      </div>
+      
+      {/* Player Cards */}
+      <div className="pb-20">
+        {visibleRows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4">
+            <p className="text-neutral-500 text-center">
+              No props match your filters
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMarkets(MARKET_OPTIONS.map(m => m.value));
+                setSelectedGameIds([]);
+                setSearchQuery("");
+              }}
+              className="mt-3 text-sm text-brand font-medium"
+            >
+              Clear all filters
+            </button>
+          </div>
+        ) : (
+          <>
+            {visibleRows.map((row, idx) => (
+              <PlayerCard
+                key={`${row.id}-${row.market}`}
+                profile={row}
+                odds={getOdds?.(row.oddsSelectionId)}
+                onCardClick={() => onPlayerClick(row)}
+                onAddToSlip={() => {
+                  // TODO: Implement add to slip
+                }}
+                isFirst={idx === 0}
+              />
+            ))}
+            
+            {/* Load More */}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                className={cn(
+                  "w-full py-4 text-sm font-medium",
+                  "text-brand",
+                  "bg-white dark:bg-neutral-900",
+                  "border-t border-neutral-200 dark:border-neutral-800",
+                  "active:bg-neutral-50 dark:active:bg-neutral-800"
+                )}
+              >
+                Load more ({filteredRows.length - visibleCount} remaining)
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+

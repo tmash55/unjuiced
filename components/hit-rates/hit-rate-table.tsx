@@ -118,6 +118,34 @@ const isTomorrow = (gameDate: string | null): boolean => {
   return gameDate === tomorrowET;
 };
 
+// Check if a game has started (10 minutes after scheduled time)
+const hasGameStarted = (gameStatus: string | null, gameDate: string | null): boolean => {
+  if (!gameStatus || !gameDate) return false;
+  
+  // Try to parse scheduled time like "7:00 pm ET" or "7:00 PM ET"
+  const timeMatch = gameStatus.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*ET$/i);
+  if (!timeMatch) {
+    // Can't parse as scheduled time - might be in progress status, hide odds
+    return true;
+  }
+  
+  const [, hours, minutes, period] = timeMatch;
+  let hour = parseInt(hours, 10);
+  if (period.toLowerCase() === "pm" && hour !== 12) hour += 12;
+  if (period.toLowerCase() === "am" && hour === 12) hour = 0;
+  
+  // Create scheduled game time in ET
+  // Note: Using -05:00 for EST, games during EDT would be -04:00
+  const scheduledTime = new Date(`${gameDate}T${hour.toString().padStart(2, "0")}:${minutes}:00-05:00`);
+  
+  // Add 10 minutes buffer
+  const bufferMs = 10 * 60 * 1000;
+  const gameStartedTime = new Date(scheduledTime.getTime() + bufferMs);
+  
+  // Compare to current time
+  return Date.now() > gameStartedTime.getTime();
+};
+
 // Convert ET time string (e.g., "7:00 pm ET") to user's local timezone
 const formatGameTime = (gameStatus: string | null, gameDate: string | null) => {
   if (!gameStatus) return "TBD";
@@ -838,10 +866,14 @@ export function HitRateTable({
 
                 {/* Odds Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <OddsDropdown 
-                    odds={getOdds(row.oddsSelectionId)} 
-                    loading={oddsLoading} 
-                  />
+                  {hasGameStarted(row.gameStatus, row.gameDate) ? (
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
+                  ) : (
+                    <OddsDropdown 
+                      odds={getOdds(row.oddsSelectionId)} 
+                      loading={oddsLoading} 
+                    />
+                  )}
                 </td>
 
                 {/* Streak Column */}

@@ -46,6 +46,12 @@ const getTeamColor = (abbr: string): { primary: string; secondary: string } => {
   return NBA_TEAM_COLORS[abbr?.toUpperCase()] || { primary: "#6366f1", secondary: "#4f46e5" };
 };
 
+// Normalize game IDs for comparison (handles string/number and leading zeros)
+const normalizeGameId = (id: string | number | null | undefined): string => {
+  if (id === null || id === undefined) return "";
+  return String(id).replace(/^0+/, "") || "0";
+};
+
 interface GamePlayer {
   id: string;
   playerId: number;
@@ -199,11 +205,11 @@ export function GamesSidebar({
   // Auto-expand the selected player's game when entering drilldown and scroll to it
   useEffect(() => {
     if (selectedPlayer && selectedPlayerGameId) {
-      setExpandedGameId(selectedPlayerGameId);
+      setExpandedGameId(normalizeGameId(selectedPlayerGameId));
       
       // Scroll to the game after a short delay to allow rendering
       requestAnimationFrame(() => {
-        const gameElement = gameRefs.current.get(selectedPlayerGameId);
+        const gameElement = gameRefs.current.get(normalizeGameId(selectedPlayerGameId));
         const container = containerRef.current;
         if (gameElement && container) {
           // Calculate the scroll position within the container
@@ -227,7 +233,8 @@ export function GamesSidebar({
   const handleGameClick = (gameId: string) => {
     if (selectedPlayer) {
       // In drilldown mode: toggle the player list expansion
-      setExpandedGameId(expandedGameId === gameId ? null : gameId);
+      const normalizedId = normalizeGameId(gameId);
+      setExpandedGameId(normalizeGameId(expandedGameId) === normalizedId ? null : normalizedId);
     } else {
       // In table mode: toggle game selection as before
       onToggleGame(gameId);
@@ -237,7 +244,8 @@ export function GamesSidebar({
   // Get players for a specific game
   const getPlayersForGame = (gameId: string): HitRateProfile[] => {
     if (!gamePlayers) return [];
-    return gamePlayers.filter(p => p.gameId === gameId);
+    const normalizedGameId = normalizeGameId(gameId);
+    return gamePlayers.filter(p => normalizeGameId(p.gameId) === normalizedGameId);
   };
 
   // Get unique players for a game
@@ -354,10 +362,11 @@ export function GamesSidebar({
                   {dateGames.map((game) => {
                     const homeAbbr = game.home_team_tricode || "TBD";
                     const awayAbbr = game.away_team_tricode || "TBD";
-                    const isSelected = selectedGameIds.includes(game.game_id);
+                    const isSelected = selectedGameIds.some(id => normalizeGameId(id) === normalizeGameId(game.game_id));
                     const isNbaCup = isSpecialSeasonType(game.season_type);
-                    const isExpanded = expandedGameId === game.game_id;
-                    const isCurrentPlayerGame = selectedPlayerGameId === game.game_id;
+                    const normalizedSidebarGameId = normalizeGameId(game.game_id);
+                    const isExpanded = normalizeGameId(expandedGameId) === normalizedSidebarGameId;
+                    const isCurrentPlayerGame = normalizeGameId(selectedPlayerGameId) === normalizedSidebarGameId;
                     const gamePlayers = selectedPlayer ? getUniquePlayersForGame(game.game_id) : [];
 
                     // Get team colors for gradient bar
@@ -369,9 +378,9 @@ export function GamesSidebar({
                         key={game.game_id}
                         ref={(el) => {
                           if (el) {
-                            gameRefs.current.set(game.game_id, el);
+                            gameRefs.current.set(normalizeGameId(game.game_id), el);
                           } else {
-                            gameRefs.current.delete(game.game_id);
+                            gameRefs.current.delete(normalizeGameId(game.game_id));
                           }
                         }}
                       >

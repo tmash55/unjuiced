@@ -64,6 +64,15 @@
     border-radius: 10px;
   }
 
+  /* Hide scrollbar utility for mobile horizontal scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   [data-sonner-toast] {
     border-radius: 10px !important;
   }

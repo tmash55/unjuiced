@@ -3,7 +3,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import type { MatchupRank } from "@/lib/hit-rates-schema";
 
 const QuerySchema = z.object({
   date: z
@@ -15,14 +14,14 @@ const QuerySchema = z.object({
     ),
   market: z.string().optional(),
   minHitRate: z.coerce.number().min(0).max(100).optional(),
-  limit: z.coerce.number().min(1).max(15000).optional(), // ~2 days × 15 games × 30 players × 12 markets
+  limit: z.coerce.number().min(1).max(15000).optional(),
   offset: z.coerce.number().min(0).optional(),
   search: z.string().optional(),
-  // New: include preview profiles (profiles with NULL lines for upcoming games)
-  includePreview: z.enum(["true", "false"]).optional(),
 });
 
 const DEFAULT_LIMIT = 500;
+const PER_DAY_LIMIT = 5000; // Fetch up to 5000 per day (10k total for both days)
+const FAST_LOAD_THRESHOLD = 100; // Skip matchups & tomorrow for fast initial load
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -33,7 +32,6 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
-    includePreview: url.searchParams.get("includePreview") ?? undefined,
   });
 
   if (!query.success) {
@@ -43,11 +41,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const { date, market, minHitRate, limit, offset, search, includePreview } = query.data;
-  const showPreview = includePreview === "true";
+  const { date, market, minHitRate, limit, offset, search } = query.data;
   
-  // Use Eastern Time for default "today" since NBA games are scheduled in ET
-  // This prevents timezone issues where UTC date is already "tomorrow"
+  const supabase = createServerSupabaseClient();
+
+  // Use Eastern Time for "today" since NBA games are scheduled in ET
   const now = new Date();
   const etFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/New_York',
@@ -55,251 +53,237 @@ export async function GET(request: Request) {
     month: '2-digit',
     day: '2-digit',
   });
-  const todayET = etFormatter.format(now); // Format: YYYY-MM-DD
+  const todayET = etFormatter.format(now);
   
-  const supabase = createServerSupabaseClient();
-
-  // Calculate tomorrow's date in ET
+  // Calculate tomorrow
   const tomorrowDate = new Date(now);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowET = etFormatter.format(tomorrowDate);
 
-  // Determine which dates to fetch
-  let targetDates: string[] = [];
-  
-  if (date) {
-    // Specific date requested
-    targetDates = [date];
-  } else {
-    // Default: fetch today and tomorrow (for preview)
-    // Check which dates have profiles
-    const { data: datesWithProfiles } = await supabase
-      .from("nba_hit_rate_profiles")
-      .select("game_date")
-      .gte("game_date", todayET)
-      .lte("game_date", tomorrowET)
-      .order("game_date", { ascending: true });
-
-    const uniqueDates = [...new Set(datesWithProfiles?.map(d => d.game_date) ?? [])];
-    
-    if (uniqueDates.length > 0) {
-      targetDates = uniqueDates;
-    } else {
-      // No profiles for today/tomorrow, find the next date with profiles
-      const { data: nextDateData } = await supabase
-        .from("nba_hit_rate_profiles")
-        .select("game_date")
-        .gt("game_date", tomorrowET)
-        .order("game_date", { ascending: true })
-        .limit(1);
-
-      if (nextDateData && nextDateData.length > 0) {
-        targetDates = [nextDateData[0].game_date];
-      } else {
-        targetDates = [todayET]; // Fallback
-      }
-    }
-  }
-  
-  // For response meta, use the first date as the "primary" date
-  const primaryDate = targetDates[0] || todayET;
-
-  // Available dates = the dates we're fetching
-  const availableDates = targetDates;
-
-  let builder = supabase
-    .from("nba_hit_rate_profiles")
-    .select(
-      `
-        *,
-        nba_players_hr!inner (
-          nba_player_id,
-          name,
-          position,
-          depth_chart_pos,
-          jersey_number
-        ),
-        nba_games_hr (
-          game_date,
-          home_team_name,
-          away_team_name,
-          game_status
-        ),
-        nba_teams!nba_hit_rate_profiles_team_id_fkey (
-          primary_color,
-          secondary_color,
-          accent_color
-        )
-      `,
-      { count: "exact" }
-    )
-    // Fetch profiles for all target dates (today + tomorrow)
-    .in("game_date", targetDates)
-    // Sort by date first (today before tomorrow), then by hit rate within each day
-    // This ensures tomorrow's profiles (which often have NULL hit rates) are included
-    // rather than being pushed to the very end and potentially cut off by the limit
-    .order("game_date", { ascending: true })
-    .order("last_10_pct", { ascending: false, nullsFirst: false });
-
-  if (market) {
-    // Support comma-separated markets for multi-select
-    const markets = market.split(",").map((m) => m.trim()).filter(Boolean);
-    if (markets.length === 1) {
-      builder = builder.eq("market", markets[0]);
-    } else if (markets.length > 1) {
-      builder = builder.in("market", markets);
-    }
-  }
-  if (typeof minHitRate === "number") {
-    builder = builder.gte("last_10_pct", minHitRate);
-  }
-
-  // Search filter - searches player name (primary), team abbr, opponent team abbr
-  if (search && search.trim()) {
-    const searchTerm = search.trim().toLowerCase();
-    const searchPattern = `%${searchTerm}%`;
-    
-    // For player name search, filter on the joined table
-    // This is the primary search use case
-    builder = builder.ilike("nba_players_hr.name", searchPattern);
-  }
-
-  // Supabase has a row limit (~1000-2000). For large requests, we need to paginate.
-  const SUPABASE_BATCH_SIZE = 1000; // Safe batch size
-  const requestedLimit = limit ?? DEFAULT_LIMIT;
-  const startOffset = offset ?? 0;
-  
   let allData: any[] = [];
-  let totalCount: number | null = null;
-  let fetchError: any = null;
-  
-  // If requesting more than batch size, fetch in batches
-  if (requestedLimit > SUPABASE_BATCH_SIZE) {
-    let currentOffset = startOffset;
-    let remaining = requestedLimit;
-    
-    while (remaining > 0) {
-      const batchSize = Math.min(remaining, SUPABASE_BATCH_SIZE);
-      const batchBuilder = builder.range(currentOffset, currentOffset + batchSize - 1);
-      
-      const { data: batchData, error: batchError, count: batchCount } = await batchBuilder;
-      
-      if (batchError) {
-        fetchError = batchError;
-        break;
-      }
-      
-      if (totalCount === null) {
-        totalCount = batchCount;
-      }
-      
-      if (!batchData || batchData.length === 0) {
-        break; // No more data
-      }
-      
-      allData = [...allData, ...batchData];
-      currentOffset += batchData.length;
-      remaining -= batchData.length;
-      
-      // If we got fewer than requested, we've hit the end
-      if (batchData.length < batchSize) {
-        break;
-      }
+  let totalCount = 0;
+  const requestedLimit = limit ?? DEFAULT_LIMIT;
+  const isFastLoad = requestedLimit <= FAST_LOAD_THRESHOLD && !search;
+
+  if (date) {
+    // Specific date requested - single call
+    const { data, error } = await supabase.rpc("get_hit_rate_profiles", {
+      p_dates: [date],
+      p_market: market || null,
+      p_min_hit_rate: minHitRate || null,
+      p_search: search || null,
+      p_limit: requestedLimit,
+      p_offset: offset ?? 0,
+    });
+
+    if (error) {
+      console.error("[Hit Rates API] RPC error:", error.message);
+      return NextResponse.json(
+        { error: "Failed to load hit rates", details: error.message },
+        { status: 500 }
+      );
     }
-    
-  } else {
-    // Small request, single fetch
-    builder = builder.range(startOffset, startOffset + requestedLimit - 1);
-    const { data, error, count } = await builder;
+
     allData = data ?? [];
-    totalCount = count;
-    fetchError = error;
+    totalCount = data?.[0]?.total_profiles ?? 0;
+  } else if (isFastLoad) {
+    // FAST INITIAL LOAD: Only fetch today, skip tomorrow for speed
+    const { data, error } = await supabase.rpc("get_hit_rate_profiles", {
+      p_dates: [todayET],
+      p_market: market || null,
+      p_min_hit_rate: minHitRate || null,
+      p_search: null,
+      p_limit: requestedLimit,
+      p_offset: 0,
+    });
+
+    if (error) {
+      console.error("[Hit Rates API] Fast load RPC error:", error.message);
+    }
+
+    allData = data ?? [];
+    totalCount = data?.[0]?.total_profiles ?? 0;
+  } else {
+    // FULL LOAD: Fetch BOTH today and tomorrow in parallel
+    const [todayResult, tomorrowResult] = await Promise.all([
+      supabase.rpc("get_hit_rate_profiles", {
+        p_dates: [todayET],
+        p_market: market || null,
+        p_min_hit_rate: minHitRate || null,
+        p_search: search || null,
+        p_limit: PER_DAY_LIMIT,
+        p_offset: 0,
+      }),
+      supabase.rpc("get_hit_rate_profiles", {
+        p_dates: [tomorrowET],
+        p_market: market || null,
+        p_min_hit_rate: minHitRate || null,
+        p_search: search || null,
+        p_limit: PER_DAY_LIMIT,
+        p_offset: 0,
+      }),
+    ]);
+
+    if (todayResult.error) {
+      console.error("[Hit Rates API] Today RPC error:", todayResult.error.message);
+    }
+    if (tomorrowResult.error) {
+      console.error("[Hit Rates API] Tomorrow RPC error:", tomorrowResult.error.message);
+    }
+
+    // Combine results (today first, then tomorrow)
+    const todayData = todayResult.data ?? [];
+    const tomorrowData = tomorrowResult.data ?? [];
+    allData = [...todayData, ...tomorrowData];
+    
+    // Total count from both days
+    const todayCount = todayData[0]?.total_profiles ?? 0;
+    const tomorrowCount = tomorrowData[0]?.total_profiles ?? 0;
+    totalCount = todayCount + tomorrowCount;
   }
+
+  // Apply limit to combined data
+  const limitedData = allData.slice(0, requestedLimit);
+
+  // Get unique dates from the response for meta
+  const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
+  const primaryDate = availableDates[0] || todayET;
+
+  // Create matchup lookup map - SKIP for fast loads to reduce latency
+  const matchupMap = new Map<string, any>();
   
-  const data = allData;
-  const error = fetchError;
-  const count = totalCount;
+  if (!isFastLoad && limitedData.length > 0) {
+    const playerIds = limitedData.map((r: any) => r.player_id);
+    const markets = limitedData.map((r: any) => r.market);
+    const opponentIds = limitedData.map((r: any) => r.opponent_team_id);
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Failed to load hit rates", details: error.message },
-      { status: 500 }
-    );
-  }
+    const { data: matchups, error: matchupError } = await supabase.rpc("get_matchup_ranks_batch", {
+      p_player_ids: playerIds,
+      p_markets: markets,
+      p_opponent_team_ids: opponentIds,
+    });
 
-  // Early return if no data
-  if (!data || data.length === 0) {
-    return NextResponse.json(
-      {
-        data: [],
-        count: 0,
-        meta: {
-          date: primaryDate,
-          availableDates,
-          market: market ?? null,
-          minHitRate: minHitRate ?? null,
-          limit: limit ?? DEFAULT_LIMIT,
-          offset: offset ?? 0,
-        },
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-        },
+    if (matchupError) {
+      console.error("[Hit Rates API] Matchup RPC error:", matchupError.message);
+    } else if (matchups && Array.isArray(matchups)) {
+      for (const m of matchups) {
+        matchupMap.set(`${m.player_id}-${m.market}`, m);
       }
-    );
-  }
-
-  // Build parallel arrays for matchup RPC call (O(n))
-  const playerIds = data.map((hr) => hr.player_id);
-  const markets = data.map((hr) => hr.market);
-  const opponentIds = data.map((hr) => hr.opponent_team_id);
-
-  // Fetch matchup ranks in parallel with main query result processing
-  const { data: matchups, error: matchupError } = await supabase.rpc("get_matchup_ranks_batch", {
-    p_player_ids: playerIds,
-    p_markets: markets,
-    p_opponent_team_ids: opponentIds,
-  });
-
-  // Log matchup errors (but not success to reduce noise)
-  if (matchupError) {
-    console.error("[Hit Rates API] Matchup RPC error:", matchupError.message);
-  }
-
-  // Create O(1) lookup Map instead of O(n²) .find() loop
-  const matchupMap = new Map<string, MatchupRank>();
-  if (matchups && Array.isArray(matchups)) {
-    for (const m of matchups as MatchupRank[]) {
-      // Key by player_id + market for fast lookup
-      matchupMap.set(`${m.player_id}-${m.market}`, m);
     }
   }
 
-  // Merge matchup data into hit rates (O(n) total)
-  const enrichedData = data.map((hr) => ({
-    ...hr,
-    matchup: matchupMap.get(`${hr.player_id}-${hr.market}`) ?? null,
-  }));
+  // Transform RPC response to match frontend schema
+  const transformedData = limitedData.map((row: any) => {
+    const matchup = matchupMap.get(`${row.player_id}-${row.market}`);
+    
+    return {
+      // Core profile fields
+      id: row.id,
+      player_id: row.player_id,
+      team_id: row.team_id,
+      market: row.market,
+      line: row.line,
+      opponent_team_id: row.opponent_team_id,
+      game_id: row.game_id,
+      game_date: row.game_date,
+      
+      // Hit rate metrics
+      last_5_pct: row.last_5_pct,
+      last_10_pct: row.last_10_pct,
+      last_20_pct: row.last_20_pct,
+      season_pct: row.season_pct,
+      hit_streak: row.hit_streak,
+      
+      // Averages
+      last_5_avg: row.last_5_avg,
+      last_10_avg: row.last_10_avg,
+      last_20_avg: row.last_20_avg,
+      season_avg: row.season_avg,
+      
+      // Odds context
+      spread: row.spread,
+      total: row.total,
+      spread_clv: row.spread_clv,
+      total_clv: row.total_clv,
+      
+      // Metadata
+      injury_status: row.injury_status,
+      injury_notes: row.injury_notes,
+      team_name: row.team_name,
+      team_abbr: row.team_abbr,
+      opponent_team_name: row.opponent_team_name,
+      opponent_team_abbr: row.opponent_team_abbr,
+      player_position: row.player_position,
+      jersey_number: row.jersey_number,
+      
+      // Game logs & timestamps
+      game_logs: row.game_logs,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      
+      // Additional fields
+      home_away: row.home_away,
+      national_broadcast: row.national_broadcast,
+      is_primetime: row.is_primetime,
+      odds_selection_id: row.odds_selection_id,
+      event_id: row.event_id,
+      is_back_to_back: row.is_back_to_back,
+      
+      // Nested player object (for frontend compatibility)
+      nba_players_hr: row.player_name ? {
+        nba_player_id: row.player_id,
+        name: row.player_name,
+        position: row.player_full_position,
+        depth_chart_pos: row.player_depth_chart_pos,
+        jersey_number: row.player_jersey_number,
+      } : null,
+      
+      // Nested game object
+      nba_games_hr: {
+        game_date: row.game_date,
+        home_team_name: row.home_team_name,
+        away_team_name: row.away_team_name,
+        game_status: row.game_status,
+      },
+      
+      // Nested team colors
+      nba_teams: row.primary_color ? {
+        primary_color: row.primary_color,
+        secondary_color: row.secondary_color,
+        accent_color: row.accent_color,
+      } : null,
+      
+      // Matchup data from separate RPC
+      matchup: matchup ? {
+        player_id: matchup.player_id,
+        market: matchup.market,
+        opponent_team_id: matchup.opponent_team_id,
+        player_position: matchup.player_position,
+        matchup_rank: matchup.matchup_rank,
+        rank_label: matchup.rank_label,
+        avg_allowed: matchup.avg_allowed,
+        matchup_quality: matchup.matchup_quality,
+      } : null,
+    };
+  });
 
   return NextResponse.json(
     {
-      data: enrichedData,
-      count: count ?? 0,
+      data: transformedData,
+      count: Number(totalCount),
       meta: {
         date: primaryDate,
         availableDates,
         market: market ?? null,
         minHitRate: minHitRate ?? null,
-        limit: limit ?? DEFAULT_LIMIT,
+        limit: requestedLimit,
         offset: offset ?? 0,
       },
     },
     {
       headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
       },
     }
   );
 }
-
