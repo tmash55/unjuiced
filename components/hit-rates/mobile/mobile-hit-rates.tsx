@@ -237,9 +237,9 @@ export function MobileHitRates({
             <button
               type="button"
               onClick={() => {
-                setSelectedMarkets(MARKET_OPTIONS.map(m => m.value));
+                onMarketsChange(["player_points"]); // Reset to just Points
                 setSelectedGameIds([]);
-                setSearchQuery("");
+                onSearchChange("");
               }}
               className="mt-3 text-sm text-brand font-medium"
             >

@@ -66,19 +66,23 @@ const getInjuryBgColor = (status: string | null): string => {
   return "";
 };
 
+// Consistent market ordering for player drilldown
 const MARKET_ORDER = [
+  // Primary stats
   "player_points",
   "player_rebounds",
   "player_assists",
+  "player_threes_made",
+  // Combo lines
   "player_points_rebounds_assists",
   "player_points_rebounds",
   "player_points_assists",
   "player_rebounds_assists",
-  "player_threes_made",
+  // Defense & other
   "player_steals",
   "player_blocks",
-  "player_turnovers",
   "player_blocks_steals",
+  "player_turnovers",
 ];
 
 interface MobilePlayerDrilldownProps {
