@@ -2160,11 +2160,11 @@ export function MobilePlayerDrilldown({
             <ArrowLeft className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
           </button>
           
-          {/* Centered Player Info */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 px-12">
+          {/* Centered Player Info - Horizontal Layout */}
+          <div className="flex-1 flex items-center justify-center gap-3 px-12">
             {/* Player Avatar */}
             <div 
-              className="shrink-0 w-12 h-12 rounded-full p-[2px] shadow-sm"
+              className="shrink-0 w-10 h-10 rounded-full p-[2px] shadow-sm"
               style={{
                 background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
               }}
@@ -2184,22 +2184,25 @@ export function MobilePlayerDrilldown({
               </div>
             </div>
             
-            {/* Player Name */}
-            <h1 className="text-base font-bold text-neutral-900 dark:text-neutral-100 text-center leading-tight">
-              {profile.playerName}
-            </h1>
-            
-            {/* Team & Matchup */}
-            <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-              <img
-                src={`/team-logos/nba/${profile.teamAbbr?.toUpperCase()}.svg`}
-                alt={profile.teamAbbr ?? ""}
-                className="h-3.5 w-3.5 object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-              />
-              <span className="font-medium">{profile.position}</span>
-              <span className="text-neutral-300 dark:text-neutral-600">•</span>
-              <span>vs {profile.opponentTeamAbbr}</span>
+            {/* Player Info */}
+            <div className="flex flex-col gap-0.5">
+              {/* Player Name */}
+              <h1 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 leading-tight">
+                {profile.playerName}
+              </h1>
+              
+              {/* Team & Matchup */}
+              <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                <img
+                  src={`/team-logos/nba/${profile.teamAbbr?.toUpperCase()}.svg`}
+                  alt={profile.teamAbbr ?? ""}
+                  className="h-3 w-3 object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+                <span className="font-medium">{profile.position}</span>
+                <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                <span>vs {profile.opponentTeamAbbr}</span>
+              </div>
             </div>
           </div>
         </div>
