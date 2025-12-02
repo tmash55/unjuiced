@@ -588,7 +588,14 @@ export function GameLogChart({
   // Calculate chart dimensions - responsive to data range
   const maxStat = useMemo(() => {
     if (games.length === 0) return 10;
-    const max = Math.max(...games.map(g => getMarketStat(g, market)));
+    
+    // For rebounds market, include potential rebounds in max calculation
+    let max: number;
+    if (market === "player_rebounds") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
+    } else {
+      max = Math.max(...games.map(g => getMarketStat(g, market)));
+    }
     
     // For small values (0-5), use a tighter scale
     if (max <= 3) return Math.max(max + 1, 2); // At least 2 for visibility
@@ -990,21 +997,43 @@ export function GameLogChart({
                         {statValue}
                       </span>
                     )}
-                      <div
-                        className={cn(
-                          "rounded-t transition-all duration-200 group-hover:opacity-90",
-                          isHit
-                            ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
-                            : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
+                      <div className="relative">
+                        {/* Potential Rebounds - Faded overlay (only for rebounds market) */}
+                        {market === "player_rebounds" && game.potentialReb > 0 && game.potentialReb > game.reb && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-neutral-400/30 to-neutral-300/20 dark:from-neutral-500/30 dark:to-neutral-400/20"
+                              style={{ 
+                                width: barWidth,
+                                height: Math.max(((game.potentialReb / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            {/* Potential Reb value - faded text above potential bar */}
+                            <span 
+                              className="absolute text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 left-1/2 -translate-x-1/2"
+                              style={{ bottom: `${((game.potentialReb / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.potentialReb}
+                            </span>
+                          </>
                         )}
-                        style={{ 
-                          width: barWidth,
-                          height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                          boxShadow: isHit 
-                            ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                            : undefined
-                        }}
-                      />
+                        {/* Actual rebounds bar */}
+                        <div
+                          className={cn(
+                            "rounded-t transition-all duration-200 group-hover:opacity-90 relative",
+                            isHit
+                              ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
+                              : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
+                          )}
+                          style={{ 
+                            width: barWidth,
+                            height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
+                            boxShadow: isHit 
+                              ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
+                              : undefined
+                          }}
+                        />
+                      </div>
                   </div>
                   )}
                   
@@ -1143,6 +1172,12 @@ export function GameLogChart({
             <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-red-500 to-red-400" />
           <span className="text-neutral-500 dark:text-neutral-400">Under</span>
         </div>
+        {market === "player_rebounds" && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-neutral-400/30 dark:bg-neutral-500/30" />
+            <span className="text-neutral-500 dark:text-neutral-400">Chances</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <div className="w-6 border-t-2 border-dashed border-primary dark:border-primary-weak" />
           <span className="text-neutral-500 dark:text-neutral-400">Line ({line})</span>

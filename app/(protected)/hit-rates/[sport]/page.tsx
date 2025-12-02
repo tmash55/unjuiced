@@ -72,6 +72,11 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Game filter state (multi-select)
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
   
+  // Mobile-specific filter state (lifted up to persist across drilldown navigation)
+  const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
+  const [mobileSortField, setMobileSortField] = useState("l10Pct_desc");
+  const [mobileSearchQuery, setMobileSearchQuery] = useState("");
+  
   // Get game data to find dates
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
@@ -79,10 +84,23 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Update selectedDate when selectedGameIds changes
   useEffect(() => {
     if (selectedGameIds.length > 0) {
-      // Find the first selected game to determine the date
-      const firstSelectedGame = allGames.find(g => String(g.game_id) === String(selectedGameIds[0]));
-      if (firstSelectedGame) {
-        setSelectedDate(firstSelectedGame.game_date);
+      // Get all selected games
+      const selectedGames = allGames.filter(g => 
+        selectedGameIds.includes(String(g.game_id))
+      );
+      
+      // Get unique dates from selected games
+      const uniqueDates = new Set(selectedGames.map(g => g.game_date));
+      
+      if (uniqueDates.size > 1) {
+        // Multiple dates selected - pass undefined so API fetches BOTH today and tomorrow
+        setSelectedDate(undefined);
+      } else if (uniqueDates.size === 1) {
+        // Single date - use that date
+        setSelectedDate(Array.from(uniqueDates)[0]);
+      } else {
+        // No valid games found, default to undefined
+        setSelectedDate(undefined);
       }
     } else {
       // No games selected - pass undefined so API fetches BOTH today and tomorrow
@@ -327,6 +345,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         loading={isLoading}
         error={error?.message}
         onPlayerClick={handleTableRowClick}
+        selectedMarkets={mobileSelectedMarkets}
+        onMarketsChange={setMobileSelectedMarkets}
+        sortField={mobileSortField}
+        onSortChange={setMobileSortField}
+        searchQuery={mobileSearchQuery}
+        onSearchChange={setMobileSearchQuery}
       />
     );
   }

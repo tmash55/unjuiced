@@ -47,6 +47,13 @@ interface MobileHitRatesProps {
   loading: boolean;
   error?: string | null;
   onPlayerClick: (player: HitRateProfile) => void;
+  // Controlled state from parent (to persist across drilldown navigation)
+  selectedMarkets: string[];
+  onMarketsChange: (markets: string[]) => void;
+  sortField: string;
+  onSortChange: (sort: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 export function MobileHitRates({
@@ -55,12 +62,15 @@ export function MobileHitRates({
   loading,
   error,
   onPlayerClick,
+  selectedMarkets,
+  onMarketsChange,
+  sortField,
+  onSortChange,
+  searchQuery,
+  onSearchChange,
 }: MobileHitRatesProps) {
-  // Filter state
+  // Filter state (only local state for game selection and visible count)
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
-  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(["player_points"]); // Default to Points only
-  const [sortField, setSortField] = useState("l10Pct_desc");
-  const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
@@ -200,12 +210,12 @@ export function MobileHitRates({
           onGamesChange={setSelectedGameIds}
           selectedMarkets={selectedMarkets}
           marketOptions={MARKET_OPTIONS}
-          onMarketsChange={setSelectedMarkets}
+          onMarketsChange={onMarketsChange}
           sortField={sortField}
           sortOptions={SORT_OPTIONS}
-          onSortChange={setSortField}
+          onSortChange={onSortChange}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={onSearchChange}
           isCollapsed={isHeaderCollapsed}
           onCollapsedChange={setIsHeaderCollapsed}
         />

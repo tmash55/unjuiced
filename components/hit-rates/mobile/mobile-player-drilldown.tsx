@@ -154,18 +154,40 @@ interface GameBarProps {
   homeAway?: string;
   isHit: boolean;
   index: number;
+  potentialReb?: number;
+  market: string;
+  gameData?: any; // Full game data for dialog
+  teammatesOut?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out
 }
 
-function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index }: GameBarProps) {
+function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, potentialReb, market, gameData, teammatesOut }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
   const heightPct = Math.max(2, (stat / maxStat) * 100);
   const isHome = homeAway === "H";
   
+  // Check if we should show potential rebounds
+  const showPotential = market === "player_rebounds" && potentialReb && potentialReb > 0 && potentialReb > stat;
+  const potentialHeightPct = showPotential ? Math.max(2, ((potentialReb ?? 0) / maxStat) * 100) : 0;
+  
+  // Format date for display
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+  
   return (
-    <div 
+    <>
+    <button
+      type="button"
       className="relative flex-1 flex flex-col items-center group"
       onTouchStart={() => setIsPressed(true)}
       onTouchEnd={() => setIsPressed(false)}
+      onClick={() => {
+        if (gameData) {
+          setShowDialog(true);
+        }
+      }}
     >
       {/* Bar container with stat on top of bar */}
       <div className="relative w-full h-64 flex flex-col items-center justify-end">
@@ -174,6 +196,25 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index }
           className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 z-10"
           style={{ bottom: `${(line / maxStat) * 100}%` }}
         />
+        
+        {/* Potential Rebounds - Faded overlay (only for rebounds market) */}
+        {showPotential && (
+          <>
+            <div
+              className="absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-300 bg-neutral-400/30 dark:bg-neutral-500/30"
+              style={{ 
+                height: `${potentialHeightPct}%`,
+              }}
+            />
+            {/* Potential Reb value - faded text above potential bar */}
+            <div 
+              className="absolute text-[8px] font-semibold text-neutral-400 dark:text-neutral-500 z-10"
+              style={{ bottom: `${potentialHeightPct + 2}%` }}
+            >
+              {potentialReb}
+            </div>
+          </>
+        )}
         
         {/* Stat value positioned on top of bar */}
         <div 
@@ -190,7 +231,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index }
         {/* Bar */}
         <div
           className={cn(
-            "w-full rounded-t-sm transition-all duration-300 ease-out",
+            "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1]",
             isHit 
               ? "bg-emerald-500 dark:bg-emerald-400" 
               : "bg-red-400 dark:bg-red-500",
@@ -229,6 +270,228 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index }
           {stat} {isHit ? "✓" : "✗"}
         </div>
       )}
+    </button>
+
+    {/* Game Stats Dialog */}
+    {showDialog && gameData && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end"
+        onClick={() => setShowDialog(false)}
+      >
+        <div
+          className="w-full bg-white dark:bg-neutral-900 rounded-t-2xl shadow-xl border-t border-neutral-200 dark:border-neutral-700 animate-in slide-in-from-bottom duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
+            <div className="flex items-center gap-2">
+              {opponent && (
+                <img
+                  src={`/team-logos/nba/${opponent.toUpperCase()}.svg`}
+                  alt={opponent}
+                  className="h-5 w-5 object-contain"
+                />
+              )}
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                {formatDate(date)} {isHome ? "vs" : "@"} {opponent}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDialog(false)}
+              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <X className="h-4 w-4 text-neutral-500" />
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+            {/* Main Stat */}
+            <div className="flex items-baseline gap-2 pb-3 border-b border-neutral-200 dark:border-neutral-700">
+              <span className={cn(
+                "text-3xl font-black tracking-tight",
+                isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+              )}>
+                {stat}
+              </span>
+              <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                {market === "player_points" ? "pts" : market === "player_rebounds" ? "reb" : market === "player_assists" ? "ast" : market.replace("player_", "")}
+              </span>
+              <div className="flex-1" />
+              <div className={cn(
+                "px-2 py-1 rounded text-xs font-bold",
+                gameData.result === "W" 
+                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
+                  : "bg-red-500/20 text-red-500 dark:text-red-400"
+              )}>
+                {gameData.result} {gameData.result === "W" ? "+" : ""}{Math.abs(gameData.margin || 0)}
+              </div>
+            </div>
+
+            {/* Common Stats */}
+            <div className="space-y-2">
+              <StatRow label="Minutes" value={Math.round(gameData.minutes)} />
+              <StatRow label="Fouls" value={gameData.fouls} />
+            </div>
+
+            {/* Market-specific stats */}
+            <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700 space-y-2">
+              {market === "player_rebounds" && (
+                <>
+                  <StatRow label="OREB" value={gameData.oreb} />
+                  <StatRow label="DREB" value={gameData.dreb} />
+                  <StatRow label="Total REB" value={gameData.reb} />
+                  <StatRow label="Chances" value={gameData.potentialReb} />
+                </>
+              )}
+              {market === "player_points" && (
+                <>
+                  <StatRow label="FG" value={`${gameData.fgm}/${gameData.fga}`} subValue={`${Math.round(gameData.fgPct * 100)}%`} />
+                  <StatRow label="3PT" value={`${gameData.fg3m}/${gameData.fg3a}`} subValue={`${Math.round(gameData.fg3Pct * 100)}%`} />
+                  <StatRow label="FT" value={`${gameData.ftm}/${gameData.fta}`} subValue={`${Math.round(gameData.ftPct * 100)}%`} />
+                </>
+              )}
+              {market === "player_assists" && (
+                <>
+                  <StatRow label="Assists" value={gameData.ast} />
+                  <StatRow label="Passes" value={gameData.passes} />
+                  <StatRow label="Turnovers" value={gameData.tov} />
+                  <StatRow label="AST/TO" value={gameData.tov > 0 ? (gameData.ast / gameData.tov).toFixed(1) : "∞"} />
+                  <StatRow label="Pace" value={Math.round(gameData.pace)} />
+                </>
+              )}
+              {market === "player_threes_made" && (
+                <>
+                  <StatRow label="3PT" value={`${gameData.fg3m}/${gameData.fg3a}`} subValue={`${Math.round(gameData.fg3Pct * 100)}%`} />
+                  <StatRow label="FG" value={`${gameData.fgm}/${gameData.fga}`} subValue={`${Math.round(gameData.fgPct * 100)}%`} />
+                </>
+              )}
+              {(market === "player_steals" || market === "player_blocks" || market === "player_blocks_steals") && (
+                <>
+                  <StatRow label="Steals" value={gameData.stl} />
+                  <StatRow label="Blocks" value={gameData.blk} />
+                  {market === "player_blocks_steals" && <StatRow label="Blk+Stl" value={gameData.bs} />}
+                  <StatRow label="DEF Rating" value={Math.round(gameData.defRating)} />
+                </>
+              )}
+              {market === "player_points_assists" && (
+                <>
+                  <StatRow label="Points" value={gameData.pts} />
+                  <StatRow label="Assists" value={gameData.ast} />
+                  <StatRow label="P+A Total" value={gameData.pa} />
+                </>
+              )}
+              {market === "player_points_rebounds" && (
+                <>
+                  <StatRow label="Points" value={gameData.pts} />
+                  <StatRow label="Rebounds" value={gameData.reb} />
+                  <StatRow label="P+R Total" value={gameData.pr} />
+                </>
+              )}
+              {market === "player_rebounds_assists" && (
+                <>
+                  <StatRow label="Rebounds" value={gameData.reb} />
+                  <StatRow label="Assists" value={gameData.ast} />
+                  <StatRow label="R+A Total" value={gameData.ra} />
+                </>
+              )}
+              {market === "player_points_rebounds_assists" && (
+                <>
+                  <StatRow label="Points" value={gameData.pts} />
+                  <StatRow label="Rebounds" value={gameData.reb} />
+                  <StatRow label="Assists" value={gameData.ast} />
+                  <div className="my-2 border-t border-neutral-200 dark:border-neutral-700" />
+                  <StatRow label="PRA Total" value={gameData.pra} />
+                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct)}%`} />
+                </>
+              )}
+              {market === "player_turnovers" && (
+                <>
+                  <StatRow label="Turnovers" value={gameData.tov} />
+                  <StatRow label="Assists" value={gameData.ast} />
+                  <StatRow label="AST/TO" value={gameData.tov > 0 ? (gameData.ast / gameData.tov).toFixed(1) : "∞"} />
+                  <StatRow label="Passes" value={gameData.passes} />
+                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct)}%`} />
+                </>
+              )}
+            </div>
+
+            {/* Teammates Out */}
+            {teammatesOut && teammatesOut.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                    Teammates Out
+                  </span>
+                  {teammatesOut.length > 3 && (
+                    <span className="text-[9px] font-medium text-amber-500 dark:text-amber-400">
+                      +{teammatesOut.length - 3} more
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {teammatesOut
+                    .sort((a, b) => {
+                      // Sort by avg (highest first), then by name
+                      if (a.avg !== null && b.avg !== null) return b.avg - a.avg;
+                      if (a.avg !== null) return -1;
+                      if (b.avg !== null) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .slice(0, 3)
+                    .map((teammate) => {
+                      // Color code based on impact (avg value)
+                      const getAvgColor = (avg: number | null) => {
+                        if (avg === null) return "text-neutral-500 dark:text-neutral-400";
+                        if (avg >= 15) return "text-amber-500 dark:text-amber-400"; // High impact
+                        if (avg >= 8) return "text-orange-500 dark:text-orange-400"; // Medium
+                        return "text-neutral-500 dark:text-neutral-400"; // Low
+                      };
+
+                      return (
+                        <div
+                          key={teammate.player_id}
+                          className="flex items-center justify-between text-xs bg-neutral-50 dark:bg-neutral-800/50 rounded-lg px-2 py-1.5"
+                        >
+                          <span className="font-medium text-neutral-700 dark:text-neutral-300 truncate flex-1">
+                            {teammate.name}
+                          </span>
+                          <span className={cn("font-bold text-xs ml-2", getAvgColor(teammate.avg))}>
+                            {teammate.avg !== null ? `${teammate.avg.toFixed(1)} avg` : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowDialog(false)}
+              className="w-full mt-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg font-medium text-sm active:scale-[0.98] transition-transform"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
+// StatRow component for dialog
+function StatRow({ label, value, subValue }: { label: string; value: string | number; subValue?: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-neutral-500 dark:text-neutral-400">{label}</span>
+      <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+        {value}
+        {subValue && <span className="font-normal text-neutral-500 dark:text-neutral-400 ml-1.5">({subValue})</span>}
+      </span>
     </div>
   );
 }
@@ -244,6 +507,9 @@ interface HeroBarChartProps {
     opponent_abbr?: string;
     win_loss?: string;
     home_away?: string;
+    potential_reb?: number;
+    full_game_data?: any; // Full game data for dialog
+    teammates_out?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out for dialog
   }>;
   line: number;
   avg: number;
@@ -254,6 +520,7 @@ interface HeroBarChartProps {
   onQuickFilterToggle: (filter: string) => void;
   onQuickFiltersClear: () => void;
   totalGamesCount: number;
+  market: string; // Add market to determine if rebounds
 }
 
 function HeroBarChart({ 
@@ -265,7 +532,8 @@ function HeroBarChart({
   quickFilters,
   onQuickFilterToggle,
   onQuickFiltersClear,
-  totalGamesCount
+  totalGamesCount,
+  market
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
     const count = gameCount === "season" ? games.length : gameCount;
@@ -273,9 +541,15 @@ function HeroBarChart({
   }, [games, gameCount]);
   
   const maxStat = useMemo(() => {
-    const stats = displayGames.map(g => g.market_stat);
+    // For rebounds market, include potential rebounds in max calculation
+    let stats: number[];
+    if (market === "player_rebounds") {
+      stats = displayGames.map(g => Math.max(g.market_stat, g.potential_reb ?? 0));
+    } else {
+      stats = displayGames.map(g => g.market_stat);
+    }
     return Math.max(...stats, line * 1.3, 1); // At least 1 to avoid division issues
-  }, [displayGames, line]);
+  }, [displayGames, line, market]);
   
   // Calculate nice Y-axis ticks
   const yAxisTicks = useMemo(() => {
@@ -363,6 +637,10 @@ function HeroBarChart({
                     homeAway={game.home_away}
                     isHit={game.market_stat >= line}
                     index={idx}
+                    potentialReb={game.potential_reb}
+                    market={market}
+                    gameData={game.full_game_data}
+                    teammatesOut={game.teammates_out}
                   />
                 ))}
               </div>
@@ -949,35 +1227,116 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
     enabled: !!profile.playerId && !!profile.opponentTeamId && !!playerPosition,
   });
   
+  // Get the current market's rank
+  const currentMarketRank = useMemo(() => {
+    return matchupRanks.find(m => m.market === selectedMarket);
+  }, [matchupRanks, selectedMarket]);
+
+  // Get rank color for DvP badge
+  const getRankColor = (rank: number | null | undefined) => {
+    if (!rank) return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
+    if (rank <= 10) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
+    if (rank >= 21) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+    return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
+  };
+
+  const rankColors = getRankColor(currentMarketRank?.rank);
+  
   return (
-    <div className="space-y-3 pb-6">
-      {/* Header with team logo */}
-      <div className="bg-gradient-to-br from-white to-neutral-50 dark:from-neutral-900 dark:to-neutral-900/50 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-5">
-        <div className="flex items-center gap-3.5">
-          {/* Team Logo */}
-          <div className="relative">
-            <div className="absolute inset-0 bg-brand/10 blur-xl rounded-full" />
-            <img
-              src={`/team-logos/nba/${profile.opponentTeamAbbr?.toUpperCase()}.svg`}
-              alt={profile.opponentTeamAbbr ?? ""}
-              className="relative h-14 w-14 object-contain drop-shadow-lg"
-            />
+    <div className="space-y-4 pb-6">
+      {/* Premium Hero Header - Billion Dollar Design */}
+      <div className="relative overflow-hidden rounded-3xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm dark:shadow-none">
+        {/* Sophisticated Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-850 dark:to-neutral-900" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.06),transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.12),transparent_60%)]" />
+        
+        {/* Subtle Top Highlight */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-neutral-200/50 dark:via-white/10 to-transparent" />
+        
+        {/* Content Container */}
+        <div className="relative px-6 pt-6 pb-5">
+          {/* Header Section */}
+          <div className="flex items-center justify-between mb-5">
+            {/* Left: Logo + Title */}
+            <div className="flex items-center gap-4 flex-1">
+              {/* Premium Team Logo Container */}
+              <div className="relative shrink-0">
+                {/* Glow Effect */}
+                <div className="absolute inset-0 bg-brand/8 dark:bg-brand/15 blur-xl rounded-full" />
+                {/* Logo Box */}
+                <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-white to-neutral-50 dark:from-white/8 dark:to-white/4 border border-neutral-200/80 dark:border-white/10 flex items-center justify-center shadow-md dark:shadow-lg dark:shadow-black/20">
+                  <img
+                    src={`/team-logos/nba/${profile.opponentTeamAbbr?.toUpperCase()}.svg`}
+                    alt={profile.opponentTeamAbbr ?? ""}
+                    className="h-10 w-10 object-contain drop-shadow-sm dark:drop-shadow-[0_0_6px_rgba(255,255,255,0.25)]"
+                  />
+                </div>
+              </div>
+              
+              {/* Title Stack */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">
+                    Matchup Analysis
+                  </span>
+                  <div className="h-0.5 w-0.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+                  <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+                    2025-26
+                  </span>
+                </div>
+                <h2 className="text-lg font-black text-neutral-900 dark:text-white tracking-tight leading-tight">
+                  Defense vs {playerPosition}
+                </h2>
+              </div>
+            </div>
           </div>
           
-          {/* Title */}
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-              Defense vs {playerPosition}
-            </h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                {profile.opponentTeamAbbr}
-              </span>
-              <span className="text-neutral-400 dark:text-neutral-600">•</span>
-              <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                2025-26 Season
+          {/* Bottom Section: Team Name + DvP Rank */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Team Indicator */}
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700/50 flex items-center justify-center">
+                <span className="text-xs font-black text-neutral-700 dark:text-neutral-300">
+                  {profile.opponentTeamAbbr}
+                </span>
+              </div>
+              <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
+              <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+                {profile.opponentTeamAbbr} Defense
               </span>
             </div>
+            
+            {/* DvP Rank Badge - Premium Pill */}
+            {currentMarketRank && (
+              <div className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-2 rounded-full border shadow-sm transition-all",
+                rankColors.bg,
+                "border-neutral-200 dark:border-neutral-700/50"
+              )}>
+                {/* Rank */}
+                <div className="flex items-center gap-1.5">
+                  <div className={cn("h-1.5 w-1.5 rounded-full shadow-sm", rankColors.dot)} />
+                  <span className={cn("text-sm font-black tracking-tight", rankColors.text)}>
+                    #{currentMarketRank.rank}
+                  </span>
+                </div>
+                
+                {/* Avg (if available) */}
+                {currentMarketRank.avgAllowed && (
+                  <>
+                    <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-600/50" />
+                    <div className="flex items-baseline gap-0.5">
+                      <span className={cn("text-sm font-bold", rankColors.text)}>
+                        {currentMarketRank.avgAllowed.toFixed(1)}
+                      </span>
+                      <span className={cn("text-[10px] font-medium opacity-70", rankColors.text)}>
+                        avg
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -991,27 +1350,17 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
         effectiveLine={effectiveLine}
       />
       
-      {/* Market Stats Grid */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-        {/* Header */}
-        <div className="mb-4 pb-3 border-b border-neutral-200 dark:border-neutral-700">
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-brand" />
-            How {profile.opponentTeamAbbr} Defends {playerPosition}s
-          </h3>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
-            2025-26 Season • League Rankings vs {playerPosition}
-          </p>
-        </div>
-
-        {/* Grouped Stats */}
-        <div className="space-y-5">
+      {/* Market Stats Grid - Premium Cards */}
+      <div className="space-y-4">
           {/* Scoring */}
-          <div>
-            <h4 className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2.5 px-1">
-              Scoring
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+                Scoring
+              </h4>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
               {marketStatsByCategory.scoring.map((stat) => {
                 const matchupData = matchupRanks.find(m => m.market === stat.market);
                 return (
@@ -1034,11 +1383,14 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
           </div>
 
           {/* Playmaking */}
-          <div>
-            <h4 className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2.5 px-1">
-              Playmaking
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+                Playmaking
+              </h4>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
               {marketStatsByCategory.playmaking.map((stat) => {
                 const matchupData = matchupRanks.find(m => m.market === stat.market);
                 return (
@@ -1061,11 +1413,14 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
           </div>
 
           {/* Rebounding */}
-          <div>
-            <h4 className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2.5 px-1">
-              Rebounding
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+                Rebounding
+              </h4>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
               {marketStatsByCategory.rebounding.map((stat) => {
                 const matchupData = matchupRanks.find(m => m.market === stat.market);
                 return (
@@ -1088,11 +1443,14 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
           </div>
 
           {/* Defensive */}
-          <div>
-            <h4 className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2.5 px-1">
-              Defensive
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+                Defensive
+              </h4>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
               {marketStatsByCategory.defensive.map((stat) => {
                 const matchupData = matchupRanks.find(m => m.market === stat.market);
                 return (
@@ -1114,7 +1472,6 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
@@ -1186,12 +1543,12 @@ function MarketStatCard({
   if (isLoading || isLoadingRank) {
     return (
       <div className={cn(
-        "rounded-xl border p-3 flex flex-col items-center justify-center min-h-[120px]",
+        "rounded-2xl border p-4 flex flex-col items-center justify-center min-h-[110px]",
         isActive 
-          ? "border-brand bg-brand/5" 
-          : "border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50 dark:bg-neutral-800/50"
+          ? "border-brand bg-gradient-to-br from-brand/5 to-brand/10" 
+          : "border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-br from-neutral-50 to-white dark:from-neutral-800/50 dark:to-neutral-800/30"
       )}>
-        <div className="h-3 w-3 border-2 border-neutral-300 border-t-brand rounded-full animate-spin" />
+        <div className="h-4 w-4 border-2 border-neutral-300 border-t-brand rounded-full animate-spin" />
       </div>
     );
   }
@@ -1199,46 +1556,60 @@ function MarketStatCard({
   return (
     <div
       className={cn(
-        "rounded-xl border p-3 flex flex-col transition-all min-h-[120px]",
+        "rounded-2xl border p-4 flex flex-col transition-all min-h-[110px] relative overflow-hidden",
         isActive 
-          ? "border-brand/60 bg-brand/5 dark:bg-brand/10 shadow-sm" 
-          : "border-neutral-200/60 dark:border-neutral-700/60 bg-white dark:bg-neutral-800/50"
+          ? "border-brand bg-gradient-to-br from-brand/5 to-brand/10 shadow-md shadow-brand/10" 
+          : "border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-800/50 dark:to-neutral-800/30 hover:shadow-sm"
       )}
     >
+      {/* Active indicator stripe */}
+      {isActive && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-brand/50 via-brand to-brand/50" />
+      )}
+      
+      {/* Stat Value - Hero */}
+      <div className="text-center mb-2">
+        <div className="text-3xl font-black text-neutral-900 dark:text-neutral-100 tracking-tight leading-none">
+          {displayAvg ? displayAvg.toFixed(1) : "—"}
+        </div>
+      </div>
+      
       {/* Market Label */}
-      <div className="text-[10px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wide mb-2 text-center">
+      <div className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider text-center mb-2">
         {abbr}
       </div>
       
-      {/* Stat Value */}
-      <div className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 text-center mb-1">
-        {displayAvg ? displayAvg.toFixed(1) : "—"}
-      </div>
-      
-      {/* Rank Badge */}
-      <div className={cn(
-        "text-[10px] font-bold text-center py-1 px-2 rounded-md mb-2",
-        getRankBg(rank),
-        getRankColor(rank)
-      )}>
-        {rank ? `Rank ${rank}` : "—"}
+      {/* Rank with Meter */}
+      <div className="flex items-center justify-center gap-1.5">
+        {/* Rank Meter Dot */}
+        {rank && rank <= 10 && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
+        {rank && rank > 10 && rank <= 20 && <div className="h-1.5 w-1.5 rounded-full bg-neutral-400" />}
+        {rank && rank > 20 && <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
+        
+        {/* Rank Text */}
+        <div className={cn(
+          "text-xs font-bold",
+          getRankColor(rank)
+        )}>
+          {rank ? `#${rank}` : "—"}
+        </div>
       </div>
       
       {/* Above/Below Line Indicator */}
       {vsLine && isActive && (
-        <div className="flex items-center justify-center gap-1 pt-1 border-t border-neutral-200 dark:border-neutral-700">
+        <div className="flex items-center justify-center gap-1.5 mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50">
           {vsLine === "above" ? (
             <>
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">
-                Above Line
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                Above {currentLine}
               </span>
             </>
           ) : (
             <>
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <span className="text-[8px] font-semibold text-red-600 dark:text-red-400 uppercase">
-                Below Line
+              <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              <span className="text-[9px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
+                Below {currentLine}
               </span>
             </>
           )}
@@ -1442,16 +1813,46 @@ export function MobilePlayerDrilldown({
   const chartGames = useMemo(() => {
     if (!boxScoreGames) return [];
     
-    return boxScoreGames.map(g => ({
-      date: g.date,
-      market_stat: getMarketStat(g, profile.market),
-      opponent_abbr: g.opponentAbbr,
-      win_loss: g.result,
-      home_away: g.homeAway,
-      margin: g.margin,
-      minutes: g.minutes,
-    }));
-  }, [boxScoreGames, profile.market]);
+    // Create a map of game_id to teammates_out from profile.gameLogs
+    const gameLogs = profile.gameLogs as Array<{ 
+      game_id?: string; 
+      teammates_out?: Array<{ 
+        player_id: number; 
+        name: string; 
+        avg: number | null;
+      }> 
+    }> | null;
+    
+    const teammatesOutMap = new Map<string, Array<{ player_id: number; name: string; avg: number | null }>>();
+    if (gameLogs) {
+      for (const log of gameLogs) {
+        if (log.game_id && log.teammates_out) {
+          // Normalize game ID by removing leading zeros
+          const normalizedId = log.game_id.replace(/^0+/, "");
+          teammatesOutMap.set(normalizedId, log.teammates_out);
+        }
+      }
+    }
+    
+    return boxScoreGames.map(g => {
+      // Normalize game ID for lookup
+      const normalizedGameId = String(g.gameId || "").replace(/^0+/, "");
+      const teammatesOut = teammatesOutMap.get(normalizedGameId) || [];
+      
+      return {
+        date: g.date,
+        market_stat: getMarketStat(g, profile.market),
+        opponent_abbr: g.opponentAbbr,
+        win_loss: g.result,
+        home_away: g.homeAway,
+        margin: g.margin,
+        minutes: g.minutes,
+        potential_reb: g.potentialReb ?? 0, // Add potential rebounds for chart
+        full_game_data: g, // Include full game data for dialog
+        teammates_out: teammatesOut, // Add teammates out for dialog
+      };
+    });
+  }, [boxScoreGames, profile.market, profile.gameLogs]);
   
   // Filter games based on quick filters AND injury filters
   const filteredChartGames = useMemo(() => {
@@ -1595,88 +1996,64 @@ export function MobilePlayerDrilldown({
   };
   
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 pb-20">
       {/* ═══════════════════════════════════════════════════════════════════
-          STICKY HEADER - 3 Row Premium Layout
+          STICKY HEADER - Centered Player Info
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-800/60 shadow-sm">
-        {/* ═══ ROW 1: Identity & Context ═══ */}
-        <div className="flex items-center gap-2.5 px-3 py-2">
-          {/* Back Button - larger for mobile */}
+      <div className="sticky top-14 z-30 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-800/60 shadow-sm">
+        {/* ═══ ROW 1: Back Button + Centered Player Info ═══ */}
+        <div className="relative flex items-center px-3 py-3">
+          {/* Back Button - absolute positioned */}
           <button
             type="button"
             onClick={onBack}
-            className="p-1.5 -ml-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors active:scale-95"
+            className="absolute left-3 p-1.5 -ml-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors active:scale-95 z-10"
           >
             <ArrowLeft className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
           </button>
           
-          {/* Player Avatar */}
-          <div 
-            className="shrink-0 w-9 h-9 rounded-full p-[1.5px] shadow-sm"
-            style={{
-              background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
-            }}
-          >
+          {/* Centered Player Info */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 px-12">
+            {/* Player Avatar */}
             <div 
-              className="w-full h-full rounded-full overflow-hidden relative"
-              style={{ background: primaryColor }}
+              className="shrink-0 w-12 h-12 rounded-full p-[2px] shadow-sm"
+              style={{
+                background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+              }}
             >
-              <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
-                <PlayerHeadshot
-                  nbaPlayerId={profile.playerId}
-                  name={profile.playerName}
-                  size="small"
-                  className="w-full h-auto"
-                />
+              <div 
+                className="w-full h-full rounded-full overflow-hidden relative"
+                style={{ background: primaryColor }}
+              >
+                <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
+                  <PlayerHeadshot
+                    nbaPlayerId={profile.playerId}
+                    name={profile.playerName}
+                    size="small"
+                    className="w-full h-auto"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Player Info */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[15px] font-bold text-neutral-900 dark:text-neutral-100 truncate">
+            
+            {/* Player Name */}
+            <h1 className="text-base font-bold text-neutral-900 dark:text-neutral-100 text-center leading-tight">
               {profile.playerName}
             </h1>
-            <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+            
+            {/* Team & Matchup */}
+            <div className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
               <img
                 src={`/team-logos/nba/${profile.teamAbbr?.toUpperCase()}.svg`}
                 alt={profile.teamAbbr ?? ""}
-                className="h-3 w-3 object-contain"
+                className="h-3.5 w-3.5 object-contain"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
               />
-              <span>{profile.position}</span>
+              <span className="font-medium">{profile.position}</span>
               <span className="text-neutral-300 dark:text-neutral-600">•</span>
               <span>vs {profile.opponentTeamAbbr}</span>
             </div>
           </div>
-          
-          {/* Market Selector */}
-          <button
-            type="button"
-            onClick={() => setShowMarketPicker(!showMarketPicker)}
-            className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-lg transition-all",
-              "bg-neutral-100 dark:bg-neutral-800",
-              "border border-neutral-200/60 dark:border-neutral-700/40",
-              showMarketPicker && "border-brand",
-              customLine !== null && "border-brand/50",
-              "active:scale-[0.98]"
-            )}
-          >
-            <span className={cn(
-              "text-xs font-bold",
-              customLine !== null 
-                ? "text-brand" 
-                : "text-neutral-900 dark:text-neutral-100"
-            )}>
-              {effectiveLine}+ {formatMarketLabel(profile.market).split(" ")[0]}
-            </span>
-            <ChevronDown className={cn(
-              "h-3 w-3 text-neutral-400 transition-transform",
-              showMarketPicker && "rotate-180"
-            )} />
-          </button>
         </div>
         
         {/* ═══ ROW 2: Hit Rate Badges ═══ */}
@@ -1789,30 +2166,34 @@ export function MobilePlayerDrilldown({
           </div>
         )}
         
-        {/* ═══ Navigation Tabs ═══ */}
-        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide border-t border-neutral-100 dark:border-neutral-800/50">
-          {[
-            { id: "chart" as const, label: "Chart", icon: BarChart3 },
-            { id: "matchup" as const, label: "Matchup", icon: Target },
-            { id: "injuries" as const, label: "Injuries", icon: Users },
-            { id: "stats" as const, label: "Stats", icon: ListOrdered },
-            { id: "odds" as const, label: "Odds", icon: DollarSign },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all active:scale-95 shrink-0",
-                activeTab === tab.id
-                  ? "bg-brand text-white shadow-sm"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-              )}
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium">{tab.label}</span>
-            </button>
-          ))}
+        {/* ═══ Market Selector - Horizontal Scrollable Pills ═══ */}
+        <div className="flex items-center gap-1.5 px-3 pb-2.5 overflow-x-auto scrollbar-hide border-t border-neutral-100 dark:border-neutral-800/50 pt-2">
+          {allPlayerProfiles.map((prof) => {
+            const isActive = prof.market === selectedMarket;
+            const profLine = prof.line ?? 0;
+            return (
+              <button
+                key={prof.market}
+                type="button"
+                onClick={() => handleMarketChange(prof.market)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0 transition-all active:scale-95 border",
+                  isActive
+                    ? "bg-brand text-white border-brand shadow-sm"
+                    : "bg-white dark:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                )}
+              >
+                <span className="text-xs font-semibold">
+                  {formatMarketLabel(prof.market).split(" ")[0]}
+                </span>
+                {!isActive && (
+                  <span className="text-[10px] opacity-60">
+                    {profLine}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
       
@@ -2336,194 +2717,180 @@ export function MobilePlayerDrilldown({
               onQuickFilterToggle={toggleQuickFilter}
               onQuickFiltersClear={() => setQuickFilters(new Set())}
               totalGamesCount={chartGames.length}
+              market={profile.market}
             />
         
-            {/* ═══ LINE CONTROL BAR - Market + Line Adjuster ═══ */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-          {/* Controls Row */}
-          <div className="flex items-center gap-2 p-3">
-            {/* Market Selector */}
-            <button
-              type="button"
-              onClick={() => setShowMarketPicker(true)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg flex-1",
-                "bg-neutral-100 dark:bg-neutral-800",
-                "border border-neutral-200/60 dark:border-neutral-700/40",
-                "active:scale-[0.98] transition-all"
-              )}
-            >
-              <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                {formatMarketLabel(profile.market)}
-              </span>
-              <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" />
-            </button>
-            
-            {/* Line Adjuster */}
-            <div className="flex items-center gap-0 rounded-lg border border-neutral-200/60 dark:border-neutral-700/40 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-              {/* Minus Button */}
-              <button
-                type="button"
-                onClick={() => adjustLine(-1)}
-                className="w-9 h-9 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 active:scale-95 transition-all border-r border-neutral-200/60 dark:border-neutral-700/40"
-              >
-                <Minus className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-              </button>
+            {/* ═══ LINE CONTROL BAR - Premium Clean Design ═══ */}
+            <div className="bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-900/50 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden shadow-sm">
               
-              {/* Line Value Input */}
-              {isEditingLine ? (
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.5"
-                  value={lineInputValue}
-                  onChange={(e) => setLineInputValue(e.target.value)}
-                  onBlur={() => {
-                    const parsed = parseFloat(lineInputValue);
-                    if (!isNaN(parsed) && parsed >= 0) {
-                      setCustomLine(parsed);
-                    }
-                    setIsEditingLine(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const parsed = parseFloat(lineInputValue);
-                      if (!isNaN(parsed) && parsed >= 0) {
-                        setCustomLine(parsed);
-                      }
-                      setIsEditingLine(false);
-                    } else if (e.key === "Escape") {
-                      setIsEditingLine(false);
-                    }
-                  }}
-                  autoFocus
-                  className="w-14 h-9 text-center text-sm font-bold bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand/30"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLineInputValue(String(effectiveLine));
-                    setIsEditingLine(true);
-                  }}
-                  className="w-14 h-9 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
-                >
-                  <span className={cn(
-                    "text-sm font-bold",
-                    customLine !== null ? "text-brand" : "text-neutral-900 dark:text-neutral-100"
-                  )}>
-                    {effectiveLine}
-                  </span>
-                </button>
-              )}
+              {/* Line Adjuster - Featured */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1">
+                      Line
+                    </div>
+                    <div className="text-xl font-black text-neutral-900 dark:text-neutral-100 tracking-tight">
+                      {effectiveLine}+ {formatMarketLabel(profile.market).split(" ")[0]}
+                    </div>
+                  </div>
+                  
+                  {/* Compact Line Adjuster */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => adjustLine(-1)}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 active:scale-95 transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                    >
+                      <Minus className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+                    </button>
+                    
+                    {isEditingLine ? (
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.5"
+                        value={lineInputValue}
+                        onChange={(e) => setLineInputValue(e.target.value)}
+                        onBlur={() => {
+                          const parsed = parseFloat(lineInputValue);
+                          if (!isNaN(parsed) && parsed >= 0) {
+                            setCustomLine(parsed);
+                          }
+                          setIsEditingLine(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const parsed = parseFloat(lineInputValue);
+                            if (!isNaN(parsed) && parsed >= 0) {
+                              setCustomLine(parsed);
+                            }
+                            setIsEditingLine(false);
+                          } else if (e.key === "Escape") {
+                            setIsEditingLine(false);
+                          }
+                        }}
+                        autoFocus
+                        className="w-16 h-10 text-center text-base font-bold bg-white dark:bg-neutral-900 text-brand border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLineInputValue(String(effectiveLine));
+                          setIsEditingLine(true);
+                        }}
+                        className="w-16 h-10 flex items-center justify-center rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 hover:border-brand dark:hover:border-brand transition-all"
+                      >
+                        <span className={cn(
+                          "text-base font-bold",
+                          customLine !== null ? "text-brand" : "text-neutral-900 dark:text-neutral-100"
+                        )}>
+                          {effectiveLine}
+                        </span>
+                      </button>
+                    )}
+                    
+                    <button
+                      type="button"
+                      onClick={() => adjustLine(1)}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 active:scale-95 transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                    >
+                      <Plus className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Reset Button */}
+                {customLine !== null && customLine !== baseLine && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomLine(null)}
+                    className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand transition-colors"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset to {baseLine}
+                  </button>
+                )}
+              </div>
               
-              {/* Plus Button */}
-              <button
-                type="button"
-                onClick={() => adjustLine(1)}
-                className="w-9 h-9 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 active:scale-95 transition-all border-l border-neutral-200/60 dark:border-neutral-700/40"
-              >
-                <Plus className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-              </button>
+              {/* Best Odds - Premium Cards */}
+              <div className="px-4 pb-4">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                  Best Odds
+                  {odds?.isAltLine && <span className="ml-2 text-amber-600 dark:text-amber-400">Alt Line</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Over */}
+                  <button
+                    type="button"
+                    onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                    disabled={!odds?.bestOver}
+                    className={cn(
+                      "p-3 rounded-xl transition-all active:scale-[0.98]",
+                      odds?.bestOver 
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/30" 
+                        : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
+                    )}
+                  >
+                    <div className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1">OVER {effectiveLine}+</div>
+                    {odds?.bestOver ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                          {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
+                        </span>
+                        {getBookLogo(odds.bestOver.book) && (
+                          <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-5 w-5 rounded" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold text-neutral-400">No odds</div>
+                    )}
+                  </button>
+                  
+                  {/* Under */}
+                  <button
+                    type="button"
+                    onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                    disabled={!odds?.bestUnder}
+                    className={cn(
+                      "p-3 rounded-xl transition-all active:scale-[0.98]",
+                      odds?.bestUnder 
+                        ? "bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-700/30" 
+                        : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
+                    )}
+                  >
+                    <div className="text-[10px] font-medium text-red-500 dark:text-red-400 mb-1">UNDER {effectiveLine}+</div>
+                    {odds?.bestUnder ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xl font-bold text-red-500 dark:text-red-400">
+                          {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
+                        </span>
+                        {getBookLogo(odds.bestUnder.book) && (
+                          <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-5 w-5 rounded" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-semibold text-neutral-400">No odds</div>
+                    )}
+                  </button>
+                </div>
+                
+                {/* View All Odds Link */}
+                {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllOdds(true)}
+                    className="w-full mt-2 py-2 text-xs font-semibold text-brand hover:text-brand/80 transition-colors flex items-center justify-center gap-1"
+                  >
+                    View All Odds
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              
             </div>
-          </div>
-          
-          {/* Result Row - Shows current prop with best odds */}
-          <div className="flex items-center justify-between px-3 py-2.5 border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                {profile.playerName.split(" ").pop()} {effectiveLine}+ {formatMarketLabel(profile.market)}
-              </span>
-              {customLine !== null && customLine !== baseLine && (
-                <button
-                  type="button"
-                  onClick={() => setCustomLine(null)}
-                  className="text-[9px] text-neutral-400 hover:text-brand transition-colors shrink-0"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-            
-            {/* Best Odds - Over & Under */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Alt line indicator */}
-              {odds?.isAltLine && odds.bestOver && (
-                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium mr-0.5">ALT</span>
-              )}
-              
-              {/* Over Odds */}
-              {odds?.bestOver && (
-                <button
-                  type="button"
-                  onClick={() => odds.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all active:scale-[0.98]",
-                    "bg-emerald-100 dark:bg-emerald-900/30",
-                    "border border-emerald-300/60 dark:border-emerald-700/40"
-                  )}
-                >
-                  {getBookLogo(odds.bestOver.book) && (
-                    <img
-                      src={getBookLogo(odds.bestOver.book)!}
-                      alt={odds.bestOver.book}
-                      className="h-3.5 w-3.5 rounded object-contain"
-                    />
-                  )}
-                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                    O {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
-                  </span>
-                </button>
-              )}
-              
-              {/* Under Odds */}
-              {odds?.bestUnder && (
-                <button
-                  type="button"
-                  onClick={() => odds.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all active:scale-[0.98]",
-                    "bg-red-100 dark:bg-red-900/30",
-                    "border border-red-300/60 dark:border-red-700/40"
-                  )}
-                >
-                  {getBookLogo(odds.bestUnder.book) && (
-                    <img
-                      src={getBookLogo(odds.bestUnder.book)!}
-                      alt={odds.bestUnder.book}
-                      className="h-3.5 w-3.5 rounded object-contain"
-                    />
-                  )}
-                  <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
-                    U {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
-                  </span>
-                </button>
-              )}
-              
-              {/* View All Odds */}
-              {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllOdds(true)}
-                  className={cn(
-                    "flex items-center gap-0.5 px-1.5 py-1.5 rounded-lg transition-all active:scale-[0.98]",
-                    "bg-neutral-100 dark:bg-neutral-800",
-                    "border border-neutral-200/60 dark:border-neutral-700/40",
-                    "text-neutral-500 dark:text-neutral-400"
-                  )}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              )}
-              
-              {/* No odds fallback */}
-              {!odds?.bestOver && !odds?.bestUnder && (
-                <span className="text-[10px] text-neutral-400">No odds</span>
-              )}
-            </div>
-          </div>
-        </div>
-        </>
+          </>
         )}
         
         {/* ═══ MATCHUP TAB ═══ */}
@@ -3176,6 +3543,47 @@ export function MobilePlayerDrilldown({
           </div>
         )}
         
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          STICKY BOTTOM NAVIGATION TABS
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-800/60 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] safe-area-inset-bottom">
+        <div className="flex items-center justify-around px-2 py-2">
+          {[
+            { id: "chart" as const, label: "Chart", icon: BarChart3 },
+            { id: "matchup" as const, label: "Matchup", icon: Target },
+            { id: "injuries" as const, label: "Injuries", icon: Users },
+            { id: "stats" as const, label: "Stats", icon: ListOrdered },
+            { id: "odds" as const, label: "Odds", icon: DollarSign },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-1 max-w-[80px]",
+                  isActive
+                    ? "bg-brand/10 text-brand"
+                    : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                )}
+              >
+                <tab.icon className={cn(
+                  "h-5 w-5",
+                  isActive && "text-brand"
+                )} />
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  isActive && "text-brand"
+                )}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

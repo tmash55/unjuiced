@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronRight, Plus, HeartPulse, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
@@ -38,6 +38,16 @@ function getHitRateColor(pct: number | null) {
   if (pct >= 80) return "text-emerald-500 dark:text-emerald-400/90";
   if (pct >= 60) return "text-amber-500 dark:text-amber-400/90";
   return "text-red-400 dark:text-red-400/90";
+}
+
+// Get injury status color
+function getInjuryColor(status: string | null): string {
+  if (!status) return "text-neutral-400 dark:text-neutral-500";
+  const s = status.toLowerCase();
+  if (s === "out") return "text-red-500 dark:text-red-400";
+  if (s === "questionable" || s === "doubtful") return "text-amber-500 dark:text-amber-400";
+  if (s === "probable" || s === "gtd") return "text-emerald-500 dark:text-emerald-400";
+  return "text-neutral-400 dark:text-neutral-500";
 }
 
 // Unified hit rate cluster - modern chip UI with standardized widths
@@ -234,6 +244,8 @@ function DvpBadge({ rank }: { rank: number | null }) {
 }
 
 export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = false }: PlayerCardProps) {
+  const [showInjuryModal, setShowInjuryModal] = useState(false);
+
   const {
     playerId,
     playerName,
@@ -251,6 +263,8 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
     matchupRank,
     primaryColor,
     secondaryColor,
+    injuryStatus,
+    injuryNotes,
   } = profile;
 
   const propLabel = formatMarketLabel(market);
@@ -263,6 +277,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
   const propText = line !== null ? `${line}+ ${propLabel}` : propLabel;
 
   const hasOdds = odds && (odds.bestOver || odds.bestUnder);
+  const hasInjury = injuryStatus && injuryStatus.toLowerCase() !== "active" && injuryStatus.toLowerCase() !== "available";
 
   return (
     <div className="bg-white dark:bg-neutral-900">
@@ -381,6 +396,17 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 truncate tracking-tight">
                   {playerName}
                 </h3>
+                {hasInjury && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowInjuryModal(true);
+                    }}
+                    className="shrink-0 active:scale-90 transition-transform cursor-pointer"
+                  >
+                    <HeartPulse className={cn("h-3.5 w-3.5", getInjuryColor(injuryStatus))} />
+                  </span>
+                )}
                 <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium shrink-0">
                   {position}
                 </span>
@@ -402,6 +428,120 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
           </div>
         </div>
       </button>
+      
+      {/* Injury Detail Modal */}
+      {showInjuryModal && hasInjury && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end"
+          onClick={() => setShowInjuryModal(false)}
+        >
+          <div
+            className="w-full bg-white dark:bg-neutral-900 rounded-t-2xl shadow-xl border-t border-neutral-200 dark:border-neutral-700 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className={cn("h-4 w-4", getInjuryColor(injuryStatus))} />
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  Injury Report
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInjuryModal(false)}
+                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="h-4 w-4 text-neutral-500" />
+              </button>
+            </div>
+
+            {/* Player Info */}
+            <div className="p-4 space-y-4">
+              {/* Player Header */}
+              <div className="flex items-center gap-3">
+                {/* Headshot with team gradient border and logo overlay */}
+                <div className="relative shrink-0">
+                  <div 
+                    className="w-12 h-12 rounded-full p-[2px]"
+                    style={{
+                      background: primaryColor 
+                        ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor || primaryColor} 100%)`
+                        : '#374151'
+                    }}
+                  >
+                    <div 
+                      className="w-full h-full rounded-full overflow-hidden relative"
+                      style={{
+                        background: primaryColor && secondaryColor
+                          ? `linear-gradient(180deg, ${primaryColor}dd 0%, ${primaryColor} 50%, ${secondaryColor} 100%)`
+                          : primaryColor || '#374151'
+                      }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
+                        <PlayerHeadshot
+                          nbaPlayerId={playerId}
+                          name={playerName}
+                          size="small"
+                          className="w-full h-auto"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Team logo overlay */}
+                  <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
+                    <img
+                      src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
+                      alt={teamAbbr ?? ""}
+                      className="h-3 w-3 object-contain"
+                      onError={(e) => { 
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                    {playerName}
+                  </h4>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    {teamAbbr} • {position}
+                  </p>
+                </div>
+              </div>
+
+              {/* Injury Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                    Status
+                  </span>
+                  <span className={cn("text-sm font-bold uppercase", getInjuryColor(injuryStatus))}>
+                    {injuryStatus}
+                  </span>
+                </div>
+                
+                {injuryNotes && (
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                    <p className="text-xs text-neutral-700 dark:text-neutral-300">
+                      {injuryNotes}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setShowInjuryModal(false)}
+                className="w-full py-2.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg font-medium text-sm active:scale-[0.98] transition-transform"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* CTA Row - removed for mobile */}
     </div>
