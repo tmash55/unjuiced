@@ -13,6 +13,7 @@ const QuerySchema = z.object({
 
 // RPC response structure
 interface RpcRecentGame {
+  player_id: number;
   player_name: string;
   team_abbr: string;
   position: string; // Player's actual position from depth_chart_pos
@@ -38,6 +39,7 @@ interface RpcResponse {
 
 // Frontend response structure
 interface PositionVsTeamPlayer {
+  playerId: number;
   playerName: string;
   teamAbbr: string;
   position: string; // Player's actual position
@@ -135,6 +137,7 @@ export async function GET(req: NextRequest) {
 
     // Map recent games to frontend format
     const players: PositionVsTeamPlayer[] = (data.recent_games || []).map((game) => ({
+      playerId: game.player_id,
       playerName: game.player_name,
       teamAbbr: game.team_abbr,
       position: game.position || position, // Use player's actual position, fallback to queried

@@ -76,13 +76,13 @@ export async function GET(request: Request) {
       p_offset: offset ?? 0,
     });
 
-    if (error) {
+  if (error) {
       console.error("[Hit Rates API] RPC error:", error.message);
-      return NextResponse.json(
-        { error: "Failed to load hit rates", details: error.message },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(
+      { error: "Failed to load hit rates", details: error.message },
+      { status: 500 }
+    );
+  }
 
     allData = data ?? [];
     totalCount = data?.[0]?.total_profiles ?? 0;
@@ -271,14 +271,14 @@ export async function GET(request: Request) {
     {
       data: transformedData,
       count: Number(totalCount),
-      meta: {
+    meta: {
         date: primaryDate,
         availableDates,
-        market: market ?? null,
-        minHitRate: minHitRate ?? null,
+      market: market ?? null,
+      minHitRate: minHitRate ?? null,
         limit: requestedLimit,
-        offset: offset ?? 0,
-      },
+      offset: offset ?? 0,
+    },
     },
     {
       headers: {

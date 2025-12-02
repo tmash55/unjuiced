@@ -20,6 +20,30 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const MARKET_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "player_points", label: "PTS" },
+  { value: "player_rebounds", label: "REB" },
+  { value: "player_assists", label: "AST" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_points_rebounds", label: "P+R" },
+  { value: "player_points_assists", label: "P+A" },
+  { value: "player_rebounds_assists", label: "R+A" },
+  { value: "player_steals", label: "STL" },
+  { value: "player_blocks", label: "BLK" },
+  { value: "player_blocks_steals", label: "B+S" },
+  { value: "player_turnovers", label: "TO" },
+];
+
+const SPORT_OPTIONS = [
+  { value: "nba", label: "NBA", enabled: true },
+  { value: "nfl", label: "NFL", enabled: false },
+  { value: "nhl", label: "NHL", enabled: false },
+  { value: "wnba", label: "WNBA", enabled: false },
+  { value: "mlb", label: "MLB", enabled: false },
+];
+
 interface GameOption {
   id: string;
   label: string;
@@ -119,7 +143,7 @@ const SORT_CATEGORIES = {
   }
 };
 
-// Dropdown button component
+// Dropdown button component - Smaller version
 function DropdownButton({ 
   label, 
   value, 
@@ -138,23 +162,23 @@ function DropdownButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center justify-between gap-1.5 px-3 py-2.5 rounded-xl",
+        "flex items-center justify-between gap-1 px-2.5 py-1.5 rounded-lg",
         "bg-neutral-100 dark:bg-neutral-800/80",
         "border transition-all duration-200",
         isOpen 
           ? "border-brand shadow-sm shadow-brand/20" 
           : "border-neutral-200/60 dark:border-neutral-700/60",
-        "text-sm font-medium text-neutral-900 dark:text-neutral-100",
+        "text-xs font-medium text-neutral-900 dark:text-neutral-100",
         "active:scale-[0.98] transition-transform",
-        "min-w-0 flex-1"
+        "shrink-0"
       )}
     >
-      <span className="flex items-center gap-1.5 truncate">
+      <span className="flex items-center gap-1 truncate">
         {icon}
         {value || label}
       </span>
       <ChevronDown className={cn(
-        "h-4 w-4 shrink-0 transition-transform duration-200",
+        "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
         isOpen ? "rotate-180 text-brand" : "text-neutral-400"
       )} />
     </button>
@@ -605,184 +629,215 @@ export function MobileHeader({
   return (
     <>
       <div className="bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-        {/* Collapsed state - minimal bar */}
-        {isCollapsed ? (
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(false)}
-            className="w-full flex items-center justify-between px-4 py-2"
-          >
-            <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
-              <span className="font-semibold text-neutral-700 dark:text-neutral-300">{sport.toUpperCase()}</span>
-              <span>•</span>
-              <span>{gamesLabel}</span>
-              <span>•</span>
-              <span>{marketsLabel}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-brand">
-              <span className="text-xs font-medium">Filters</span>
-              <ChevronDown className="h-4 w-4" />
-            </div>
-          </button>
-        ) : (
+        {/* Filter Section */}
+        {true && (
           <>
-            <div className="px-4 pt-3 pb-2">
-              <div className="grid grid-cols-2 gap-2">
-                <DropdownButton
-                  label="Sport"
-                  value={sport.toUpperCase()}
-                  isOpen={openDropdown === "sport"}
-                  onClick={() => setOpenDropdown(openDropdown === "sport" ? null : "sport")}
-                />
-                
+            <div className="px-3 pt-2 pb-1.5 space-y-2">
+              {/* Row 1: Sport Selection - Tab Style */}
+              <div className="flex gap-0 overflow-x-auto scrollbar-hide border-b border-neutral-200 dark:border-neutral-800">
+                {SPORT_OPTIONS.map((sportOption) => {
+                  const isSelected = sport === sportOption.value;
+                  const isEnabled = sportOption.enabled;
+                  return (
+                    <div
+                      key={sportOption.value}
+                      className={cn(
+                        "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
+                        isEnabled
+                          ? isSelected
+                            ? "text-brand"
+                            : "text-neutral-500 dark:text-neutral-400"
+                          : "text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
+                      )}
+                    >
+                      {sportOption.label}
+                      {isSelected && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Row 2: Market Selection */}
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                {MARKET_OPTIONS.map((market) => {
+                  // Handle "All" selection
+                  const isAll = market.value === "all";
+                  const isSelected = isAll 
+                    ? selectedMarkets.length === MARKET_OPTIONS.length - 1 // All markets except "all" itself
+                    : selectedMarkets.includes(market.value);
+                  
+                  return (
+                    <button
+                      key={market.value}
+                      type="button"
+                      onClick={() => {
+                        if (isAll) {
+                          // If all markets are already selected, deselect to just Points
+                          if (isSelected) {
+                            onMarketsChange(["player_points"]);
+                          } else {
+                            // Select all markets
+                            const allMarketValues = MARKET_OPTIONS.filter(m => m.value !== "all").map(m => m.value);
+                            onMarketsChange(allMarketValues);
+                          }
+                        } else {
+                          const newMarkets = isSelected
+                            ? selectedMarkets.filter(m => m !== market.value)
+                            : [...selectedMarkets, market.value];
+                          onMarketsChange(newMarkets.length > 0 ? newMarkets : [market.value]);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0",
+                        "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
+                        "border",
+                        isSelected
+                          ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
+                          : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+                      )}
+                    >
+                      {market.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Row 3: Search, Games, Sort Toggles */}
+              <div className="flex items-center gap-2 pb-1">
+                {/* Search Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                  className={cn(
+                    "flex items-center justify-center px-2.5 py-1.5 rounded-lg shrink-0",
+                    "border transition-all duration-150 active:scale-[0.96]",
+                    searchQuery || isSearchExpanded
+                      ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
+                      : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
+                  )}
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Games Dropdown */}
                 <DropdownButton
                   label="Games"
                   value={gamesLabel}
                   isOpen={openDropdown === "games"}
                   onClick={() => setOpenDropdown(openDropdown === "games" ? null : "games")}
                 />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <DropdownButton
-                  label="Markets"
-                  value={marketsLabel}
-                  isOpen={openDropdown === "markets"}
-                  onClick={() => setOpenDropdown(openDropdown === "markets" ? null : "markets")}
-                />
-                
+
+                {/* Sort Toggles - Toggle Group Style */}
+                <div className="flex items-center gap-0.5 ml-auto shrink-0 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
+                  <button
+                    type="button"
+                    onClick={() => onSortChange("l5Pct_desc")}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] font-semibold transition-all",
+                      sortField.startsWith("l5Pct")
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}
+                  >
+                    L5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSortChange("l10Pct_desc")}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] font-semibold transition-all",
+                      sortField.startsWith("l10Pct")
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}
+                  >
+                    L10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSortChange("seasonPct_desc")}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] font-semibold transition-all",
+                      sortField.startsWith("seasonPct")
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}
+                  >
+                    SZN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSortChange("dvp_asc")}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] font-semibold transition-all",
+                      sortField.startsWith("dvp")
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}
+                  >
+                    DvP
+                  </button>
+                </div>
+
+                {/* Advanced Filters Button */}
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === "sort" ? null : "sort")}
                   className={cn(
-                    "flex items-center justify-between gap-1.5 px-3 py-2.5 rounded-xl",
-                    "bg-neutral-100 dark:bg-neutral-800/80",
-                    "border transition-all duration-200",
+                    "flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0",
+                    "border transition-all duration-150 active:scale-[0.96]",
                     openDropdown === "sort"
-                      ? "border-brand shadow-sm shadow-brand/20" 
-                      : "border-neutral-200/60 dark:border-neutral-700/60",
-                    "text-sm font-medium text-neutral-900 dark:text-neutral-100",
-                    "active:scale-[0.98] transition-transform",
-                    "min-w-0 flex-1"
+                      ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
+                      : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
                   )}
                 >
-                  <span className="flex items-center gap-1.5 truncate">
-                    {sortDir === "asc" ? (
-                      <ArrowUp className="h-3.5 w-3.5 text-emerald-500" />
-                    ) : (
-                      <ArrowDown className="h-3.5 w-3.5 text-blue-500" />
-                    )}
-                    {sortLabel}
-                  </span>
-                  <ChevronDown className={cn(
-                    "h-4 w-4 shrink-0 transition-transform duration-200",
-                    openDropdown === "sort" ? "rotate-180 text-brand" : "text-neutral-400"
-                  )} />
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              {/* Search Input - Expanded State */}
+              {isSearchExpanded && (
+                <div className="pb-2">
+                  <div 
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-lg",
+                      "bg-neutral-100 dark:bg-neutral-800 border border-brand"
+                    )}
+                  >
+                    <Search className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => onSearchChange(e.target.value)}
+                      placeholder="Search players..."
+                      autoFocus
+                      className={cn(
+                        "flex-1 bg-transparent border-none outline-none",
+                        "text-sm text-neutral-900 dark:text-neutral-100",
+                        "placeholder:text-neutral-500",
+                        "min-w-0"
+                      )}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSearchChange("");
+                        }}
+                        className="shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
-            {showSecondaryFilters && (
-          <PillStrip>
-            {/* Collapse button */}
-            <button
-              type="button"
-              onClick={() => setIsCollapsed(true)}
-              className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-full shrink-0",
-                "border transition-all duration-150 active:scale-[0.96]",
-                "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700",
-                "hover:bg-neutral-100 dark:hover:bg-neutral-700"
-              )}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
             
-            {isSearchExpanded ? (
-              <div className="flex items-center shrink-0">
-                <div 
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full",
-                    "bg-neutral-800 border border-brand",
-                    "min-w-[180px]"
-                  )}
-                >
-                  <Search className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search players..."
-                    className={cn(
-                      "flex-1 bg-transparent border-none outline-none",
-                      "text-xs text-neutral-100",
-                      "placeholder:text-neutral-500",
-                      "min-w-0"
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSearchExpanded(false);
-                      onSearchChange("");
-                    }}
-                    className="shrink-0"
-                  >
-                    <X className="h-3.5 w-3.5 text-neutral-400 hover:text-neutral-200" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsSearchExpanded(true)}
-                className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full shrink-0",
-                  "border transition-all duration-150 active:scale-[0.96]",
-                  searchQuery
-                    ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
-                    : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
-                )}
-              >
-                <Search className="h-4 w-4" />
-              </button>
-            )}
-            
-            <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 shrink-0" />
-            
-            <FilterPill
-              label="25/26"
-              active={sortField.startsWith("seasonPct")}
-              onClick={() => onSortChange("seasonPct_desc")}
-            />
-            <FilterPill
-              label="L20"
-              active={sortField.startsWith("l20Pct")}
-              onClick={() => onSortChange("l20Pct_desc")}
-            />
-            <FilterPill
-              label="L10"
-              active={sortField.startsWith("l10Pct")}
-              onClick={() => onSortChange("l10Pct_desc")}
-            />
-            <FilterPill
-              label="L5"
-              active={sortField.startsWith("l5Pct")}
-              onClick={() => onSortChange("l5Pct_desc")}
-            />
-            <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 shrink-0" />
-            <FilterPill
-              label="With Odds"
-              onClick={() => {}}
-            />
-            <FilterPill
-              label="More"
-              icon={<SlidersHorizontal className="h-3 w-3" />}
-              onClick={() => {}}
-            />
-          </PillStrip>
-        )}
           </>
         )}
       </div>

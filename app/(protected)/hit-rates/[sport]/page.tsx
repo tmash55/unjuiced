@@ -6,6 +6,7 @@ import { HitRateTable } from "@/components/hit-rates/hit-rate-table";
 import { GamesSidebar } from "@/components/hit-rates/games-sidebar";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
 import { MobileHitRates } from "@/components/hit-rates/mobile/mobile-hit-rates";
+import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { ToolHeading } from "@/components/common/tool-heading";
@@ -33,7 +34,7 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-const INITIAL_PAGE_SIZE = 50; // Fast initial load
+const INITIAL_PAGE_SIZE = 500; // Fast initial load - enough for all markets across multiple games
 const BACKGROUND_PAGE_SIZE = 10000; // Load rest in background
 const FULL_DATA_SIZE = 15000; // Load all when in drilldown or filtering
 
@@ -59,9 +60,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Let the API determine the best date (today, or next day with profiles if today has none)
-  // All markets selected by default
+  // Default to Points only
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(
-    MARKET_OPTIONS.map((o) => o.value)
+    ["player_points"]
   );
   
   // Search state - with debouncing for server-side search
@@ -307,17 +308,15 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Mobile Layout
   if (isMobile) {
-    // Show drilldown if a player is selected
+    // Show mobile drilldown if a player is selected
     if (selectedPlayer) {
       return (
-        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-          <PlayerDrilldown 
-            profile={selectedPlayer} 
-            allPlayerProfiles={selectedPlayerAllProfiles}
-            onBack={handleBackToTable} 
-            onMarketChange={setPreferredMarket}
-          />
-        </div>
+        <MobilePlayerDrilldown 
+          profile={selectedPlayer} 
+          allPlayerProfiles={selectedPlayerAllProfiles}
+          onBack={handleBackToTable} 
+          onMarketChange={setPreferredMarket}
+        />
       );
     }
     

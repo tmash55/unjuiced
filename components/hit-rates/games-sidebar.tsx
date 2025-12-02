@@ -6,6 +6,7 @@ import { useNbaGames, type NbaGame } from "@/hooks/use-nba-games";
 import { MapPin, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { PlayerHeadshot } from "@/components/player-headshot";
+import { Tooltip } from "@/components/tooltip";
 
 // NBA Team Colors (primary and secondary)
 const NBA_TEAM_COLORS: Record<string, { primary: string; secondary: string }> = {
@@ -631,12 +632,17 @@ export function GamesSidebar({
                                           
                                           {/* Injury icon */}
                                           {hasInjury && (
-                                            <HeartPulse className={cn(
-                                              "h-3.5 w-3.5 shrink-0",
-                                              isOut && "text-red-500",
-                                              isQuestionable && "text-amber-500",
-                                              isProbable && "text-emerald-500"
-                                            )} />
+                                            <Tooltip
+                                              content={`${player.injuryStatus ? player.injuryStatus.charAt(0).toUpperCase() + player.injuryStatus.slice(1).toLowerCase() : ''}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
+                                              side="left"
+                                            >
+                                              <HeartPulse className={cn(
+                                                "h-3.5 w-3.5 shrink-0 cursor-help",
+                                                isOut && "text-red-500",
+                                                isQuestionable && "text-amber-500",
+                                                isProbable && "text-emerald-500"
+                                              )} />
+                                            </Tooltip>
                                           )}
                                           
                                           {/* Current player indicator */}

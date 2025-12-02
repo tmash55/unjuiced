@@ -277,224 +277,133 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
       <button
         type="button"
         onClick={onCardClick}
-        className="w-full text-left px-4 py-4 active:bg-neutral-50 dark:active:bg-neutral-800/50"
+        className="w-full text-left px-3 py-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/50"
       >
         {/* ═══════════════════════════════════════════════════════════════
             BLOCK 1 — Header Row (toned down: very small, mono, low-contrast)
             Game • DvP • Kickoff time
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
             <span className="uppercase">{matchupText}</span>
             <span className="opacity-40">•</span>
             <span>{gameTime}</span>
           </div>
-          <DvpBadge rank={matchupRank} />
+          <div className="flex items-center gap-1.5">
+            {/* Over Odds */}
+            {hasOdds && odds.bestOver && (
+              <a
+                href={odds.bestOver.mobileUrl || odds.bestOver.url || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!odds.bestOver?.mobileUrl && !odds.bestOver?.url) {
+                    e.preventDefault();
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded",
+                  "bg-emerald-100 dark:bg-emerald-900/30",
+                  "border border-emerald-300/60 dark:border-emerald-700/40",
+                  "transition-all duration-150",
+                  (odds.bestOver.mobileUrl || odds.bestOver.url) 
+                    ? "hover:bg-emerald-200 dark:hover:bg-emerald-900/50 active:scale-95 cursor-pointer" 
+                    : "cursor-default"
+                )}
+              >
+                {getBookLogo(odds.bestOver.book) && (
+                  <img
+                    src={getBookLogo(odds.bestOver.book)!}
+                    alt={odds.bestOver.book}
+                    className="h-3 w-3 rounded object-contain"
+                  />
+                )}
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                  {formatOdds(odds.bestOver.price)}
+                </span>
+              </a>
+            )}
+            <DvpBadge rank={matchupRank} />
+          </div>
         </div>
         
         {/* ═══════════════════════════════════════════════════════════════
-            BLOCK 2 — Player Identity (bold, prominent)
-            Player image • Name / Position / Team icon
+            BLOCK 2 — Player Identity + Hit Rates (2-row layout with hit rates on right)
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="flex items-center gap-3 mb-3">
-          {/* Headshot - zoomed in on face with team color gradient + outer ring */}
-          <div 
-            className="shrink-0 w-12 h-12 rounded-full p-[2px]"
-            style={{
-              background: primaryColor 
-                ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor || primaryColor} 100%)`
-                : '#374151'
-            }}
-          >
-            <div 
-              className="w-full h-full rounded-full overflow-hidden relative"
-              style={{
-                background: primaryColor && secondaryColor
-                  ? `linear-gradient(180deg, ${primaryColor}dd 0%, ${primaryColor} 50%, ${secondaryColor} 100%)`
-                  : primaryColor || '#374151'
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
-                <PlayerHeadshot
-                  nbaPlayerId={playerId}
-                  name={playerName}
-                  size="small"
-                  className="w-full h-auto"
+        <div className="flex items-start gap-2">
+          {/* Left side: Headshot + Player info */}
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {/* Headshot with team logo overlay */}
+            <div className="relative shrink-0">
+              <div 
+                className="w-9 h-9 rounded-full p-[1.5px]"
+                style={{
+                  background: primaryColor 
+                    ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor || primaryColor} 100%)`
+                    : '#374151'
+                }}
+              >
+                <div 
+                  className="w-full h-full rounded-full overflow-hidden relative"
+                  style={{
+                    background: primaryColor && secondaryColor
+                      ? `linear-gradient(180deg, ${primaryColor}dd 0%, ${primaryColor} 50%, ${secondaryColor} 100%)`
+                      : primaryColor || '#374151'
+                  }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
+                    <PlayerHeadshot
+                      nbaPlayerId={playerId}
+                      name={playerName}
+                      size="small"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              </div>
+              {/* Team logo overlay */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
+                <img
+                  src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
+                  alt={teamAbbr ?? ""}
+                  className="h-2.5 w-2.5 object-contain"
+                  onError={(e) => { 
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
                 />
               </div>
             </div>
-          </div>
-          
-          {/* Player identity */}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-[17px] font-bold text-neutral-900 dark:text-neutral-50 truncate tracking-tight">
-              {playerName}
-            </h3>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <img
-                src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
-                alt={teamAbbr ?? ""}
-                className="h-4 w-4 object-contain"
-                onError={(e) => { 
-                  (e.currentTarget as HTMLImageElement).style.display = 'none';
-                }}
-              />
-              <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                {position} • #{profile.jerseyNumber ?? "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        {/* ═══════════════════════════════════════════════════════════════
-            BLOCK 3 — Prop Line + Odds (split design for better hierarchy)
-            [ Prop Label ]  [ Odds with subtle shading ]
-        ═══════════════════════════════════════════════════════════════ */}
-        <div className={cn(
-          "flex items-center overflow-hidden",
-          "w-full rounded-lg",
-          "bg-neutral-100 dark:bg-neutral-800",
-          "border border-neutral-200 dark:border-neutral-700"
-        )}>
-          {/* Prop label - left side */}
-          <div className="flex-1 px-3 py-2">
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-              {propText}
-            </span>
-          </div>
-          
-          {/* Odds - right side with subtle shading */}
-          {hasOdds ? (
-            <div className={cn(
-              "flex items-center gap-2 px-2.5 py-2",
-              "bg-gradient-to-r from-transparent via-neutral-200/40 to-neutral-200/60",
-              "dark:from-transparent dark:via-neutral-700/40 dark:to-neutral-700/60"
-            )}>
-              {odds.bestOver && (
-                <a
-                  href={odds.bestOver.mobileUrl || odds.bestOver.url || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!odds.bestOver?.mobileUrl && !odds.bestOver?.url) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-1 px-1.5 py-0.5 -my-0.5 rounded",
-                    "transition-all duration-150",
-                    (odds.bestOver.mobileUrl || odds.bestOver.url) 
-                      ? "hover:bg-emerald-500/10 active:bg-emerald-500/20 cursor-pointer" 
-                      : "cursor-default"
-                  )}
-                >
-                  {getBookLogo(odds.bestOver.book) && (
-                    <img
-                      src={getBookLogo(odds.bestOver.book)!}
-                      alt={odds.bestOver.book}
-                      className="h-4 w-4 rounded object-contain"
-                    />
-                  )}
-                  <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                    O {formatOdds(odds.bestOver.price)}
-                  </span>
-                </a>
-              )}
-              
-              {/* Subtle divider between O/U */}
-              {odds.bestOver && odds.bestUnder && (
-                <div className="w-px h-4 bg-neutral-300/60 dark:bg-neutral-600/60" />
-              )}
-              
-              {odds.bestUnder && (
-                <a
-                  href={odds.bestUnder.mobileUrl || odds.bestUnder.url || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!odds.bestUnder?.mobileUrl && !odds.bestUnder?.url) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-1 px-1.5 py-0.5 -my-0.5 rounded",
-                    "transition-all duration-150",
-                    (odds.bestUnder.mobileUrl || odds.bestUnder.url) 
-                      ? "hover:bg-red-500/10 active:bg-red-500/20 cursor-pointer" 
-                      : "cursor-default"
-                  )}
-                >
-                  {getBookLogo(odds.bestUnder.book) && (
-                    <img
-                      src={getBookLogo(odds.bestUnder.book)!}
-                      alt={odds.bestUnder.book}
-                      className="h-4 w-4 rounded object-contain"
-                    />
-                  )}
-                  <span className="text-sm font-semibold text-red-500 dark:text-red-400">
-                    U {formatOdds(odds.bestUnder.price)}
-                  </span>
-                </a>
-              )}
-            </div>
-          ) : (
-            <div className="px-2.5 py-2">
-              <span className="text-xs text-neutral-400 dark:text-neutral-500">No odds</span>
-            </div>
-          )}
-        </div>
-        
-        {/* Bottom Row: Sparkline + Hit Rates */}
-        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/50">
-          <div className="flex items-center gap-8">
-            {/* Sparkline */}
-            <div className="flex-1">
-              <MobileSparkline gameLogs={gameLogs} line={line} />
-            </div>
             
-            {/* Unified Hit Rate Cluster */}
+            {/* Player identity - 2 rows */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 truncate tracking-tight">
+                  {playerName}
+                </h3>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium shrink-0">
+                  {position}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  O
+                </span>
+                <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+                  {propText}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right side: Hit Rate Cluster - spans both rows */}
+          <div className="shrink-0">
             <HitRateCluster l5={last5Pct} l10={last10Pct} season={seasonPct} />
           </div>
         </div>
       </button>
       
-      {/* CTA Row - with gap above for breathing room */}
-      <div className="flex items-center mt-1.5 mx-4 border-t border-neutral-100 dark:border-neutral-800/50">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddToSlip?.();
-          }}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-3",
-            "text-sm font-medium text-neutral-600 dark:text-neutral-400",
-            "transition-colors duration-150",
-            "hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
-            "active:bg-neutral-100 dark:active:bg-neutral-800",
-            "border-r border-neutral-100 dark:border-neutral-800/50"
-          )}
-        >
-          <Plus className="h-4 w-4" />
-          Add to Slip
-        </button>
-        <button
-          type="button"
-          onClick={onCardClick}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-3",
-            "text-sm font-medium text-brand",
-            "transition-colors duration-150",
-            "hover:bg-brand/5 dark:hover:bg-brand/10",
-            "active:bg-brand/10 dark:active:bg-brand/15"
-          )}
-        >
-          Details
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      {/* CTA Row - removed for mobile */}
     </div>
   );
 }

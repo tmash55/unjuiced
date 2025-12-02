@@ -246,7 +246,7 @@ function PlayerRow({
       {/* Injury Status */}
       {isInjured && (
         <Tooltip
-          content={`${player.injuryStatus}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
+          content={`${player.injuryStatus ? player.injuryStatus.charAt(0).toUpperCase() + player.injuryStatus.slice(1).toLowerCase() : ''}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
           side="left"
         >
           <div className="flex items-center gap-1 shrink-0">

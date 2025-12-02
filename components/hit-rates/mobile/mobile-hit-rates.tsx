@@ -33,6 +33,8 @@ const SORT_OPTIONS: Array<{ value: string; label: string; field: string; dir: "a
   { value: "l20Pct_asc", label: "L20 % (Worst)", field: "l20Pct", dir: "asc" },
   { value: "seasonPct_desc", label: "Season % (Best)", field: "seasonPct", dir: "desc" },
   { value: "seasonPct_asc", label: "Season % (Worst)", field: "seasonPct", dir: "asc" },
+  { value: "dvp_asc", label: "DvP Rank (Best)", field: "matchupRank", dir: "asc" },
+  { value: "dvp_desc", label: "DvP Rank (Worst)", field: "matchupRank", dir: "desc" },
   { value: "line_desc", label: "Line (High → Low)", field: "line", dir: "desc" },
   { value: "line_asc", label: "Line (Low → High)", field: "line", dir: "asc" },
   { value: "name_asc", label: "Player Name (A → Z)", field: "name", dir: "asc" },
@@ -56,9 +58,7 @@ export function MobileHitRates({
 }: MobileHitRatesProps) {
   // Filter state
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
-  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(
-    MARKET_OPTIONS.map(m => m.value)
-  );
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(["player_points"]); // Default to Points only
   const [sortField, setSortField] = useState("l10Pct_desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
@@ -125,6 +125,7 @@ export function MobileHitRates({
             case "l20Pct": return row.last20Pct ?? -1;
             case "seasonPct": return row.seasonPct ?? -1;
             case "line": return row.line ?? -1;
+            case "matchupRank": return row.matchupRank ?? 999; // Use 999 for null ranks (worst)
             default: return row.last10Pct ?? -1;
           }
         };
@@ -215,11 +216,6 @@ export function MobileHitRates({
         className="transition-all duration-200"
         style={{ height: `${FILTER_HEADER_HEIGHT}px` }} 
       />
-      
-      {/* Results Count */}
-      <div className="px-4 py-2 text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900/50">
-        Showing {visibleRows.length} of {filteredRows.length} props
-      </div>
       
       {/* Player Cards */}
       <div className="pb-20">
