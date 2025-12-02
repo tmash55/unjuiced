@@ -816,7 +816,7 @@ export function MobileHeader({
                       autoFocus
                       className={cn(
                         "flex-1 bg-transparent border-none outline-none",
-                        "text-sm text-neutral-900 dark:text-neutral-100",
+                        "text-base text-neutral-900 dark:text-neutral-100",
                         "placeholder:text-neutral-500",
                         "min-w-0"
                       )}

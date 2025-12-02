@@ -976,6 +976,51 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'Race To 5 Goals 3-Way Reg Time': 'race_to_5_goals_3way_reg',
 };
 
+  // Helper function to get short market labels (PTS, REB, AST, etc.)
+  export function formatMarketLabelShort(market: string): string {
+    const shortLabels: Record<string, string> = {
+      // Basketball
+      'player_points': 'PTS',
+      'player_rebounds': 'REB',
+      'player_assists': 'AST',
+      'player_threes_made': '3PM',
+      'player_points_rebounds_assists': 'PRA',
+      'player_points_rebounds': 'P+R',
+      'player_points_assists': 'P+A',
+      'player_rebounds_assists': 'R+A',
+      'player_steals': 'STL',
+      'player_blocks': 'BLK',
+      'player_blocks_steals': 'B+S',
+      'player_turnovers': 'TO',
+      'player_double_double': 'DD',
+      'player_triple_double': 'TD',
+      
+      // Hockey
+      'player_goals': 'G',
+      'player_shots_on_goal': 'SOG',
+      'player_power_play_points': 'PPP',
+      'player_total_saves': 'SV',
+      'player_blocked_shots': 'BS',
+      'player_hits': 'HIT',
+      
+      // Football
+      'passing_yards': 'PASS',
+      'rushing_yards': 'RUSH',
+      'receiving_yards': 'REC',
+      'receptions': 'RCPT',
+      'player_touchdowns': 'TD',
+      
+      // Baseball
+      'batter_home_runs': 'HR',
+      'batter_hits': 'H',
+      'batter_total_bases': 'TB',
+      'batter_rbis': 'RBI',
+      'pitcher_strikeouts': 'K',
+    };
+    
+    return shortLabels[market] || formatMarketLabel(market).split(' ')[0];
+  }
+
   // Helper function to format market labels with special cases
   export function formatMarketLabel(market: string): string {
     // First, check if this is an API key and map it to a display name

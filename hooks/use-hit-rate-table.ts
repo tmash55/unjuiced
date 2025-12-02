@@ -68,6 +68,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     last10Pct: profile.last_10_pct,
     last20Pct: profile.last_20_pct,
     seasonPct: profile.season_pct,
+    h2hPct: profile.h2h_pct,
     last5Avg: profile.last_5_avg,
     last10Avg: profile.last_10_avg,
     last20Avg: profile.last_20_avg,

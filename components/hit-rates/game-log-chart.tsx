@@ -590,9 +590,12 @@ export function GameLogChart({
     if (games.length === 0) return 10;
     
     // For rebounds market, include potential rebounds in max calculation
+    // For 3PM market, include 3PA in max calculation
     let max: number;
     if (market === "player_rebounds") {
       max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.potentialReb || 0)));
+    } else if (market === "player_threes_made") {
+      max = Math.max(...games.map(g => Math.max(getMarketStat(g, market), g.fg3a || 0)));
     } else {
       max = Math.max(...games.map(g => getMarketStat(g, market)));
     }
@@ -1017,6 +1020,26 @@ export function GameLogChart({
                             </span>
                           </>
                         )}
+                        
+                        {/* 3PA - Faded overlay (only for 3PM market) */}
+                        {market === "player_threes_made" && game.fg3a > 0 && game.fg3a > game.fg3m && (
+                          <>
+                            <div
+                              className="absolute bottom-0 left-0 right-0 rounded-t transition-all duration-200 bg-gradient-to-t from-neutral-400/30 to-neutral-300/20 dark:from-neutral-500/30 dark:to-neutral-400/20"
+                              style={{ 
+                                width: barWidth,
+                                height: Math.max(((game.fg3a / maxStat) * chartHeight), 24),
+                              }}
+                            />
+                            {/* 3PA value - faded text above 3PA bar */}
+                            <span 
+                              className="absolute text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 left-1/2 -translate-x-1/2"
+                              style={{ bottom: `${((game.fg3a / maxStat) * chartHeight) + 2}px` }}
+                            >
+                              {game.fg3a}
+                            </span>
+                          </>
+                        )}
                         {/* Actual rebounds bar */}
                         <div
                           className={cn(
@@ -1033,7 +1056,7 @@ export function GameLogChart({
                               : undefined
                           }}
                         />
-                      </div>
+                  </div>
                   </div>
                   )}
                   
@@ -1176,6 +1199,12 @@ export function GameLogChart({
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-neutral-400/30 dark:bg-neutral-500/30" />
             <span className="text-neutral-500 dark:text-neutral-400">Chances</span>
+          </div>
+        )}
+        {market === "player_threes_made" && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-neutral-400/30 dark:bg-neutral-500/30" />
+            <span className="text-neutral-500 dark:text-neutral-400">Attempts</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">

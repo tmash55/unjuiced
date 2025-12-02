@@ -636,12 +636,12 @@ export function GamesSidebar({
                                               content={`${player.injuryStatus ? player.injuryStatus.charAt(0).toUpperCase() + player.injuryStatus.slice(1).toLowerCase() : ''}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
                                               side="left"
                                             >
-                                              <HeartPulse className={cn(
+                                            <HeartPulse className={cn(
                                                 "h-3.5 w-3.5 shrink-0 cursor-help",
-                                                isOut && "text-red-500",
+                                              isOut && "text-red-500",
                                                 isQuestionable && "text-amber-500",
                                                 isProbable && "text-emerald-500"
-                                              )} />
+                                            )} />
                                             </Tooltip>
                                           )}
                                           

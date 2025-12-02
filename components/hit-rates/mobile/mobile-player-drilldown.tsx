@@ -16,7 +16,6 @@ import {
   ChevronRight,
   ExternalLink,
   Check,
-  BarChart3,
   DollarSign,
   LineChart,
   ListOrdered,
@@ -27,8 +26,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
+import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
-import { formatMarketLabel } from "@/lib/data/markets";
+import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
@@ -47,7 +47,7 @@ import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-type GameCountFilter = 5 | 10 | 20 | "season";
+type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
 
 // Injury status helpers
 const getInjuryColor = (status: string | null): string => {
@@ -146,6 +146,60 @@ const getMarketStat = (game: any, market: string): number => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COMBO STAT HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Check if market is a combo market
+const isComboMarket = (market: string): boolean => {
+  return [
+    "player_points_rebounds_assists",
+    "player_points_rebounds",
+    "player_points_assists",
+    "player_rebounds_assists",
+    "player_blocks_steals"
+  ].includes(market);
+};
+
+// Get component stats for combo markets
+interface ComboStatSegment {
+  value: number;
+  label: string;
+}
+
+const getComboSegments = (gameData: any, market: string): ComboStatSegment[] => {
+  switch (market) {
+    case "player_points_rebounds_assists":
+      return [
+        { value: gameData.pts || 0, label: "P" },
+        { value: gameData.reb || 0, label: "R" },
+        { value: gameData.ast || 0, label: "A" },
+      ];
+    case "player_points_rebounds":
+      return [
+        { value: gameData.pts || 0, label: "P" },
+        { value: gameData.reb || 0, label: "R" },
+      ];
+    case "player_points_assists":
+      return [
+        { value: gameData.pts || 0, label: "P" },
+        { value: gameData.ast || 0, label: "A" },
+      ];
+    case "player_rebounds_assists":
+      return [
+        { value: gameData.reb || 0, label: "R" },
+        { value: gameData.ast || 0, label: "A" },
+      ];
+    case "player_blocks_steals":
+      return [
+        { value: gameData.blk || 0, label: "BLK" },
+        { value: gameData.stl || 0, label: "STL" },
+      ];
+    default:
+      return [];
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GAME LOG BAR COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -170,9 +224,21 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
   const heightPct = Math.max(2, (stat / maxStat) * 100);
   const isHome = homeAway === "H";
   
-  // Check if we should show potential rebounds
-  const showPotential = market === "player_rebounds" && potentialReb && potentialReb > 0 && potentialReb > stat;
+  // Check if we should show potential rebounds (only if > 0 and > actual stat)
+  const showPotential = market === "player_rebounds" && 
+    potentialReb !== null && 
+    potentialReb !== undefined && 
+    potentialReb > 0 && 
+    potentialReb > stat;
   const potentialHeightPct = showPotential ? Math.max(2, ((potentialReb ?? 0) / maxStat) * 100) : 0;
+  
+  // Check if we should show 3PA for 3PM market (only if > 0 and > actual 3PM)
+  const show3PA = market === "player_threes_made" && 
+    gameData?.fg3a !== null && 
+    gameData?.fg3a !== undefined && 
+    gameData.fg3a > 0 && 
+    gameData.fg3a > stat;
+  const fg3aHeightPct = show3PA ? Math.max(2, ((gameData?.fg3a ?? 0) / maxStat) * 100) : 0;
   
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -202,7 +268,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
         />
         
         {/* Potential Rebounds - Faded overlay (only for rebounds market) */}
-        {showPotential && (
+        {showPotential && potentialReb > 0 && (
           <>
             <div
               className="absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-300 bg-neutral-400/30 dark:bg-neutral-500/30"
@@ -220,6 +286,25 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
           </>
         )}
         
+        {/* 3PA - Faded overlay (only for 3PM market) */}
+        {show3PA && gameData?.fg3a > 0 && (
+          <>
+            <div
+              className="absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-300 bg-neutral-400/30 dark:bg-neutral-500/30"
+              style={{ 
+                height: `${fg3aHeightPct}%`,
+              }}
+            />
+            {/* 3PA value - faded text above 3PA bar */}
+            <div 
+              className="absolute text-[8px] font-semibold text-neutral-400 dark:text-neutral-500 z-10"
+              style={{ bottom: `${fg3aHeightPct + 2}%` }}
+            >
+              {gameData.fg3a}
+            </div>
+          </>
+        )}
+        
         {/* Stat value positioned on top of bar */}
         <div 
           className={cn(
@@ -232,20 +317,64 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
           {stat}
         </div>
         
-        {/* Bar */}
-        <div
-          className={cn(
-            "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1]",
-            isHit 
-              ? "bg-emerald-500 dark:bg-emerald-400" 
-              : "bg-red-400 dark:bg-red-500",
-            isPressed && "opacity-80"
-          )}
-          style={{ 
-            height: `${heightPct}%`,
-            animationDelay: `${index * 50}ms`
-          }}
-        />
+        {/* Bar - Stacked for combo markets, solid for single stat */}
+        {isComboMarket(market) && gameData ? (
+          // Stacked bar for combo markets - P at bottom, then R, then A on top
+          <div
+            className={cn(
+              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1] flex flex-col-reverse overflow-hidden",
+              isHit 
+                ? "bg-emerald-500 dark:bg-emerald-400" 
+                : "bg-red-400 dark:bg-red-500",
+              isPressed && "opacity-80"
+            )}
+            style={{ 
+              height: `${heightPct}%`,
+              animationDelay: `${index * 50}ms`
+            }}
+          >
+            {getComboSegments(gameData, market).map((segment, idx) => {
+              const segmentHeightPct = (segment.value / stat) * 100;
+              const isLast = idx === getComboSegments(gameData, market).length - 1;
+              return (
+                <div
+                  key={segment.label}
+                  className="flex flex-col items-center justify-center relative"
+                  style={{ 
+                    height: `${segmentHeightPct}%`,
+                    backgroundColor: isHit 
+                      ? `rgba(16, 185, 129, ${0.7 + (idx * 0.15)})` // Lighter shades for visual separation
+                      : `rgba(239, 68, 68, ${0.7 + (idx * 0.15)})`,
+                    borderTop: !isLast ? '1px solid rgba(255,255,255,0.2)' : 'none'
+                  }}
+                >
+                  {/* Value and abbreviation stacked */}
+                  <span className="text-[8px] font-bold text-white drop-shadow-sm">
+                    {segment.value}
+                  </span>
+                  <span className="text-[6px] font-semibold text-white/80 uppercase tracking-wide">
+                    {segment.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          // Solid bar for single stat markets
+          <div
+            className={cn(
+              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1]",
+              isHit 
+                ? "bg-emerald-500 dark:bg-emerald-400" 
+                : "bg-red-400 dark:bg-red-500",
+              isPressed && "opacity-80"
+            )}
+            style={{ 
+              height: `${heightPct}%`,
+              animationDelay: `${index * 50}ms`
+            }}
+          />
+        )}
       </div>
       
       {/* Opponent: vs/@ + logo stacked */}
@@ -512,6 +641,7 @@ interface HeroBarChartProps {
     win_loss?: string;
     home_away?: string;
     potential_reb?: number;
+    fg3a?: number; // Add 3PA for chart
     full_game_data?: any; // Full game data for dialog
     teammates_out?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out for dialog
   }>;
@@ -540,15 +670,18 @@ function HeroBarChart({
   market
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
-    const count = gameCount === "season" ? games.length : gameCount;
+    const count = gameCount === "season" || gameCount === "h2h" ? games.length : gameCount;
     return games.slice(0, count).reverse(); // Oldest on left, newest on right
   }, [games, gameCount]);
   
   const maxStat = useMemo(() => {
     // For rebounds market, include potential rebounds in max calculation
+    // For 3PM market, include 3PA in max calculation
     let stats: number[];
     if (market === "player_rebounds") {
       stats = displayGames.map(g => Math.max(g.market_stat, g.potential_reb ?? 0));
+    } else if (market === "player_threes_made") {
+      stats = displayGames.map(g => Math.max(g.market_stat, g.fg3a ?? 0));
     } else {
       stats = displayGames.map(g => g.market_stat);
     }
@@ -1852,6 +1985,7 @@ export function MobilePlayerDrilldown({
         margin: g.margin,
         minutes: g.minutes,
         potential_reb: g.potentialReb ?? 0, // Add potential rebounds for chart
+        fg3a: g.fg3a ?? 0, // Add 3PA for chart
         full_game_data: g, // Include full game data for dialog
         teammates_out: teammatesOut, // Add teammates out for dialog
       };
@@ -1912,12 +2046,17 @@ export function MobilePlayerDrilldown({
       });
     }
     
+    // Filter by opponent if H2H is selected
+    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
+      games = games.filter(game => game.opponent_abbr === profile.opponentTeamAbbr);
+    }
+    
     return games;
-  }, [chartGames, quickFilters, injuryFilters, boxScoreGames, teammatesOutByGame]);
+  }, [chartGames, quickFilters, injuryFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
   
   // Calculate average from filtered games
   const avg = useMemo(() => {
-    const count = gameCount === "season" ? filteredChartGames.length : gameCount;
+    const count = gameCount === "season" || gameCount === "h2h" ? filteredChartGames.length : gameCount;
     const games = filteredChartGames.slice(0, count);
     if (games.length === 0) return 0;
     return games.reduce((sum, g) => sum + g.market_stat, 0) / games.length;
@@ -1929,7 +2068,7 @@ export function MobilePlayerDrilldown({
   
   // Calculate hit rate for current filters (shown in header when filters are active)
   const filteredHitRate = useMemo(() => {
-    const count = gameCount === "season" ? filteredChartGames.length : gameCount;
+    const count = gameCount === "season" || gameCount === "h2h" ? filteredChartGames.length : gameCount;
     const games = filteredChartGames.slice(0, count);
     if (games.length === 0) return { hits: 0, total: 0, pct: null };
     
@@ -1983,13 +2122,18 @@ export function MobilePlayerDrilldown({
   
   const customHitRates = useMemo(() => {
     const line = effectiveLine;
+    
+    // Filter games for H2H (games against current opponent)
+    const h2hGames = chartGames.filter(g => g.opponent_abbr === profile.opponentTeamAbbr);
+    
     return {
       l5: calculateHitRate(filteredChartGames.slice(0, 5), line),
       l10: calculateHitRate(filteredChartGames.slice(0, 10), line),
       l20: calculateHitRate(filteredChartGames.slice(0, 20), line),
       season: calculateHitRate(filteredChartGames, line),
+      h2h: calculateHitRate(h2hGames, line),
     };
-  }, [filteredChartGames, effectiveLine, calculateHitRate]);
+  }, [filteredChartGames, chartGames, effectiveLine, calculateHitRate, profile.opponentTeamAbbr]);
   
   // Adjust line by step (0.5 for most markets)
   const adjustLine = (delta: number) => {
@@ -2060,45 +2204,50 @@ export function MobilePlayerDrilldown({
           </div>
         </div>
         
-        {/* ═══ ROW 2: Hit Rate Badges ═══ */}
+        {/* ═══ ROW 2: Hit Rate Badges - Compact Horizontal ═══ */}
         <div className="flex items-center justify-center gap-1 px-3 pb-2">
           {[
             { label: "L5", pct: customLine !== null ? customHitRates.l5 : profile.last5Pct, count: 5 as GameCountFilter },
             { label: "L10", pct: customLine !== null ? customHitRates.l10 : profile.last10Pct, count: 10 as GameCountFilter },
             { label: "L20", pct: customLine !== null ? customHitRates.l20 : profile.last20Pct, count: 20 as GameCountFilter },
             { label: "SZN", pct: customLine !== null ? customHitRates.season : profile.seasonPct, count: "season" as GameCountFilter },
-          ].map((item, idx) => (
-            <React.Fragment key={item.label}>
-              {idx > 0 && (
-                <span className="text-[10px] text-neutral-300 dark:text-neutral-600">|</span>
-              )}
-              <button
-                type="button"
-                onClick={() => setGameCount(item.count)}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded-md whitespace-nowrap transition-all active:scale-95",
-                  gameCount === item.count
-                    ? "bg-brand/15 border border-brand/30"
-                    : "bg-transparent border border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            { label: "H2H", pct: customLine !== null ? customHitRates.h2h : profile.h2hPct, count: "h2h" as GameCountFilter },
+          ].map((item, idx) => {
+            const isSelected = gameCount === item.count;
+            
+            return (
+              <React.Fragment key={item.label}>
+                {idx > 0 && (
+                  <span className="text-[10px] text-neutral-300 dark:text-neutral-600">|</span>
                 )}
-              >
-                <span className={cn(
-                  "text-[10px] font-medium",
-                  gameCount === item.count ? "text-brand" : "text-neutral-500"
-                )}>
-                  {item.label}
-                </span>
-                <span className={cn(
-                  "text-[10px] font-bold",
-                  item.pct !== null && item.pct >= 70 ? "text-emerald-600 dark:text-emerald-400" :
-                  item.pct !== null && item.pct >= 50 ? "text-amber-600 dark:text-amber-400" :
-                  "text-red-500 dark:text-red-400"
-                )}>
-                  {item.pct ?? "—"}%
-                </span>
-              </button>
-            </React.Fragment>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => setGameCount(item.count)}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded-md whitespace-nowrap transition-all active:scale-95",
+                    isSelected
+                      ? "bg-brand/15 border border-brand/30"
+                      : "bg-transparent border border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  <span className={cn(
+                    "text-[10px] font-medium",
+                    isSelected ? "text-brand" : "text-neutral-500"
+                  )}>
+                    {item.label}
+                  </span>
+                  <span className={cn(
+                    "text-[10px] font-bold",
+                    item.pct !== null && item.pct >= 70 ? "text-emerald-600 dark:text-emerald-400" :
+                    item.pct !== null && item.pct >= 50 ? "text-amber-600 dark:text-amber-400" :
+                    item.pct !== null ? "text-red-500 dark:text-red-400" : "text-neutral-400"
+                  )}>
+                    {item.pct !== null ? `${Math.round(item.pct)}%` : "—"}
+                  </span>
+                </button>
+              </React.Fragment>
+            );
+          })}
         </div>
         
         {/* ═══ ACTIVE FILTERS INDICATOR ═══ */}
@@ -2172,7 +2321,7 @@ export function MobilePlayerDrilldown({
         
         {/* ═══ Market Selector - Horizontal Scrollable Pills ═══ */}
         <div className="flex items-center gap-1.5 px-3 pb-2.5 overflow-x-auto scrollbar-hide border-t border-neutral-100 dark:border-neutral-800/50 pt-2">
-          {allPlayerProfiles.map((prof) => {
+          {sortedMarkets.map((prof) => {
             const isActive = prof.market === selectedMarket;
             const profLine = prof.line ?? 0;
             return (
@@ -2181,20 +2330,21 @@ export function MobilePlayerDrilldown({
                 type="button"
                 onClick={() => handleMarketChange(prof.market)}
                 className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0 transition-all active:scale-95 border",
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full shrink-0 transition-all active:scale-95 border",
                   isActive
                     ? "bg-brand text-white border-brand shadow-sm"
                     : "bg-white dark:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 )}
               >
                 <span className="text-xs font-semibold">
-                  {formatMarketLabel(prof.market).split(" ")[0]}
+                  {formatMarketLabelShort(prof.market)}
                 </span>
-                {!isActive && (
-                  <span className="text-[10px] opacity-60">
-                    {profLine}
-                  </span>
-                )}
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  isActive ? "opacity-80" : "opacity-60"
+                )}>
+                  {isActive && customLine !== null ? customLine : profLine}
+                </span>
               </button>
             );
           })}
@@ -3555,11 +3705,11 @@ export function MobilePlayerDrilldown({
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-800/60 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] safe-area-inset-bottom">
         <div className="flex items-center justify-around px-2 py-2">
           {[
-            { id: "chart" as const, label: "Chart", icon: BarChart3 },
-            { id: "matchup" as const, label: "Matchup", icon: Target },
-            { id: "injuries" as const, label: "Injuries", icon: Users },
-            { id: "stats" as const, label: "Stats", icon: ListOrdered },
-            { id: "odds" as const, label: "Odds", icon: DollarSign },
+            { id: "chart" as const, label: "Chart", icon: null, customIcon: true },
+            { id: "matchup" as const, label: "Matchup", icon: Target, customIcon: false },
+            { id: "injuries" as const, label: "Injuries", icon: Users, customIcon: false },
+            { id: "stats" as const, label: "Stats", icon: ListOrdered, customIcon: false },
+            { id: "odds" as const, label: "Odds", icon: DollarSign, customIcon: false },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -3574,10 +3724,17 @@ export function MobilePlayerDrilldown({
                     : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 )}
               >
-                <tab.icon className={cn(
-                  "h-5 w-5",
-                  isActive && "text-brand"
-                )} />
+                {tab.customIcon ? (
+                  <ChartIcon className={cn(
+                    "h-5 w-5",
+                    isActive && "text-brand"
+                  )} />
+                ) : tab.icon && (
+                  <tab.icon className={cn(
+                    "h-5 w-5",
+                    isActive && "text-brand"
+                  )} />
+                )}
                 <span className={cn(
                   "text-[10px] font-medium",
                   isActive && "text-brand"

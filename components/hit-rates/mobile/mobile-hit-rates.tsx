@@ -54,6 +54,8 @@ interface MobileHitRatesProps {
   onSortChange: (sort: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  selectedGameIds: string[];
+  onGameIdsChange: (gameIds: string[]) => void;
 }
 
 export function MobileHitRates({
@@ -68,9 +70,11 @@ export function MobileHitRates({
   onSortChange,
   searchQuery,
   onSearchChange,
+  selectedGameIds,
+  onGameIdsChange,
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)
-  const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
+  // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
   const [visibleCount, setVisibleCount] = useState(20);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
@@ -207,7 +211,7 @@ export function MobileHitRates({
           sport="nba"
           selectedGameIds={selectedGameIds}
           games={gameOptions}
-          onGamesChange={setSelectedGameIds}
+          onGamesChange={onGameIdsChange}
           selectedMarkets={selectedMarkets}
           marketOptions={MARKET_OPTIONS}
           onMarketsChange={onMarketsChange}
@@ -238,7 +242,7 @@ export function MobileHitRates({
               type="button"
               onClick={() => {
                 onMarketsChange(["player_points"]); // Reset to just Points
-                setSelectedGameIds([]);
+                onGameIdsChange([]);
                 onSearchChange("");
               }}
               className="mt-3 text-sm text-brand font-medium"

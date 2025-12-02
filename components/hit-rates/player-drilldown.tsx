@@ -2,11 +2,12 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, HeartPulse, X, Pencil } from "lucide-react";
+import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { AlternateLinesMatrix } from "./alternate-lines-matrix";
 import { PositionVsTeam } from "./position-vs-team";
 import { GameLogChart } from "./game-log-chart";
@@ -45,7 +46,7 @@ const getPositionLabel = (position: string | null): string => {
   return POSITION_LABELS[position] || position;
 };
 
-type GameCountFilter = 5 | 10 | 20 | "season";
+type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
 
 // Market display order
 const MARKET_ORDER = [
@@ -336,13 +337,18 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       });
     }
     
-    // Finally, limit by game count
-    if (gameCount !== "season") {
+    // Filter by opponent if H2H is selected
+    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
+      games = games.filter(game => game.opponentAbbr === profile.opponentTeamAbbr);
+    }
+    
+    // Finally, limit by game count (not for season or h2h which show all matching games)
+    if (gameCount !== "season" && gameCount !== "h2h") {
       games = games.slice(0, gameCount);
     }
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame]);
+  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr]);
 
   // Get stat value from a game based on market
   const getMarketStat = (game: typeof boxScoreGames[0], market: string): number => {
@@ -372,7 +378,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     if (boxScoreGames.length === 0) return new Map<string, number | null>();
     
     const rates = new Map<string, number | null>();
-    const gamesToUse = gameCount === "season" ? boxScoreGames : boxScoreGames.slice(0, gameCount);
+    const gamesToUse = gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount);
     
     for (const marketProfile of allPlayerProfiles) {
       const line = marketProfile.line;
@@ -566,66 +572,29 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         </div>
 
             {/* ════════════════════════════════════════════════════════════════
-                RIGHT SECTION - Stat Cluster
+                RIGHT SECTION - Two Row Premium Layout
                 ════════════════════════════════════════════════════════════════ */}
-            <div className="flex items-center gap-4 p-4 border-l border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/80">
-              {/* Hit Rates Grid - Clickable to change chart view */}
-              <div className="grid grid-cols-2 gap-1.5">
-            {[
-                  { label: "L5", value: profile.last5Pct, count: 5 as const },
-                  { label: "L10", value: profile.last10Pct, count: 10 as const },
-                  { label: "L20", value: profile.last20Pct, count: 20 as const },
-                  { label: "SZN", value: profile.seasonPct, count: "season" as const },
-                ].map((stat) => {
-                  const isSelected = gameCount === stat.count;
-                  return (
-                    <button
-                      type="button"
-                key={stat.label}
-                      onClick={() => setGameCount(stat.count)}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all",
-                        "border cursor-pointer",
-                        isSelected 
-                          ? "bg-brand/10 dark:bg-brand/20 border-brand ring-1 ring-brand/30" 
-                          : "bg-white dark:bg-neutral-800 border-neutral-100 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50"
-                      )}
-              >
-                      <span className={cn(
-                        "text-[10px] font-semibold uppercase w-6",
-                        isSelected ? "text-brand" : "text-neutral-400"
-                      )}>
-                  {stat.label}
-                </span>
-                      <span className={cn("text-sm font-bold tabular-nums", getPctColor(stat.value))}>
-                  {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
-                </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Current Prop - Hero Element (Editable) */}
-              <div className="relative">
+            <div className="flex flex-col gap-3 pl-6 pr-4 py-3 border-l border-neutral-200 dark:border-neutral-800">
+              {/* ROW 1: Primary Prop Chip */}
+              <div className="flex items-center gap-3">
+                {/* Main Prop Chip - Hero Element */}
                 <Tooltip 
                   content={
                     <div className="text-center p-1">
                       <div className="font-semibold text-neutral-100">Click to edit line</div>
-                      <div className="text-xs text-neutral-400 mt-0.5">
-                        Or drag the chart line to adjust
-                      </div>
-          </div>
+                      <div className="text-xs text-neutral-400 mt-0.5">Or drag the chart line to adjust</div>
+                    </div>
                   } 
-                  side="left"
+                  side="bottom"
                 >
-          <div 
+                  <div 
                     className={cn(
-                      "flex flex-col items-center justify-center px-5 py-3 rounded-xl shadow-md min-w-[100px] transition-all cursor-pointer",
-                      customLine !== null 
+                      "relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer",
+                      customLine !== null && customLine !== profile.line
                         ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900" 
-                        : "hover:ring-2 hover:ring-white/30 hover:ring-offset-2 hover:ring-offset-white dark:hover:ring-offset-neutral-900"
+                        : "hover:shadow-xl hover:scale-[1.02]"
                     )}
-            style={{ 
+                    style={{ 
                       background: `linear-gradient(135deg, ${profile.primaryColor || '#6366f1'} 0%, ${profile.secondaryColor || profile.primaryColor || '#4f46e5'} 100%)`,
                     }}
                     onClick={() => {
@@ -635,70 +604,172 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       }
                     }}
                   >
+                    {/* Pencil Icon */}
+                    {!isEditingLine && (
+                      <Pencil className="h-3.5 w-3.5 text-white/50" />
+                    )}
+                    
+                    {/* Line + Market */}
                     {isEditingLine ? (
-                      // Editing mode - show input
-                      <div className="flex flex-col items-center">
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => {
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => {
+                          const parsed = parseFloat(editValue);
+                          if (!isNaN(parsed) && parsed >= 0 && parsed !== profile.line) {
+                            setCustomLine(parsed);
+                          } else if (parsed === profile.line) {
+                            setCustomLine(null);
+                          }
+                          setIsEditingLine(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
                             const parsed = parseFloat(editValue);
-                            if (!isNaN(parsed) && parsed >= 0) {
+                            if (!isNaN(parsed) && parsed >= 0 && parsed !== profile.line) {
                               setCustomLine(parsed);
+                            } else if (parsed === profile.line) {
+                              setCustomLine(null);
                             }
                             setIsEditingLine(false);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              const parsed = parseFloat(editValue);
-                              if (!isNaN(parsed) && parsed >= 0) {
-                                setCustomLine(parsed);
-                              }
-                              setIsEditingLine(false);
-                            } else if (e.key === "Escape") {
-                              setIsEditingLine(false);
-                            }
-                          }}
-                          autoFocus
-                          className="w-16 text-2xl font-black text-center bg-white/20 text-white rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/50 placeholder-white/50"
-                          placeholder="0"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider mt-1">
-                          {formatMarketLabel(profile.market)}
-                        </span>
-                      </div>
+                          } else if (e.key === "Escape") {
+                            setIsEditingLine(false);
+                          }
+                        }}
+                        autoFocus
+                        className="w-16 text-lg font-black text-center bg-white/20 text-white rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 placeholder-white/50"
+                        placeholder="0"
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     ) : (
-                      // Display mode
-                      <>
-                        <div className="flex items-center gap-1">
-                          <Pencil className="h-3 w-3 text-white/50" />
-                          <span className="text-2xl font-black text-white tracking-tight leading-none">
-                            {activeLine}+
-            </span>
-                        </div>
-                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider mt-1">
-              {formatMarketLabel(profile.market)}
-            </span>
-                      </>
+                      <span className="text-lg font-black text-white tracking-tight">
+                        {activeLine}+ {formatMarketLabel(profile.market)}
+                      </span>
+                    )}
+                    
+                    {/* Reset button - only show if custom line is different from original */}
+                    {customLine !== null && customLine !== profile.line && !isEditingLine && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCustomLine(null);
+                        }}
+                        className="ml-1 p-0.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                        title={`Reset to ${profile.line}`}
+                      >
+                        <X className="h-3 w-3 text-white" />
+                      </button>
                     )}
                   </div>
                 </Tooltip>
-                {/* Reset button when custom line is set */}
-                {customLine !== null && !isEditingLine && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCustomLine(null);
-                    }}
-                    className="absolute -top-2 -right-2 p-1 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full shadow-lg transition-colors"
-                    title={`Reset to ${profile.line}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
+                
+                {/* Odds Section */}
+                <div className="flex items-center gap-2">
+                  {/* Over Odds */}
+                  {oddsForChart?.bestOver && (
+                    <button
+                      type="button"
+                      onClick={() => oddsForChart.bestOver?.mobileUrl && window.open(oddsForChart.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
+                    >
+                      {(() => {
+                        const sb = getSportsbookById(oddsForChart.bestOver.book);
+                        return sb?.image?.light ? (
+                          <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
+                        ) : (
+                          <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestOver.book}</span>
+                        );
+                      })()}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">O</span>
+                        <span className={cn(
+                          "text-sm font-bold tabular-nums",
+                          oddsForChart.bestOver.price > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+                        )}>
+                          {oddsForChart.bestOver.price > 0 ? `+${oddsForChart.bestOver.price}` : oddsForChart.bestOver.price}
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                  
+                  {/* Under Odds */}
+                  {oddsForChart?.bestUnder && (
+                    <button
+                      type="button"
+                      onClick={() => oddsForChart.bestUnder?.mobileUrl && window.open(oddsForChart.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
+                    >
+                      {(() => {
+                        const sb = getSportsbookById(oddsForChart.bestUnder.book);
+                        return sb?.image?.light ? (
+                          <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
+                        ) : (
+                          <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestUnder.book}</span>
+                        );
+                      })()}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">U</span>
+                        <span className={cn(
+                          "text-sm font-bold tabular-nums",
+                          oddsForChart.bestUnder.price > 0 ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300"
+                        )}>
+                          {oddsForChart.bestUnder.price > 0 ? `+${oddsForChart.bestUnder.price}` : oddsForChart.bestUnder.price}
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* ROW 2: Hit Rate Strip - Flat, Subordinate */}
+              <div className="flex items-center gap-0.5">
+                {[
+                  { label: "L5", value: profile.last5Pct, count: 5 as const },
+                  { label: "L10", value: profile.last10Pct, count: 10 as const },
+                  { label: "L20", value: profile.last20Pct, count: 20 as const },
+                  { label: "SZN", value: profile.seasonPct, count: "season" as const },
+                  { label: "H2H", value: profile.h2hPct, count: "h2h" as const },
+                ].map((stat, idx) => {
+                  const isSelected = gameCount === stat.count;
+                  return (
+                    <React.Fragment key={stat.label}>
+                      {idx > 0 && (
+                        <span className="text-neutral-300 dark:text-neutral-600 px-1">|</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setGameCount(stat.count)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1 rounded-md transition-all cursor-pointer",
+                          isSelected 
+                            ? "bg-brand/10 dark:bg-brand/15" 
+                            : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        )}
+                      >
+                        <span className={cn(
+                          "text-[11px] font-semibold tabular-nums",
+                          isSelected ? "text-brand" : "text-neutral-400 dark:text-neutral-500"
+                        )}>
+                          {stat.label}
+                        </span>
+                        <span className={cn(
+                          "text-[11px] font-bold tabular-nums",
+                          isSelected 
+                            ? getPctColor(stat.value)
+                            : stat.value !== null && stat.value >= 70 
+                              ? "text-emerald-600/70 dark:text-emerald-400/70" 
+                              : stat.value !== null && stat.value >= 50 
+                                ? "text-amber-600/70 dark:text-amber-400/70" 
+                                : "text-red-500/70 dark:text-red-400/70"
+                        )}>
+                          {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
+                        </span>
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -778,7 +849,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             {/* Game Count Filter */}
             <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
               {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
-                const numericCount = count === "season" ? totalGamesAvailable : count;
+                const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
                 const isDisabled = numericCount > totalGamesAvailable;
                 const displayCount = count === "season" 
                   ? `All (${totalGamesAvailable})` 
@@ -886,7 +957,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       {!boxScoresLoading && boxScoreGames.length > 0 && (
         <div className="mt-6 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900 p-6">
           <ChartFilters
-            games={gameCount === "season" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
+            games={gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
             filters={chartFilters}
             onFiltersChange={setChartFilters}
           market={profile.market}

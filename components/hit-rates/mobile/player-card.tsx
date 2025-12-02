@@ -55,10 +55,12 @@ function HitRateCluster({
   l5,
   l10,
   season,
+  h2h,
 }: {
   l5: number | null;
   l10: number | null;
   season: number | null;
+  h2h: number | null;
 }) {
   const formatPct = (val: number | null) => val !== null ? `${Math.round(val)}%` : "—";
   
@@ -102,6 +104,19 @@ function HitRateCluster({
         </span>
         <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(season))}>
           {formatPct(season)}
+        </span>
+      </div>
+      
+      {/* Divider */}
+      <div className="w-px h-7 bg-neutral-200/50 dark:bg-neutral-700/30" />
+      
+      {/* H2H - fixed width for consistency */}
+      <div className="flex flex-col items-center w-12 py-1.5">
+        <span className="text-[8px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+          H2H
+        </span>
+        <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(h2h))}>
+          {formatPct(h2h)}
         </span>
       </div>
     </div>
@@ -259,6 +274,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
     last5Pct,
     last10Pct,
     seasonPct,
+    h2hPct,
     gameLogs,
     matchupRank,
     primaryColor,
@@ -424,7 +440,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
 
           {/* Right side: Hit Rate Cluster - spans both rows */}
           <div className="shrink-0">
-            <HitRateCluster l5={last5Pct} l10={last10Pct} season={seasonPct} />
+            <HitRateCluster l5={last5Pct} l10={last10Pct} season={seasonPct} h2h={h2hPct} />
           </div>
         </div>
       </button>

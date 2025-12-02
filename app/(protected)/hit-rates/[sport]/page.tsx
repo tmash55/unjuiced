@@ -76,6 +76,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
   const [mobileSortField, setMobileSortField] = useState("l10Pct_desc");
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
+  const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[]>([]);
   
   // Get game data to find dates
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
@@ -181,18 +182,18 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // - Background loaded: Use background data
   // - Initial load: Just 50 rows for snappy UX
   const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasMarketFilter;
-  
+
   // Calculate limit based on state
   const currentLimit = needsFullData 
     ? FULL_DATA_SIZE 
     : hasLoadedBackground 
       ? BACKGROUND_PAGE_SIZE 
       : INITIAL_PAGE_SIZE;
-  
+
   // When in drilldown mode, fetch BOTH days (undefined = today + tomorrow)
   // When a specific game is selected (not drilldown), fetch just that date
   const dateToFetch = isInDrilldown ? undefined : selectedDate;
-  
+
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
     date: dateToFetch,
     limit: currentLimit,
@@ -231,7 +232,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const handleLoadMoreData = useCallback(() => {
     setHasLoadedBackground(true);
   }, []);
-  
+
   // Show more handler for table pagination (UI only)
   const handleShowMoreRows = useCallback(() => {
     setVisibleRowCount(prev => prev + TABLE_LOAD_MORE);
@@ -310,7 +311,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Only show full loading state on initial load, not on filter changes
   const showLoadingState = isLoading && rows.length === 0;
-  
+
   // Paginate filtered rows for display (performance optimization)
   const paginatedRows = useMemo(() => 
     filteredRows.slice(0, visibleRowCount),
@@ -351,6 +352,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         onSortChange={setMobileSortField}
         searchQuery={mobileSearchQuery}
         onSearchChange={setMobileSearchQuery}
+        selectedGameIds={mobileSelectedGameIds}
+        onGameIdsChange={setMobileSelectedGameIds}
       />
     );
   }

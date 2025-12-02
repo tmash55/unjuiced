@@ -26,7 +26,7 @@ const getMarketTooltip = (market: string): string | null => {
   return COMBO_MARKET_DESCRIPTIONS[market] || null;
 };
 
-type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct";
+type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct";
 type SortDirection = "asc" | "desc";
 
 // Market options for filter
@@ -313,6 +313,7 @@ const getSortValue = (row: HitRateProfile, field: SortField): number | null => {
     case "l10Pct": return row.last10Pct;
     case "l20Pct": return row.last20Pct;
     case "seasonPct": return row.seasonPct;
+    case "h2hPct": return row.h2hPct;
     default: return null;
   }
 };
@@ -690,6 +691,17 @@ export function HitRateTable({
                 <SortIcon field="seasonPct" />
               </div>
             </th>
+            
+            {/* H2H % (Head to Head) */}
+            <th
+              onClick={() => handleSort("h2hPct")}
+              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+            >
+              <div className="flex items-center justify-center gap-1">
+                H2H
+                <SortIcon field="h2hPct" />
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -942,6 +954,18 @@ export function HitRateTable({
                     )}
                   >
                     {formatPercentage(row.seasonPct)}
+                  </span>
+                </td>
+                
+                {/* H2H % */}
+                <td className="px-3 py-4 align-middle text-center">
+                  <span
+                    className={cn(
+                      "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
+                      hitRateBadgeClass(row.h2hPct)
+                    )}
+                  >
+                    {formatPercentage(row.h2hPct)}
                   </span>
                 </td>
               </tr>
