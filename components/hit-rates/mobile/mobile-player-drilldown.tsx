@@ -964,12 +964,19 @@ function PositionHistorySection({
           return (
             <div
               key={`${player.playerName}-${idx}`}
-              className="flex items-center gap-2 p-2.5 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60"
+              className="flex items-center gap-2.5 p-2.5 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60"
             >
+              {/* Date - First column (no header) */}
+              <div className="flex items-center justify-center w-11 shrink-0">
+                <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
+                  {new Date(player.gameDate).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })}
+                </span>
+              </div>
+              
               {/* Player Info */}
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700">
+                  <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700">
                     <PlayerHeadshot
                       nbaPlayerId={player.playerId}
                       name={player.playerName}
@@ -981,21 +988,21 @@ function PositionHistorySection({
                   <img
                     src={`/team-logos/nba/${player.teamAbbr.toUpperCase()}.svg`}
                     alt={player.teamAbbr}
-                    className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
+                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                  <div className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                     {player.playerName}
                   </div>
                   <div className="text-[9px] text-neutral-500 dark:text-neutral-400">
-                    {player.teamAbbr} • {new Date(player.gameDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {player.teamAbbr}
                   </div>
                 </div>
               </div>
-
-              {/* Stats - Simplified columns: Minutes, Line, Market Total */}
-              <div className="flex items-center gap-4 shrink-0">
+              
+              {/* Stats - Columns: Minutes, Line, Market Total */}
+              <div className="flex items-center gap-3 shrink-0">
                 {/* Minutes */}
                 <div className="flex flex-col items-center w-10">
                   <span className="text-[9px] text-neutral-400 uppercase font-medium">Min</span>
@@ -1417,7 +1424,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
                     Matchup Analysis
                   </span>
                   <div className="h-0.5 w-0.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-                  <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">
+                  <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
                     2025-26
                   </span>
                 </div>
@@ -2021,16 +2028,16 @@ export function MobilePlayerDrilldown({
     }
     
     // Apply injury filters (with/without specific players)
-    if (injuryFilters.length > 0 && boxScoreGames) {
-      games = games.filter((game, idx) => {
-        // Get the corresponding box score game to get the gameId
-        const boxScoreGame = boxScoreGames[idx];
-        if (!boxScoreGame || !boxScoreGame.gameId) return true;
+    if (injuryFilters.length > 0) {
+      games = games.filter((game) => {
+        // Get the game ID from the full_game_data
+        if (!game.full_game_data || !game.full_game_data.gameId) return true;
         
-        const gameIdStr = String(boxScoreGame.gameId);
+        const gameIdStr = String(game.full_game_data.gameId);
         const normalizedGameId = gameIdStr.replace(/^0+/, "");
         const playersOutThisGame = teammatesOutByGame.get(normalizedGameId) || new Set<number>();
         
+        // Check all injury filters - ALL must pass (AND logic)
         for (const filter of injuryFilters) {
           const wasPlayerOut = playersOutThisGame.has(filter.playerId);
           

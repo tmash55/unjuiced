@@ -129,9 +129,10 @@ export function Nav({
           {/* Scrolled background */}
           <div
             className={cn(
-              "absolute inset-0 block border-b border-transparent transition-all",
-              scrolled &&
-                "border-neutral-100 bg-white/75 backdrop-blur-lg dark:border-white/10 dark:bg-black/75",
+              "absolute inset-0 block border-b bg-white dark:bg-black transition-all",
+              scrolled
+                ? "border-neutral-100 backdrop-blur-lg dark:border-white/10"
+                : "border-transparent",
             )}
           />
           <MaxWidthWrapper className={cn("relative", maxWidthWrapperClassName)}>
