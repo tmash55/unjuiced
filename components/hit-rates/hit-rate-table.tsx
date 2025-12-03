@@ -816,15 +816,15 @@ export function HitRateTable({
                     
                     {/* Opponent with vs/@ */}
                     <div className="flex items-center justify-center gap-1.5">
-                      <span className="text-xs text-neutral-400 font-medium">
-                        {row.homeAway === "H" ? "vs" : "@"}
-                      </span>
-                      {row.opponentTeamAbbr && (
-                        <img
-                          src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
-                          alt={row.opponentTeamAbbr}
+                    <span className="text-xs text-neutral-400 font-medium">
+                      {row.homeAway === "H" ? "vs" : "@"}
+                    </span>
+                    {row.opponentTeamAbbr && (
+                      <img
+                        src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
+                        alt={row.opponentTeamAbbr}
                           className="h-6 w-6 object-contain"
-                        />
+                      />
                       )}
                     </div>
                     
@@ -881,10 +881,10 @@ export function HitRateTable({
                   {hasGameStarted(row.gameStatus, row.gameDate) ? (
                     <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
                   ) : (
-                    <OddsDropdown 
-                      odds={getOdds(row.oddsSelectionId)} 
-                      loading={oddsLoading} 
-                    />
+                  <OddsDropdown 
+                    odds={getOdds(row.oddsSelectionId)} 
+                    loading={oddsLoading} 
+                  />
                   )}
                 </td>
 

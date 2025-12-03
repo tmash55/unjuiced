@@ -37,6 +37,7 @@ export interface UsePositionVsTeamOptions {
   market: string | null;
   season?: string;
   limit?: number;
+  minMinutes?: number;
   enabled?: boolean;
 }
 
@@ -45,7 +46,8 @@ async function fetchPositionVsTeam(
   opponentTeamId: number,
   market: string,
   season?: string,
-  limit?: number
+  limit?: number,
+  minMinutes?: number
 ): Promise<PositionVsTeamResponse> {
   const params = new URLSearchParams({
     position,
@@ -59,6 +61,9 @@ async function fetchPositionVsTeam(
   if (limit) {
     params.set("limit", String(limit));
   }
+  if (minMinutes !== undefined) {
+    params.set("minMinutes", String(minMinutes));
+  }
 
   const res = await fetch(`/api/nba/position-vs-team?${params.toString()}`);
 
@@ -71,16 +76,17 @@ async function fetchPositionVsTeam(
 }
 
 export function usePositionVsTeam(options: UsePositionVsTeamOptions) {
-  const { position, opponentTeamId, market, season, limit, enabled = true } = options;
+  const { position, opponentTeamId, market, season, limit, minMinutes, enabled = true } = options;
 
   const isValid = !!position && !!opponentTeamId && !!market;
 
   const query = useQuery<PositionVsTeamResponse>({
-    queryKey: ["position-vs-team", position, opponentTeamId, market, season, limit],
-    queryFn: () => fetchPositionVsTeam(position!, opponentTeamId!, market!, season, limit),
+    queryKey: ["position-vs-team", position, opponentTeamId, market, season, limit, minMinutes],
+    queryFn: () => fetchPositionVsTeam(position!, opponentTeamId!, market!, season, limit, minMinutes),
     enabled: enabled && isValid,
     staleTime: 5 * 60_000, // 5 minutes (historical data doesn't change often)
     gcTime: 10 * 60_000, // 10 minutes
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching new data
   });
 
   return {

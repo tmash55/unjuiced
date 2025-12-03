@@ -51,6 +51,11 @@ interface ChartFiltersProps {
   onFiltersChange: (filters: ChartFiltersState) => void;
   market?: string; // Current market to determine which filters to show
   className?: string;
+  // External control for expanded state
+  isExpanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  // Hide internal controls if header is external
+  hideControls?: boolean;
 }
 
 // Default empty filters
@@ -456,10 +461,24 @@ export function ChartFilters({
   onFiltersChange,
   market,
   className,
+  isExpanded: externalIsExpanded,
+  onExpandedChange,
+  hideControls = false,
 }: ChartFiltersProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
+  const [internalIsExpanded, setInternalIsExpanded] = useState(false);
+  
+  // Use external control if provided, otherwise use internal state
+  const isExpandedState = externalIsExpanded !== undefined ? externalIsExpanded : internalIsExpanded;
+  const setIsExpandedState = (value: boolean) => {
+    if (onExpandedChange) {
+      onExpandedChange(value);
+    } else {
+      setInternalIsExpanded(value);
+    }
+  };
   
   // Check if this is a points market (show shooting stats)
   const showShootingStats = isPointsMarket(market);
@@ -592,9 +611,6 @@ export function ChartFilters({
     filters.tsPct,
     filters.efgPct,
   ].filter(Boolean).length;
-  
-  // Expanded view state
-  const [isExpanded, setIsExpanded] = useState(false);
   
   // Build array of ALL filter configs - always show all, sorted by relevance to market
   const filterConfigs = useMemo(() => {
@@ -867,7 +883,7 @@ export function ChartFilters({
   const PlaceholderCard = ({ title }: { title: string }) => (
     <div className={cn(
       "rounded-xl border border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-800/50 p-5",
-      isExpanded ? "" : "flex-shrink-0 w-[45%] sm:w-[320px] lg:w-[31%] min-w-[280px]"
+      isExpandedState ? "" : "flex-shrink-0 w-[45%] sm:w-[320px] lg:w-[31%] min-w-[280px]"
     )}>
       <h4 className="text-sm font-semibold text-neutral-400 dark:text-neutral-500 mb-3">
         {title}
@@ -882,41 +898,35 @@ export function ChartFilters({
   
   return (
     <div className={cn("relative", className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-            Filters
-          </h3>
-          {activeFilterCount > 0 && (
-            <span className="text-[10px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">
-              {activeFilterCount} active
-            </span>
-          )}
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-            {filterConfigs.length} available
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {activeFilterCount > 0 && (
-            <button
-              onClick={() => onFiltersChange(DEFAULT_FILTERS)}
-              className="text-xs text-red-500 hover:text-red-600 font-medium"
-            >
-              Clear all
-            </button>
-          )}
+      {/* Controls Row - only show if not hidden */}
+      {!hideControls && (
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <span className="text-[10px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">
+                {activeFilterCount} active
+              </span>
+            )}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => onFiltersChange(DEFAULT_FILTERS)}
+                className="text-xs text-red-500 hover:text-red-600 font-medium"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
           {/* View toggle */}
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={() => setIsExpandedState(!isExpandedState)}
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all",
-              isExpanded
+              isExpandedState
                 ? "bg-brand/10 border-brand text-brand"
                 : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600"
             )}
           >
-            {isExpanded ? (
+            {isExpandedState ? (
               <>
                 <LayoutList className="h-3.5 w-3.5" />
                 <span>Scroll View</span>
@@ -929,10 +939,10 @@ export function ChartFilters({
             )}
           </button>
         </div>
-      </div>
+      )}
       
       {/* Collapsed: Scrollable view */}
-      {!isExpanded && (
+      {!isExpandedState && (
         <div className="relative">
           {/* Left arrow */}
           {showLeftArrow && (
@@ -972,7 +982,7 @@ export function ChartFilters({
       )}
       
       {/* Expanded: Grid view */}
-      {isExpanded && (
+      {isExpandedState && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filterConfigs.map((config) => renderFilterChart(config, true))}
           

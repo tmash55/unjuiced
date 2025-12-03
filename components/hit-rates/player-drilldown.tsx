@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp } from "lucide-react";
+import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
@@ -10,11 +10,12 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { AlternateLinesMatrix } from "./alternate-lines-matrix";
 import { PositionVsTeam } from "./position-vs-team";
+import { DefensiveAnalysis } from "./defensive-analysis";
 import { GameLogChart } from "./game-log-chart";
 import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
-import { InjuryReport, InjuryFilter } from "./injury-report";
+import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { Tooltip } from "@/components/tooltip";
 
@@ -79,6 +80,317 @@ const getPctColor = (value: number | null) => {
   return "text-red-500";
 };
 
+// Market hit rate data structure
+interface MarketHitRateData {
+  hitRate: number | null;
+  hits: number;
+  total: number;
+  expectedTotal: number;
+}
+
+// Quick filter labels for display
+const QUICK_FILTER_LABELS: Record<string, string> = {
+  "home": "Home",
+  "away": "Away",
+  "wins": "Wins",
+  "losses": "Losses",
+  "30min": "30+ Min",
+  "primetime": "Primetime",
+};
+
+// Market Selector Strip Component with sticky behavior and arrow navigation
+interface MarketSelectorStripProps {
+  sortedMarkets: HitRateProfile[];
+  selectedMarket: string;
+  setSelectedMarket: (market: string) => void;
+  marketHitRates: Map<string, MarketHitRateData>;
+  // Filter props
+  quickFilters: Set<string>;
+  chartFilters: ChartFiltersState;
+  injuryFilters: InjuryFilter[];
+  onClearAllFilters: () => void;
+  onRemoveQuickFilter: (filter: string) => void;
+  onRemoveInjuryFilter: (playerId: number) => void;
+}
+
+function MarketSelectorStrip({ 
+  sortedMarkets, 
+  selectedMarket, 
+  setSelectedMarket, 
+  marketHitRates,
+  quickFilters,
+  chartFilters,
+  injuryFilters,
+  onClearAllFilters,
+  onRemoveQuickFilter,
+  onRemoveInjuryFilter,
+}: MarketSelectorStripProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+
+  // Update arrow visibility on scroll
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+    setShowLeftArrow(scrollLeft > 10);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+  }, []);
+
+  // Check arrows on mount and when markets change
+  useEffect(() => {
+    handleScroll();
+    // Also check after a small delay for layout to settle
+    const timer = setTimeout(handleScroll, 100);
+    return () => clearTimeout(timer);
+  }, [handleScroll, sortedMarkets]);
+
+  // Scroll handlers
+  const scrollLeft = () => {
+    scrollRef.current?.scrollBy({ left: -200, behavior: "smooth" });
+  };
+
+  const scrollRight = () => {
+    scrollRef.current?.scrollBy({ left: 200, behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative mt-3 pt-3 border-t border-neutral-200/60 dark:border-neutral-700/60">
+      <div className="relative px-1">
+        {/* Left Arrow */}
+        {showLeftArrow && (
+          <button
+            type="button"
+            onClick={scrollLeft}
+            className="absolute -left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full shadow-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+          </button>
+        )}
+
+        {/* Scrollable Container */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide px-6"
+        >
+          {sortedMarkets.map((marketProfile, idx) => {
+            const isActive = marketProfile.market === selectedMarket;
+            // Use dynamic hit rate based on filtered games
+            const rateData = marketHitRates.get(marketProfile.market);
+            const hitRate = rateData?.hitRate ?? marketProfile.last10Pct;
+            const isFilteredSample = rateData && rateData.total < rateData.expectedTotal;
+
+            return (
+              <button
+                key={`${marketProfile.market}-${idx}`}
+                type="button"
+                onClick={() => setSelectedMarket(marketProfile.market)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all shrink-0",
+                  isActive
+                    ? "bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 shadow-sm"
+                    : "bg-neutral-100/50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-600"
+                )}
+              >
+                {/* Line + Market */}
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "text-sm font-bold tabular-nums",
+                      isActive ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"
+                    )}
+                  >
+                    {marketProfile.line}+
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs font-medium uppercase",
+                      isActive ? "text-neutral-700 dark:text-neutral-300" : "text-neutral-500 dark:text-neutral-500"
+                    )}
+                  >
+                    {formatMarketLabel(marketProfile.market)}
+                  </span>
+                </div>
+
+                {/* Hit Rate Badge - Dynamic based on filtered games */}
+                {rateData && rateData.total > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold px-1.5 py-0.5 rounded tabular-nums transition-colors",
+                        hitRate !== null && hitRate >= 70
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                          : hitRate !== null && hitRate >= 50
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                      )}
+                    >
+                      {hitRate !== null ? `${hitRate}%` : "—"}
+                    </span>
+                    {/* Show sample size when filtered */}
+                    {isFilteredSample && (
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium tabular-nums">
+                        {rateData.hits}/{rateData.total}
+                      </span>
+                    )}
+                  </div>
+                ) : hitRate !== null ? (
+                  <span
+                    className={cn(
+                      "text-xs font-semibold px-1.5 py-0.5 rounded tabular-nums transition-colors",
+                      hitRate >= 70
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                        : hitRate >= 50
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                    )}
+                  >
+                    {hitRate}%
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Arrow */}
+        {showRightArrow && (
+          <button
+            type="button"
+            onClick={scrollRight}
+            className="absolute -right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-full shadow-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+          </button>
+        )}
+      </div>
+      
+      {/* Active Filters Bar - Shows when filters are applied */}
+      <ActiveFiltersBar
+        quickFilters={quickFilters}
+        chartFilters={chartFilters}
+        injuryFilters={injuryFilters}
+        onClearAll={onClearAllFilters}
+        onRemoveQuickFilter={onRemoveQuickFilter}
+        onRemoveInjuryFilter={onRemoveInjuryFilter}
+      />
+    </div>
+  );
+}
+
+// Active Filters Bar Component - Shows active filters with remove buttons
+interface ActiveFiltersBarProps {
+  quickFilters: Set<string>;
+  chartFilters: ChartFiltersState;
+  injuryFilters: InjuryFilter[];
+  onClearAll: () => void;
+  onRemoveQuickFilter: (filter: string) => void;
+  onRemoveInjuryFilter: (playerId: number) => void;
+}
+
+function ActiveFiltersBar({
+  quickFilters,
+  chartFilters,
+  injuryFilters,
+  onClearAll,
+  onRemoveQuickFilter,
+  onRemoveInjuryFilter,
+}: ActiveFiltersBarProps) {
+  // Count active chart filters
+  const activeChartFiltersCount = [
+    chartFilters.minutes,
+    chartFilters.usage,
+    chartFilters.points,
+    chartFilters.rebounds,
+    chartFilters.assists,
+    chartFilters.fg3m,
+    chartFilters.fg3a,
+    chartFilters.steals,
+    chartFilters.blocks,
+    chartFilters.turnovers,
+    chartFilters.fga,
+    chartFilters.fgm,
+    chartFilters.fta,
+    chartFilters.ftm,
+    chartFilters.plusMinus,
+    chartFilters.tsPct,
+    chartFilters.efgPct,
+    chartFilters.oreb,
+    chartFilters.dreb,
+    chartFilters.potentialReb,
+    chartFilters.passes,
+    chartFilters.homeAway,
+    chartFilters.winLoss,
+    chartFilters.daysRest,
+  ].filter(Boolean).length;
+
+  const hasActiveFilters = quickFilters.size > 0 || activeChartFiltersCount > 0 || injuryFilters.length > 0;
+
+  if (!hasActiveFilters) return null;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-neutral-200/40 dark:border-neutral-700/40">
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Filter Icon + Label */}
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <span>Filtered:</span>
+        </div>
+        
+        {/* Quick Filters */}
+        {Array.from(quickFilters).map((filter) => (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => onRemoveQuickFilter(filter)}
+            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all text-[11px] font-medium group"
+          >
+            <span>{QUICK_FILTER_LABELS[filter] || filter}</span>
+            <X className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+          </button>
+        ))}
+
+        {/* Chart Filters Count */}
+        {activeChartFiltersCount > 0 && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>{activeChartFiltersCount} Advanced</span>
+          </div>
+        )}
+
+        {/* Injury Filters */}
+        {injuryFilters.map((filter) => (
+          <button
+            key={filter.playerId}
+            type="button"
+            onClick={() => onRemoveInjuryFilter(filter.playerId)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded-md transition-all text-[11px] font-medium group",
+              filter.mode === "with"
+                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50"
+            )}
+          >
+            <span>{filter.mode === "with" ? "+" : "−"} {filter.playerName.split(" ").pop()}</span>
+            <X className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+          </button>
+        ))}
+
+        {/* Clear All Button */}
+        <button
+          type="button"
+          onClick={onClearAll}
+          className="ml-auto px-2 py-0.5 rounded-md text-[11px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [], onBack, onMarketChange }: PlayerDrilldownProps) {
   const [selectedMarket, setSelectedMarketInternal] = useState<string>(initialProfile.market);
   
@@ -93,6 +405,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const [editValue, setEditValue] = useState("");
   const [chartFilters, setChartFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
@@ -372,29 +685,43 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // The active line (custom or profile default)
   const activeLine = customLine ?? profile.line;
 
-  // Calculate hit rates for ALL markets based on current game count filter
-  // This allows the market selector to show dynamic hit rates
+  // Calculate hit rates for ALL markets based on FILTERED games
+  // This allows the market selector to show dynamic hit rates that reflect active filters
   const marketHitRates = useMemo(() => {
-    if (boxScoreGames.length === 0) return new Map<string, number | null>();
+    if (boxScoreGames.length === 0) return new Map<string, MarketHitRateData>();
     
-    const rates = new Map<string, number | null>();
-    const gamesToUse = gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount);
+    const rates = new Map<string, MarketHitRateData>();
+    
+    // Expected total based on game count filter
+    const expectedTotal = gameCount === "season" 
+      ? boxScoreGames.length 
+      : gameCount === "h2h" 
+        ? boxScoreGames.filter(g => g.opponentAbbr === profile.opponentTeamAbbr).length
+        : Math.min(gameCount as number, boxScoreGames.length);
+    
+    // Use filtered games for accurate hit rate calculation
+    const gamesToUse = filteredGames;
     
     for (const marketProfile of allPlayerProfiles) {
       const line = marketProfile.line;
       if (line === null || gamesToUse.length === 0) {
-        rates.set(marketProfile.market, null);
+        rates.set(marketProfile.market, { hitRate: null, hits: 0, total: gamesToUse.length, expectedTotal });
         continue;
       }
       
       const stats = gamesToUse.map(g => getMarketStat(g, marketProfile.market));
       const hits = stats.filter(s => s >= line).length;
-      const hitRate = (hits / stats.length) * 100;
-      rates.set(marketProfile.market, Math.round(hitRate));
+      const hitRate = stats.length > 0 ? (hits / stats.length) * 100 : null;
+      rates.set(marketProfile.market, { 
+        hitRate: hitRate !== null ? Math.round(hitRate) : null, 
+        hits, 
+        total: stats.length,
+        expectedTotal
+      });
     }
     
     return rates;
-  }, [boxScoreGames, gameCount, allPlayerProfiles]);
+  }, [boxScoreGames, filteredGames, gameCount, allPlayerProfiles, profile.opponentTeamAbbr]);
 
   // Calculate chart stats (for filtered games)
   // Always calculate average even if no line, but only calculate hit rate if line exists
@@ -595,7 +922,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                         : "hover:shadow-xl hover:scale-[1.02]"
                     )}
                     style={{ 
-                      background: `linear-gradient(135deg, ${profile.primaryColor || '#6366f1'} 0%, ${profile.secondaryColor || profile.primaryColor || '#4f46e5'} 100%)`,
+                      backgroundColor: profile.primaryColor || '#6366f1',
                     }}
                     onClick={() => {
                       if (!isEditingLine) {
@@ -774,201 +1101,260 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MARKET SELECTOR STRIP
-          ═══════════════════════════════════════════════════════════════════ */}
-      {sortedMarkets.length > 1 && (
-        <div className="mb-4 -mx-3 px-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
-            {sortedMarkets.map((marketProfile, idx) => {
-              const isActive = marketProfile.market === selectedMarket;
-              // Use dynamic hit rate based on game count filter, fallback to stored value if loading
-              const dynamicHitRate = marketHitRates.get(marketProfile.market);
-              const hitRate = dynamicHitRate ?? marketProfile.last10Pct;
-              
-              return (
-                <button
-                  key={`${marketProfile.market}-${idx}`}
-                  type="button"
-                  onClick={() => setSelectedMarket(marketProfile.market)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all shrink-0",
-                    isActive
-                      ? "bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 shadow-sm"
-                      : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700"
-                  )}
-                >
-                  {/* Line + Market */}
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn(
-                      "text-sm font-bold tabular-nums",
-                      isActive ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"
-                    )}>
-                      {marketProfile.line}+
-                    </span>
-                    <span className={cn(
-                      "text-xs font-medium uppercase",
-                      isActive ? "text-neutral-700 dark:text-neutral-300" : "text-neutral-500 dark:text-neutral-500"
-                    )}>
-                      {formatMarketLabel(marketProfile.market)}
-                    </span>
-                  </div>
-                  
-                  {/* Hit Rate Badge - Dynamic based on game count */}
-                  {hitRate !== null && (
-                    <span className={cn(
-                      "text-xs font-semibold px-1.5 py-0.5 rounded tabular-nums transition-colors",
-                      hitRate >= 70
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                        : hitRate >= 50
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                    )}>
-                      {hitRate}%
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          MAIN CONTENT - BAR CHART
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900 p-6">
-        {/* Chart Header with filters */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-semibold text-neutral-900 dark:text-white">
-              Game Log
-            </h2>
-            {/* Game Count Filter */}
-            <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-              {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
-                const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
-                const isDisabled = numericCount > totalGamesAvailable;
-                const displayCount = count === "season" 
-                  ? `All (${totalGamesAvailable})` 
-                  : `L${count}`;
-                
-                return (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => !isDisabled && setGameCount(count)}
-                    disabled={isDisabled}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-medium rounded-md transition-all",
-                      gameCount === count
-                        ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                        : isDisabled
-                          ? "text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
-                          : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    )}
-                  >
-                    {displayCount}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          
-          {/* Chart Stats */}
-          <div className="flex items-center gap-4">
-            {/* Chart Average */}
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="text-neutral-400 dark:text-neutral-500">Chart Avg:</span>
-              <span className={cn(
-                "font-bold",
-                chartStats.avg !== null && activeLine !== null
-                  ? chartStats.avg > activeLine
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-neutral-900 dark:text-white"
-                  : "text-neutral-900 dark:text-white"
-              )}>
-                {chartStats.avg?.toFixed(1) ?? "—"}
-              </span>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700" />
-
-            {/* Chart Hit Rate with hits count */}
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="text-neutral-400 dark:text-neutral-500">Hit Rate:</span>
-              <span className={cn(
-                "font-bold",
-                chartStats.hitRate !== null
-                  ? chartStats.hitRate >= 70
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : chartStats.hitRate >= 50
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-red-500 dark:text-red-400"
-                  : "text-neutral-900 dark:text-white"
-              )}>
-                {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
-              </span>
-              <span className="text-xs text-neutral-400 dark:text-neutral-500">
-                ({chartStats.hits}/{chartStats.total})
-              </span>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700" />
-
-            {/* Season Avg */}
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="text-neutral-400 dark:text-neutral-500">Szn Avg:</span>
-              <span className="font-bold text-neutral-600 dark:text-neutral-300">
-              {profile.seasonAvg?.toFixed(1) ?? "—"}
-            </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bar Chart */}
-        {boxScoresLoading ? (
-          <div className="flex items-center justify-center h-64 text-neutral-400">
-            <div className="animate-pulse">Loading game data...</div>
-          </div>
-        ) : (
-          <GameLogChart
-            games={filteredGames}
-            line={customLine ?? profile.line}
-            market={profile.market}
-            profileGameLogs={profile.gameLogs as any}
-            onLineChange={setCustomLine}
+        {/* ═══════════════════════════════════════════════════════════════════
+            MARKET SELECTOR STRIP - Inside sticky header
+            ═══════════════════════════════════════════════════════════════════ */}
+        {sortedMarkets.length > 1 && (
+          <MarketSelectorStrip 
+            sortedMarkets={sortedMarkets}
+            selectedMarket={selectedMarket}
+            setSelectedMarket={setSelectedMarket}
+            marketHitRates={marketHitRates}
             quickFilters={quickFilters}
-            onQuickFilterToggle={toggleQuickFilter}
-            onQuickFiltersClear={() => setQuickFilters(new Set())}
-            odds={oddsForChart}
+            chartFilters={chartFilters}
+            injuryFilters={injuryFilters}
+            onClearAllFilters={() => {
+              setQuickFilters(new Set());
+              setChartFilters(DEFAULT_FILTERS);
+              setInjuryFilters([]);
+            }}
+            onRemoveQuickFilter={(filter) => {
+              const newFilters = new Set(quickFilters);
+              newFilters.delete(filter);
+              setQuickFilters(newFilters);
+            }}
+            onRemoveInjuryFilter={(playerId) => {
+              setInjuryFilters(injuryFilters.filter(f => f.playerId !== playerId));
+            }}
           />
         )}
-
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          CHART FILTERS - Scrollable mini charts
+          MAIN CONTENT - BAR CHART (Premium Design)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm">
+        {/* Header - Premium Design */}
+        <div className="relative overflow-hidden">
+          {/* Background Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent" />
+          
+          {/* Content */}
+          <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-600" />
+                  <div>
+                    <h2 className="text-base font-bold text-neutral-900 dark:text-white tracking-tight">
+                      Game Log
+                    </h2>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                      Performance history & trends
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Game Count Filter - Premium Pills */}
+                <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg p-0.5 ml-2">
+                  {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
+                    const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
+                    const isDisabled = numericCount > totalGamesAvailable;
+                    const displayCount = count === "season" 
+                      ? `All (${totalGamesAvailable})` 
+                      : `L${count}`;
+                    
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => !isDisabled && setGameCount(count)}
+                        disabled={isDisabled}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                          gameCount === count
+                            ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-600/50"
+                            : isDisabled
+                              ? "text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+                              : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+                        )}
+                      >
+                        {displayCount}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Chart Stats - Premium Cards */}
+              <div className="flex items-center gap-3">
+                {/* Chart Average */}
+                <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-700/30 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Avg
+                  </span>
+                  <span className={cn(
+                    "text-lg font-bold tabular-nums",
+                    chartStats.avg !== null && activeLine !== null
+                      ? chartStats.avg > activeLine
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-neutral-900 dark:text-white"
+                      : "text-neutral-900 dark:text-white"
+                  )}>
+                    {chartStats.avg?.toFixed(1) ?? "—"}
+                  </span>
+                </div>
+
+                {/* Chart Hit Rate */}
+                <div className={cn(
+                  "flex flex-col items-center px-4 py-2 rounded-lg ring-1",
+                  chartStats.hitRate !== null
+                    ? chartStats.hitRate >= 70
+                      ? "bg-emerald-50 dark:bg-emerald-900/20 ring-emerald-200/50 dark:ring-emerald-700/50"
+                      : chartStats.hitRate >= 50
+                        ? "bg-amber-50 dark:bg-amber-900/20 ring-amber-200/50 dark:ring-amber-700/50"
+                        : "bg-red-50 dark:bg-red-900/20 ring-red-200/50 dark:ring-red-700/50"
+                    : "bg-neutral-50 dark:bg-neutral-700/30 ring-neutral-200/50 dark:ring-neutral-700/50"
+                )}>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Hit Rate
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className={cn(
+                      "text-lg font-bold tabular-nums",
+                      chartStats.hitRate !== null
+                        ? chartStats.hitRate >= 70
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : chartStats.hitRate >= 50
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-500 dark:text-red-400"
+                        : "text-neutral-900 dark:text-white"
+                    )}>
+                      {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                    </span>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
+                      {chartStats.hits}/{chartStats.total}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Season Avg */}
+                <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-700/30 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Season
+                  </span>
+                  <span className="text-lg font-bold text-neutral-600 dark:text-neutral-300 tabular-nums">
+                    {profile.seasonAvg?.toFixed(1) ?? "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bar Chart Content */}
+        <div className="p-5">
+          {boxScoresLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-pulse flex flex-col items-center gap-2">
+                <div className="h-6 w-6 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
+                <span className="text-sm text-neutral-500">Loading game data...</span>
+              </div>
+            </div>
+          ) : (
+            <GameLogChart
+              games={filteredGames}
+              line={customLine ?? profile.line}
+              market={profile.market}
+              profileGameLogs={profile.gameLogs as any}
+              onLineChange={setCustomLine}
+              quickFilters={quickFilters}
+              onQuickFilterToggle={toggleQuickFilter}
+              onQuickFiltersClear={() => setQuickFilters(new Set())}
+              odds={oddsForChart}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          CHART FILTERS - Scrollable mini charts (Premium Design)
           ═══════════════════════════════════════════════════════════════════ */}
       {!boxScoresLoading && boxScoreGames.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900 p-6">
-          <ChartFilters
-            games={gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
-            filters={chartFilters}
-            onFiltersChange={setChartFilters}
-          market={profile.market}
-        />
+        <div className="mt-6 rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm">
+          {/* Header */}
+          <div className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-purple-500/5 via-transparent to-transparent" />
+            <div className="relative px-5 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-1 rounded-full bg-gradient-to-b from-purple-500 to-purple-600" />
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
+                      Advanced Filters
+                    </h3>
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                      Filter by performance metrics
+                    </p>
+                  </div>
+                </div>
+                
+                {/* View Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all",
+                    filtersExpanded
+                      ? "bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400"
+                      : "bg-neutral-100 dark:bg-neutral-700/50 border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-500"
+                  )}
+                >
+                  {filtersExpanded ? (
+                    <>
+                      <LayoutList className="h-3.5 w-3.5" />
+                      <span>Scroll View</span>
+                    </>
+                  ) : (
+                    <>
+                      <Grid3X3 className="h-3.5 w-3.5" />
+                      <span>View All</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="p-5">
+            <ChartFilters
+              games={gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
+              filters={chartFilters}
+              onFiltersChange={setChartFilters}
+              market={profile.market}
+              isExpanded={filtersExpanded}
+              onExpandedChange={setFiltersExpanded}
+              hideControls={true}
+            />
+          </div>
         </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          POSITION VS TEAM
+          MATCHUP ANALYSIS - Two Column Layout
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Defensive Analysis */}
+        <DefensiveAnalysis
+          playerId={profile.playerId}
+          opponentTeamId={profile.opponentTeamId}
+          opponentTeamAbbr={profile.opponentTeamAbbr}
+          position={profile.position}
+        />
+        
+        {/* Right Column: Position vs Team Game Log */}
         <PositionVsTeam
           position={profile.position}
           opponentTeamId={profile.opponentTeamId}
@@ -979,26 +1365,15 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          INJURY REPORT (Current Game Injuries)
+          TEAM ROSTERS & INJURIES (Combined)
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
-        <InjuryReport
+        <RosterAndInjuries
           playerTeamId={profile.teamId}
           opponentTeamId={profile.opponentTeamId}
           currentPlayerId={profile.playerId}
           filters={injuryFilters}
           onFiltersChange={setInjuryFilters}
-        />
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          TEAM ROSTERS (Depth Chart)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
-        <TeamRoster
-          playerTeamId={profile.teamId}
-          opponentTeamId={profile.opponentTeamId}
-          currentPlayerId={profile.playerId}
         />
       </div>
 

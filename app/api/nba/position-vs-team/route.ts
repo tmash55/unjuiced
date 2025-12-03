@@ -9,6 +9,7 @@ const QuerySchema = z.object({
   market: z.string().min(1),
   season: z.string().nullish().transform(v => v ?? "2025-26"),
   limit: z.coerce.number().int().min(1).max(100).nullish().transform(v => v ?? 50),
+  minMinutes: z.coerce.number().int().min(0).nullish().transform(v => v ?? 0),
 });
 
 // RPC response structure
@@ -76,6 +77,7 @@ export async function GET(req: NextRequest) {
       market: searchParams.get("market"),
       season: searchParams.get("season"),
       limit: searchParams.get("limit"),
+      minMinutes: searchParams.get("minMinutes"),
     });
 
     if (!parsed.success) {
@@ -85,7 +87,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { position, opponentTeamId, market, season, limit } = parsed.data;
+    const { position, opponentTeamId, market, season, limit, minMinutes } = parsed.data;
 
     const supabase = createServerSupabaseClient();
 
@@ -135,30 +137,39 @@ export async function GET(req: NextRequest) {
 
     const data = rpcResult as RpcResponse;
 
-    // Map recent games to frontend format
-    const players: PositionVsTeamPlayer[] = (data.recent_games || []).map((game) => ({
-      playerId: game.player_id,
-      playerName: game.player_name,
-      teamAbbr: game.team_abbr,
-      position: game.position || position, // Use player's actual position, fallback to queried
-      stat: game.stat,
-      gameDate: game.date,
-      pts: game.pts,
-      reb: game.reb,
-      ast: game.ast,
-      minutes: game.minutes,
-    }));
+    // Map recent games to frontend format and filter by minMinutes
+    const players: PositionVsTeamPlayer[] = (data.recent_games || [])
+      .filter((game) => game.minutes >= minMinutes)
+      .map((game) => ({
+        playerId: game.player_id,
+        playerName: game.player_name,
+        teamAbbr: game.team_abbr,
+        position: game.position || position, // Use player's actual position, fallback to queried
+        stat: game.stat,
+        gameDate: game.date,
+        pts: game.pts,
+        reb: game.reb,
+        ast: game.ast,
+        minutes: game.minutes,
+      }));
+
+    // Recalculate stats based on filtered players
+    const stats = players.map(p => p.stat);
+    const avgStat = stats.length > 0 ? stats.reduce((a, b) => a + b, 0) / stats.length : 0;
+    const minStat = stats.length > 0 ? Math.min(...stats) : 0;
+    const maxStat = stats.length > 0 ? Math.max(...stats) : 0;
+    const uniquePlayerIds = new Set(players.map(p => p.playerId));
 
     const response: PositionVsTeamResponse = {
       players,
-      avgStat: data.avg_stat ?? 0,
-      minStat: data.min_stat ?? 0,
-      maxStat: data.max_stat ?? 0,
-      avgPoints: data.avg_points ?? 0,
-      avgRebounds: data.avg_rebounds ?? 0,
-      avgAssists: data.avg_assists ?? 0,
-      totalGames: data.total_games ?? 0,
-      playerCount: data.player_count ?? 0,
+      avgStat: avgStat,
+      minStat: minStat,
+      maxStat: maxStat,
+      avgPoints: players.length > 0 ? players.reduce((a, b) => a + b.pts, 0) / players.length : 0,
+      avgRebounds: players.length > 0 ? players.reduce((a, b) => a + b.reb, 0) / players.length : 0,
+      avgAssists: players.length > 0 ? players.reduce((a, b) => a + b.ast, 0) / players.length : 0,
+      totalGames: players.length,
+      playerCount: uniquePlayerIds.size,
       position,
       opponentTeamAbbr,
       market,

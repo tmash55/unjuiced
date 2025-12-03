@@ -11,6 +11,10 @@ export interface BookOdds {
   price: number;
   url: string | null;
   mobileUrl: string | null;
+  underPrice?: number | null;
+  underUrl?: string | null;
+  underMobileUrl?: string | null;
+  isSharp?: boolean; // Pinnacle, Circa, etc.
 }
 
 export interface AlternateLine {
@@ -29,6 +33,10 @@ export interface AlternateLine {
   books: BookOdds[];
   isCurrentLine: boolean;
   edge: "strong" | "moderate" | null;
+  // EV fields
+  evPercent: number | null;
+  fairOdds: number | null;
+  sharpBook: string | null;
 }
 
 export interface AlternateLinesResponse {

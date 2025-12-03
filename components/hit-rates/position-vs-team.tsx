@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { usePositionVsTeam, PositionVsTeamPlayer } from "@/hooks/use-position-vs-team";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
-import { Users, Calendar, Clock, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Users, Calendar, Clock, TrendingUp, TrendingDown, Minus, SlidersHorizontal, X } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
 interface PositionVsTeamProps {
@@ -38,6 +38,8 @@ const getStatVsLineClass = (stat?: number | null, line?: number | null) => {
   return "text-neutral-900 dark:text-white";
 };
 
+const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
+
 export function PositionVsTeam({
   position,
   opponentTeamId,
@@ -46,6 +48,12 @@ export function PositionVsTeam({
   currentLine,
   className,
 }: PositionVsTeamProps) {
+  // Local state for filters
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(position);
+  const [showFilters, setShowFilters] = useState(false);
+  const [gameLimit, setGameLimit] = useState(50);
+  const [minMinutes, setMinMinutes] = useState(0);
+  
   const { 
     players, 
     avgStat, 
@@ -54,13 +62,15 @@ export function PositionVsTeam({
     totalGames, 
     playerCount,
     isLoading, 
+    isFetching,
     error 
   } = usePositionVsTeam({
-    position,
+    position: selectedPosition,
     opponentTeamId,
     market,
-    limit: 50,
-    enabled: !!position && !!opponentTeamId && !!market,
+    limit: gameLimit,
+    minMinutes,
+    enabled: !!selectedPosition && !!opponentTeamId && !!market,
   });
 
   const opponentLogo = opponentTeamAbbr ? getTeamLogoUrl(opponentTeamAbbr, "nba") : null;
@@ -73,7 +83,8 @@ export function PositionVsTeam({
     ? Math.round((hitsVsOpponent / players.length) * 100)
     : null;
 
-  if (isLoading) {
+  // Show full loading only on initial load (no data yet)
+  if (isLoading && players.length === 0) {
     return (
       <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
         <div className="flex items-center justify-center h-48">
@@ -94,25 +105,15 @@ export function PositionVsTeam({
     );
   }
 
-  if (players.length === 0) {
-    return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          No matchup data available for {position} vs {opponentTeamAbbr}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-neutral-500" />
             <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-              {position} vs
+              Position vs
             </h3>
             {opponentLogo && (
               <img
@@ -132,8 +133,9 @@ export function PositionVsTeam({
               <div className="flex items-center gap-1.5 cursor-help">
                 <span className="text-neutral-500">Avg:</span>
                 <span className={cn(
-                  "font-bold",
-                  getStatVsLineClass(avgStat, currentLine)
+                  "font-bold transition-opacity",
+                  getStatVsLineClass(avgStat, currentLine),
+                  isFetching && "opacity-50"
                 )}>
                   {avgStat.toFixed(1)}
                 </span>
@@ -143,28 +145,139 @@ export function PositionVsTeam({
               <div className="flex items-center gap-1.5">
                 <span className="text-neutral-500">Hit Rate:</span>
                 <span className={cn(
-                  "font-bold",
+                  "font-bold transition-opacity",
                   hitRateVsOpponent >= 60 ? "text-emerald-600 dark:text-emerald-400" :
                   hitRateVsOpponent >= 40 ? "text-amber-600 dark:text-amber-400" :
-                  "text-red-500 dark:text-red-400"
+                  "text-red-500 dark:text-red-400",
+                  isFetching && "opacity-50"
                 )}>
                   {hitRateVsOpponent}%
                 </span>
               </div>
             )}
-            <Tooltip content={`${playerCount} unique players`} side="top">
-              <span className="text-neutral-400 cursor-help">
-                {totalGames} games
+            <Tooltip content={`${playerCount} unique players in ${totalGames} games`} side="top">
+              <span className={cn(
+                "text-neutral-400 cursor-help transition-opacity",
+                isFetching && "opacity-50"
+              )}>
+                {totalGames} games • {playerCount} players
               </span>
             </Tooltip>
+            
+            {/* Filter Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors active:scale-95"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
           </div>
         </div>
+        
+        {/* Position Selector */}
+        <div className="flex items-center gap-1.5">
+          {POSITIONS.map((pos) => {
+            const isSelected = pos === selectedPosition;
+            return (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => setSelectedPosition(pos)}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                  isSelected
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                )}
+              >
+                {pos}
+              </button>
+            );
+          })}
+        </div>
+        
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="mt-3 p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Filters</h4>
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="h-3.5 w-3.5 text-neutral-500" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Game Limit */}
+              <div>
+                <label className="block text-[10px] font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
+                  Game Limit
+                </label>
+                <div className="flex gap-1">
+                  {[10, 20, 50].map((limit) => (
+                    <button
+                      key={limit}
+                      type="button"
+                      onClick={() => setGameLimit(limit)}
+                      className={cn(
+                        "flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                        gameLimit === limit
+                          ? "bg-brand/10 text-brand border border-brand/30"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {limit}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Min Minutes */}
+              <div>
+                <label className="block text-[10px] font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
+                  Min Minutes
+                </label>
+                <div className="flex gap-1">
+                  {[0, 15, 20, 30].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setMinMinutes(mins)}
+                      className={cn(
+                        "flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                        minMinutes === mins
+                          ? "bg-brand/10 text-brand border border-brand/30"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {mins}+
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
-      <div className="max-h-[320px] overflow-y-auto">
+      <div className="max-h-[320px] overflow-y-auto relative">
+        {/* Loading Overlay */}
+        {isFetching && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
+              <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Loading...</span>
+            </div>
+          </div>
+        )}
+        
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-neutral-50 dark:bg-neutral-800/80 backdrop-blur-sm">
+          <thead className="sticky top-0 bg-neutral-50 dark:bg-neutral-800/80 backdrop-blur-sm z-[5]">
             <tr className="border-b border-neutral-200 dark:border-neutral-700">
               <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                 Date
@@ -184,12 +297,22 @@ export function PositionVsTeam({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
-            {players.map((player, idx) => (
-              <PlayerMatchupRow 
-                key={`${player.gameDate}-${player.playerName}-${idx}`} 
-                player={player} 
-              />
-            ))}
+            {players.length === 0 && !isFetching ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    No matchup data available for {selectedPosition} vs {opponentTeamAbbr}
+                  </p>
+                </td>
+              </tr>
+            ) : (
+              players.map((player, idx) => (
+                <PlayerMatchupRow 
+                  key={`${player.gameDate}-${player.playerName}-${idx}`} 
+                  player={player} 
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>

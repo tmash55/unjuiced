@@ -63,6 +63,7 @@ export function useMatchupRanks(options: UseMatchupRanksOptions) {
     enabled: enabled && isValid,
     staleTime: 5 * 60_000, // 5 minutes (matchup data doesn't change often)
     gcTime: 10 * 60_000, // 10 minutes
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching
   });
 
   return {

@@ -210,12 +210,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       return () => clearTimeout(timer);
     }
   }, [isLoading, rows.length, hasLoadedBackground, needsFullData]);
-  
+
   // Reset background loading state when filters change
   useEffect(() => {
     setHasLoadedBackground(false);
   }, [selectedGameIds, debouncedSearch]);
-  
+
   // Reset visible row count when filters change (for table pagination)
   useEffect(() => {
     setVisibleRowCount(TABLE_PAGE_SIZE);
@@ -370,7 +370,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       </div>
 
       {/* Games Sidebar + Table/Drilldown Row */}
-      <div className="flex gap-6 h-[calc(100vh-200px)]">
+      <div className="flex gap-6 h-[calc(100vh-140px)]">
         {/* Games Sidebar - always visible */}
         <GamesSidebar 
           selectedGameIds={selectedGameIds}
