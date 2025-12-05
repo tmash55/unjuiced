@@ -20,6 +20,11 @@ interface CreateCheckoutParams {
    * Defaults to 'always' for subscriptions when trialDays is set.
    */
   paymentMethodCollection?: "always" | "if_required";
+  /**
+   * Whether to allow promotion codes on the checkout page.
+   * Defaults to true. Set to false for yearly plans.
+   */
+  allowPromotionCodes?: boolean;
 }
 
 interface CreateCustomerPortalParams {
@@ -38,6 +43,7 @@ export const createCheckout = async ({
   couponId,
   trialDays,
   paymentMethodCollection,
+  allowPromotionCodes = true,
 }: CreateCheckoutParams): Promise<string | null> => {
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -72,7 +78,7 @@ export const createCheckout = async ({
     // Build base session params
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode,
-      allow_promotion_codes: true,
+      allow_promotion_codes: allowPromotionCodes,
       client_reference_id: clientReferenceId,
       metadata: {
         brand_key: 'unjuiced',
