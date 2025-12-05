@@ -81,6 +81,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setShowAuthModal(false);
         }
         
+        // Handle password recovery - redirect to forgot-password page
+        if (event === 'PASSWORD_RECOVERY') {
+          router.push('/forgot-password');
+          return;
+        }
+        
         // Invalidate entitlements cache on sign in/out to force refetch
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
           queryClient.invalidateQueries({ queryKey: ['me-plan'] });

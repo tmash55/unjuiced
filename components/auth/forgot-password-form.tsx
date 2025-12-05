@@ -47,12 +47,35 @@ export const ForgotPasswordForm = () => {
   // Check if we're in recovery mode (user clicked email link)
   useEffect(() => {
     const checkRecoveryMode = async () => {
+      // Check URL hash for recovery token (Supabase appends #access_token=...&type=recovery)
+      const hash = window.location.hash;
+      if (hash && hash.includes('type=recovery')) {
+        // Let Supabase client process the hash
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (session && !error) {
+          setIsRecoveryMode(true);
+        }
+        return;
+      }
+      
+      // Also check if there's already a session (user was redirected here)
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsRecoveryMode(true);
       }
     };
     checkRecoveryMode();
+
+    // Listen for PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setIsRecoveryMode(true);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [supabase.auth]);
 
   // Form for requesting reset email
