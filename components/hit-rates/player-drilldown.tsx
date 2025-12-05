@@ -1499,7 +1499,20 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          MATCHUP ANALYSIS - Two Column Layout
+          TEAM ROSTERS & INJURIES (Combined)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6">
+        <RosterAndInjuries
+          playerTeamId={profile.teamId}
+          opponentTeamId={profile.opponentTeamId}
+          currentPlayerId={profile.playerId}
+          filters={injuryFilters}
+          onFiltersChange={setInjuryFilters}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MATCHUP ANALYSIS - Two Column Layout (Defense vs Position)
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Defensive Analysis */}
@@ -1521,15 +1534,15 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          TEAM ROSTERS & INJURIES (Combined)
+          PLAYER CORRELATIONS (Teammate Analysis)
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
-        <RosterAndInjuries
-          playerTeamId={profile.teamId}
-          opponentTeamId={profile.opponentTeamId}
-          currentPlayerId={profile.playerId}
-          filters={injuryFilters}
-          onFiltersChange={setInjuryFilters}
+        <PlayerCorrelations
+          playerId={profile.playerId}
+          market={profile.market}
+          line={activeLine}
+          gameId={profile.gameId}
+          playerName={profile.playerName}
         />
       </div>
 
@@ -1551,19 +1564,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
               setCustomLine(line);
             }
           }}
-        />
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          PLAYER CORRELATIONS (Teammate Analysis)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
-        <PlayerCorrelations
-          playerId={profile.playerId}
-          market={profile.market}
-          line={activeLine}
-          gameId={profile.gameId}
-          playerName={profile.playerName}
         />
       </div>
 

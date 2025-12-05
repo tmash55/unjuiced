@@ -1876,12 +1876,12 @@ function MobileRosterPlayerRow({
 
       {/* With/Without Toggles - moved to the right */}
       {!isCurrentPlayer && (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onToggleWith}
             className={cn(
-              "w-8 h-6 flex items-center justify-center rounded text-[9px] font-bold transition-all active:scale-95",
+              "min-w-[40px] h-8 flex items-center justify-center rounded-lg text-[10px] font-bold transition-all active:scale-95",
               withFilter
                 ? "bg-emerald-500 text-white shadow-sm"
                 : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-neutral-700"
@@ -1893,7 +1893,7 @@ function MobileRosterPlayerRow({
             type="button"
             onClick={onToggleWithout}
             className={cn(
-              "w-8 h-6 flex items-center justify-center rounded text-[8px] font-bold transition-all active:scale-95",
+              "min-w-[40px] h-8 flex items-center justify-center rounded-lg text-[10px] font-bold transition-all active:scale-95",
               withoutFilter
                 ? "bg-red-500 text-white shadow-sm"
                 : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-neutral-700"
@@ -2421,9 +2421,9 @@ export function MobilePlayerDrilldown({
   }
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
   
-  // Team collapse state - default collapsed for cleaner initial view
-  const [playerTeamCollapsed, setPlayerTeamCollapsed] = useState(true);
-  const [opponentTeamCollapsed, setOpponentTeamCollapsed] = useState(true);
+  // Team collapse state - default expanded for better visibility
+  const [playerTeamCollapsed, setPlayerTeamCollapsed] = useState(false);
+  const [opponentTeamCollapsed, setOpponentTeamCollapsed] = useState(false);
   
   // Scroll to top when player changes
   useEffect(() => {
@@ -3907,12 +3907,12 @@ export function MobilePlayerDrilldown({
                                     )}
                                   </div>
                                   {!isCurrentPlayer && (
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1.5">
                                       <button
                                         type="button"
                                         onClick={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
                                         className={cn(
-                                          "px-2 py-0.5 text-[9px] font-bold rounded transition-all",
+                                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all min-w-[44px]",
                                           filter?.mode === "with"
                                             ? "bg-emerald-500 text-white"
                                             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
@@ -3924,7 +3924,7 @@ export function MobilePlayerDrilldown({
                                         type="button"
                                         onClick={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
                                         className={cn(
-                                          "px-2 py-0.5 text-[9px] font-bold rounded transition-all",
+                                          "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all min-w-[44px]",
                                           filter?.mode === "without"
                                             ? "bg-red-500 text-white"
                                             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-red-100 dark:hover:bg-red-900/30"

@@ -1312,24 +1312,23 @@ export function PlayerCorrelations({
 
             {/* Right Controls */}
             <div className="flex items-center gap-3 shrink-0">
-              {/* Filter Button - Only show for All Stats Grid view */}
-              {isAllView && (
-                <div className="relative" ref={filterRef}>
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded-lg transition-all border",
-                      showFilters || hasActiveFilters
-                        ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300"
-                        : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600"
-                    )}
-                  >
-                    <SlidersHorizontal className="w-3 h-3" />
-                    Filters
-                    {hasActiveFilters && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                    )}
-                  </button>
+              {/* Filter Button - Always show */}
+              <div className="relative" ref={filterRef}>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded-lg transition-all border",
+                    showFilters || hasActiveFilters
+                      ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300"
+                      : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600"
+                  )}
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  Filters
+                  {hasActiveFilters && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  )}
+                </button>
                   
                   {/* Filter Popover - Opens upward to avoid container overflow */}
                   {showFilters && (
@@ -1416,8 +1415,7 @@ export function PlayerCorrelations({
                     </div>
                   </div>
                 )}
-                </div>
-              )}
+              </div>
 
               {/* View Toggle - only show when not in "all" mode */}
               {selectedMarket !== "all" && (
