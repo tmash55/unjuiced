@@ -37,6 +37,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/pricing`)
     }
 
+    // Check if this is a yearly plan - if so, coupons/promotion codes are not allowed
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2023-08-16' as any,
+      typescript: true,
+    })
+    
+    let isYearlyPlan = false
+    try {
+      const price = await stripe.prices.retrieve(priceId)
+      const billingInterval = price.metadata?.billing_interval
+      isYearlyPlan = billingInterval === 'yearly'
+      
+      if (isYearlyPlan) {
+        console.log('[billing/start] Yearly plan detected - promotion codes disabled')
+      }
+    } catch (priceError) {
+      console.warn('[billing/start] Could not retrieve price metadata:', priceError)
+    }
+
     // Try to reuse existing Stripe customer id if present
     let stripeCustomerId: string | undefined
     const { data: sub } = await supabase
@@ -69,10 +88,6 @@ export async function GET(req: NextRequest) {
     const trialDays = allowTrial ? requestedTrialDays : undefined
     if (!stripeCustomerId) {
       try {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-          apiVersion: '2023-08-16' as any,
-          typescript: true,
-        })
         const customer = await stripe.customers.create({
           email: user.email || undefined,
           metadata: { user_id: user.id },
@@ -98,9 +113,10 @@ export async function GET(req: NextRequest) {
       successUrl,
       cancelUrl,
       priceId,
-      couponId: couponId || undefined,
+      couponId: isYearlyPlan ? undefined : (couponId || undefined), // No coupons for yearly
       trialDays,
       paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
+      allowPromotionCodes: !isYearlyPlan, // Disable promo codes for yearly plans
     })
 
     if (!url) {
