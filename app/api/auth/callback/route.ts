@@ -5,13 +5,44 @@ import Stripe from 'stripe'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type')
   const next = searchParams.get('next') ?? '/arbitrage'
 
-  console.log('🔄 Auth callback started:', { code: !!code, next, origin })
+  console.log('🔄 Auth callback started:', { code: !!code, token_hash: !!token_hash, type, next, origin })
 
-  if (code) {
-    const supabase = await createClient()
+  const supabase = await createClient()
+
+  // Handle token_hash for email confirmations and password recovery
+  if (token_hash && type) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: type as 'recovery' | 'email' | 'signup' | 'invite' | 'magiclink',
+    })
     
+    if (!error && data.user) {
+      console.log('✅ OTP verified for user:', data.user.id, 'type:', type)
+      
+      // For password recovery, redirect to forgot-password page
+      const redirectPath = type === 'recovery' ? '/forgot-password' : next
+      
+      const forwardedHost = request.headers.get('x-forwarded-host')
+      const isLocalEnv = process.env.NODE_ENV === 'development'
+      
+      if (isLocalEnv) {
+        return NextResponse.redirect(`${origin}${redirectPath}`)
+      } else if (forwardedHost) {
+        return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
+      } else {
+        return NextResponse.redirect(`${origin}${redirectPath}`)
+      }
+    } else {
+      console.error('❌ OTP verification error:', error)
+    }
+  }
+
+  // Handle code exchange (PKCE flow)
+  if (code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error && data.user) {
