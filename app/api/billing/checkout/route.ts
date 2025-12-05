@@ -32,22 +32,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })
     }
 
-    // Check if this is a yearly plan - if so, coupons are not allowed
+    // Check if this is a yearly plan - if so, coupons/promotion codes are not allowed
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2023-08-16' as any,
       typescript: true,
     })
     
+    let isYearlyPlan = false
     try {
       const price = await stripe.prices.retrieve(priceId)
       const billingInterval = price.metadata?.billing_interval
+      isYearlyPlan = billingInterval === 'yearly'
       
-      if (billingInterval === 'yearly' && couponId) {
+      if (isYearlyPlan && couponId) {
         console.log('[billing/checkout] Coupon blocked for yearly plan:', { priceId, couponId })
-        // Option 1: Return an error
-        // return NextResponse.json({ error: 'coupon_not_valid_for_yearly' }, { status: 400 })
-        
-        // Option 2: Silently ignore the coupon (more user-friendly)
         couponId = null
       }
     } catch (priceError) {
@@ -123,6 +121,7 @@ export async function POST(req: NextRequest) {
       couponId: couponId || undefined,
       trialDays,
       paymentMethodCollection: trialDays ? 'always' : 'if_required',
+      allowPromotionCodes: !isYearlyPlan, // Disable promo codes for yearly plans
     })
 
     if (!url) {
