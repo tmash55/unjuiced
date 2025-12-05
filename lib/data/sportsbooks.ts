@@ -176,7 +176,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     },
     brandColor: "#FF0000",
     priority: 8,
-    isActive: true,
+    isActive: false,
     requiresState: false
   },
 
