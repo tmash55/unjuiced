@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X } from "lucide-react";
+import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
@@ -26,7 +26,7 @@ const getMarketTooltip = (market: string): string | null => {
   return COMBO_MARKET_DESCRIPTIONS[market] || null;
 };
 
-type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct";
+type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
 type SortDirection = "asc" | "desc";
 
 // Market options for filter
@@ -45,6 +45,18 @@ const MARKET_OPTIONS = [
   { value: "player_turnovers", label: "Turnovers" },
 ];
 
+// Position options for filter
+const POSITION_OPTIONS = [
+  { value: "PG", label: "Point Guard" },
+  { value: "SG", label: "Shooting Guard" },
+  { value: "SF", label: "Small Forward" },
+  { value: "PF", label: "Power Forward" },
+  { value: "C", label: "Center" },
+];
+
+// Max matchup rank value (0 = all/disabled)
+const MAX_MATCHUP_RANK_LIMIT = 30;
+
 interface HitRateTableProps {
   rows: HitRateProfile[];
   loading?: boolean;
@@ -60,9 +72,18 @@ interface HitRateTableProps {
   onMarketsChange: (markets: string[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  // Sort props
+  sortField: SortField | null;
+  sortDirection: SortDirection;
+  onSortChange: (field: SortField, direction: SortDirection) => void;
   // Scroll position restoration
   scrollRef?: React.RefObject<HTMLDivElement>;
   initialScrollTop?: number;
+  // Advanced filter props (controlled from parent)
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (value: boolean) => void;
+  // Callback to report which profiles have odds
+  onOddsAvailabilityChange?: (idsWithOdds: Set<string>) => void;
 }
 
 const formatPercentage = (value: number | null) => {
@@ -314,6 +335,7 @@ const getSortValue = (row: HitRateProfile, field: SortField): number | null => {
     case "l20Pct": return row.last20Pct;
     case "seasonPct": return row.seasonPct;
     case "h2hPct": return row.h2hPct;
+    case "matchupRank": return row.matchupRank;
     default: return null;
   }
 };
@@ -331,23 +353,63 @@ export function HitRateTable({
   onMarketsChange,
   searchQuery,
   onSearchChange,
+  sortField,
+  sortDirection,
+  onSortChange,
   scrollRef,
   initialScrollTop,
+  hideNoOdds: hideNoOddsControlled,
+  onHideNoOddsChange,
+  onOddsAvailabilityChange,
 }: HitRateTableProps) {
-  const [sortField, setSortField] = useState<SortField | null>("l10Pct");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Advanced filter states
+  const [showFilterPopup, setShowFilterPopup] = useState(false);
+  const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
+  const [maxMatchupRank, setMaxMatchupRank] = useState<number>(0); // 0 = all
+  // Support both controlled and uncontrolled hideNoOdds
+  const [hideNoOddsInternal, setHideNoOddsInternal] = useState(false);
+  const hideNoOdds = hideNoOddsControlled ?? hideNoOddsInternal;
+  const setHideNoOdds = onHideNoOddsChange ?? setHideNoOddsInternal;
+  const filterPopupRef = useRef<HTMLDivElement>(null);
+  
+  // Check if any advanced filters are active
+  const hasActiveFilters = selectedPositions.size > 0 || maxMatchupRank > 0 || hideNoOdds;
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setMarketDropdownOpen(false);
       }
+      if (filterPopupRef.current && !filterPopupRef.current.contains(e.target as Node)) {
+        setShowFilterPopup(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+  
+  // Toggle position selection
+  const togglePosition = useCallback((pos: string) => {
+    setSelectedPositions(prev => {
+      const next = new Set(prev);
+      if (next.has(pos)) {
+        next.delete(pos);
+      } else {
+        next.add(pos);
+      }
+      return next;
+    });
+  }, []);
+  
+  // Reset all advanced filters
+  const resetFilters = useCallback(() => {
+    setSelectedPositions(new Set());
+    setMaxMatchupRank(0);
+    setHideNoOdds(false);
   }, []);
 
   // Restore scroll position when returning from drilldown
@@ -379,30 +441,62 @@ export function HitRateTable({
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
       // Toggle direction if same field
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      const newDirection = sortDirection === "asc" ? "desc" : "asc";
+      onSortChange(field, newDirection);
     } else {
-      // New field, default to descending (highest first)
-      setSortField(field);
-      setSortDirection("desc");
+      // New field - for matchupRank, default to ascending (best to worst: 1, 2, 3...)
+      // For all other fields, default to descending (highest first)
+      const defaultDirection = field === "matchupRank" ? "asc" : "desc";
+      onSortChange(field, defaultDirection);
     }
-  }, [sortField]);
+  }, [sortField, sortDirection, onSortChange]);
 
-  const sortedRows = useMemo(() => {
-    if (!sortField) return rows;
+  // Apply advanced filters first, then sort
+  const filteredAndSortedRows = useMemo(() => {
+    let result = rows;
     
-    return [...rows].sort((a, b) => {
-      const aVal = getSortValue(a, sortField);
-      const bVal = getSortValue(b, sortField);
-      
-      // Handle nulls - push them to the end
-      if (aVal === null && bVal === null) return 0;
-      if (aVal === null) return 1;
-      if (bVal === null) return -1;
-      
-      const diff = aVal - bVal;
-      return sortDirection === "asc" ? diff : -diff;
-    });
-  }, [rows, sortField, sortDirection]);
+    // Filter by position
+    if (selectedPositions.size > 0) {
+      result = result.filter(row => {
+        const pos = row.position?.toUpperCase();
+        if (!pos) return false;
+        // Handle positions like "G" (guard) matching PG/SG, "F" matching SF/PF
+        if (pos === "G") return selectedPositions.has("PG") || selectedPositions.has("SG");
+        if (pos === "F") return selectedPositions.has("SF") || selectedPositions.has("PF");
+        return selectedPositions.has(pos);
+      });
+    }
+    
+    // Filter by matchup rank (top N)
+    if (maxMatchupRank > 0) {
+      result = result.filter(row => 
+        row.matchupRank !== null && row.matchupRank <= maxMatchupRank
+      );
+    }
+    
+    // Note: hideNoOdds filter is applied in render since odds are fetched separately
+    
+    // Sort
+    if (sortField) {
+      result = [...result].sort((a, b) => {
+        const aVal = getSortValue(a, sortField);
+        const bVal = getSortValue(b, sortField);
+        
+        // Handle nulls - push them to the end
+        if (aVal === null && bVal === null) return 0;
+        if (aVal === null) return 1;
+        if (bVal === null) return -1;
+        
+        const diff = aVal - bVal;
+        return sortDirection === "asc" ? diff : -diff;
+      });
+    }
+    
+    return result;
+  }, [rows, sortField, sortDirection, selectedPositions, maxMatchupRank]);
+  
+  // Keep sortedRows for backwards compatibility (used elsewhere)
+  const sortedRows = filteredAndSortedRows;
 
   // Fetch odds for all rows using the new stable key system
   // The oddsSelectionId is now a stable hash that never changes
@@ -414,6 +508,28 @@ export function HitRateTable({
     })),
     enabled: rows.length > 0,
   });
+
+  // Report which profiles have odds (for filtering in other components like sidebar)
+  // Use a ref to track previous value and avoid infinite loops
+  const prevOddsIdsRef = useRef<string>("");
+  
+  useEffect(() => {
+    if (!onOddsAvailabilityChange || oddsLoading) return;
+    
+    const idsWithOdds = new Set<string>();
+    for (const row of rows) {
+      if (row.oddsSelectionId && getOdds(row.oddsSelectionId)) {
+        idsWithOdds.add(row.oddsSelectionId);
+      }
+    }
+    
+    // Only call callback if the set actually changed
+    const idsString = Array.from(idsWithOdds).sort().join(",");
+    if (idsString !== prevOddsIdsRef.current) {
+      prevOddsIdsRef.current = idsString;
+      onOddsAvailabilityChange(idsWithOdds);
+    }
+  }, [rows, getOdds, oddsLoading, onOddsAvailabilityChange]);
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
@@ -485,13 +601,174 @@ export function HitRateTable({
           )}
         </div>
 
+        {/* Advanced Filters Button */}
+        <div ref={filterPopupRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowFilterPopup(!showFilterPopup)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-all",
+              showFilterPopup || hasActiveFilters
+                ? "bg-brand/10 border-brand/30 text-brand dark:bg-brand/20 dark:border-brand/40"
+                : "bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            )}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {hasActiveFilters && (
+              <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+            )}
+          </button>
+
+          {/* Filter Popup */}
+          {showFilterPopup && (
+            <div className="absolute right-0 top-full z-[100] mt-2 w-[320px] rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+                <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Advanced Filters</span>
+                <button 
+                  onClick={() => setShowFilterPopup(false)}
+                  className="p-1 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                >
+                  <X className="w-4 h-4 text-neutral-400" />
+                </button>
+              </div>
+
+              {/* Position Filter */}
+              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+                <div className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
+                  Position
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {POSITION_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => togglePosition(value)}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all",
+                        selectedPositions.has(value)
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {selectedPositions.has(value) && <Check className="w-3 h-3" />}
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Matchup Rank Filter - Number Input */}
+              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                      Top Matchups Only
+                    </div>
+                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      {maxMatchupRank > 0 ? `Showing top ${maxMatchupRank} matchups` : "Showing all matchups"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setMaxMatchupRank(Math.max(0, maxMatchupRank - 1))}
+                      disabled={maxMatchupRank === 0}
+                      className={cn(
+                        "w-7 h-7 flex items-center justify-center rounded-lg border transition-colors",
+                        maxMatchupRank === 0
+                          ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      )}
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={MAX_MATCHUP_RANK_LIMIT}
+                      value={maxMatchupRank || ""}
+                      placeholder="All"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 0) {
+                          setMaxMatchupRank(0);
+                        } else {
+                          setMaxMatchupRank(Math.min(val, MAX_MATCHUP_RANK_LIMIT));
+                        }
+                      }}
+                      className="w-14 h-7 text-center text-sm font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMaxMatchupRank(Math.min(MAX_MATCHUP_RANK_LIMIT, maxMatchupRank + 1))}
+                      disabled={maxMatchupRank >= MAX_MATCHUP_RANK_LIMIT}
+                      className={cn(
+                        "w-7 h-7 flex items-center justify-center rounded-lg border transition-colors",
+                        maxMatchupRank >= MAX_MATCHUP_RANK_LIMIT
+                          ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      )}
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hide No Odds Toggle */}
+              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div>
+                    <div className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                      Hide Players Without Odds
+                    </div>
+                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Only show props with available betting lines
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={hideNoOdds}
+                    onClick={() => setHideNoOdds(!hideNoOdds)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30 focus:ring-offset-2 dark:focus:ring-offset-neutral-900",
+                      hideNoOdds ? "bg-brand" : "bg-neutral-200 dark:bg-neutral-700"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
+                        hideNoOdds ? "translate-x-[22px]" : "translate-x-0.5"
+                      )}
+                    />
+                  </button>
+                </label>
+              </div>
+
+              {/* Reset Button */}
+              {hasActiveFilters && (
+                <div className="px-4 py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
+                  <button
+                    onClick={resetFilters}
+                    className="w-full py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Count indicator - show filtered count when markets are filtered */}
         <div className="text-xs text-neutral-500 dark:text-neutral-400 ml-auto">
-          {selectedMarkets.length < MARKET_OPTIONS.length ? (
-            // Markets are filtered - just show current count
-            <span>{rows.length} props</span>
+          {hasActiveFilters || selectedMarkets.length < MARKET_OPTIONS.length ? (
+            // Filters active - show filtered count
+            <span>{filteredAndSortedRows.length} props</span>
           ) : totalCount !== undefined ? (
-            // All markets - show pagination info
+            // All markets, no filters - show pagination info
             <span>{rows.length} of {totalCount} props</span>
           ) : (
             <span>{rows.length} props</span>
@@ -566,8 +843,15 @@ export function HitRateTable({
             <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
               Player
             </th>
-            <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-              Matchup
+            {/* Sortable: Matchup */}
+            <th
+              onClick={() => handleSort("matchupRank")}
+              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+            >
+              <div className="flex items-center justify-center gap-1">
+                Matchup
+                <SortIcon field="matchupRank" />
+              </div>
             </th>
             
             {/* Sortable: Prop (line) */}
@@ -706,6 +990,11 @@ export function HitRateTable({
         </thead>
         <tbody>
           {sortedRows.map((row, idx) => {
+            const odds = getOdds(row.oddsSelectionId);
+            
+            // Apply hideNoOdds filter - skip rows without odds
+            if (hideNoOdds && !odds) return null;
+            
             const opponent = row.opponentTeamAbbr ?? row.opponentTeamName ?? "Opponent";
             const matchup = row.teamAbbr ? `${row.teamAbbr} vs ${opponent}` : opponent;
             const isHighConfidence = (row.last10Pct ?? 0) >= 70;
@@ -771,17 +1060,29 @@ export function HitRateTable({
                         <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
                           {row.playerName}
                         </span>
-                        {hasInjuryStatus(row.injuryStatus) && (
-                          <Tooltip 
-                            content={`${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`}
-                            side="top"
-                          >
-                            <HeartPulse className={cn(
-                              "h-4 w-4 cursor-help",
-                              getInjuryIconColorClass(row.injuryStatus)
-                            )} />
-                          </Tooltip>
-                        )}
+                        {hasInjuryStatus(row.injuryStatus) && (() => {
+                          const isGLeague = row.injuryNotes?.toLowerCase().includes("g league") || 
+                                            row.injuryNotes?.toLowerCase().includes("g-league") ||
+                                            row.injuryNotes?.toLowerCase().includes("gleague");
+                          return (
+                            <Tooltip 
+                              content={isGLeague 
+                                ? `G League${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
+                                : `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
+                              }
+                              side="top"
+                            >
+                              {isGLeague ? (
+                                <ArrowDown className="h-4 w-4 cursor-help text-blue-500" />
+                              ) : (
+                                <HeartPulse className={cn(
+                                  "h-4 w-4 cursor-help",
+                                  getInjuryIconColorClass(row.injuryStatus)
+                                )} />
+                              )}
+                            </Tooltip>
+                          );
+                        })()}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
                         {row.teamAbbr && (
@@ -882,7 +1183,7 @@ export function HitRateTable({
                     <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
                   ) : (
                   <OddsDropdown 
-                    odds={getOdds(row.oddsSelectionId)} 
+                    odds={odds} 
                     loading={oddsLoading} 
                   />
                   )}

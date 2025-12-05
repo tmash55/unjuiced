@@ -14,8 +14,10 @@ interface AlternateLinesMatrixProps {
   stableKey: string | null;  // The stable key from odds_selection_id
   playerId: number | null;
   market: string | null;
-  currentLine: number | null;
+  originalLine: number | null;  // The original line from profile (for fetching, doesn't change)
+  activeLine: number | null;    // The currently active line (for highlighting, can change)
   className?: string;
+  onLineSelect?: (line: number) => void;
 }
 
 const getHitRateColorClass = (value: number | null) => {
@@ -55,18 +57,27 @@ export function AlternateLinesMatrix({
   stableKey,
   playerId,
   market,
-  currentLine,
+  originalLine,
+  activeLine,
   className,
+  onLineSelect,
 }: AlternateLinesMatrixProps) {
   const [collapsed, setCollapsed] = useState(false);
   
+  // Use originalLine for fetching (stable, won't trigger refetch)
   const { lines, isLoading, error } = useAlternateLines({
     stableKey,
     playerId,
     market,
-    currentLine,
+    currentLine: originalLine,
     enabled: !!stableKey && !!playerId && !!market,
   });
+  
+  // Override isCurrentLine based on activeLine for highlighting
+  const linesWithActiveHighlight = lines.map(line => ({
+    ...line,
+    isCurrentLine: line.line === activeLine,
+  }));
 
   if (isLoading) {
     return (
@@ -99,90 +110,75 @@ export function AlternateLinesMatrix({
 
   return (
     <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm", className)}>
-      {/* Header - Premium Design */}
-      <div className="relative overflow-hidden">
-        {/* Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/5 via-transparent to-transparent" />
-        
-        {/* Content */}
-        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600" />
-              <div>
-                <h3 className="text-base font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
-                  Alternate Lines & Odds
-                </h3>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-                  Compare lines across sportsbooks
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {/* Lines Count Badge */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-200/50 dark:ring-emerald-800/50">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold">
-                  {lines.length} Lines
-                </span>
-              </div>
-              
-              {/* Collapse Button */}
-              <button
-                type="button"
-                onClick={() => setCollapsed(!collapsed)}
-                className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-700/50 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
-              >
-                {collapsed ? (
-                  <ChevronDown className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                ) : (
-                  <ChevronUp className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                )}
-              </button>
-            </div>
+      {/* Compact Header */}
+      <div className="px-4 py-2 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-0.5 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600" />
+            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+              Alternate Lines
+            </h3>
+            <span className="text-xs text-neutral-400">•</span>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              {lines.length} lines
+            </span>
           </div>
+          
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
+          >
+            <ChevronDown className={cn(
+              "h-3.5 w-3.5 text-neutral-500 transition-transform",
+              !collapsed && "rotate-180"
+            )} />
+          </button>
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table - Compact */}
       {!collapsed && (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-b from-neutral-50 to-neutral-100/50 dark:from-neutral-800/80 dark:to-neutral-800/50 backdrop-blur-sm">
-                <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+              <tr className="bg-neutral-100/70 dark:bg-neutral-800/70 border-b border-neutral-200 dark:border-neutral-700">
+                <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   Line
                 </th>
-                <th className="px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   L5
                 </th>
-                <th className="px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   L10
                 </th>
-                <th className="px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   L20
                 </th>
-                <th className="px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                  Season
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  SZN
                 </th>
-                <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                  Best Odds
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Odds
                 </th>
-                <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   <Tooltip content="Expected Value calculated using sharp book odds (Pinnacle, Circa)" side="top">
-                    <span className="cursor-help">EV %</span>
+                    <span className="cursor-help">EV</span>
                   </Tooltip>
                 </th>
-                <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                   Edge
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100/60 dark:divide-neutral-700/40">
-              {lines.map((line) => (
-                <AlternateLineRow key={line.line} line={line} />
+            <tbody>
+              {linesWithActiveHighlight.map((line, index) => (
+                <AlternateLineRow 
+                  key={line.line} 
+                  line={line} 
+                  onLineSelect={onLineSelect}
+                  isEven={index % 2 === 0}
+                />
               ))}
             </tbody>
           </table>
@@ -192,21 +188,26 @@ export function AlternateLinesMatrix({
   );
 }
 
-function AlternateLineRow({ line }: { line: AlternateLine }) {
+function AlternateLineRow({ line, onLineSelect, isEven = false }: { line: AlternateLine; onLineSelect?: (line: number) => void; isEven?: boolean }) {
   return (
     <tr
+      onClick={() => onLineSelect?.(line.line)}
       className={cn(
-        "group transition-all duration-200",
+        "group transition-colors border-b border-neutral-100/50 dark:border-neutral-800/50 last:border-0",
+        onLineSelect && "cursor-pointer",
         line.isCurrentLine 
-          ? "bg-gradient-to-r from-brand/10 via-brand/5 to-transparent dark:from-brand/20 dark:via-brand/10 dark:to-transparent border-l-[3px] border-l-brand shadow-sm"
-          : "hover:bg-gradient-to-r hover:from-neutral-50 hover:via-white hover:to-neutral-50 dark:hover:from-neutral-800/40 dark:hover:via-neutral-800/20 dark:hover:to-neutral-800/40"
+          ? "bg-brand/10 dark:bg-brand/20 border-l-2 border-l-brand"
+          : isEven
+            ? "bg-neutral-50/50 dark:bg-neutral-800/20"
+            : "bg-white dark:bg-neutral-900/20",
+        !line.isCurrentLine && "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30"
       )}
     >
       {/* Line */}
-      <td className="px-5 py-3.5">
+      <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className={cn(
-            "text-base font-bold tabular-nums",
+            "text-sm font-bold tabular-nums",
             line.isCurrentLine 
               ? "text-brand dark:text-brand" 
               : "text-neutral-900 dark:text-white"
@@ -214,7 +215,7 @@ function AlternateLineRow({ line }: { line: AlternateLine }) {
             {line.line}+
           </span>
           {line.isCurrentLine && (
-            <span className="text-[10px] font-bold uppercase tracking-wide text-brand bg-brand/10 dark:bg-brand/20 px-2 py-0.5 rounded-full ring-1 ring-brand/30">
+            <span className="text-[9px] font-bold uppercase text-brand bg-brand/10 dark:bg-brand/20 px-1.5 py-0.5 rounded">
               Active
             </span>
           )}
@@ -222,60 +223,54 @@ function AlternateLineRow({ line }: { line: AlternateLine }) {
       </td>
 
       {/* L5 */}
-      <td className="px-3 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         <span className={cn(
-          "inline-flex items-center justify-center min-w-[48px] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all",
-          getHitRateBgClass(line.l5Pct),
-          getHitRateColorClass(line.l5Pct),
-          "ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+          "text-xs font-bold tabular-nums",
+          getHitRateColorClass(line.l5Pct)
         )}>
           {line.l5Pct !== null ? `${line.l5Pct}%` : "—"}
         </span>
       </td>
 
       {/* L10 */}
-      <td className="px-3 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         <span className={cn(
-          "inline-flex items-center justify-center min-w-[48px] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all",
-          getHitRateBgClass(line.l10Pct),
-          getHitRateColorClass(line.l10Pct),
-          "ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+          "text-xs font-bold tabular-nums",
+          getHitRateColorClass(line.l10Pct)
         )}>
           {line.l10Pct !== null ? `${line.l10Pct}%` : "—"}
         </span>
       </td>
 
       {/* L20 */}
-      <td className="px-3 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         <span className={cn(
-          "inline-flex items-center justify-center min-w-[48px] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all",
-          getHitRateBgClass(line.l20Pct),
-          getHitRateColorClass(line.l20Pct),
-          "ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+          "text-xs font-bold tabular-nums",
+          getHitRateColorClass(line.l20Pct)
         )}>
           {line.l20Pct !== null ? `${line.l20Pct}%` : "—"}
         </span>
       </td>
 
       {/* Season */}
-      <td className="px-3 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         <span className={cn(
-          "inline-flex items-center justify-center min-w-[48px] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all",
-          getHitRateBgClass(line.seasonPct),
-          getHitRateColorClass(line.seasonPct),
-          "ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+          "text-xs font-bold tabular-nums",
+          getHitRateColorClass(line.seasonPct)
         )}>
           {line.seasonPct !== null ? `${line.seasonPct}%` : "—"}
         </span>
       </td>
 
       {/* Odds Dropdown */}
-      <td className="px-4 py-3.5">
-        <OddsDropdownCell books={line.books} bestBook={line.bestBook} />
+      <td className="px-3 py-2.5">
+        <div className="flex justify-center">
+          <OddsDropdownCell books={line.books} bestBook={line.bestBook} />
+        </div>
       </td>
 
       {/* EV % */}
-      <td className="px-4 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         {line.evPercent !== null ? (
           <Tooltip
             content={
@@ -288,10 +283,10 @@ function AlternateLineRow({ line }: { line: AlternateLine }) {
             side="top"
           >
             <span className={cn(
-              "inline-flex items-center justify-center min-w-[52px] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ring-1",
+              "inline-flex items-center justify-center px-2 py-1 rounded-md text-xs font-bold tabular-nums cursor-help",
               line.evPercent > 0
-                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-emerald-200/50 dark:ring-emerald-700/50"
-                : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 ring-red-200/50 dark:ring-red-700/50"
+                ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                : "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
             )}>
               {line.evPercent > 0 ? "+" : ""}{line.evPercent.toFixed(1)}%
             </span>
@@ -302,7 +297,7 @@ function AlternateLineRow({ line }: { line: AlternateLine }) {
       </td>
 
       {/* Edge */}
-      <td className="px-4 py-3.5 text-center">
+      <td className="px-3 py-2.5 text-center">
         {line.edge ? (
           <Tooltip
             content={
@@ -313,12 +308,12 @@ function AlternateLineRow({ line }: { line: AlternateLine }) {
             side="top"
           >
             <span className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm",
+              "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold cursor-help shadow-sm",
               line.edge === "strong"
-                ? "bg-emerald-500 text-white ring-2 ring-emerald-400/50 shadow-emerald-500/30"
-                : "bg-amber-500 text-white ring-2 ring-amber-400/50 shadow-amber-500/30"
+                ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
+                : "bg-gradient-to-r from-amber-500 to-amber-600 text-white"
             )}>
-              <Zap className="h-3.5 w-3.5" />
+              <Zap className="h-3 w-3" />
               {line.edge === "strong" ? "Strong" : "Edge"}
             </span>
           </Tooltip>
@@ -374,30 +369,29 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
     }
   };
 
+  const hasMultipleBooks = sortedBooks.length > 1;
+  
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative inline-flex" ref={dropdownRef}>
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (sortedBooks.length > 1) {
-            // Multiple books - toggle dropdown
+          if (hasMultipleBooks) {
             setIsOpen(!isOpen);
           } else {
-            // Single book - go directly to the URL
             handleBookClick(bestBookData, e);
           }
         }}
         className={cn(
-          "group flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-all w-full cursor-pointer active:scale-95",
-          "bg-gradient-to-br from-neutral-100 to-neutral-200/50 dark:from-neutral-700/50 dark:to-neutral-700/30",
-          "hover:from-emerald-50 hover:to-emerald-100/50 dark:hover:from-emerald-950/30 dark:hover:to-emerald-900/20",
-          "hover:ring-2 hover:ring-emerald-500/20 hover:shadow-md",
-          isOpen && "ring-2 ring-brand/50 shadow-lg"
+          "group flex items-center justify-center gap-2 min-w-[100px] px-3 py-1.5 rounded-md transition-all cursor-pointer active:scale-95",
+          "bg-neutral-100/80 dark:bg-neutral-700/50 border border-neutral-200/50 dark:border-neutral-600/50",
+          "hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-300 dark:hover:border-emerald-700",
+          isOpen && "ring-1 ring-brand/50 border-brand/50"
         )}
       >
         {bestBookLogo && (
-          <div className="h-5 w-5 rounded overflow-hidden shrink-0 ring-1 ring-neutral-300/50 dark:ring-neutral-600/50">
+          <div className="h-5 w-5 rounded overflow-hidden shrink-0">
             <img
               src={bestBookLogo}
               alt={bestBookName}
@@ -405,34 +399,42 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
             />
           </div>
         )}
-        <span className="text-sm font-bold text-neutral-900 dark:text-white tabular-nums">
+        <span className="text-xs font-bold text-neutral-900 dark:text-white tabular-nums min-w-[45px] text-center">
           {formatOdds(bestBookData.price)}
         </span>
-        <ExternalLink className="h-3.5 w-3.5 text-neutral-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
+        {/* Always show chevron space to maintain consistent width */}
+        <ChevronDown className={cn(
+          "h-3 w-3 transition-transform",
+          hasMultipleBooks ? "text-neutral-400" : "text-transparent",
+          isOpen && "rotate-180"
+        )} />
       </button>
 
-      {/* Dropdown - Premium Design */}
+      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 right-0 min-w-[200px] rounded-xl border border-neutral-200/60 bg-white shadow-2xl dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden">
-          <div className="py-1.5 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
+        <div className="absolute z-50 mt-1.5 right-0 min-w-[200px] rounded-lg border border-neutral-200/60 bg-white shadow-xl dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden">
+          <div className="py-1 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
             {sortedBooks.map((book, idx) => {
               const logo = getBookLogo(book.book);
               const name = getBookName(book.book);
               const isBest = idx === 0;
 
+              const hasLink = book.url || book.mobileUrl;
+              
               return (
                 <button
                   key={book.book}
                   type="button"
                   onClick={(e) => handleBookClick(book, e)}
                   className={cn(
-                    "flex items-center gap-2.5 w-full px-3 py-2.5 text-left transition-all group/item",
+                    "flex items-center gap-2.5 w-full px-3 py-2 text-left transition-all group/item",
                     "hover:bg-neutral-100 dark:hover:bg-neutral-700",
-                    isBest && "bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-l-2 border-l-emerald-500"
+                    isBest && "bg-emerald-50 dark:bg-emerald-950/30 border-l-2 border-l-emerald-500",
+                    hasLink && "cursor-pointer"
                   )}
                 >
                   {logo ? (
-                    <div className="h-6 w-6 rounded overflow-hidden shrink-0 ring-1 ring-neutral-200 dark:ring-neutral-700">
+                    <div className="h-5 w-5 rounded overflow-hidden shrink-0">
                       <img
                         src={logo}
                         alt={name}
@@ -440,26 +442,24 @@ function OddsDropdownCell({ books, bestBook }: { books: BookOdds[]; bestBook: st
                       />
                     </div>
                   ) : (
-                    <div className="h-6 w-6 rounded bg-neutral-200 dark:bg-neutral-600 shrink-0" />
+                    <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-600 shrink-0" />
                   )}
-                  <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 flex-1 truncate flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 flex-1 truncate flex items-center gap-1">
                     {name}
                     {book.isSharp && (
-                      <Tooltip content="Sharp book - Used for fair odds calculation" side="top">
-                        <ShieldCheck className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
-                      </Tooltip>
+                      <ShieldCheck className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
                     )}
                   </span>
                   <span className={cn(
-                    "text-sm font-bold tabular-nums",
+                    "text-xs font-bold tabular-nums",
                     isBest 
                       ? "text-emerald-600 dark:text-emerald-400" 
                       : "text-neutral-900 dark:text-white"
                   )}>
                     {formatOdds(book.price)}
                   </span>
-                  {(book.url || book.mobileUrl) && (
-                    <ExternalLink className="h-3.5 w-3.5 text-neutral-400 group-hover/item:text-emerald-600 dark:group-hover/item:text-emerald-400 shrink-0 transition-colors" />
+                  {hasLink && (
+                    <ExternalLink className="h-3 w-3 text-neutral-400 group-hover/item:text-emerald-500 dark:group-hover/item:text-emerald-400 shrink-0 transition-colors" />
                   )}
                 </button>
               );

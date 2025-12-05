@@ -6,7 +6,7 @@ import { Tooltip } from "@/components/tooltip";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
-import { GripVertical, ChevronDown } from "lucide-react";
+import { GripVertical, ChevronDown, ChevronUp } from "lucide-react";
 
 // Sportsbook helpers
 const getBookLogo = (bookId?: string): string | null => {
@@ -167,16 +167,21 @@ function MiniOddsButton({
           {formatOddsPrice(best.price)}
         </span>
         {hasMultiple && (
-          <ChevronDown className={cn(
+          <ChevronUp className={cn(
             "h-3 w-3 text-neutral-400 transition-transform",
             isOpen && "rotate-180"
           )} />
         )}
       </button>
       
-      {/* Dropdown */}
+      {/* Dropdown - Opens upward to avoid container overflow clipping */}
       {isOpen && hasMultiple && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden">
+        <div className="absolute right-0 bottom-full z-50 mb-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden">
+          <div className="border-b border-neutral-200 dark:border-neutral-700 px-3 py-1.5">
+            <p className="text-[9px] text-neutral-400 dark:text-neutral-500">
+              {allBooks.length} books • Best: {formatOddsPrice(best.price)}
+            </p>
+          </div>
           <div className="py-1 max-h-[200px] overflow-y-auto">
             {allBooks.map((book, idx) => {
               const bookLogo = getBookLogo(book.book);
@@ -218,11 +223,6 @@ function MiniOddsButton({
                 </button>
               );
             })}
-          </div>
-          <div className="border-t border-neutral-200 dark:border-neutral-700 px-3 py-1.5">
-            <p className="text-[9px] text-neutral-400 dark:text-neutral-500">
-              {allBooks.length} books • Best: {formatOddsPrice(best.price)}
-            </p>
           </div>
         </div>
       )}
@@ -516,7 +516,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           {/* Combined */}
           <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="PRA Total" value={game.pra} />
-          <StatRow label="Usage" value={`${Math.round(game.usagePct)}%`} />
+          <StatRow label="Usage" value={`${Math.round(game.usagePct * 100)}%`} />
         </>
       );
 
@@ -529,7 +529,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           <StatRow label="Assists" value={game.ast} />
           <StatRow label="AST/TO" value={game.tov > 0 ? (game.ast / game.tov).toFixed(1) : "∞"} />
           <StatRow label="Passes" value={game.passes} />
-          <StatRow label="Usage" value={`${Math.round(game.usagePct)}%`} />
+          <StatRow label="Usage" value={`${Math.round(game.usagePct * 100)}%`} />
         </>
       );
 
@@ -790,7 +790,8 @@ export function GameLogChart({
             const barHeightPx = (statValue / maxStat) * chartHeight;
             // Use displayLine for real-time updates while dragging
             // >= so that hitting exactly the line counts as a hit (e.g., 1 block when line is 1)
-            const isHit = displayLine !== null && statValue >= displayLine;
+            const hasLine = displayLine !== null;
+            const isHit = hasLine && statValue >= displayLine;
             const opponentLogo = getTeamLogoUrl(game.opponentAbbr, "nba");
             
             // Get teammates out for this game from profile game logs
@@ -924,16 +925,22 @@ export function GameLogChart({
                       {/* Total value directly above the bar */}
                       <span className={cn(
                         "text-xs font-bold mb-1",
-                        isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                        !hasLine 
+                          ? "text-neutral-500 dark:text-neutral-400"
+                          : isHit 
+                            ? "text-emerald-600 dark:text-emerald-400" 
+                            : "text-red-500 dark:text-red-400"
                       )}>
                         {statValue}
                       </span>
                   <div
                     className={cn(
                           "w-full rounded-t transition-all duration-200 group-hover:opacity-90 relative flex flex-col-reverse overflow-hidden",
-                      isHit
-                            ? "bg-gradient-to-t from-emerald-600 to-emerald-500 dark:from-emerald-700 dark:to-emerald-600"
-                            : "bg-gradient-to-t from-red-600 to-red-500 dark:from-red-700 dark:to-red-600"
+                      !hasLine
+                            ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
+                            : isHit
+                              ? "bg-gradient-to-t from-emerald-600 to-emerald-500 dark:from-emerald-700 dark:to-emerald-600"
+                              : "bg-gradient-to-t from-red-600 to-red-500 dark:from-red-700 dark:to-red-600"
                     )}
                     style={{ 
                           width: barWidth,
@@ -961,13 +968,17 @@ export function GameLogChart({
                                   "w-full relative flex items-center justify-center",
                                   isLastSegment && "rounded-t",
                                   // Lighter shade for visual separation
-                                  isHit 
+                                  !hasLine
                                     ? segIdx % 2 === 0 
-                                      ? "bg-emerald-500/80 dark:bg-emerald-500/80" 
-                                      : "bg-emerald-400/60 dark:bg-emerald-400/60"
-                                    : segIdx % 2 === 0 
-                                      ? "bg-red-500/80 dark:bg-red-500/80" 
-                                      : "bg-red-400/60 dark:bg-red-400/60",
+                                      ? "bg-neutral-500/80 dark:bg-neutral-500/80" 
+                                      : "bg-neutral-400/60 dark:bg-neutral-400/60"
+                                    : isHit 
+                                      ? segIdx % 2 === 0 
+                                        ? "bg-emerald-500/80 dark:bg-emerald-500/80" 
+                                        : "bg-emerald-400/60 dark:bg-emerald-400/60"
+                                      : segIdx % 2 === 0 
+                                        ? "bg-red-500/80 dark:bg-red-500/80" 
+                                        : "bg-red-400/60 dark:bg-red-400/60",
                                   // Subtle divider between segments
                                   !isFirstSegment && "border-t border-white/30 dark:border-white/20"
                                 )}
@@ -995,7 +1006,11 @@ export function GameLogChart({
                     {statValue > 0 && (
                         <span className={cn(
                           "text-xs font-bold mb-1",
-                          isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                          !hasLine 
+                            ? "text-neutral-500 dark:text-neutral-400"
+                            : isHit 
+                              ? "text-emerald-600 dark:text-emerald-400" 
+                              : "text-red-500 dark:text-red-400"
                         )}>
                         {statValue}
                       </span>
@@ -1044,9 +1059,11 @@ export function GameLogChart({
                         <div
                           className={cn(
                             "rounded-t transition-all duration-200 group-hover:opacity-90 relative",
-                            isHit
-                              ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
-                              : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
+                            !hasLine
+                              ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
+                              : isHit
+                                ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
+                                : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
                           )}
                           style={{ 
                             width: barWidth,

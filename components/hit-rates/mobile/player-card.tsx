@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronRight, Plus, HeartPulse, X, AlertTriangle } from "lucide-react";
+import { ChevronRight, Plus, HeartPulse, X, AlertTriangle, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
@@ -294,6 +294,11 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
 
   const hasOdds = odds && (odds.bestOver || odds.bestUnder);
   const hasInjury = injuryStatus && injuryStatus.toLowerCase() !== "active" && injuryStatus.toLowerCase() !== "available";
+  
+  // Check if player is in G League
+  const isGLeague = injuryNotes?.toLowerCase().includes("g league") || 
+                    injuryNotes?.toLowerCase().includes("g-league") ||
+                    injuryNotes?.toLowerCase().includes("gleague");
 
   return (
     <div className="bg-white dark:bg-neutral-900">
@@ -420,7 +425,11 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                     }}
                     className="shrink-0 active:scale-90 transition-transform cursor-pointer"
                   >
-                    <HeartPulse className={cn("h-3.5 w-3.5", getInjuryColor(injuryStatus))} />
+                    {isGLeague ? (
+                      <ArrowDown className="h-3.5 w-3.5 text-blue-500" />
+                    ) : (
+                      <HeartPulse className={cn("h-3.5 w-3.5", getInjuryColor(injuryStatus))} />
+                    )}
                   </span>
                 )}
                 <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium shrink-0">
@@ -458,9 +467,13 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
             {/* Modal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
               <div className="flex items-center gap-2">
-                <AlertTriangle className={cn("h-4 w-4", getInjuryColor(injuryStatus))} />
+                {isGLeague ? (
+                  <ArrowDown className="h-4 w-4 text-blue-500" />
+                ) : (
+                  <AlertTriangle className={cn("h-4 w-4", getInjuryColor(injuryStatus))} />
+                )}
                 <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-                  Injury Report
+                  {isGLeague ? "G League Assignment" : "Injury Report"}
                 </h3>
               </div>
               <button
@@ -532,8 +545,8 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                     Status
                   </span>
-                  <span className={cn("text-sm font-bold uppercase", getInjuryColor(injuryStatus))}>
-                    {injuryStatus}
+                  <span className={cn("text-sm font-bold uppercase", isGLeague ? "text-blue-500" : getInjuryColor(injuryStatus))}>
+                    {isGLeague ? "G League" : injuryStatus}
                   </span>
                 </div>
                 

@@ -9,8 +9,6 @@ import { MobileHitRates } from "@/components/hit-rates/mobile/mobile-hit-rates";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
-import { ToolHeading } from "@/components/common/tool-heading";
-import { ToolSubheading } from "@/components/common/tool-subheading";
 import { useNbaGames } from "@/hooks/use-nba-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
@@ -72,11 +70,24 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Game filter state (multi-select)
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
   
+  // Desktop sort state (lifted up to persist across drilldown navigation)
+  const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>("l10Pct");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  
   // Mobile-specific filter state (lifted up to persist across drilldown navigation)
   const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
   const [mobileSortField, setMobileSortField] = useState("l10Pct_desc");
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
   const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[]>([]);
+  
+  // Advanced filter state (shared between table and sidebar)
+  const [hideNoOdds, setHideNoOdds] = useState(false);
+  const [idsWithOdds, setIdsWithOdds] = useState<Set<string>>(new Set());
+  
+  // Stable callback for odds availability changes to prevent infinite loops
+  const handleOddsAvailabilityChange = useCallback((ids: Set<string>) => {
+    setIdsWithOdds(ids);
+  }, []);
   
   // Get game data to find dates
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
@@ -143,6 +154,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   const handleBackToTable = useCallback(() => {
     setSelectedPlayer(null);
+  }, []);
+
+  // Sort change handler
+  const handleSortChange = useCallback((field: typeof sortField, direction: typeof sortDirection) => {
+    setSortField(field);
+    setSortDirection(direction);
   }, []);
 
   // Escape key to exit drilldown
@@ -362,12 +379,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-6">
-        <ToolHeading>NBA Hit Rates</ToolHeading>
-        <ToolSubheading>
-          Explore pre-calculated player prop hit rates, refreshed hourly and ready for deep analysis.
-        </ToolSubheading>
-      </div>
+      <h1 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">
+        NBA Hit Rates
+      </h1>
 
       {/* Games Sidebar + Table/Drilldown Row */}
       <div className="flex gap-6 h-[calc(100vh-140px)]">
@@ -381,6 +395,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
           selectedPlayer={selectedPlayer}
           gamePlayers={selectedPlayer ? rows : undefined}
           onPlayerSelect={handleSidebarPlayerSelect}
+          hideNoOdds={hideNoOdds}
+          idsWithOdds={idsWithOdds}
         />
 
         {/* Table or Player Drill-down */}
@@ -406,8 +422,14 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
               onMarketsChange={setSelectedMarkets}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSortChange={handleSortChange}
               scrollRef={tableScrollRef as React.RefObject<HTMLDivElement>}
               initialScrollTop={savedScrollPosition}
+              hideNoOdds={hideNoOdds}
+              onHideNoOddsChange={setHideNoOdds}
+              onOddsAvailabilityChange={handleOddsAvailabilityChange}
             />
           )}
         </div>

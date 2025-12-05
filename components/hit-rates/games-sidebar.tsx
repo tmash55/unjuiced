@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNbaGames, type NbaGame } from "@/hooks/use-nba-games";
-import { MapPin, ChevronDown, ChevronUp, HeartPulse } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, HeartPulse, ArrowDown } from "lucide-react";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
@@ -72,6 +72,9 @@ interface GamesSidebarProps {
   selectedPlayer?: HitRateProfile | null;
   gamePlayers?: HitRateProfile[]; // All players from the selected game
   onPlayerSelect?: (player: HitRateProfile) => void;
+  // Filter props (shared with table)
+  hideNoOdds?: boolean;
+  idsWithOdds?: Set<string>;
 }
 
 // Format game time - extract just the time portion
@@ -143,6 +146,8 @@ export function GamesSidebar({
   selectedPlayer,
   gamePlayers,
   onPlayerSelect,
+  hideNoOdds,
+  idsWithOdds,
 }: GamesSidebarProps) {
   const { games, gamesDates, isLoading, error } = useNbaGames();
   
@@ -249,7 +254,7 @@ export function GamesSidebar({
     return gamePlayers.filter(p => normalizeGameId(p.gameId) === normalizedGameId);
   };
 
-  // Get unique players for a game
+  // Get unique players for a game, sorted by seasonAvg (proxy for minutes/importance)
   const getUniquePlayersForGame = (gameId: string): HitRateProfile[] => {
     const players = getPlayersForGame(gameId);
     const seen = new Map<number, HitRateProfile>();
@@ -258,9 +263,12 @@ export function GamesSidebar({
         seen.set(player.playerId, player);
       }
     }
-    return Array.from(seen.values()).sort((a, b) => 
-      a.playerName.localeCompare(b.playerName)
-    );
+    return Array.from(seen.values()).sort((a, b) => {
+      // Sort by seasonAvg descending (higher avg = more minutes typically)
+      const avgA = a.seasonAvg ?? 0;
+      const avgB = b.seasonAvg ?? 0;
+      return avgB - avgA;
+    });
   };
 
   if (isLoading) {
@@ -510,13 +518,48 @@ export function GamesSidebar({
 
                         {/* Inline player list - integrated with game card, grouped by team */}
                         {selectedPlayer && isExpanded && gamePlayers.length > 0 && (() => {
-                          // Group players by team
-                          const playersByTeam = gamePlayers.reduce((acc, player) => {
+                          // Filter players based on hideNoOdds setting
+                          let filteredPlayers = gamePlayers;
+                          if (hideNoOdds && idsWithOdds && idsWithOdds.size > 0) {
+                            filteredPlayers = gamePlayers.filter(player => 
+                              player.oddsSelectionId && idsWithOdds.has(player.oddsSelectionId)
+                            );
+                          }
+                          
+                          // If no players left after filtering, show message
+                          if (filteredPlayers.length === 0) {
+                            return (
+                              <div className={cn(
+                                "overflow-hidden rounded-b-lg -mt-1 border-x border-b px-3 py-4 text-center",
+                                isCurrentPlayerGame
+                                  ? "border-brand/40 bg-brand/5"
+                                  : isNbaCup
+                                    ? "border-amber-500/30 bg-amber-500/5"
+                                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800"
+                              )}>
+                                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                                  No players with odds available
+                                </p>
+                              </div>
+                            );
+                          }
+                          
+                          // Group players by team and sort by seasonAvg (proxy for minutes/importance)
+                          const playersByTeam = filteredPlayers.reduce((acc, player) => {
                             const team = player.teamAbbr?.toUpperCase() || "Unknown";
                             if (!acc[team]) acc[team] = [];
                             acc[team].push(player);
                             return acc;
                           }, {} as Record<string, typeof gamePlayers>);
+                          
+                          // Sort players within each team by seasonAvg (descending - higher avg = more minutes typically)
+                          Object.keys(playersByTeam).forEach(team => {
+                            playersByTeam[team].sort((a, b) => {
+                              const avgA = a.seasonAvg ?? 0;
+                              const avgB = b.seasonAvg ?? 0;
+                              return avgB - avgA; // Descending order
+                            });
+                          });
                           
                           // Get team order: away team first (matches game card layout)
                           const teams = Object.keys(playersByTeam).sort((a, b) => {
@@ -536,14 +579,15 @@ export function GamesSidebar({
                                   ? "border-amber-500/30 bg-amber-500/5"
                                   : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800"
                             )}>
-                              <div className="max-h-[280px] overflow-y-auto drilldown-scroll">
+                              <div className="max-h-[280px] overflow-y-auto drilldown-scroll relative">
                                 {teams.map((team, teamIdx) => {
                                   const teamColors = getTeamColor(team);
                                   return (
-                                  <div key={team}>
-                                    {/* Team header with color accent */}
+                                  <div key={team} className="relative">
+                                    {/* Team header with color accent - STICKY */}
                                     <div className={cn(
-                                      "flex items-center gap-2.5 px-3 py-2 bg-neutral-100/90 dark:bg-neutral-900/70 relative",
+                                      "flex items-center gap-2.5 px-3 py-2 bg-neutral-100 dark:bg-neutral-900 relative z-10",
+                                      "sticky top-0",
                                       teamIdx > 0 && "border-t border-neutral-200 dark:border-neutral-700"
                                     )}>
                                       {/* Left color accent bar */}
@@ -576,6 +620,11 @@ export function GamesSidebar({
                                       const isProbable = injuryStatus === "probable";
                                       const isOut = injuryStatus === "out";
                                       const hasInjury = isQuestionable || isProbable || isOut;
+                                      
+                                      // Check if player is in G League
+                                      const isGLeague = player.injuryNotes?.toLowerCase().includes("g league") || 
+                                                        player.injuryNotes?.toLowerCase().includes("g-league") ||
+                                                        player.injuryNotes?.toLowerCase().includes("gleague");
                                       
                                       // Position now comes from depth_chart_pos (PG, SG, SF, PF, C)
                                       const position = player.position || "";
@@ -630,18 +679,25 @@ export function GamesSidebar({
                                             {player.playerName}
                                           </span>
                                           
-                                          {/* Injury icon */}
+                                          {/* Injury / G League icon */}
                                           {hasInjury && (
                                             <Tooltip
-                                              content={`${player.injuryStatus ? player.injuryStatus.charAt(0).toUpperCase() + player.injuryStatus.slice(1).toLowerCase() : ''}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`}
+                                              content={isGLeague 
+                                                ? `G League${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`
+                                                : `${player.injuryStatus ? player.injuryStatus.charAt(0).toUpperCase() + player.injuryStatus.slice(1).toLowerCase() : ''}${player.injuryNotes ? ` - ${player.injuryNotes}` : ""}`
+                                              }
                                               side="left"
                                             >
-                                            <HeartPulse className={cn(
-                                                "h-3.5 w-3.5 shrink-0 cursor-help",
-                                              isOut && "text-red-500",
-                                                isQuestionable && "text-amber-500",
-                                                isProbable && "text-emerald-500"
-                                            )} />
+                                              {isGLeague ? (
+                                                <ArrowDown className="h-3.5 w-3.5 shrink-0 cursor-help text-blue-500" />
+                                              ) : (
+                                                <HeartPulse className={cn(
+                                                  "h-3.5 w-3.5 shrink-0 cursor-help",
+                                                  isOut && "text-red-500",
+                                                  isQuestionable && "text-amber-500",
+                                                  isProbable && "text-emerald-500"
+                                                )} />
+                                              )}
                                             </Tooltip>
                                           )}
                                           

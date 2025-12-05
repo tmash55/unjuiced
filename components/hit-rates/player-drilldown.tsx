@@ -2,13 +2,14 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList } from "lucide-react";
+import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList, ArrowDown } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { AlternateLinesMatrix } from "./alternate-lines-matrix";
+import { PlayerCorrelations } from "./player-correlations";
 import { PositionVsTeam } from "./position-vs-team";
 import { DefensiveAnalysis } from "./defensive-analysis";
 import { GameLogChart } from "./game-log-chart";
@@ -104,6 +105,8 @@ interface MarketSelectorStripProps {
   selectedMarket: string;
   setSelectedMarket: (market: string) => void;
   marketHitRates: Map<string, MarketHitRateData>;
+  // Custom line for the selected market
+  customLine: number | null;
   // Filter props
   quickFilters: Set<string>;
   chartFilters: ChartFiltersState;
@@ -118,6 +121,7 @@ function MarketSelectorStrip({
   selectedMarket, 
   setSelectedMarket, 
   marketHitRates,
+  customLine,
   quickFilters,
   chartFilters,
   injuryFilters,
@@ -180,6 +184,10 @@ function MarketSelectorStrip({
             const rateData = marketHitRates.get(marketProfile.market);
             const hitRate = rateData?.hitRate ?? marketProfile.last10Pct;
             const isFilteredSample = rateData && rateData.total < rateData.expectedTotal;
+            
+            // Show custom line if this is the selected market and customLine is set
+            const displayLine = isActive && customLine !== null ? customLine : marketProfile.line;
+            const hasCustomLine = isActive && customLine !== null && customLine !== marketProfile.line;
 
             return (
               <button
@@ -198,10 +206,11 @@ function MarketSelectorStrip({
                   <span
                     className={cn(
                       "text-sm font-bold tabular-nums",
-                      isActive ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"
+                      isActive ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400",
+                      hasCustomLine && "text-amber-600 dark:text-amber-400"
                     )}
                   >
-                    {marketProfile.line}+
+                    {displayLine}+
                   </span>
                   <span
                     className={cn(
@@ -353,10 +362,80 @@ function ActiveFiltersBar({
           </button>
         ))}
 
-        {/* Chart Filters Count */}
-        {activeChartFiltersCount > 0 && (
+        {/* Chart Filters - Show individual filters with their values */}
+        {chartFilters.minutes && (
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
-            <span>{activeChartFiltersCount} Advanced</span>
+            <span>Minutes: {Math.round(chartFilters.minutes.min)}-{Math.round(chartFilters.minutes.max)}</span>
+          </div>
+        )}
+        {chartFilters.usage && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>Usage: {Math.round(chartFilters.usage.min * 100)}%-{Math.round(chartFilters.usage.max * 100)}%</span>
+          </div>
+        )}
+        {chartFilters.points && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>PTS: {Math.round(chartFilters.points.min)}-{Math.round(chartFilters.points.max)}</span>
+          </div>
+        )}
+        {chartFilters.rebounds && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>REB: {Math.round(chartFilters.rebounds.min)}-{Math.round(chartFilters.rebounds.max)}</span>
+          </div>
+        )}
+        {chartFilters.assists && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>AST: {Math.round(chartFilters.assists.min)}-{Math.round(chartFilters.assists.max)}</span>
+          </div>
+        )}
+        {chartFilters.fg3m && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>3PM: {Math.round(chartFilters.fg3m.min)}-{Math.round(chartFilters.fg3m.max)}</span>
+          </div>
+        )}
+        {chartFilters.fg3a && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>3PA: {Math.round(chartFilters.fg3a.min)}-{Math.round(chartFilters.fg3a.max)}</span>
+          </div>
+        )}
+        {chartFilters.steals && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>STL: {Math.round(chartFilters.steals.min)}-{Math.round(chartFilters.steals.max)}</span>
+          </div>
+        )}
+        {chartFilters.blocks && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>BLK: {Math.round(chartFilters.blocks.min)}-{Math.round(chartFilters.blocks.max)}</span>
+          </div>
+        )}
+        {chartFilters.turnovers && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>TOV: {Math.round(chartFilters.turnovers.min)}-{Math.round(chartFilters.turnovers.max)}</span>
+          </div>
+        )}
+        {chartFilters.plusMinus && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>+/-: {Math.round(chartFilters.plusMinus.min)} to {Math.round(chartFilters.plusMinus.max)}</span>
+          </div>
+        )}
+        {chartFilters.tsPct && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>TS%: {Math.round(chartFilters.tsPct.min)}%-{Math.round(chartFilters.tsPct.max)}%</span>
+          </div>
+        )}
+        {chartFilters.efgPct && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>eFG%: {Math.round(chartFilters.efgPct.min)}%-{Math.round(chartFilters.efgPct.max)}%</span>
+          </div>
+        )}
+        {chartFilters.homeAway && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>{chartFilters.homeAway === "home" ? "Home" : "Away"} Games</span>
+          </div>
+        )}
+        {chartFilters.winLoss && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[11px] font-medium">
+            <span>{chartFilters.winLoss === "win" ? "Wins" : "Losses"} Only</span>
           </div>
         )}
 
@@ -394,6 +473,9 @@ function ActiveFiltersBar({
 export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [], onBack, onMarketChange }: PlayerDrilldownProps) {
   const [selectedMarket, setSelectedMarketInternal] = useState<string>(initialProfile.market);
   
+  // Ref for the scroll container - used to scroll to top when switching players
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   // Wrap setSelectedMarket to also notify parent
   const setSelectedMarket = useCallback((market: string) => {
     setSelectedMarketInternal(market);
@@ -409,6 +491,13 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
+  
+  // Scroll to top when player changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [initialProfile.playerId]);
 
   // Get the current profile based on selected market
   const profile = useMemo(() => {
@@ -685,8 +774,58 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // The active line (custom or profile default)
   const activeLine = customLine ?? profile.line;
 
+  // Calculate dynamic hit rates for L5, L10, L20, Season, H2H based on activeLine
+  // This recalculates when the user changes the line
+  const dynamicHitRates = useMemo(() => {
+    if (boxScoreGames.length === 0 || activeLine === null) {
+      return {
+        l5: profile.last5Pct,
+        l10: profile.last10Pct,
+        l20: profile.last20Pct,
+        season: profile.seasonPct,
+        h2h: profile.h2hPct,
+      };
+    }
+    
+    // If no custom line or custom line equals original, use profile values
+    if (customLine === null || customLine === profile.line) {
+      return {
+        l5: profile.last5Pct,
+        l10: profile.last10Pct,
+        l20: profile.last20Pct,
+        season: profile.seasonPct,
+        h2h: profile.h2hPct,
+      };
+    }
+    
+    // Recalculate with custom line
+    const calculateHitRate = (games: typeof boxScoreGames) => {
+      if (games.length === 0) return null;
+      const stats = games.map(g => getMarketStat(g, profile.market));
+      const hits = stats.filter(s => s >= activeLine).length;
+      return Math.round((hits / stats.length) * 100);
+    };
+    
+    // Sort games by date descending for L5, L10, L20
+    const sortedGames = [...boxScoreGames].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    // H2H games against current opponent
+    const h2hGames = boxScoreGames.filter(g => g.opponentAbbr === profile.opponentTeamAbbr);
+    
+    return {
+      l5: calculateHitRate(sortedGames.slice(0, 5)),
+      l10: calculateHitRate(sortedGames.slice(0, 10)),
+      l20: calculateHitRate(sortedGames.slice(0, 20)),
+      season: calculateHitRate(boxScoreGames),
+      h2h: calculateHitRate(h2hGames),
+    };
+  }, [boxScoreGames, activeLine, customLine, profile.line, profile.last5Pct, profile.last10Pct, profile.last20Pct, profile.seasonPct, profile.h2hPct, profile.market, profile.opponentTeamAbbr]);
+
   // Calculate hit rates for ALL markets based on FILTERED games
   // This allows the market selector to show dynamic hit rates that reflect active filters
+  // Uses activeLine for the currently selected market (to reflect custom line changes)
   const marketHitRates = useMemo(() => {
     if (boxScoreGames.length === 0) return new Map<string, MarketHitRateData>();
     
@@ -703,7 +842,10 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     const gamesToUse = filteredGames;
     
     for (const marketProfile of allPlayerProfiles) {
-      const line = marketProfile.line;
+      // Use activeLine for the selected market, otherwise use the profile's line
+      const isSelectedMarket = marketProfile.market === selectedMarket;
+      const line = isSelectedMarket ? activeLine : marketProfile.line;
+      
       if (line === null || gamesToUse.length === 0) {
         rates.set(marketProfile.market, { hitRate: null, hits: 0, total: gamesToUse.length, expectedTotal });
         continue;
@@ -721,7 +863,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     }
     
     return rates;
-  }, [boxScoreGames, filteredGames, gameCount, allPlayerProfiles, profile.opponentTeamAbbr]);
+  }, [boxScoreGames, filteredGames, gameCount, allPlayerProfiles, profile.opponentTeamAbbr, selectedMarket, activeLine]);
 
   // Calculate chart stats (for filtered games)
   // Always calculate average even if no line, but only calculate hit rate if line exists
@@ -756,7 +898,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   }, [filteredGames, profile.market, activeLine]);
 
   return (
-    <div className="h-full overflow-auto pr-3 drilldown-scroll">
+    <div ref={scrollContainerRef} className="h-full overflow-auto pr-3 drilldown-scroll">
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY PLAYER HEADER - Unified Two-Section Card
           ═══════════════════════════════════════════════════════════════════ */}
@@ -809,17 +951,25 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
               </h1>
                   {profile.injuryStatus && 
                    profile.injuryStatus.toLowerCase() !== "available" && 
-                   profile.injuryStatus.toLowerCase() !== "active" && (
+                   profile.injuryStatus.toLowerCase() !== "active" && (() => {
+                    const isGLeague = profile.injuryNotes?.toLowerCase().includes("g league") || 
+                                      profile.injuryNotes?.toLowerCase().includes("g-league") ||
+                                      profile.injuryNotes?.toLowerCase().includes("gleague");
+                    return (
                     <Tooltip 
                       content={
                         <div className="min-w-[160px] p-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <HeartPulse className={cn("h-4 w-4", getInjuryIconColor(profile.injuryStatus))} />
+                            {isGLeague ? (
+                              <ArrowDown className="h-4 w-4 text-blue-400" />
+                            ) : (
+                              <HeartPulse className={cn("h-4 w-4", getInjuryIconColor(profile.injuryStatus))} />
+                            )}
                             <span className={cn(
                               "text-sm font-bold uppercase tracking-wide",
-                              getInjuryIconColor(profile.injuryStatus)
+                              isGLeague ? "text-blue-400" : getInjuryIconColor(profile.injuryStatus)
                             )}>
-                              {profile.injuryStatus}
+                              {isGLeague ? "G League" : profile.injuryStatus}
                             </span>
                           </div>
                           {profile.injuryNotes && (
@@ -831,12 +981,17 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       }
                       side="right"
                     >
-                      <HeartPulse className={cn(
-                        "h-5 w-5 cursor-help",
-                        getInjuryIconColor(profile.injuryStatus)
-                      )} />
+                      {isGLeague ? (
+                        <ArrowDown className="h-5 w-5 cursor-help text-blue-500" />
+                      ) : (
+                        <HeartPulse className={cn(
+                          "h-5 w-5 cursor-help",
+                          getInjuryIconColor(profile.injuryStatus)
+                        )} />
+                      )}
                     </Tooltip>
-                  )}
+                    );
+                  })()}
                 </div>
                 
                 {/* Position + Jersey + Team */}
@@ -931,11 +1086,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       }
                     }}
                   >
-                    {/* Pencil Icon */}
-                    {!isEditingLine && (
-                      <Pencil className="h-3.5 w-3.5 text-white/50" />
-                    )}
-                    
                     {/* Line + Market */}
                     {isEditingLine ? (
                       <input
@@ -974,6 +1124,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                       <span className="text-lg font-black text-white tracking-tight">
                         {activeLine}+ {formatMarketLabel(profile.market)}
                       </span>
+                    )}
+                    
+                    {/* Pencil Icon - after market name */}
+                    {!isEditingLine && (
+                      <Pencil className="h-3.5 w-3.5 text-white/50" />
                     )}
                     
                     {/* Reset button - only show if custom line is different from original */}
@@ -1050,14 +1205,14 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 </div>
               </div>
               
-              {/* ROW 2: Hit Rate Strip - Flat, Subordinate */}
+              {/* ROW 2: Hit Rate Strip - Flat, Subordinate - Uses dynamicHitRates for custom line */}
               <div className="flex items-center gap-0.5">
                 {[
-                  { label: "L5", value: profile.last5Pct, count: 5 as const },
-                  { label: "L10", value: profile.last10Pct, count: 10 as const },
-                  { label: "L20", value: profile.last20Pct, count: 20 as const },
-                  { label: "SZN", value: profile.seasonPct, count: "season" as const },
-                  { label: "H2H", value: profile.h2hPct, count: "h2h" as const },
+                  { label: "L5", value: dynamicHitRates.l5, count: 5 as const },
+                  { label: "L10", value: dynamicHitRates.l10, count: 10 as const },
+                  { label: "L20", value: dynamicHitRates.l20, count: 20 as const },
+                  { label: "SZN", value: dynamicHitRates.season, count: "season" as const },
+                  { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" as const },
                 ].map((stat, idx) => {
                   const isSelected = gameCount === stat.count;
                   return (
@@ -1111,6 +1266,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             selectedMarket={selectedMarket}
             setSelectedMarket={setSelectedMarket}
             marketHitRates={marketHitRates}
+            customLine={customLine}
             quickFilters={quickFilters}
             chartFilters={chartFilters}
             injuryFilters={injuryFilters}
@@ -1385,7 +1541,29 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           stableKey={profile.oddsSelectionId}
           playerId={profile.playerId}
           market={profile.market}
-          currentLine={profile.line}
+          originalLine={profile.line}
+          activeLine={activeLine}
+          onLineSelect={(line) => {
+            // If selecting the original line, clear custom line
+            if (line === profile.line) {
+              setCustomLine(null);
+            } else {
+              setCustomLine(line);
+            }
+          }}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          PLAYER CORRELATIONS (Teammate Analysis)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6">
+        <PlayerCorrelations
+          playerId={profile.playerId}
+          market={profile.market}
+          line={activeLine}
+          gameId={profile.gameId}
+          playerName={profile.playerName}
         />
       </div>
 

@@ -4,7 +4,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
-import { HeartPulse, ChevronDown, ChevronUp } from "lucide-react";
+import { HeartPulse, ChevronDown, ChevronUp, ArrowDown } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
 export type InjuryFilterMode = "with" | "without" | null;
@@ -91,38 +91,35 @@ function TeamRosterSection({
 
   return (
     <div className="flex-1 min-w-0">
-      {/* Team Header - Premium Design */}
+      {/* Team Header - Compact */}
       <div className="relative overflow-hidden">
         {/* Background Gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
         
         {/* Content */}
-        <div className="relative flex items-center justify-between p-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
-          <div className="flex items-center gap-3">
-            {/* Team Logo with Glow */}
-            <div className="relative">
-              <div className="absolute inset-0 bg-brand/20 blur-xl rounded-full" />
-              <div className="relative h-10 w-10 rounded-full bg-white dark:bg-neutral-900 p-1.5 shadow-lg ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                <img
-                  src={`/team-logos/nba/${teamAbbr.toUpperCase()}.svg`}
-                  alt={teamAbbr}
-                  className="h-full w-full object-contain"
-                />
-              </div>
+        <div className="relative flex items-center justify-between px-3 py-2.5 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center gap-2">
+            {/* Team Logo - Smaller */}
+            <div className="h-7 w-7 rounded-full bg-white dark:bg-neutral-900 p-1 shadow ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
+              <img
+                src={`/team-logos/nba/${teamAbbr.toUpperCase()}.svg`}
+                alt={teamAbbr}
+                className="h-full w-full object-contain"
+              />
             </div>
             
             {/* Team Info */}
             <div>
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white tracking-tight">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
                 {teamName}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                  {activeRotation.length} Rotation
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] text-neutral-500 dark:text-neutral-400">
+                  {activeRotation.length} rot
                 </span>
                 <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                  {bench.length} Bench
+                <span className="text-[9px] text-neutral-500 dark:text-neutral-400">
+                  {bench.length} bench
                 </span>
               </div>
             </div>
@@ -132,29 +129,29 @@ function TeamRosterSection({
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-700/50 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
+            className="p-1.5 rounded-md bg-neutral-100 dark:bg-neutral-700/50 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
           >
             {collapsed ? (
-              <ChevronDown className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+              <ChevronDown className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" />
             ) : (
-              <ChevronUp className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+              <ChevronUp className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-400" />
             )}
           </button>
         </div>
       </div>
 
       {!collapsed && (
-        <div className="p-4 space-y-6">
+        <div className="p-3 space-y-4">
           {/* Active Rotation */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-200 to-transparent dark:via-neutral-700" />
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 px-2">
-                Active Rotation ({activeRotation.length})
+              <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 px-1">
+                Rotation ({activeRotation.length})
               </h4>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-200 to-transparent dark:via-neutral-700" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {activeRotation.map((player) => (
                 <PlayerRow
                   key={player.playerId}
@@ -170,14 +167,14 @@ function TeamRosterSection({
           {/* Bench */}
           {bench.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-200 to-transparent dark:via-neutral-700" />
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 px-2">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 px-1">
                   Bench ({bench.length})
                 </h4>
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-200 to-transparent dark:via-neutral-700" />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {bench.map((player) => (
                   <PlayerRow
                     key={player.playerId}
@@ -209,22 +206,27 @@ function PlayerRow({
 }) {
   const hasInjury = player.injuryStatus && 
     !["active", "available"].includes(player.injuryStatus.toLowerCase());
+  
+  // Check if player is in G League
+  const isGLeague = player.injuryNotes?.toLowerCase().includes("g league") || 
+                    player.injuryNotes?.toLowerCase().includes("g-league") ||
+                    player.injuryNotes?.toLowerCase().includes("gleague");
 
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 p-3 rounded-xl transition-all duration-200",
+        "group relative flex items-center gap-2 p-2 rounded-lg transition-all duration-200",
         isCurrentPlayer
-          ? "bg-gradient-to-br from-brand/10 via-brand/5 to-transparent border-2 border-brand/30 shadow-sm"
-          : "bg-gradient-to-br from-white via-neutral-50/50 to-white dark:from-neutral-800/40 dark:via-neutral-800/20 dark:to-neutral-800/40 border border-neutral-200/60 dark:border-neutral-700/60 hover:shadow-md hover:border-neutral-300 dark:hover:border-neutral-600"
+          ? "bg-neutral-100 dark:bg-neutral-800/50 opacity-60"
+          : "bg-gradient-to-br from-white via-neutral-50/50 to-white dark:from-neutral-800/40 dark:via-neutral-800/20 dark:to-neutral-800/40 border border-neutral-200/60 dark:border-neutral-700/60 hover:shadow-sm hover:border-neutral-300 dark:hover:border-neutral-600"
       )}
     >
-      {/* Avatar with Ring */}
+      {/* Avatar - Smaller */}
       <div className="relative shrink-0">
         <div className={cn(
-          "h-11 w-11 rounded-full overflow-hidden ring-2 transition-all",
+          "h-8 w-8 rounded-full overflow-hidden ring-1 transition-all",
           isCurrentPlayer 
-            ? "ring-brand/40 shadow-lg shadow-brand/20" 
+            ? "ring-neutral-300 dark:ring-neutral-600 opacity-50" 
             : "ring-neutral-200 dark:ring-neutral-700 group-hover:ring-neutral-300 dark:group-hover:ring-neutral-600"
         )}>
           <div className="h-full w-full bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
@@ -232,88 +234,93 @@ function PlayerRow({
               nbaPlayerId={player.playerId}
               name={player.name}
               size="tiny"
-              className="h-full w-full object-cover scale-150 translate-y-1"
+              className="h-full w-full object-cover scale-150 translate-y-0.5"
             />
           </div>
         </div>
         {hasInjury && (
-          <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white dark:bg-neutral-900 ring-2 ring-white dark:ring-neutral-900 flex items-center justify-center">
-            <HeartPulse className={cn("h-2.5 w-2.5", getInjuryColor(player.injuryStatus))} />
+          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-white dark:bg-neutral-900 ring-1 ring-white dark:ring-neutral-900 flex items-center justify-center">
+            {isGLeague ? (
+              <ArrowDown className="h-2 w-2 text-blue-500" />
+            ) : (
+              <HeartPulse className={cn("h-2 w-2", getInjuryColor(player.injuryStatus))} />
+            )}
           </div>
         )}
       </div>
 
-      {/* Info */}
+      {/* Info - More Compact */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
+        <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "text-xs font-semibold truncate",
+            isCurrentPlayer 
+              ? "text-neutral-400 dark:text-neutral-500" 
+              : "text-neutral-900 dark:text-white"
+          )}>
             {player.name}
           </span>
           {isCurrentPlayer && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand text-white font-bold uppercase tracking-wide shadow-sm shrink-0">
-              You
+            <span className="text-[8px] px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold uppercase shrink-0">
+              Current
             </span>
           )}
         </div>
         
-        {/* Stats Grid */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase">Pos</span>
-            <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">{player.position}</span>
-          </div>
-          <div className="h-3 w-px bg-neutral-200 dark:bg-neutral-700" />
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">Min</span>
-            <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {(player.avgMinutes || 0).toFixed(1)}
-            </span>
-          </div>
-          <div className="h-3 w-px bg-neutral-200 dark:bg-neutral-700" />
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">Pts</span>
-            <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {(player.avgPoints || 0).toFixed(1)}
-            </span>
-          </div>
+        {/* Stats - Inline, Smaller */}
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            {player.position}
+          </span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">•</span>
+          <span className="text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums">
+            {(player.avgMinutes || 0).toFixed(0)}m
+          </span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">•</span>
+          <span className="text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums">
+            {(player.avgPoints || 0).toFixed(1)}p
+          </span>
           {hasInjury && (
-            <>
-              <div className="h-3 w-px bg-neutral-200 dark:bg-neutral-700" />
-              <Tooltip content={`${capitalizeStatus(player.injuryStatus)} - ${player.injuryNotes || "No details"}`} side="top">
-                <span className={cn(
-                  "text-[10px] font-semibold uppercase cursor-help",
-                  getInjuryColor(player.injuryStatus)
-                )}>
-                  {capitalizeStatus(player.injuryStatus)}
-                </span>
-              </Tooltip>
-            </>
+            <Tooltip content={`${capitalizeStatus(player.injuryStatus)} - ${player.injuryNotes || "No details"}`} side="top">
+              <span className={cn(
+                "text-[9px] font-semibold uppercase cursor-help",
+                isGLeague ? "text-blue-500" : getInjuryColor(player.injuryStatus)
+              )}>
+                {isGLeague ? "GL" : capitalizeStatus(player.injuryStatus).slice(0, 3)}
+              </span>
+            </Tooltip>
           )}
         </div>
       </div>
 
-      {/* Filter Buttons - Premium Design */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Filter Buttons - Smaller, Disabled for current player */}
+      <div className="flex items-center gap-1 shrink-0">
         <button
           type="button"
-          onClick={() => onFilterChange(player.playerId, filter?.mode === "with" ? null : "with")}
+          onClick={() => !isCurrentPlayer && onFilterChange(player.playerId, filter?.mode === "with" ? null : "with")}
+          disabled={isCurrentPlayer}
           className={cn(
-            "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all duration-200 active:scale-95",
-            filter?.mode === "with"
-              ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/50"
-              : "bg-neutral-100 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400"
+            "px-2 py-1 rounded text-[10px] font-semibold uppercase tracking-wide transition-all duration-200",
+            isCurrentPlayer
+              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+              : filter?.mode === "with"
+                ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 active:scale-95"
+                : "bg-neutral-100 dark:bg-neutral-700/50 text-neutral-500 dark:text-neutral-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400 active:scale-95"
           )}
         >
-          With
+          W
         </button>
         <button
           type="button"
-          onClick={() => onFilterChange(player.playerId, filter?.mode === "without" ? null : "without")}
+          onClick={() => !isCurrentPlayer && onFilterChange(player.playerId, filter?.mode === "without" ? null : "without")}
+          disabled={isCurrentPlayer}
           className={cn(
-            "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all duration-200 active:scale-95",
-            filter?.mode === "without"
-              ? "bg-red-500 text-white shadow-lg shadow-red-500/30 ring-2 ring-red-400/50"
-              : "bg-neutral-100 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400"
+            "px-2 py-1 rounded text-[10px] font-semibold uppercase tracking-wide transition-all duration-200",
+            isCurrentPlayer
+              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+              : filter?.mode === "without"
+                ? "bg-red-500 text-white shadow-sm shadow-red-500/30 active:scale-95"
+                : "bg-neutral-100 dark:bg-neutral-700/50 text-neutral-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 active:scale-95"
           )}
         >
           W/O

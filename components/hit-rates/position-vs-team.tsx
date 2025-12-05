@@ -164,40 +164,24 @@ export function PositionVsTeam({
               </span>
             </Tooltip>
             
-            {/* Filter Button */}
+            {/* Filter Button - Shows position badge */}
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors active:scale-95"
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors active:scale-95",
+                showFilters 
+                  ? "bg-brand text-white" 
+                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+              )}
             >
-              <SlidersHorizontal className="h-4 w-4" />
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>{selectedPosition}</span>
             </button>
           </div>
         </div>
         
-        {/* Position Selector */}
-        <div className="flex items-center gap-1.5">
-          {POSITIONS.map((pos) => {
-            const isSelected = pos === selectedPosition;
-            return (
-              <button
-                key={pos}
-                type="button"
-                onClick={() => setSelectedPosition(pos)}
-                className={cn(
-                  "px-3 py-1 rounded-md text-xs font-semibold transition-all",
-                  isSelected
-                    ? "bg-brand text-white shadow-sm"
-                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-                )}
-              >
-                {pos}
-              </button>
-            );
-          })}
-        </div>
-        
-        {/* Filter Panel */}
+        {/* Filter Panel - Now includes Position Selector */}
         {showFilters && (
           <div className="mt-3 p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <div className="flex items-center justify-between mb-3">
@@ -209,6 +193,33 @@ export function PositionVsTeam({
               >
                 <X className="h-3.5 w-3.5 text-neutral-500" />
               </button>
+            </div>
+            
+            {/* Position Selector - Now inside filter panel */}
+            <div className="mb-3">
+              <label className="block text-[10px] font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
+                Position
+              </label>
+              <div className="flex items-center gap-1">
+                {POSITIONS.map((pos) => {
+                  const isSelected = pos === selectedPosition;
+                  return (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => setSelectedPosition(pos)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
+                        isSelected
+                          ? "bg-brand text-white shadow-sm"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {pos}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             
             <div className="grid grid-cols-2 gap-3">

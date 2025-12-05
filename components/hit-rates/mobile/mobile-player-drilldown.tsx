@@ -22,7 +22,9 @@ import {
   SlidersHorizontal,
   HeartPulse,
   AlertTriangle,
-  X
+  X,
+  Link2,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
@@ -41,13 +43,23 @@ const getBookLogo = (bookId?: string): string | null => {
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
 import { usePositionVsTeam } from "@/hooks/use-position-vs-team";
 import { useMatchupRanks } from "@/hooks/use-matchup-ranks";
+import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
 import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
+import { usePlayerCorrelations, TeammateCorrelation, StatCorrelation, TeammateGameLog } from "@/hooks/use-player-correlations";
+import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-filters";
+import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
+
+// Filter range type for advanced filters
+interface FilterRange {
+  min: number;
+  max: number;
+}
 
 // Injury status helpers
 const getInjuryColor = (status: string | null): string => {
@@ -205,12 +217,13 @@ const getComboSegments = (gameData: any, market: string): ComboStatSegment[] => 
 
 interface GameBarProps {
   stat: number;
-  line: number;
+  line: number | null;
   maxStat: number;
   date: string;
   opponent?: string;
   homeAway?: string;
   isHit: boolean;
+  hasLine: boolean;
   index: number;
   potentialReb?: number;
   market: string;
@@ -218,7 +231,7 @@ interface GameBarProps {
   teammatesOut?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out
 }
 
-function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, potentialReb, market, gameData, teammatesOut }: GameBarProps) {
+function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const heightPct = Math.max(2, (stat / maxStat) * 100);
@@ -261,11 +274,13 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
     >
       {/* Bar container with stat on top of bar */}
       <div className="relative w-full h-64 flex flex-col items-center justify-end">
-        {/* Line marker */}
-        <div 
-          className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 z-10"
-          style={{ bottom: `${(line / maxStat) * 100}%` }}
-        />
+        {/* Line marker - only show when there's a line */}
+        {hasLine && line !== null && (
+          <div 
+            className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 z-10"
+            style={{ bottom: `${(line / maxStat) * 100}%` }}
+          />
+        )}
         
         {/* Potential Rebounds - Faded overlay (only for rebounds market) */}
         {showPotential && potentialReb > 0 && (
@@ -309,7 +324,11 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
         <div 
           className={cn(
             "absolute text-[9px] font-bold transition-all duration-150 z-10",
-            isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400",
+            !hasLine 
+              ? "text-neutral-500 dark:text-neutral-400"
+              : isHit 
+                ? "text-emerald-600 dark:text-emerald-400" 
+                : "text-red-500 dark:text-red-400",
             isPressed && "scale-110"
           )}
           style={{ bottom: `${heightPct + 2}%` }}
@@ -323,9 +342,11 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
           <div
             className={cn(
               "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1] flex flex-col-reverse overflow-hidden",
-              isHit 
-                ? "bg-emerald-500 dark:bg-emerald-400" 
-                : "bg-red-400 dark:bg-red-500",
+              !hasLine
+                ? "bg-neutral-400 dark:bg-neutral-500"
+                : isHit 
+                  ? "bg-emerald-500 dark:bg-emerald-400" 
+                  : "bg-red-400 dark:bg-red-500",
               isPressed && "opacity-80"
             )}
             style={{ 
@@ -364,9 +385,11 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
           <div
             className={cn(
               "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1]",
-              isHit 
-                ? "bg-emerald-500 dark:bg-emerald-400" 
-                : "bg-red-400 dark:bg-red-500",
+              !hasLine
+                ? "bg-neutral-400 dark:bg-neutral-500"
+                : isHit 
+                  ? "bg-emerald-500 dark:bg-emerald-400" 
+                  : "bg-red-400 dark:bg-red-500",
               isPressed && "opacity-80"
             )}
             style={{ 
@@ -444,7 +467,11 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
             <div className="flex items-baseline gap-2 pb-3 border-b border-neutral-200 dark:border-neutral-700">
               <span className={cn(
                 "text-3xl font-black tracking-tight",
-                isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                !hasLine 
+                  ? "text-neutral-600 dark:text-neutral-400"
+                  : isHit 
+                    ? "text-emerald-600 dark:text-emerald-400" 
+                    : "text-red-500 dark:text-red-400"
               )}>
                 {stat}
               </span>
@@ -536,7 +563,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
                   <StatRow label="Assists" value={gameData.ast} />
                   <div className="my-2 border-t border-neutral-200 dark:border-neutral-700" />
                   <StatRow label="PRA Total" value={gameData.pra} />
-                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct)}%`} />
+                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct * 100)}%`} />
                 </>
               )}
               {market === "player_turnovers" && (
@@ -545,7 +572,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, index, 
                   <StatRow label="Assists" value={gameData.ast} />
                   <StatRow label="AST/TO" value={gameData.tov > 0 ? (gameData.ast / gameData.tov).toFixed(1) : "∞"} />
                   <StatRow label="Passes" value={gameData.passes} />
-                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct)}%`} />
+                  <StatRow label="Usage" value={`${Math.round(gameData.usagePct * 100)}%`} />
                 </>
               )}
             </div>
@@ -655,6 +682,9 @@ interface HeroBarChartProps {
   onQuickFiltersClear: () => void;
   totalGamesCount: number;
   market: string; // Add market to determine if rebounds
+  // Advanced filters
+  advancedFiltersCount?: number;
+  onOpenAdvancedFilters?: () => void;
 }
 
 function HeroBarChart({ 
@@ -667,7 +697,9 @@ function HeroBarChart({
   onQuickFilterToggle,
   onQuickFiltersClear,
   totalGamesCount,
-  market
+  market,
+  advancedFiltersCount = 0,
+  onOpenAdvancedFilters,
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
     const count = gameCount === "season" || gameCount === "h2h" ? games.length : gameCount;
@@ -760,7 +792,19 @@ function HeroBarChart({
             </div>
             
             {/* Chart Area */}
-            <div className="flex-1">
+            <div className="flex-1 relative">
+              {/* Line marker with value label - spans full width */}
+              {line !== null && (
+                <div 
+                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  style={{ bottom: `${(line / chartDomainMax) * 100}%` }}
+                >
+                  {/* Line value label */}
+                  <div className="absolute -top-2 -left-1 bg-neutral-700 dark:bg-neutral-600 text-white text-[9px] font-bold px-1 py-0.5 rounded leading-none">
+                    {line}
+                  </div>
+                </div>
+              )}
               {/* Bars */}
               <div className="flex items-end gap-1">
                 {displayGames.map((game, idx) => (
@@ -772,7 +816,8 @@ function HeroBarChart({
                     date={game.date}
                     opponent={game.opponent_abbr}
                     homeAway={game.home_away}
-                    isHit={game.market_stat >= line}
+                    isHit={line !== null && game.market_stat >= line}
+                    hasLine={line !== null}
                     index={idx}
                     potentialReb={game.potential_reb}
                     market={market}
@@ -818,12 +863,37 @@ function HeroBarChart({
           )}
         </div>
         
-        {/* Filter status */}
-        {quickFilters.size > 0 && (
-          <span className="text-[9px] text-neutral-400 shrink-0 ml-2">
-            {displayGames.length}/{totalGamesCount}
-          </span>
-        )}
+        {/* Right side: Advanced button + filter status */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Advanced Filters Button */}
+          {onOpenAdvancedFilters && (
+            <button
+              type="button"
+              onClick={onOpenAdvancedFilters}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95",
+                advancedFiltersCount > 0
+                  ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+              )}
+            >
+              <SlidersHorizontal className="h-3 w-3" />
+              <span>Advanced</span>
+              {advancedFiltersCount > 0 && (
+                <span className="px-1 py-0.5 rounded bg-purple-500 text-white text-[8px]">
+                  {advancedFiltersCount}
+                </span>
+              )}
+            </button>
+          )}
+          
+          {/* Filter status */}
+          {(quickFilters.size > 0 || advancedFiltersCount > 0) && (
+            <span className="text-[9px] text-neutral-400">
+              {displayGames.length}/{totalGamesCount}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -876,6 +946,543 @@ function OddsBadge({
         {type === "over" ? "O" : "U"} {formatOdds(price)}
       </span>
     </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADVANCED FILTERS SHEET COMPONENT - Billion Dollar Design
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface AdvancedFiltersSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+  filters: ChartFiltersState;
+  onFiltersChange: (filters: ChartFiltersState) => void;
+  games: BoxScoreGame[];
+  market: string;
+}
+
+function AdvancedFiltersSheet({
+  isOpen,
+  onClose,
+  filters,
+  onFiltersChange,
+  games,
+  market,
+}: AdvancedFiltersSheetProps) {
+  // Calculate averages
+  const calcAvg = useCallback((getValue: (g: BoxScoreGame) => number) => {
+    if (games.length === 0) return 0;
+    return games.reduce((sum, g) => sum + getValue(g), 0) / games.length;
+  }, [games]);
+
+  const avgMinutes = useMemo(() => calcAvg(g => g.minutes), [calcAvg]);
+  const avgUsage = useMemo(() => calcAvg(g => g.usagePct), [calcAvg]);
+  const avgPoints = useMemo(() => calcAvg(g => g.pts), [calcAvg]);
+  const avgRebounds = useMemo(() => calcAvg(g => g.reb), [calcAvg]);
+  const avgAssists = useMemo(() => calcAvg(g => g.ast), [calcAvg]);
+  const avgSteals = useMemo(() => calcAvg(g => g.stl), [calcAvg]);
+  const avgBlocks = useMemo(() => calcAvg(g => g.blk), [calcAvg]);
+  const avgFg3m = useMemo(() => calcAvg(g => g.fg3m), [calcAvg]);
+  const avgFg3a = useMemo(() => calcAvg(g => g.fg3a), [calcAvg]);
+  const avgTurnovers = useMemo(() => calcAvg(g => g.tov), [calcAvg]);
+
+  // Count active filters
+  const activeFilterCount = useMemo(() => {
+    return [
+      filters.minutes, filters.usage, filters.points, filters.rebounds,
+      filters.assists, filters.steals, filters.blocks, filters.turnovers,
+      filters.fg3m, filters.fg3a, filters.fga, filters.fgm, filters.fta, filters.ftm,
+      filters.plusMinus, filters.tsPct, filters.efgPct,
+      filters.oreb, filters.dreb, filters.potentialReb, filters.passes,
+    ].filter(Boolean).length;
+  }, [filters]);
+
+  // Filter categories based on market
+  const filterCategories = useMemo(() => {
+    const marketLower = market?.toLowerCase() || "";
+    const categories: Array<{
+      title: string;
+      icon: string;
+      filters: Array<{
+        key: keyof ChartFiltersState;
+        label: string;
+        getValue: (g: BoxScoreGame) => number;
+        avg: number;
+        isPercentage?: boolean;
+      }>;
+    }> = [];
+
+    // Base filters (always show)
+    categories.push({
+      title: "Playing Time",
+      icon: "⏱️",
+      filters: [
+        { key: "minutes", label: "Minutes", getValue: g => g.minutes, avg: avgMinutes },
+        { key: "usage", label: "Usage %", getValue: g => g.usagePct, avg: avgUsage, isPercentage: true },
+      ],
+    });
+
+    // Scoring (show for points/PRA markets)
+    if (marketLower.includes("points") || marketLower.includes("pra")) {
+      categories.push({
+        title: "Scoring",
+        icon: "🏀",
+        filters: [
+          { key: "points", label: "Points", getValue: g => g.pts, avg: avgPoints },
+          { key: "fga", label: "FGA", getValue: g => g.fga, avg: calcAvg(g => g.fga) },
+          { key: "fgm", label: "FGM", getValue: g => g.fgm, avg: calcAvg(g => g.fgm) },
+          { key: "fta", label: "FTA", getValue: g => g.fta, avg: calcAvg(g => g.fta) },
+          { key: "ftm", label: "FTM", getValue: g => g.ftm, avg: calcAvg(g => g.ftm) },
+        ],
+      });
+    }
+
+    // 3-Pointers (show for threes/points markets)
+    if (marketLower.includes("threes") || marketLower.includes("points")) {
+      categories.push({
+        title: "Three Pointers",
+        icon: "🎯",
+        filters: [
+          { key: "fg3m", label: "3PM", getValue: g => g.fg3m, avg: avgFg3m },
+          { key: "fg3a", label: "3PA", getValue: g => g.fg3a, avg: avgFg3a },
+        ],
+      });
+    }
+
+    // Rebounding (show for rebounds/PRA markets)
+    const showRebounding = marketLower.includes("rebounds") || marketLower.includes("pra");
+    if (showRebounding) {
+      categories.push({
+        title: "Rebounding",
+        icon: "📊",
+        filters: [
+          { key: "rebounds", label: "Total Reb", getValue: g => g.reb, avg: avgRebounds },
+          { key: "oreb", label: "Off Reb", getValue: g => g.oreb, avg: calcAvg(g => g.oreb) },
+          { key: "dreb", label: "Def Reb", getValue: g => g.dreb, avg: calcAvg(g => g.dreb) },
+          { key: "potentialReb", label: "Potential Reb", getValue: g => g.potentialReb, avg: calcAvg(g => g.potentialReb) },
+        ],
+      });
+    }
+
+    // Playmaking (show for assists/PRA markets)
+    const showPlaymaking = marketLower.includes("assists") || marketLower.includes("pra");
+    if (showPlaymaking) {
+      categories.push({
+        title: "Playmaking",
+        icon: "🎮",
+        filters: [
+          { key: "assists", label: "Assists", getValue: g => g.ast, avg: avgAssists },
+          { key: "passes", label: "Passes", getValue: g => g.passes, avg: calcAvg(g => g.passes) },
+          { key: "turnovers", label: "Turnovers", getValue: g => g.tov, avg: avgTurnovers },
+        ],
+      });
+    }
+
+    // Defense (show for steals/blocks markets)
+    const showDefense = marketLower.includes("steals") || marketLower.includes("blocks");
+    if (showDefense) {
+      categories.push({
+        title: "Defense",
+        icon: "🛡️",
+        filters: [
+          { key: "steals", label: "Steals", getValue: g => g.stl, avg: avgSteals },
+          { key: "blocks", label: "Blocks", getValue: g => g.blk, avg: avgBlocks },
+        ],
+      });
+    }
+
+    // Show "Other Stats" for stats not already covered - avoid duplicates
+    const showScoring = marketLower.includes("points") || marketLower.includes("pra");
+    const otherStats: Array<{
+      key: keyof ChartFiltersState;
+      label: string;
+      getValue: (g: BoxScoreGame) => number;
+      avg: number;
+    }> = [];
+    
+    if (!showScoring) {
+      otherStats.push({ key: "points", label: "Points", getValue: g => g.pts, avg: avgPoints });
+    }
+    if (!showRebounding) {
+      otherStats.push({ key: "rebounds", label: "Rebounds", getValue: g => g.reb, avg: avgRebounds });
+    }
+    if (!showPlaymaking) {
+      otherStats.push({ key: "assists", label: "Assists", getValue: g => g.ast, avg: avgAssists });
+    }
+    if (!showDefense) {
+      otherStats.push({ key: "steals", label: "Steals", getValue: g => g.stl, avg: avgSteals });
+      otherStats.push({ key: "blocks", label: "Blocks", getValue: g => g.blk, avg: avgBlocks });
+    }
+    
+    // Only add "Other Stats" if there are stats to show
+    if (otherStats.length > 0) {
+      categories.push({
+        title: "Other Stats",
+        icon: "📈",
+        filters: otherStats,
+      });
+    }
+
+    return categories;
+  }, [market, avgMinutes, avgUsage, avgPoints, avgRebounds, avgAssists, avgSteals, avgBlocks, avgFg3m, avgFg3a, avgTurnovers, calcAvg]);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((key: keyof ChartFiltersState, range: FilterRange | null) => {
+    onFiltersChange({ ...filters, [key]: range });
+  }, [filters, onFiltersChange]);
+
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
+    onFiltersChange(DEFAULT_FILTERS);
+  }, [onFiltersChange]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {/* Bottom Sheet */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-brand to-brand/80 flex items-center justify-center shadow-lg shadow-brand/20">
+                <SlidersHorizontal className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+                  Advanced Filters
+                </h2>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {games.length} games • {activeFilterCount > 0 ? `${activeFilterCount} active` : "No filters applied"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+            >
+              <X className="h-4 w-4 text-neutral-500" />
+            </button>
+          </div>
+
+          {/* Quick Actions */}
+          {activeFilterCount > 0 && (
+            <div className="px-5 pb-3 flex items-center gap-2">
+              <span className="px-2 py-1 rounded-full bg-brand/10 text-brand text-[11px] font-bold">
+                {activeFilterCount} active
+              </span>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[11px] font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto overscroll-contain px-5 py-4 space-y-6" style={{ maxHeight: "calc(85vh - 120px)" }}>
+          {filterCategories.map((category) => (
+            <div key={category.title}>
+              {/* Category Header */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">{category.icon}</span>
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wide">
+                  {category.title}
+                </h3>
+              </div>
+
+              {/* Filter Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {category.filters.map((filter) => {
+                  const currentRange = filters[filter.key] as FilterRange | null;
+                  const values = games.map(filter.getValue);
+                  const minVal = Math.min(...values);
+                  const maxVal = Math.max(...values);
+                  const isActive = currentRange !== null;
+
+                  return (
+                    <MobileFilterCard
+                      key={filter.key}
+                      label={filter.label}
+                      avg={filter.avg}
+                      minVal={minVal}
+                      maxVal={maxVal}
+                      currentRange={currentRange}
+                      isPercentage={filter.isPercentage}
+                      isActive={isActive}
+                      onChange={(range) => handleFilterChange(filter.key, range)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-700/60 px-5 py-4 safe-area-inset-bottom">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand to-brand/90 text-white font-bold text-sm shadow-lg shadow-brand/30 active:scale-[0.98] transition-transform"
+          >
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mobile Filter Card Component
+interface MobileFilterCardProps {
+  label: string;
+  avg: number;
+  minVal: number;
+  maxVal: number;
+  currentRange: FilterRange | null;
+  isPercentage?: boolean;
+  isActive: boolean;
+  onChange: (range: FilterRange | null) => void;
+}
+
+function MobileFilterCard({
+  label,
+  avg,
+  minVal,
+  maxVal,
+  currentRange,
+  isPercentage,
+  isActive,
+  onChange,
+}: MobileFilterCardProps) {
+  const [localMin, setLocalMin] = useState(currentRange?.min ?? minVal);
+  const [localMax, setLocalMax] = useState(currentRange?.max ?? maxVal);
+  const [editingMin, setEditingMin] = useState(false);
+  const [editingMax, setEditingMax] = useState(false);
+  const [minInputValue, setMinInputValue] = useState("");
+  const [maxInputValue, setMaxInputValue] = useState("");
+
+  // Update local state when currentRange changes
+  useEffect(() => {
+    setLocalMin(currentRange?.min ?? minVal);
+    setLocalMax(currentRange?.max ?? maxVal);
+  }, [currentRange, minVal, maxVal]);
+
+  const formatValue = (val: number) => {
+    if (isPercentage) return `${Math.round(val * 100)}%`;
+    return Math.round(val * 10) / 10;
+  };
+  
+  const formatInputValue = (val: number) => {
+    if (isPercentage) return Math.round(val * 100);
+    return Math.round(val * 10) / 10;
+  };
+  
+  const parseInputValue = (val: string): number => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return minVal;
+    if (isPercentage) return num / 100;
+    return num;
+  };
+
+  const handleApply = (newMin: number, newMax: number) => {
+    if (newMin === minVal && newMax === maxVal) {
+      onChange(null);
+    } else {
+      onChange({ min: newMin, max: newMax });
+    }
+  };
+
+  const handleClear = () => {
+    setLocalMin(minVal);
+    setLocalMax(maxVal);
+    onChange(null);
+  };
+  
+  const handleMinEdit = () => {
+    setMinInputValue(String(formatInputValue(localMin)));
+    setEditingMin(true);
+  };
+  
+  const handleMaxEdit = () => {
+    setMaxInputValue(String(formatInputValue(localMax)));
+    setEditingMax(true);
+  };
+  
+  const handleMinSubmit = () => {
+    const parsed = parseInputValue(minInputValue);
+    const clamped = Math.max(minVal, Math.min(parsed, localMax - 0.1));
+    setLocalMin(clamped);
+    setEditingMin(false);
+    handleApply(clamped, localMax);
+  };
+  
+  const handleMaxSubmit = () => {
+    const parsed = parseInputValue(maxInputValue);
+    const clamped = Math.min(maxVal, Math.max(parsed, localMin + 0.1));
+    setLocalMax(clamped);
+    setEditingMax(false);
+    handleApply(localMin, clamped);
+  };
+
+  const range = maxVal - minVal || 1;
+  const minPos = ((localMin - minVal) / range) * 100;
+  const maxPos = ((localMax - minVal) / range) * 100;
+
+  return (
+    <div className={cn(
+      "p-3 rounded-xl border transition-all",
+      isActive 
+        ? "bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40"
+        : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/40"
+    )}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <span className={cn(
+          "text-xs font-bold",
+          isActive ? "text-brand" : "text-neutral-700 dark:text-neutral-300"
+        )}>
+          {label}
+        </span>
+        {isActive && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-[10px] text-red-500 font-medium"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Avg Display */}
+      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">
+        Avg: <span className="font-semibold text-neutral-600 dark:text-neutral-300">{formatValue(avg)}</span>
+      </div>
+
+      {/* Editable Range Display - Tap to type */}
+      <div className="flex items-center justify-center gap-2 mb-3">
+        {editingMin ? (
+          <input
+            type="number"
+            value={minInputValue}
+            onChange={(e) => setMinInputValue(e.target.value)}
+            onBlur={handleMinSubmit}
+            onKeyDown={(e) => e.key === "Enter" && handleMinSubmit()}
+            autoFocus
+            className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={handleMinEdit}
+            className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
+          >
+            {formatValue(localMin)}
+          </button>
+        )}
+        <span className="text-neutral-400 text-sm">–</span>
+        {editingMax ? (
+          <input
+            type="number"
+            value={maxInputValue}
+            onChange={(e) => setMaxInputValue(e.target.value)}
+            onBlur={handleMaxSubmit}
+            onKeyDown={(e) => e.key === "Enter" && handleMaxSubmit()}
+            autoFocus
+            className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={handleMaxEdit}
+            className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
+          >
+            {formatValue(localMax)}
+          </button>
+        )}
+      </div>
+
+      {/* Dual Range Slider */}
+      <div className="relative h-6 px-1">
+        {/* Track */}
+        <div className="absolute left-1 right-1 top-2.5 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
+        
+        {/* Selected Range */}
+        <div
+          className="absolute top-2.5 h-1.5 bg-brand rounded-full"
+          style={{
+            left: `calc(${minPos}% + 4px)`,
+            width: `${maxPos - minPos}%`,
+          }}
+        />
+
+        {/* Min Slider */}
+        <input
+          type="range"
+          min={minVal}
+          max={maxVal}
+          step={(maxVal - minVal) / 20 || 0.1}
+          value={localMin}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (val < localMax) {
+              setLocalMin(val);
+              handleApply(val, localMax);
+            }
+          }}
+          className="absolute w-full h-6 opacity-0 cursor-pointer z-10"
+        />
+
+        {/* Max Slider */}
+        <input
+          type="range"
+          min={minVal}
+          max={maxVal}
+          step={(maxVal - minVal) / 20 || 0.1}
+          value={localMax}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (val > localMin) {
+              setLocalMax(val);
+              handleApply(localMin, val);
+            }
+          }}
+          className="absolute w-full h-6 opacity-0 cursor-pointer z-20"
+        />
+
+        {/* Min Handle */}
+        <div
+          className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
+          style={{ left: `calc(${minPos}% - 4px)` }}
+        />
+
+        {/* Max Handle */}
+        <div
+          className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
+          style={{ left: `calc(${maxPos}% - 4px)` }}
+        />
+      </div>
+
+      {/* Min/Max Labels */}
+      <div className="flex justify-between text-[9px] text-neutral-400 mt-1">
+        <span>{formatValue(minVal)}</span>
+        <span>{formatValue(maxVal)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -1311,70 +1918,58 @@ interface DefenseVsPositionTabProps {
 }
 
 function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: DefenseVsPositionTabProps) {
-  // Get player's actual position from depth chart (PG, SG, SF, PF, C) or fallback to general position
-  const playerPosition = useMemo(() => {
-    // The profile might have depth_chart_pos or position
-    // depth_chart_pos is more specific (PG, SG, SF, PF, C)
-    // position is more general (G, F, C)
+  // All positions for filter
+  const ALL_POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
+  
+  // Get player's default position
+  const defaultPosition = useMemo(() => {
     const pos = profile.position;
     if (!pos) return "PG";
-    
-    // If it's already a specific position, use it
-    if (["PG", "SG", "SF", "PF", "C"].includes(pos)) {
-      return pos;
-    }
-    
-    // Map general positions to specific ones
+    if (["PG", "SG", "SF", "PF", "C"].includes(pos)) return pos;
     if (pos === "G") return "PG";
     if (pos === "F") return "SF";
     if (pos === "C") return "C";
-    
-    return "PG"; // Default fallback
+    return "PG";
   }, [profile.position]);
+  
+  // Position filter state - user can change this
+  const [selectedPosition, setSelectedPosition] = useState(defaultPosition);
+  
+  // Use selected position instead of player's actual position
+  const playerPosition = selectedPosition;
 
   
-  // Define all markets to show - grouped by category
-  const marketStatsByCategory = useMemo(() => ({
-    scoring: [
-      { market: "player_points", label: "Points", abbr: "PTS" },
-      { market: "player_threes_made", label: "Three Pointers", abbr: "3PM" },
-    ],
-    playmaking: [
-      { market: "player_assists", label: "Assists", abbr: "AST" },
-      { market: "player_points_rebounds_assists", label: "Points + Rebounds + Assists", abbr: "PRA" },
-      { market: "player_points_assists", label: "Points + Assists", abbr: "PA" },
-      { market: "player_points_rebounds", label: "Points + Rebounds", abbr: "PR" },
-    ],
-    rebounding: [
-      { market: "player_rebounds", label: "Rebounds", abbr: "REB" },
-      { market: "player_rebounds_assists", label: "Rebounds + Assists", abbr: "RA" },
-    ],
-    defensive: [
-      { market: "player_steals", label: "Steals", abbr: "STL" },
-      { market: "player_blocks", label: "Blocks", abbr: "BLK" },
-      { market: "player_blocks_steals", label: "Blocks + Steals", abbr: "BS" },
-    ],
-  }), []);
-
-  // Flatten for fetching all markets
-  const allMarkets = useMemo(() => 
-    Object.values(marketStatsByCategory).flat().map(m => m.market),
-    [marketStatsByCategory]
-  );
-
-  // Fetch matchup ranks for all markets using player's actual position
-  const { markets: matchupRanks, isLoading: ranksLoading, isFetching: ranksFetching } = useMatchupRanks({
-    playerId: profile.playerId,
-    opponentTeamId: profile.opponentTeamId!,
-    position: playerPosition,
-    markets: allMarkets,
-    enabled: !!profile.playerId && !!profile.opponentTeamId && !!playerPosition,
+  // Fetch team defense ranks for all positions (for the matrix)
+  const { positions: defensePositions, isLoading: defenseLoading } = useTeamDefenseRanks({
+    opponentTeamId: profile.opponentTeamId,
+    enabled: !!profile.opponentTeamId,
   });
   
-  // Get the current market's rank
+  // Markets for the matrix
+  const MATRIX_MARKETS = [
+    "player_points",
+    "player_rebounds",
+    "player_assists",
+    "player_threes_made",
+    "player_steals",
+    "player_blocks",
+    "player_points_rebounds_assists",
+  ];
+  
+  // Get market data for matrix
+  const getMatrixData = (market: string, pos: string) => {
+    return defensePositions[pos]?.[market] ?? { rank: null, avgAllowed: null };
+  };
+  
+  // Matrix view mode
+  const [matrixViewMode, setMatrixViewMode] = useState<"ranks" | "values">("ranks");
+  
+  // Get the current market's rank from defense positions data
   const currentMarketRank = useMemo(() => {
-    return matchupRanks.find(m => m.market === selectedMarket);
-  }, [matchupRanks, selectedMarket]);
+    const data = defensePositions[playerPosition]?.[selectedMarket];
+    if (!data) return null;
+    return { rank: data.rank, avgAllowed: data.avgAllowed };
+  }, [defensePositions, playerPosition, selectedMarket]);
 
   // Get rank color for DvP badge
   const getRankColor = (rank: number | null | undefined) => {
@@ -1435,7 +2030,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
             </div>
           </div>
           
-          {/* Bottom Section: Team Name + DvP Rank */}
+          {/* Bottom Section: Team Name + Position Filter */}
           <div className="flex items-center justify-between gap-3">
             {/* Team Indicator */}
             <div className="flex items-center gap-2">
@@ -1482,6 +2077,30 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
               </div>
             )}
           </div>
+          
+          {/* Position Filter - Premium Pills */}
+          <div className="mt-4 pt-4 border-t border-neutral-200/60 dark:border-neutral-700/30">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Position</span>
+              <div className="flex items-center gap-1 bg-neutral-100/80 dark:bg-neutral-800/50 p-1 rounded-xl">
+                {ALL_POSITIONS.map((pos) => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => setSelectedPosition(pos)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      selectedPosition === pos
+                        ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -1494,126 +2113,132 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
         effectiveLine={effectiveLine}
       />
       
-      {/* Market Stats Grid - Premium Cards */}
-      <div className="space-y-4">
-          {/* Scoring */}
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Scoring
-              </h4>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {marketStatsByCategory.scoring.map((stat) => {
-                const matchupData = matchupRanks.find(m => m.market === stat.market);
-                return (
-                  <MarketStatCard
-                    key={stat.market}
-                    market={stat.market}
-                    label={stat.label}
-                    abbr={stat.abbr}
-                    position={playerPosition}
-                    opponentTeamId={profile.opponentTeamId!}
-                    currentLine={stat.market === selectedMarket ? effectiveLine : null}
-                    isActive={stat.market === selectedMarket}
-                    matchupRank={matchupData?.rank ?? null}
-                    avgAllowed={matchupData?.avgAllowed ?? null}
-                    isLoadingRank={ranksFetching}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Playmaking */}
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Playmaking
-              </h4>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {marketStatsByCategory.playmaking.map((stat) => {
-                const matchupData = matchupRanks.find(m => m.market === stat.market);
-                return (
-                  <MarketStatCard
-                    key={stat.market}
-                    market={stat.market}
-                    label={stat.label}
-                    abbr={stat.abbr}
-                    position={playerPosition}
-                    opponentTeamId={profile.opponentTeamId!}
-                    currentLine={stat.market === selectedMarket ? effectiveLine : null}
-                    isActive={stat.market === selectedMarket}
-                    matchupRank={matchupData?.rank ?? null}
-                    avgAllowed={matchupData?.avgAllowed ?? null}
-                    isLoadingRank={ranksFetching}
-                  />
-                );
-              })}
+        {/* ═══ RANKINGS MATRIX - All Positions ═══ */}
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-700/40 bg-neutral-50/80 dark:bg-neutral-800/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-brand" />
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                  All Positions Matrix
+                </h3>
+              </div>
+              
+              {/* View Toggle */}
+              <div className="flex items-center gap-0.5 bg-neutral-200/80 dark:bg-neutral-700/50 p-0.5 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setMatrixViewMode("ranks")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all",
+                    matrixViewMode === "ranks"
+                      ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                      : "text-neutral-500 dark:text-neutral-400"
+                  )}
+                >
+                  Ranks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatrixViewMode("values")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all",
+                    matrixViewMode === "values"
+                      ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                      : "text-neutral-500 dark:text-neutral-400"
+                  )}
+                >
+                  Avg
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Rebounding */}
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Rebounding
-              </h4>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {marketStatsByCategory.rebounding.map((stat) => {
-                const matchupData = matchupRanks.find(m => m.market === stat.market);
-                return (
-                  <MarketStatCard
-                    key={stat.market}
-                    market={stat.market}
-                    label={stat.label}
-                    abbr={stat.abbr}
-                    position={playerPosition}
-                    opponentTeamId={profile.opponentTeamId!}
-                    currentLine={stat.market === selectedMarket ? effectiveLine : null}
-                    isActive={stat.market === selectedMarket}
-                    matchupRank={matchupData?.rank ?? null}
-                    avgAllowed={matchupData?.avgAllowed ?? null}
-                    isLoadingRank={ranksFetching}
-                  />
-                );
-              })}
-            </div>
+          
+          {/* Matrix Table */}
+          <div className="overflow-x-auto">
+            {defenseLoading ? (
+              <div className="p-8 flex items-center justify-center">
+                <div className="h-5 w-5 border-2 border-neutral-300 border-t-brand rounded-full animate-spin" />
+              </div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-neutral-50/50 dark:bg-neutral-800/30">
+                  <tr className="border-b border-neutral-200/60 dark:border-neutral-700/40">
+                    <th className="px-3 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 sticky left-0 bg-neutral-50/50 dark:bg-neutral-800/30">
+                      Stat
+                    </th>
+                    {ALL_POSITIONS.map((pos) => (
+                      <th 
+                        key={pos} 
+                        className={cn(
+                          "px-2 py-2 text-center text-[9px] font-bold uppercase tracking-wider min-w-[48px]",
+                          pos === selectedPosition 
+                            ? "text-brand bg-brand/5 dark:bg-brand/10" 
+                            : "text-neutral-500 dark:text-neutral-400"
+                        )}
+                      >
+                        {pos}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/50">
+                  {MATRIX_MARKETS.map((market) => (
+                    <tr 
+                      key={market}
+                      className="transition-colors"
+                    >
+                      <td className="px-3 py-2.5 sticky left-0 bg-white dark:bg-neutral-900">
+                        <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                          {formatMarketLabelShort(market)}
+                        </span>
+                      </td>
+                      {ALL_POSITIONS.map((pos) => {
+                        const data = getMatrixData(market, pos);
+                        const isSelected = pos === selectedPosition;
+                        const rank = data?.rank;
+                        
+                        // Colors based on rank
+                        const getRankTextColor = () => {
+                          if (!rank) return "text-neutral-400";
+                          if (rank <= 10) return "text-emerald-600 dark:text-emerald-400";
+                          if (rank >= 21) return "text-red-600 dark:text-red-400";
+                          return "text-neutral-600 dark:text-neutral-400";
+                        };
+                        
+                        return (
+                          <td 
+                            key={pos}
+                            className={cn(
+                              "px-2 py-2.5 text-center",
+                              isSelected && "bg-brand/5 dark:bg-brand/10"
+                            )}
+                          >
+                            <span className={cn(
+                              "text-xs font-bold tabular-nums",
+                              getRankTextColor()
+                            )}>
+                              {matrixViewMode === "ranks" 
+                                ? (rank ? `#${rank}` : "—")
+                                : (data?.avgAllowed?.toFixed(1) ?? "—")
+                              }
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-
-          {/* Defensive */}
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
-              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Defensive
-              </h4>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {marketStatsByCategory.defensive.map((stat) => {
-                const matchupData = matchupRanks.find(m => m.market === stat.market);
-                return (
-                  <MarketStatCard
-                    key={stat.market}
-                    market={stat.market}
-                    label={stat.label}
-                    abbr={stat.abbr}
-                    position={playerPosition}
-                    opponentTeamId={profile.opponentTeamId!}
-                    currentLine={stat.market === selectedMarket ? effectiveLine : null}
-                    isActive={stat.market === selectedMarket}
-                    matchupRank={matchupData?.rank ?? null}
-                    avgAllowed={matchupData?.avgAllowed ?? null}
-                    isLoadingRank={ranksFetching}
-                  />
-                );
-              })}
-            </div>
+          
+          {/* Footer */}
+          <div className="px-4 py-2 border-t border-neutral-200/60 dark:border-neutral-700/40 bg-neutral-50/30 dark:bg-neutral-800/20">
+            <p className="text-[9px] text-neutral-400 dark:text-neutral-500">
+              {profile.opponentTeamAbbr} defense rankings vs all positions • Lower rank = weaker defense
+            </p>
           </div>
         </div>
     </div>
@@ -1783,6 +2408,8 @@ export function MobilePlayerDrilldown({
   const [isEditingLine, setIsEditingLine] = useState(false);
   const [lineInputValue, setLineInputValue] = useState("");
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
+  const [advancedFilters, setAdvancedFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<"chart" | "matchup" | "injuries" | "stats" | "odds">("chart");
   const [selectedInjuryPlayer, setSelectedInjuryPlayer] = useState<TeamRosterPlayer | null>(null);
   
@@ -1794,9 +2421,14 @@ export function MobilePlayerDrilldown({
   }
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
   
-  // Team collapse state
-  const [playerTeamCollapsed, setPlayerTeamCollapsed] = useState(false);
-  const [opponentTeamCollapsed, setOpponentTeamCollapsed] = useState(false);
+  // Team collapse state - default collapsed for cleaner initial view
+  const [playerTeamCollapsed, setPlayerTeamCollapsed] = useState(true);
+  const [opponentTeamCollapsed, setOpponentTeamCollapsed] = useState(true);
+  
+  // Scroll to top when player changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [initialProfile.playerId]);
   
   // Handler for toggling injury filters
   const handleInjuryFilterToggle = useCallback((playerId: number, mode: InjuryFilterMode) => {
@@ -1816,6 +2448,13 @@ export function MobilePlayerDrilldown({
       // Add new filter
       return [...prev, { playerId, mode }];
     });
+  }, []);
+  
+  // Handler for tab changes - scrolls to top for fresh view
+  const handleTabChange = useCallback((tab: typeof activeTab) => {
+    setActiveTab(tab);
+    // Scroll to top of content (after header)
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
   
   // Get current profile based on selected market
@@ -1878,8 +2517,8 @@ export function MobilePlayerDrilldown({
     playerTeamId: profile.teamId,
     opponentTeamId: profile.opponentTeamId,
     season: "2025-26",
-    // Always load if we have injury filters OR if on the injuries tab
-    enabled: (injuryFilters.length > 0 || activeTab === "injuries") && !!profile.teamId && !!profile.opponentTeamId,
+    // Load on chart tab (for roster section), correlation tab, or when injury filters are set
+    enabled: (injuryFilters.length > 0 || activeTab === "injuries" || activeTab === "chart") && !!profile.teamId && !!profile.opponentTeamId,
   });
   
   // Fetch odds
@@ -2058,8 +2697,94 @@ export function MobilePlayerDrilldown({
       games = games.filter(game => game.opponent_abbr === profile.opponentTeamAbbr);
     }
     
+    // Apply advanced filters using box score data
+    const hasAdvancedFilters = Object.values(advancedFilters).some(v => v !== null);
+    if (hasAdvancedFilters && boxScoreGames.length > 0) {
+      // Create a map of game_id to box score for quick lookup
+      const boxScoreMap = new Map<string, BoxScoreGame>();
+      for (const bs of boxScoreGames) {
+        boxScoreMap.set(bs.gameId, bs);
+      }
+      
+      games = games.filter(game => {
+        const boxScore = boxScoreMap.get(game.full_game_data?.gameId || "");
+        if (!boxScore) return true; // Keep games we don't have box score data for
+        
+        // Minutes filter
+        if (advancedFilters.minutes) {
+          if (boxScore.minutes < advancedFilters.minutes.min || boxScore.minutes > advancedFilters.minutes.max) return false;
+        }
+        // Usage filter
+        if (advancedFilters.usage) {
+          if (boxScore.usagePct < advancedFilters.usage.min || boxScore.usagePct > advancedFilters.usage.max) return false;
+        }
+        // Points filter
+        if (advancedFilters.points) {
+          if (boxScore.pts < advancedFilters.points.min || boxScore.pts > advancedFilters.points.max) return false;
+        }
+        // Rebounds filter
+        if (advancedFilters.rebounds) {
+          if (boxScore.reb < advancedFilters.rebounds.min || boxScore.reb > advancedFilters.rebounds.max) return false;
+        }
+        // Assists filter
+        if (advancedFilters.assists) {
+          if (boxScore.ast < advancedFilters.assists.min || boxScore.ast > advancedFilters.assists.max) return false;
+        }
+        // Steals filter
+        if (advancedFilters.steals) {
+          if (boxScore.stl < advancedFilters.steals.min || boxScore.stl > advancedFilters.steals.max) return false;
+        }
+        // Blocks filter
+        if (advancedFilters.blocks) {
+          if (boxScore.blk < advancedFilters.blocks.min || boxScore.blk > advancedFilters.blocks.max) return false;
+        }
+        // Turnovers filter
+        if (advancedFilters.turnovers) {
+          if (boxScore.tov < advancedFilters.turnovers.min || boxScore.tov > advancedFilters.turnovers.max) return false;
+        }
+        // 3PM filter
+        if (advancedFilters.fg3m) {
+          if (boxScore.fg3m < advancedFilters.fg3m.min || boxScore.fg3m > advancedFilters.fg3m.max) return false;
+        }
+        // 3PA filter
+        if (advancedFilters.fg3a) {
+          if (boxScore.fg3a < advancedFilters.fg3a.min || boxScore.fg3a > advancedFilters.fg3a.max) return false;
+        }
+        // FGA filter
+        if (advancedFilters.fga) {
+          if (boxScore.fga < advancedFilters.fga.min || boxScore.fga > advancedFilters.fga.max) return false;
+        }
+        // FGM filter
+        if (advancedFilters.fgm) {
+          if (boxScore.fgm < advancedFilters.fgm.min || boxScore.fgm > advancedFilters.fgm.max) return false;
+        }
+        // FTA filter
+        if (advancedFilters.fta) {
+          if (boxScore.fta < advancedFilters.fta.min || boxScore.fta > advancedFilters.fta.max) return false;
+        }
+        // FTM filter
+        if (advancedFilters.ftm) {
+          if (boxScore.ftm < advancedFilters.ftm.min || boxScore.ftm > advancedFilters.ftm.max) return false;
+        }
+        // Off Reb filter
+        if (advancedFilters.oreb) {
+          if (boxScore.oreb < advancedFilters.oreb.min || boxScore.oreb > advancedFilters.oreb.max) return false;
+        }
+        // Def Reb filter
+        if (advancedFilters.dreb) {
+          if (boxScore.dreb < advancedFilters.dreb.min || boxScore.dreb > advancedFilters.dreb.max) return false;
+        }
+        // Passes filter
+        if (advancedFilters.passes) {
+          if (boxScore.passes < advancedFilters.passes.min || boxScore.passes > advancedFilters.passes.max) return false;
+        }
+        
+        return true;
+      });
+    }
+    
     return games;
-  }, [chartGames, quickFilters, injuryFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
+  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
   
   // Calculate average from filtered games
   const avg = useMemo(() => {
@@ -2072,6 +2797,27 @@ export function MobilePlayerDrilldown({
   // Use custom line if set, otherwise profile line, otherwise calculated avg
   const baseLine = profile.line ?? Math.round(avg);
   const effectiveLine = customLine ?? baseLine;
+  
+  // State for expanded correlation rows
+  const [expandedCorrelationId, setExpandedCorrelationId] = useState<number | null>(null);
+  
+  // Fetch player correlations for correlation tab
+  const {
+    data: correlationData,
+    teammateCorrelations,
+    anchorPerformance,
+    isLoading: correlationsLoading,
+  } = usePlayerCorrelations({
+    playerId: profile.playerId,
+    market: profile.market,
+    line: effectiveLine,
+    // Only pass gameId if profile has a line - otherwise the RPC will fail
+    gameId: profile.line !== null ? profile.gameId : null,
+    // Pass the game count filter - convert to number for the API
+    lastNGames: gameCount === "season" || gameCount === "h2h" ? null : gameCount,
+    // Only enable if we have a valid line (either from profile or calculated avg)
+    enabled: activeTab === "injuries" && !!profile.playerId && !!profile.market && effectiveLine > 0,
+  });
   
   // Calculate hit rate for current filters (shown in header when filters are active)
   const filteredHitRate = useMemo(() => {
@@ -2261,7 +3007,7 @@ export function MobilePlayerDrilldown({
         </div>
         
         {/* ═══ ACTIVE FILTERS INDICATOR ═══ */}
-        {(quickFilters.size > 0 || injuryFilters.length > 0) && (
+        {(quickFilters.size > 0 || injuryFilters.length > 0 || Object.values(advancedFilters).some(v => v !== null)) && (
           <div className="px-3 pb-2 pt-1 border-t border-neutral-100 dark:border-neutral-800/50">
             <div className="flex items-center justify-between gap-2">
               {/* Filter Labels */}
@@ -2287,6 +3033,21 @@ export function MobilePlayerDrilldown({
                     </span>
                   );
                 })}
+                
+                {/* Advanced Filters Count */}
+                {(() => {
+                  const advCount = Object.values(advancedFilters).filter(v => v !== null).length;
+                  if (advCount === 0) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedFilters(true)}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-medium"
+                    >
+                      +{advCount} advanced
+                    </button>
+                  );
+                })()}
                 
                 {/* Injury Filters */}
                 {injuryFilters.map((filter) => {
@@ -2557,6 +3318,16 @@ export function MobilePlayerDrilldown({
         </div>
       )}
       
+      {/* Advanced Filters Bottom Sheet */}
+      <AdvancedFiltersSheet
+        isOpen={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        filters={advancedFilters}
+        onFiltersChange={setAdvancedFilters}
+        games={boxScoreGames}
+        market={profile.market}
+      />
+
       {/* All Odds - Bottom Sheet Modal */}
       {showAllOdds && fullOddsData?.allLines && (() => {
         // Calculate hit rates for each line using chartGames
@@ -2882,6 +3653,8 @@ export function MobilePlayerDrilldown({
               onQuickFiltersClear={() => setQuickFilters(new Set())}
               totalGamesCount={chartGames.length}
               market={profile.market}
+              advancedFiltersCount={Object.values(advancedFilters).filter(v => v !== null).length}
+              onOpenAdvancedFilters={() => setShowAdvancedFilters(true)}
             />
         
             {/* ═══ LINE CONTROL BAR - Premium Clean Design ═══ */}
@@ -2978,38 +3751,30 @@ export function MobilePlayerDrilldown({
                 )}
               </div>
               
-              {/* Best Odds - Premium Cards */}
-              <div className="px-4 pb-4">
-                <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-                  Best Odds
-                  {odds?.isAltLine && <span className="ml-2 text-amber-600 dark:text-amber-400">Alt Line</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
+              {/* Best Odds - Compact Row */}
+              <div className="px-4 pb-3">
+                <div className="flex items-center gap-2">
                   {/* Over */}
                   <button
                     type="button"
                     onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                     disabled={!odds?.bestOver}
                     className={cn(
-                      "p-3 rounded-xl transition-all active:scale-[0.98]",
+                      "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                       odds?.bestOver 
                         ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/30" 
                         : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
                     )}
                   >
-                    <div className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1">OVER {effectiveLine}+</div>
-                    {odds?.bestOver ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                          {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
-                        </span>
-                        {getBookLogo(odds.bestOver.book) && (
-                          <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-5 w-5 rounded" />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-sm font-semibold text-neutral-400">No odds</div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O {effectiveLine}</span>
+                      {odds?.bestOver?.book && getBookLogo(odds.bestOver.book) && (
+                        <img src={getBookLogo(odds.bestOver.book)!} alt="" className="h-4 w-4 rounded" />
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {odds?.bestOver ? `${odds.bestOver.price > 0 ? "+" : ""}${odds.bestOver.price}` : "—"}
+                    </span>
                   </button>
                   
                   {/* Under */}
@@ -3018,41 +3783,208 @@ export function MobilePlayerDrilldown({
                     onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                     disabled={!odds?.bestUnder}
                     className={cn(
-                      "p-3 rounded-xl transition-all active:scale-[0.98]",
+                      "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                       odds?.bestUnder 
                         ? "bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-700/30" 
                         : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
                     )}
                   >
-                    <div className="text-[10px] font-medium text-red-500 dark:text-red-400 mb-1">UNDER {effectiveLine}+</div>
-                    {odds?.bestUnder ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xl font-bold text-red-500 dark:text-red-400">
-                          {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
-                        </span>
-                        {getBookLogo(odds.bestUnder.book) && (
-                          <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-5 w-5 rounded" />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-sm font-semibold text-neutral-400">No odds</div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-red-500 dark:text-red-400">U {effectiveLine}</span>
+                      {odds?.bestUnder?.book && getBookLogo(odds.bestUnder.book) && (
+                        <img src={getBookLogo(odds.bestUnder.book)!} alt="" className="h-4 w-4 rounded" />
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-red-500 dark:text-red-400">
+                      {odds?.bestUnder ? `${odds.bestUnder.price > 0 ? "+" : ""}${odds.bestUnder.price}` : "—"}
+                    </span>
                   </button>
+                  
+                  {/* View All */}
+                  {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllOdds(true)}
+                      className="px-2 py-2 text-[10px] font-bold text-brand hover:text-brand/80 transition-colors"
+                    >
+                      All
+                      <ChevronRight className="h-3 w-3 inline ml-0.5" />
+                    </button>
+                  )}
                 </div>
-                
-                {/* View All Odds Link */}
-                {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllOdds(true)}
-                    className="w-full mt-2 py-2 text-xs font-semibold text-brand hover:text-brand/80 transition-colors flex items-center justify-center gap-1"
-                  >
-                    View All Odds
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
+                {odds?.isAltLine && (
+                  <div className="text-[9px] text-amber-600 dark:text-amber-400 mt-1 text-center">Alt Line</div>
                 )}
               </div>
               
+            </div>
+
+            {/* ═══ TEAM ROSTERS / INJURIES - Collapsible on Chart Tab ═══ */}
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden shadow-sm">
+              {/* Header - Always Visible */}
+              <button
+                type="button"
+                onClick={() => setPlayerTeamCollapsed(!playerTeamCollapsed)}
+                className="w-full px-4 py-3 flex items-center justify-between active:bg-neutral-50 dark:active:bg-neutral-800 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-neutral-500" />
+                  <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Team Rosters</span>
+                  {/* Loading indicator */}
+                  {rostersLoading && (
+                    <div className="h-3 w-3 border border-neutral-300 border-t-brand rounded-full animate-spin" />
+                  )}
+                  {/* Injury badges - only show when data loaded */}
+                  {!rostersLoading && playerTeam.players.length > 0 && (() => {
+                    const injuredCount = [...playerTeam.players, ...opponentTeam.players].filter(
+                      p => p.injuryStatus && p.injuryStatus !== "active" && p.injuryStatus !== "available"
+                    ).length;
+                    return injuredCount > 0 ? (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded">
+                        {injuredCount} injured
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <ChevronDown className={cn(
+                  "h-4 w-4 text-neutral-400 transition-transform",
+                  !playerTeamCollapsed && "rotate-180"
+                )} />
+              </button>
+
+              {/* Roster Content - Collapsible */}
+              {!playerTeamCollapsed && (
+                <div className="border-t border-neutral-200/60 dark:border-neutral-700/60">
+                  {rostersLoading ? (
+                    <div className="p-6 flex items-center justify-center">
+                      <div className="h-5 w-5 border-2 border-neutral-300 border-t-brand rounded-full animate-spin" />
+                    </div>
+                  ) : playerTeam.players.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-neutral-500">
+                      No roster data available
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {/* Player's Team Section */}
+                      <div className="p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <img
+                            src={`/team-logos/nba/${playerTeam.teamAbbr.toUpperCase()}.svg`}
+                            alt={playerTeam.teamAbbr}
+                            className="h-5 w-5 object-contain"
+                          />
+                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{playerTeam.teamAbbr}</span>
+                          <span className="text-[10px] text-neutral-400">Your Team</span>
+                        </div>
+                        <div className="space-y-1">
+                          {playerTeam.players
+                            .sort((a, b) => (b.avgMinutes || 0) - (a.avgMinutes || 0))
+                            .slice(0, 8)
+                            .map((player) => {
+                              const hasInjury = player.injuryStatus && player.injuryStatus !== "active" && player.injuryStatus !== "available";
+                              const filter = injuryFilters.find(f => f.playerId === player.playerId);
+                              const isCurrentPlayer = player.playerId === profile.playerId;
+                              return (
+                                <div 
+                                  key={player.playerId}
+                                  className={cn(
+                                    "flex items-center justify-between py-1.5 px-2 rounded-lg",
+                                    isCurrentPlayer && "bg-brand/5 dark:bg-brand/10",
+                                    hasInjury && !isCurrentPlayer && getInjuryBgColor(player.injuryStatus)
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className={cn(
+                                      "text-xs font-medium truncate",
+                                      isCurrentPlayer ? "text-brand font-bold" : "text-neutral-700 dark:text-neutral-300"
+                                    )}>
+                                      {player.name}
+                                    </span>
+                                    {hasInjury && (
+                                      <span className={cn("text-[10px] font-semibold uppercase", getInjuryColor(player.injuryStatus))}>
+                                        {player.injuryStatus}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!isCurrentPlayer && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
+                                        className={cn(
+                                          "px-2 py-0.5 text-[9px] font-bold rounded transition-all",
+                                          filter?.mode === "with"
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
+                                        )}
+                                      >
+                                        WITH
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
+                                        className={cn(
+                                          "px-2 py-0.5 text-[9px] font-bold rounded transition-all",
+                                          filter?.mode === "without"
+                                            ? "bg-red-500 text-white"
+                                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-red-100 dark:hover:bg-red-900/30"
+                                        )}
+                                      >
+                                        W/O
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                      {/* Opponent Team Section */}
+                      <div className="p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <img
+                            src={`/team-logos/nba/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
+                            alt={opponentTeam.teamAbbr}
+                            className="h-5 w-5 object-contain"
+                          />
+                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{opponentTeam.teamAbbr}</span>
+                          <span className="text-[10px] text-neutral-400">Opponent</span>
+                        </div>
+                        <div className="space-y-1">
+                          {opponentTeam.players
+                            .sort((a, b) => (b.avgMinutes || 0) - (a.avgMinutes || 0))
+                            .slice(0, 8)
+                            .map((player) => {
+                              const hasInjury = player.injuryStatus && player.injuryStatus !== "active" && player.injuryStatus !== "available";
+                              return (
+                                <div 
+                                  key={player.playerId}
+                                  className={cn(
+                                    "flex items-center justify-between py-1.5 px-2 rounded-lg",
+                                    hasInjury && getInjuryBgColor(player.injuryStatus)
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                                      {player.name}
+                                    </span>
+                                    {hasInjury && (
+                                      <span className={cn("text-[10px] font-semibold uppercase", getInjuryColor(player.injuryStatus))}>
+                                        {player.injuryStatus}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-neutral-400">{player.avgMinutes?.toFixed(0) || 0} min</span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -3066,483 +3998,298 @@ export function MobilePlayerDrilldown({
           />
         )}
         
-        {/* ═══ INJURIES TAB ═══ */}
+        {/* ═══ CORRELATION TAB ═══ */}
         {activeTab === "injuries" && (
           <div className="space-y-3">
-            {rostersLoading ? (
+            {correlationsLoading ? (
               <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 p-8">
                 <div className="flex items-center justify-center">
                   <div className="h-5 w-5 border-2 border-neutral-300 border-t-brand rounded-full animate-spin" />
                 </div>
               </div>
-            ) : (
-              <>
-                {/* Player's Team */}
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-                  {/* Team Header */}
-                  <button
-                    type="button"
-                    onClick={() => setPlayerTeamCollapsed(!playerTeamCollapsed)}
-                    className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-700 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={`/team-logos/nba/${playerTeam.teamAbbr.toUpperCase()}.svg`}
-                        alt={playerTeam.teamAbbr}
-                        className="h-8 w-8 object-contain"
-                      />
-                      <div className="flex-1 text-left">
-                        <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                          {playerTeam.teamName}
-                        </h3>
-                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          {playerTeam.players.length} players
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-medium text-neutral-500">
-                        Your Team
-                      </div>
-                      <ChevronDown className={cn(
-                        "h-4 w-4 text-neutral-400 transition-transform",
-                        playerTeamCollapsed && "rotate-180"
-                      )} />
-                    </div>
-                  </button>
-
-                  {/* Player List */}
-                  {!playerTeamCollapsed && (
-                    <div className="p-3 space-y-3">
-                    {(() => {
-                      // Organize players by category
-                      const activeRotation: TeamRosterPlayer[] = [];
-                      const bench: TeamRosterPlayer[] = [];
-                      const injured: TeamRosterPlayer[] = [];
-                      const gtd: TeamRosterPlayer[] = [];
-                      
-                      for (const player of playerTeam.players) {
-                        const hasInjury = player.injuryStatus && player.injuryStatus !== "active" && player.injuryStatus !== "available";
-                        const avgMins = player.avgMinutes || 0;
-                        
-                        if (hasInjury) {
-                          const status = player.injuryStatus?.toLowerCase() || "";
-                          if (status.includes("out")) {
-                            injured.push(player);
-                          } else if (status.includes("questionable") || status.includes("gtd") || status.includes("game time")) {
-                            gtd.push(player);
-                          } else {
-                            // Probable, day-to-day, etc - categorize by minutes
-                            if (avgMins >= 20) {
-                              activeRotation.push(player);
-                            } else {
-                              bench.push(player);
-                            }
-                          }
-                        } else {
-                          // Healthy players - categorize by minutes
-                          if (avgMins >= 20) {
-                            activeRotation.push(player);
-                          } else {
-                            bench.push(player);
-                          }
-                        }
-                      }
-                      
-                      // Sort each category by minutes (descending)
-                      const sortByMinutes = (a: TeamRosterPlayer, b: TeamRosterPlayer) => (b.avgMinutes || 0) - (a.avgMinutes || 0);
-                      activeRotation.sort(sortByMinutes);
-                      bench.sort(sortByMinutes);
-                      injured.sort(sortByMinutes);
-                      gtd.sort(sortByMinutes);
-                      
-                      return (
-                        <>
-                          {/* Active Rotation */}
-                          {activeRotation.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-neutral-400 dark:text-neutral-500 mb-1.5 px-1">
-                                Active Rotation ({activeRotation.length})
-                              </div>
-                              <div className="space-y-1">
-                                {activeRotation.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={player.playerId === profile.playerId}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Game-Time Decision */}
-                          {gtd.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-amber-500 dark:text-amber-400 mb-1.5 px-1">
-                                Game-Time Decision ({gtd.length})
-                              </div>
-                              <div className="space-y-1">
-                                {gtd.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={player.playerId === profile.playerId}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Bench / Low Impact */}
-                          {bench.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-neutral-400 dark:text-neutral-500 mb-1.5 px-1">
-                                Bench ({bench.length})
-                              </div>
-                              <div className="space-y-1">
-                                {bench.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={player.playerId === profile.playerId}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Injured Players */}
-                          {injured.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-red-500 dark:text-red-400 mb-1.5 px-1">
-                                Injured ({injured.length})
-                              </div>
-                              <div className="space-y-1">
-                                {injured.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={player.playerId === profile.playerId}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                    </div>
-                  )}
-                </div>
-
-                {/* Opponent's Team */}
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
-                  {/* Team Header */}
-                  <button
-                    type="button"
-                    onClick={() => setOpponentTeamCollapsed(!opponentTeamCollapsed)}
-                    className="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-700 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={`/team-logos/nba/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
-                        alt={opponentTeam.teamAbbr}
-                        className="h-8 w-8 object-contain"
-                      />
-                      <div className="flex-1 text-left">
-                        <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                          {opponentTeam.teamName}
-                        </h3>
-                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          {opponentTeam.players.length} players
-                        </p>
-                      </div>
-                      <div className="text-[10px] font-medium text-neutral-500">
-                        Opponent
-                      </div>
-                      <ChevronDown className={cn(
-                        "h-4 w-4 text-neutral-400 transition-transform",
-                        opponentTeamCollapsed && "rotate-180"
-                      )} />
-                    </div>
-                  </button>
-
-                  {/* Player List */}
-                  {!opponentTeamCollapsed && (
-                    <div className="p-3 space-y-3">
-                    {(() => {
-                      // Organize players by category
-                      const activeRotation: TeamRosterPlayer[] = [];
-                      const bench: TeamRosterPlayer[] = [];
-                      const injured: TeamRosterPlayer[] = [];
-                      const gtd: TeamRosterPlayer[] = [];
-                      
-                      for (const player of opponentTeam.players) {
-                        const hasInjury = player.injuryStatus && player.injuryStatus !== "active" && player.injuryStatus !== "available";
-                        const avgMins = player.avgMinutes || 0;
-                        
-                        if (hasInjury) {
-                          const status = player.injuryStatus?.toLowerCase() || "";
-                          if (status.includes("out")) {
-                            injured.push(player);
-                          } else if (status.includes("questionable") || status.includes("gtd") || status.includes("game time")) {
-                            gtd.push(player);
-                          } else {
-                            // Probable, day-to-day, etc - categorize by minutes
-                            if (avgMins >= 20) {
-                              activeRotation.push(player);
-                            } else {
-                              bench.push(player);
-                            }
-                          }
-                        } else {
-                          // Healthy players - categorize by minutes
-                          if (avgMins >= 20) {
-                            activeRotation.push(player);
-                          } else {
-                            bench.push(player);
-                          }
-                        }
-                      }
-                      
-                      // Sort each category by minutes (descending)
-                      const sortByMinutes = (a: TeamRosterPlayer, b: TeamRosterPlayer) => (b.avgMinutes || 0) - (a.avgMinutes || 0);
-                      activeRotation.sort(sortByMinutes);
-                      bench.sort(sortByMinutes);
-                      injured.sort(sortByMinutes);
-                      gtd.sort(sortByMinutes);
-                      
-                      return (
-                        <>
-                          {/* Active Rotation */}
-                          {activeRotation.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-neutral-400 dark:text-neutral-500 mb-1.5 px-1">
-                                Active Rotation ({activeRotation.length})
-                              </div>
-                              <div className="space-y-1">
-                                {activeRotation.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={false}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Game-Time Decision */}
-                          {gtd.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-amber-500 dark:text-amber-400 mb-1.5 px-1">
-                                Game-Time Decision ({gtd.length})
-                              </div>
-                              <div className="space-y-1">
-                                {gtd.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={false}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Bench / Low Impact */}
-                          {bench.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-neutral-400 dark:text-neutral-500 mb-1.5 px-1">
-                                Bench ({bench.length})
-                              </div>
-                              <div className="space-y-1">
-                                {bench.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={false}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Injured Players */}
-                          {injured.length > 0 && (
-                            <div>
-                              <div className="text-[9px] font-bold uppercase text-red-500 dark:text-red-400 mb-1.5 px-1">
-                                Injured ({injured.length})
-                              </div>
-                              <div className="space-y-1">
-                                {injured.map((player) => {
-                                  const filter = injuryFilters.find(f => f.playerId === player.playerId);
-                                  return (
-                                    <MobileRosterPlayerRow
-                                      key={player.playerId}
-                                      player={player}
-                                      isCurrentPlayer={false}
-                                      onInjuryClick={() => setSelectedInjuryPlayer(player)}
-                                      withFilter={filter?.mode === "with"}
-                                      withoutFilter={filter?.mode === "without"}
-                                      onToggleWith={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "with" ? null : "with")}
-                                      onToggleWithout={() => handleInjuryFilterToggle(player.playerId, filter?.mode === "without" ? null : "without")}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Injury Detail Modal */}
-            {selectedInjuryPlayer && (
-              <div
-                className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end"
-                onClick={() => setSelectedInjuryPlayer(null)}
-              >
-                <div
-                  className="w-full bg-white dark:bg-neutral-900 rounded-t-2xl shadow-xl border-t border-neutral-200 dark:border-neutral-700 animate-in slide-in-from-bottom duration-200"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Modal Header */}
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className={cn("h-4 w-4", getInjuryColor(selectedInjuryPlayer.injuryStatus))} />
-                      <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-                        Injury Report
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedInjuryPlayer(null)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                    >
-                      <X className="h-4 w-4 text-neutral-500" />
-                    </button>
-                  </div>
-
-                  {/* Player Info */}
-                  <div className="p-4 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-sm font-bold text-neutral-600 dark:text-neutral-400">
-                        {selectedInjuryPlayer.jerseyNumber ?? "—"}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                          {selectedInjuryPlayer.name}
-                        </h4>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                          {selectedInjuryPlayer.position} • {selectedInjuryPlayer.avgMinutes ? selectedInjuryPlayer.avgMinutes.toFixed(1) : "0.0"} min/game
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Injury Status */}
-                    <div className={cn(
-                      "p-4 rounded-xl border",
-                      getInjuryBgColor(selectedInjuryPlayer.injuryStatus),
-                      "border-neutral-200 dark:border-neutral-700"
-                    )}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <HeartPulse className={cn("h-4 w-4", getInjuryColor(selectedInjuryPlayer.injuryStatus))} />
-                        <span className={cn("text-sm font-bold uppercase", getInjuryColor(selectedInjuryPlayer.injuryStatus))}>
-                          {selectedInjuryPlayer.injuryStatus}
-                        </span>
-                      </div>
-                      {selectedInjuryPlayer.injuryNotes && (
-                        <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
-                          {selectedInjuryPlayer.injuryNotes}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="text-center p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">PPG</div>
-                        <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                          {selectedInjuryPlayer.avgPoints ? selectedInjuryPlayer.avgPoints.toFixed(1) : "0.0"}
-                        </div>
-                      </div>
-                      <div className="text-center p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">RPG</div>
-                        <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                          {selectedInjuryPlayer.avgRebounds ? selectedInjuryPlayer.avgRebounds.toFixed(1) : "0.0"}
-                        </div>
-                      </div>
-                      <div className="text-center p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-1">APG</div>
-                        <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                          {selectedInjuryPlayer.avgAssists ? selectedInjuryPlayer.avgAssists.toFixed(1) : "0.0"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            ) : teammateCorrelations.length === 0 ? (
+              <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 p-6">
+                <div className="text-center text-neutral-500 dark:text-neutral-400 text-sm">
+                  No correlation data available
                 </div>
               </div>
+            ) : (
+              <>
+                {/* Header - Compact, full width */}
+                <div className="bg-white dark:bg-neutral-900 -mx-4 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Link2 className="h-4 w-4 text-brand" />
+                      <div>
+                        <div className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide flex items-center gap-1.5">
+                          <span>When {profile.playerName?.split(" ").pop()} hits {effectiveLine}+ {formatMarketLabelShort(profile.market)}</span>
+                          {/* Game filter badge */}
+                          <span className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-bold">
+                            {gameCount === "season" ? "Season" : gameCount === "h2h" ? "H2H" : `L${gameCount}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {anchorPerformance && (
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-lg font-black tabular-nums",
+                          (anchorPerformance.hitRate ?? 0) >= 60 ? "text-emerald-500" :
+                          (anchorPerformance.hitRate ?? 0) >= 40 ? "text-amber-500" : "text-red-500"
+                        )}>
+                          {anchorPerformance.hitRate?.toFixed(0) ?? 0}%
+                        </span>
+                        <span className="text-[10px] text-neutral-400">
+                          {anchorPerformance.timesHit}/{anchorPerformance.gamesAnalyzed}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Correlation List - Full width like PlayerCard */}
+                <div className="bg-white dark:bg-neutral-900 -mx-4">
+                  {/* Sort correlations by best hit rate across all markets */}
+                  {teammateCorrelations
+                    .map(teammate => {
+                      // Find best stat for this teammate
+                      const stats: { key: string; label: string; stat: StatCorrelation }[] = [
+                        { key: "points", label: "Points", stat: teammate.points },
+                        { key: "rebounds", label: "Rebounds", stat: teammate.rebounds },
+                        { key: "assists", label: "Assists", stat: teammate.assists },
+                        { key: "threes", label: "3PM", stat: teammate.threes },
+                        { key: "steals", label: "Steals", stat: teammate.steals },
+                        { key: "blocks", label: "Blocks", stat: teammate.blocks },
+                        { key: "pra", label: "PRA", stat: teammate.pra },
+                      ];
+                      
+                      // Minimum games required - lower for smaller sample sizes
+                      const minGames = gameCount === 5 ? 1 : gameCount === 10 ? 2 : 3;
+                      
+                      const validStats = stats.filter(s => 
+                        s.stat.hitRateWhenAnchorHits?.pct !== null && 
+                        (s.stat.hitRateWhenAnchorHits?.games ?? 0) >= minGames
+                      );
+                      
+                      const bestStat = validStats.reduce((best, curr) => {
+                        const currPct = curr.stat.hitRateWhenAnchorHits?.pct ?? 0;
+                        const bestPct = best?.stat.hitRateWhenAnchorHits?.pct ?? 0;
+                        return currPct > bestPct ? curr : best;
+                      }, validStats[0]);
+                      
+                      return { teammate, bestStat, validStats };
+                    })
+                    .filter(item => item.bestStat)
+                    .sort((a, b) => {
+                      const aPct = a.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
+                      const bPct = b.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
+                      return bPct - aPct;
+                    })
+                    .map(({ teammate, bestStat, validStats }, idx) => {
+                      const isExpanded = expandedCorrelationId === teammate.playerId;
+                      const hitRate = bestStat?.stat.hitRateWhenAnchorHits;
+                      // Ensure line is at least 0.5 (no negative lines)
+                      const line = Math.max(0.5, hitRate?.lineUsed ?? 0.5);
+                      const pct = hitRate?.pct ?? 0;
+                      const games = hitRate?.games ?? 0;
+                      const timesHit = hitRate?.timesHit ?? 0;
+                      
+                      // Get game logs for sparkbar
+                      const gameLogs = teammate.gameLogs.filter(g => g.anchorHit);
+                      
+                      return (
+                        <div key={teammate.playerId}>
+                          {/* Premium inset divider like PlayerCard */}
+                          {idx > 0 && (
+                            <div className="flex justify-center">
+                              <div className="w-[85%] h-px bg-neutral-200/60 dark:bg-neutral-700/40" />
+                            </div>
+                          )}
+                          
+                          {/* Main Row - Full width like PlayerCard */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedCorrelationId(isExpanded ? null : teammate.playerId)}
+                            className="w-full text-left px-3 py-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/50"
+                          >
+                            <div className="flex items-start gap-2">
+                              {/* Left: Player identity */}
+                              <div className="flex-1 min-w-0">
+                                {/* Name + Position */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-bold text-neutral-900 dark:text-neutral-50 truncate tracking-tight">
+                                    {teammate.playerName}
+                                  </span>
+                                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium shrink-0">
+                                    {teammate.position}
+                                  </span>
+                                </div>
+                                {/* Market + Line */}
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O</span>
+                                  <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+                                    {line}+ {bestStat?.label}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 ml-1">
+                                    {timesHit}/{games}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Right: Hit Rate + Sparkbar */}
+                              <div className="shrink-0 flex items-center gap-2">
+                                {/* Sparkbar - reversed: oldest (left) to newest (right) */}
+                                <div className="flex items-end gap-0.5 h-7 w-16">
+                                  {gameLogs.slice(-5).reverse().map((log, logIdx) => {
+                                    const statKeyMap: Record<string, keyof typeof log.stats> = {
+                                      points: "pts", rebounds: "reb", assists: "ast", threes: "fg3m",
+                                      steals: "stl", blocks: "blk", turnovers: "tov", pra: "pra",
+                                      pointsRebounds: "pr", pointsAssists: "pa", reboundsAssists: "ra", blocksSteals: "bs",
+                                    };
+                                    const statsKey = statKeyMap[bestStat?.key || "points"] || "pts";
+                                    const statValue = log.stats[statsKey] ?? 0;
+                                    const isHit = statValue >= line;
+                                    const maxHeight = 24;
+                                    const height = Math.max(4, Math.min(maxHeight, (statValue / (line * 1.5)) * maxHeight));
+                                    
+                                    return (
+                                      <div
+                                        key={logIdx}
+                                        className={cn(
+                                          "flex-1 rounded-sm",
+                                          isHit ? "bg-emerald-500" : "bg-red-400/70"
+                                        )}
+                                        style={{ height: `${height}px` }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                                
+                                {/* Hit Rate Badge */}
+                                <div className={cn(
+                                  "flex items-center justify-center min-w-[44px] px-2 py-1 rounded-lg",
+                                  pct >= 70 
+                                    ? "bg-emerald-100 dark:bg-emerald-900/30" 
+                                    : pct >= 50 
+                                    ? "bg-amber-100 dark:bg-amber-900/30" 
+                                    : "bg-red-100 dark:bg-red-900/30"
+                                )}>
+                                  <span className={cn(
+                                    "text-sm font-black tabular-nums",
+                                    pct >= 70 ? "text-emerald-600 dark:text-emerald-400" :
+                                    pct >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-500 dark:text-red-400"
+                                  )}>
+                                    {pct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                
+                                <ChevronDown className={cn(
+                                  "h-4 w-4 text-neutral-400 transition-transform",
+                                  isExpanded && "rotate-180"
+                                )} />
+                              </div>
+                            </div>
+                          </button>
+                          
+                          {/* Expanded Details */}
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-2 bg-neutral-50/80 dark:bg-neutral-800/30 border-t border-neutral-100 dark:border-neutral-800">
+                              {/* Market Label */}
+                              <div className="text-[9px] font-bold uppercase text-neutral-400 mb-2">
+                                {bestStat?.label} Stats When {profile.playerName?.split(" ").pop()} Hits
+                              </div>
+                              
+                              {/* Main Stats Row */}
+                              <div className="grid grid-cols-4 gap-1.5 mb-3">
+                                <div className="bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border border-neutral-200/60 dark:border-neutral-700/40">
+                                  <div className="text-[8px] text-neutral-400 uppercase mb-0.5">Season</div>
+                                  <div className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                                    {bestStat?.stat.avgOverall?.toFixed(1) ?? "—"}
+                                  </div>
+                                </div>
+                                <div className="bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-700/40">
+                                  <div className="text-[8px] text-emerald-600 dark:text-emerald-400 uppercase mb-0.5">When Hit</div>
+                                  <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                    {bestStat?.stat.avgWhenHit?.toFixed(1) ?? "—"}
+                                  </div>
+                                </div>
+                                <div className="bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border border-red-200/60 dark:border-red-700/40">
+                                  <div className="text-[8px] text-red-500 dark:text-red-400 uppercase mb-0.5">When Miss</div>
+                                  <div className="text-sm font-bold text-red-500 dark:text-red-400">
+                                    {bestStat?.stat.avgWhenMiss?.toFixed(1) ?? "—"}
+                                  </div>
+                                </div>
+                                <div className={cn(
+                                  "bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border",
+                                  (bestStat?.stat.diff ?? 0) > 0 
+                                    ? "border-emerald-200/60 dark:border-emerald-700/40" 
+                                    : "border-red-200/60 dark:border-red-700/40"
+                                )}>
+                                  <div className="text-[8px] text-neutral-400 uppercase mb-0.5">Boost</div>
+                                  <div className={cn(
+                                    "text-sm font-bold",
+                                    (bestStat?.stat.diff ?? 0) > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"
+                                  )}>
+                                    {(bestStat?.stat.diff ?? 0) > 0 ? "+" : ""}{bestStat?.stat.diff?.toFixed(1) ?? "—"}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Game-by-Game Breakdown */}
+                              <div className="text-[9px] font-bold uppercase text-neutral-400 mb-1.5">
+                                Last {Math.min(gameLogs.length, 5)} Games When {profile.playerName?.split(" ").pop()} Hit
+                              </div>
+                              <div className="flex items-end gap-1 mb-3">
+                                {/* Reverse to show oldest (left) to newest (right) like main bar chart */}
+                                {gameLogs.slice(-5).reverse().map((log, logIdx) => {
+                                  const statKeyMap: Record<string, keyof typeof log.stats> = {
+                                    points: "pts", rebounds: "reb", assists: "ast", threes: "fg3m",
+                                    steals: "stl", blocks: "blk", turnovers: "tov", pra: "pra",
+                                    pointsRebounds: "pr", pointsAssists: "pa", reboundsAssists: "ra", blocksSteals: "bs",
+                                  };
+                                  const statsKey = statKeyMap[bestStat?.key || "points"] || "pts";
+                                  const statValue = log.stats[statsKey] ?? 0;
+                                  const isHit = statValue >= line;
+                                  const maxHeight = 32;
+                                  const barLine = line > 0 ? line : 1;
+                                  const height = Math.max(6, Math.min(maxHeight, (statValue / (barLine * 1.5)) * maxHeight));
+                                  
+                                  return (
+                                    <div key={logIdx} className="flex-1 flex flex-col items-center gap-0.5">
+                                      <span className={cn(
+                                        "text-[9px] font-bold",
+                                        isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"
+                                      )}>
+                                        {statValue}
+                                      </span>
+                                      <div
+                                        className={cn(
+                                          "w-full rounded-sm",
+                                          isHit ? "bg-emerald-500" : "bg-red-400/70"
+                                        )}
+                                        style={{ height: `${height}px` }}
+                                      />
+                                      <span className="text-[8px] text-neutral-400">
+                                        {new Date(log.gameDate).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              
+                              {/* Quick Summary */}
+                              <div className="flex items-center justify-between px-2 py-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200/60 dark:border-neutral-700/40">
+                                <span className="text-[10px] text-neutral-500">
+                                  {teammate.playerName} averages <span className="font-bold text-emerald-600 dark:text-emerald-400">{bestStat?.stat.avgWhenHit?.toFixed(1)}</span> {bestStat?.label?.toLowerCase()} when {profile.playerName?.split(" ").pop()} hits vs <span className="font-bold text-neutral-700 dark:text-neutral-300">{bestStat?.stat.avgOverall?.toFixed(1)}</span> season avg
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -3572,7 +4319,8 @@ export function MobilePlayerDrilldown({
                   </thead>
                   <tbody>
                     {chartGames.slice(0, 10).map((game, idx) => {
-                      const isHit = game.market_stat >= effectiveLine;
+                      const hasEffectiveLine = effectiveLine !== null;
+                      const isHit = hasEffectiveLine && game.market_stat >= effectiveLine;
                       return (
                         <tr key={idx} className="border-b border-neutral-100 dark:border-neutral-800/50">
                           <td className="py-2 text-neutral-600 dark:text-neutral-400">{game.date?.slice(5) ?? "—"}</td>
@@ -3589,7 +4337,11 @@ export function MobilePlayerDrilldown({
                           <td className="py-2 text-center text-neutral-600 dark:text-neutral-400">{typeof game.minutes === 'number' ? game.minutes.toFixed(0) : game.minutes}</td>
                           <td className={cn(
                             "py-2 text-center font-bold",
-                            isHit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                            !hasEffectiveLine
+                              ? "text-neutral-600 dark:text-neutral-400"
+                              : isHit 
+                                ? "text-emerald-600 dark:text-emerald-400" 
+                                : "text-red-500 dark:text-red-400"
                           )}>
                             {game.market_stat}
                           </td>
@@ -3618,87 +4370,303 @@ export function MobilePlayerDrilldown({
         )}
         
         {/* ═══ ODDS TAB ═══ */}
-        {activeTab === "odds" && (
-          <div className="space-y-3">
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-brand" />
-                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-                    Best Odds
-                  </span>
+        {activeTab === "odds" && (() => {
+          // Calculate hit rates for each line using chartGames
+          const getOddsHitRates = (line: number) => {
+            const l5 = chartGames.slice(0, 5);
+            const l10 = chartGames.slice(0, 10);
+            const l20 = chartGames.slice(0, 20);
+            const szn = chartGames;
+            
+            const calc = (games: typeof chartGames) => {
+              if (games.length === 0) return null;
+              return Math.round((games.filter(g => g.market_stat >= line).length / games.length) * 100);
+            };
+            
+            return {
+              l5: calc(l5),
+              l10: calc(l10),
+              l20: calc(l20),
+              szn: calc(szn),
+            };
+          };
+
+          const getOddsHitRateColor = (value: number | null) => {
+            if (value === null) return "text-neutral-400 dark:text-neutral-500";
+            if (value >= 75) return "text-emerald-600 dark:text-emerald-400";
+            if (value >= 60) return "text-emerald-500 dark:text-emerald-500";
+            if (value >= 50) return "text-amber-600 dark:text-amber-400";
+            if (value >= 35) return "text-orange-500 dark:text-orange-400";
+            return "text-red-500 dark:text-red-400";
+          };
+
+          const sortedAllLines = fullOddsData?.allLines 
+            ? [...fullOddsData.allLines].sort((a, b) => a.line - b.line)
+            : [];
+          
+          // Find the active line in the list
+          const activeLineData = sortedAllLines.find(l => l.line === effectiveLine);
+          
+          // Separate lines into lower and higher than active
+          const lowerLines = sortedAllLines.filter(l => l.line < effectiveLine);
+          const higherLines = sortedAllLines.filter(l => l.line > effectiveLine);
+
+          return (
+            <div className="space-y-3">
+              {/* ═══ ACTIVE LINE HERO CARD ═══ */}
+              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden shadow-sm">
+                {/* Header with gradient */}
+                <div className="relative px-4 py-3 bg-gradient-to-r from-brand/5 via-transparent to-transparent dark:from-brand/10 border-b border-neutral-200/40 dark:border-neutral-700/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-0.5 rounded-full bg-gradient-to-b from-brand to-brand/60" />
+                      <div>
+                        <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                          {effectiveLine}+ {formatMarketLabel(profile.market)}
+                        </h3>
+                        <p className="text-[10px] text-neutral-500">Selected Line</p>
+                      </div>
+                    </div>
+                    {fullOddsData?.live && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">LIVE</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-neutral-400">
-                  {effectiveLine}+ {formatMarketLabel(profile.market)}
-                </span>
-              </div>
-              
-              {/* Current Line Odds */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {/* Over */}
-                <button
-                  type="button"
-                  onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
-                  className={cn(
-                    "p-3 rounded-xl transition-all active:scale-[0.98]",
-                    "bg-emerald-50 dark:bg-emerald-900/20",
-                    "border border-emerald-200/60 dark:border-emerald-700/30"
-                  )}
-                >
-                  <div className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1">OVER {effectiveLine}+</div>
-                  {odds?.bestOver ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                        {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
-                      </span>
-                      {getBookLogo(odds.bestOver.book) && (
-                        <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-5 w-5 rounded" />
-                      )}
+
+                {/* Hit Rate Pills */}
+                {(() => {
+                  const rates = getOddsHitRates(effectiveLine);
+                  return (
+                    <div className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center gap-2">
+                      <span className="text-[10px] text-neutral-400 uppercase tracking-wide">Hit Rate</span>
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { label: "L5", value: rates.l5 },
+                          { label: "L10", value: rates.l10 },
+                          { label: "L20", value: rates.l20 },
+                          { label: "SZN", value: rates.szn },
+                        ].map(({ label, value }) => (
+                          <span
+                            key={label}
+                            className={cn(
+                              "px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums",
+                              "bg-neutral-100 dark:bg-neutral-800",
+                              getOddsHitRateColor(value)
+                            )}
+                          >
+                            {value !== null ? `${value}%` : "—"}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-sm text-neutral-400">No odds</div>
-                  )}
-                </button>
-                
-                {/* Under */}
-                <button
-                  type="button"
-                  onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
-                  className={cn(
-                    "p-3 rounded-xl transition-all active:scale-[0.98]",
-                    "bg-red-50 dark:bg-red-900/20",
-                    "border border-red-200/60 dark:border-red-700/30"
-                  )}
-                >
-                  <div className="text-[10px] font-medium text-red-500 dark:text-red-400 mb-1">UNDER {effectiveLine}+</div>
-                  {odds?.bestUnder ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xl font-bold text-red-500 dark:text-red-400">
-                        {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
-                      </span>
-                      {getBookLogo(odds.bestUnder.book) && (
-                        <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-5 w-5 rounded" />
+                  );
+                })()}
+
+                {/* Over/Under Cards */}
+                <div className="p-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Over */}
+                    <button
+                      type="button"
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      className={cn(
+                        "relative p-3 rounded-xl transition-all active:scale-[0.98]",
+                        "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-900/10",
+                        "border border-emerald-200/60 dark:border-emerald-700/30",
+                        "shadow-sm shadow-emerald-100/50 dark:shadow-none"
                       )}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-neutral-400">No odds</div>
-                  )}
-                </button>
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Over</span>
+                        {odds?.bestOver?.mobileUrl && (
+                          <ExternalLink className="h-3 w-3 text-emerald-400" />
+                        )}
+                      </div>
+                      {odds?.bestOver ? (
+                        <div className="flex items-center gap-2">
+                          {getBookLogo(odds.bestOver.book) && (
+                            <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-6 w-6 rounded shadow-sm" />
+                          )}
+                          <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-neutral-400">No odds</div>
+                      )}
+                    </button>
+                    
+                    {/* Under */}
+                    <button
+                      type="button"
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      className={cn(
+                        "relative p-3 rounded-xl transition-all active:scale-[0.98]",
+                        "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/30 dark:to-red-900/10",
+                        "border border-red-200/60 dark:border-red-700/30",
+                        "shadow-sm shadow-red-100/50 dark:shadow-none"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-red-500 dark:text-red-400">Under</span>
+                        {odds?.bestUnder?.mobileUrl && (
+                          <ExternalLink className="h-3 w-3 text-red-400" />
+                        )}
+                      </div>
+                      {odds?.bestUnder ? (
+                        <div className="flex items-center gap-2">
+                          {getBookLogo(odds.bestUnder.book) && (
+                            <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-6 w-6 rounded shadow-sm" />
+                          )}
+                          <span className="text-2xl font-black text-red-500 dark:text-red-400 tabular-nums">
+                            {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-neutral-400">No odds</div>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
-              
-              {/* View All Lines Button */}
-              {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllOdds(true)}
-                  className="w-full py-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-300 active:scale-[0.98] transition-transform"
-                >
-                  Compare All {fullOddsData.allLines.length} Lines
-                </button>
+
+              {/* ═══ ALTERNATE LINES TABLE ═══ */}
+              {sortedAllLines.length > 1 && (
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden shadow-sm">
+                  {/* Header */}
+                  <div className="px-4 py-2.5 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-0.5 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600" />
+                        <span className="text-xs font-bold text-neutral-900 dark:text-white">Alternate Lines</span>
+                        <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                        <span className="text-[10px] text-neutral-400">{sortedAllLines.length} lines</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[auto_1fr_50px_50px_80px] gap-1 px-3 py-2 bg-neutral-100/70 dark:bg-neutral-800/70 border-b border-neutral-200 dark:border-neutral-700">
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 w-14">Line</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">Hit %</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">L10</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">SZN</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">Best</div>
+                  </div>
+
+                  {/* Lines */}
+                  <div className="max-h-[320px] overflow-y-auto overscroll-contain">
+                    {sortedAllLines.map((lineData, index) => {
+                      const isActive = lineData.line === effectiveLine;
+                      const rates = getOddsHitRates(lineData.line);
+                      const bestBook = lineData.bestOver;
+                      const bookLogo = bestBook ? getBookLogo(bestBook.book) : null;
+                      
+                      return (
+                        <button
+                          key={lineData.line}
+                          type="button"
+                          onClick={() => {
+                            setCustomLine(lineData.line);
+                            setLineInputValue(String(lineData.line));
+                          }}
+                          className={cn(
+                            "w-full grid grid-cols-[auto_1fr_50px_50px_80px] gap-1 px-3 py-2.5 transition-colors border-b border-neutral-100/50 dark:border-neutral-800/50 last:border-0",
+                            isActive 
+                              ? "bg-brand/10 dark:bg-brand/20 border-l-2 border-l-brand"
+                              : index % 2 === 0
+                                ? "bg-neutral-50/50 dark:bg-neutral-800/20"
+                                : "bg-white dark:bg-neutral-900/20",
+                            !isActive && "active:bg-neutral-100 dark:active:bg-neutral-800/50"
+                          )}
+                        >
+                          {/* Line */}
+                          <div className="flex items-center gap-1.5 w-14">
+                            <span className={cn(
+                              "text-xs font-bold tabular-nums",
+                              isActive ? "text-brand" : "text-neutral-900 dark:text-white"
+                            )}>
+                              {lineData.line}+
+                            </span>
+                            {isActive && (
+                              <span className="text-[8px] font-bold uppercase text-brand bg-brand/10 dark:bg-brand/20 px-1 py-0.5 rounded">
+                                ★
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Visual Hit Rate Bar */}
+                          <div className="flex items-center gap-1 px-1">
+                            <div className="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                              <div 
+                                className={cn(
+                                  "h-full rounded-full transition-all",
+                                  rates.l10 !== null && rates.l10 >= 60 
+                                    ? "bg-gradient-to-r from-emerald-400 to-emerald-500"
+                                    : rates.l10 !== null && rates.l10 >= 50
+                                      ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                                      : "bg-gradient-to-r from-red-400 to-red-500"
+                                )}
+                                style={{ width: `${rates.l10 ?? 0}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* L10 */}
+                          <div className="text-center">
+                            <span className={cn(
+                              "text-[11px] font-bold tabular-nums",
+                              getOddsHitRateColor(rates.l10)
+                            )}>
+                              {rates.l10 !== null ? `${rates.l10}%` : "—"}
+                            </span>
+                          </div>
+
+                          {/* Season */}
+                          <div className="text-center">
+                            <span className={cn(
+                              "text-[11px] font-bold tabular-nums",
+                              getOddsHitRateColor(rates.szn)
+                            )}>
+                              {rates.szn !== null ? `${rates.szn}%` : "—"}
+                            </span>
+                          </div>
+
+                          {/* Best Odds */}
+                          <div className="flex items-center justify-center gap-1">
+                            {bestBook ? (
+                              <>
+                                {bookLogo && (
+                                  <img src={bookLogo} alt={bestBook.book} className="h-4 w-4 rounded" />
+                                )}
+                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                  {bestBook.price > 0 ? "+" : ""}{bestBook.price}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-neutral-400">—</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* No odds available state */}
+              {!fullOddsData?.allLines || fullOddsData.allLines.length === 0 && (
+                <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center">
+                  <DollarSign className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mx-auto mb-2" />
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">No alternate lines available</p>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
         
         {/* Loading State */}
         {isLoading && (
@@ -3717,7 +4685,7 @@ export function MobilePlayerDrilldown({
           {[
             { id: "chart" as const, label: "Chart", icon: null, customIcon: true },
             { id: "matchup" as const, label: "Matchup", icon: Target, customIcon: false },
-            { id: "injuries" as const, label: "Injuries", icon: Users, customIcon: false },
+            { id: "injuries" as const, label: "Correlation", icon: Link2, customIcon: false },
             { id: "stats" as const, label: "Stats", icon: ListOrdered, customIcon: false },
             { id: "odds" as const, label: "Odds", icon: DollarSign, customIcon: false },
           ].map((tab) => {
@@ -3726,7 +4694,7 @@ export function MobilePlayerDrilldown({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-1 max-w-[80px]",
                   isActive
