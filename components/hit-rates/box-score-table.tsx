@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayerBoxScores, BoxScoreGame, SeasonSummary } from "@/hooks/use-player-box-scores";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
-import { Table2, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 interface BoxScoreTableProps {
   playerId: number | null;
@@ -40,10 +40,13 @@ const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): n
   }
 };
 
-// Format date as "Nov 28"
-const formatDate = (dateStr: string) => {
+// Format date as "Sun 11/30"
+const formatGameDate = (dateStr: string) => {
   const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const day = date.toLocaleDateString("en-US", { weekday: "short" });
+  const month = date.getMonth() + 1;
+  const dayNum = date.getDate();
+  return `${day} ${month}/${dayNum}`;
 };
 
 export function BoxScoreTable({
@@ -134,6 +137,49 @@ export function BoxScoreTable({
     return sorted;
   }, [games, sortField, sortDirection]);
 
+  // Calculate averages for footer - must be before early returns
+  const averages = useMemo(() => {
+    if (games.length === 0) return null;
+    
+    const sum = games.reduce((acc, g) => ({
+      minutes: acc.minutes + (g.minutes || 0),
+      fgm: acc.fgm + g.fgm,
+      fga: acc.fga + g.fga,
+      fg3m: acc.fg3m + g.fg3m,
+      fg3a: acc.fg3a + g.fg3a,
+      ftm: acc.ftm + g.ftm,
+      fta: acc.fta + g.fta,
+      reb: acc.reb + g.reb,
+      ast: acc.ast + g.ast,
+      blk: acc.blk + g.blk,
+      stl: acc.stl + g.stl,
+      pf: acc.pf + (g.fouls || 0),
+      tov: acc.tov + (g.tov || 0),
+      pts: acc.pts + g.pts,
+    }), { minutes: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, reb: 0, ast: 0, blk: 0, stl: 0, pf: 0, tov: 0, pts: 0 });
+
+    const n = games.length;
+    return {
+      minutes: (sum.minutes / n).toFixed(1),
+      fgm: (sum.fgm / n).toFixed(1),
+      fga: (sum.fga / n).toFixed(1),
+      fgPct: sum.fga > 0 ? ((sum.fgm / sum.fga) * 100).toFixed(1) : "0.0",
+      fg3m: (sum.fg3m / n).toFixed(1),
+      fg3a: (sum.fg3a / n).toFixed(1),
+      fg3Pct: sum.fg3a > 0 ? ((sum.fg3m / sum.fg3a) * 100).toFixed(1) : "0.0",
+      ftm: (sum.ftm / n).toFixed(1),
+      fta: (sum.fta / n).toFixed(1),
+      ftPct: sum.fta > 0 ? ((sum.ftm / sum.fta) * 100).toFixed(1) : "0.0",
+      reb: (sum.reb / n).toFixed(1),
+      ast: (sum.ast / n).toFixed(1),
+      blk: (sum.blk / n).toFixed(1),
+      stl: (sum.stl / n).toFixed(1),
+      pf: (sum.pf / n).toFixed(1),
+      tov: (sum.tov / n).toFixed(1),
+      pts: (sum.pts / n).toFixed(1),
+    };
+  }, [games]);
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
@@ -182,328 +228,359 @@ export function BoxScoreTable({
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
+    <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm", className)}>
+      {/* Header - Matches other components */}
+      <div className="px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Table2 className="h-4 w-4 text-neutral-500" />
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-              Game Log
-            </h3>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              ({games.length} games)
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-600" />
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                Game Log
+              </h2>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                {games.length} games this season
+                {seasonSummary && <span className="ml-2">· {seasonSummary.record}</span>}
+              </p>
+            </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            {/* Season Summary Pills */}
-            {seasonSummary && (
-              <div className="hidden sm:flex items-center gap-2 text-xs">
-                <span className="px-2 py-1 rounded bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
-                  {seasonSummary.record}
-                </span>
-                <span className="px-2 py-1 rounded bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
-                  {seasonSummary.avgPoints} PPG
-                </span>
-              </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={cn(
+              "text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors border",
+              showAdvanced 
+                ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"
+                : "bg-neutral-100 dark:bg-neutral-700/50 border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-500"
             )}
-            
-            {/* Toggle Advanced */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className={cn(
-                "text-xs px-2 py-1 rounded transition-colors",
-                showAdvanced 
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                  : "bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-600"
-              )}
-            >
-              {showAdvanced ? "Basic" : "Advanced"}
-            </button>
-          </div>
+          >
+            {showAdvanced ? "Basic View" : "Full Stats"}
+          </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-        <table className="min-w-full text-xs">
-          <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800">
-            <tr className="border-b border-neutral-200 dark:border-neutral-700">
-              <th 
-                className="px-3 py-2 text-left font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("date")}
-              >
-                <div className="flex items-center gap-1">
-                  Date <SortIcon field="date" />
-                </div>
-              </th>
-              <th className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400">
-                OPP
-              </th>
-              <th className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400">
-                W/L
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("minutes")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  MIN <SortIcon field="minutes" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("pts")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  PTS <SortIcon field="pts" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("reb")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  REB <SortIcon field="reb" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("ast")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  AST <SortIcon field="ast" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("fg3m")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  3PM <SortIcon field="fg3m" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("stl")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  STL <SortIcon field="stl" />
-                </div>
-              </th>
-              <th 
-                className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                onClick={() => handleSort("blk")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  BLK <SortIcon field="blk" />
-                </div>
-              </th>
-              {showAdvanced && (
-                <>
-                  <th className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400">
-                    FG
-                  </th>
-                  <th className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400">
-                    3P
-                  </th>
-                  <th className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400">
-                    FT
-                  </th>
-                  <th 
-                    className="px-2 py-2 text-center font-semibold text-neutral-500 dark:text-neutral-400 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200"
-                    onClick={() => handleSort("plusMinus")}
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      +/- <SortIcon field="plusMinus" />
-                    </div>
-                  </th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
-            {sortedGames.map((game, idx) => {
-              const marketStat = getMarketStat(game, market);
-              const isOverLine = currentLine != null && marketStat > currentLine;
-              
-              return (
-                <tr 
-                  key={game.gameId}
-                  className={cn(
-                    "transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700/30",
-                    idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/50 dark:bg-neutral-800/50"
-                  )}
+      <div className="overflow-x-auto">
+        <div className="max-h-[400px] overflow-y-auto">
+          <table className="min-w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-700">
+              <tr>
+                <th 
+                  className="px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("date")}
                 >
-                  {/* Date */}
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="font-medium text-neutral-700 dark:text-neutral-200">
-                      {formatDate(game.date)}
-                    </span>
-                  </td>
-
-                  {/* Opponent */}
-                  <td className="px-2 py-2">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="text-neutral-400 text-[10px]">
-                        {game.homeAway === "H" ? "vs" : "@"}
+                  <div className="flex items-center gap-1">
+                    DATE <SortIcon field="date" />
+                  </div>
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  OPP
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  RESULT
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("minutes")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    MIN <SortIcon field="minutes" />
+                  </div>
+                </th>
+                {/* FG and FG% */}
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  FG
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  FG%
+                </th>
+                {/* 3PT and 3P% */}
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  3PT
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  3P%
+                </th>
+                {/* FT and FT% */}
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  FT
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  FT%
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("reb")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    REB <SortIcon field="reb" />
+                  </div>
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("ast")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    AST <SortIcon field="ast" />
+                  </div>
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("blk")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    BLK <SortIcon field="blk" />
+                  </div>
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("stl")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    STL <SortIcon field="stl" />
+                  </div>
+                </th>
+                {showAdvanced && (
+                  <>
+                    <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      PF
+                    </th>
+                    <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                      TO
+                    </th>
+                  </>
+                )}
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("pts")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    PTS <SortIcon field="pts" />
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedGames.map((game, idx) => {
+                const marketStat = getMarketStat(game, market);
+                const isOverLine = currentLine != null && marketStat > currentLine;
+                const fgPct = game.fga > 0 ? ((game.fgm / game.fga) * 100).toFixed(1) : "0.0";
+                const fg3Pct = game.fg3a > 0 ? ((game.fg3m / game.fg3a) * 100).toFixed(1) : "0.0";
+                const ftPct = game.fta > 0 ? ((game.ftm / game.fta) * 100).toFixed(1) : "0.0";
+                
+                return (
+                  <tr 
+                    key={game.gameId}
+                    className={cn(
+                      "transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 border-b border-neutral-100 dark:border-neutral-700/50",
+                      idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/70 dark:bg-neutral-800/70"
+                    )}
+                  >
+                    {/* Date - Day + Date format */}
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="font-medium text-neutral-700 dark:text-neutral-200">
+                        {formatGameDate(game.date)}
                       </span>
-                      <img
-                        src={getTeamLogoUrl(game.opponentAbbr, "nba")}
-                        alt={game.opponentAbbr}
-                        className="w-4 h-4 object-contain"
-                      />
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Result */}
-                  <td className="px-2 py-2 text-center">
-                    <span className={cn(
-                      "font-semibold",
-                      game.result === "W" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                    {/* Opponent */}
+                    <td className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-neutral-400 text-[10px]">
+                          {game.homeAway === "H" ? "vs" : "@"}
+                        </span>
+                        <img
+                          src={getTeamLogoUrl(game.opponentAbbr, "nba")}
+                          alt={game.opponentAbbr}
+                          className="w-4 h-4 object-contain"
+                        />
+                        <span className="font-medium text-neutral-700 dark:text-neutral-300 text-[10px]">
+                          {game.opponentAbbr}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Result - W/L with score */}
+                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                      <span className={cn(
+                        "font-bold",
+                        game.result === "W" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                      )}>
+                        {game.result}
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400 ml-1 text-[10px]">
+                        {game.teamScore}-{game.opponentScore}
+                      </span>
+                    </td>
+
+                    {/* Minutes */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.minutes?.toFixed(0) ?? "—"}
+                    </td>
+
+                    {/* FG */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.fgm}-{game.fga}
+                    </td>
+
+                    {/* FG% */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {fgPct}
+                    </td>
+
+                    {/* 3PT */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.fg3m}-{game.fg3a}
+                    </td>
+
+                    {/* 3P% */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {fg3Pct}
+                    </td>
+
+                    {/* FT */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.ftm}-{game.fta}
+                    </td>
+
+                    {/* FT% */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {ftPct}
+                    </td>
+
+                    {/* Rebounds */}
+                    <td className={cn(
+                      "px-2 py-2 text-center font-medium",
+                      market === "player_rebounds" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-900 dark:text-white"
                     )}>
-                      {game.result}
-                    </span>
-                    <span className="text-neutral-400 ml-0.5 text-[10px]">
-                      {game.margin > 0 ? `+${game.margin}` : game.margin}
-                    </span>
-                  </td>
+                      {game.reb}
+                    </td>
 
-                  {/* Minutes */}
-                  <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                    {game.minutes?.toFixed(0) ?? "—"}
-                  </td>
+                    {/* Assists */}
+                    <td className={cn(
+                      "px-2 py-2 text-center font-medium",
+                      market === "player_assists" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-900 dark:text-white"
+                    )}>
+                      {game.ast}
+                    </td>
 
-                  {/* Points */}
-                  <td className={cn(
-                    "px-2 py-2 text-center font-semibold",
-                    market === "player_points" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {game.pts}
-                  </td>
+                    {/* Blocks */}
+                    <td className={cn(
+                      "px-2 py-2 text-center",
+                      market === "player_blocks" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
+                        : "text-neutral-600 dark:text-neutral-300"
+                    )}>
+                      {game.blk}
+                    </td>
 
-                  {/* Rebounds */}
-                  <td className={cn(
-                    "px-2 py-2 text-center font-semibold",
-                    market === "player_rebounds" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {game.reb}
-                  </td>
+                    {/* Steals */}
+                    <td className={cn(
+                      "px-2 py-2 text-center",
+                      market === "player_steals" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
+                        : "text-neutral-600 dark:text-neutral-300"
+                    )}>
+                      {game.stl}
+                    </td>
 
-                  {/* Assists */}
-                  <td className={cn(
-                    "px-2 py-2 text-center font-semibold",
-                    market === "player_assists" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {game.ast}
-                  </td>
+                    {showAdvanced && (
+                      <>
+                        {/* PF */}
+                        <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                          {game.fouls ?? 0}
+                        </td>
 
-                  {/* 3PM */}
-                  <td className={cn(
-                    "px-2 py-2 text-center",
-                    market === "player_threes_made" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400 font-semibold" 
-                      : "text-neutral-600 dark:text-neutral-300"
-                  )}>
-                    {game.fg3m}
-                  </td>
+                        {/* TO */}
+                        <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                          {game.tov ?? 0}
+                        </td>
+                      </>
+                    )}
 
-                  {/* Steals */}
-                  <td className={cn(
-                    "px-2 py-2 text-center",
-                    market === "player_steals" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400 font-semibold" 
-                      : "text-neutral-600 dark:text-neutral-300"
-                  )}>
-                    {game.stl}
+                    {/* Points */}
+                    <td className={cn(
+                      "px-2 py-2 text-center font-bold",
+                      market === "player_points" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-900 dark:text-white"
+                    )}>
+                      {game.pts}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {/* Averages Footer Row - inside same table for alignment */}
+            {averages && (
+              <tfoot className="sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-700 border-t-2 border-neutral-300 dark:border-neutral-500">
+                <tr className="font-bold">
+                  <td className="px-3 py-2.5 text-left text-neutral-700 dark:text-neutral-200 whitespace-nowrap">
+                    AVERAGES
                   </td>
-
-                  {/* Blocks */}
-                  <td className={cn(
-                    "px-2 py-2 text-center",
-                    market === "player_blocks" && isOverLine 
-                      ? "text-emerald-600 dark:text-emerald-400 font-semibold" 
-                      : "text-neutral-600 dark:text-neutral-300"
-                  )}>
-                    {game.blk}
+                  <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">
+                    —
                   </td>
-
+                  <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">
+                    —
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.minutes}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.fgm}-{averages.fga}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.fgPct}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.fg3m}-{averages.fg3a}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.fg3Pct}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.ftm}-{averages.fta}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.ftPct}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.reb}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.ast}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.blk}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.stl}
+                  </td>
                   {showAdvanced && (
                     <>
-                      {/* FG */}
-                      <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                        {game.fgm}-{game.fga}
+                      <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                        {averages.pf}
                       </td>
-
-                      {/* 3P */}
-                      <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                        {game.fg3m}-{game.fg3a}
-                      </td>
-
-                      {/* FT */}
-                      <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                        {game.ftm}-{game.fta}
-                      </td>
-
-                      {/* +/- */}
-                      <td className={cn(
-                        "px-2 py-2 text-center font-medium",
-                        game.plusMinus > 0 
-                          ? "text-emerald-600 dark:text-emerald-400" 
-                          : game.plusMinus < 0 
-                            ? "text-red-500 dark:text-red-400"
-                            : "text-neutral-500"
-                      )}>
-                        {game.plusMinus > 0 ? `+${game.plusMinus}` : game.plusMinus}
+                      <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                        {averages.tov}
                       </td>
                     </>
                   )}
+                  <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">
+                    {averages.pts}
+                  </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Season Summary Footer */}
-      {seasonSummary && (
-        <div className="px-4 py-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-            <span className="text-neutral-500 dark:text-neutral-400">Season Averages:</span>
-            <StatPill label="PTS" value={seasonSummary.avgPoints} />
-            <StatPill label="REB" value={seasonSummary.avgRebounds} />
-            <StatPill label="AST" value={seasonSummary.avgAssists} />
-            <StatPill label="3PM" value={seasonSummary.avgThrees} />
-            <StatPill label="MIN" value={seasonSummary.avgMinutes} />
-            {showAdvanced && (
-              <>
-                <StatPill label="FG%" value={seasonSummary.fgPct} suffix="%" />
-                <StatPill label="3P%" value={seasonSummary.fg3Pct} suffix="%" />
-                <StatPill label="FT%" value={seasonSummary.ftPct} suffix="%" />
-              </>
+              </tfoot>
             )}
-          </div>
+          </table>
         </div>
-      )}
-    </div>
-  );
-}
-
-function StatPill({ label, value, suffix = "" }: { label: string; value: number; suffix?: string }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-neutral-400 dark:text-neutral-500">{label}</span>
-      <span className="font-semibold text-neutral-900 dark:text-white">
-        {value?.toFixed(1) ?? "—"}{suffix}
-      </span>
+      </div>
     </div>
   );
 }

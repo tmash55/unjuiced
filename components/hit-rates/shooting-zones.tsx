@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { useShotZoneMatchup, mapZoneToId, ShotZone } from "@/hooks/use-shot-zone-matchup";
@@ -63,7 +63,7 @@ export function ShootingZones({
   const effectivePlayerName = playerName || "Player";
   const effectiveOpponentAbbr = opponentTeamAbbr || "OPP";
   const [collapsed, setCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<"player" | "defense">("defense");
+  const [showLabels, setShowLabels] = useState(true);
 
   // Fetch real data
   const { data, isLoading, error } = useShotZoneMatchup({
@@ -105,14 +105,39 @@ export function ShootingZones({
     aboveBreak3: "Above the Break 3",
   };
 
-  // Get zone fill color for SVG
+  // Calculate summary stats
+  const summary = useMemo(() => {
+    if (!zones.length) return null;
+    
+    let favorablePct = 0;
+    let neutralPct = 0;
+    let toughPct = 0;
+    
+    zones.forEach(zone => {
+      if (zone.defRank === null) return;
+      if (zone.defRank >= 21) favorablePct += zone.pct;
+      else if (zone.defRank <= 10) toughPct += zone.pct;
+      else neutralPct += zone.pct;
+    });
+    
+    return {
+      favorablePct: Math.round(favorablePct),
+      neutralPct: Math.round(neutralPct),
+      toughPct: Math.round(toughPct),
+    };
+  }, [zones]);
+
+  // Get zone fill color for SVG - vibrant colors matching alternate lines matrix
   const getZoneFill = (zoneId: string): string => {
     const zone = getZone(zoneId);
     if (!zone || zone.defRank === null) return "#2d2d2d"; // Default dark
     
-    if (zone.defRank >= 21) return "rgba(16,185,129,0.45)"; // Favorable - green
-    if (zone.defRank <= 10) return "rgba(239,68,68,0.45)"; // Tough - red
-    return "rgba(245,158,11,0.4)"; // Neutral - amber
+    // Favorable (21-30) - Emerald green (matches emerald-500/400)
+    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.7)"; // #34d399
+    // Tough (1-10) - Red (matches red-500/400)
+    if (zone.defRank <= 10) return "rgba(248, 113, 113, 0.7)"; // #f87171
+    // Neutral (11-20) - Amber/Orange (matches amber-500/400)
+    return "rgba(251, 191, 36, 0.65)"; // #fbbf24
   };
 
   // Zone component for rendering stats (badge only, no background color)
@@ -122,38 +147,59 @@ export function ShootingZones({
     
     const displayName = zoneNames[zoneId] || zone.displayName;
     
-    return (
-      <Tooltip
-        content={
-          <div className="p-1 text-xs">
-            <div className="font-bold text-white mb-1">{displayName}</div>
-            <div className="space-y-0.5 text-neutral-300">
-              <div>Points: <span className="font-semibold text-white">{zone.points}</span></div>
-              <div>Shot Distribution: <span className="font-semibold text-white">{zone.pct.toFixed(1)}%</span></div>
-              <div>FG: <span className="font-semibold text-white">{zone.fgm}/{zone.fga} ({zone.fgPct}%)</span></div>
-              {zone.defRank !== null && (
-                <div>Opp Def Rank: <span className={cn(
-                  "font-semibold",
-                  zone.defRank >= 21 ? "text-emerald-400" : zone.defRank <= 10 ? "text-red-400" : "text-amber-400"
-                )}>{getOrdinal(zone.defRank)}</span></div>
-              )}
-              {zone.oppFgPct !== null && (
-                <div>Opp Allows: <span className="font-semibold text-white">{zone.oppFgPct}% FG</span></div>
-              )}
-            </div>
+    const tooltipContent = (
+      <div className="p-1 text-xs">
+        <div className="font-bold text-white mb-1">{displayName}</div>
+        <div className="space-y-0.5 text-neutral-300">
+          <div>Points: <span className="font-semibold text-white">{zone.points}</span></div>
+          <div>Shot Distribution: <span className="font-semibold text-white">{zone.pct.toFixed(1)}%</span></div>
+          <div>FG: <span className="font-semibold text-white">{zone.fgm}/{zone.fga} ({zone.fgPct}%)</span></div>
+          {zone.defRank !== null && (
+            <div>Opp Def Rank: <span className={cn(
+              "font-semibold",
+              zone.defRank >= 21 ? "text-emerald-400" : zone.defRank <= 10 ? "text-red-400" : "text-amber-400"
+            )}>{getOrdinal(zone.defRank)}</span></div>
+          )}
+          {zone.oppFgPct !== null && (
+            <div>Opp Allows: <span className="font-semibold text-white">{zone.oppFgPct}% FG</span></div>
+          )}
+        </div>
+      </div>
+    );
+
+    // When labels are hidden, show a small hover indicator dot
+    if (!showLabels) {
+      return (
+        <Tooltip content={tooltipContent} side="top">
+          <div className={cn(
+            "w-5 h-5 rounded-full cursor-help transition-all hover:scale-125 bg-black/40 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-md",
+            zoneClassName
+          )}>
+            <div className="w-2 h-2 rounded-full bg-white/80" />
           </div>
-        }
-        side="top"
-      >
+        </Tooltip>
+      );
+    }
+    
+    return (
+      <Tooltip content={tooltipContent} side="top">
         <div className={cn(
-          "flex flex-col items-center justify-center rounded-md px-2 py-1 cursor-help transition-all hover:scale-105 bg-black/40 backdrop-blur-sm border border-white/10",
+          "flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-help transition-all hover:scale-105 bg-black/60 backdrop-blur-sm border border-white/20 shadow-lg",
           zoneClassName
         )}>
+          {/* Shot percentage */}
           <span className="text-[11px] font-bold tabular-nums text-white">
-            {viewMode === "player" ? `${zone.pct.toFixed(0)}%` : zone.defRank !== null ? getOrdinal(zone.defRank) : "—"}
+            {zone.pct.toFixed(0)}%
           </span>
-          <span className="text-[8px] font-medium text-white/70">
-            {viewMode === "player" ? `${zone.fgPct}%` : `${zone.pct.toFixed(0)}%`}
+          {/* Divider */}
+          <span className="text-white/30">|</span>
+          {/* Defense rank with color */}
+          <span className={cn(
+            "text-[10px] font-bold tabular-nums",
+            zone.defRank !== null && zone.defRank >= 21 ? "text-emerald-400" :
+            zone.defRank !== null && zone.defRank <= 10 ? "text-red-400" : "text-amber-400"
+          )}>
+            {zone.defRank !== null ? getOrdinal(zone.defRank) : "—"}
           </span>
         </div>
       </Tooltip>
@@ -208,33 +254,49 @@ export function ShootingZones({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* View Toggle */}
-            <div className="flex items-center bg-neutral-100 dark:bg-neutral-700/50 rounded-lg p-0.5">
+            {/* Summary Pills */}
+            {!isLoading && summary && (
+              <div className="hidden sm:flex items-center gap-1">
+                {summary.favorablePct > 0 && (
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-[9px] font-bold text-emerald-400">{summary.favorablePct}%</span>
+                  </div>
+                )}
+                {summary.neutralPct > 0 && (
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span className="text-[9px] font-bold text-amber-400">{summary.neutralPct}%</span>
+                  </div>
+                )}
+                {summary.toughPct > 0 && (
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/20 border border-red-500/30">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    <span className="text-[9px] font-bold text-red-400">{summary.toughPct}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Show/Hide Labels Toggle */}
+            <Tooltip content={showLabels ? "Hide labels" : "Show labels"}>
               <button
                 type="button"
-                onClick={() => setViewMode("player")}
+                onClick={() => setShowLabels(!showLabels)}
                 className={cn(
-                  "px-2 py-1 text-[10px] font-semibold rounded-md transition-all",
-                  viewMode === "player"
-                    ? "bg-white dark:bg-neutral-600 text-neutral-900 dark:text-white shadow-sm"
-                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                  "p-1.5 rounded-md transition-all",
+                  showLabels 
+                    ? "bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300" 
+                    : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                 )}
               >
-                Player
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("defense")}
-                className={cn(
-                  "px-2 py-1 text-[10px] font-semibold rounded-md transition-all",
-                  viewMode === "defense"
-                    ? "bg-white dark:bg-neutral-600 text-neutral-900 dark:text-white shadow-sm"
-                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                {showLabels ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
                 )}
-              >
-                Opp Defense
               </button>
-            </div>
+            </Tooltip>
 
             <button
               type="button"
@@ -271,208 +333,200 @@ export function ShootingZones({
           ) : (
             <div className="relative w-full mx-auto">
               {/* 
-                NBA Court Dimensions (scaled 1 foot = 10 units):
-                ================================================
-                - ViewBox: 500 wide x 320 tall
-                - Baseline: y=20
-                - Basket center: (250, 63) - 4.3 feet from baseline
+                NBA Court Dimensions (1 foot = 10 units):
+                =========================================
+                ViewBox: 500 x 340 (extended for more above-break-3 space)
+                Baseline: y = 5
+                Basket center: (250, 48) - about 4.3 feet from baseline
                 
-                KEY DIMENSIONS:
-                - Paint: 16 feet wide (160 units) = x: 170 to 330
-                - Paint: 19 feet deep (190 units) = y: 20 to 210
-                - Free throw circle: 6 feet radius (60 units), center at (250, 210)
-                - Restricted area: 4 feet radius (40 units) from basket
+                Paint: 16ft wide = x: 170 to 330 | 19ft deep = y: 5 to 195
+                Free throw circle: center (250, 195), radius 60
+                Restricted area: radius 40 from basket center
                 
-                3-POINT LINE:
-                - Arc radius: 23.75 feet (237.5 units) from basket center
-                - Corner lines: 3 feet from sideline (x=30 and x=470)
-                - Arc meets corners at y ≈ 152 (calculated: 63 + sqrt(237.5² - 220²))
-                
-                ZONES:
-                1. Rim (Restricted): Semicircle 40 units from basket
-                2. Paint: Key area minus restricted
-                3. Mid-Range: Inside 3pt line, outside paint
-                4. Corner 3 Left/Right: Straight sections x=0-30 and x=470-500
-                5. Above Break 3: The arc portion beyond the corners
+                3-Point Arc: radius 238 from basket (250, 48)
+                Corner lines: x = 30 and x = 470
+                Arc meets corners at: y = 48 + sqrt(238² - 220²) ≈ 48 + 91 = 139
               */}
               <svg 
-                viewBox="0 0 500 320" 
+                viewBox="0 0 500 340" 
                 className="w-full h-auto"
                 style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))" }}
               >
-                <defs>
-                  <linearGradient id="courtGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#1a1a1a" />
-                    <stop offset="100%" stopColor="#141414" />
-                  </linearGradient>
-                </defs>
+                {/* ═══════════════════════════════════════════════════════════
+                    LAYER 1: ZONE FILLS (drawn first, from outside to inside)
+                    ═══════════════════════════════════════════════════════════ */}
 
-                {/* Court Background */}
-                <rect x="0" y="0" width="500" height="320" rx="6" fill="url(#courtGradient)" />
-                <rect x="0" y="0" width="500" height="320" rx="6" fill="none" stroke="#333" strokeWidth="2" />
-
-                {/* Baseline */}
-                <line x1="0" y1="20" x2="500" y2="20" stroke="#444" strokeWidth="2" />
-
-                {/* ════════════════════════════════════════════════════════════
-                    ZONE FILLS - Each zone colored by defensive matchup
-                    ════════════════════════════════════════════════════════════ */}
-
-                {/* 1. LEFT CORNER 3 - Rectangle from sideline to corner line, baseline to arc start */}
-                <rect 
-                  x="0" y="20" 
-                  width="30" height="132"
-                  fill={getZoneFill("corner3Left")}
-                />
-
-                {/* 2. RIGHT CORNER 3 - Mirror of left */}
-                <rect 
-                  x="470" y="20" 
-                  width="30" height="132"
-                  fill={getZoneFill("corner3Right")}
-                />
-
-                {/* 3. ABOVE THE BREAK 3 - Arc zone from where corners end to bottom */}
+                {/* ABOVE THE BREAK 3 - Full background for the arc area */}
                 <path 
-                  d="M 30 152 
-                     A 237.5 237.5 0 0 0 470 152
-                     L 470 320
-                     L 30 320
+                  d="M 0 139 
+                     L 0 340 
+                     L 500 340 
+                     L 500 139
+                     L 470 139
+                     A 238 238 0 0 1 30 139
                      Z" 
                   fill={getZoneFill("aboveBreak3")}
                 />
 
-                {/* 4. MID-RANGE LEFT - Between left corner/arc and paint */}
+                {/* LEFT CORNER 3 - From sideline to 3pt line, baseline to arc junction */}
+                <rect x="0" y="5" width="30" height="134" fill={getZoneFill("corner3Left")} />
+
+                {/* RIGHT CORNER 3 - Mirror of left */}
+                <rect x="470" y="5" width="30" height="134" fill={getZoneFill("corner3Right")} />
+
+                {/* MID-RANGE - All areas between paint and 3pt line */}
+                {/* Left side mid-range (baseline to 3pt arc) */}
+                {/* Arc at x=170: y = 48 + sqrt(238² - 80²) ≈ 272 */}
                 <path 
-                  d="M 30 20 
-                     L 30 152
-                     A 237.5 237.5 0 0 0 170 232
-                     L 170 20
+                  d="M 30 5 
+                     L 30 139 
+                     A 238 238 0 0 0 170 272
+                     L 170 5
+                     Z" 
+                  fill={getZoneFill("midRange")}
+                />
+                {/* Right side mid-range (baseline to 3pt arc) */}
+                <path 
+                  d="M 470 5 
+                     L 470 139 
+                     A 238 238 0 0 1 330 272
+                     L 330 5
+                     Z" 
+                  fill={getZoneFill("midRange")}
+                />
+                {/* Top mid-range (from free throw line to 3pt arc - the elbow area) */}
+                <path 
+                  d="M 170 195
+                     L 170 272
+                     A 238 238 0 0 0 330 272
+                     L 330 195
                      Z" 
                   fill={getZoneFill("midRange")}
                 />
 
-                {/* 5. MID-RANGE RIGHT - Between right corner/arc and paint */}
+                {/* PAINT (Non-RA) - Rectangular key area minus restricted */}
+                {/* Paint is just the rectangle from baseline to free throw line */}
                 <path 
-                  d="M 470 20 
-                     L 470 152
-                     A 237.5 237.5 0 0 1 330 232
-                     L 330 20
-                     Z" 
-                  fill={getZoneFill("midRange")}
-                />
-
-                {/* 6. MID-RANGE TOP - Above the free throw circle, inside arc */}
-                <path 
-                  d="M 170 210
-                     A 60 60 0 0 0 330 210
-                     L 330 232
-                     A 237.5 237.5 0 0 1 170 232
-                     Z" 
-                  fill={getZoneFill("midRange")}
-                />
-
-                {/* 7. PAINT (Non-RA) - The key minus restricted area */}
-                <path 
-                  d="M 170 20 
-                     L 170 210
-                     A 60 60 0 0 0 330 210
-                     L 330 20
-                     L 290 20
-                     A 40 40 0 0 1 210 20
-                     L 170 20
+                  d="M 170 5 
+                     L 170 195 
+                     L 330 195 
+                     L 330 5
+                     L 290 5
+                     A 40 40 0 0 1 210 5
                      Z" 
                   fill={getZoneFill("paint")}
                 />
 
-                {/* 8. RESTRICTED AREA (Rim) - Semicircle near basket */}
+                {/* RESTRICTED AREA (Rim) - Semicircle at the basket */}
                 <path 
-                  d="M 210 20 
-                     A 40 40 0 0 0 290 20
-                     Z" 
+                  d="M 210 5 A 40 40 0 0 0 290 5 Z" 
                   fill={getZoneFill("rim")}
                 />
 
-                {/* ════════════════════════════════════════════════════════════
-                    COURT LINES - Draw on top of zones
-                    ════════════════════════════════════════════════════════════ */}
+                {/* ═══════════════════════════════════════════════════════════
+                    LAYER 2: COURT LINES (dark, drawn on top)
+                    ═══════════════════════════════════════════════════════════ */}
                 
-                {/* 3-Point Line */}
+                {/* Baseline */}
+                <line x1="0" y1="5" x2="500" y2="5" stroke="#222" strokeWidth="3" />
+
+                {/* 3-Point Line - corners + arc */}
                 <path 
-                  d="M 30 20 L 30 152 A 237.5 237.5 0 0 0 470 152 L 470 20" 
-                  fill="none" stroke="#555" strokeWidth="2"
+                  d="M 30 5 L 30 139 A 238 238 0 0 0 470 139 L 470 5" 
+                  fill="none" stroke="#222" strokeWidth="3"
                 />
 
+                {/* Corner zone borders - creates rectangle separation from above-break-3 */}
+                {/* Left corner bottom */}
+                <line x1="0" y1="139" x2="30" y2="139" stroke="#222" strokeWidth="2" />
+                {/* Right corner bottom */}
+                <line x1="470" y1="139" x2="500" y2="139" stroke="#222" strokeWidth="2" />
+                {/* Sidelines for corners */}
+                <line x1="0" y1="5" x2="0" y2="139" stroke="#222" strokeWidth="2" />
+                <line x1="500" y1="5" x2="500" y2="139" stroke="#222" strokeWidth="2" />
+
                 {/* Paint/Key outline */}
-                <rect x="170" y="20" width="160" height="190" fill="none" stroke="#555" strokeWidth="1.5" />
+                <rect x="170" y="5" width="160" height="190" fill="none" stroke="#222" strokeWidth="2.5" />
                 
-                {/* Free Throw Circle */}
-                <circle cx="250" cy="210" r="60" fill="none" stroke="#555" strokeWidth="1.5" />
+                {/* Free Throw Circle (bottom half) */}
+                <path 
+                  d="M 170 195 A 60 60 0 0 0 330 195" 
+                  fill="none" stroke="#222" strokeWidth="2"
+                />
+                {/* Free Throw Circle (top half - dashed) */}
+                <path 
+                  d="M 170 195 A 60 60 0 0 1 330 195" 
+                  fill="none" stroke="#333" strokeWidth="1.5" strokeDasharray="8 6"
+                />
 
                 {/* Restricted Area arc */}
-                <path d="M 210 20 A 40 40 0 0 0 290 20" fill="none" stroke="#666" strokeWidth="1.5" />
+                <path d="M 210 5 A 40 40 0 0 0 290 5" fill="none" stroke="#222" strokeWidth="2" />
 
+                {/* ═══════════════════════════════════════════════════════════
+                    LAYER 3: BASKET HARDWARE
+                    ═══════════════════════════════════════════════════════════ */}
+                
                 {/* Backboard */}
-                <rect x="220" y="22" width="60" height="4" fill="#777" rx="1" />
+                <rect x="220" y="8" width="60" height="4" fill="#555" rx="1" />
                 
                 {/* Rim */}
-                <circle cx="250" cy="35" r="8" fill="none" stroke="#f97316" strokeWidth="2.5" />
-                <circle cx="250" cy="35" r="2" fill="#f97316" />
+                <circle cx="250" cy="20" r="9" fill="none" stroke="#f97316" strokeWidth="3" />
+                <circle cx="250" cy="20" r="2.5" fill="#f97316" />
               </svg>
 
               {/* Zone Overlays - 6 zones positioned over their court areas */}
               <div className="absolute inset-0">
                 {/* Rim / Restricted Area - near the basket */}
-                <div className="absolute" style={{ top: "8%", left: "50%", transform: "translateX(-50%)" }}>
+                <div className="absolute" style={{ top: "4%", left: "50%", transform: "translateX(-50%)" }}>
                   <ZoneStat zoneId="rim" />
                 </div>
 
                 {/* Paint (non-restricted) - in the key */}
-                <div className="absolute" style={{ top: "35%", left: "50%", transform: "translateX(-50%)" }}>
+                <div className="absolute" style={{ top: "32%", left: "50%", transform: "translateX(-50%)" }}>
                   <ZoneStat zoneId="paint" />
                 </div>
 
                 {/* Mid Range - outside paint, inside 3pt (show above FT circle) */}
-                <div className="absolute" style={{ top: "58%", left: "50%", transform: "translateX(-50%)" }}>
+                <div className="absolute" style={{ top: "62%", left: "50%", transform: "translateX(-50%)" }}>
                   <ZoneStat zoneId="midRange" />
                 </div>
 
                 {/* Corner 3 Left - in the left corner area */}
-                <div className="absolute" style={{ top: "22%", left: "1%" }}>
+                <div className="absolute" style={{ top: "18%", left: "0.5%" }}>
                   <ZoneStat zoneId="corner3Left" />
                 </div>
 
                 {/* Corner 3 Right - in the right corner area */}
-                <div className="absolute" style={{ top: "22%", right: "1%" }}>
+                <div className="absolute" style={{ top: "18%", right: "0.5%" }}>
                   <ZoneStat zoneId="corner3Right" />
                 </div>
 
                 {/* Above the Break 3 - in the arc area */}
-                <div className="absolute" style={{ bottom: "10%", left: "50%", transform: "translateX(-50%)" }}>
+                <div className="absolute" style={{ bottom: "6%", left: "50%", transform: "translateX(-50%)" }}>
                   <ZoneStat zoneId="aboveBreak3" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Legend - Compact inline */}
-          <div className="mt-2 flex items-center justify-center gap-3 text-[9px]">
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: "rgba(16,185,129,0.6)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Favorable</span>
+          {/* Legend - Clean inline with explanation */}
+          <div className="mt-3 flex items-center justify-center gap-4 text-[9px]">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(52, 211, 153, 0.7)" }} />
+              <span className="text-neutral-500 dark:text-neutral-400">Favorable <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: "rgba(245,158,11,0.5)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Neutral</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(251, 191, 36, 0.65)" }} />
+              <span className="text-neutral-500 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: "rgba(239,68,68,0.6)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Tough</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(248, 113, 113, 0.7)" }} />
+              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
             </div>
-            <span className="text-neutral-400 dark:text-neutral-500 ml-1">
-              · {viewMode === "player" ? "Shot % & FG%" : "Def Rank & Shot %"}
-            </span>
           </div>
+          <p className="mt-1 text-center text-[9px] text-neutral-400 dark:text-neutral-500">
+            {showLabels ? "Shot % | Opp Defensive Rank" : "Hover over zones for details"}
+          </p>
         </div>
       )}
     </div>

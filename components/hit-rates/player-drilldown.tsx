@@ -1449,12 +1449,12 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             <div className="relative px-5 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-1 rounded-full bg-gradient-to-b from-purple-500 to-purple-600" />
+                  <div className="h-10 w-1 rounded-full bg-gradient-to-b from-purple-500 to-purple-600" />
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
+                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                       Advanced Filters
-                    </h3>
-                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                    </h2>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
                       Filter by performance metrics
                     </p>
                   </div>

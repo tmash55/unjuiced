@@ -1177,110 +1177,91 @@ export function PlayerCorrelations({
           {/* Main Header Row */}
           <div className="flex items-start justify-between gap-6">
             {/* LEFT ZONE - Color bar + Context & Target Info */}
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              {/* Color bar - taller to match new hierarchy */}
-              <div className={cn("w-1 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600 shrink-0", collapsed ? "h-10" : "h-14")} />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {/* Color bar - matches Team Rosters height */}
+              <div className="h-10 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600 shrink-0" />
               <div className="flex-1 min-w-0">
-                {/* Small Label */}
-                <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                  Teammate Correlations
-                </span>
-                
-                {/* BIG Headline - Focal Point */}
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight leading-tight mt-0.5">
+                {/* BIG Headline - Focal Point (now first) */}
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                   When {playerName} hits{" "}
                   <span className="text-emerald-600 dark:text-emerald-400">{line}+ {formatMarketLabel(market || "")}</span>
                 </h2>
                 
-                {/* Hit Rate Row - Subtle margin below headline */}
-                {!collapsed && anchorPerformance && (
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
-                      anchorPerformance.hitRate !== null && anchorPerformance.hitRate >= 50 
-                        ? "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" 
-                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                    )}>
-                      <span className={cn("font-black text-sm", getHitRateColor(anchorPerformance.hitRate))}>
+                {/* Subheading - Teammate Correlations (now second) */}
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                  Teammate Correlations
+                  {anchorPerformance && (
+                    <span className="ml-2">
+                      · <span className={cn("font-bold", getHitRateColor(anchorPerformance.hitRate))}>
                         {anchorPerformance.hitRate ?? 0}%
-                      </span>
-                      <span className="text-neutral-400 font-medium">hit rate</span>
-                    </div>
-                    <span className="text-neutral-300 dark:text-neutral-600">·</span>
-                    <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                      {anchorPerformance.display}
+                      </span> hit rate · {anchorPerformance.display}
                     </span>
-                    <span className="text-neutral-300 dark:text-neutral-600">·</span>
-                    <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                      {anchorPerformance.avgStat} avg
-                    </span>
-                  </div>
-                )}
+                  )}
+                </p>
               </div>
             </div>
 
-            {/* RIGHT ZONE - Controls + Collapse Button */}
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              {/* Top row: Collapse button */}
-              <button
-                type="button"
-                onClick={() => setCollapsed(!collapsed)}
-                className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
-              >
-                <ChevronDown className={cn(
-                  "h-4 w-4 text-neutral-500 transition-transform",
-                  !collapsed && "rotate-180"
-                )} />
-              </button>
-              
-              {/* Game Filter + Splits - Only when expanded */}
-              {!collapsed && anchorPerformance && (
-                <>
-                  {/* Game Filter Toggle */}
-                  <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-                    {[
-                      { value: null, label: "Season" },
-                      { value: 20, label: "L20" },
-                      { value: 10, label: "L10" },
-                      { value: 5, label: "L5" },
-                    ].map(({ value, label }) => (
-                      <button
-                        key={label}
-                        onClick={() => setGameFilter(value)}
-                        className={cn(
-                          "px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all",
-                          gameFilter === value
-                            ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                            : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                        )}
-                      >
+            {/* RIGHT ZONE - Collapse Button (matching Team Rosters) */}
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
+            >
+              <ChevronDown className={cn(
+                "h-4 w-4 text-neutral-400 transition-transform",
+                !collapsed && "rotate-180"
+              )} />
+            </button>
+          </div>
+          
+          {/* Game Filter Row - Below header when expanded */}
+          {!collapsed && anchorPerformance && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-200/50 dark:border-neutral-700/50">
+              <div className="flex items-center gap-2">
+                {/* Game Filter Toggle */}
+                <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+                {[
+                  { value: null, label: "Season" },
+                  { value: 20, label: "L20" },
+                  { value: 10, label: "L10" },
+                  { value: 5, label: "L5" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={label}
+                    onClick={() => setGameFilter(value)}
+                    className={cn(
+                      "px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all",
+                      gameFilter === value
+                        ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    )}
+                  >
                     {label}
                   </button>
                 ))}
               </div>
+              </div>
               
-                  {/* Home/Away Splits */}
-                  <div className="flex items-center gap-3 text-[10px]">
-                    <div className="flex items-center gap-1">
-                      <Home className="w-3 h-3 text-neutral-400" />
-                      <span className={cn("font-bold tabular-nums", getHitRateColor(anchorPerformance.splits.home.hitRate))}>
-                        {anchorPerformance.splits.home.hitRate ?? "—"}%
-                      </span>
-                      <span className="text-neutral-400">{anchorPerformance.splits.home.display}</span>
-                    </div>
-                    <span className="text-neutral-300 dark:text-neutral-600">·</span>
-                    <div className="flex items-center gap-1">
-                      <Plane className="w-3 h-3 text-neutral-400" />
-                      <span className={cn("font-bold tabular-nums", getHitRateColor(anchorPerformance.splits.away.hitRate))}>
-                        {anchorPerformance.splits.away.hitRate ?? "—"}%
-                      </span>
-                      <span className="text-neutral-400">{anchorPerformance.splits.away.display}</span>
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* Home/Away Splits */}
+              <div className="flex items-center gap-3 text-[10px]">
+                <div className="flex items-center gap-1">
+                  <Home className="w-3 h-3 text-neutral-400" />
+                  <span className={cn("font-bold tabular-nums", getHitRateColor(anchorPerformance.splits.home.hitRate))}>
+                    {anchorPerformance.splits.home.hitRate ?? "—"}%
+                  </span>
+                  <span className="text-neutral-400">{anchorPerformance.splits.home.display}</span>
+                </div>
+                <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                <div className="flex items-center gap-1">
+                  <Plane className="w-3 h-3 text-neutral-400" />
+                  <span className={cn("font-bold tabular-nums", getHitRateColor(anchorPerformance.splits.away.hitRate))}>
+                    {anchorPerformance.splits.away.hitRate ?? "—"}%
+                  </span>
+                  <span className="text-neutral-400">{anchorPerformance.splits.away.display}</span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

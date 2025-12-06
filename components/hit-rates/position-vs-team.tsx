@@ -318,10 +318,10 @@ export function PositionVsTeam({
               </tr>
             ) : (
               players.map((player, idx) => (
-                <PlayerMatchupRow 
-                  key={`${player.gameDate}-${player.playerName}-${idx}`} 
-                  player={player} 
-                />
+              <PlayerMatchupRow 
+                key={`${player.gameDate}-${player.playerName}-${idx}`} 
+                player={player} 
+              />
               ))
             )}
           </tbody>
