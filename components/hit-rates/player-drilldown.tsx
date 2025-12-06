@@ -17,6 +17,8 @@ import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
 import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
+import { PlayTypeAnalysis } from "./play-type-analysis";
+import { ShootingZones } from "./shooting-zones";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { Tooltip } from "@/components/tooltip";
 
@@ -1543,6 +1545,27 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           line={activeLine}
           gameId={profile.gameId}
           playerName={profile.playerName}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          PLAY TYPE & ADDITIONAL ANALYSIS - Two Column Layout
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Play Type Analysis */}
+        <PlayTypeAnalysis
+          playerId={profile.playerId}
+          opponentTeamId={profile.opponentTeamId}
+          opponentTeamAbbr={profile.opponentTeamAbbr}
+          playerName={profile.playerName}
+        />
+        
+        {/* Right Column: Shooting Zones */}
+        <ShootingZones
+          playerId={profile.playerId}
+          opponentTeamId={profile.opponentTeamId}
+          playerName={profile.playerName}
+          opponentTeamAbbr={profile.opponentTeamAbbr}
         />
       </div>
 

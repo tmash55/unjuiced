@@ -91,20 +91,44 @@ const formatPercentage = (value: number | null) => {
   return `${value.toFixed(1)}%`;
 };
 
+// Hit rate badge class - matches alternate lines matrix colors
 const hitRateBadgeClass = (value: number | null) => {
   if (value === null || value === undefined) {
-    return "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400";
+    return "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500";
   }
-  if (value >= 70) {
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+  if (value >= 75) {
+    return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400";
   }
   if (value >= 60) {
-    return "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300";
+    return "bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-500";
   }
   if (value >= 50) {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+    return "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400";
   }
-  return "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400";
+  if (value >= 35) {
+    return "bg-orange-50 text-orange-500 dark:bg-orange-900/20 dark:text-orange-400";
+  }
+  return "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400";
+};
+
+// Hit rate text color - matches alternate lines matrix (text only, no background)
+const getHitRateTextColor = (value: number | null) => {
+  if (value === null || value === undefined) {
+    return "text-neutral-400 dark:text-neutral-500";
+  }
+  if (value >= 75) {
+    return "text-emerald-600 dark:text-emerald-400";
+  }
+  if (value >= 60) {
+    return "text-emerald-500 dark:text-emerald-500";
+  }
+  if (value >= 50) {
+    return "text-amber-600 dark:text-amber-400";
+  }
+  if (value >= 35) {
+    return "text-orange-500 dark:text-orange-400";
+  }
+  return "text-red-500 dark:text-red-400";
 };
 
 const formatDate = (value: string | null) => {
@@ -1213,33 +1237,15 @@ export function HitRateTable({
                     />
                     {/* All three percentages below */}
                     <div className="flex items-center gap-1.5 text-[10px] font-medium">
-                      <span className={cn(
-                        row.last20Pct !== null && row.last20Pct >= 70 
-                          ? "text-emerald-600 dark:text-emerald-400" 
-                          : row.last20Pct !== null && row.last20Pct >= 50
-                            ? "text-neutral-600 dark:text-neutral-400"
-                            : "text-red-500 dark:text-red-400"
-                      )}>
+                      <span className={getHitRateTextColor(row.last20Pct)}>
                         L20: {formatPercentage(row.last20Pct)}
                       </span>
                       <span className="text-neutral-300 dark:text-neutral-600">|</span>
-                      <span className={cn(
-                        row.last10Pct !== null && row.last10Pct >= 70 
-                          ? "text-emerald-600 dark:text-emerald-400" 
-                          : row.last10Pct !== null && row.last10Pct >= 50
-                            ? "text-neutral-600 dark:text-neutral-400"
-                            : "text-red-500 dark:text-red-400"
-                      )}>
+                      <span className={getHitRateTextColor(row.last10Pct)}>
                         L10: {formatPercentage(row.last10Pct)}
                       </span>
                       <span className="text-neutral-300 dark:text-neutral-600">|</span>
-                      <span className={cn(
-                        row.last5Pct !== null && row.last5Pct >= 70 
-                          ? "text-emerald-600 dark:text-emerald-400" 
-                          : row.last5Pct !== null && row.last5Pct >= 50
-                            ? "text-neutral-600 dark:text-neutral-400"
-                            : "text-red-500 dark:text-red-400"
-                      )}>
+                      <span className={getHitRateTextColor(row.last5Pct)}>
                         L5: {formatPercentage(row.last5Pct)}
                       </span>
                     </div>
