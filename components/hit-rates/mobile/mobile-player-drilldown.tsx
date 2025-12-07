@@ -48,6 +48,8 @@ import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
 import { usePlayerCorrelations, TeammateCorrelation, StatCorrelation, TeammateGameLog } from "@/hooks/use-player-correlations";
 import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-filters";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
+import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
+import { MobileShootingZones } from "./mobile-shooting-zones";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -4297,6 +4299,23 @@ export function MobilePlayerDrilldown({
         {/* ═══ STATS TAB ═══ */}
         {activeTab === "stats" && (
           <div className="space-y-3">
+            {/* Play Type Analysis */}
+            <MobilePlayTypeAnalysis
+              playerId={profile.playerId}
+              opponentTeamId={profile.opponentTeamId}
+              opponentTeamAbbr={profile.opponentTeamAbbr}
+              playerName={profile.playerName}
+            />
+            
+            {/* Shooting Zones */}
+            <MobileShootingZones
+              playerId={profile.playerId}
+              opponentTeamId={profile.opponentTeamId}
+              opponentTeamAbbr={profile.opponentTeamAbbr}
+              playerName={profile.playerName}
+            />
+            
+            {/* Game Log */}
             <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
               <div className="flex items-center gap-2 mb-4">
                 <ListOrdered className="h-4 w-4 text-brand" />
