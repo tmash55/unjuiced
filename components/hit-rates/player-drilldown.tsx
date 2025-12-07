@@ -1536,20 +1536,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          PLAYER CORRELATIONS (Teammate Analysis)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
-        <PlayerCorrelations
-          playerId={profile.playerId}
-          market={profile.market}
-          line={activeLine}
-          gameId={profile.gameId}
-          playerName={profile.playerName}
-        />
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          PLAY TYPE & ADDITIONAL ANALYSIS - Two Column Layout
+          PLAY TYPE & SHOOTING ZONES - Two Column Layout
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Play Type Analysis */}
@@ -1566,6 +1553,19 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           opponentTeamId={profile.opponentTeamId}
           playerName={profile.playerName}
           opponentTeamAbbr={profile.opponentTeamAbbr}
+        />
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          PLAYER CORRELATIONS (Teammate Analysis)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-6">
+        <PlayerCorrelations
+          playerId={profile.playerId}
+          market={profile.market}
+          line={activeLine}
+          gameId={profile.gameId}
+          playerName={profile.playerName}
         />
       </div>
 

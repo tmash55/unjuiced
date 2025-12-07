@@ -581,6 +581,10 @@ export function HitRateTable({
                 ? "No markets"
                 : selectedMarkets.length === MARKET_OPTIONS.length
                 ? "All Markets"
+                : selectedMarkets.length === 1
+                ? MARKET_OPTIONS.find(o => o.value === selectedMarkets[0])?.label ?? "1 selected"
+                : selectedMarkets.length === 2
+                ? selectedMarkets.map(m => MARKET_OPTIONS.find(o => o.value === m)?.label).filter(Boolean).join(", ")
                 : `${selectedMarkets.length} selected`}
             </span>
             <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform shrink-0", marketDropdownOpen && "rotate-180")} />
