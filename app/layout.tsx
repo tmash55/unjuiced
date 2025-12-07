@@ -85,8 +85,20 @@ export default function RootLayout({
           defer
           data-website-id="dfid_1o7mQbG6BLcWxsNAbeJrN"
           data-domain="unjuiced.bet"
-          src="https://datafa.st/js/script.js"/>
-    </head>
+          src="https://datafa.st/js/script.js"
+        />
+        {/* FirstPromoter Affiliate Tracking */}
+        <Script
+          id="firstpromoter"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              _fprom=window._fprom||[];window._fprom=_fprom;_fprom.push(["url_tracking",true]);
+              if (window.$FPROM){ $FPROM.trackVisitor({url_tracking: true})} else if(window.fpr) fpr("urlTracking");
+            `,
+          }}
+        />
+      </head>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>
