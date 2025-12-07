@@ -300,7 +300,10 @@ export function PositionVsTeam({
                 Min
               </th>
               <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                Line
+                <div className="flex flex-col items-center">
+                  <span>Line</span>
+                  <span className="text-[8px] font-normal normal-case text-neutral-400 dark:text-neutral-500">(coming)</span>
+                </div>
               </th>
               <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                 {formatMarketLabel(market || "").split(" ")[0]}
@@ -388,7 +391,7 @@ function PlayerMatchupRow({
       {/* Line */}
       <td className="px-3 py-2.5 text-center">
         <span className="text-xs text-neutral-400 dark:text-neutral-500">
-          N/A
+          —
         </span>
       </td>
 

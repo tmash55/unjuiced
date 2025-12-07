@@ -205,6 +205,21 @@ export function GamesSidebar({
     return grouped;
   }, [games]);
 
+  // Track which dates have all games started (for auto-collapse)
+  const datesWithAllStarted = React.useMemo(() => {
+    const result = new Set<string>();
+    for (const date of gamesDates) {
+      const dateGames = gamesByDate[date] || [];
+      if (dateGames.length > 0 && dateGames.every(game => hasGameStarted(game))) {
+        result.add(date);
+      }
+    }
+    return result;
+  }, [gamesDates, gamesByDate]);
+
+  // State to track manually expanded dates (for dates with all started games)
+  const [expandedStartedDates, setExpandedStartedDates] = React.useState<Set<string>>(new Set());
+
   // Get today's/first day's games
   const todaysGames = React.useMemo(() => {
     if (gamesDates.length === 0) return [];
@@ -368,22 +383,86 @@ export function GamesSidebar({
           {gamesDates.map((date) => {
             const dateGames = gamesByDate[date] || [];
             const dayLabel = getDayLabel(date);
+            const allStarted = datesWithAllStarted.has(date);
+            const isDateExpanded = !allStarted || expandedStartedDates.has(date);
+            
+            const toggleDateExpanded = () => {
+              setExpandedStartedDates(prev => {
+                const next = new Set(prev);
+                if (next.has(date)) {
+                  next.delete(date);
+                } else {
+                  next.add(date);
+                }
+                return next;
+              });
+            };
             
             return (
               <div key={date}>
                 {/* Date Header */}
                 <div className="mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                    <span className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wide",
+                      allStarted ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-500 dark:text-neutral-400"
+                    )}>
                       {dayLabel}
                     </span>
                     <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                       ({dateGames.length})
                     </span>
+                    {allStarted && isDateExpanded && (
+                      <button
+                        type="button"
+                        onClick={toggleDateExpanded}
+                        className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors"
+                      >
+                        Hide
+                      </button>
+                    )}
                     <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
                   </div>
+                  {/* All started - collapsed card */}
+                  {allStarted && !isDateExpanded && (
+                    <button
+                      type="button"
+                      onClick={toggleDateExpanded}
+                      className="mt-2 w-full p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-1">
+                            {dateGames.slice(0, 3).map((g, i) => (
+                              <img
+                                key={g.game_id}
+                                src={`/team-logos/nba/${g.home_team_tricode}.svg`}
+                                alt=""
+                                className="w-5 h-5 rounded-full bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 object-contain"
+                                style={{ zIndex: 3 - i }}
+                              />
+                            ))}
+                            {dateGames.length > 3 && (
+                              <div className="w-5 h-5 rounded-full bg-neutral-200 dark:bg-neutral-600 border border-neutral-300 dark:border-neutral-500 flex items-center justify-center text-[8px] font-bold text-neutral-600 dark:text-neutral-300">
+                                +{dateGames.length - 3}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-left">
+                            <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 block">
+                              {dateGames.length} game{dateGames.length !== 1 ? "s" : ""} started
+                            </span>
+                            <span className="text-[9px] text-neutral-400 dark:text-neutral-500">
+                              Tap to view
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+                      </div>
+                    </button>
+                  )}
                   {/* Show NBA Cup badge if any games on this date are NBA Cup */}
-                  {(() => {
+                  {isDateExpanded && (() => {
                     const cupGame = dateGames.find(g => isSpecialSeasonType(g.season_type));
                     const badge = cupGame ? getSeasonTypeBadge(cupGame.season_type) : null;
                     return badge ? (
@@ -397,7 +476,8 @@ export function GamesSidebar({
                   })()}
                 </div>
                 
-                {/* Games for this date */}
+                {/* Games for this date - collapsed if all started */}
+                {isDateExpanded && (
                 <div className="space-y-2">
                   {dateGames.map((game) => {
                     const homeAbbr = game.home_team_tricode || "TBD";
@@ -751,6 +831,7 @@ export function GamesSidebar({
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })}

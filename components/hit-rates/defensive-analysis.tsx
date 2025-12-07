@@ -244,11 +244,28 @@ export function DefensiveAnalysis({
         </table>
       </div>
 
-      {/* Footer */}
+      {/* Footer with Legend */}
       <div className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
-        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-          Defense vs all positions • Season rankings out of 30 teams
-        </p>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+            Defense vs all positions • Season rankings out of 30 teams
+          </p>
+          {/* Legend */}
+          <div className="flex items-center gap-3 text-[9px]">
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+              <span className="text-neutral-500 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
+              <span className="text-neutral-500 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
