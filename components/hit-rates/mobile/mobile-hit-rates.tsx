@@ -56,6 +56,8 @@ interface MobileHitRatesProps {
   onSearchChange: (query: string) => void;
   selectedGameIds: string[];
   onGameIdsChange: (gameIds: string[]) => void;
+  // Hide players from games that have started (when no specific games selected)
+  startedGameIds?: Set<string>;
 }
 
 export function MobileHitRates({
@@ -72,6 +74,7 @@ export function MobileHitRates({
   onSearchChange,
   selectedGameIds,
   onGameIdsChange,
+  startedGameIds,
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)
   // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
@@ -115,6 +118,14 @@ export function MobileHitRates({
         String(id ?? "").replace(/^0+/, "") || "0";
       const normalizedIds = selectedGameIds.map(normalizeId);
       result = result.filter(r => normalizedIds.includes(normalizeId(r.gameId)));
+    } else if (startedGameIds && startedGameIds.size > 0) {
+      // No specific games selected - hide players from games that have already started
+      const normalizeId = (id: string | number | null) => 
+        String(id ?? "").replace(/^0+/, "") || "0";
+      result = result.filter(r => {
+        if (!r.gameId) return true; // Keep rows without gameId
+        return !startedGameIds.has(normalizeId(r.gameId));
+      });
     }
     
     // Sort - parse field and direction from sortField (e.g., "l10Pct_desc")
@@ -151,7 +162,7 @@ export function MobileHitRates({
     });
     
     return result;
-  }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField]);
+  }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField, startedGameIds]);
 
   // Paginated rows
   const visibleRows = useMemo(() => 

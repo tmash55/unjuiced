@@ -3,7 +3,7 @@
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
 import { notFound } from "next/navigation";
 import { HitRateTable } from "@/components/hit-rates/hit-rate-table";
-import { GamesSidebar } from "@/components/hit-rates/games-sidebar";
+import { GamesSidebar, hasGameStarted } from "@/components/hit-rates/games-sidebar";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
 import { MobileHitRates } from "@/components/hit-rates/mobile/mobile-hit-rates";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
@@ -302,6 +302,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     [selectedGameIds]
   );
 
+  // Pre-compute Set of started game IDs to filter from table (unless specific games selected)
+  const startedGameIds = useMemo(() => {
+    if (!allGames) return new Set<string>();
+    return new Set(
+      allGames
+        .filter(game => hasGameStarted(game))
+        .map(game => normalizeGameId(game.game_id))
+    );
+  }, [allGames]);
+
   // Client-side filtering: markets + game filter (search is server-side)
   const filteredRows = useMemo(() => {
     let result = rows;
@@ -321,10 +331,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         if (!row.gameId) return false;
         return normalizedSelectedGameIds.includes(normalizeGameId(row.gameId));
       });
+    } else {
+      // No specific games selected - hide players from games that have already started
+      result = result.filter((row: HitRateProfile) => {
+        if (!row.gameId) return true; // Keep rows without gameId
+        return !startedGameIds.has(normalizeGameId(row.gameId));
+      });
     }
     
     return result;
-  }, [rows, selectedMarkets, normalizedSelectedGameIds]);
+  }, [rows, selectedMarkets, normalizedSelectedGameIds, startedGameIds]);
 
   // Only show full loading state on initial load, not on filter changes
   const showLoadingState = isLoading && rows.length === 0;
@@ -371,6 +387,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         onSearchChange={setMobileSearchQuery}
         selectedGameIds={mobileSelectedGameIds}
         onGameIdsChange={setMobileSelectedGameIds}
+        startedGameIds={startedGameIds}
       />
     );
   }

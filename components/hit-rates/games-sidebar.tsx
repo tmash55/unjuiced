@@ -53,6 +53,37 @@ const normalizeGameId = (id: string | number | null | undefined): string => {
   return String(id).replace(/^0+/, "") || "0";
 };
 
+// Check if a game has started (live or final) - exported for use in table filtering
+export const hasGameStarted = (game: NbaGame): boolean => {
+  const status = game.game_status?.toLowerCase() || "";
+  
+  // Check for final/ended games
+  if (status.includes("final")) return true;
+  
+  // Check for live games (score format like "118-98" or "Q1", "Q2", etc.)
+  if (/^\d+-\d+$/.test(status) || /^q[1-4]/i.test(status) || status.includes("halftime") || status.includes("ot")) {
+    return true;
+  }
+  
+  // Check if scheduled time has passed
+  const timeMatch = game.game_status?.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*ET$/i);
+  if (timeMatch && game.game_date) {
+    const [, hours, minutes, period] = timeMatch;
+    let hour = parseInt(hours, 10);
+    if (period.toLowerCase() === "pm" && hour !== 12) hour += 12;
+    if (period.toLowerCase() === "am" && hour === 12) hour = 0;
+    
+    // Create a date object in ET (Eastern Time)
+    const gameTime = new Date(`${game.game_date}T${hour.toString().padStart(2, "0")}:${minutes}:00-05:00`);
+    const now = new Date();
+    
+    // Game has started if current time is past game time
+    return now >= gameTime;
+  }
+  
+  return false;
+};
+
 interface GamePlayer {
   id: string;
   playerId: number;
@@ -400,6 +431,8 @@ export function GamesSidebar({
                             "w-full transition-all overflow-hidden",
                             // Rounded corners - remove bottom when expanded
                             isExpanded && selectedPlayer ? "rounded-t-lg" : "rounded-lg",
+                            // Grey out games that have started
+                            hasGameStarted(game) && "opacity-50",
                             // In drilldown mode: highlight the current player's game
                             selectedPlayer && isCurrentPlayerGame
                               ? isExpanded
