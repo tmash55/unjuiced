@@ -93,12 +93,15 @@ export const createCheckout = async ({
     } else if (couponId) {
       discounts = [{ coupon: couponId }];
     }
+    
+    // Stripe doesn't allow both allow_promotion_codes AND discounts at the same time
+    const hasDiscount = discounts.length > 0;
 
     // Build base session params
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode,
-      // Disable allow_promotion_codes if we're pre-applying one
-      allow_promotion_codes: promotionCodeId ? false : allowPromotionCodes,
+      // Disable allow_promotion_codes if we're pre-applying a discount
+      allow_promotion_codes: hasDiscount ? false : allowPromotionCodes,
       client_reference_id: clientReferenceId,
       metadata: {
         brand_key: 'unjuiced',
