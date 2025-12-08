@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import Stripe from 'stripe'
+import { getPartnerCouponFromCookie } from '@/hooks/use-partner-coupon'
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,8 +26,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const priceId = String(body?.priceId || '')
     const mode = (body?.mode === 'payment' ? 'payment' : 'subscription') as 'payment' | 'subscription'
-    let couponId: string | null = body?.couponId ?? null
     const requestedTrialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
+    
+    // Get coupon from body or fallback to partner cookie
+    const cookieHeader = req.headers.get('cookie')
+    const partnerCouponId = getPartnerCouponFromCookie(cookieHeader)
+    let couponId: string | null = body?.couponId ?? partnerCouponId ?? null
+    
+    if (partnerCouponId && !body?.couponId) {
+      console.log('[billing/checkout] Using partner coupon from cookie:', partnerCouponId)
+    }
 
     if (!priceId) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })

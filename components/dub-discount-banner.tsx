@@ -3,15 +3,45 @@
 import { useAnalytics } from "@dub/analytics/react";
 import { X, Gift } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+
+// Test data for local development - append ?test_discount=true to URL
+const TEST_PARTNER = {
+  id: "pn_test",
+  name: "Tyler Maschoff",
+  image: "https://avatar.vercel.sh/tyler",
+};
+
+const TEST_DISCOUNT = {
+  id: "disc_test",
+  amount: 30,
+  type: "percentage" as const,
+  maxDuration: 1,
+  couponId: "TYLER30",
+};
 
 export function DubDiscountBanner() {
-  const { partner, discount } = useAnalytics();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const isTestMode = searchParams.get("test_discount") === "true";
+  
+  const analytics = useAnalytics();
+  
+  // Use test data in test mode, otherwise use real analytics data
+  const partner = isTestMode ? TEST_PARTNER : analytics?.partner;
+  const discount = isTestMode ? TEST_DISCOUNT : analytics?.discount;
+
   const [showPopup, setShowPopup] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!partner || !discount) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!partner || !discount || !mounted) return;
 
     // Check if user has seen the popup before
     const hasSeenPopup = localStorage.getItem("dub_discount_popup_seen");
@@ -26,9 +56,10 @@ export function DubDiscountBanner() {
         setShowBanner(true);
       }
     }
-  }, [partner, discount]);
+  }, [partner, discount, mounted]);
 
-  if (!partner || !discount || dismissed) {
+  // Don't render anything on server or if no data
+  if (!mounted || !partner || !discount || dismissed) {
     return null;
   }
 
@@ -40,16 +71,26 @@ export function DubDiscountBanner() {
     ? `for ${discount.maxDuration} month${discount.maxDuration > 1 ? 's' : ''}` 
     : '';
 
-  const handleClosePopup = () => {
+  const handleClosePopup = (navigateToPricing = false) => {
     localStorage.setItem("dub_discount_popup_seen", "true");
     setShowPopup(false);
     setShowBanner(true);
+    if (navigateToPricing) {
+      router.push("/pricing");
+    }
   };
 
   const handleCloseBanner = () => {
     localStorage.setItem("dub_discount_banner_dismissed", "true");
     setShowBanner(false);
     setDismissed(true);
+  };
+
+  // Clear test data (for testing)
+  const handleClearTestData = () => {
+    localStorage.removeItem("dub_discount_popup_seen");
+    localStorage.removeItem("dub_discount_banner_dismissed");
+    window.location.reload();
   };
 
   // Popup Modal
@@ -59,7 +100,7 @@ export function DubDiscountBanner() {
         <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
           {/* Close button */}
           <button
-            onClick={handleClosePopup}
+            onClick={() => handleClosePopup(false)}
             className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors z-10"
             aria-label="Close"
           >
@@ -97,21 +138,31 @@ export function DubDiscountBanner() {
 
             {/* CTA Button */}
             <button
-              onClick={handleClosePopup}
+              onClick={() => handleClosePopup(true)}
               className="w-full py-3 px-6 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-semibold rounded-xl hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
             >
               View plans
             </button>
+
+            {/* Test mode indicator */}
+            {isTestMode && (
+              <button
+                onClick={handleClearTestData}
+                className="mt-3 text-xs text-neutral-400 hover:text-neutral-600 underline"
+              >
+                Reset test data
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // Top Banner (shows after popup is closed)
+  // Top Banner (shows after popup is closed) - NOT fixed, pushes content down
   if (showBanner) {
     return (
-      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-3 py-2 shadow-md">
+      <div className="relative z-50 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-3 py-2 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 sm:gap-3 relative">
           {partner.image && (
             <img
@@ -136,6 +187,16 @@ export function DubDiscountBanner() {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Test mode indicator */}
+        {isTestMode && (
+          <button
+            onClick={handleClearTestData}
+            className="absolute bottom-full right-2 mb-1 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded"
+          >
+            Reset test
+          </button>
+        )}
       </div>
     );
   }
