@@ -84,24 +84,13 @@ export const createCheckout = async ({
       extraParams.tax_id_collection = { enabled: true };
     }
 
-    // Build discounts array - prefer promotion code over coupon
-    // Promotion code shows the code name in checkout UI (e.g., "TYLER30")
-    // Coupon directly applies the discount without showing a code
-    let discounts: Stripe.Checkout.SessionCreateParams['discounts'] = [];
-    if (promotionCodeId) {
-      discounts = [{ promotion_code: promotionCodeId }];
-    } else if (couponId) {
-      discounts = [{ coupon: couponId }];
-    }
-    
     // Stripe doesn't allow both allow_promotion_codes AND discounts at the same time
-    const hasDiscount = discounts.length > 0;
+    // So we use one OR the other, never both
+    const hasDiscount = !!(promotionCodeId || couponId);
 
     // Build base session params
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode,
-      // Disable allow_promotion_codes if we're pre-applying a discount
-      allow_promotion_codes: hasDiscount ? false : allowPromotionCodes,
       client_reference_id: clientReferenceId,
       metadata: {
         brand_key: 'unjuiced',
@@ -113,7 +102,16 @@ export const createCheckout = async ({
           quantity: 1,
         },
       ],
-      discounts,
+      // Only include discounts OR allow_promotion_codes, never both
+      ...(hasDiscount
+        ? {
+            discounts: promotionCodeId
+              ? [{ promotion_code: promotionCodeId }]
+              : [{ coupon: couponId! }],
+          }
+        : {
+            allow_promotion_codes: allowPromotionCodes,
+          }),
       success_url: successUrl,
       cancel_url: cancelUrl,
       ...(mode === 'subscription'
