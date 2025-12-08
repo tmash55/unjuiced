@@ -87,21 +87,27 @@ export default function RootLayout({
           data-domain="unjuiced.bet"
           src="https://datafa.st/js/script.js"
         />
-        {/* FirstPromoter Affiliate Tracking */}
+        {/* FirstPromoter Affiliate Tracking - Init must come before CDN */}
         <Script
-          id="fprmain"
-          src="/fprmain.js"
+          id="firstpromoter-init"
           strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(w){w.fpr=w.fpr||function(){w.fpr.q = w.fpr.q||[];w.fpr.q[arguments[0]=='set'?'unshift':'push'](arguments);};})(window);
+              fpr("init", {cid:"80x2u6dl"});
+              fpr("click");
+            `,
+          }}
         />
         <Script
           id="firstpromoter-cdn"
           src="https://cdn.firstpromoter.com/fpr.js"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
         />
         {/* FirstPromoter URL Tracking */}
         <Script
           id="firstpromoter-url"
-          strategy="beforeInteractive"
+          strategy="lazyOnload"
           dangerouslySetInnerHTML={{
             __html: `
               _fprom=window._fprom||[];window._fprom=_fprom;_fprom.push(["url_tracking",true]);
