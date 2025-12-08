@@ -1,12 +1,32 @@
 "use client";
 
 import { useAnalytics } from "@dub/analytics/react";
-import { X } from "lucide-react";
-import { useState } from "react";
+import { X, Gift } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export function DubDiscountBanner() {
   const { partner, discount } = useAnalytics();
+  const [showPopup, setShowPopup] = useState(false);
+  const [showBanner, setShowBanner] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!partner || !discount) return;
+
+    // Check if user has seen the popup before
+    const hasSeenPopup = localStorage.getItem("dub_discount_popup_seen");
+    
+    if (!hasSeenPopup) {
+      // Show popup on first visit
+      setShowPopup(true);
+    } else {
+      // Show banner if popup was already seen
+      const bannerDismissed = localStorage.getItem("dub_discount_banner_dismissed");
+      if (!bannerDismissed) {
+        setShowBanner(true);
+      }
+    }
+  }, [partner, discount]);
 
   if (!partner || !discount || dismissed) {
     return null;
@@ -20,32 +40,105 @@ export function DubDiscountBanner() {
     ? `for ${discount.maxDuration} month${discount.maxDuration > 1 ? 's' : ''}` 
     : '';
 
-  return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2.5 shadow-lg">
-      <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 relative">
-        {partner.image && (
-          <img
-            src={partner.image}
-            alt={partner.name}
-            className="w-7 h-7 rounded-full border-2 border-white/30 shrink-0"
-          />
-        )}
-        <p className="text-sm font-medium text-center">
-          <span className="font-semibold">{partner.name}</span> has gifted you{" "}
-          <span className="font-bold">{discountText}</span> {durationText}!
-          <span className="opacity-80 ml-1">
-            Applied automatically at checkout.
-          </span>
-        </p>
-        <button
-          onClick={() => setDismissed(true)}
-          className="absolute right-0 p-1 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Dismiss"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
+  const handleClosePopup = () => {
+    localStorage.setItem("dub_discount_popup_seen", "true");
+    setShowPopup(false);
+    setShowBanner(true);
+  };
 
+  const handleCloseBanner = () => {
+    localStorage.setItem("dub_discount_banner_dismissed", "true");
+    setShowBanner(false);
+    setDismissed(true);
+  };
+
+  // Popup Modal
+  if (showPopup) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+          {/* Close button */}
+          <button
+            onClick={handleClosePopup}
+            className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors z-10"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 text-neutral-500" />
+          </button>
+
+          {/* Content */}
+          <div className="p-6 pt-8 flex flex-col items-center text-center">
+            {/* Partner Avatar */}
+            {partner.image ? (
+              <img
+                src={partner.image}
+                alt={partner.name}
+                className="w-16 h-16 rounded-full border-4 border-emerald-100 dark:border-emerald-900/50 shadow-lg mb-4"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg mb-4">
+                <Gift className="w-8 h-8 text-white" />
+              </div>
+            )}
+
+            {/* Heading */}
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
+              {partner.name} has gifted you
+              <br />
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {discountText} {durationText}!
+              </span>
+            </h2>
+
+            {/* Subtext */}
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+              Your discount will be automatically applied when you purchase a paid plan.
+            </p>
+
+            {/* CTA Button */}
+            <button
+              onClick={handleClosePopup}
+              className="w-full py-3 px-6 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-semibold rounded-xl hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
+            >
+              View plans
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Top Banner (shows after popup is closed)
+  if (showBanner) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-3 py-2 shadow-md">
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 sm:gap-3 relative">
+          {partner.image && (
+            <img
+              src={partner.image}
+              alt={partner.name}
+              className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white/30 shrink-0"
+            />
+          )}
+          <p className="text-xs sm:text-sm font-medium text-center pr-6">
+            <span className="font-semibold">{partner.name}</span>
+            <span className="hidden xs:inline"> gifted you</span>
+            <span className="xs:hidden"> →</span>{" "}
+            <span className="font-bold">{discountText}</span>
+            <span className="hidden sm:inline"> {durationText}</span>
+            <span className="hidden md:inline opacity-90"> • Applied at checkout</span>
+          </p>
+          <button
+            onClick={handleCloseBanner}
+            className="absolute right-1 sm:right-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
