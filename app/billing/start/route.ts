@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import Stripe from 'stripe'
-import { getPartnerCouponFromCookie } from '@/hooks/use-partner-coupon'
+import { getPartnerCouponFromCookie } from '@/lib/partner-coupon'
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
