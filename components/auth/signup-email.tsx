@@ -72,16 +72,6 @@ export const SignUpEmail = () => {
 
           if (error) throw error;
 
-          // Track referral with FirstPromoter (production only)
-          if (typeof window !== "undefined" && typeof (window as any).fpr === "function") {
-            try {
-              (window as any).fpr("referral", { email: data.email });
-              console.log("[FirstPromoter] Tracked referral for:", data.email);
-            } catch (e) {
-              console.warn("[FirstPromoter] Failed to track referral:", e);
-            }
-          }
-
           // Check if email confirmation is disabled (user is immediately confirmed)
           if (signUpData.user && signUpData.session) {
             // User is automatically signed in

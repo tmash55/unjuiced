@@ -8,6 +8,8 @@ import { AuthProvider } from "@/components/auth/auth-provider";
 import { PreferencesProvider } from "@/context/preferences-context";
 import { TooltipProvider } from "@/components/tooltip";
 import { Analytics } from "@vercel/analytics/next"
+import { Analytics as DubAnalytics } from '@dub/analytics/react';
+
 import { Toaster } from "sonner";
 import Script from "next/script";
 
@@ -81,43 +83,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${satoshi.variable} ${inter.variable} ${geistMono.variable} overflow-y-scroll`}>
       <head>
-        <Script
-          defer
-          data-website-id="dfid_1o7mQbG6BLcWxsNAbeJrN"
-          data-domain="unjuiced.bet"
-          src="https://datafa.st/js/script.js"
-        />
-        {/* FirstPromoter Affiliate Tracking - Production only */}
-        {process.env.NODE_ENV === "production" && (
-          <>
-            <Script
-              id="firstpromoter-init"
-              strategy="beforeInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  (function(w){w.fpr=w.fpr||function(){w.fpr.q = w.fpr.q||[];w.fpr.q[arguments[0]=='set'?'unshift':'push'](arguments);};})(window);
-                  fpr("init", {cid:"80x2u6dl"});
-                  fpr("click");
-                `,
-              }}
-            />
-            <Script
-              id="firstpromoter-cdn"
-              src="https://cdn.firstpromoter.com/fpr.js"
-              strategy="afterInteractive"
-            />
-            <Script
-              id="firstpromoter-url"
-              strategy="lazyOnload"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  _fprom=window._fprom||[];window._fprom=_fprom;_fprom.push(["url_tracking",true]);
-                  if (window.$FPROM){ $FPROM.trackVisitor({url_tracking: true})} else if(window.fpr) fpr("urlTracking");
-                `,
-              }}
-            />
-          </>
-        )}
       </head>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
@@ -133,6 +98,15 @@ export default function RootLayout({
             </QueryProvider>
           </TooltipProvider>
         </ThemeProvider>
+        <DubAnalytics
+          apiHost="/_proxy/dub"
+          scriptProps={{
+            src: "/_proxy/dub/script.js",
+          }}
+          domainsConfig={{
+            refer: "unj.bet",
+          }}
+        />
       </body>
     </html>
   );
