@@ -87,28 +87,37 @@ export default function RootLayout({
           data-domain="unjuiced.bet"
           src="https://datafa.st/js/script.js"
         />
-        {/* FirstPromoter Affiliate Tracking */}
-        <Script
-          id="fprmain"
-          src="/fprmain.js"
-          strategy="beforeInteractive"
-        />
-        <Script
-          id="firstpromoter-cdn"
-          src="https://cdn.firstpromoter.com/fpr.js"
-          strategy="beforeInteractive"
-        />
-        {/* FirstPromoter URL Tracking */}
-        <Script
-          id="firstpromoter-url"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              _fprom=window._fprom||[];window._fprom=_fprom;_fprom.push(["url_tracking",true]);
-              if (window.$FPROM){ $FPROM.trackVisitor({url_tracking: true})} else if(window.fpr) fpr("urlTracking");
-            `,
-          }}
-        />
+        {/* FirstPromoter Affiliate Tracking - Production only */}
+        {process.env.NODE_ENV === "production" && (
+          <>
+            <Script
+              id="firstpromoter-init"
+              strategy="beforeInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `
+                  (function(w){w.fpr=w.fpr||function(){w.fpr.q = w.fpr.q||[];w.fpr.q[arguments[0]=='set'?'unshift':'push'](arguments);};})(window);
+                  fpr("init", {cid:"80x2u6dl"});
+                  fpr("click");
+                `,
+              }}
+            />
+            <Script
+              id="firstpromoter-cdn"
+              src="https://cdn.firstpromoter.com/fpr.js"
+              strategy="afterInteractive"
+            />
+            <Script
+              id="firstpromoter-url"
+              strategy="lazyOnload"
+              dangerouslySetInnerHTML={{
+                __html: `
+                  _fprom=window._fprom||[];window._fprom=_fprom;_fprom.push(["url_tracking",true]);
+                  if (window.$FPROM){ $FPROM.trackVisitor({url_tracking: true})} else if(window.fpr) fpr("urlTracking");
+                `,
+              }}
+            />
+          </>
+        )}
       </head>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
         <ThemeProvider attribute="class" defaultTheme="system">
