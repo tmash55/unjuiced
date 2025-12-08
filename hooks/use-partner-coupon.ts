@@ -25,14 +25,16 @@ const TEST_PARTNER_DATA: PartnerData = {
   clickId: "test_click_123",
   partner: {
     id: "pn_test",
-    name: "Test Partner",
+    name: "Tyler Maschoff",
     image: undefined,
   },
   discount: {
     id: "disc_test",
-    amount: 25,
+    amount: 30,
     type: "percentage",
-    // Replace these with your actual Stripe coupon IDs for testing
+    maxDuration: 1,
+    // For local testing, set NEXT_PUBLIC_TEST_COUPON_ID in .env.local
+    // This should be a Stripe TEST mode coupon ID
     couponId: process.env.NEXT_PUBLIC_TEST_COUPON_ID || undefined,
     couponTestId: process.env.NEXT_PUBLIC_TEST_COUPON_ID || undefined,
   },
