@@ -89,7 +89,18 @@ export default function RootLayout({
         />
         {/* FirstPromoter Affiliate Tracking */}
         <Script
-          id="firstpromoter"
+          id="fprmain"
+          src="/fprmain.js"
+          strategy="beforeInteractive"
+        />
+        <Script
+          id="firstpromoter-cdn"
+          src="https://cdn.firstpromoter.com/fpr.js"
+          strategy="beforeInteractive"
+        />
+        {/* FirstPromoter URL Tracking */}
+        <Script
+          id="firstpromoter-url"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
