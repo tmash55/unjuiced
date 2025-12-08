@@ -2,18 +2,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import Stripe from 'stripe'
+import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
   const priceId = sp.get('priceId')
   const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
-  const couponId = sp.get('couponId')
+  const queryParamCouponId = sp.get('couponId')
+  const queryParamPromoId = sp.get('promotionCodeId')
   const trialDaysParam = sp.get('trialDays')
   const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   // Always use absolute base origin from the incoming request URL
   const { origin } = new URL(req.url)
+  
+  // Get partner discount from cookie if not provided in query params
+  const cookieHeader = req.headers.get('cookie')
+  const partnerDiscount = getPartnerDiscountFromCookie(cookieHeader)
+  
+  // Prefer promotion code (shows code name in UI) over coupon
+  const promotionCodeId = queryParamPromoId || partnerDiscount.promotionCodeId || null
+  const couponId = queryParamCouponId || partnerDiscount.couponId || null
 
-  console.log('[billing/start] Request received', { priceId, mode })
+  console.log('[billing/start] Request received', { priceId, mode, promotionCodeId, couponId })
 
   try {
     // Check authentication directly instead of making HTTP call
@@ -113,7 +123,8 @@ export async function GET(req: NextRequest) {
       successUrl,
       cancelUrl,
       priceId,
-      couponId: isYearlyPlan ? undefined : (couponId || undefined), // No coupons for yearly
+      promotionCodeId: isYearlyPlan ? undefined : (promotionCodeId || undefined),
+      couponId: isYearlyPlan ? undefined : (couponId || undefined),
       trialDays,
       paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
       allowPromotionCodes: !isYearlyPlan, // Disable promo codes for yearly plans
@@ -131,5 +142,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/pricing`)
   }
 }
-
-

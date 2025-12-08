@@ -464,16 +464,16 @@ export function BestOddsCards({ deals, loading, prefs, showHidden, onHideEdge, o
               <div className="relative flex items-center gap-2">
                 {bestBooksWithPrice.length === 1 ? (
                   // Single best book - direct link
-                <button
-                  onClick={() => {
-                    const primary = bestBooksWithPrice[0];
-                    if (!primary) return;
-                    openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
-                >
-                  Add to Bet Slip
-                </button>
+                  <button
+                    onClick={() => {
+                      const primary = bestBooksWithPrice[0];
+                      if (!primary) return;
+                      openLink(primary.link ?? null, primary.mobileLink ?? null, primary.book);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
+                  >
+                    Add to Bet Slip
+                  </button>
                 ) : (
                   // Multiple best books - show dropdown
                   <>

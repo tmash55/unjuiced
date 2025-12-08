@@ -5,7 +5,15 @@ interface CreateCheckoutParams {
   mode: "payment" | "subscription";
   successUrl: string;
   cancelUrl: string;
+  /**
+   * Coupon ID to directly apply a discount (e.g., "1Ry5Zesp")
+   */
   couponId?: string | null;
+  /**
+   * Promotion Code ID to pre-fill the promo code (e.g., "promo_xxx")
+   * This shows the code name in the checkout UI
+   */
+  promotionCodeId?: string | null;
   clientReferenceId?: string;
   user?: {
     customerId?: string;
@@ -41,6 +49,7 @@ export const createCheckout = async ({
   cancelUrl,
   priceId,
   couponId,
+  promotionCodeId,
   trialDays,
   paymentMethodCollection,
   allowPromotionCodes = true,
@@ -75,10 +84,13 @@ export const createCheckout = async ({
       extraParams.tax_id_collection = { enabled: true };
     }
 
+    // Stripe doesn't allow both allow_promotion_codes AND discounts at the same time
+    // So we use one OR the other, never both
+    const hasDiscount = !!(promotionCodeId || couponId);
+
     // Build base session params
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode,
-      allow_promotion_codes: allowPromotionCodes,
       client_reference_id: clientReferenceId,
       metadata: {
         brand_key: 'unjuiced',
@@ -90,13 +102,16 @@ export const createCheckout = async ({
           quantity: 1,
         },
       ],
-      discounts: couponId
-        ? [
-            {
-              coupon: couponId,
-            },
-          ]
-        : [],
+      // Only include discounts OR allow_promotion_codes, never both
+      ...(hasDiscount
+        ? {
+            discounts: promotionCodeId
+              ? [{ promotion_code: promotionCodeId }]
+              : [{ coupon: couponId! }],
+          }
+        : {
+            allow_promotion_codes: allowPromotionCodes,
+          }),
       success_url: successUrl,
       cancel_url: cancelUrl,
       ...(mode === 'subscription'

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import Stripe from 'stripe'
+import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,8 +26,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const priceId = String(body?.priceId || '')
     const mode = (body?.mode === 'payment' ? 'payment' : 'subscription') as 'payment' | 'subscription'
-    let couponId: string | null = body?.couponId ?? null
     const requestedTrialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
+    
+    // Get discount from body or fallback to partner cookie
+    const cookieHeader = req.headers.get('cookie')
+    const partnerDiscount = getPartnerDiscountFromCookie(cookieHeader)
+    
+    // Prefer promotion code (shows code name in UI) over coupon (silent discount)
+    let promotionCodeId: string | null = body?.promotionCodeId ?? partnerDiscount.promotionCodeId ?? null
+    let couponId: string | null = body?.couponId ?? partnerDiscount.couponId ?? null
+    
+    if (partnerDiscount.promotionCodeId || partnerDiscount.couponId) {
+      console.log('[billing/checkout] Using partner discount from cookie:', { 
+        promotionCodeId: partnerDiscount.promotionCodeId,
+        couponId: partnerDiscount.couponId 
+      })
+    }
 
     if (!priceId) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })
@@ -44,9 +59,10 @@ export async function POST(req: NextRequest) {
       const billingInterval = price.metadata?.billing_interval
       isYearlyPlan = billingInterval === 'yearly'
       
-      if (isYearlyPlan && couponId) {
-        console.log('[billing/checkout] Coupon blocked for yearly plan:', { priceId, couponId })
+      if (isYearlyPlan && (couponId || promotionCodeId)) {
+        console.log('[billing/checkout] Discount blocked for yearly plan:', { priceId, couponId, promotionCodeId })
         couponId = null
+        promotionCodeId = null
       }
     } catch (priceError) {
       console.warn('[billing/checkout] Could not retrieve price metadata:', priceError)
@@ -118,6 +134,7 @@ export async function POST(req: NextRequest) {
       successUrl,
       cancelUrl,
       priceId,
+      promotionCodeId: promotionCodeId || undefined,
       couponId: couponId || undefined,
       trialDays,
       paymentMethodCollection: trialDays ? 'always' : 'if_required',
@@ -134,5 +151,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'server_error' }, { status: 500 })
   }
 }
-
-

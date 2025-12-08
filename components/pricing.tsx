@@ -16,14 +16,27 @@ import { BuyButton } from "./billing/BuyButton";
 import { getPriceId } from "@/constants/billing";
 import { useAuth } from "./auth/auth-provider";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { usePartnerCoupon } from "@/hooks/use-partner-coupon";
 
 export const Pricing = () => {
   const [isYearly, setIsYearly] = useState(false);
   const { user } = useAuth();
   const { data: entitlements } = useEntitlements();
+  const { couponId: partnerCouponId, hasPartner, discount } = usePartnerCoupon();
   
   // Show trial CTA only if user is not signed in OR has never used trial
   const showTrialCTA = !user || (entitlements?.trial?.trial_used === false);
+  
+  // Build checkout URL with optional partner coupon
+  const getCheckoutUrl = (yearly: boolean, trialDays?: number) => {
+    const params = new URLSearchParams({
+      priceId: getPriceId(yearly ? "yearly" : "monthly"),
+      mode: "subscription",
+    });
+    if (trialDays) params.set("trialDays", String(trialDays));
+    if (partnerCouponId) params.set("couponId", partnerCouponId);
+    return `/billing/start?${params.toString()}`;
+  };
   return (
     <section className="">
       <Container className="border-divide flex flex-col items-center justify-center border-x px-4 pt-20 pb-10 md:px-8">
@@ -139,7 +152,7 @@ export const Pricing = () => {
                       {/* Primary CTA - Start Free Trial */}
                       <ButtonLink
                         className="w-full justify-center rounded-lg border-2 border-brand bg-brand px-6 py-3 text-center text-base font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md hover:ring-4 hover:ring-brand/20 dark:border-brand dark:bg-brand dark:text-white dark:hover:bg-brand/90"
-                        href={`/billing/start?priceId=${encodeURIComponent(getPriceId(isYearly ? "yearly" : "monthly"))}&mode=subscription&trialDays=7`}
+                        href={getCheckoutUrl(isYearly, 7)}
                         variant="primary"
                       >
                         Start Free — 7-Day Trial

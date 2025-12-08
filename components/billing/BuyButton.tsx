@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Button } from "@/components/button";
+import { usePartnerCoupon } from "@/hooks/use-partner-coupon";
 
 interface BuyButtonProps {
   priceId: string; // Stripe price id
@@ -14,21 +15,25 @@ interface BuyButtonProps {
 
 export function BuyButton({ priceId, mode = "subscription", couponId = null, label = "Upgrade", className, disabled }: BuyButtonProps) {
   const [loading, setLoading] = React.useState(false);
+  const { couponId: partnerCouponId } = usePartnerCoupon();
+  
+  // Use partner coupon if no explicit coupon provided
+  const effectiveCouponId = couponId || partnerCouponId;
 
   const onClick = async () => {
     if (!priceId || loading) return;
     setLoading(true);
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('[BuyButton] creating checkout', { priceId, mode, couponId });
+        console.log('[BuyButton] creating checkout', { priceId, mode, couponId: effectiveCouponId, partnerCouponId });
       }
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, mode, couponId }),
+        body: JSON.stringify({ priceId, mode, couponId: effectiveCouponId }),
       });
       if (res.status === 401) {
-        const params = new URLSearchParams({ priceId, mode, ...(couponId ? { couponId } : {}) }).toString();
+        const params = new URLSearchParams({ priceId, mode, ...(effectiveCouponId ? { couponId: effectiveCouponId } : {}) }).toString();
         const redirectTarget = `/billing/start?${params}`;
         // Send to register (or login) with a redirect back to a protected starter route
         if (process.env.NODE_ENV === 'development') {
