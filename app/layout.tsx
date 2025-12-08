@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { satoshi, inter } from "@/fonts/fonts";
@@ -94,7 +95,9 @@ export default function RootLayout({
             refer: "unj.bet",
           }}
         />
-        <DubDiscountBanner />
+        <Suspense fallback={null}>
+          <DubDiscountBanner />
+        </Suspense>
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>
             <QueryProvider>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 
 interface PartnerData {
   clickId?: string;
@@ -19,11 +19,46 @@ interface PartnerData {
   };
 }
 
+// Test partner data for local development
+// Usage: Add ?test_partner=true to any URL
+const TEST_PARTNER_DATA: PartnerData = {
+  clickId: "test_click_123",
+  partner: {
+    id: "pn_test",
+    name: "Test Partner",
+    image: undefined,
+  },
+  discount: {
+    id: "disc_test",
+    amount: 25,
+    type: "percentage",
+    // Replace these with your actual Stripe coupon IDs for testing
+    couponId: process.env.NEXT_PUBLIC_TEST_COUPON_ID || undefined,
+    couponTestId: process.env.NEXT_PUBLIC_TEST_COUPON_ID || undefined,
+  },
+};
+
 /**
  * Hook to read partner coupon data from the dub_partner_data cookie
  * Returns the appropriate coupon ID based on environment
+ * 
+ * For local testing, add ?test_partner=true to the URL
  */
 export function usePartnerCoupon() {
+  const [isTestMode, setIsTestMode] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const testMode = params.get("test_partner") === "true";
+      if (testMode) {
+        setIsTestMode(true);
+        // Also set the cookie so it persists across pages
+        document.cookie = `dub_partner_data=${encodeURIComponent(JSON.stringify(TEST_PARTNER_DATA))};path=/;max-age=3600`;
+      }
+    }
+  }, []);
+
   const partnerData = useMemo(() => {
     if (typeof window === "undefined") return null;
     
@@ -40,7 +75,7 @@ export function usePartnerCoupon() {
     } catch {
       return null;
     }
-  }, []);
+  }, [isTestMode]); // Re-read cookie when test mode changes
 
   const couponId = useMemo(() => {
     if (!partnerData?.discount) return null;
@@ -57,6 +92,7 @@ export function usePartnerCoupon() {
     couponId,
     hasPartner: !!partnerData?.partner,
     discount: partnerData?.discount || null,
+    isTestMode,
   };
 }
 
