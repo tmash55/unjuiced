@@ -9,9 +9,9 @@ import { PreferencesProvider } from "@/context/preferences-context";
 import { TooltipProvider } from "@/components/tooltip";
 import { Analytics } from "@vercel/analytics/next"
 import { Analytics as DubAnalytics } from '@dub/analytics/react';
+import { DubDiscountBanner } from "@/components/dub-discount-banner";
 
 import { Toaster } from "sonner";
-import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -85,6 +85,16 @@ export default function RootLayout({
       <head>
       </head>
       <body className="font-primary h-full bg-white [--pattern-fg:var(--color-charcoal-900)]/10 dark:bg-black dark:[--pattern-fg:var(--color-neutral-100)]/30">
+        <DubAnalytics
+          apiHost="/_proxy/dub"
+          scriptProps={{
+            src: "/_proxy/dub/script.js",
+          }}
+          domainsConfig={{
+            refer: "unj.bet",
+          }}
+        />
+        <DubDiscountBanner />
         <ThemeProvider attribute="class" defaultTheme="system">
           <TooltipProvider>
             <QueryProvider>
@@ -98,15 +108,6 @@ export default function RootLayout({
             </QueryProvider>
           </TooltipProvider>
         </ThemeProvider>
-        <DubAnalytics
-          apiHost="/_proxy/dub"
-          scriptProps={{
-            src: "/_proxy/dub/script.js",
-          }}
-          domainsConfig={{
-            refer: "unj.bet",
-          }}
-        />
       </body>
     </html>
   );
