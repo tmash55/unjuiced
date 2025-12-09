@@ -945,6 +945,26 @@ function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFi
     };
   }, [games]);
   
+  // Slider drag handling - must be before any early returns to follow Rules of Hooks
+  const handleDrag = useCallback((clientX: number, handle: "min" | "max", config: { key: string; stats: { min: number; max: number } } | null, currentValue: { min: number; max: number } | null) => {
+    if (!sliderRef.current || !config) return;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const range = config.stats.max - config.stats.min || 1;
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newValue = config.stats.min + pct * range;
+    
+    const currentMin = currentValue?.min ?? config.stats.min;
+    const currentMax = currentValue?.max ?? config.stats.max;
+    
+    if (handle === "min") {
+      const clampedMin = Math.min(newValue, currentMax - range * 0.05);
+      onFiltersChange({ ...filters, [config.key]: { min: Math.max(config.stats.min, clampedMin), max: currentMax } });
+    } else {
+      const clampedMax = Math.max(newValue, currentMin + range * 0.05);
+      onFiltersChange({ ...filters, [config.key]: { min: currentMin, max: Math.min(config.stats.max, clampedMax) } });
+    }
+  }, [filters, onFiltersChange]);
+  
   if (!stats) return null;
   
   // Determine which filters to show based on market
@@ -1009,33 +1029,19 @@ function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFi
     return config.isInteger !== false ? Math.round(val).toString() : val.toFixed(1);
   };
   
-  // Slider drag handling
-  const handleDrag = useCallback((clientX: number, handle: "min" | "max") => {
-    if (!sliderRef.current || !expandedConfig || !expandedStats) return;
-    const rect = sliderRef.current.getBoundingClientRect();
-    const range = expandedStats.max - expandedStats.min || 1;
-    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const newValue = expandedStats.min + pct * range;
-    
-    const currentMin = expandedValue?.min ?? expandedStats.min;
-    const currentMax = expandedValue?.max ?? expandedStats.max;
-    
-    if (handle === "min") {
-      const clampedMin = Math.min(newValue, currentMax - range * 0.05);
-      onFiltersChange({ ...filters, [expandedConfig.key]: { min: Math.max(expandedStats.min, clampedMin), max: currentMax } });
-    } else {
-      const clampedMax = Math.max(newValue, currentMin + range * 0.05);
-      onFiltersChange({ ...filters, [expandedConfig.key]: { min: currentMin, max: Math.min(expandedStats.max, clampedMax) } });
-    }
-  }, [expandedConfig, expandedStats, expandedValue, filters, onFiltersChange]);
+  // Create a wrapper for handleDrag that captures the current config
+  const handleDragWithConfig = (clientX: number, handle: "min" | "max") => {
+    if (!expandedConfig || !expandedStats) return;
+    handleDrag(clientX, handle, { key: expandedConfig.key, stats: expandedStats }, expandedValue);
+  };
   
   const handleTouchStart = (handle: "min" | "max") => (e: React.TouchEvent) => {
     setIsDragging(handle);
     const touch = e.touches[0];
-    if (touch) handleDrag(touch.clientX, handle);
+    if (touch) handleDragWithConfig(touch.clientX, handle);
     
     const handleTouchMove = (ev: TouchEvent) => {
-      if (ev.touches[0]) handleDrag(ev.touches[0].clientX, handle);
+      if (ev.touches[0]) handleDragWithConfig(ev.touches[0].clientX, handle);
     };
     const handleTouchEnd = () => {
       setIsDragging(null);
@@ -1050,7 +1056,7 @@ function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFi
     e.preventDefault();
     setIsDragging(handle);
     
-    const handleMouseMove = (ev: MouseEvent) => handleDrag(ev.clientX, handle);
+    const handleMouseMove = (ev: MouseEvent) => handleDragWithConfig(ev.clientX, handle);
     const handleMouseUp = () => {
       setIsDragging(null);
       document.removeEventListener("mousemove", handleMouseMove);
