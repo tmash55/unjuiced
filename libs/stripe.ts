@@ -133,9 +133,28 @@ export const createCheckout = async ({
       ...extraParams,
     };
 
-    const stripeSession = await stripe.checkout.sessions.create(sessionParams);
-
-    return stripeSession.url || null;
+    try {
+      const stripeSession = await stripe.checkout.sessions.create(sessionParams);
+      return stripeSession.url || null;
+    } catch (stripeError: any) {
+      // If the coupon doesn't apply to this product, retry without the discount
+      if (stripeError?.code === 'coupon_applies_to_nothing' && hasDiscount) {
+        console.warn('[stripe] Coupon does not apply to this product, retrying without discount');
+        
+        // Remove discounts and allow manual promo code entry instead
+        const sessionParamsWithoutDiscount: Stripe.Checkout.SessionCreateParams = {
+          ...sessionParams,
+          discounts: undefined,
+          allow_promotion_codes: allowPromotionCodes,
+        };
+        
+        const retrySession = await stripe.checkout.sessions.create(sessionParamsWithoutDiscount);
+        return retrySession.url || null;
+      }
+      
+      // Re-throw other errors
+      throw stripeError;
+    }
   } catch (e) {
     console.error(e);
     return null;

@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import Stripe from 'stripe'
-import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,20 +27,13 @@ export async function POST(req: NextRequest) {
     const mode = (body?.mode === 'payment' ? 'payment' : 'subscription') as 'payment' | 'subscription'
     const requestedTrialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
     
-    // Get discount from body or fallback to partner cookie
-    const cookieHeader = req.headers.get('cookie')
-    const partnerDiscount = getPartnerDiscountFromCookie(cookieHeader)
+    // NOTE: We no longer auto-apply partner coupons from cookies
+    // Instead, we always show the promo code input box so partners can share their codes
+    // and we can track redemptions by promo code name (e.g., "TYLER")
+    let promotionCodeId: string | null = body?.promotionCodeId ?? null
+    let couponId: string | null = body?.couponId ?? null
     
-    // Prefer promotion code (shows code name in UI) over coupon (silent discount)
-    let promotionCodeId: string | null = body?.promotionCodeId ?? partnerDiscount.promotionCodeId ?? null
-    let couponId: string | null = body?.couponId ?? partnerDiscount.couponId ?? null
-    
-    if (partnerDiscount.promotionCodeId || partnerDiscount.couponId) {
-      console.log('[billing/checkout] Using partner discount from cookie:', { 
-        promotionCodeId: partnerDiscount.promotionCodeId,
-        couponId: partnerDiscount.couponId 
-      })
-    }
+    console.log('[billing/checkout] Promo codes enabled, user can enter manually')
 
     if (!priceId) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })
