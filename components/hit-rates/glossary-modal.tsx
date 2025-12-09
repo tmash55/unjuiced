@@ -224,8 +224,8 @@ const GLOSSARY_DATA: GlossaryCategory[] = [
       },
       {
         term: "Streak",
-        definition: "Number of consecutive games the player has hit (positive) or missed (negative) the current line.",
-        example: "+5 streak means hit in last 5 straight games."
+        definition: "The number of consecutive games the player has exceeded (hit) the current projected line. Only hit streaks are tracked and displayed.",
+        example: "A 5 streak means the player has hit the line in their last 5 straight games."
       },
       {
         term: "Alternate Lines",

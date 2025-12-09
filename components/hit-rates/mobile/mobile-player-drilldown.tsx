@@ -3089,6 +3089,10 @@ export function MobilePlayerDrilldown({
         if (advancedFilters.dreb) {
           if (boxScore.dreb < advancedFilters.dreb.min || boxScore.dreb > advancedFilters.dreb.max) return false;
         }
+        // Potential Reb (Rebound Chances) filter
+        if (advancedFilters.potentialReb) {
+          if (boxScore.potentialReb < advancedFilters.potentialReb.min || boxScore.potentialReb > advancedFilters.potentialReb.max) return false;
+        }
         // Passes filter
         if (advancedFilters.passes) {
           if (boxScore.passes < advancedFilters.passes.min || boxScore.passes > advancedFilters.passes.max) return false;
