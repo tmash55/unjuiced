@@ -28,11 +28,11 @@ export default function NBAStatsPage() {
   const { data: propsData, isLoading: propsLoading } = useNBAProps('player_points_rebounds_assists', 'pregame', activeTab === 'props');
 
   // Check if there are live games
-  const hasLiveGames = (gamesData?.summary.live || 0) > 0 || (leaderboardData?.metadata.gamesLive || 0) > 0;
+  const hasLiveGames = (gamesData?.summary?.live || 0) > 0 || (leaderboardData?.metadata?.gamesLive || 0) > 0;
 
   // Auto-switch to leaderboard if there are live games on initial load
   useEffect(() => {
-    if (!hasAutoSwitched && !gamesLoading && gamesData && (gamesData.summary.live || 0) > 0) {
+    if (!hasAutoSwitched && !gamesLoading && gamesData && (gamesData.summary?.live || 0) > 0) {
       setActiveTab('leaderboard');
       setHasAutoSwitched(true);
     }
