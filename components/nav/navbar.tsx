@@ -297,7 +297,7 @@ function MobileNav({ domain }: { domain: string }) {
   // Create flat list of mobile nav items
   const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
-    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
+    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW", disabled: true },
     { title: "Edge Finder", href: "/edge-finder" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Ladder", href: "/ladders" },    
@@ -363,6 +363,34 @@ function MobileNav({ domain }: { domain: string }) {
                 <div className="flex flex-col py-4">
                 {mobileNavItems.map((item, index) => {
                   const isActive = pathname?.startsWith(item.href);
+                  const isDisabled = 'disabled' in item && item.disabled;
+                  
+                  if (isDisabled) {
+                    return (
+                      <motion.div
+                        key={item.title}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.2, delay: index * 0.05 }}
+                      >
+                        <div
+                          className="flex items-center gap-2 rounded-lg px-4 py-3 text-base font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+                        >
+                          {item.title}
+                          {'badge' in item && item.badge && (
+                            <span className="rounded-full bg-neutral-300 dark:bg-neutral-700 px-2 py-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                              {item.badge}
+                            </span>
+                          )}
+                          <span className="ml-auto text-[10px] font-medium text-neutral-400 dark:text-neutral-600">
+                            Coming soon
+                          </span>
+                        </div>
+                      </motion.div>
+                    );
+                  }
+                  
                   return (
                     <motion.div
                       key={item.title}

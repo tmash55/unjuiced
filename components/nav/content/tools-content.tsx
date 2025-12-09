@@ -40,7 +40,7 @@ const tools = [
     graphic: (
       <HitRatesGraphic className="absolute bottom-0 left-0 size-full" />
     ),
-    comingSoon: false,
+    comingSoon: true,
     badge: "NEW",
   },
   {
