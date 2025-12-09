@@ -257,8 +257,8 @@ export default function BillingSettings({ user }: { user: any }) {
           </div>
         )}
 
-        {/* Manage Subscription Button */}
-        {isSubscription && (
+        {/* Manage Subscription Button - Pro users only */}
+        {isSubscription && isPro && (
           <div className="mt-6 space-y-2">
             <button
               onClick={handleManageSubscription}

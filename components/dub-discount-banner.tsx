@@ -4,6 +4,7 @@ import { useAnalytics } from "@dub/analytics/react";
 import { X, Gift } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { createClient } from "@/libs/supabase/client";
 
 // Test data for local development - append ?test_discount=true to URL
 const TEST_PARTNER = {
@@ -21,6 +22,16 @@ const TEST_DISCOUNT = {
   // Real coupon comes from the actual Dub cookie
 };
 
+// Helper to safely decode URL-encoded strings
+function safeDecodeURIComponent(str: string | undefined): string | undefined {
+  if (!str) return str;
+  try {
+    return decodeURIComponent(str);
+  } catch {
+    return str;
+  }
+}
+
 export function DubDiscountBanner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -29,8 +40,17 @@ export function DubDiscountBanner() {
   const analytics = useAnalytics();
   
   // Use test data in test mode, otherwise use real analytics data
-  const partner = isTestMode ? TEST_PARTNER : analytics?.partner;
+  const rawPartner = isTestMode ? TEST_PARTNER : analytics?.partner;
   const discount = isTestMode ? TEST_DISCOUNT : analytics?.discount;
+  
+  // Decode URL-encoded partner data from Dub
+  const partner = rawPartner ? {
+    ...rawPartner,
+    name: safeDecodeURIComponent(rawPartner.name) || rawPartner.name,
+    image: safeDecodeURIComponent(rawPartner.image) || rawPartner.image,
+  } : null;
+  
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
 
   const [showPopup, setShowPopup] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
@@ -39,10 +59,19 @@ export function DubDiscountBanner() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Check if user is signed in
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsSignedIn(!!user);
+    };
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    if (!partner || !discount || !mounted) return;
+    // Don't show if user is signed in, not mounted, or no partner/discount data
+    if (!partner || !discount || !mounted || isSignedIn === null || isSignedIn) return;
 
     // Check if user has seen the popup before
     const hasSeenPopup = localStorage.getItem("dub_discount_popup_seen");
@@ -57,10 +86,10 @@ export function DubDiscountBanner() {
         setShowBanner(true);
       }
     }
-  }, [partner, discount, mounted]);
+  }, [partner, discount, mounted, isSignedIn]);
 
-  // Don't render anything on server or if no data
-  if (!mounted || !partner || !discount || dismissed) {
+  // Don't render anything on server, if no data, if dismissed, or if user is signed in
+  if (!mounted || !partner || !discount || dismissed || isSignedIn) {
     return null;
   }
 
