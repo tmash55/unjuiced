@@ -2,323 +2,162 @@ import { CheckIcon } from "@/icons/card-icons";
 import { CloseIcon } from "@/icons/general";
 
 export enum TierName {
-  FREE = "Free",
+  HIT_RATES = "NBA Hit Rates",
   PRO = "Pro",
 }
 
 export const tiers = [
   {
-    title: TierName.FREE,
-    subtitle: "For casual bettors",
-    monthly: 0,
-    yearly: 0,
+    title: TierName.HIT_RATES,
+    subtitle: "NBA player prop analytics",
+    monthly: 15,
+    yearly: 150,
     ctaText: "Get Started",
     ctaLink: "/register",
     features: [
-      "20+ sportsbooks",
-      "Basic odds comparison",
-      "Manual refresh",
-      "Standard support",
-      "Limited arbitrage detection",
-      "View main lines only",
+      "NBA only",
+      "Player prop hit rates",
+      "L5, L10, L20, Season stats",
+      "Head-to-head matchup data",
+      "Defensive matchup analysis",
+      "Play type breakdowns",
+      "Shooting zone analysis",
+      "Player correlations",
+      "Game log & box scores",
     ],
+    productType: "nba_hit_rates" as const,
   },
   {
     title: TierName.PRO,
-    subtitle: "For bettors who demand an edge",
+    subtitle: "Complete betting toolkit",
     monthly: 30,
     yearly: 300,
     ctaText: "Start Free Trial",
     ctaLink: "/register",
     features: [
-      "Everything in Free — plus:",
+      "Everything in Hit Rates — plus:",
       "Unlimited arbitrage detection",
-      "Edge Finder — find +EV opportunities",
-      "Real-time odds updates (sub-2s)",
+      "Edge Finder — find +EV bets",
+      "Real-time odds (sub-2s updates)",
+      "20+ sportsbooks coverage",
       "Alternate lines & player props",
       "Deep linking to sportsbooks",
-      "Customizable odds screens",
-      "EV calculations & consensus pricing",
-      "Auto-refresh with SSE",
-      "Priority support",
+      "EV calculations & consensus",
       "Advanced filters & sorting",
+      "Priority support",
     ],
     featured: true,
     badge: "Most Popular",
+    productType: "pro" as const,
+    trialDays: 3,
   },
 ];
 
-// Legacy pricing table - kept for backwards compatibility but not actively used
-export const pricingTable: Array<{
-  title: string;
-  tiers: Array<{ title: TierName; value: string | React.ReactNode }>;
-}> = [
+// Feature comparison table for pricing page
+export const pricingTable = [
   {
-    title: "Sportsbooks",
+    title: "NBA Hit Rates",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "20+",
-      },
-      {
-        title: TierName.PRO,
-        value: "20+",
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Two-factor authentication",
+    title: "L5, L10, L20, Season Stats",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Pay-per-task billing",
+    title: "Head-to-Head Matchup Data",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Static IP",
+    title: "Defensive Matchup Analysis",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Record Limit",
+    title: "Play Type Breakdowns",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "1,000",
-      },
-      {
-        title: TierName.PRO,
-        value: "10,000",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Folder Permissions",
+    title: "Shooting Zone Analysis",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Teams",
+    title: "Player Correlations",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "1",
-      },
-      {
-        title: TierName.PRO,
-        value: "3",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Shared Nodes",
+    title: "Game Log & Box Scores",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Shared app connections",
+    title: "Arbitrage Detection",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Agents",
+    title: "Edge Finder (+EV Bets)",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "5",
-      },
-      {
-        title: TierName.PRO,
-        value: "25",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Chatbots",
+    title: "Real-time Odds",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "2",
-      },
-      {
-        title: TierName.PRO,
-        value: "10",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Nodus MCP",
+    title: "20+ Sportsbooks",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Nodus Canvas",
+    title: "Alternate Lines",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
-      {
-        title: TierName.PRO,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Tables",
+    title: "Deep Linking to Sportsbooks",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "5",
-      },
-      {
-        title: TierName.PRO,
-        value: "50",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
   {
-    title: "Access Permissions",
+    title: "Priority Support",
     tiers: [
-      {
-        title: TierName.FREE,
-        value: "Basic",
-      },
-      {
-        title: TierName.PRO,
-        value: "Advanced",
-      },
-      {
-        title: TierName.PRO,
-        value: "Enterprise",
-      },
-    ],
-  },
-  {
-    title: "Record Templates",
-    tiers: [
-      {
-        title: TierName.FREE,
-        value: "10",
-      },
-      {
-        title: TierName.PRO,
-        value: "100",
-      },
-      {
-        title: TierName.PRO,
-        value: "Unlimited",
-      },
+      { title: TierName.HIT_RATES, value: <CloseIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
     ],
   },
 ];

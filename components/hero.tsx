@@ -45,7 +45,7 @@ export function Hero() {
           >
             <div className="flex items-center gap-2">
               <span className="text-brand">✓</span>
-              <span>7 Day Free Trial</span>
+              <span>3 Day Free Trial</span>
             </div>
             <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-600"></div>
             <div className="flex items-center gap-2">

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 /**
  * POST /api/auth/init-trial
- * Initializes the 7-day free trial for a new user
+ * Initializes the 3-day free trial for a new user
  * This should be called after successful signup
  */
 export async function POST() {
@@ -46,7 +46,7 @@ export async function POST() {
 
     // Initialize trial: set trial_used to true and set dates
     const now = new Date()
-    const trialEnds = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+    const trialEnds = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000) // 3 days from now
 
     const { error: updateError } = await supabase
       .from('profiles')

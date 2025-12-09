@@ -17,7 +17,8 @@ const TEST_DISCOUNT = {
   amount: 30,
   type: "percentage" as const,
   maxDuration: 1,
-  couponId: "TYLER30",
+  // Don't include a fake couponId - the banner is just for display
+  // Real coupon comes from the actual Dub cookie
 };
 
 export function DubDiscountBanner() {

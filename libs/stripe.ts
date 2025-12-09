@@ -95,6 +95,8 @@ export const createCheckout = async ({
       metadata: {
         brand_key: 'unjuiced',
         ...(clientReferenceId ? { user_id: String(clientReferenceId) } : {}),
+        // Dub tracking: associate checkout with the user for sale attribution
+        ...(clientReferenceId ? { dubCustomerId: String(clientReferenceId) } : {}),
       },
       line_items: [
         {
@@ -122,6 +124,8 @@ export const createCheckout = async ({
               ...(typeof trialDays === 'number' ? { trial_period_days: trialDays } : {}),
               metadata: {
                 ...(clientReferenceId ? { user_id: String(clientReferenceId) } : {}),
+                // Dub tracking: associate subscription with the user for sale attribution
+                ...(clientReferenceId ? { dubCustomerId: String(clientReferenceId) } : {}),
               },
             },
           }

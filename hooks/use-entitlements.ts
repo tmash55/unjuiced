@@ -2,8 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+export type PlanType = "free" | "hit_rate" | "pro" | "admin";
+
 export type Entitlements = {
-  plan: "free" | "pro" | "admin" | string;
+  plan: PlanType | string;
   entitlement_source?: "subscription" | "trial" | "none" | string;
   trial?: {
     trial_used?: boolean;
@@ -66,6 +68,35 @@ export function useIsPro() {
     entitlements?.plan === "unlimited"
   );
   return { isPro, isLoading };
+}
+
+/**
+ * Helper hook to check if user has Hit Rates access
+ * Hit Rate plan OR Pro plan both have access
+ */
+export function useHasHitRateAccess() {
+  const { data: entitlements, isLoading } = useEntitlements();
+  const hasAccess = !isLoading && (
+    entitlements?.plan === "hit_rate" ||
+    entitlements?.plan === "pro" || 
+    entitlements?.plan === "admin" || 
+    entitlements?.plan === "unlimited"
+  );
+  return { hasAccess, isLoading, plan: entitlements?.plan };
+}
+
+/**
+ * Helper hook to check if user has any paid plan
+ */
+export function useHasPaidPlan() {
+  const { data: entitlements, isLoading } = useEntitlements();
+  const hasPaidPlan = !isLoading && (
+    entitlements?.plan === "hit_rate" ||
+    entitlements?.plan === "pro" || 
+    entitlements?.plan === "admin" || 
+    entitlements?.plan === "unlimited"
+  );
+  return { hasPaidPlan, isLoading, plan: entitlements?.plan };
 }
 
 

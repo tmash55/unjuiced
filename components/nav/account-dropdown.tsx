@@ -88,6 +88,8 @@ export function AccountDropdown({ user }: { user: User }) {
                         entitlements.plan === "pro" &&
                           entitlements.entitlement_source === "grant" &&
                           "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                        entitlements.plan === "hit_rate" &&
+                          "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400",
                         entitlements.plan === "free" &&
                           "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
@@ -98,6 +100,8 @@ export function AccountDropdown({ user }: { user: User }) {
                         ? "Pro"
                         : entitlements.plan === "pro"
                         ? "Pro"
+                        : entitlements.plan === "hit_rate"
+                        ? "Hit Rates"
                         : "Free"}
                     </span>
                   ) : null}

@@ -2,11 +2,12 @@
 
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
 import { notFound } from "next/navigation";
-import { HitRateTable } from "@/components/hit-rates/hit-rate-table";
+import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
 import { GamesSidebar, hasGameStarted } from "@/components/hit-rates/games-sidebar";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
-import { MobileHitRates } from "@/components/hit-rates/mobile/mobile-hit-rates";
+import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
+import { GlossaryModal, GlossaryButton } from "@/components/hit-rates/glossary-modal";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { useNbaGames } from "@/hooks/use-nba-games";
@@ -83,6 +84,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Advanced filter state (shared between table and sidebar)
   const [hideNoOdds, setHideNoOdds] = useState(false);
   const [idsWithOdds, setIdsWithOdds] = useState<Set<string>>(new Set());
+  
+  // Glossary modal state
+  const [showGlossary, setShowGlossary] = useState(false);
   
   // Stable callback for odds availability changes to prevent infinite loops
   const handleOddsAvailabilityChange = useCallback((ids: Set<string>) => {
@@ -352,6 +356,21 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   );
   const hasMoreRows = filteredRows.length > visibleRowCount;
 
+  // Mobile filtered rows - apply started games filter to match desktop behavior
+  // Mobile does its own market/game filtering internally, but we pre-filter started games
+  const mobileFilteredRows = useMemo(() => {
+    // If specific games are selected on mobile, don't filter started games (user explicitly selected them)
+    if (mobileSelectedGameIds.length > 0) {
+      return rows;
+    }
+    
+    // No games selected - filter out players from games that have already started
+    return rows.filter((row: HitRateProfile) => {
+      if (!row.gameId) return true;
+      return !startedGameIds.has(normalizeGameId(row.gameId));
+    });
+  }, [rows, mobileSelectedGameIds, startedGameIds]);
+
   // Get all profiles for the selected player (all their different markets)
   const selectedPlayerAllProfiles = useMemo(() => {
     if (!selectedPlayer) return [];
@@ -373,8 +392,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
     
     return (
-      <MobileHitRates
-        rows={rows}
+      <GatedMobileHitRates
+        rows={mobileFilteredRows}
         games={allGames ?? []}
         loading={isLoading}
         error={error?.message}
@@ -395,10 +414,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Desktop Layout
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
-      {/* Header */}
-      <h1 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">
-        NBA Hit Rates
-      </h1>
+      {/* Header with Glossary */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">
+          NBA Hit Rates
+        </h1>
+        <GlossaryButton onClick={() => setShowGlossary(true)} />
+      </div>
+
+      {/* Glossary Modal */}
+      <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
 
       {/* Games Sidebar + Table/Drilldown Row */}
       <div className="flex gap-6 h-[calc(100vh-140px)]">
@@ -426,7 +451,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
               onMarketChange={setPreferredMarket}
             />
           ) : (
-            <HitRateTable 
+            <GatedHitRateTable 
               rows={paginatedRows} 
               loading={showLoadingState} 
               error={error?.message}

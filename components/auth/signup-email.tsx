@@ -11,8 +11,6 @@ import { createClient } from "@/libs/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRegisterContext } from "./register/context";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { getPriceId } from "@/constants/billing";
-import config from "@/config";
 
 // Zod schema for sign up
 const signUpSchema = z.object({
@@ -84,65 +82,17 @@ export const SignUpEmail = () => {
 
           // Check if email confirmation is disabled (user is immediately confirmed)
           if (signUpData.user && signUpData.session) {
-            // User is automatically signed in
-            const priceId = getPriceId("monthly", config.stripe.plans[0]?.priceId);
-            if (!priceId) {
-              toast.error("Missing price configuration. Please try again later.");
-              setTimeout(() => {
-                router.push(nextUrl);
-                router.refresh();
-              }, 500);
-              return;
-            }
+            // User is automatically signed in - redirect to plans page
+            toast.success("Account created! 🎉", {
+              description: "Choose your plan to get started.",
+              duration: 2500,
+            });
 
-            try {
-              toast.success("Account created! 🎉", {
-                description: "Redirecting you to secure checkout...",
-                duration: 2500,
-              });
-
-              // Attempt to create a Stripe Checkout session with a 7-day trial
-              const res = await fetch("/api/billing/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  priceId,
-                  mode: "subscription",
-                  trialDays: 7,
-                }),
-              });
-
-              if (res.status === 401) {
-                // Fallback: start via GET route which will handle auth redirect logic
-                const params = new URLSearchParams({
-                  priceId,
-                  mode: "subscription",
-                  trialDays: String(7),
-                }).toString();
-                window.location.assign(`/billing/start?${params}`);
-                return;
-              }
-
-              const json = await res.json().catch(() => ({} as any));
-              if (json?.url) {
-                window.location.assign(json.url);
-                return;
-              }
-
-              // Fallback if session creation fails
-              toast.error("Could not start checkout. Taking you to the app.");
-              setTimeout(() => {
-                router.push(nextUrl);
-                router.refresh();
-              }, 500);
-            } catch (e) {
-              console.error("[signup] checkout error", e);
-              toast.error("Checkout error. Taking you to the app.");
-              setTimeout(() => {
-                router.push(nextUrl);
-                router.refresh();
-              }, 500);
-            }
+            // Redirect to plans page so user can choose their plan
+            setTimeout(() => {
+              router.push("/plans");
+              router.refresh();
+            }, 500);
           } else {
             // Email confirmation is required
             toast.success("Check your email!", {

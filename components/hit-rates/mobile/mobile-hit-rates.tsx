@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileHeader } from "./mobile-header";
 import { PlayerCard } from "./player-card";
+import { GlossaryModal } from "../glossary-modal";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import type { NbaGame } from "@/hooks/use-nba-games";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
@@ -58,6 +59,16 @@ interface MobileHitRatesProps {
   onGameIdsChange: (gameIds: string[]) => void;
   // Hide players from games that have started (when no specific games selected)
   startedGameIds?: Set<string>;
+  // Auth gating - blur cards after this index
+  blurAfterIndex?: number;
+  // Max rows to show (for gated view)
+  maxRows?: number;
+  // Hide load more button
+  hideLoadMore?: boolean;
+  // Bottom content (e.g. upgrade CTA)
+  bottomContent?: React.ReactNode;
+  // Upgrade banner to show in header (for free users)
+  upgradeBanner?: React.ReactNode;
 }
 
 export function MobileHitRates({
@@ -75,11 +86,17 @@ export function MobileHitRates({
   selectedGameIds,
   onGameIdsChange,
   startedGameIds,
+  blurAfterIndex,
+  maxRows,
+  hideLoadMore = false,
+  bottomContent,
+  upgradeBanner,
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)
   // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
   const [visibleCount, setVisibleCount] = useState(20);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [showGlossary, setShowGlossary] = useState(false);
 
   // Transform games for header with team tricodes for logos and date
   const gameOptions = useMemo(() => 
@@ -164,13 +181,14 @@ export function MobileHitRates({
     return result;
   }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField, startedGameIds]);
 
-  // Paginated rows
+  // Paginated rows (respect maxRows if set)
+  const effectiveLimit = maxRows !== undefined ? Math.min(maxRows, visibleCount) : visibleCount;
   const visibleRows = useMemo(() => 
-    filteredRows.slice(0, visibleCount),
-    [filteredRows, visibleCount]
+    filteredRows.slice(0, effectiveLimit),
+    [filteredRows, effectiveLimit]
   );
 
-  const hasMore = filteredRows.length > visibleCount;
+  const hasMore = !hideLoadMore && filteredRows.length > visibleCount;
 
   // Fetch odds for visible rows
   const { getOdds } = useHitRateOdds({
@@ -210,9 +228,11 @@ export function MobileHitRates({
   }
   
   // Calculate header height for content padding
-  // Expanded: Filter rows (2 rows × ~44px) + pill strip (~40px) = ~128px
+  // Expanded: Filter rows (3 rows × ~44px) + sport tabs (~36px) = ~168px
+  // With upgrade banner: add ~56px
   // Collapsed: Single minimal row = ~40px
-  const FILTER_HEADER_HEIGHT = isHeaderCollapsed ? 40 : 128;
+  const UPGRADE_BANNER_HEIGHT = upgradeBanner ? 56 : 0;
+  const FILTER_HEADER_HEIGHT = isHeaderCollapsed ? 40 : (168 + UPGRADE_BANNER_HEIGHT);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 overflow-x-hidden">
@@ -233,6 +253,8 @@ export function MobileHitRates({
           onSearchChange={onSearchChange}
           isCollapsed={isHeaderCollapsed}
           onCollapsedChange={setIsHeaderCollapsed}
+          upgradeBanner={upgradeBanner}
+          onGlossaryClick={() => setShowGlossary(true)}
         />
       </div>
       
@@ -273,8 +295,12 @@ export function MobileHitRates({
                   // TODO: Implement add to slip
                 }}
                 isFirst={idx === 0}
+                isBlurred={blurAfterIndex !== undefined && idx >= blurAfterIndex}
               />
             ))}
+            
+            {/* Bottom Content (e.g. upgrade CTA) */}
+            {bottomContent}
             
             {/* Load More */}
             {hasMore && (
@@ -295,6 +321,9 @@ export function MobileHitRates({
           </>
         )}
       </div>
+      
+      {/* Glossary Modal */}
+      <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
     </div>
   );
 }

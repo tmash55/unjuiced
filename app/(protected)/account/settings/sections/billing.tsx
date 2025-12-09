@@ -58,6 +58,8 @@ export default function BillingSettings({ user }: { user: any }) {
   };
 
   const isPro = entitlements?.plan === "pro" || entitlements?.plan === "admin";
+  const isHitRate = entitlements?.plan === "hit_rate";
+  const hasPaidPlan = isPro || isHitRate;
   const isTrial = entitlements?.entitlement_source === "trial";
   const isSubscription = entitlements?.entitlement_source === "subscription";
   const isGrant = entitlements?.entitlement_source === "grant";
@@ -154,7 +156,17 @@ export default function BillingSettings({ user }: { user: any }) {
                   Canceling
                 </span>
               )}
-              {!isPro && (
+              {isHitRate && !isCanceled && (
+                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  Hit Rates
+                </span>
+              )}
+              {isHitRate && isCanceled && (
+                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-500 to-amber-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  Canceling
+                </span>
+              )}
+              {!hasPaidPlan && !isTrial && (
                 <span className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                   Free
                 </span>
@@ -174,18 +186,20 @@ export default function BillingSettings({ user }: { user: any }) {
                   </span>
                 </>
               )}
-              {!isLoading && isSubscription && !isCanceled && "Active subscription"}
+              {!isLoading && isPro && isSubscription && !isCanceled && "Active Pro subscription"}
+              {!isLoading && isHitRate && isSubscription && !isCanceled && "Active Hit Rates subscription"}
               {!isLoading && isGrant && "Granted access"}
               {!isLoading && isSubscription && isCanceled && "Subscription set to cancel"}
-              {!isLoading && !isPro && "Free plan with limited features"}
+              {!isLoading && !hasPaidPlan && !isTrial && "Free plan with limited features"}
             </p>
           </div>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-50 dark:bg-neutral-800">
-            {isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-green-500" />}
+            {isPro && isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-green-500" />}
+            {isHitRate && isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-orange-500" />}
             {isSubscription && isCanceled && <AlertCircle className="h-5 w-5 text-amber-500" />}
             {isTrial && <CheckCircle className="h-5 w-5 text-blue-500" />}
             {isGrant && <CheckCircle className="h-5 w-5 text-emerald-500" />}
-            {!isSubscription && !isTrial && <CreditCard className="h-5 w-5 text-neutral-400" />}
+            {!isSubscription && !isTrial && !isGrant && <CreditCard className="h-5 w-5 text-neutral-400" />}
           </div>
         </div>
 
@@ -275,7 +289,7 @@ export default function BillingSettings({ user }: { user: any }) {
             {isLegacyTrial ? (
               <>
             <a
-                  href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=7`}
+                  href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=3`}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow"
             >
                   Upgrade to Pro
@@ -313,7 +327,7 @@ export default function BillingSettings({ user }: { user: any }) {
         )}
 
         {/* Upgrade CTA for Free Users */}
-        {!isPro && !isTrial && (
+        {!hasPaidPlan && !isTrial && (
           <div className="mt-6">
             <a
               href="/pricing"
@@ -324,44 +338,101 @@ export default function BillingSettings({ user }: { user: any }) {
             </a>
           </div>
         )}
+
+        {/* Upgrade CTA for Hit Rate Users */}
+        {isHitRate && isSubscription && !isCanceled && (
+          <div className="mt-6 space-y-2">
+            <button
+              onClick={handleManageSubscription}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opening...
+                </>
+              ) : (
+                <>
+                  Manage Subscription
+                  <ExternalLink className="h-4 w-4" />
+                </>
+              )}
+            </button>
+            <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+              Update payment method, view invoices, or upgrade to Pro
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Features Summary */}
       <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <h3 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-white">
-          {isPro ? "Pro Features" : "Upgrade Benefits"}
+          {isPro ? "Pro Features" : isHitRate ? "Hit Rates Features" : "Upgrade Benefits"}
         </h3>
         <ul className="mt-4 space-y-3 text-sm text-neutral-600 dark:text-neutral-400">
-          <li className="flex items-center gap-3">
-            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-              <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-            </div>
-            <span className="leading-relaxed">Real-time odds updates (sub 2s)</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-              <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-            </div>
-            <span className="leading-relaxed">Legal arbitrage detection</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-              <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-            </div>
-            <span className="leading-relaxed">Alternate lines & props</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-              <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-            </div>
-            <span className="leading-relaxed">One-click deep linking</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-              <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-            </div>
-            <span className="leading-relaxed">Priority support</span>
-          </li>
+          {isHitRate ? (
+            <>
+              <li className="flex items-center gap-3">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
+                </div>
+                <span className="leading-relaxed">NBA player prop hit rates</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
+                </div>
+                <span className="leading-relaxed">L5, L10, L20, Season stats</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
+                </div>
+                <span className="leading-relaxed">Matchup analysis</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
+                </div>
+                <span className="leading-relaxed">Basic odds comparison</span>
+              </li>
+            </>
+          ) : (
+            <>
+              <li className="flex items-center gap-3">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
+                </div>
+                <span className="leading-relaxed">Real-time odds updates (sub 2s)</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
+                </div>
+                <span className="leading-relaxed">Legal arbitrage detection</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
+                </div>
+                <span className="leading-relaxed">Alternate lines & props</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
+                </div>
+                <span className="leading-relaxed">One-click deep linking</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
+                </div>
+                <span className="leading-relaxed">Priority support</span>
+              </li>
+            </>
+          )}
         </ul>
       </div>
     </div>

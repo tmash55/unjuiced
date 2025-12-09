@@ -1,47 +1,47 @@
 import { cn } from "@/lib/utils";
 import { Link as NavigationMenuLink } from "@radix-ui/react-navigation-menu";
-import Image from "next/image";
 import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref } from "./shared";
-import { Link2, BarChart3, Handshake, TrendingUp } from "lucide-react";
+import { Link2, TrendingUp } from "lucide-react";
 import { LinksGraphic } from "./graphics/links-graphic";
-import { AnalyticsGraphic } from "./graphics/analytics-graphics";
-import { PartnersGraphic } from "./graphics/partners-graphic";
 import { EdgeFinderGraphic } from "./graphics/edge-finder-graphic";
+import { HitRatesGraphic } from "./graphics/hit-rates-graphic";
+import Chart from "@/icons/chart";
 
 
 const tools = [
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-green-400">
-        <Link2 className="size-2.5 text-green-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
+        <Link2 className="size-2.5 text-blue-900" />
       </div>
     ),
     title: "Arbitrage",
     description: "Risk-free opportunities across books with automatic leg matching and sizing.",
     href: "/arbitrage",
-    color: "#35c97d",   //Neon Blue
+    color: "#2563eb", // blue-600
     graphicsContainerClassName: "px-2",
     graphic: <LinksGraphic className="absolute left-0 top-0 h-auto w-full" />,
     comingSoon: false,
   },
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
-        <BarChart3 className="size-2.5 text-blue-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-emerald-400">
+        <Chart className="size-2.5 text-emerald-900" />
       </div>
     ),
-    title: "Odds Screen",
-    description: "Live market odds with fast updates, line movement, and best-price highlights.",
-    href: "/odds/nfl",
-    color: "#00b4d8",
+    title: "Hit Rates",
+    description: "Player prop hit rates with L5, L10, L20, season stats and matchup analysis.",
+    href: "/hit-rates/nba",
+    color: "#10b981",
     graphicsContainerClassName: "h-[170%] bottom-0 top-[unset]",
     graphic: (
-      <AnalyticsGraphic className="absolute bottom-0 left-0 size-full" />
+      <HitRatesGraphic className="absolute bottom-0 left-0 size-full" />
     ),
     comingSoon: false,
+    badge: "NEW",
   },
   {
     icon: (
@@ -61,20 +61,20 @@ const tools = [
 
 const largeLinks = [
   {
+    title: "Odds Screen",
+    description: "Live market odds with fast updates, line movement, and best-price highlights.",
+    href: "/odds/nfl",
+    comingSoon: false,
+    graphic: null,
+    color: "#00b4d8",
+  },
+  {
     title: "Ladder Builder",
     description: "Build and track custom multi-line prop ladders — stack alternate lines, compare odds, and visualize potential payouts across every rung",
     href: "/ladders",
     comingSoon: false,
-    graphic: null, // No graphic for now
-    color: "#f97316", // Orange color for hover effect
-  },
-  {
-    title: "Hit Rates",
-    description: "Historical player prop hit rates and trends across books.",
-    href: "/hit-rates/nba",
-    comingSoon: false,
     graphic: null,
-    color: "#10b981",
+    color: "#f97316",
   },
 ];
 
@@ -92,6 +92,7 @@ export function ProductContent({ domain }: { domain: string }) {
             graphicsContainerClassName,
             graphic,
             comingSoon,
+            badge,
           }) => (
             comingSoon ? (
               <div
@@ -143,8 +144,13 @@ export function ProductContent({ domain }: { domain: string }) {
                   />
                   <div className="relative p-5 pb-0">
                     {icon}
-                    <span className="mt-3 block text-sm font-medium text-neutral-900 dark:text-white">
+                    <span className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
                       {title}
+                      {badge && (
+                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          {badge}
+                        </span>
+                      )}
                     </span>
                     <p className="mt-2 max-w-56 text-sm text-neutral-500 dark:text-white/60">
                       {description}

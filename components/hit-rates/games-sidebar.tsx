@@ -3,10 +3,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNbaGames, type NbaGame } from "@/hooks/use-nba-games";
-import { MapPin, ChevronDown, ChevronUp, HeartPulse, ArrowDown } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, HeartPulse, ArrowDown, Lock } from "lucide-react";
+import Chart from "@/icons/chart";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
+import { useHasHitRateAccess } from "@/hooks/use-entitlements";
+import { ButtonLink } from "@/components/button-link";
 
 // NBA Team Colors (primary and secondary)
 const NBA_TEAM_COLORS: Record<string, { primary: string; secondary: string }> = {
@@ -181,6 +184,7 @@ export function GamesSidebar({
   idsWithOdds,
 }: GamesSidebarProps) {
   const { games, gamesDates, isLoading, error } = useNbaGames();
+  const { hasAccess } = useHasHitRateAccess();
   
   // Track which game has its player list expanded (for drilldown mode)
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
@@ -727,6 +731,10 @@ export function GamesSidebar({
                                       const isLastInTeam = playerIdx === playersByTeam[team].length - 1;
                                       const isLastTeam = teamIdx === teams.length - 1;
                                       
+                                      // Check if this player is locked for free users
+                                      // Only the currently selected player is unlocked, all others are locked
+                                      const isLocked = !hasAccess && !isCurrentPlayer;
+                                      
                                       // Injury status helpers
                                       const injuryStatus = player.injuryStatus?.toLowerCase();
                                       const isQuestionable = injuryStatus === "questionable" || injuryStatus === "gtd" || injuryStatus === "game time decision";
@@ -741,6 +749,55 @@ export function GamesSidebar({
                                       
                                       // Position now comes from depth_chart_pos (PG, SG, SF, PF, C)
                                       const position = player.position || "";
+                                      
+                                      // Locked player row with tooltip
+                                      if (isLocked) {
+                                        return (
+                                          <Tooltip
+                                            key={player.playerId}
+                                            content={
+                                              <div className="text-center py-1">
+                                                <p className="font-semibold text-white">Upgrade to unlock</p>
+                                                <p className="text-xs text-neutral-300 mt-0.5">See all players & insights</p>
+                                              </div>
+                                            }
+                                            side="left"
+                                          >
+                                            <div
+                                              className={cn(
+                                                "w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all cursor-not-allowed",
+                                                !(isLastInTeam && isLastTeam) && "border-b border-neutral-100 dark:border-neutral-700/50",
+                                                "opacity-40 grayscale hover:opacity-60 hover:grayscale-0"
+                                              )}
+                                            >
+                                              {/* Player headshot with blur */}
+                                              <div className="relative shrink-0 rounded-full overflow-hidden ring-1 ring-neutral-200 dark:ring-neutral-700">
+                                                <PlayerHeadshot
+                                                  nbaPlayerId={player.playerId}
+                                                  name={player.playerName}
+                                                  size="tiny"
+                                                  className="w-7 h-7 object-cover object-top blur-[1px]"
+                                                />
+                                              </div>
+                                              
+                                              {/* Position badge */}
+                                              {position && (
+                                                <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 w-5 shrink-0">
+                                                  {position}
+                                                </span>
+                                              )}
+                                              
+                                              {/* Player name */}
+                                              <span className="text-sm font-medium truncate flex-1 text-neutral-400 dark:text-neutral-500">
+                                                {player.playerName}
+                                              </span>
+                                              
+                                              {/* Lock icon */}
+                                              <Lock className="h-3.5 w-3.5 shrink-0 text-neutral-400 dark:text-neutral-500" />
+                                            </div>
+                                          </Tooltip>
+                                        );
+                                      }
                                       
                                       return (
                                         <button
@@ -823,6 +880,25 @@ export function GamesSidebar({
                                     })}
                                   </div>
                                 );})}
+                                
+                                {/* Upgrade CTA for free users with locked players */}
+                                {!hasAccess && filteredPlayers.length > 1 && (
+                                  <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-[var(--color-brand)]/5 via-[var(--color-brand)]/10 to-[var(--color-brand)]/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Chart className="h-4 w-4 stroke-[var(--color-brand)]" />
+                                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                        Unlock all players
+                                      </span>
+                                    </div>
+                                    <ButtonLink
+                                      href="/pricing"
+                                      variant="primary"
+                                      className="w-full justify-center rounded-lg bg-[var(--color-brand)] hover:bg-[var(--color-brand)]/90 px-3 py-2 text-xs font-semibold text-white shadow-sm"
+                                    >
+                                      Unlock Now
+                                    </ButtonLink>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );

@@ -24,6 +24,7 @@ interface PlayerCardProps {
   onCardClick: () => void;
   onAddToSlip?: () => void;
   isFirst?: boolean;
+  isBlurred?: boolean;
 }
 
 // Format odds with + prefix for positive
@@ -258,7 +259,7 @@ function DvpBadge({ rank }: { rank: number | null }) {
   );
 }
 
-export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = false }: PlayerCardProps) {
+export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = false, isBlurred = false }: PlayerCardProps) {
   const [showInjuryModal, setShowInjuryModal] = useState(false);
 
   const {
@@ -293,15 +294,25 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
   const propText = line !== null ? `${line}+ ${propLabel}` : propLabel;
 
   const hasOdds = odds && (odds.bestOver || odds.bestUnder);
-  const hasInjury = injuryStatus && injuryStatus.toLowerCase() !== "active" && injuryStatus.toLowerCase() !== "available";
+  const hasInjury = !isBlurred && injuryStatus && injuryStatus.toLowerCase() !== "active" && injuryStatus.toLowerCase() !== "available";
   
   // Check if player is in G League
   const isGLeague = injuryNotes?.toLowerCase().includes("g league") || 
                     injuryNotes?.toLowerCase().includes("g-league") ||
                     injuryNotes?.toLowerCase().includes("gleague");
 
+  // Display values - use placeholders for blurred cards
+  const displayName = isBlurred ? "Player Name" : playerName;
+  const displayTeam = isBlurred ? "TM" : teamAbbr;
+  const displayPosition = isBlurred ? "POS" : position;
+  const displayLine = isBlurred ? "00.0" : line;
+  const displayPropText = isBlurred ? `00.0+ ${propLabel}` : propText;
+
   return (
-    <div className="bg-white dark:bg-neutral-900">
+    <div className={cn(
+      "bg-white dark:bg-neutral-900",
+      isBlurred && "pointer-events-none select-none"
+    )}>
       {/* Premium inset divider - 85% width, centered */}
       {!isFirst && (
         <div className="flex justify-center">
@@ -312,22 +323,28 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
       {/* Main tappable area */}
       <button
         type="button"
-        onClick={onCardClick}
-        className="w-full text-left px-3 py-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/50"
+        onClick={isBlurred ? undefined : onCardClick}
+        disabled={isBlurred}
+        className={cn(
+          "w-full text-left px-3 py-2.5",
+          isBlurred 
+            ? "cursor-default" 
+            : "active:bg-neutral-50 dark:active:bg-neutral-800/50"
+        )}
       >
         {/* ═══════════════════════════════════════════════════════════════
             BLOCK 1 — Header Row (toned down: very small, mono, low-contrast)
             Game • DvP • Kickoff time
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="flex items-center justify-between mb-2">
+        <div className={cn("flex items-center justify-between mb-2", isBlurred && "blur-[3px] opacity-60")}>
           <div className="flex items-center gap-2 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
-            <span className="uppercase">{matchupText}</span>
+            <span className="uppercase">{isBlurred ? "TM @ TM" : matchupText}</span>
             <span className="opacity-40">•</span>
-            <span>{gameTime}</span>
+            <span>{isBlurred ? "0:00 PM" : gameTime}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {/* Over Odds */}
-            {hasOdds && odds.bestOver && (
+            {!isBlurred && hasOdds && odds.bestOver && (
               <a
                 href={odds.bestOver.mobileUrl || odds.bestOver.url || "#"}
                 target="_blank"
@@ -360,7 +377,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                 </span>
               </a>
             )}
-            <DvpBadge rank={matchupRank} />
+            <DvpBadge rank={isBlurred ? null : matchupRank} />
           </div>
         </div>
         
@@ -371,51 +388,55 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
           {/* Left side: Headshot + Player info */}
           <div className="flex items-start gap-2 flex-1 min-w-0">
             {/* Headshot with team logo overlay */}
-            <div className="relative shrink-0">
+            <div className={cn("relative shrink-0", isBlurred && "blur-[2px] opacity-60")}>
               <div 
                 className="w-9 h-9 rounded-full p-[1.5px]"
                 style={{
-                  background: primaryColor 
+                  background: isBlurred ? '#6b7280' : (primaryColor 
                     ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor || primaryColor} 100%)`
-                    : '#374151'
+                    : '#374151')
                 }}
               >
                 <div 
                   className="w-full h-full rounded-full overflow-hidden relative"
                   style={{
-                    background: primaryColor && secondaryColor
+                    background: isBlurred ? '#6b7280' : (primaryColor && secondaryColor
                       ? `linear-gradient(180deg, ${primaryColor}dd 0%, ${primaryColor} 50%, ${secondaryColor} 100%)`
-                      : primaryColor || '#374151'
+                      : primaryColor || '#374151')
                   }}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
-                    <PlayerHeadshot
-                      nbaPlayerId={playerId}
-                      name={playerName}
-                      size="small"
-                      className="w-full h-auto"
-                    />
-                  </div>
+                  {!isBlurred && (
+                    <div className="absolute inset-0 flex items-center justify-center scale-[1.4] translate-y-[10%]">
+                      <PlayerHeadshot
+                        nbaPlayerId={playerId}
+                        name={playerName}
+                        size="small"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Team logo overlay */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
-                <img
-                  src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
-                  alt={teamAbbr ?? ""}
-                  className="h-2.5 w-2.5 object-contain"
-                  onError={(e) => { 
-                    (e.currentTarget as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
+              {!isBlurred && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center border border-neutral-200 dark:border-neutral-700">
+                  <img
+                    src={`/team-logos/nba/${teamAbbr?.toUpperCase()}.svg`}
+                    alt={teamAbbr ?? ""}
+                    className="h-2.5 w-2.5 object-contain"
+                    onError={(e) => { 
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
             </div>
             
             {/* Player identity - 2 rows */}
-            <div className="flex-1 min-w-0">
+            <div className={cn("flex-1 min-w-0", isBlurred && "blur-[3px] opacity-60")}>
               <div className="flex items-center gap-1.5">
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 truncate tracking-tight">
-                  {playerName}
+                  {displayName}
                 </h3>
                 {hasInjury && (
                   <span
@@ -433,7 +454,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   </span>
                 )}
                 <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium shrink-0">
-                  {position}
+                  {displayPosition}
                 </span>
               </div>
               <div className="flex items-center gap-1 mt-0.5">
@@ -441,14 +462,14 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   O
                 </span>
                 <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
-                  {propText}
+                  {displayPropText}
                 </span>
               </div>
             </div>
           </div>
 
           {/* Right side: Hit Rate Cluster - spans both rows */}
-          <div className="shrink-0">
+          <div className={cn("shrink-0", isBlurred && "blur-[3px] opacity-60")}>
             <HitRateCluster l5={last5Pct} l10={last10Pct} season={seasonPct} h2h={h2hPct} />
           </div>
         </div>

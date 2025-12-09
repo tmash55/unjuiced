@@ -29,6 +29,29 @@ interface PartnerDiscountResult {
 }
 
 /**
+ * Validate that a coupon ID looks like a real Stripe coupon
+ * Stripe coupon IDs are alphanumeric and typically short (e.g., "1Ry5Zesp")
+ * This prevents test placeholder strings from being sent to Stripe
+ */
+function isValidCouponId(id: string | undefined | null): boolean {
+  if (!id) return false;
+  // Must be alphanumeric, between 4-50 chars, no spaces or special placeholder patterns
+  if (id.length < 4 || id.length > 50) return false;
+  if (id.includes(" ") || id.includes("_")) return false;
+  if (id.toLowerCase().includes("your") || id.toLowerCase().includes("test_coupon")) return false;
+  return /^[a-zA-Z0-9]+$/.test(id);
+}
+
+/**
+ * Validate that a promotion code ID looks like a real Stripe promo code
+ * Stripe promotion code IDs start with "promo_"
+ */
+function isValidPromotionCodeId(id: string | undefined | null): boolean {
+  if (!id) return false;
+  return id.startsWith("promo_") && id.length > 10;
+}
+
+/**
  * Utility function to read partner discount data from cookie (for server-side use)
  * Returns both couponId and promotionCodeId - prefer promotionCodeId if available
  */
@@ -50,15 +73,21 @@ export function getPartnerDiscountFromCookie(cookieHeader: string | null): Partn
     if (!discount) return { couponId: null, promotionCodeId: null };
     
     // Use test IDs in development, production IDs in production
+    let couponId: string | null = null;
+    let promotionCodeId: string | null = null;
+    
     if (process.env.NODE_ENV === "development") {
-      return {
-        couponId: discount.couponTestId || discount.couponId || null,
-        promotionCodeId: discount.promotionCodeTestId || discount.promotionCodeId || null,
-      };
+      couponId = discount.couponTestId || discount.couponId || null;
+      promotionCodeId = discount.promotionCodeTestId || discount.promotionCodeId || null;
+    } else {
+      couponId = discount.couponId || null;
+      promotionCodeId = discount.promotionCodeId || null;
     }
+    
+    // Validate IDs before returning - don't send invalid/placeholder IDs to Stripe
     return {
-      couponId: discount.couponId || null,
-      promotionCodeId: discount.promotionCodeId || null,
+      couponId: isValidCouponId(couponId) ? couponId : null,
+      promotionCodeId: isValidPromotionCodeId(promotionCodeId) ? promotionCodeId : null,
     };
   } catch {
     return { couponId: null, promotionCodeId: null };

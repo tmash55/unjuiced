@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { 
   ArrowLeft, 
   ChevronDown, 
@@ -48,6 +48,7 @@ import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
 import { usePlayerCorrelations, TeammateCorrelation, StatCorrelation, TeammateGameLog } from "@/hooks/use-player-correlations";
 import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-filters";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
+import { useMobileNav } from "@/contexts/mobile-nav-context";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
 
@@ -897,6 +898,315 @@ function HeroBarChart({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRENDING FILTERS COMPONENT - Expandable filter buttons for mobile
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface TrendingFiltersProps {
+  market: string;
+  games: BoxScoreGame[];
+  filters: ChartFiltersState;
+  onFiltersChange: (filters: ChartFiltersState) => void;
+}
+
+function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFiltersProps) {
+  const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState<"min" | "max" | null>(null);
+  
+  // Calculate stats for each filter
+  const stats = useMemo(() => {
+    if (games.length === 0) return null;
+    
+    const calc = (getValue: (g: BoxScoreGame) => number) => {
+      const values = games.map(getValue);
+      return {
+        min: Math.min(...values),
+        max: Math.max(...values),
+        avg: values.reduce((a, b) => a + b, 0) / values.length,
+      };
+    };
+    
+    return {
+      minutes: calc(g => g.minutes),
+      usage: calc(g => g.usagePct),
+      fga: calc(g => g.fga),
+      fg3a: calc(g => g.fg3a),
+      fta: calc(g => g.fta),
+      potentialReb: calc(g => g.potentialReb),
+      passes: calc(g => g.passes),
+      points: calc(g => g.pts),
+      rebounds: calc(g => g.reb),
+      assists: calc(g => g.ast),
+    };
+  }, [games]);
+  
+  if (!stats) return null;
+  
+  // Determine which filters to show based on market
+  const marketLower = market?.toLowerCase() || "";
+  
+  type FilterConfig = {
+    key: keyof ChartFiltersState;
+    label: string;
+    shortLabel: string;
+    stats: { min: number; max: number; avg: number };
+    isPercentage?: boolean;
+    isInteger?: boolean;
+  };
+  
+  let filterConfigs: FilterConfig[] = [];
+  
+  if (marketLower.includes("points") || marketLower.includes("pra")) {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "fga", label: "Field Goal Attempts", shortLabel: "FGA", stats: stats.fga },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  } else if (marketLower.includes("rebounds")) {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "potentialReb", label: "Rebound Chances", shortLabel: "REB CH", stats: stats.potentialReb },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  } else if (marketLower.includes("assists")) {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "passes", label: "Passes Made", shortLabel: "PASS", stats: stats.passes },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  } else if (marketLower.includes("threes")) {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "fg3a", label: "3PT Attempts", shortLabel: "3PA", stats: stats.fg3a },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  } else if (marketLower.includes("steals") || marketLower.includes("blocks")) {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  } else {
+    filterConfigs = [
+      { key: "minutes", label: "Minutes", shortLabel: "MIN", stats: stats.minutes },
+      { key: "usage", label: "Usage Rate", shortLabel: "USG%", stats: stats.usage, isPercentage: true, isInteger: false },
+    ];
+  }
+  
+  const activeCount = filterConfigs.filter(c => filters[c.key] !== null).length;
+  
+  // Get expanded filter config
+  const expandedConfig = filterConfigs.find(c => c.key === expandedFilter);
+  const expandedValue = expandedConfig ? (filters[expandedConfig.key] as { min: number; max: number } | null) : null;
+  const expandedStats = expandedConfig?.stats;
+  
+  const formatValue = (val: number, config: FilterConfig) => {
+    if (config.isPercentage) return `${Math.round(val * 100)}%`;
+    return config.isInteger !== false ? Math.round(val).toString() : val.toFixed(1);
+  };
+  
+  // Slider drag handling
+  const handleDrag = useCallback((clientX: number, handle: "min" | "max") => {
+    if (!sliderRef.current || !expandedConfig || !expandedStats) return;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const range = expandedStats.max - expandedStats.min || 1;
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newValue = expandedStats.min + pct * range;
+    
+    const currentMin = expandedValue?.min ?? expandedStats.min;
+    const currentMax = expandedValue?.max ?? expandedStats.max;
+    
+    if (handle === "min") {
+      const clampedMin = Math.min(newValue, currentMax - range * 0.05);
+      onFiltersChange({ ...filters, [expandedConfig.key]: { min: Math.max(expandedStats.min, clampedMin), max: currentMax } });
+    } else {
+      const clampedMax = Math.max(newValue, currentMin + range * 0.05);
+      onFiltersChange({ ...filters, [expandedConfig.key]: { min: currentMin, max: Math.min(expandedStats.max, clampedMax) } });
+    }
+  }, [expandedConfig, expandedStats, expandedValue, filters, onFiltersChange]);
+  
+  const handleTouchStart = (handle: "min" | "max") => (e: React.TouchEvent) => {
+    setIsDragging(handle);
+    const touch = e.touches[0];
+    if (touch) handleDrag(touch.clientX, handle);
+    
+    const handleTouchMove = (ev: TouchEvent) => {
+      if (ev.touches[0]) handleDrag(ev.touches[0].clientX, handle);
+    };
+    const handleTouchEnd = () => {
+      setIsDragging(null);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+    document.addEventListener("touchmove", handleTouchMove);
+    document.addEventListener("touchend", handleTouchEnd);
+  };
+  
+  const handleMouseDown = (handle: "min" | "max") => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(handle);
+    
+    const handleMouseMove = (ev: MouseEvent) => handleDrag(ev.clientX, handle);
+    const handleMouseUp = () => {
+      setIsDragging(null);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+  
+  return (
+    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+      {/* Filter Buttons Row */}
+      <div className="flex items-center gap-2 p-3 overflow-x-auto scrollbar-hide">
+        <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide shrink-0">
+          Filter
+        </span>
+        
+        {filterConfigs.map(config => {
+          const isActive = filters[config.key] !== null;
+          const isExpanded = expandedFilter === config.key;
+          const value = filters[config.key] as { min: number; max: number } | null;
+          
+          return (
+            <button
+              key={config.key}
+              type="button"
+              onClick={() => {
+                if (isExpanded) {
+                  setExpandedFilter(null);
+                } else {
+                  setExpandedFilter(config.key);
+                }
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0",
+                isExpanded
+                  ? "bg-brand text-white shadow-sm"
+                  : isActive
+                    ? "bg-brand/10 text-brand border border-brand/30"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-transparent hover:border-neutral-300 dark:hover:border-neutral-600"
+              )}
+            >
+              <span>{config.shortLabel}</span>
+              {isActive && value && (
+                <span className="text-[10px] opacity-80">
+                  {formatValue(value.min, config)}–{formatValue(value.max, config)}
+                </span>
+              )}
+              {isExpanded && <ChevronDown className="h-3 w-3" />}
+            </button>
+          );
+        })}
+        
+        {activeCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const cleared = { ...filters };
+              filterConfigs.forEach(c => { cleared[c.key] = null; });
+              onFiltersChange(cleared);
+              setExpandedFilter(null);
+            }}
+            className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-semibold text-red-500 hover:text-red-600 shrink-0"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
+        )}
+      </div>
+      
+      {/* Expanded Slider Panel */}
+      {expandedFilter && expandedConfig && expandedStats && (
+        <div className="px-4 pb-4 pt-1 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+          {/* Label Row */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              {expandedConfig.label}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-neutral-500">
+                Avg: <span className="font-semibold">{formatValue(expandedStats.avg, expandedConfig)}</span>
+              </span>
+              {expandedValue && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFiltersChange({ ...filters, [expandedConfig.key]: null });
+                  }}
+                  className="text-[10px] font-semibold text-red-500"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* Slider */}
+          <div ref={sliderRef} className="relative h-8 touch-none mb-1">
+            {/* Background Track */}
+            <div className="absolute left-0 right-0 top-3 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
+            
+            {/* Selected Range */}
+            {(() => {
+              const range = expandedStats.max - expandedStats.min || 1;
+              const currentMin = expandedValue?.min ?? expandedStats.min;
+              const currentMax = expandedValue?.max ?? expandedStats.max;
+              const minPos = ((currentMin - expandedStats.min) / range) * 100;
+              const maxPos = ((currentMax - expandedStats.min) / range) * 100;
+              
+              return (
+                <>
+                  <div 
+                    className="absolute top-3 h-2 bg-brand rounded-full"
+                    style={{ left: `${minPos}%`, width: `${maxPos - minPos}%` }}
+                  />
+                  
+                  {/* Min Handle */}
+                  <div
+                    className={cn(
+                      "absolute top-1 w-6 h-6 bg-white rounded-full border-2 border-brand cursor-grab shadow-lg transition-transform",
+                      isDragging === "min" && "scale-110 ring-4 ring-brand/20"
+                    )}
+                    style={{ left: `calc(${minPos}% - 12px)` }}
+                    onMouseDown={handleMouseDown("min")}
+                    onTouchStart={handleTouchStart("min")}
+                  />
+                  
+                  {/* Max Handle */}
+                  <div
+                    className={cn(
+                      "absolute top-1 w-6 h-6 bg-white rounded-full border-2 border-brand cursor-grab shadow-lg transition-transform",
+                      isDragging === "max" && "scale-110 ring-4 ring-brand/20"
+                    )}
+                    style={{ left: `calc(${maxPos}% - 12px)` }}
+                    onMouseDown={handleMouseDown("max")}
+                    onTouchStart={handleTouchStart("max")}
+                  />
+                </>
+              );
+            })()}
+          </div>
+          
+          {/* Range Labels */}
+          <div className="flex justify-between text-[10px] text-neutral-500">
+            <span>{formatValue(expandedStats.min, expandedConfig)}</span>
+            {expandedValue ? (
+              <span className="font-bold text-brand">
+                {formatValue(expandedValue.min, expandedConfig)} – {formatValue(expandedValue.max, expandedConfig)}
+              </span>
+            ) : (
+              <span className="text-neutral-400">Drag to filter</span>
+            )}
+            <span>{formatValue(expandedStats.max, expandedConfig)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2400,6 +2710,9 @@ export function MobilePlayerDrilldown({
   onBack, 
   onMarketChange 
 }: MobilePlayerDrilldownProps) {
+  // Check if mobile nav menu is open (to hide bottom nav)
+  const { isMenuOpen } = useMobileNav();
+  
   const [selectedMarket, setSelectedMarket] = useState(initialProfile.market);
   const [gameCount, setGameCount] = useState<GameCountFilter>(10);
   const [showMarketPicker, setShowMarketPicker] = useState(false);
@@ -3658,6 +3971,14 @@ export function MobilePlayerDrilldown({
               advancedFiltersCount={Object.values(advancedFilters).filter(v => v !== null).length}
               onOpenAdvancedFilters={() => setShowAdvancedFilters(true)}
             />
+            
+            {/* ═══ TRENDING FILTERS - Quick stat sliders ═══ */}
+            <TrendingFilters
+              market={profile.market}
+              games={boxScoreGames}
+              filters={advancedFilters}
+              onFiltersChange={setAdvancedFilters}
+            />
         
             {/* ═══ LINE CONTROL BAR - Premium Clean Design ═══ */}
             <div className="bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-900/50 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden shadow-sm">
@@ -4025,9 +4346,9 @@ export function MobilePlayerDrilldown({
                       <div>
                         <div className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide flex items-center gap-1.5">
                           <span>When {profile.playerName?.split(" ").pop()} hits {effectiveLine}+ {formatMarketLabelShort(profile.market)}</span>
-                          {/* Game filter badge */}
+                          {/* Game filter badge - Show Season for H2H since correlations don't support H2H filtering */}
                           <span className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-bold">
-                            {gameCount === "season" ? "Season" : gameCount === "h2h" ? "H2H" : `L${gameCount}`}
+                            {gameCount === "season" || gameCount === "h2h" ? "Season" : `L${gameCount}`}
                           </span>
                         </div>
                       </div>
@@ -4315,63 +4636,171 @@ export function MobilePlayerDrilldown({
               playerName={profile.playerName}
             />
             
-            {/* Game Log */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <ListOrdered className="h-4 w-4 text-brand" />
-                <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-                  Game Log
+            {/* Game Log - ESPN Style */}
+            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30">
+                <div className="flex items-center gap-2">
+                  <ListOrdered className="h-4 w-4 text-brand" />
+                  <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">
+                    Game Log
+                  </span>
+                </div>
+                <span className="text-[10px] text-neutral-500">
+                  {chartGames.length} Games
                 </span>
               </div>
               
-              {/* Stats Table */}
-              <div className="overflow-x-auto -mx-4 px-4">
-                <table className="w-full min-w-[400px] text-xs">
+              {/* ESPN-Style Stats Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[580px]">
                   <thead>
-                    <tr className="border-b border-neutral-200 dark:border-neutral-700">
-                      <th className="text-left py-2 font-semibold text-neutral-500">Date</th>
-                      <th className="text-left py-2 font-semibold text-neutral-500">Opp</th>
-                      <th className="text-center py-2 font-semibold text-neutral-500">Min</th>
-                      <th className="text-center py-2 font-semibold text-neutral-500">{formatMarketLabel(profile.market).split(" ")[0]}</th>
-                      <th className="text-center py-2 font-semibold text-neutral-500">Result</th>
+                    <tr className="bg-neutral-100/80 dark:bg-neutral-800/60">
+                      <th className="text-left px-3 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Date</th>
+                      <th className="text-left px-2 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Opp</th>
+                      <th className="text-center px-2 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Result</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Min</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Pts</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Reb</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Ast</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">PF</th>
+                      <th className="text-center px-1.5 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">FG</th>
+                      <th className="text-center px-2 py-2.5 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">FG%</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {chartGames.slice(0, 10).map((game, idx) => {
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/60">
+                    {chartGames.slice(0, 15).map((game, idx) => {
                       const hasEffectiveLine = effectiveLine !== null;
                       const isHit = hasEffectiveLine && game.market_stat >= effectiveLine;
+                      const gameDate = game.date ? new Date(game.date + "T12:00:00") : null;
+                      const dayName = gameDate ? gameDate.toLocaleDateString('en-US', { weekday: 'short' }) : "";
+                      const monthDay = gameDate ? `${gameDate.getMonth() + 1}/${gameDate.getDate()}` : "—";
+                      
+                      // Get stats from full_game_data (BoxScoreGame)
+                      const boxScore = game.full_game_data;
+                      const pts = boxScore?.pts ?? null;
+                      const reb = boxScore?.reb ?? null;
+                      const ast = boxScore?.ast ?? null;
+                      const fouls = boxScore?.fouls ?? null;
+                      const fgm = boxScore?.fgm ?? null;
+                      const fga = boxScore?.fga ?? null;
+                      const fgPct = fgm !== null && fga !== null && fga > 0 ? ((fgm / fga) * 100).toFixed(1) : null;
+                      const teamScore = boxScore?.teamScore ?? null;
+                      const oppScore = boxScore?.opponentScore ?? null;
+                      
+                      // Determine which stat is the current market to highlight it
+                      const marketLower = profile.market?.toLowerCase() || "";
+                      const isPtsMarket = marketLower.includes("points");
+                      const isRebMarket = marketLower.includes("rebounds");
+                      const isAstMarket = marketLower.includes("assists");
+                      
                       return (
-                        <tr key={idx} className="border-b border-neutral-100 dark:border-neutral-800/50">
-                          <td className="py-2 text-neutral-600 dark:text-neutral-400">{game.date?.slice(5) ?? "—"}</td>
-                          <td className="py-2">
-                            <div className="flex items-center gap-1">
-                              <span className="text-neutral-400 text-[10px]">{game.home_away === "H" ? "vs" : "@"}</span>
+                        <tr key={idx} className={cn(
+                          "transition-colors",
+                          idx % 2 === 0 ? "bg-white dark:bg-neutral-900" : "bg-neutral-50/50 dark:bg-neutral-800/20"
+                        )}>
+                          {/* Date */}
+                          <td className="px-3 py-2.5">
+                            <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                              {dayName} {monthDay}
+                            </span>
+                          </td>
+                          
+                          {/* Opponent */}
+                          <td className="px-2 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-neutral-400 w-3">
+                                {game.home_away === "H" ? "vs" : "@"}
+                              </span>
                               <img 
                                 src={`/team-logos/nba/${game.opponent_abbr?.toUpperCase()}.svg`} 
-                                alt="" 
-                                className="h-4 w-4 object-contain"
+                                alt={game.opponent_abbr ?? ""} 
+                                className="h-5 w-5 object-contain"
                               />
+                              <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                                {game.opponent_abbr}
+                              </span>
                             </div>
                           </td>
-                          <td className="py-2 text-center text-neutral-600 dark:text-neutral-400">{typeof game.minutes === 'number' ? game.minutes.toFixed(0) : game.minutes}</td>
-                          <td className={cn(
-                            "py-2 text-center font-bold",
-                            !hasEffectiveLine
-                              ? "text-neutral-600 dark:text-neutral-400"
-                              : isHit 
-                                ? "text-emerald-600 dark:text-emerald-400" 
-                                : "text-red-500 dark:text-red-400"
-                          )}>
-                            {game.market_stat}
-                          </td>
-                          <td className="py-2 text-center">
+                          
+                          {/* Result */}
+                          <td className="px-2 py-2.5 text-center">
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                              "text-xs font-bold",
                               game.win_loss === "W" 
-                                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-                                : "bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-500 dark:text-red-400"
                             )}>
                               {game.win_loss}
+                              {teamScore !== null && oppScore !== null && (
+                                <span className="font-medium ml-1">
+                                  {teamScore}-{oppScore}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          
+                          {/* Minutes */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                              {typeof game.minutes === 'number' ? Math.round(game.minutes) : game.minutes ?? "—"}
+                            </span>
+                          </td>
+                          
+                          {/* Points - highlight if market */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className={cn(
+                              "text-xs",
+                              isPtsMarket 
+                                ? (hasEffectiveLine && isHit ? "font-bold text-emerald-600 dark:text-emerald-400" : hasEffectiveLine ? "font-bold text-red-500 dark:text-red-400" : "font-bold text-neutral-800 dark:text-neutral-200")
+                                : "text-neutral-600 dark:text-neutral-400"
+                            )}>
+                              {pts ?? "—"}
+                            </span>
+                          </td>
+                          
+                          {/* Rebounds - highlight if market */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className={cn(
+                              "text-xs",
+                              isRebMarket 
+                                ? (hasEffectiveLine && isHit ? "font-bold text-emerald-600 dark:text-emerald-400" : hasEffectiveLine ? "font-bold text-red-500 dark:text-red-400" : "font-bold text-neutral-800 dark:text-neutral-200")
+                                : "text-neutral-600 dark:text-neutral-400"
+                            )}>
+                              {reb ?? "—"}
+                            </span>
+                          </td>
+                          
+                          {/* Assists - highlight if market */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className={cn(
+                              "text-xs",
+                              isAstMarket 
+                                ? (hasEffectiveLine && isHit ? "font-bold text-emerald-600 dark:text-emerald-400" : hasEffectiveLine ? "font-bold text-red-500 dark:text-red-400" : "font-bold text-neutral-800 dark:text-neutral-200")
+                                : "text-neutral-600 dark:text-neutral-400"
+                            )}>
+                              {ast ?? "—"}
+                            </span>
+                          </td>
+                          
+                          {/* Personal Fouls */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                              {fouls ?? "—"}
+                            </span>
+                          </td>
+                          
+                          {/* FG */}
+                          <td className="px-1.5 py-2.5 text-center">
+                            <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                              {fgm !== null && fga !== null ? `${fgm}-${fga}` : "—"}
+                            </span>
+                          </td>
+                          
+                          {/* FG% */}
+                          <td className="px-2 py-2.5 text-center">
+                            <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                              {fgPct ?? "—"}
                             </span>
                           </td>
                         </tr>
@@ -4381,8 +4810,13 @@ export function MobilePlayerDrilldown({
                 </table>
               </div>
               
-              {chartGames.length > 10 && (
-                <p className="text-center text-[10px] text-neutral-400 mt-3">Showing last 10 of {chartGames.length} games</p>
+              {/* Footer */}
+              {chartGames.length > 15 && (
+                <div className="px-4 py-2.5 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+                  <p className="text-center text-[10px] text-neutral-500">
+                    Showing last 15 of {chartGames.length} games
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -4698,7 +5132,9 @@ export function MobilePlayerDrilldown({
 
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY BOTTOM NAVIGATION TABS
+          Hidden when mobile nav menu is open
       ═══════════════════════════════════════════════════════════════════ */}
+      {!isMenuOpen && (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-800/60 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] safe-area-inset-bottom">
         <div className="flex items-center justify-around px-2 py-2">
           {[
@@ -4743,6 +5179,7 @@ export function MobilePlayerDrilldown({
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

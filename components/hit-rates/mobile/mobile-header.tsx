@@ -16,7 +16,8 @@ import {
   Zap,
   BarChart3,
   User,
-  Hash
+  Hash,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +82,10 @@ interface MobileHeaderProps {
   showSecondaryFilters?: boolean;
   isCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  // Optional upgrade banner to show under sport tabs
+  upgradeBanner?: React.ReactNode;
+  // Glossary callback
+  onGlossaryClick?: () => void;
 }
 
 // Helper to get team logo URL
@@ -532,6 +537,8 @@ export function MobileHeader({
   showSecondaryFilters = true,
   isCollapsed: isCollapsedProp = false,
   onCollapsedChange,
+  upgradeBanner,
+  onGlossaryClick,
 }: MobileHeaderProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -633,31 +640,54 @@ export function MobileHeader({
         {true && (
           <>
             <div className="px-3 pt-2 pb-1.5 space-y-2">
-              {/* Row 1: Sport Selection - Tab Style */}
-              <div className="flex gap-0 overflow-x-auto scrollbar-hide border-b border-neutral-200 dark:border-neutral-800">
-                {SPORT_OPTIONS.map((sportOption) => {
-                  const isSelected = sport === sportOption.value;
-                  const isEnabled = sportOption.enabled;
-                  return (
-                    <div
-                      key={sportOption.value}
-                      className={cn(
-                        "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
-                        isEnabled
-                          ? isSelected
-                            ? "text-brand"
-                            : "text-neutral-500 dark:text-neutral-400"
-                          : "text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
-                      )}
-                    >
-                      {sportOption.label}
-                      {isSelected && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
-                      )}
-                    </div>
-                  );
-                })}
+              {/* Row 1: Sport Selection - Tab Style with Glossary */}
+              <div className="flex items-center border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex gap-0 overflow-x-auto scrollbar-hide flex-1">
+                  {SPORT_OPTIONS.map((sportOption) => {
+                    const isSelected = sport === sportOption.value;
+                    const isEnabled = sportOption.enabled;
+                    return (
+                      <div
+                        key={sportOption.value}
+                        className={cn(
+                          "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
+                          isEnabled
+                            ? isSelected
+                              ? "text-brand"
+                              : "text-neutral-500 dark:text-neutral-400"
+                            : "text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        {sportOption.label}
+                        {isSelected && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Glossary Button - Right aligned */}
+                {onGlossaryClick && (
+                  <button
+                    type="button"
+                    onClick={onGlossaryClick}
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1 mr-2 rounded-md shrink-0",
+                      "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
+                      "text-neutral-500 dark:text-neutral-400",
+                      "hover:text-neutral-700 dark:hover:text-neutral-300",
+                      "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    )}
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>Help</span>
+                  </button>
+                )}
               </div>
+
+              {/* Upgrade Banner - shown for free users */}
+              {upgradeBanner}
 
               {/* Row 2: Market Selection */}
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">

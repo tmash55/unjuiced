@@ -4,7 +4,7 @@ import { createClient } from "@/libs/supabase/server";
 /**
  * User plan tiers
  */
-export type UserPlan = "anonymous" | "free" | "pro";
+export type UserPlan = "anonymous" | "free" | "hit_rate" | "pro";
 
 /**
  * Feature access limits by plan
@@ -26,6 +26,9 @@ export const PLAN_LIMITS = {
       maxResults: 0, // No access
       refreshRate: 0,
     },
+    hitRates: {
+      hasAccess: false,
+    },
   },
   free: {
     arbitrage: {
@@ -42,6 +45,29 @@ export const PLAN_LIMITS = {
     positiveEV: {
       maxResults: 10,
       refreshRate: 30000,
+    },
+    hitRates: {
+      hasAccess: false,
+    },
+  },
+  hit_rate: {
+    arbitrage: {
+      maxResults: 100, // Same as free - no arb access
+      refreshRate: 10000,
+      canFilter: true,
+      canExport: false,
+    },
+    odds: {
+      maxLeagues: 3, // Same as free - limited odds access
+      refreshRate: 5000,
+      canCompare: true,
+    },
+    positiveEV: {
+      maxResults: 10, // Same as free - limited EV access
+      refreshRate: 30000,
+    },
+    hitRates: {
+      hasAccess: true, // Full Hit Rates access
     },
   },
   pro: {
@@ -60,8 +86,25 @@ export const PLAN_LIMITS = {
       maxResults: -1, // Unlimited
       refreshRate: 5000,
     },
+    hitRates: {
+      hasAccess: true, // Full Hit Rates access
+    },
   },
 } as const;
+
+/**
+ * Check if a plan has access to Hit Rates
+ */
+export function hasHitRateAccess(plan: UserPlan): boolean {
+  return plan === "hit_rate" || plan === "pro";
+}
+
+/**
+ * Check if a plan has full Pro features (arb, EV, etc.)
+ */
+export function hasProAccess(plan: UserPlan): boolean {
+  return plan === "pro";
+}
 
 /**
  * Get user's plan tier using the v_user_entitlements view

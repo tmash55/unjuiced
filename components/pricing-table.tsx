@@ -16,7 +16,7 @@ export const PricingTable = () => {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
 
   const orderedTierNames: TierName[] = useMemo(
-    () => [TierName.FREE, TierName.PRO],
+    () => [TierName.HIT_RATES, TierName.PRO],
     [],
   );
 
@@ -78,10 +78,12 @@ export const PricingTable = () => {
                       /seat billed{" "}
                       {cycle === "monthly" ? "monthly" : "annually"}
                     </div>
-                    {tierName === TierName.FREE ? (
-                      <ButtonLink variant="secondary" href="/register" className="w-full sm:w-auto">
-                        Start for free
-                      </ButtonLink>
+                    {tierName === TierName.HIT_RATES ? (
+                      <BuyButton
+                        priceId={process.env.NEXT_PUBLIC_STRIPE_NBA_HIT_RATES || ""}
+                        label="Get Hit Rates"
+                        className="w-full sm:w-auto mt-2"
+                      />
                     ) : (
                       <BuyButton
                         priceId={getPriceId(cycle)}

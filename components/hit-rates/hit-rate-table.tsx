@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check } from "lucide-react";
+import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
@@ -84,6 +84,12 @@ interface HitRateTableProps {
   onHideNoOddsChange?: (value: boolean) => void;
   // Callback to report which profiles have odds
   onOddsAvailabilityChange?: (idsWithOdds: Set<string>) => void;
+  // Optional upgrade banner to show after filters (for gated access)
+  upgradeBanner?: React.ReactNode;
+  // Optional content to render after the table (for blurred preview rows)
+  bottomContent?: React.ReactNode;
+  // Index after which rows should be blurred (for gated access preview)
+  blurAfterIndex?: number;
 }
 
 const formatPercentage = (value: number | null) => {
@@ -385,6 +391,9 @@ export function HitRateTable({
   hideNoOdds: hideNoOddsControlled,
   onHideNoOddsChange,
   onOddsAvailabilityChange,
+  upgradeBanner,
+  bottomContent,
+  blurAfterIndex,
 }: HitRateTableProps) {
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -860,6 +869,9 @@ export function HitRateTable({
   return (
     <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
       {filterBar}
+      
+      {/* Optional upgrade banner for gated access */}
+      {upgradeBanner}
 
       {/* Table */}
       <div ref={scrollRef} className="overflow-auto flex-1">
@@ -1029,197 +1041,256 @@ export function HitRateTable({
             // Use composite key with index to guarantee uniqueness
             // (same player can have duplicate profiles for same game in data)
             const rowKey = `${row.id}-${row.gameId ?? "no-game"}-${row.market}-${idx}`;
+            
+            // Check if this row should be blurred (for gated access)
+            const isBlurred = blurAfterIndex !== undefined && idx >= blurAfterIndex;
 
             return (
               <tr
                 key={rowKey}
-                onClick={() => onRowClick?.(row)}
+                onClick={() => !isBlurred && onRowClick?.(row)}
                 className={cn(
-                  "border-b border-neutral-100 dark:border-neutral-800 transition-all duration-150 group cursor-pointer",
+                  "border-b border-neutral-100 dark:border-neutral-800 transition-all duration-150 group",
                   idx % 2 === 0 ? "table-row-even" : "table-row-odd",
-                  "hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.1)]",
-                  isHighConfidence && "shadow-[inset_0_1px_0_rgba(16,185,129,0.2)]"
+                  isBlurred 
+                    ? "cursor-default select-none pointer-events-none" 
+                    : "cursor-pointer hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.1)]",
+                  isHighConfidence && !isBlurred && "shadow-[inset_0_1px_0_rgba(16,185,129,0.2)]"
                 )}
               >
                 {/* Player Column: Headshot + Name + Position/Jersey */}
                 <td className="px-3 py-4">
-                  <div className={cn(
-                    "flex items-center gap-3",
-                    isPlayerOut(row.injuryStatus) && "opacity-50"
-                  )}>
-                    {(() => {
-                      const hasInjury = row.injuryStatus && row.injuryStatus !== "active" && row.injuryStatus !== "available";
-                      const injuryTooltip = hasInjury
-                        ? `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
-                        : "";
-                      
-                      const headshotElement = (
-                        <div 
-                          className={cn(
-                            "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]",
-                            hasInjury && "cursor-pointer",
-                            getStatusBorderClass(row.injuryStatus)
-                          )}
-                          style={{ 
-                            background: row.primaryColor && row.secondaryColor 
-                              ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
-                              : row.primaryColor || undefined 
-                          }}
-                        >
-                          <PlayerHeadshot
-                            nbaPlayerId={row.playerId}
-                            name={row.playerName}
-                            size="small"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      );
-
-                      return hasInjury ? (
-                        <Tooltip content={injuryTooltip} side="right">
-                          {headshotElement}
-                        </Tooltip>
-                      ) : (
-                        headshotElement
-                      );
-                    })()}
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
-                          {row.playerName}
-                        </span>
-                        {hasInjuryStatus(row.injuryStatus) && (() => {
-                          const isGLeague = row.injuryNotes?.toLowerCase().includes("g league") || 
-                                            row.injuryNotes?.toLowerCase().includes("g-league") ||
-                                            row.injuryNotes?.toLowerCase().includes("gleague");
-                          return (
-                            <Tooltip 
-                              content={isGLeague 
-                                ? `G League${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
-                                : `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
-                              }
-                              side="top"
-                            >
-                              {isGLeague ? (
-                                <ArrowDown className="h-4 w-4 cursor-help text-blue-500" />
-                              ) : (
-                                <HeartPulse className={cn(
-                                  "h-4 w-4 cursor-help",
-                                  getInjuryIconColorClass(row.injuryStatus)
-                                )} />
-                              )}
-                            </Tooltip>
-                          );
-                        })()}
+                  {isBlurred ? (
+                    // Blurred placeholder content
+                    <div className="flex items-center gap-3 opacity-50">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+                        <User className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
-                        {row.teamAbbr && (
-                          <img
-                            src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
-                            alt={row.teamAbbr}
-                            className="h-4 w-4 object-contain"
-                          />
-                        )}
-                        <Tooltip content={getPositionLabel(row.position)} side="top">
-                          <span className="cursor-help">{formatPosition(row.position)}</span>
-                        </Tooltip>
-                        <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                        <span>#{row.jerseyNumber ?? "—"}</span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-sm text-neutral-400 dark:text-neutral-500 leading-tight blur-[2px]">
+                            Player Name
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 font-medium blur-[2px]">
+                          <span>Team</span>
+                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                          <span>Position</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    // Normal content
+                    <div className={cn(
+                      "flex items-center gap-3",
+                      isPlayerOut(row.injuryStatus) && "opacity-50"
+                    )}>
+                      {(() => {
+                        const hasInjury = row.injuryStatus && row.injuryStatus !== "active" && row.injuryStatus !== "available";
+                        const injuryTooltip = hasInjury
+                          ? `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
+                          : "";
+                        
+                        const headshotElement = (
+                          <div 
+                            className={cn(
+                              "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]",
+                              hasInjury && "cursor-pointer",
+                              getStatusBorderClass(row.injuryStatus)
+                            )}
+                            style={{ 
+                              background: row.primaryColor && row.secondaryColor 
+                                ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
+                                : row.primaryColor || undefined 
+                            }}
+                          >
+                            <PlayerHeadshot
+                              nbaPlayerId={row.playerId}
+                              name={row.playerName}
+                              size="small"
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        );
+
+                        return hasInjury ? (
+                          <Tooltip content={injuryTooltip} side="right">
+                            {headshotElement}
+                          </Tooltip>
+                        ) : (
+                          headshotElement
+                        );
+                      })()}
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
+                            {row.playerName}
+                          </span>
+                          {hasInjuryStatus(row.injuryStatus) && (() => {
+                            const isGLeague = row.injuryNotes?.toLowerCase().includes("g league") || 
+                                              row.injuryNotes?.toLowerCase().includes("g-league") ||
+                                              row.injuryNotes?.toLowerCase().includes("gleague");
+                            return (
+                              <Tooltip 
+                                content={isGLeague 
+                                  ? `G League${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
+                                  : `${row.injuryStatus!.charAt(0).toUpperCase() + row.injuryStatus!.slice(1)}${row.injuryNotes ? ` - ${row.injuryNotes}` : ""}`
+                                }
+                                side="top"
+                              >
+                                {isGLeague ? (
+                                  <ArrowDown className="h-4 w-4 cursor-help text-blue-500" />
+                                ) : (
+                                  <HeartPulse className={cn(
+                                    "h-4 w-4 cursor-help",
+                                    getInjuryIconColorClass(row.injuryStatus)
+                                  )} />
+                                )}
+                              </Tooltip>
+                            );
+                          })()}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
+                          {row.teamAbbr && (
+                            <img
+                              src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                              alt={row.teamAbbr}
+                              className="h-4 w-4 object-contain"
+                            />
+                          )}
+                          <Tooltip content={getPositionLabel(row.position)} side="top">
+                            <span className="cursor-help">{formatPosition(row.position)}</span>
+                          </Tooltip>
+                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                          <span>#{row.jerseyNumber ?? "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </td>
 
                 {/* Matchup Column */}
                 <td className={cn(
                   "px-3 py-3 text-center rounded-lg",
-                  getMatchupBgClass(row.matchupRank)
+                  isBlurred ? "" : getMatchupBgClass(row.matchupRank)
                 )}>
-                  <div className="flex flex-col items-center gap-1.5">
-                    {/* Tomorrow label */}
-                    {isTomorrow(row.gameDate) && (
-                      <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
-                        Tomorrow
-                      </span>
-                    )}
-                    
-                    {/* Opponent with vs/@ */}
-                    <div className="flex items-center justify-center gap-1.5">
-                    <span className="text-xs text-neutral-400 font-medium">
-                      {row.homeAway === "H" ? "vs" : "@"}
-                    </span>
-                    {row.opponentTeamAbbr && (
-                      <img
-                        src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
-                        alt={row.opponentTeamAbbr}
-                          className="h-6 w-6 object-contain"
-                      />
+                  {isBlurred ? (
+                    // Blurred placeholder
+                    <div className="flex flex-col items-center gap-1.5 opacity-50 blur-[2px]">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="text-xs text-neutral-400 font-medium">vs</span>
+                        <div className="h-6 w-6 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                      </div>
+                      <span className="text-[10px] font-semibold text-neutral-400">—</span>
+                    </div>
+                  ) : (
+                    // Normal content
+                    <div className="flex flex-col items-center gap-1.5">
+                      {/* Tomorrow label */}
+                      {isTomorrow(row.gameDate) && (
+                        <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                          Tomorrow
+                        </span>
+                      )}
+                      
+                      {/* Opponent with vs/@ */}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="text-xs text-neutral-400 font-medium">
+                          {row.homeAway === "H" ? "vs" : "@"}
+                        </span>
+                        {row.opponentTeamAbbr && (
+                          <img
+                            src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
+                            alt={row.opponentTeamAbbr}
+                            className="h-6 w-6 object-contain"
+                          />
+                        )}
+                      </div>
+                      
+                      {/* Matchup Rank */}
+                      {row.matchupRankLabel && (
+                        <span className={cn(
+                          "text-[10px] font-semibold mt-0.5",
+                          getMatchupRankColor(row.matchupRank)
+                        )}>
+                          {row.matchupRankLabel}
+                        </span>
                       )}
                     </div>
-                    
-                    {/* Matchup Rank */}
-                    {row.matchupRankLabel && (
-                      <span className={cn(
-                        "text-[10px] font-semibold mt-0.5",
-                        getMatchupRankColor(row.matchupRank)
-                      )}>
-                        {row.matchupRankLabel}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </td>
 
                 {/* Prop Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
-                    {row.line !== null && (
-                      <span className="font-semibold text-neutral-900 dark:text-white">{row.line}+</span>
-                    )}
-                    {formatMarketLabel(row.market)}
-                    {getMarketTooltip(row.market) && (
-                      <Tooltip content={getMarketTooltip(row.market)!}>
-                        <Info className="h-3 w-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 cursor-help" />
-                      </Tooltip>
-                    )}
-                  </span>
+                  {isBlurred ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800/50 opacity-50 blur-[2px]">
+                      <span className="font-semibold">00.0+</span>
+                      PTS
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                      {row.line !== null && (
+                        <span className="font-semibold text-neutral-900 dark:text-white">{row.line}+</span>
+                      )}
+                      {formatMarketLabel(row.market)}
+                      {getMarketTooltip(row.market) && (
+                        <Tooltip content={getMarketTooltip(row.market)!}>
+                          <Info className="h-3 w-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 cursor-help" />
+                        </Tooltip>
+                      )}
+                    </span>
+                  )}
                 </td>
 
                 {/* L5 Avg Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <span className={cn("text-sm font-medium", getAvgColorClass(row.last5Avg, row.line))}>
-                    {row.last5Avg !== null ? row.last5Avg.toFixed(1) : "—"}
+                  <span className={cn(
+                    "text-sm font-medium",
+                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.last5Avg, row.line)
+                  )}>
+                    {isBlurred ? "00.0" : (row.last5Avg !== null ? row.last5Avg.toFixed(1) : "—")}
                   </span>
                 </td>
 
                 {/* L10 Avg Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <span className={cn("text-sm font-medium", getAvgColorClass(row.last10Avg, row.line))}>
-                    {row.last10Avg !== null ? row.last10Avg.toFixed(1) : "—"}
+                  <span className={cn(
+                    "text-sm font-medium",
+                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.last10Avg, row.line)
+                  )}>
+                    {isBlurred ? "00.0" : (row.last10Avg !== null ? row.last10Avg.toFixed(1) : "—")}
                   </span>
                 </td>
 
                 {/* 25/26 Avg (Season Avg) Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <span className={cn("text-sm font-medium", getAvgColorClass(row.seasonAvg, row.line))}>
-                    {row.seasonAvg !== null ? row.seasonAvg.toFixed(1) : "—"}
+                  <span className={cn(
+                    "text-sm font-medium",
+                    isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.seasonAvg, row.line)
+                  )}>
+                    {isBlurred ? "00.0" : (row.seasonAvg !== null ? row.seasonAvg.toFixed(1) : "—")}
                   </span>
                 </td>
 
                 {/* Odds Column */}
                 <td className="px-3 py-4 align-middle text-center">
-                  {hasGameStarted(row.gameStatus, row.gameDate) ? (
+                  {isBlurred ? (
+                    <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>
+                  ) : hasGameStarted(row.gameStatus, row.gameDate) ? (
                     <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
                   ) : (
-                  <OddsDropdown 
-                    odds={odds} 
-                    loading={oddsLoading} 
-                  />
+                    <OddsDropdown 
+                      odds={odds} 
+                      loading={oddsLoading} 
+                    />
                   )}
                 </td>
 
                 {/* Streak Column */}
                 <td className="px-1 py-4 align-middle text-center">
-                  {row.hitStreak !== null && row.hitStreak !== undefined ? (
+                  {isBlurred ? (
+                    <span className="text-sm font-medium text-neutral-400 opacity-50 blur-[2px]">0</span>
+                  ) : row.hitStreak !== null && row.hitStreak !== undefined ? (
                     <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                       {row.hitStreak}
                     </span>
@@ -1230,9 +1301,8 @@ export function HitRateTable({
 
                 {/* L20 / L10 / L5 Combined with full 20-game sparkline */}
                 <td className="px-3 py-4 align-middle text-center">
-                  <div className="flex flex-col items-center gap-2">
+                  <div className={cn("flex flex-col items-center gap-2", isBlurred && "blur-[3px] opacity-60")}>
                     {/* Full 20-game sparkline - oldest on left, newest on right */}
-                    {/* Gray bars for games not yet played */}
                     <MiniSparkline 
                       gameLogs={row.gameLogs as any} 
                       line={row.line} 
@@ -1256,24 +1326,26 @@ export function HitRateTable({
                   </div>
                 </td>
 
-                {/* Season % */}
+                {/* Season % - Show real values with blur for locked users */}
                 <td className="px-3 py-4 align-middle text-center">
                   <span
                     className={cn(
                       "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
-                      hitRateBadgeClass(row.seasonPct)
+                      hitRateBadgeClass(row.seasonPct),
+                      isBlurred && "blur-[3px] opacity-60"
                     )}
                   >
                     {formatPercentage(row.seasonPct)}
                   </span>
                 </td>
                 
-                {/* H2H % */}
+                {/* H2H % - Show real values with blur for locked users */}
                 <td className="px-3 py-4 align-middle text-center">
                   <span
                     className={cn(
                       "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
-                      hitRateBadgeClass(row.h2hPct)
+                      hitRateBadgeClass(row.h2hPct),
+                      isBlurred && "blur-[3px] opacity-60"
                     )}
                   >
                     {formatPercentage(row.h2hPct)}
@@ -1316,6 +1388,9 @@ export function HitRateTable({
           </button>
         </div>
       )}
+      
+      {/* Optional bottom content (for gated CTA) */}
+      {bottomContent}
       </div>
     </div>
   );

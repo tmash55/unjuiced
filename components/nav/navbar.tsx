@@ -23,6 +23,7 @@ import { Menu, X } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useMobileNav } from "@/contexts/mobile-nav-context";
 
 
 export type NavTheme = "light" | "dark";
@@ -285,7 +286,7 @@ function WithTrigger({
 }
 
 function MobileNav({ domain }: { domain: string }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isMenuOpen: isOpen, setIsMenuOpen: setIsOpen } = useMobileNav();
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
   const { data: entitlements } = useEntitlements();
@@ -296,10 +297,10 @@ function MobileNav({ domain }: { domain: string }) {
   // Create flat list of mobile nav items
   const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
-    { title: "Odds Screen", href: "/odds/nfl" },
+    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
     { title: "Edge Finder", href: "/edge-finder" },
+    { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Ladder", href: "/ladders" },    
-    { title: "Hit Rates", href: "/hit-rates/nba" },
     { title: "NBA Stats", href: "/stats/nba" },
     { title: "Sportsbooks", href: "/sportsbooks" },
     { title: "Markets", href: "/markets" },
@@ -374,13 +375,18 @@ function MobileNav({ domain }: { domain: string }) {
                         href={createHref(item.href, domain, {})}
                         onClick={() => setIsOpen(false)}
                         className={cn(
-                          "block rounded-lg px-4 py-3 text-base font-medium transition-colors",
+                          "flex items-center gap-2 rounded-lg px-4 py-3 text-base font-medium transition-colors",
                           isActive
                             ? "bg-neutral-900/5 text-neutral-900 dark:bg-white/10 dark:text-white"
                             : "text-neutral-600 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
                         )}
                       >
                         {item.title}
+                        {'badge' in item && item.badge && (
+                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                            {item.badge}
+                          </span>
+                        )}
                       </Link>
                     </motion.div>
                   );

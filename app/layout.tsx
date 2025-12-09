@@ -11,6 +11,7 @@ import { TooltipProvider } from "@/components/tooltip";
 import { Analytics } from "@vercel/analytics/next"
 import { Analytics as DubAnalytics } from '@dub/analytics/react';
 import { DubDiscountBanner } from "@/components/dub-discount-banner";
+import { MobileNavProvider } from "@/contexts/mobile-nav-context";
 
 import { Toaster } from "sonner";
 
@@ -103,9 +104,11 @@ export default function RootLayout({
             <QueryProvider>
               <AuthProvider>
                 <PreferencesProvider>
-                  <Analytics />
-                  {children}
-                  <Toaster position="top-center" />
+                  <MobileNavProvider>
+                    <Analytics />
+                    {children}
+                    <Toaster position="top-center" />
+                  </MobileNavProvider>
                 </PreferencesProvider>
               </AuthProvider>
             </QueryProvider>

@@ -1,5 +1,8 @@
 import { createClient } from '@/libs/supabase/server'
+import { dub } from '@/libs/dub'
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
 
 export async function GET(request: NextRequest) {
@@ -12,6 +15,7 @@ export async function GET(request: NextRequest) {
   console.log('🔄 Auth callback started:', { code: !!code, token_hash: !!token_hash, type, next, origin })
 
   const supabase = await createClient()
+  const cookieStore = await cookies()
 
   // Handle token_hash for email confirmations and password recovery
   if (token_hash && type) {
@@ -51,6 +55,36 @@ export async function GET(request: NextRequest) {
         email: data.user.email,
         metadata: data.user.user_metadata 
       })
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // DUB LEAD TRACKING - Track new sign ups from referral links
+      // ═══════════════════════════════════════════════════════════════════
+      const dub_id = cookieStore.get('dub_id')?.value
+      // Check if user was created in the last 10 minutes (new sign up)
+      const isNewUser = new Date(data.user.created_at) > new Date(Date.now() - 10 * 60 * 1000)
+      
+      if (dub_id && isNewUser) {
+        console.log('📊 Tracking Dub lead event for new user:', data.user.id)
+        
+        // Use waitUntil to track the lead without blocking the response
+        waitUntil(
+          dub.track.lead({
+            clickId: dub_id,
+            eventName: 'Sign Up',
+            customerExternalId: data.user.id,
+            customerName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || undefined,
+            customerEmail: data.user.email || undefined,
+            customerAvatar: data.user.user_metadata?.avatar_url || undefined,
+          }).then(() => {
+            console.log('✅ Dub lead event tracked successfully')
+          }).catch((err) => {
+            console.error('❌ Failed to track Dub lead event:', err)
+          })
+        )
+        
+        // Delete the dub_id cookie after tracking
+        cookieStore.delete('dub_id')
+      }
       
       // Ensure a Stripe customer exists for this user (idempotent by profile check)
       try {
