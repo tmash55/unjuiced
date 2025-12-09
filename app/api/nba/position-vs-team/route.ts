@@ -20,9 +20,19 @@ interface RpcRecentGame {
   position: string; // Player's actual position from depth_chart_pos
   date: string;
   stat: number;
+  closing_line: number | null;
+  closing_price_over: number | null;
+  closing_price_under: number | null;
+  hit_over: boolean | null;
   pts: number;
   reb: number;
   ast: number;
+  fg3m: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fgm: number;
+  fga: number;
   minutes: number;
 }
 
@@ -35,6 +45,12 @@ interface RpcResponse {
   avg_points: number;
   avg_rebounds: number;
   avg_assists: number;
+  avg_closing_line: number | null;
+  games_with_lines: number;
+  over_hit_count: number;
+  under_hit_count: number;
+  push_count: number;
+  over_hit_rate: number | null;
   recent_games: RpcRecentGame[] | null;
 }
 
@@ -45,10 +61,20 @@ interface PositionVsTeamPlayer {
   teamAbbr: string;
   position: string; // Player's actual position
   stat: number;
+  closingLine: number | null;
+  closingPriceOver: number | null;
+  closingPriceUnder: number | null;
+  hitOver: boolean | null;
   gameDate: string;
   pts: number;
   reb: number;
   ast: number;
+  fg3m: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fgm: number;
+  fga: number;
   minutes: number;
 }
 
@@ -60,6 +86,12 @@ interface PositionVsTeamResponse {
   avgPoints: number;
   avgRebounds: number;
   avgAssists: number;
+  avgClosingLine: number | null;
+  gamesWithLines: number;
+  overHitCount: number;
+  underHitCount: number;
+  pushCount: number;
+  overHitRate: number | null;
   totalGames: number;
   playerCount: number;
   position: string;
@@ -146,10 +178,20 @@ export async function GET(req: NextRequest) {
         teamAbbr: game.team_abbr,
         position: game.position || position, // Use player's actual position, fallback to queried
         stat: game.stat,
+        closingLine: game.closing_line,
+        closingPriceOver: game.closing_price_over,
+        closingPriceUnder: game.closing_price_under,
+        hitOver: game.hit_over,
         gameDate: game.date,
         pts: game.pts,
         reb: game.reb,
         ast: game.ast,
+        fg3m: game.fg3m,
+        stl: game.stl,
+        blk: game.blk,
+        tov: game.tov,
+        fgm: game.fgm,
+        fga: game.fga,
         minutes: game.minutes,
       }));
 
@@ -159,6 +201,12 @@ export async function GET(req: NextRequest) {
     const minStat = stats.length > 0 ? Math.min(...stats) : 0;
     const maxStat = stats.length > 0 ? Math.max(...stats) : 0;
     const uniquePlayerIds = new Set(players.map(p => p.playerId));
+    
+    // Recalculate closing line stats for filtered players
+    const playersWithLines = players.filter(p => p.closingLine !== null);
+    const overHits = playersWithLines.filter(p => p.hitOver === true).length;
+    const underHits = playersWithLines.filter(p => p.hitOver === false).length;
+    const pushes = playersWithLines.filter(p => p.hitOver === null && p.closingLine !== null).length;
 
     const response: PositionVsTeamResponse = {
       players,
@@ -168,6 +216,14 @@ export async function GET(req: NextRequest) {
       avgPoints: players.length > 0 ? players.reduce((a, b) => a + b.pts, 0) / players.length : 0,
       avgRebounds: players.length > 0 ? players.reduce((a, b) => a + b.reb, 0) / players.length : 0,
       avgAssists: players.length > 0 ? players.reduce((a, b) => a + b.ast, 0) / players.length : 0,
+      avgClosingLine: playersWithLines.length > 0 
+        ? playersWithLines.reduce((a, b) => a + (b.closingLine ?? 0), 0) / playersWithLines.length 
+        : null,
+      gamesWithLines: playersWithLines.length,
+      overHitCount: overHits,
+      underHitCount: underHits,
+      pushCount: pushes,
+      overHitRate: playersWithLines.length > 0 ? Math.round((overHits / playersWithLines.length) * 100) : null,
       totalGames: players.length,
       playerCount: uniquePlayerIds.size,
       position,

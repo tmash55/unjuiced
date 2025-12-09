@@ -8,10 +8,20 @@ export interface PositionVsTeamPlayer {
   teamAbbr: string;
   position: string; // Player's actual position (PG, SG, SF, PF, C)
   stat: number;
+  closingLine: number | null;
+  closingPriceOver: number | null;
+  closingPriceUnder: number | null;
+  hitOver: boolean | null;
   gameDate: string;
   pts: number;
   reb: number;
   ast: number;
+  fg3m: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fgm: number;
+  fga: number;
   minutes: number;
 }
 
@@ -23,6 +33,12 @@ export interface PositionVsTeamResponse {
   avgPoints: number;
   avgRebounds: number;
   avgAssists: number;
+  avgClosingLine: number | null;
+  gamesWithLines: number;
+  overHitCount: number;
+  underHitCount: number;
+  pushCount: number;
+  overHitRate: number | null;
   totalGames: number;
   playerCount: number;
   position: string;
@@ -97,6 +113,12 @@ export function usePositionVsTeam(options: UsePositionVsTeamOptions) {
     avgPoints: query.data?.avgPoints ?? 0,
     avgRebounds: query.data?.avgRebounds ?? 0,
     avgAssists: query.data?.avgAssists ?? 0,
+    avgClosingLine: query.data?.avgClosingLine ?? null,
+    gamesWithLines: query.data?.gamesWithLines ?? 0,
+    overHitCount: query.data?.overHitCount ?? 0,
+    underHitCount: query.data?.underHitCount ?? 0,
+    pushCount: query.data?.pushCount ?? 0,
+    overHitRate: query.data?.overHitRate ?? null,
     totalGames: query.data?.totalGames ?? 0,
     playerCount: query.data?.playerCount ?? 0,
     position: query.data?.position ?? "",

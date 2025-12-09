@@ -61,6 +61,10 @@ export function PositionVsTeam({
     maxStat,
     totalGames, 
     playerCount,
+    avgClosingLine,
+    gamesWithLines,
+    overHitCount,
+    overHitRate,
     isLoading, 
     isFetching,
     error 
@@ -141,7 +145,28 @@ export function PositionVsTeam({
                 </span>
               </div>
             </Tooltip>
-            {hitRateVsOpponent !== null && (
+            {/* Closing Line Over Hit Rate - only show if we have data */}
+            {overHitRate !== null && gamesWithLines > 0 && (
+              <Tooltip 
+                content={`${overHitCount}/${gamesWithLines} games beat the closing line${avgClosingLine ? `. Avg line: ${avgClosingLine.toFixed(1)}` : ''}`} 
+                side="top"
+              >
+                <div className="flex items-center gap-1.5 cursor-help">
+                  <span className="text-neutral-500">Over %:</span>
+                  <span className={cn(
+                    "font-bold transition-opacity",
+                    overHitRate >= 60 ? "text-emerald-600 dark:text-emerald-400" :
+                    overHitRate >= 40 ? "text-amber-600 dark:text-amber-400" :
+                    "text-red-500 dark:text-red-400",
+                    isFetching && "opacity-50"
+                  )}>
+                    {overHitRate}%
+                  </span>
+                </div>
+              </Tooltip>
+            )}
+            {/* Fallback to current line hit rate if no closing line data */}
+            {(overHitRate === null || gamesWithLines === 0) && hitRateVsOpponent !== null && (
               <div className="flex items-center gap-1.5">
                 <span className="text-neutral-500">Hit Rate:</span>
                 <span className={cn(
@@ -300,10 +325,7 @@ export function PositionVsTeam({
                 Min
               </th>
               <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                <div className="flex flex-col items-center">
-                  <span>Line</span>
-                  <span className="text-[8px] font-normal normal-case text-neutral-400 dark:text-neutral-500">(coming)</span>
-                </div>
+                Line
               </th>
               <th className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                 {formatMarketLabel(market || "").split(" ")[0]}
@@ -390,16 +412,28 @@ function PlayerMatchupRow({
 
       {/* Line */}
       <td className="px-3 py-2.5 text-center">
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">
-          —
-        </span>
+        {player.closingLine !== null ? (
+          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 tabular-nums">
+            {player.closingLine}
+          </span>
+        ) : (
+          <span className="text-xs text-neutral-400 dark:text-neutral-500">
+            —
+          </span>
+        )}
       </td>
 
       {/* Stat */}
       <td className="px-4 py-2.5 text-right">
         <span className={cn(
           "text-base font-bold tabular-nums",
-          getStatVsLineClass()
+          player.closingLine !== null
+            ? player.hitOver === true
+              ? "text-emerald-600 dark:text-emerald-400"
+              : player.hitOver === false
+                ? "text-red-500 dark:text-red-400"
+                : "text-neutral-600 dark:text-neutral-400" // push
+            : "text-neutral-900 dark:text-white"
         )}>
           {player.stat}
         </span>
