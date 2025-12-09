@@ -63,24 +63,35 @@ export async function GET(request: NextRequest) {
       // Check if user was created in the last 10 minutes (new sign up)
       const isNewUser = new Date(data.user.created_at) > new Date(Date.now() - 10 * 60 * 1000)
       
+      console.log('📊 Dub lead tracking check:', {
+        dub_id: dub_id || 'NOT SET',
+        isNewUser,
+        userCreatedAt: data.user.created_at,
+        hasDubApiKey: !!process.env.DUB_API_KEY,
+      })
+      
       if (dub_id && isNewUser) {
-        console.log('📊 Tracking Dub lead event for new user:', data.user.id)
-        
-        // Use waitUntil to track the lead without blocking the response
-        waitUntil(
-          dub.track.lead({
-            clickId: dub_id,
-            eventName: 'Sign Up',
-            customerExternalId: data.user.id,
-            customerName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || undefined,
-            customerEmail: data.user.email || undefined,
-            customerAvatar: data.user.user_metadata?.avatar_url || undefined,
-          }).then(() => {
-            console.log('✅ Dub lead event tracked successfully')
-          }).catch((err) => {
-            console.error('❌ Failed to track Dub lead event:', err)
-          })
-        )
+        if (!process.env.DUB_API_KEY) {
+          console.error('❌ Cannot track Dub lead - DUB_API_KEY not set in environment')
+        } else {
+          console.log('📊 Tracking Dub lead event for new user:', data.user.id)
+          
+          // Use waitUntil to track the lead without blocking the response
+          waitUntil(
+            dub.track.lead({
+              clickId: dub_id,
+              eventName: 'Sign Up',
+              customerExternalId: data.user.id,
+              customerName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || undefined,
+              customerEmail: data.user.email || undefined,
+              customerAvatar: data.user.user_metadata?.avatar_url || undefined,
+            }).then(() => {
+              console.log('✅ Dub lead event tracked successfully')
+            }).catch((err) => {
+              console.error('❌ Failed to track Dub lead event:', err)
+            })
+          )
+        }
         
         // Delete the dub_id cookie after tracking
         cookieStore.delete('dub_id')

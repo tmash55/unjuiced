@@ -26,20 +26,12 @@ export async function POST(req: NextRequest) {
     const priceId = String(body?.priceId || '')
     const mode = (body?.mode === 'payment' ? 'payment' : 'subscription') as 'payment' | 'subscription'
     const requestedTrialDays: number | undefined = typeof body?.trialDays === 'number' ? body.trialDays : undefined
-    
-    // NOTE: We no longer auto-apply partner coupons from cookies
-    // Instead, we always show the promo code input box so partners can share their codes
-    // and we can track redemptions by promo code name (e.g., "TYLER")
-    let promotionCodeId: string | null = body?.promotionCodeId ?? null
-    let couponId: string | null = body?.couponId ?? null
-    
-    console.log('[billing/checkout] Promo codes enabled, user can enter manually')
 
     if (!priceId) {
       return NextResponse.json({ error: 'missing_price_id' }, { status: 400 })
     }
 
-    // Check if this is a yearly plan - if so, coupons/promotion codes are not allowed
+    // Check if this is a yearly plan - if so, promo codes are not allowed
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2023-08-16' as any,
       typescript: true,
@@ -51,14 +43,11 @@ export async function POST(req: NextRequest) {
       const billingInterval = price.metadata?.billing_interval
       isYearlyPlan = billingInterval === 'yearly'
       
-      if (isYearlyPlan && (couponId || promotionCodeId)) {
-        console.log('[billing/checkout] Discount blocked for yearly plan:', { priceId, couponId, promotionCodeId })
-        couponId = null
-        promotionCodeId = null
+      if (isYearlyPlan) {
+        console.log('[billing/checkout] Yearly plan - promo codes disabled')
       }
     } catch (priceError) {
       console.warn('[billing/checkout] Could not retrieve price metadata:', priceError)
-      // Continue anyway - don't block checkout if price lookup fails
     }
 
     // Try to reuse existing Stripe customer id if present in latest subscription
@@ -126,11 +115,9 @@ export async function POST(req: NextRequest) {
       successUrl,
       cancelUrl,
       priceId,
-      promotionCodeId: promotionCodeId || undefined,
-      couponId: couponId || undefined,
       trialDays,
       paymentMethodCollection: trialDays ? 'always' : 'if_required',
-      allowPromotionCodes: !isYearlyPlan, // Disable promo codes for yearly plans
+      allowPromotionCodes: !isYearlyPlan, // Show promo code input (except for yearly plans)
     })
 
     if (!url) {

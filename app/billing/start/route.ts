@@ -11,10 +11,6 @@ export async function GET(req: NextRequest) {
   const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   // Always use absolute base origin from the incoming request URL
   const { origin } = new URL(req.url)
-  
-  // NOTE: We no longer auto-apply partner coupons from cookies
-  // Instead, we always show the promo code input box so partners can share their codes
-  // and we can track redemptions by promo code name (e.g., "TYLER")
 
   console.log('[billing/start] Request received', { priceId, mode })
 
@@ -40,7 +36,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/pricing`)
     }
 
-    // Check if this is a yearly plan - if so, coupons/promotion codes are not allowed
+    // Check if this is a yearly plan - if so, promo codes are not allowed
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2023-08-16' as any,
       typescript: true,
@@ -53,7 +49,7 @@ export async function GET(req: NextRequest) {
       isYearlyPlan = billingInterval === 'yearly'
       
       if (isYearlyPlan) {
-        console.log('[billing/start] Yearly plan detected - promotion codes disabled')
+        console.log('[billing/start] Yearly plan - promo codes disabled')
       }
     } catch (priceError) {
       console.warn('[billing/start] Could not retrieve price metadata:', priceError)
@@ -118,7 +114,7 @@ export async function GET(req: NextRequest) {
       priceId,
       trialDays,
       paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
-      allowPromotionCodes: !isYearlyPlan, // Show promo code input for monthly plans
+      allowPromotionCodes: !isYearlyPlan, // Show promo code input (except for yearly plans)
     })
 
     if (!url) {

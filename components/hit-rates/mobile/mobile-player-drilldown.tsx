@@ -1910,18 +1910,20 @@ function PositionHistorySection({
                     />
                   </div>
                   {/* Team logo badge */}
-                  <img
-                    src={`/team-logos/nba/${player.teamAbbr.toUpperCase()}.svg`}
-                    alt={player.teamAbbr}
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
-                  />
+                  {player.teamAbbr && (
+                    <img
+                      src={`/team-logos/nba/${player.teamAbbr.toUpperCase()}.svg`}
+                      alt={player.teamAbbr}
+                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
+                    />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                     {player.playerName}
                   </div>
                   <div className="text-[9px] text-neutral-500 dark:text-neutral-400">
-                    {player.teamAbbr}
+                    {player.teamAbbr || '—'}
                   </div>
                 </div>
               </div>
@@ -1932,28 +1934,36 @@ function PositionHistorySection({
                 <div className="flex flex-col items-center w-10">
                   <span className="text-[9px] text-neutral-400 uppercase font-medium">Min</span>
                   <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-                    {player.minutes}
+                    {Math.floor(player.minutes)}
                   </span>
                 </div>
 
-                {/* Line (hardcoded N/A for now) */}
+                {/* Line - Show closing line if available */}
                 <div className="flex flex-col items-center w-10">
                   <span className="text-[9px] text-neutral-400 uppercase font-medium">Line</span>
-                  <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-                    N/A
+                  <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                    {player.closingLine !== null && player.closingLine !== undefined 
+                      ? player.closingLine 
+                      : "—"}
                   </span>
                 </div>
                 
-                {/* Market Total - Color coded based on current line */}
+                {/* Market Total - Color coded based on hitOver (if line exists) or current line */}
                 <div className="flex flex-col items-center w-12">
                   <span className="text-[9px] text-neutral-400 uppercase font-medium">
                     {formatMarketLabel(selectedMarket).split("+")[0].split(" ")[0]}
                   </span>
                   <span className={cn(
                     "text-lg font-bold",
-                    isOver 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-red-600 dark:text-red-400"
+                    player.closingLine !== null && player.closingLine !== undefined
+                      ? player.hitOver === true
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : player.hitOver === false
+                          ? "text-red-500 dark:text-red-400"
+                          : "text-neutral-600 dark:text-neutral-400" // push or unknown
+                      : isOver 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-red-600 dark:text-red-400"
                   )}>
                     {player.stat}
                   </span>
@@ -4201,12 +4211,14 @@ export function MobilePlayerDrilldown({
                       {/* Player's Team Section */}
                       <div className="p-3">
                         <div className="flex items-center gap-2 mb-2">
-                          <img
-                            src={`/team-logos/nba/${playerTeam.teamAbbr.toUpperCase()}.svg`}
-                            alt={playerTeam.teamAbbr}
-                            className="h-5 w-5 object-contain"
-                          />
-                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{playerTeam.teamAbbr}</span>
+                          {playerTeam.teamAbbr && (
+                            <img
+                              src={`/team-logos/nba/${playerTeam.teamAbbr.toUpperCase()}.svg`}
+                              alt={playerTeam.teamAbbr}
+                              className="h-5 w-5 object-contain"
+                            />
+                          )}
+                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{playerTeam.teamAbbr || '—'}</span>
                           <span className="text-[10px] text-neutral-400">Your Team</span>
                         </div>
                         <div className="space-y-1">
@@ -4276,12 +4288,14 @@ export function MobilePlayerDrilldown({
                       {/* Opponent Team Section */}
                       <div className="p-3">
                         <div className="flex items-center gap-2 mb-2">
-                          <img
-                            src={`/team-logos/nba/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
-                            alt={opponentTeam.teamAbbr}
-                            className="h-5 w-5 object-contain"
-                          />
-                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{opponentTeam.teamAbbr}</span>
+                          {opponentTeam.teamAbbr && (
+                            <img
+                              src={`/team-logos/nba/${opponentTeam.teamAbbr.toUpperCase()}.svg`}
+                              alt={opponentTeam.teamAbbr}
+                              className="h-5 w-5 object-contain"
+                            />
+                          )}
+                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{opponentTeam.teamAbbr || '—'}</span>
                           <span className="text-[10px] text-neutral-400">Opponent</span>
                         </div>
                         <div className="space-y-1">
