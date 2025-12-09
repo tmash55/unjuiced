@@ -384,6 +384,9 @@ function SportOddsContent({
         if (!item.row) return acc;
         
         const row = item.row;
+        // Defensive check: skip rows without valid ent property
+        if (!row.ent || typeof row.ent !== 'string') return acc;
+        
         const matchesMarket = row.mkt === marketState;
         const isPlayerRow = row.player !== null || row.ent?.startsWith('pid:');
         const matchesType = (type === 'player') === isPlayerRow;
@@ -548,7 +551,7 @@ function SportOddsContent({
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
         <div className="mb-8">
           <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {sport.toUpperCase()} Odds
@@ -561,7 +564,7 @@ function SportOddsContent({
 
   if (error) {
     return (
-      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
         <div className="mb-8">
           <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {sport.toUpperCase()} Odds
@@ -622,7 +625,7 @@ function SportOddsContent({
   }
 
   return (
-    <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
       {/* Header with sport and navigation */}
       <div className="mb-8">
         <ToolHeading>

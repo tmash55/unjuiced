@@ -42,6 +42,10 @@ export function TodaysGames({ games }: TodaysGamesProps) {
 function GameCard({ game }: { game: NBAGame }) {
   const isLive = game.is_live;
   const isFinal = game.is_final;
+  
+  // Defensive checks for missing team data
+  const awayTeam = game.away_team || { tricode: '—', name: 'Away Team', record: '', score: 0 };
+  const homeTeam = game.home_team || { tricode: '—', name: 'Home Team', record: '', score: 0 };
 
   return (
     <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
@@ -71,60 +75,64 @@ function GameCard({ game }: { game: NBAGame }) {
         {/* Away Team */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <img
-              src={getTeamLogoUrl(game.away_team.tricode)}
-              alt={game.away_team.tricode}
-              className="w-10 h-10 object-contain shrink-0"
-              onError={(e) => {
-                // Fallback to text if logo fails to load
-                const target = e.currentTarget as HTMLImageElement;
-                target.style.display = 'none';
-                const fallback = target.nextElementSibling as HTMLDivElement;
-                if (fallback) fallback.style.display = 'flex';
-              }}
-            />
-            <div className="w-10 h-10 bg-neutral-100 dark:bg-neutral-800 rounded-full items-center justify-center font-bold text-xs shrink-0 hidden">
-              {game.away_team.tricode}
+            {awayTeam.tricode && awayTeam.tricode !== '—' ? (
+              <img
+                src={getTeamLogoUrl(awayTeam.tricode)}
+                alt={awayTeam.tricode}
+                className="w-10 h-10 object-contain shrink-0"
+                onError={(e) => {
+                  // Fallback to text if logo fails to load
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.style.display = 'none';
+                  const fallback = target.nextElementSibling as HTMLDivElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div className={`w-10 h-10 bg-neutral-100 dark:bg-neutral-800 rounded-full items-center justify-center font-bold text-xs shrink-0 ${awayTeam.tricode === '—' ? 'flex' : 'hidden'}`}>
+              {awayTeam.tricode}
             </div>
             <div className="min-w-0">
-              <div className="font-semibold truncate">{game.away_team.name}</div>
-              <div className="text-xs text-neutral-600 dark:text-neutral-400">{game.away_team.record}</div>
+              <div className="font-semibold truncate">{awayTeam.name}</div>
+              <div className="text-xs text-neutral-600 dark:text-neutral-400">{awayTeam.record}</div>
             </div>
           </div>
           <div className={`text-2xl font-bold tabular-nums ml-3 ${
-            isLive || isFinal ? (game.away_team.score > game.home_team.score ? 'text-primary' : 'text-neutral-600 dark:text-neutral-400') : ''
+            isLive || isFinal ? ((awayTeam.score || 0) > (homeTeam.score || 0) ? 'text-primary' : 'text-neutral-600 dark:text-neutral-400') : ''
           }`}>
-            {game.away_team.score || '0'}
+            {awayTeam.score || '0'}
           </div>
         </div>
 
         {/* Home Team */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <img
-              src={getTeamLogoUrl(game.home_team.tricode)}
-              alt={game.home_team.tricode}
-              className="w-10 h-10 object-contain shrink-0"
-              onError={(e) => {
-                // Fallback to text if logo fails to load
-                const target = e.currentTarget as HTMLImageElement;
-                target.style.display = 'none';
-                const fallback = target.nextElementSibling as HTMLDivElement;
-                if (fallback) fallback.style.display = 'flex';
-              }}
-            />
-            <div className="w-10 h-10 bg-neutral-100 dark:bg-neutral-800 rounded-full items-center justify-center font-bold text-xs shrink-0 hidden">
-              {game.home_team.tricode}
+            {homeTeam.tricode && homeTeam.tricode !== '—' ? (
+              <img
+                src={getTeamLogoUrl(homeTeam.tricode)}
+                alt={homeTeam.tricode}
+                className="w-10 h-10 object-contain shrink-0"
+                onError={(e) => {
+                  // Fallback to text if logo fails to load
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.style.display = 'none';
+                  const fallback = target.nextElementSibling as HTMLDivElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div className={`w-10 h-10 bg-neutral-100 dark:bg-neutral-800 rounded-full items-center justify-center font-bold text-xs shrink-0 ${homeTeam.tricode === '—' ? 'flex' : 'hidden'}`}>
+              {homeTeam.tricode}
             </div>
             <div className="min-w-0">
-              <div className="font-semibold truncate">{game.home_team.name}</div>
-              <div className="text-xs text-neutral-600 dark:text-neutral-400">{game.home_team.record}</div>
+              <div className="font-semibold truncate">{homeTeam.name}</div>
+              <div className="text-xs text-neutral-600 dark:text-neutral-400">{homeTeam.record}</div>
             </div>
           </div>
           <div className={`text-2xl font-bold tabular-nums ml-3 ${
-            isLive || isFinal ? (game.home_team.score > game.away_team.score ? 'text-primary' : 'text-neutral-600 dark:text-neutral-400') : ''
+            isLive || isFinal ? ((homeTeam.score || 0) > (awayTeam.score || 0) ? 'text-primary' : 'text-neutral-600 dark:text-neutral-400') : ''
           }`}>
-            {game.home_team.score || '0'}
+            {homeTeam.score || '0'}
           </div>
         </div>
       </div>

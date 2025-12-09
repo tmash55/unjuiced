@@ -78,6 +78,9 @@
   }
 }
 @theme {
+  /* Ultra-wide breakpoint for power users */
+  --breakpoint-3xl: 1920px;
+  
   --font-primary: var(--font-inter), Inter, Inter Display, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono: DM Mono, monospace;
   --color-brand: #38BDF8;
