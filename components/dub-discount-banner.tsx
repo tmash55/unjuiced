@@ -23,7 +23,7 @@ const TEST_DISCOUNT = {
 };
 
 // Helper to safely decode URL-encoded strings
-function safeDecodeURIComponent(str: string | undefined): string | undefined {
+function safeDecodeURIComponent(str: string | null | undefined): string | null | undefined {
   if (!str) return str;
   try {
     return decodeURIComponent(str);
