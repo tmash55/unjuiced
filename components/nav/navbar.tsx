@@ -297,7 +297,7 @@ function MobileNav({ domain }: { domain: string }) {
   // Create flat list of mobile nav items
   const baseMobileNavItems = [
     { title: "Arbitrage", href: "/arbitrage" },
-    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW", disabled: true },
+    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
     { title: "Edge Finder", href: "/edge-finder" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Ladder", href: "/ladders" },    
