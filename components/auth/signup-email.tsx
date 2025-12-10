@@ -82,6 +82,24 @@ export const SignUpEmail = () => {
 
           // Check if email confirmation is disabled (user is immediately confirmed)
           if (signUpData.user && signUpData.session) {
+            // Track lead with Dub (for referral attribution)
+            try {
+              const leadResponse = await fetch('/api/track/lead', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: signUpData.user.id,
+                  email: data.email,
+                  name: signUpData.user.user_metadata?.full_name || signUpData.user.user_metadata?.name,
+                  avatar: signUpData.user.user_metadata?.avatar_url,
+                }),
+              });
+              const leadResult = await leadResponse.json();
+              console.log('[Dub] Lead tracking result:', leadResult);
+            } catch (leadError) {
+              console.warn('[Dub] Failed to track lead:', leadError);
+            }
+            
             // User is automatically signed in - redirect to plans page
             toast.success("Account created! 🎉", {
               description: "Choose your plan to get started.",
