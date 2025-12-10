@@ -213,7 +213,7 @@ const getStatFromGameLog = (
 const calculateHitRateFromLogs = (
   gameLogs: TeammateGameLog[],
   market: TeammateMarket,
-  lineUsed: number
+  lineUsed: number | null | undefined
 ): { pct: number | null; timesHit: number; games: number } => {
   if (market === "all" || gameLogs.length === 0) {
     return { pct: null, timesHit: 0, games: 0 };
@@ -226,10 +226,13 @@ const calculateHitRateFromLogs = (
     return { pct: null, timesHit: 0, games: 0 };
   }
   
+  // Handle missing or invalid line - use 0.5 as minimum (any positive stat is a hit)
+  const effectiveLine = (lineUsed != null && lineUsed > 0) ? lineUsed : 0.5;
+  
   let timesHit = 0;
   for (const game of relevantGames) {
     const statValue = getStatFromGameLog(game.stats, market);
-    const isHit = isTurnovers ? statValue <= lineUsed : statValue >= lineUsed;
+    const isHit = isTurnovers ? statValue <= effectiveLine : statValue >= effectiveLine;
     if (isHit) timesHit++;
   }
   
@@ -315,31 +318,34 @@ const getBestMarkets = (
 ): { market: TeammateMarket; pct: number; line: number; games: number }[] => {
   const results: { market: TeammateMarket; pct: number; line: number; games: number }[] = [];
   
+  const filteredLogs = locationFilter === "all" 
+    ? teammate.gameLogs 
+    : teammate.gameLogs.filter(g => g.homeAway === locationFilter);
+  
   for (const { key } of STAT_MARKETS) {
     const stat = teammate[key as Exclude<TeammateMarket, "all">];
     if (!stat?.hitRateWhenAnchorHits) continue;
     
-    let pct: number | null;
-    let games: number;
+    // Use effective line with fallback
+    const effectiveLine = (stat.hitRateWhenAnchorHits.lineUsed != null && stat.hitRateWhenAnchorHits.lineUsed > 0) 
+      ? stat.hitRateWhenAnchorHits.lineUsed 
+      : 0.5;
     
-    if (locationFilter !== "all") {
-      const recalc = calculateHitRateFromLogs(
-        teammate.gameLogs.filter(g => g.homeAway === locationFilter),
-        key as TeammateMarket,
-        stat.hitRateWhenAnchorHits.lineUsed
-      );
-      pct = recalc.pct;
-      games = recalc.games;
-    } else {
-      pct = stat.hitRateWhenAnchorHits.pct;
-      games = stat.hitRateWhenAnchorHits.games;
-    }
+    // Always calculate from game logs for consistency
+    const recalc = calculateHitRateFromLogs(
+      filteredLogs,
+      key as TeammateMarket,
+      effectiveLine
+    );
+    
+    const pct = recalc.pct;
+    const games = recalc.games;
     
     if (pct !== null && games >= 3) {
       results.push({ 
         market: key as TeammateMarket, 
         pct, 
-        line: stat.hitRateWhenAnchorHits.lineUsed,
+        line: effectiveLine,
         games
       });
     }
@@ -449,20 +455,30 @@ const AllStatsGridRow = ({
             );
           }
           
+          // Use effective line with fallback for players without sportsbook lines
+          const effectiveLine = (stat.hitRateWhenAnchorHits.lineUsed != null && stat.hitRateWhenAnchorHits.lineUsed > 0) 
+            ? stat.hitRateWhenAnchorHits.lineUsed 
+            : 0.5;
+          
+          // Always calculate from game logs to ensure consistency with sparkbars
+          const isTurnovers = key === "turnovers";
+          const relevantGames = filteredLogs.filter(g => g.anchorHit);
+          
           let pct: number | null;
           let games: number;
+          let timesHit: number;
           
-          if (locationFilter !== "all") {
-            const recalc = calculateHitRateFromLogs(
-              filteredLogs,
-              key as TeammateMarket,
-              stat.hitRateWhenAnchorHits.lineUsed
-            );
-            pct = recalc.pct;
-            games = recalc.games;
+          if (relevantGames.length === 0) {
+            pct = null;
+            games = 0;
+            timesHit = 0;
           } else {
-            pct = stat.hitRateWhenAnchorHits.pct;
-            games = stat.hitRateWhenAnchorHits.games;
+            games = relevantGames.length;
+            timesHit = relevantGames.filter(game => {
+              const val = getStatFromGameLog(game.stats, key as TeammateMarket);
+              return isTurnovers ? val <= effectiveLine : val >= effectiveLine;
+            }).length;
+            pct = Math.round((timesHit / games) * 100);
           }
           
           // Skip if below min hit rate threshold
@@ -483,7 +499,7 @@ const AllStatsGridRow = ({
           return (
             <Tooltip
               key={key}
-              content={`${abbr} ${stat.hitRateWhenAnchorHits.lineUsed}+: ${pct}% (${games} games)`}
+              content={`${abbr} ${effectiveLine}+: ${pct}% (${games} games)`}
             >
               <div 
                 className={cn(
@@ -503,7 +519,7 @@ const AllStatsGridRow = ({
                   {pct !== null ? `${pct}%` : "—"}
                 </div>
                 <div className="text-[8px] text-neutral-400 mt-0.5">
-                  {stat.hitRateWhenAnchorHits.lineUsed}+
+                  {effectiveLine}+
                 </div>
               </div>
             </Tooltip>
@@ -549,22 +565,12 @@ const TeammateCard = ({
     return teammate.gameLogs.filter(g => g.homeAway === locationFilter);
   }, [teammate.gameLogs, locationFilter]);
 
-  const { pct: hitPct, timesHit, games } = useMemo(() => {
-    if (locationFilter === "all") {
-      return {
-        pct: hitRateData.pct,
-        timesHit: hitRateData.timesHit,
-        games: hitRateData.games,
-      };
-    }
-    return calculateHitRateFromLogs(filteredLogs, selectedMarket, hitRateData.lineUsed);
-  }, [filteredLogs, selectedMarket, hitRateData, locationFilter]);
+  // Use consistent line for both sparkbar and percentage
+  const effectiveLine = (hitRateData.lineUsed != null && hitRateData.lineUsed > 0) 
+    ? hitRateData.lineUsed 
+    : 0.5;
 
-  const strength = getStrengthLevel(hitPct, games);
-  const config = getStrengthConfig(strength);
-  const Icon = config.icon;
-
-  // Sparkbar data
+  // Sparkbar data - uses same effectiveLine as percentage
   const sparkData = useMemo(() => {
     return filteredLogs
       .filter(g => g.anchorHit)
@@ -573,11 +579,20 @@ const TeammateCard = ({
       .map(game => {
         const val = getStatFromGameLog(game.stats, selectedMarket);
         const isHit = selectedMarket === "turnovers" 
-          ? val <= hitRateData.lineUsed 
-          : val >= hitRateData.lineUsed;
+          ? val <= effectiveLine 
+          : val >= effectiveLine;
         return isHit;
       });
-  }, [filteredLogs, selectedMarket, hitRateData.lineUsed]);
+  }, [filteredLogs, selectedMarket, effectiveLine]);
+
+  // Derive timesHit / games / pct directly from sparkData so display matches the bars
+  const games = sparkData.length;
+  const timesHit = sparkData.filter(Boolean).length;
+  const hitPct = games > 0 ? Math.round((timesHit / games) * 100) : null;
+
+  const strength = getStrengthLevel(hitPct, games);
+  const config = getStrengthConfig(strength);
+  const Icon = config.icon;
 
   const boost = statData.diff;
   const hasBoost = boost !== null && Math.abs(boost) >= 0.3;
@@ -804,22 +819,12 @@ const StatTableRow = ({
     return teammate.gameLogs.filter(g => g.homeAway === locationFilter);
   }, [teammate.gameLogs, locationFilter]);
 
-  const { pct: hitPct, timesHit, games } = useMemo(() => {
-    if (locationFilter === "all") {
-      return {
-        pct: hitRateData.pct,
-        timesHit: hitRateData.timesHit,
-        games: hitRateData.games,
-      };
-    }
-    return calculateHitRateFromLogs(filteredLogs, selectedMarket, hitRateData.lineUsed);
-  }, [filteredLogs, selectedMarket, hitRateData, locationFilter]);
+  // Use consistent line for both sparkbar and percentage
+  const effectiveLine = (hitRateData.lineUsed != null && hitRateData.lineUsed > 0) 
+    ? hitRateData.lineUsed 
+    : 0.5;
 
-  const strength = getStrengthLevel(hitPct, games);
-  const config = getStrengthConfig(strength);
-  const boost = statData.diff;
-
-  // Sparkbar data
+  // Sparkbar data - uses same effectiveLine as percentage
   const sparkData = useMemo(() => {
     return filteredLogs
       .filter(g => g.anchorHit)
@@ -828,11 +833,20 @@ const StatTableRow = ({
       .map(game => {
         const val = getStatFromGameLog(game.stats, selectedMarket);
         const isHit = selectedMarket === "turnovers" 
-          ? val <= hitRateData.lineUsed 
-          : val >= hitRateData.lineUsed;
+          ? val <= effectiveLine 
+          : val >= effectiveLine;
         return isHit;
       });
-  }, [filteredLogs, selectedMarket, hitRateData.lineUsed]);
+  }, [filteredLogs, selectedMarket, effectiveLine]);
+
+  // Derive timesHit / games / pct directly from sparkData so display matches the bars
+  const games = sparkData.length;
+  const timesHit = sparkData.filter(Boolean).length;
+  const hitPct = games > 0 ? Math.round((timesHit / games) * 100) : null;
+
+  const strength = getStrengthLevel(hitPct, games);
+  const config = getStrengthConfig(strength);
+  const boost = statData.diff;
 
   return (
     <div 
@@ -1093,6 +1107,23 @@ export function PlayerCorrelations({
         ? t.gameLogs 
         : t.gameLogs.filter(g => g.homeAway === locationFilter)
     }));
+    
+    // Filter out teammates without valid line data
+    filtered = filtered.filter(t => {
+      if (selectedMarket === "all") {
+        // In all view, at least one selected market must have valid line data
+        return STAT_MARKETS.some(({ key }) => {
+          if (!selectedMarkets.has(key)) return false;
+          const stat = t[key as Exclude<TeammateMarket, "all">];
+          const hitRate = stat?.hitRateWhenAnchorHits;
+          return hitRate?.lineUsed != null && hitRate.lineUsed > 0 && (hitRate?.games ?? 0) >= 1;
+        });
+      } else {
+        const stat = t[selectedMarket as Exclude<TeammateMarket, "all">];
+        const hitRate = stat?.hitRateWhenAnchorHits;
+        return hitRate?.lineUsed != null && hitRate.lineUsed > 0 && (hitRate?.games ?? 0) >= 1;
+      }
+    });
     
     // Filter by minimum hit rate (if set)
     if (minHitRate > 0) {

@@ -754,8 +754,8 @@ export function GameLogChart({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Y-Axis Labels */}
-      <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium">
+      {/* Y-Axis Labels - aligned with chart area */}
+      <div className="absolute left-0 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium" style={{ top: 0, height: chartHeight }}>
         <span>{maxStat}</span>
         <span>{Math.round(maxStat / 2)}</span>
         <span>0</span>

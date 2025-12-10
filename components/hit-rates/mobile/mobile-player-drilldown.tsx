@@ -4426,7 +4426,16 @@ export function MobilePlayerDrilldown({
                       
                       return { teammate, bestStat, validStats };
                     })
-                    .filter(item => item.bestStat)
+                    .filter(item => {
+                      // Must have a best stat with valid data
+                      if (!item.bestStat) return false;
+                      const hitRate = item.bestStat.stat.hitRateWhenAnchorHits;
+                      // Must have valid line data (actual sportsbook line, not just calculated)
+                      if (hitRate?.lineUsed == null || hitRate.lineUsed <= 0) return false;
+                      // Must have at least some games analyzed
+                      if ((hitRate?.games ?? 0) < 1) return false;
+                      return true;
+                    })
                     .sort((a, b) => {
                       const aPct = a.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
                       const bPct = b.bestStat?.stat.hitRateWhenAnchorHits?.pct ?? 0;
@@ -4435,14 +4444,29 @@ export function MobilePlayerDrilldown({
                     .map(({ teammate, bestStat, validStats }, idx) => {
                       const isExpanded = expandedCorrelationId === teammate.playerId;
                       const hitRate = bestStat?.stat.hitRateWhenAnchorHits;
-                      // Ensure line is at least 0.5 (no negative lines)
-                      const line = Math.max(0.5, hitRate?.lineUsed ?? 0.5);
-                      const pct = hitRate?.pct ?? 0;
-                      const games = hitRate?.games ?? 0;
-                      const timesHit = hitRate?.timesHit ?? 0;
+                      // Use the actual line from hit rate data, fallback to a reasonable minimum
+                      // Don't use 0.5 as fallback - use the season average or a higher default
+                      const line = hitRate?.lineUsed ?? bestStat?.stat.avgOverall ?? 0.5;
+                      const effectiveLineForBars = Math.max(0.5, line);
                       
-                      // Get game logs for sparkbar
+                      // Get game logs for sparkbar (games where anchor hit)
                       const gameLogs = teammate.gameLogs.filter(g => g.anchorHit);
+                      
+                      // Calculate hit rate locally from game logs to match sparkbar display
+                      const statKeyMap: Record<string, keyof typeof gameLogs[0]['stats']> = {
+                        points: "pts", rebounds: "reb", assists: "ast", threes: "fg3m",
+                        steals: "stl", blocks: "blk", turnovers: "tov", pra: "pra",
+                        pointsRebounds: "pr", pointsAssists: "pa", reboundsAssists: "ra", blocksSteals: "bs",
+                      };
+                      const statsKey = statKeyMap[bestStat?.key || "points"] || "pts";
+                      
+                      // Count hits from game logs
+                      const games = gameLogs.length;
+                      const timesHit = gameLogs.filter(log => {
+                        const statValue = log.stats[statsKey] ?? 0;
+                        return statValue >= effectiveLineForBars;
+                      }).length;
+                      const pct = games > 0 ? Math.round((timesHit / games) * 100) : 0;
                       
                       return (
                         <div key={teammate.playerId}>
@@ -4475,7 +4499,7 @@ export function MobilePlayerDrilldown({
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O</span>
                                   <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
-                                    {line}+ {bestStat?.label}
+                                    {effectiveLineForBars}+ {bestStat?.label}
                                   </span>
                                   <span className="text-[10px] text-neutral-400 ml-1">
                                     {timesHit}/{games}
@@ -4495,9 +4519,9 @@ export function MobilePlayerDrilldown({
                                     };
                                     const statsKey = statKeyMap[bestStat?.key || "points"] || "pts";
                                     const statValue = log.stats[statsKey] ?? 0;
-                                    const isHit = statValue >= line;
+                                    const isHit = statValue >= effectiveLineForBars;
                                     const maxHeight = 24;
-                                    const height = Math.max(4, Math.min(maxHeight, (statValue / (line * 1.5)) * maxHeight));
+                                    const height = Math.max(4, Math.min(maxHeight, (statValue / (effectiveLineForBars * 1.5)) * maxHeight));
                                     
                                     return (
                                       <div
@@ -4596,9 +4620,9 @@ export function MobilePlayerDrilldown({
                                   };
                                   const statsKey = statKeyMap[bestStat?.key || "points"] || "pts";
                                   const statValue = log.stats[statsKey] ?? 0;
-                                  const isHit = statValue >= line;
+                                  const isHit = statValue >= effectiveLineForBars;
                                   const maxHeight = 32;
-                                  const barLine = line > 0 ? line : 1;
+                                  const barLine = effectiveLineForBars > 0 ? effectiveLineForBars : 1;
                                   const height = Math.max(6, Math.min(maxHeight, (statValue / (barLine * 1.5)) * maxHeight));
                                   
                                   return (
