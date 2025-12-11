@@ -211,20 +211,22 @@ function getOrdinalSuffix(n: number): string {
 }
 
 // DVP Rank badge - subtle pill with arrows for top/bottom matchups
+// LOW rank (1-10) = tough defense = HARD for player (red)
+// HIGH rank (21-30) = weak defense = GOOD for player (green)
 function DvpBadge({ rank }: { rank: number | null }) {
   if (rank === null) return null;
   
-  // Determine matchup quality
-  const isTop5 = rank <= 5;
-  const isBottom5 = rank >= 26;
-  const isNeutral = !isTop5 && !isBottom5;
+  // Determine matchup quality (inverted - low rank = hard, high rank = good)
+  const isHardMatchup = rank <= 10;    // 1-10: Tough defense (bad for player)
+  const isGoodMatchup = rank >= 21;    // 21-30: Weak defense (good for player)
+  const isNeutral = !isHardMatchup && !isGoodMatchup;
 
   // Get pill styling based on matchup quality
   const getPillStyle = () => {
-    if (isTop5) {
+    if (isGoodMatchup) {
       return "bg-emerald-500/20 dark:bg-emerald-500/15 border-emerald-500/30 dark:border-emerald-500/20";
     }
-    if (isBottom5) {
+    if (isHardMatchup) {
       return "bg-red-500/20 dark:bg-red-500/15 border-red-500/30 dark:border-red-500/20";
     }
     // Neutral - very subtle
@@ -233,8 +235,8 @@ function DvpBadge({ rank }: { rank: number | null }) {
 
   // Get text color
   const getTextColor = () => {
-    if (isTop5) return "text-emerald-600 dark:text-emerald-400";
-    if (isBottom5) return "text-red-500 dark:text-red-400";
+    if (isGoodMatchup) return "text-emerald-600 dark:text-emerald-400";
+    if (isHardMatchup) return "text-red-500 dark:text-red-400";
     return "text-neutral-500 dark:text-neutral-400";
   };
 
@@ -243,11 +245,11 @@ function DvpBadge({ rank }: { rank: number | null }) {
       "flex items-center gap-0.5 px-1.5 py-0.5 rounded border",
       getPillStyle()
     )}>
-      {/* Arrow indicator for top/bottom matchups */}
-      {isTop5 && (
+      {/* Arrow indicator for good/hard matchups */}
+      {isGoodMatchup && (
         <span className="text-[9px] text-emerald-500 dark:text-emerald-400">▲</span>
       )}
-      {isBottom5 && (
+      {isHardMatchup && (
         <span className="text-[9px] text-red-500 dark:text-red-400">▼</span>
       )}
       

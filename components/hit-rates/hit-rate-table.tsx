@@ -285,15 +285,17 @@ const hasInjuryStatus = (status: string | null): boolean => {
 };
 
 // Get matchup tier based on rank (5-tier system)
+// LOW rank (1-10) = tough defense = HARD for player (red)
+// HIGH rank (21-30) = weak defense = GOOD for player (green)
 type MatchupTier = "elite" | "strong" | "neutral" | "bad" | "worst" | null;
 
 const getMatchupTier = (rank: number | null): MatchupTier => {
   if (rank === null) return null;
-  if (rank <= 5) return "elite";      // 1-5: Elite matchup (SMASH)
-  if (rank <= 10) return "strong";    // 6-10: Strong matchup
+  if (rank <= 5) return "worst";      // 1-5: Toughest defense (FADE)
+  if (rank <= 10) return "bad";       // 6-10: Hard matchup
   if (rank <= 20) return "neutral";   // 11-20: Neutral matchup
-  if (rank <= 25) return "bad";       // 21-25: Bad matchup
-  return "worst";                      // 26-30: Worst matchup (FADE)
+  if (rank <= 25) return "strong";    // 21-25: Good matchup
+  return "elite";                      // 26-30: Easiest matchup (SMASH)
 };
 
 // Get matchup background classes (5-tier system) - More vivid for top/bottom 5
@@ -302,7 +304,7 @@ const getMatchupBgClass = (rank: number | null): string => {
   if (!tier) return "";
   switch (tier) {
     case "elite":
-      // Bold green - stands out significantly
+      // Bold green - easiest matchup (26-30)
       return "bg-emerald-200 dark:bg-emerald-700/40 ring-1 ring-emerald-400/50 dark:ring-emerald-500/30";
     case "strong":
       return "bg-emerald-50 dark:bg-emerald-900/20";
@@ -311,7 +313,7 @@ const getMatchupBgClass = (rank: number | null): string => {
     case "bad":
       return "bg-red-50 dark:bg-red-900/20";
     case "worst":
-      // Bold red - stands out significantly
+      // Bold red - toughest matchup (1-5)
       return "bg-red-200 dark:bg-red-700/40 ring-1 ring-red-400/50 dark:ring-red-500/30";
     default:
       return "";
@@ -324,7 +326,7 @@ const getMatchupRankColor = (rank: number | null): string => {
   if (!tier) return "text-neutral-500 dark:text-neutral-400";
   switch (tier) {
     case "elite":
-      // Bold green text
+      // Bold green text - easiest matchup
       return "text-emerald-800 dark:text-emerald-200 font-bold";
     case "strong":
       return "text-emerald-600 dark:text-emerald-400";
@@ -333,7 +335,7 @@ const getMatchupRankColor = (rank: number | null): string => {
     case "bad":
       return "text-red-500 dark:text-red-400";
     case "worst":
-      // Bold red text
+      // Bold red text - toughest matchup
       return "text-red-800 dark:text-red-200 font-bold";
     default:
       return "text-neutral-500 dark:text-neutral-400";
