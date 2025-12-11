@@ -114,11 +114,12 @@ export const createCheckout = async ({
           quantity: 1,
         },
       ],
-      // Show promo code input for users to enter referral codes manually
-      // (disabled when auto-applying a discount)
-      allow_promotion_codes: shouldAllowPromoCodes,
-      // Auto-apply discount if provided
-      ...(discounts ? { discounts } : {}),
+      // Either show promo code input OR apply discount - can't have both
+      // Stripe doesn't allow both allow_promotion_codes and discounts in same request
+      ...(discounts 
+        ? { discounts } 
+        : { allow_promotion_codes: shouldAllowPromoCodes }
+      ),
       success_url: successUrl,
       cancel_url: cancelUrl,
       ...(mode === 'subscription'
