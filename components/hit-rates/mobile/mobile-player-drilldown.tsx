@@ -234,12 +234,21 @@ interface GameBarProps {
   gameData?: any; // Full game data for dialog
   teammatesOut?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out
   activeOverlay?: { key: string; label: string } | null; // Active trending filter to show as overlay
+  totalGames: number; // Total number of games to determine bar width
 }
 
-function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay }: GameBarProps) {
+function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay, totalGames }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const isHome = homeAway === "H";
+  
+  // Responsive bar width based on number of games
+  const barWidth = useMemo(() => {
+    if (totalGames <= 2) return 'min-w-[80px] w-[80px]';
+    if (totalGames <= 5) return 'min-w-[50px] w-[50px]';
+    if (totalGames <= 10) return 'min-w-[36px] w-[36px]';
+    return 'min-w-[28px] w-[28px]';
+  }, [totalGames]);
   
   // Get the overlay value for this game
   const overlayValue = useMemo(() => {
@@ -260,12 +269,13 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
   // When overlay is active, the overlay value drives the chart scale.
   // The market stat is scaled using a FIXED scale based on maxMarketStat,
   // so identical market stat values always have identical heights.
-  // Combo markets get more height (55%) to show P/R/A segments clearly.
-  // Single-stat markets use 35% to keep filter bars dominant.
+  // Combo markets get 40% to show P/R/A segments while leaving room in filter bar.
+  // Single-stat markets use 30% to keep filter bars clearly dominant.
   const heightPct = useMemo(() => {
     if (activeOverlay && overlayValue !== null && overlayValue > 0) {
       // Combo markets need more height to show all stacked segments (P, R, A)
-      const scalePercent = isComboMarket(market) ? 55 : 35;
+      // but capped lower so they don't fill the entire filter bar
+      const scalePercent = isComboMarket(market) ? 40 : 30;
       const marketHeightPct = (stat / maxMarketStat) * scalePercent;
       
       return Math.max(2, marketHeightPct);
@@ -316,7 +326,7 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
     <>
     <button
       type="button"
-      className="relative flex-1 flex flex-col items-center group"
+      className={cn("relative flex flex-col items-center group", barWidth)}
       onTouchStart={() => setIsPressed(true)}
       onTouchEnd={() => setIsPressed(false)}
       onClick={() => {
@@ -326,15 +336,8 @@ function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway,
       }}
     >
       {/* Bar container with stat on top of bar */}
-      <div className="relative w-full h-64 flex flex-col items-center justify-end">
-        {/* Line marker - only show when there's a line */}
-        {/* Line marker - hide when overlay is active since Y-axis shows overlay values */}
-        {hasLine && line !== null && !activeOverlay && (
-          <div 
-            className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 z-10"
-            style={{ bottom: `${(line / maxStat) * 100}%` }}
-          />
-        )}
+      <div className="relative w-full h-52 flex flex-col items-center justify-end">
+        {/* Line marker is now rendered at the chart level, not per-bar */}
         
         {/* Potential Rebounds - Faded overlay (only for rebounds market) */}
         {showPotential && potentialReb > 0 && (
@@ -795,6 +798,16 @@ function HeroBarChart({
     return games.slice(0, count).reverse(); // Oldest on left, newest on right
   }, [games, gameCount]);
   
+  // Ref for scroll container to auto-scroll to newest games (right side)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll to the right (newest games) when games change or on mount
+  useEffect(() => {
+    if (scrollContainerRef.current && displayGames.length > 10) {
+      scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+    }
+  }, [displayGames.length, gameCount]);
+  
   // Helper to get overlay value from game data
   const getOverlayValue = useCallback((g: typeof displayGames[0]) => {
     if (!activeOverlay || !g.full_game_data) return 0;
@@ -898,9 +911,9 @@ function HeroBarChart({
             No games match filters
           </div>
         ) : (
-          <div className="flex items-start">
-            {/* Y-Axis - with bottom padding to align with bar area only */}
-            <div className="flex flex-col justify-between h-64 pr-1.5">
+          <div className="flex items-start relative">
+            {/* Y-Axis - aligned with bar area only, not x-axis labels */}
+            <div className="flex flex-col justify-between h-52 pr-1.5 relative z-30">
               {[...yAxisTicks].reverse().map((tick) => (
                 <span 
                   key={tick} 
@@ -909,45 +922,57 @@ function HeroBarChart({
                   {tick}
                 </span>
               ))}
-            </div>
-            
-            {/* Chart Area */}
-            <div className="flex-1 relative">
-              {/* Line marker with value label - spans full width */}
-              {/* Hide when overlay is active since Y-axis shows overlay values, not market stat */}
+              {/* Line value label - fixed on Y-axis so it doesn't scroll */}
               {line !== null && !activeOverlay && (
                 <div 
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ bottom: `${(line / chartDomainMax) * 100}%` }}
+                  className="absolute right-0 z-30 pointer-events-none"
+                  style={{ bottom: `${(line / chartDomainMax) * 100}%`, transform: 'translateY(50%)' }}
                 >
-                  {/* Line value label */}
-                  <div className="absolute -top-2 -left-1 bg-neutral-700 dark:bg-neutral-600 text-white text-[9px] font-bold px-1 py-0.5 rounded leading-none">
+                  <div className="bg-neutral-700 dark:bg-neutral-600 text-white text-[8px] font-bold px-1 py-0.5 rounded leading-none">
                     {line}
                   </div>
                 </div>
               )}
-              {/* Bars */}
-              <div className="flex items-end gap-1">
-                {displayGames.map((game, idx) => (
-                  <GameBar
-                    key={`${game.date}-${idx}`}
-                    stat={game.market_stat}
-                    line={line}
-                    maxStat={chartDomainMax}
-                    maxMarketStat={maxMarketStat}
-                    date={game.date}
-                    opponent={game.opponent_abbr}
-                    homeAway={game.home_away}
-                    isHit={line !== null && game.market_stat >= line}
-                    hasLine={line !== null}
-                    index={idx}
-                    potentialReb={game.potential_reb}
-                    market={market}
-                    gameData={game.full_game_data}
-                    teammatesOut={game.teammates_out}
-                    activeOverlay={activeOverlay}
-                  />
-                ))}
+            </div>
+            
+            {/* Chart Area - Scrollable */}
+            <div ref={scrollContainerRef} className="flex-1 overflow-x-auto scrollbar-hide">
+              <div className="relative min-w-fit">
+                {/* Bars - center when few games, left align when many (for scrolling) */}
+                <div className={cn(
+                  "flex items-end gap-1",
+                  displayGames.length <= 10 ? "justify-center" : "justify-start"
+                )}>
+                  {/* Line marker - positioned inside the flex container to align with bars */}
+                  {/* Hide when overlay is active since Y-axis shows overlay values, not market stat */}
+                  {line !== null && !activeOverlay && (
+                    <div 
+                      className="absolute left-0 right-0 z-10 pointer-events-none border-t border-dashed border-neutral-400 dark:border-neutral-500"
+                      style={{ top: `${(1 - line / chartDomainMax) * 208}px` }}
+                    />
+                  )}
+                  {displayGames.map((game, idx) => (
+                    <GameBar
+                      key={`${game.date}-${idx}`}
+                      stat={game.market_stat}
+                      line={line}
+                      maxStat={chartDomainMax}
+                      maxMarketStat={maxMarketStat}
+                      date={game.date}
+                      opponent={game.opponent_abbr}
+                      homeAway={game.home_away}
+                      isHit={line !== null && game.market_stat >= line}
+                      hasLine={line !== null}
+                      index={idx}
+                      potentialReb={game.potential_reb}
+                      market={market}
+                      gameData={game.full_game_data}
+                      teammatesOut={game.teammates_out}
+                      activeOverlay={activeOverlay}
+                      totalGames={displayGames.length}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
