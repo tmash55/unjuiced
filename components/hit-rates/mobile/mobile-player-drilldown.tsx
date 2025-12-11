@@ -850,7 +850,8 @@ function HeroBarChart({
     }
 
     // Normal mode: scale based on market stat (and potential rebounds/3PA for those markets)
-    return Math.max(maxMarketStat, line * 1.3, 1); // At least 1 to avoid division issues
+    // Add 15% headroom so tallest bar doesn't fill the entire chart
+    return Math.max(maxMarketStat * 1.15, line * 1.3, 1); // At least 1 to avoid division issues
   }, [displayGames, line, maxMarketStat, activeOverlay, getOverlayValue]);
   
   // Calculate nice Y-axis ticks
