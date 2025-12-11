@@ -502,10 +502,13 @@ export function HitRateTable({
       });
     }
     
-    // Filter by matchup rank (top N)
+    // Filter by matchup rank (top N best matchups = highest ranks = weakest defense)
+    // With our logic: high rank (21-30) = good for player, low rank (1-10) = bad for player
+    // So "top 10 matchups" means ranks 21-30 (the 10 easiest matchups)
     if (maxMatchupRank > 0) {
+      const minRankThreshold = 31 - maxMatchupRank; // top 10 = ranks >= 21, top 5 = ranks >= 26
       result = result.filter(row => 
-        row.matchupRank !== null && row.matchupRank <= maxMatchupRank
+        row.matchupRank !== null && row.matchupRank >= minRankThreshold
       );
     }
     
@@ -514,6 +517,12 @@ export function HitRateTable({
     // Sort
     if (sortField) {
       result = [...result].sort((a, b) => {
+        // Push "out" players to the bottom regardless of sort order
+        const aIsOut = a.injuryStatus?.toLowerCase() === "out";
+        const bIsOut = b.injuryStatus?.toLowerCase() === "out";
+        if (aIsOut && !bIsOut) return 1;
+        if (!aIsOut && bIsOut) return -1;
+        
         const aVal = getSortValue(a, sortField);
         const bVal = getSortValue(b, sortField);
         

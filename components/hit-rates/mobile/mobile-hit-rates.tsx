@@ -151,6 +151,12 @@ export function MobileHitRates({
     const dir = sortOption?.dir ?? "desc";
     
     result = [...result].sort((a, b) => {
+      // Push "out" players to the bottom regardless of sort order
+      const aIsOut = a.injuryStatus?.toLowerCase() === "out";
+      const bIsOut = b.injuryStatus?.toLowerCase() === "out";
+      if (aIsOut && !bIsOut) return 1;
+      if (!aIsOut && bIsOut) return -1;
+      
       let comparison = 0;
       
       if (field === "name") {
