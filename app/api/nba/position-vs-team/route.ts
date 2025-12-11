@@ -174,26 +174,26 @@ export async function GET(req: NextRequest) {
       .filter((game) => game.minutes >= minMinutes)
       .map((game) => ({
         playerId: game.player_id,
-        playerName: game.player_name,
-        teamAbbr: game.team_abbr,
+      playerName: game.player_name,
+      teamAbbr: game.team_abbr,
         position: game.position || position, // Use player's actual position, fallback to queried
-        stat: game.stat,
+      stat: game.stat,
         closingLine: game.closing_line,
         closingPriceOver: game.closing_price_over,
         closingPriceUnder: game.closing_price_under,
         hitOver: game.hit_over,
-        gameDate: game.date,
-        pts: game.pts,
-        reb: game.reb,
-        ast: game.ast,
+      gameDate: game.date,
+      pts: game.pts,
+      reb: game.reb,
+      ast: game.ast,
         fg3m: game.fg3m,
         stl: game.stl,
         blk: game.blk,
         tov: game.tov,
         fgm: game.fgm,
         fga: game.fga,
-        minutes: game.minutes,
-      }));
+      minutes: game.minutes,
+    }));
 
     // Recalculate stats based on filtered players
     const stats = players.map(p => p.stat);

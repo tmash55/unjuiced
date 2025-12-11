@@ -417,9 +417,9 @@ function PlayerMatchupRow({
             {player.closingLine}
           </span>
         ) : (
-          <span className="text-xs text-neutral-400 dark:text-neutral-500">
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">
             —
-          </span>
+        </span>
         )}
       </td>
 

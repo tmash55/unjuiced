@@ -232,13 +232,41 @@ interface GameBarProps {
   market: string;
   gameData?: any; // Full game data for dialog
   teammatesOut?: Array<{ player_id: number; name: string; avg: number | null }>; // Teammates out
+  activeOverlay?: { key: string; label: string } | null; // Active trending filter to show as overlay
 }
 
-function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut }: GameBarProps) {
+function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
-  const heightPct = Math.max(2, (stat / maxStat) * 100);
   const isHome = homeAway === "H";
+  
+  // Get the overlay value for this game
+  const overlayValue = useMemo(() => {
+    if (!activeOverlay || !gameData) return null;
+    const key = activeOverlay.key;
+    const valueMap: Record<string, number | undefined> = {
+      minutes: gameData.minutes,
+      fga: gameData.fga,
+      fg3a: gameData.fg3a,
+      fta: gameData.fta,
+      usage: gameData.usagePct ? gameData.usagePct * 100 : undefined, // Convert to percentage scale
+      potentialReb: gameData.potentialReb,
+      passes: gameData.passes,
+    };
+    return valueMap[key] ?? null;
+  }, [activeOverlay, gameData]);
+  
+  // When overlay is active, scale market stat relative to the filter value (capped at 100%)
+  // Otherwise, scale relative to maxStat as normal
+  const heightPct = useMemo(() => {
+    if (activeOverlay && overlayValue !== null && overlayValue > 0) {
+      // Market stat fills up the filter bar container (capped at 100%)
+      const fillPct = Math.min(stat / overlayValue, 1); // 0 to 1
+      const containerHeightPct = (overlayValue / maxStat) * 100;
+      return Math.max(2, fillPct * containerHeightPct);
+    }
+    return Math.max(2, (stat / maxStat) * 100);
+  }, [stat, maxStat, activeOverlay, overlayValue]);
   
   // Check if we should show potential rebounds (only if > 0 and > actual stat)
   const showPotential = market === "player_rebounds" && 
@@ -255,6 +283,23 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
     gameData.fg3a > 0 && 
     gameData.fg3a > stat;
   const fg3aHeightPct = show3PA ? Math.max(2, ((gameData?.fg3a ?? 0) / maxStat) * 100) : 0;
+  
+  // Should we show the overlay bar? Only if value exists and we're not already showing it via other overlays
+  const showActiveOverlay = activeOverlay && overlayValue !== null && overlayValue > 0 && 
+    // Don't double-show potential rebounds or 3PA if they're already displayed by market-specific overlays
+    !(activeOverlay.key === "potentialReb" && showPotential) &&
+    !(activeOverlay.key === "fg3a" && show3PA);
+  
+  // Calculate height for active overlay bar (as percentage of maxStat)
+  const activeOverlayHeightPct = showActiveOverlay && overlayValue !== null
+    ? Math.max(2, (overlayValue / maxStat) * 100) 
+    : 0;
+  
+  // Format the overlay value
+  const formatOverlayValue = (val: number, key: string) => {
+    if (key === "usage") return `${Math.round(val)}%`; // Already scaled to percentage
+    return Math.round(val).toString();
+  };
   
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -323,7 +368,29 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
           </>
         )}
         
-        {/* Stat value positioned on top of bar */}
+        {/* Active Trending Filter Overlay Bar (e.g., Minutes, FGA when filter is expanded) */}
+        {/* When a filter is active, the filter bar is the container and market stat fits inside */}
+        {showActiveOverlay && overlayValue !== null && (
+          <>
+            {/* Gray container bar - ALWAYS visible as the primary bar */}
+            <div
+              className="absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-300 bg-neutral-400/40 dark:bg-neutral-500/40 z-[1]"
+              style={{ 
+                height: `${activeOverlayHeightPct}%`,
+              }}
+            />
+            
+            {/* Overlay value - above the filter bar */}
+            <div 
+              className="absolute text-[8px] font-semibold text-neutral-500 dark:text-neutral-400 z-20"
+              style={{ bottom: `${activeOverlayHeightPct + 2}%` }}
+            >
+              {formatOverlayValue(overlayValue!, activeOverlay?.key || "")}
+            </div>
+          </>
+        )}
+        
+        {/* Stat value positioned on top of bar - always on colored bar */}
         <div 
           className={cn(
             "absolute text-[9px] font-bold transition-all duration-150 z-10",
@@ -340,11 +407,12 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
         </div>
         
         {/* Bar - Stacked for combo markets, solid for single stat */}
+        {/* Market stat bar - always renders on top of gray filter bar with z-[5] */}
         {isComboMarket(market) && gameData ? (
           // Stacked bar for combo markets - P at bottom, then R, then A on top
           <div
             className={cn(
-              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1] flex flex-col-reverse overflow-hidden",
+              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[5] flex flex-col-reverse overflow-hidden",
               !hasLine
                 ? "bg-neutral-400 dark:bg-neutral-500"
                 : isHit 
@@ -387,7 +455,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
           // Solid bar for single stat markets
           <div
             className={cn(
-              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[1]",
+              "w-full rounded-t-sm transition-all duration-300 ease-out relative z-[5]",
               !hasLine
                 ? "bg-neutral-400 dark:bg-neutral-500"
                 : isHit 
@@ -688,6 +756,8 @@ interface HeroBarChartProps {
   // Advanced filters
   advancedFiltersCount?: number;
   onOpenAdvancedFilters?: () => void;
+  // Active trending filter overlay
+  activeOverlay?: { key: string; label: string } | null;
 }
 
 function HeroBarChart({ 
@@ -703,15 +773,42 @@ function HeroBarChart({
   market,
   advancedFiltersCount = 0,
   onOpenAdvancedFilters,
+  activeOverlay,
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
     const count = gameCount === "season" || gameCount === "h2h" ? games.length : gameCount;
     return games.slice(0, count).reverse(); // Oldest on left, newest on right
   }, [games, gameCount]);
   
+  // Helper to get overlay value from game data
+  const getOverlayValue = useCallback((g: typeof displayGames[0]) => {
+    if (!activeOverlay || !g.full_game_data) return 0;
+    const key = activeOverlay.key;
+    const data = g.full_game_data;
+    const valueMap: Record<string, number | undefined> = {
+      minutes: data.minutes,
+      fga: data.fga,
+      fg3a: data.fg3a,
+      fta: data.fta,
+      usage: data.usagePct ? data.usagePct * 100 : undefined, // Convert to percentage scale
+      potentialReb: data.potentialReb,
+      passes: data.passes,
+    };
+    return valueMap[key] ?? 0;
+  }, [activeOverlay]);
+  
   const maxStat = useMemo(() => {
-    // For rebounds market, include potential rebounds in max calculation
-    // For 3PM market, include 3PA in max calculation
+    // When an overlay filter is active, scale based on the FILTER values (they become the container)
+    if (activeOverlay) {
+      const overlayValues = displayGames.map(g => getOverlayValue(g));
+      const maxOverlay = Math.max(...overlayValues, 1);
+      
+      // Ensure minimum scale of line value or 10 for visual clarity
+      // (usage is already scaled to percentage in getOverlayValue)
+      return Math.max(maxOverlay, line * 1.2, 10);
+    }
+    
+    // Normal mode: scale based on market stat (and potential rebounds/3PA for those markets)
     let stats: number[];
     if (market === "player_rebounds") {
       stats = displayGames.map(g => Math.max(g.market_stat, g.potential_reb ?? 0));
@@ -721,7 +818,7 @@ function HeroBarChart({
       stats = displayGames.map(g => g.market_stat);
     }
     return Math.max(...stats, line * 1.3, 1); // At least 1 to avoid division issues
-  }, [displayGames, line, market]);
+  }, [displayGames, line, market, activeOverlay, getOverlayValue]);
   
   // Calculate nice Y-axis ticks
   const yAxisTicks = useMemo(() => {
@@ -826,6 +923,7 @@ function HeroBarChart({
                     market={market}
                     gameData={game.full_game_data}
                     teammatesOut={game.teammates_out}
+                    activeOverlay={activeOverlay}
                   />
                 ))}
               </div>
@@ -911,9 +1009,10 @@ interface TrendingFiltersProps {
   games: BoxScoreGame[];
   filters: ChartFiltersState;
   onFiltersChange: (filters: ChartFiltersState) => void;
+  onActiveFilterChange?: (activeFilter: { key: string; label: string } | null) => void;
 }
 
-function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFiltersProps) {
+function TrendingFilters({ market, games, filters, onFiltersChange, onActiveFilterChange }: TrendingFiltersProps) {
   const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState<"min" | "max" | null>(null);
@@ -964,6 +1063,28 @@ function TrendingFilters({ market, games, filters, onFiltersChange }: TrendingFi
       onFiltersChange({ ...filters, [config.key]: { min: currentMin, max: Math.min(config.stats.max, clampedMax) } });
     }
   }, [filters, onFiltersChange]);
+  
+  // Mapping from filter key to short label (for the overlay)
+  const filterLabelMap: Record<string, string> = useMemo(() => ({
+    minutes: "MIN",
+    fga: "FGA",
+    fg3a: "3PA",
+    fta: "FTA",
+    usage: "USG%",
+    potentialReb: "REB CH",
+    passes: "PASS",
+  }), []);
+  
+  // Notify parent when expanded filter changes - MUST be before early return
+  useEffect(() => {
+    if (onActiveFilterChange) {
+      if (expandedFilter && filterLabelMap[expandedFilter]) {
+        onActiveFilterChange({ key: expandedFilter, label: filterLabelMap[expandedFilter] });
+      } else {
+        onActiveFilterChange(null);
+      }
+    }
+  }, [expandedFilter, filterLabelMap, onActiveFilterChange]);
   
   if (!stats) return null;
   
@@ -2741,6 +2862,7 @@ export function MobilePlayerDrilldown({
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
   const [advancedFilters, setAdvancedFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [activeOverlayFilter, setActiveOverlayFilter] = useState<{ key: string; label: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"chart" | "matchup" | "injuries" | "stats" | "odds">("chart");
   const [selectedInjuryPlayer, setSelectedInjuryPlayer] = useState<TeamRosterPlayer | null>(null);
   
@@ -3990,11 +4112,13 @@ export function MobilePlayerDrilldown({
               market={profile.market}
               advancedFiltersCount={Object.values(advancedFilters).filter(v => v !== null).length}
               onOpenAdvancedFilters={() => setShowAdvancedFilters(true)}
+              activeOverlay={activeOverlayFilter}
             />
             
             {/* ═══ TRENDING FILTERS - Quick stat sliders ═══ */}
             <TrendingFilters
               market={profile.market}
+              onActiveFilterChange={setActiveOverlayFilter}
               games={boxScoreGames}
               filters={advancedFilters}
               onFiltersChange={setAdvancedFilters}
