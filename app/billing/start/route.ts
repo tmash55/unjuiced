@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
+import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
@@ -34,6 +35,18 @@ export async function GET(req: NextRequest) {
     if (!priceId) {
       console.error('[billing/start] Missing priceId')
       return NextResponse.redirect(`${origin}/pricing`)
+    }
+
+    // Check for partner discount from Dub referral link
+    const cookieHeader = req.headers.get('cookie')
+    const partnerDiscount = getPartnerDiscountFromCookie(cookieHeader)
+    
+    if (partnerDiscount.couponId || partnerDiscount.promotionCodeId) {
+      console.log('[billing/start] Partner discount found:', {
+        couponId: partnerDiscount.couponId,
+        promotionCodeId: partnerDiscount.promotionCodeId,
+        partnerName: partnerDiscount.partnerName,
+      })
     }
 
     // Check if this is a yearly plan - if so, promo codes are not allowed
@@ -104,6 +117,12 @@ export async function GET(req: NextRequest) {
     const successUrl = `${origin}/account/settings?billing=success`
     const cancelUrl = `${origin}/account/settings?billing=cancelled`
 
+    // Determine discount to apply:
+    // - Yearly plans: no discounts
+    // - Partner referral: auto-apply coupon/promo code
+    // - Otherwise: show promo code input
+    const shouldAutoApplyDiscount = !isYearlyPlan && (partnerDiscount.promotionCodeId || partnerDiscount.couponId)
+
     console.log('[billing/start] Creating checkout session')
     const url = await createCheckout({
       user: { customerId: stripeCustomerId, email: user.email ?? undefined },
@@ -114,7 +133,12 @@ export async function GET(req: NextRequest) {
       priceId,
       trialDays,
       paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
-      allowPromotionCodes: !isYearlyPlan, // Show promo code input (except for yearly plans)
+      // If auto-applying discount, don't show promo code input (Stripe doesn't allow both)
+      // If no discount to auto-apply, show promo code input (except yearly plans)
+      allowPromotionCodes: !isYearlyPlan && !shouldAutoApplyDiscount,
+      // Auto-apply partner discount if available
+      couponId: shouldAutoApplyDiscount ? (partnerDiscount.couponId ?? undefined) : undefined,
+      promotionCodeId: shouldAutoApplyDiscount ? (partnerDiscount.promotionCodeId ?? undefined) : undefined,
     })
 
     if (!url) {

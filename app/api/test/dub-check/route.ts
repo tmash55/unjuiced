@@ -7,18 +7,71 @@ import { cookies } from 'next/headers'
  * Usage:
  * - Check status: GET /api/test/dub-check
  * - Set test cookie: GET /api/test/dub-check?set_test_cookie=true
+ * - Set partner discount: GET /api/test/dub-check?set_partner_discount=true&coupon_id=YOUR_COUPON_ID
  * - Clear test cookie: GET /api/test/dub-check?clear_cookie=true
  * 
  * This helps verify:
  * 1. The dub_id cookie is being set when clicking affiliate links
  * 2. The DUB_API_KEY is configured
+ * 3. Partner discounts are being applied to checkout
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const setTestCookie = searchParams.get('set_test_cookie') === 'true'
+  const setPartnerDiscount = searchParams.get('set_partner_discount') === 'true'
+  const testCouponId = searchParams.get('coupon_id') || process.env.NEXT_PUBLIC_TEST_COUPON_ID
   const clearCookie = searchParams.get('clear_cookie') === 'true'
   
   const cookieStore = await cookies()
+  
+  // Handle setting a test partner discount cookie for local checkout testing
+  if (setPartnerDiscount) {
+    const testPartnerData = {
+      clickId: `test_click_${Date.now()}`,
+      partner: {
+        id: 'pn_test_partner',
+        name: 'Test Partner',
+        image: null,
+      },
+      discount: {
+        id: 'disc_test',
+        amount: 30,
+        type: 'percentage',
+        maxDuration: 1,
+        couponId: testCouponId || undefined,
+        couponTestId: testCouponId || undefined,
+        // Note: promotionCodeId would be like "promo_xxx" if available
+      },
+    }
+    
+    const response = NextResponse.json({
+      status: 'ok',
+      action: 'set_partner_discount',
+      message: testCouponId 
+        ? `✅ Partner discount cookie set with coupon: ${testCouponId}`
+        : '⚠️ No coupon_id provided - discount cookie set but checkout won\'t apply a discount',
+      partnerData: testPartnerData,
+      nextSteps: [
+        '1. Go to /plans and select a plan',
+        '2. The checkout should auto-apply the discount',
+        '3. Check the Stripe checkout page for the discount',
+        '',
+        'To clear: /api/test/dub-check?clear_cookie=true',
+        '',
+        'Tip: Pass coupon_id as query param:',
+        '  /api/test/dub-check?set_partner_discount=true&coupon_id=YOUR_STRIPE_COUPON_ID'
+      ]
+    })
+    
+    response.cookies.set('dub_partner_data', encodeURIComponent(JSON.stringify(testPartnerData)), {
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 hours
+      httpOnly: false,
+      sameSite: 'lax'
+    })
+    
+    return response
+  }
   
   // Handle setting a test cookie for local development
   if (setTestCookie) {
@@ -48,9 +101,10 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({
       status: 'ok',
       action: 'clear_cookie',
-      message: '✅ dub_id cookie cleared'
+      message: '✅ All test cookies cleared'
     })
     response.cookies.delete('dub_id')
+    response.cookies.delete('dub_partner_data')
     return response
   }
   
