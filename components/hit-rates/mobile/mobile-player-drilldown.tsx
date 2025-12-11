@@ -2469,10 +2469,12 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
   }, [defensePositions, playerPosition, selectedMarket]);
 
   // Get rank color for DvP badge
+  // LOW rank (1-10) = tough defense = HARD for player (red)
+  // HIGH rank (21-30) = weak defense = GOOD for player (green)
   const getRankColor = (rank: number | null | undefined) => {
     if (!rank) return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
-    if (rank <= 10) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
-    if (rank >= 21) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+    if (rank <= 10) return { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-400", dot: "bg-red-500" };
+    if (rank >= 21) return { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" };
     return { bg: "bg-neutral-100 dark:bg-neutral-800", text: "text-neutral-600 dark:text-neutral-400", dot: "bg-neutral-400" };
   };
 
@@ -2696,11 +2698,11 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
                         const isSelected = pos === selectedPosition;
                         const rank = data?.rank;
                         
-                        // Colors based on rank
+                        // Colors based on rank (low rank = hard = red, high rank = good = green)
                         const getRankTextColor = () => {
                           if (!rank) return "text-neutral-400";
-                          if (rank <= 10) return "text-emerald-600 dark:text-emerald-400";
-                          if (rank >= 21) return "text-red-600 dark:text-red-400";
+                          if (rank <= 10) return "text-red-600 dark:text-red-400";
+                          if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
                           return "text-neutral-600 dark:text-neutral-400";
                         };
                         
@@ -2791,18 +2793,18 @@ function MarketStatCard({
     return displayAvg >= currentLine ? "above" : "below";
   }, [displayAvg, currentLine]);
 
-  // Get rank color
+  // Get rank color (low rank = hard = red, high rank = good = green)
   const getRankColor = (rank: number | null) => {
     if (!rank) return "text-neutral-500";
-    if (rank <= 7) return "text-emerald-600 dark:text-emerald-400"; // Good matchup (weak defense)
-    if (rank >= 24) return "text-red-600 dark:text-red-400"; // Bad matchup (strong defense)
+    if (rank <= 10) return "text-red-600 dark:text-red-400"; // Hard matchup (tough defense)
+    if (rank >= 21) return "text-emerald-600 dark:text-emerald-400"; // Good matchup (weak defense)
     return "text-neutral-600 dark:text-neutral-400"; // Neutral
   };
 
   const getRankBg = (rank: number | null) => {
     if (!rank) return "bg-neutral-100 dark:bg-neutral-800";
-    if (rank <= 7) return "bg-emerald-100 dark:bg-emerald-900/30";
-    if (rank >= 24) return "bg-red-100 dark:bg-red-900/30";
+    if (rank <= 10) return "bg-red-100 dark:bg-red-900/30";
+    if (rank >= 21) return "bg-emerald-100 dark:bg-emerald-900/30";
     return "bg-neutral-100 dark:bg-neutral-800";
   };
 
@@ -2847,10 +2849,10 @@ function MarketStatCard({
       
       {/* Rank with Meter */}
       <div className="flex items-center justify-center gap-1.5">
-        {/* Rank Meter Dot */}
-        {rank && rank <= 10 && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
+        {/* Rank Meter Dot (low rank = hard = red, high rank = good = green) */}
+        {rank && rank <= 10 && <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
         {rank && rank > 10 && rank <= 20 && <div className="h-1.5 w-1.5 rounded-full bg-neutral-400" />}
-        {rank && rank > 20 && <div className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />}
+        {rank && rank > 20 && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />}
         
         {/* Rank Text */}
         <div className={cn(

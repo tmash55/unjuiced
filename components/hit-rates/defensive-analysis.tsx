@@ -30,18 +30,20 @@ const ALL_MARKETS = [
   "player_points_rebounds_assists",
 ];
 
+// LOW rank (1-10) = tough defense = HARD for player (red)
+// HIGH rank (21-30) = weak defense = GOOD for player (green)
 const getRankColor = (rank: number | null) => {
   if (!rank) return "text-neutral-400";
-  if (rank <= 10) return "text-emerald-600 dark:text-emerald-400";
+  if (rank <= 10) return "text-red-600 dark:text-red-400";
   if (rank <= 20) return "text-neutral-600 dark:text-neutral-400";
-  return "text-red-600 dark:text-red-400";
+  return "text-emerald-600 dark:text-emerald-400";
 };
 
 const getValueColor = (rank: number | null) => {
   if (!rank) return "text-neutral-900 dark:text-white";
-  if (rank <= 10) return "text-emerald-600 dark:text-emerald-400";
+  if (rank <= 10) return "text-red-600 dark:text-red-400";
   if (rank <= 20) return "text-neutral-900 dark:text-white";
-  return "text-red-600 dark:text-red-400";
+  return "text-emerald-600 dark:text-emerald-400";
 };
 
 const getCellBgColor = (rank: number | null, isPlayerPosition: boolean) => {
@@ -253,16 +255,16 @@ export function DefensiveAnalysis({
           {/* Legend */}
           <div className="flex items-center gap-3 text-[9px]">
             <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-              <span className="text-neutral-500 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+              <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
               <span className="text-neutral-500 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+              <span className="text-neutral-500 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
             </div>
           </div>
         </div>

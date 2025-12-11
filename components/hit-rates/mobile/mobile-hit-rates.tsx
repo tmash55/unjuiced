@@ -34,8 +34,8 @@ const SORT_OPTIONS: Array<{ value: string; label: string; field: string; dir: "a
   { value: "l20Pct_asc", label: "L20 % (Worst)", field: "l20Pct", dir: "asc" },
   { value: "seasonPct_desc", label: "Season % (Best)", field: "seasonPct", dir: "desc" },
   { value: "seasonPct_asc", label: "Season % (Worst)", field: "seasonPct", dir: "asc" },
-  { value: "dvp_asc", label: "DvP Rank (Best)", field: "matchupRank", dir: "asc" },
-  { value: "dvp_desc", label: "DvP Rank (Worst)", field: "matchupRank", dir: "desc" },
+  { value: "dvp_desc", label: "DvP Rank (Best)", field: "matchupRank", dir: "desc" }, // High rank = weak defense = good for player
+  { value: "dvp_asc", label: "DvP Rank (Worst)", field: "matchupRank", dir: "asc" }, // Low rank = tough defense = hard for player
   { value: "line_desc", label: "Line (High → Low)", field: "line", dir: "desc" },
   { value: "line_asc", label: "Line (Low → High)", field: "line", dir: "asc" },
   { value: "name_asc", label: "Player Name (A → Z)", field: "name", dir: "asc" },
