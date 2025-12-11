@@ -222,6 +222,7 @@ interface GameBarProps {
   stat: number;
   line: number | null;
   maxStat: number;
+  maxMarketStat: number; // Max market stat across all games (for internal scaling when overlay active)
   date: string;
   opponent?: string;
   homeAway?: string;
@@ -235,7 +236,7 @@ interface GameBarProps {
   activeOverlay?: { key: string; label: string } | null; // Active trending filter to show as overlay
 }
 
-function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay }: GameBarProps) {
+function GameBar({ stat, line, maxStat, maxMarketStat, date, opponent, homeAway, isHit, hasLine, index, potentialReb, market, gameData, teammatesOut, activeOverlay }: GameBarProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const isHome = homeAway === "H";
@@ -256,17 +257,21 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
     return valueMap[key] ?? null;
   }, [activeOverlay, gameData]);
   
-  // When overlay is active, scale market stat relative to the filter value (capped at 100%)
-  // Otherwise, scale relative to maxStat as normal
+  // When overlay is active, the overlay value drives the chart scale.
+  // The market stat is scaled using a FIXED scale based on maxMarketStat,
+  // so identical market stat values always have identical heights.
+  // Combo markets get more height (55%) to show P/R/A segments clearly.
+  // Single-stat markets use 35% to keep filter bars dominant.
   const heightPct = useMemo(() => {
     if (activeOverlay && overlayValue !== null && overlayValue > 0) {
-      // Market stat fills up the filter bar container (capped at 100%)
-      const fillPct = Math.min(stat / overlayValue, 1); // 0 to 1
-      const containerHeightPct = (overlayValue / maxStat) * 100;
-      return Math.max(2, fillPct * containerHeightPct);
+      // Combo markets need more height to show all stacked segments (P, R, A)
+      const scalePercent = isComboMarket(market) ? 55 : 35;
+      const marketHeightPct = (stat / maxMarketStat) * scalePercent;
+      
+      return Math.max(2, marketHeightPct);
     }
     return Math.max(2, (stat / maxStat) * 100);
-  }, [stat, maxStat, activeOverlay, overlayValue]);
+  }, [stat, maxStat, maxMarketStat, activeOverlay, overlayValue, market]);
   
   // Check if we should show potential rebounds (only if > 0 and > actual stat)
   const showPotential = market === "player_rebounds" && 
@@ -323,7 +328,8 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
       {/* Bar container with stat on top of bar */}
       <div className="relative w-full h-64 flex flex-col items-center justify-end">
         {/* Line marker - only show when there's a line */}
-        {hasLine && line !== null && (
+        {/* Line marker - hide when overlay is active since Y-axis shows overlay values */}
+        {hasLine && line !== null && !activeOverlay && (
           <div 
             className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 z-10"
             style={{ bottom: `${(line / maxStat) * 100}%` }}
@@ -471,10 +477,21 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
         )}
       </div>
       
-      {/* Opponent: vs/@ + logo stacked */}
-      <div className="mt-1 flex flex-col items-center gap-0.5">
+      {/* Opponent: date + vs/@ + logo stacked */}
+      <div className="mt-1 flex flex-col items-center gap-0">
+        {/* Game date - compact format like 11/3 */}
+        {date && (
+          <span className="text-[7px] font-medium text-neutral-500 dark:text-neutral-400">
+            {(() => {
+              const parts = date.split("-");
+              const month = parseInt(parts[1], 10);
+              const day = parseInt(parts[2], 10);
+              return `${month}/${day}`;
+            })()}
+          </span>
+        )}
         {opponent && (
-          <span className="text-[7px] font-medium text-neutral-400">
+          <span className="text-[6px] font-medium text-neutral-400 dark:text-neutral-500">
             {isHome ? "vs" : "@"}
           </span>
         )}
@@ -485,9 +502,7 @@ function GameBar({ stat, line, maxStat, date, opponent, homeAway, isHit, hasLine
             className="h-3.5 w-3.5 object-contain opacity-70"
           />
         ) : (
-          <span className="text-[8px] text-neutral-400">
-            {date ? date.slice(5) : "—"}
-          </span>
+          <span className="text-[8px] text-neutral-400">—</span>
         )}
       </div>
       
@@ -797,18 +812,8 @@ function HeroBarChart({
     return valueMap[key] ?? 0;
   }, [activeOverlay]);
   
-  const maxStat = useMemo(() => {
-    // When an overlay filter is active, scale based on the FILTER values (they become the container)
-    if (activeOverlay) {
-      const overlayValues = displayGames.map(g => getOverlayValue(g));
-      const maxOverlay = Math.max(...overlayValues, 1);
-      
-      // Ensure minimum scale of line value or 10 for visual clarity
-      // (usage is already scaled to percentage in getOverlayValue)
-      return Math.max(maxOverlay, line * 1.2, 10);
-    }
-    
-    // Normal mode: scale based on market stat (and potential rebounds/3PA for those markets)
+  // When overlay is active, calculate the max market stat separately for internal scaling
+  const maxMarketStat = useMemo(() => {
     let stats: number[];
     if (market === "player_rebounds") {
       stats = displayGames.map(g => Math.max(g.market_stat, g.potential_reb ?? 0));
@@ -817,8 +822,23 @@ function HeroBarChart({
     } else {
       stats = displayGames.map(g => g.market_stat);
     }
-    return Math.max(...stats, line * 1.3, 1); // At least 1 to avoid division issues
-  }, [displayGames, line, market, activeOverlay, getOverlayValue]);
+    return Math.max(...stats, 1);
+  }, [displayGames, market]);
+  
+  const maxStat = useMemo(() => {
+    // When an overlay filter is active, the OVERLAY values drive the chart scale entirely.
+    // The market stat will be scaled independently inside each overlay bar.
+    if (activeOverlay) {
+      const overlayValues = displayGames.map(g => getOverlayValue(g));
+      const maxOverlay = Math.max(...overlayValues, 1);
+
+      // Add padding for labels above the bars
+      return maxOverlay * 1.2;
+    }
+
+    // Normal mode: scale based on market stat (and potential rebounds/3PA for those markets)
+    return Math.max(maxMarketStat, line * 1.3, 1); // At least 1 to avoid division issues
+  }, [displayGames, line, maxMarketStat, activeOverlay, getOverlayValue]);
   
   // Calculate nice Y-axis ticks
   const yAxisTicks = useMemo(() => {
@@ -894,7 +914,8 @@ function HeroBarChart({
             {/* Chart Area */}
             <div className="flex-1 relative">
               {/* Line marker with value label - spans full width */}
-              {line !== null && (
+              {/* Hide when overlay is active since Y-axis shows overlay values, not market stat */}
+              {line !== null && !activeOverlay && (
                 <div 
                   className="absolute left-0 right-0 z-20 pointer-events-none"
                   style={{ bottom: `${(line / chartDomainMax) * 100}%` }}
@@ -913,6 +934,7 @@ function HeroBarChart({
                     stat={game.market_stat}
                     line={line}
                     maxStat={chartDomainMax}
+                    maxMarketStat={maxMarketStat}
                     date={game.date}
                     opponent={game.opponent_abbr}
                     homeAway={game.home_away}
