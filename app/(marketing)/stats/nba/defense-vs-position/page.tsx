@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from '@/components/nba/dvp-table/dvp-filters';
 import { MobileDvpFilters } from '@/components/nba/dvp-table/mobile-dvp-filters';
 import { DvpTable } from '@/components/nba/dvp-table/dvp-table';
@@ -58,14 +58,11 @@ export default function DefenseVsPositionPage() {
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <Shield className="h-8 w-8 text-primary" />
-                <h1 className="text-4xl font-bold tracking-tight">
-                  Defense vs Position
-                </h1>
-              </div>
+              <h1 className="text-4xl font-bold tracking-tight">
+                NBA Defense vs Position
+              </h1>
               <p className="mt-2 text-lg text-neutral-600 dark:text-neutral-400">
-                NBA Team Defensive Rankings by Position • Find the best matchups
+                Team Defensive Rankings by Position • Find the best matchups
               </p>
             </div>
           </div>
@@ -75,12 +72,9 @@ export default function DefenseVsPositionPage() {
       {/* Mobile Header */}
       <div className="md:hidden border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
         <div className="px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <h1 className="text-lg font-bold tracking-tight">
-              Defense vs Position
-            </h1>
-          </div>
+          <h1 className="text-lg font-bold tracking-tight">
+            NBA Defense vs Position
+          </h1>
         </div>
       </div>
 

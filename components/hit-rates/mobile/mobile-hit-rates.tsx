@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileHeader } from "./mobile-header";
 import { PlayerCard } from "./player-card";
-import { GlossaryModal } from "../glossary-modal";
+import { MobileGlossarySheet } from "./mobile-glossary-sheet";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import type { NbaGame } from "@/hooks/use-nba-games";
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
@@ -329,7 +329,7 @@ export function MobileHitRates({
       </div>
       
       {/* Glossary Modal */}
-      <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+      <MobileGlossarySheet isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
     </div>
   );
 }

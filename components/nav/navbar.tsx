@@ -296,27 +296,46 @@ function MobileNav({ domain }: { domain: string }) {
   // Hide pricing if user is on an active subscription (not trial)
   const showPricing = !entitlements || entitlements.entitlement_source !== 'subscription';
 
-  // Create flat list of mobile nav items
-  const baseMobileNavItems = [
-    { title: "Arbitrage", href: "/arbitrage" },
-    { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
-    { title: "Edge Finder", href: "/edge-finder" },
-    { title: "Odds Screen", href: "/odds/nfl" },
-    { title: "Ladder", href: "/ladders" },    
-    { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
-    { title: "Defense vs Position", href: "/stats/nba/defense-vs-position" },
-    { title: "Sportsbooks", href: "/sportsbooks" },
-    { title: "Markets", href: "/markets" },
-    { title: "About", href: "/about" },
-    { title: "Contact", href: "/contact" },
-    { title: "Blog", href: "/blog" },
-    { title: "Changelog", href: "/changelog" },
-    { title: "Pricing", href: "/pricing" },
+  // Create grouped mobile nav items
+  type MobileNavItem = { title: string; href: string; badge?: string; disabled?: boolean };
+  type MobileNavGroup = { group: string; items: MobileNavItem[] };
+  
+  const mobileNavGroups: MobileNavGroup[] = [
+    {
+      group: "Tools",
+      items: [
+        { title: "Arbitrage", href: "/arbitrage" },
+        { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
+        { title: "Edge Finder", href: "/edge-finder" },
+        { title: "Odds Screen", href: "/odds/nfl" },
+        { title: "Ladder Builder", href: "/ladders" },
+      ],
+    },
+    {
+      group: "NBA Stats",
+      items: [
+        { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
+        { title: "NBA Defense vs Position", href: "/stats/nba/defense-vs-position", badge: "NEW" },
+      ],
+    },
+    {
+      group: "Resources",
+      items: [
+        { title: "Sportsbooks", href: "/sportsbooks" },
+        { title: "Markets", href: "/markets" },
+        { title: "Blog", href: "/blog" },
+        { title: "Changelog", href: "/changelog" },
+      ],
+    },
+    {
+      group: "Company",
+      items: [
+        { title: "About", href: "/about" },
+        { title: "Contact", href: "/contact" },
+        ...(showPricing ? [{ title: "Pricing", href: "/pricing" }] : []),
+      ],
+    },
   ];
-
-  const mobileNavItems = baseMobileNavItems.filter(item => 
-    item.title !== 'Pricing' || showPricing
-  );
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
@@ -363,73 +382,79 @@ function MobileNav({ domain }: { domain: string }) {
             {/* Menu Items - Scrollable */}
             <div className="flex-1 overflow-y-auto">
               <MaxWidthWrapper>
-                <div className="flex flex-col py-4">
-                {mobileNavItems.map((item, index) => {
-                  const isActive = pathname?.startsWith(item.href);
-                  const isDisabled = 'disabled' in item && item.disabled;
-                  
-                  if (isDisabled) {
-                    return (
-                      <motion.div
-                        key={item.title}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                      >
-                        <div
-                          className="flex items-center gap-2 rounded-lg px-4 py-3 text-base font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-                        >
-                          {item.title}
-                          {'badge' in item && item.badge && (
-                            <span className="rounded-full bg-neutral-300 dark:bg-neutral-700 px-2 py-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
-                              {item.badge}
-                            </span>
-                          )}
-                          <span className="ml-auto text-[10px] font-medium text-neutral-400 dark:text-neutral-600">
-                            Coming soon
-                          </span>
-                        </div>
-                      </motion.div>
-                    );
-                  }
-                  
-                  return (
-                    <motion.div
-                      key={item.title}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                    >
-                      <Link
-                        href={createHref(item.href, domain, {})}
-                        onClick={() => setIsOpen(false)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-4 py-3 text-base font-medium transition-colors",
-                          isActive
-                            ? "bg-neutral-900/5 text-neutral-900 dark:bg-white/10 dark:text-white"
-                            : "text-neutral-600 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
-                        )}
-                      >
-                        {item.title}
-                        {'badge' in item && item.badge && (
-                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                            {item.badge}
-                          </span>
-                        )}
-                      </Link>
-                    </motion.div>
-                  );
-                })}
+                <div className="flex flex-col py-4 space-y-6">
+                {mobileNavGroups.map((group, groupIndex) => (
+                  <motion.div
+                    key={group.group}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.2, delay: groupIndex * 0.1 }}
+                  >
+                    {/* Group Header */}
+                    <div className="px-4 mb-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                        {group.group}
+                      </span>
+                    </div>
+                    
+                    {/* Group Items */}
+                    <div className="space-y-0.5">
+                      {group.items.map((item, itemIndex) => {
+                        const isActive = pathname?.startsWith(item.href);
+                        const isDisabled = item.disabled;
+                        
+                        if (isDisabled) {
+                          return (
+                            <div
+                              key={item.title}
+                              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+                            >
+                              {item.title}
+                              {item.badge && (
+                                <span className="rounded-full bg-neutral-300 dark:bg-neutral-700 px-2 py-0.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                                  {item.badge}
+                                </span>
+                              )}
+                              <span className="ml-auto text-[10px] font-medium text-neutral-400 dark:text-neutral-600">
+                                Coming soon
+                              </span>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <Link
+                            key={item.title}
+                            href={createHref(item.href, domain, {})}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                              isActive
+                                ? "bg-neutral-900/5 text-neutral-900 dark:bg-white/10 dark:text-white"
+                                : "text-neutral-600 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
+                            )}
+                          >
+                            {item.title}
+                            {item.badge && (
+                              <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                                {item.badge}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                ))}
 
                 {/* CTA Buttons / User Info */}
                 {!loading && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: mobileNavItems.length * 0.05 }}
-                    className="mt-8 space-y-4 border-t border-neutral-200 px-4 pt-6 dark:border-white/10"
+                    transition={{ duration: 0.2, delay: mobileNavGroups.length * 0.1 + 0.1 }}
+                    className="mt-2 space-y-4 border-t border-neutral-200 px-4 pt-6 dark:border-white/10"
                   >
                     {user ? (
                       <>
