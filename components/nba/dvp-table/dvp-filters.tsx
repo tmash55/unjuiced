@@ -119,7 +119,7 @@ export function DvpFilters({
   const currentStatOption = ALL_STAT_OPTIONS.find(s => s.value === trendStat) || ALL_STAT_OPTIONS[0];
 
   return (
-    <div className="flex flex-col gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 sticky top-0 z-50">
+    <div className="flex flex-col gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 sticky top-0 z-20">
       <div className="flex flex-wrap items-center justify-between gap-4">
         {/* Left Side: Filters */}
         <div className="flex flex-wrap items-center gap-3">
@@ -154,7 +154,7 @@ export function DvpFilters({
               </button>
 
               {sampleDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-[100] overflow-hidden">
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-[40] overflow-hidden">
                   {SAMPLE_SIZE_OPTIONS.map((option) => (
                     <button
                       key={option.value}
@@ -185,15 +185,15 @@ export function DvpFilters({
             <div className="relative" ref={statDropdownRef}>
               <button 
                 onClick={() => setStatDropdownOpen(!statDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors min-w-[160px]"
               >
                 <Target className="w-4 h-4 text-brand" />
-                <span className="font-bold text-brand">{currentStatOption.shortLabel}</span>
-                <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform", statDropdownOpen && "rotate-180")} />
+                <span className="font-bold text-brand">{currentStatOption.label}</span>
+                <ChevronDown className={cn("w-3 h-3 text-neutral-400 transition-transform ml-auto", statDropdownOpen && "rotate-180")} />
               </button>
 
               {statDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-[100] overflow-hidden max-h-[400px] overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-[40] overflow-hidden max-h-[400px] overflow-y-auto">
                   {TREND_STAT_OPTIONS.map((group, groupIdx) => (
                     <div key={group.category}>
                       {groupIdx > 0 && (

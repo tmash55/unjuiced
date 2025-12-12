@@ -216,16 +216,16 @@ export function MobileDvpFilters({
         {/* Legend Row */}
         <div className="px-3 pb-2 flex items-center gap-3 text-[9px] border-t border-neutral-100 dark:border-neutral-800/50 pt-2">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-emerald-500" />
-            <span className="text-neutral-500">Good</span>
+            <div className="w-2 h-2 rounded-sm bg-red-500" />
+            <span className="text-neutral-500">Tough</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-sm bg-neutral-400" />
             <span className="text-neutral-500">Avg</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-red-500" />
-            <span className="text-neutral-500">Tough</span>
+            <div className="w-2 h-2 rounded-sm bg-emerald-500" />
+            <span className="text-neutral-500">Good</span>
           </div>
           {viewMode === "trends" && (
             <>

@@ -103,7 +103,7 @@ export default function DefenseVsPositionPage() {
       {/* Desktop Main Content */}
       <div className="hidden md:block container mx-auto px-4 py-6">
         {/* Main Table Section */}
-        <div className="flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm">
+        <div className="flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
           {/* Desktop Filters Bar */}
           <DvpFilters 
             position={selectedPosition}
@@ -127,16 +127,16 @@ export default function DefenseVsPositionPage() {
                 {/* Legend */}
                 <div className="flex items-center gap-4 text-[10px]">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
                     <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
                   </div>
                 </div>
 
@@ -178,16 +178,16 @@ export default function DefenseVsPositionPage() {
                 {/* Legend */}
                 <div className="flex items-center gap-4 text-[10px]">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
                     <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
                   </div>
                   <span className="text-neutral-300 dark:text-neutral-600">|</span>
                   <div className="flex items-center gap-1.5">
