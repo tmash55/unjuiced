@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, LayoutGrid, BarChart3 } from 'lucide-react';
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from '@/components/nba/dvp-table/dvp-filters';
 import { MobileDvpFilters } from '@/components/nba/dvp-table/mobile-dvp-filters';
 import { DvpTable } from '@/components/nba/dvp-table/dvp-table';
@@ -71,8 +71,8 @@ export default function DefenseVsPositionPage() {
 
       {/* Mobile Header */}
       <div className="md:hidden border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-        <div className="px-4 py-4">
-          <h1 className="text-lg font-bold tracking-tight">
+        <div className="px-3 py-2.5 text-center">
+          <h1 className="text-base font-bold tracking-tight">
             NBA Defense vs Position
           </h1>
         </div>
@@ -240,7 +240,7 @@ export default function DefenseVsPositionPage() {
       </div>
 
       {/* Mobile Table Content */}
-      <div className="md:hidden pb-24">
+      <div className="md:hidden pb-16">
         <div className="bg-white dark:bg-neutral-900">
           <DvpTable 
             data={teams}
@@ -252,6 +252,43 @@ export default function DefenseVsPositionPage() {
             isLoading={isLoading}
             onTeamClick={handleTeamClick}
           />
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-800/60 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] safe-area-inset-bottom">
+        <div className="flex items-center justify-around px-2 py-2">
+          {[
+            { id: "basic" as const, label: "Basic", icon: LayoutGrid },
+            { id: "advanced" as const, label: "Advanced", icon: BarChart3 },
+            { id: "trends" as const, label: "Trends", icon: TrendingUp },
+          ].map((tab) => {
+            const isActive = viewMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setViewMode(tab.id)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-1 max-w-[100px]",
+                  isActive
+                    ? "bg-brand/10 text-brand"
+                    : "text-neutral-500 dark:text-neutral-400"
+                )}
+              >
+                <tab.icon className={cn(
+                  "h-5 w-5",
+                  isActive && "text-brand"
+                )} />
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  isActive && "text-brand"
+                )}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

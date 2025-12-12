@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Target, LayoutGrid, BarChart3, TrendingUp, HelpCircle, X, Check } from "lucide-react";
+import { ChevronDown, Target, HelpCircle, X, Check } from "lucide-react";
 import { DvpSampleSize } from "@/hooks/use-dvp-rankings";
 import { Position, DvpViewMode, TrendStat } from "./dvp-filters";
 
@@ -25,12 +25,6 @@ const POSITIONS: { value: Position; label: string }[] = [
   { value: "SF", label: "Small Forward" },
   { value: "PF", label: "Power Forward" },
   { value: "C", label: "Center" },
-];
-
-const VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode }[] = [
-  { value: "basic", label: "Basic", icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-  { value: "advanced", label: "Advanced", icon: <BarChart3 className="w-3.5 h-3.5" /> },
-  { value: "trends", label: "Trends", icon: <TrendingUp className="w-3.5 h-3.5" /> },
 ];
 
 const SAMPLE_SIZE_OPTIONS: { value: DvpSampleSize; label: string; shortLabel: string }[] = [
@@ -234,30 +228,8 @@ export function MobileDvpFilters({
           </button>
         </div>
 
-        {/* Row 2: View Mode Selector */}
-        <div className="px-3 pb-1.5">
-          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
-            {VIEW_MODES.map((mode) => (
-              <button
-                key={mode.value}
-                type="button"
-                onClick={() => onViewModeChange(mode.value)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold transition-all active:scale-[0.97]",
-                  viewMode === mode.value
-                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                    : "text-neutral-500 dark:text-neutral-400"
-                )}
-              >
-                {mode.icon}
-                <span>{mode.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 3: Stat Selector (Trends only) + Legend */}
-        <div className="px-3 pb-1.5 flex items-center gap-2.5 border-t border-neutral-100 dark:border-neutral-800/50 pt-1.5">
+        {/* Row 2: Stat Selector (Trends only) + Legend */}
+        <div className="px-3 pb-1.5 flex items-center gap-2.5 pt-1">
           {/* Stat Selector - Only for Trends */}
           {viewMode === "trends" && (
             <button
@@ -300,7 +272,7 @@ export function MobileDvpFilters({
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Position</h3>
               <button type="button" onClick={() => setShowPositionSheet(false)} className="text-xs text-brand font-semibold">Done</button>
             </div>
-            <div className="p-3 space-y-1">
+            <div className="p-3 pb-20 space-y-1">
               {POSITIONS.map((pos) => (
                 <button
                   key={pos.value}
@@ -336,7 +308,7 @@ export function MobileDvpFilters({
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Timeframe</h3>
               <button type="button" onClick={() => setShowSampleSheet(false)} className="text-xs text-brand font-semibold">Done</button>
             </div>
-            <div className="p-3 space-y-1">
+            <div className="p-3 pb-20 space-y-1">
               {SAMPLE_SIZE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -372,7 +344,7 @@ export function MobileDvpFilters({
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Display Mode</h3>
               <button type="button" onClick={() => setShowDisplaySheet(false)} className="text-xs text-brand font-semibold">Done</button>
             </div>
-            <div className="p-3 space-y-1">
+            <div className="p-3 pb-20 space-y-1">
               <button
                 type="button"
                 onClick={() => { onDisplayModeChange("values"); setShowDisplaySheet(false); }}
@@ -421,7 +393,7 @@ export function MobileDvpFilters({
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Select Stat</h3>
               <button type="button" onClick={() => setShowStatSheet(false)} className="text-xs text-brand font-semibold">Done</button>
             </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain p-3 space-y-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-3 pb-20 space-y-4">
               {TREND_STAT_GROUPS.map((group) => (
                 <div key={group.category}>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2 px-1">
@@ -468,7 +440,7 @@ export function MobileDvpFilters({
                 <X className="w-5 h-5 text-neutral-500" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-28 space-y-5">
               {GLOSSARY_SECTIONS.map((section, idx) => (
                 <div key={section.title}>
                   {idx > 0 && <div className="border-t border-neutral-200 dark:border-neutral-700 -mx-4 mb-4" />}
