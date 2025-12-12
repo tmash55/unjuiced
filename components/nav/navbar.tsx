@@ -54,6 +54,8 @@ export const navItems = [
     childItems: STATS,
     segments: [
       "/stats/nba",
+      "/stats/nba/king-of-the-court",
+      "/stats/nba/defense-vs-position",
       "/stats/nfl",
       "/stats/props",
     ],
@@ -301,7 +303,8 @@ function MobileNav({ domain }: { domain: string }) {
     { title: "Edge Finder", href: "/edge-finder" },
     { title: "Odds Screen", href: "/odds/nfl" },
     { title: "Ladder", href: "/ladders" },    
-    { title: "NBA Stats", href: "/stats/nba" },
+    { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
+    { title: "Defense vs Position", href: "/stats/nba/defense-vs-position" },
     { title: "Sportsbooks", href: "/sportsbooks" },
     { title: "Markets", href: "/markets" },
     { title: "About", href: "/about" },

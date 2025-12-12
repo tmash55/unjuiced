@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { Trophy, TrendingUp, BarChart3 } from "lucide-react";
+import { Trophy, TrendingUp, BarChart3, Shield } from "lucide-react";
 import { Crown } from "@/components/icons/crown";
 
 const stats = [
@@ -16,8 +16,20 @@ const stats = [
     ),
     title: "NBA • King of the Court",
     description: "Live PRA leaderboard with real-time stats and betting odds.",
-    href: "/stats/nba",
+    href: "/stats/nba/king-of-the-court",
     color: "#fbbf24", // Yellow
+    comingSoon: false,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
+        <Shield className="size-2.5 text-blue-900" />
+      </div>
+    ),
+    title: "NBA • Defense vs Position",
+    description: "Team defensive rankings by position. Find the best matchups.",
+    href: "/stats/nba/defense-vs-position",
+    color: "#60a5fa", // Blue
     comingSoon: false,
   },
 ];
