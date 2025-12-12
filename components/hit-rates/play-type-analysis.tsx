@@ -160,6 +160,7 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                 <tbody>
                   {data.play_types.map((playType, idx) => {
                     const isExpanded = expandedRow === playType.play_type;
+                    const isFreeThrows = playType.is_free_throws;
                     
                     return (
                       <React.Fragment key={playType.play_type}>
@@ -170,7 +171,8 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                             idx % 2 === 0 
                               ? "bg-neutral-50/50 dark:bg-neutral-800/20" 
                               : "bg-white dark:bg-neutral-900/20",
-                            "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30"
+                            "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30",
+                            isFreeThrows && "bg-blue-50/30 dark:bg-blue-900/10"
                           )}
                           onClick={() => setExpandedRow(isExpanded ? null : playType.play_type)}
                         >
@@ -184,6 +186,11 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                                 <Tooltip content={`${getOrdinalSuffix(Math.round(playType.player_percentile))} percentile`}>
                                   <Zap className="h-3 w-3 text-violet-500 shrink-0" />
                                 </Tooltip>
+                              )}
+                              {isFreeThrows && (
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
+                                  FT
+                                </span>
                               )}
                             </div>
                           </td>
@@ -240,8 +247,13 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                                     </span>
                                   </div>
                                   <div className="flex justify-between text-[11px]">
-                                    <span className="text-neutral-500">FG%</span>
-                                    <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.player_fg_pct.toFixed(1)}%</span>
+                                    <span className="text-neutral-500">{isFreeThrows ? "FT%" : "FG%"}</span>
+                                    <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                                      {isFreeThrows && playType.ft_pct !== null 
+                                        ? `${playType.ft_pct.toFixed(1)}%`
+                                        : `${playType.player_fg_pct.toFixed(1)}%`
+                                      }
+                                    </span>
                                   </div>
                                   <div className="flex justify-between text-[11px]">
                                     <span className="text-neutral-500">Possessions</span>
@@ -272,10 +284,27 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                                       <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_ppp_allowed.toFixed(3)}</span>
                                     </div>
                                   )}
-                                  {playType.opponent_fg_pct_allowed !== null && (
+                                  {playType.opponent_fg_pct_allowed !== null && !isFreeThrows && (
                                     <div className="flex justify-between text-[11px]">
                                       <span className="text-neutral-500">FG% Allowed</span>
                                       <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_fg_pct_allowed.toFixed(1)}%</span>
+                                    </div>
+                                  )}
+                                  {playType.opponent_fta_per_game !== null && (
+                                    <div className="flex justify-between text-[11px]">
+                                      <span className="text-neutral-500">FTA Allowed/G</span>
+                                      <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_fta_per_game.toFixed(1)}</span>
+                                    </div>
+                                  )}
+                                  {playType.opponent_def_rank !== null && (
+                                    <div className="flex justify-between text-[11px]">
+                                      <span className="text-neutral-500">Def Rank</span>
+                                      <span className={cn(
+                                        "font-bold",
+                                        getRankColorClass(playType.opponent_def_rank)
+                                      )}>
+                                        {getOrdinalSuffix(playType.opponent_def_rank)}
+                                      </span>
                                     </div>
                                   )}
                                   {playType.opponent_possessions !== null && (

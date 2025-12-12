@@ -1,14 +1,41 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Target, TrendingUp, Info } from 'lucide-react';
-import { DvpFilters, DvpViewMode, Position } from '@/components/nba/dvp-table/dvp-filters';
+import { Shield, TrendingUp, TrendingDown } from 'lucide-react';
+import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from '@/components/nba/dvp-table/dvp-filters';
 import { DvpTable } from '@/components/nba/dvp-table/dvp-table';
-import { useDvpRankings } from '@/hooks/use-dvp-rankings';
+import { useDvpRankings, DvpSampleSize } from '@/hooks/use-dvp-rankings';
+import { cn } from '@/lib/utils';
+
+export type DvpDisplayMode = "values" | "ranks";
+
+// Stat labels for display
+const STAT_LABELS: Record<TrendStat, string> = {
+  pts: "Points",
+  reb: "Rebounds",
+  ast: "Assists",
+  pra: "PRA",
+  fg3m: "3PM",
+  stl: "Steals",
+  blk: "Blocks",
+  tov: "Turnovers",
+  pr: "P+R",
+  pa: "P+A",
+  ra: "R+A",
+  bs: "BLK+STL",
+  fga: "FGA",
+  fg3a: "3PA",
+  fta: "FTA",
+  minutes: "Minutes",
+};
 
 export default function DefenseVsPositionPage() {
   const [selectedPosition, setSelectedPosition] = useState<Position>('PG');
   const [viewMode, setViewMode] = useState<DvpViewMode>('basic');
+  const [sampleSize, setSampleSize] = useState<DvpSampleSize>('season');
+  const [displayMode, setDisplayMode] = useState<DvpDisplayMode>('values');
+  const [trendBaseline, setTrendBaseline] = useState<TrendCompareBaseline>('season');
+  const [trendStat, setTrendStat] = useState<TrendStat>('pts');
   const [season, setSeason] = useState('2025-26');
 
   // Fetch data using our new hook
@@ -45,89 +72,144 @@ export default function DefenseVsPositionPage() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-6 space-y-6">
-        
-        {/* Top Section: Insights & Info Grid */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Today's Best Matchups */}
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden h-full">
-            <div className="border-b border-neutral-200 dark:border-neutral-800 px-5 py-3 bg-neutral-50/50 dark:bg-neutral-900">
-              <h2 className="text-sm font-bold flex items-center gap-2">
-                <Target className="w-4 h-4 text-brand" />
-                Today's Best Matchups
-              </h2>
-            </div>
-            <div className="p-5 flex items-center justify-center min-h-[140px]">
-              <div className="text-center text-neutral-400 dark:text-neutral-500">
-                <p className="font-medium text-sm">No games scheduled today</p>
-                <p className="text-xs mt-1">Check back later for matchups</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Legend / Info */}
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden h-full">
-            <div className="border-b border-neutral-200 dark:border-neutral-800 px-5 py-3 bg-neutral-50/50 dark:bg-neutral-900">
-              <h2 className="text-sm font-bold flex items-center gap-2">
-                <Info className="w-4 h-4 text-neutral-500" />
-                How to Read
-              </h2>
-            </div>
-            <div className="p-4 grid gap-2">
-              <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white">Good Matchup (21-30)</span>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded">Weak Defense</span>
-                  </div>
-                  <div className="text-[10px] text-neutral-500 mt-0.5">Allows MORE stats than average. Great for Overs.</div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
-                <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white">Tough Matchup (1-10)</span>
-                    <span className="text-[10px] text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">Strong Defense</span>
-                  </div>
-                  <div className="text-[10px] text-neutral-500 mt-0.5">Allows LESS stats than average. Risky for Overs.</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
-                <div className="flex items-center justify-center w-2 h-2">
-                  <TrendingUp className="w-3 h-3 text-emerald-500" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white">Trending Up</span>
-                    <span className="text-[10px] text-neutral-500 font-medium bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">L5 vs Season</span>
-                  </div>
-                  <div className="text-[10px] text-neutral-500 mt-0.5">Defense is getting WORSE over last 5 games (allowing more).</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <div className="container mx-auto px-4 py-6">
         {/* Main Table Section */}
-        <div className="flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-sm">
+        <div className="flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm">
           {/* Filters Bar */}
           <DvpFilters 
             position={selectedPosition}
             onPositionChange={setSelectedPosition}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            sampleSize={sampleSize}
+            onSampleSizeChange={setSampleSize}
+            trendBaseline={trendBaseline}
+            onTrendBaselineChange={setTrendBaseline}
+            trendStat={trendStat}
+            onTrendStatChange={setTrendStat}
             season={season}
             onSeasonChange={setSeason}
           />
+          
+          {/* Legend & Display Mode Bar - only for non-trends views */}
+          {viewMode !== "trends" && (
+            <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+                  </div>
+                </div>
+
+                {/* Display Mode Toggle */}
+                <div className="flex items-center gap-1 bg-neutral-200 dark:bg-neutral-700 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("values")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                      displayMode === "values"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    )}
+                  >
+                    Averages
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("ranks")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                      displayMode === "ranks"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    )}
+                  >
+                    Ranks
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trends Legend Bar */}
+          {viewMode === "trends" && (
+            <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+                  </div>
+                  <span className="text-neutral-300 dark:text-neutral-600">|</span>
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3 h-3 text-emerald-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">+Δ Worse</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <TrendingDown className="w-3 h-3 text-red-500" />
+                    <span className="text-neutral-600 dark:text-neutral-400">-Δ Better</span>
+                  </div>
+                </div>
+
+                {/* Display Mode Toggle for Trends */}
+                <div className="flex items-center gap-1 bg-neutral-200 dark:bg-neutral-700 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("values")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                      displayMode === "values"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    )}
+                  >
+                    Averages
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode("ranks")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                      displayMode === "ranks"
+                        ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    )}
+                  >
+                    Ranks
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Table Content */}
           <DvpTable 
             data={teams}
             viewMode={viewMode}
+            sampleSize={sampleSize}
+            displayMode={displayMode}
+            trendBaseline={trendBaseline}
+            trendStat={trendStat}
             isLoading={isLoading}
             onTeamClick={handleTeamClick}
           />

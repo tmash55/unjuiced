@@ -125,6 +125,7 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
               <div className="divide-y divide-neutral-100 dark:divide-neutral-800/50">
                 {data.play_types.map((playType, idx) => {
                   const isExpanded = expandedRow === playType.play_type;
+                  const isFreeThrows = playType.is_free_throws;
                   
                   return (
                     <div key={playType.play_type}>
@@ -133,34 +134,38 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
                         type="button"
                         onClick={() => setExpandedRow(isExpanded ? null : playType.play_type)}
                         className={cn(
-                          "w-full px-4 py-3 flex items-center justify-between transition-colors",
+                          "w-full px-4 py-3 grid grid-cols-[1fr_70px_50px_24px] items-center transition-colors",
                           idx % 2 === 0 
                             ? "bg-neutral-50/50 dark:bg-neutral-800/20" 
                             : "bg-white dark:bg-neutral-900",
-                          "active:bg-neutral-100 dark:active:bg-neutral-800/50"
+                          "active:bg-neutral-100 dark:active:bg-neutral-800/50",
+                          isFreeThrows && "bg-blue-50/30 dark:bg-blue-900/10"
                         )}
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {/* Play Type Name */}
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-sm font-medium text-neutral-900 dark:text-white truncate">
                             {playType.display_name}
                           </span>
                           {playType.player_percentile && playType.player_percentile >= 80 && (
                             <Zap className="h-3 w-3 text-violet-500 shrink-0" />
                           )}
+                          {isFreeThrows && (
+                            <span className="text-[8px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                              FT
+                            </span>
+                          )}
                         </div>
                         
-                        <div className="flex items-center gap-3">
-                          {/* Points */}
-                          <div className="text-right">
-                            <span className="text-sm font-bold tabular-nums text-neutral-900 dark:text-white">
-                              {playType.player_ppg.toFixed(1)}
-                            </span>
-                            <span className="text-[10px] text-neutral-400 ml-0.5">
-                              pts
-                            </span>
-                          </div>
-                          
-                          {/* Defense Rank */}
+                        {/* Points */}
+                        <div className="text-right">
+                          <span className="text-sm font-bold tabular-nums text-neutral-900 dark:text-white">
+                            {playType.player_ppg.toFixed(1)}
+                          </span>
+                        </div>
+                        
+                        {/* Defense Rank */}
+                        <div className="flex justify-center">
                           <span className={cn(
                             "inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold tabular-nums",
                             getRankBadgeBg(playType.opponent_def_rank),
@@ -168,12 +173,12 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
                           )}>
                             {playType.opponent_def_rank ?? "—"}
                           </span>
-                          
-                          <ChevronDown className={cn(
-                            "h-4 w-4 text-neutral-400 transition-transform shrink-0",
-                            isExpanded && "rotate-180"
-                          )} />
                         </div>
+                        
+                        <ChevronDown className={cn(
+                          "h-4 w-4 text-neutral-400 transition-transform shrink-0",
+                          isExpanded && "rotate-180"
+                        )} />
                       </button>
 
                       {/* Expanded Details */}
@@ -195,8 +200,13 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
                                 </span>
                               </div>
                               <div className="flex justify-between text-[11px]">
-                                <span className="text-neutral-500">FG%</span>
-                                <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.player_fg_pct.toFixed(1)}%</span>
+                                <span className="text-neutral-500">{isFreeThrows ? "FT%" : "FG%"}</span>
+                                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                                  {isFreeThrows && playType.ft_pct !== null 
+                                    ? `${playType.ft_pct.toFixed(1)}%`
+                                    : `${playType.player_fg_pct.toFixed(1)}%`
+                                  }
+                                </span>
                               </div>
                               <div className="flex justify-between text-[11px]">
                                 <span className="text-neutral-500">% of Pts</span>
@@ -227,10 +237,27 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
                                   <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_ppp_allowed.toFixed(3)}</span>
                                 </div>
                               )}
-                              {playType.opponent_fg_pct_allowed !== null && (
+                              {playType.opponent_fg_pct_allowed !== null && !isFreeThrows && (
                                 <div className="flex justify-between text-[11px]">
                                   <span className="text-neutral-500">FG% Allowed</span>
                                   <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_fg_pct_allowed.toFixed(1)}%</span>
+                                </div>
+                              )}
+                              {playType.opponent_fta_per_game !== null && (
+                                <div className="flex justify-between text-[11px]">
+                                  <span className="text-neutral-500">FTA Allowed/G</span>
+                                  <span className="font-semibold text-neutral-700 dark:text-neutral-300">{playType.opponent_fta_per_game.toFixed(1)}</span>
+                                </div>
+                              )}
+                              {playType.opponent_def_rank !== null && (
+                                <div className="flex justify-between text-[11px]">
+                                  <span className="text-neutral-500">Def Rank</span>
+                                  <span className={cn(
+                                    "font-bold",
+                                    getRankColorClass(playType.opponent_def_rank)
+                                  )}>
+                                    {getOrdinalSuffix(playType.opponent_def_rank)}
+                                  </span>
                                 </div>
                               )}
                               {playType.opponent_ppp_allowed !== null && (
@@ -280,4 +307,3 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
     </div>
   );
 }
-
