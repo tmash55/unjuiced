@@ -511,7 +511,7 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
   };
 
   return (
-    <div className="w-full overflow-auto max-h-[70vh] md:max-h-[70vh]">
+    <div className="w-full overflow-auto max-h-[70vh] md:max-h-[70vh] scroll-smooth-touch">
       <table className="w-full border-collapse text-left">
         <thead className="sticky top-0 z-20 bg-neutral-50 dark:bg-neutral-900">
           <tr className="shadow-[0_1px_3px_rgba(0,0,0,0.08)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]">

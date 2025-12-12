@@ -73,6 +73,13 @@
     display: none; /* Chrome, Safari, Opera */
   }
 
+  /* Smooth momentum scrolling for mobile */
+  .scroll-smooth-touch {
+    -webkit-overflow-scrolling: touch; /* Momentum scrolling on iOS */
+    scroll-behavior: smooth;
+    overscroll-behavior: contain; /* Prevent scroll chaining */
+  }
+
   [data-sonner-toast] {
     border-radius: 10px !important;
   }
