@@ -479,10 +479,10 @@ export function HitRateTable({
       const newDirection = sortDirection === "asc" ? "desc" : "asc";
       onSortChange(field, newDirection);
     } else {
-      // New field - for matchupRank, default to ascending (best to worst: 1, 2, 3...)
-      // For all other fields, default to descending (highest first)
-      const defaultDirection = field === "matchupRank" ? "asc" : "desc";
-      onSortChange(field, defaultDirection);
+      // New field - always default to descending
+      // For matchupRank: desc = best matchups first (30, 29, 28... = weak defense)
+      // For all other fields: desc = highest values first
+      onSortChange(field, "desc");
     }
   }, [sortField, sortDirection, onSortChange]);
 

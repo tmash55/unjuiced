@@ -78,15 +78,15 @@ const GLOSSARY_DATA: GlossaryCategory[] = [
       },
       {
         term: "Matchup Rank",
-        definition: "The opponent's defensive ranking for the player's position and stat. Lower ranks (1-10) indicate favorable matchups.",
+        definition: "The opponent's defensive ranking for the player's position and stat. Lower ranks (1-10) indicate tough matchups (strong defense), higher ranks (21-30) indicate favorable matchups (weak defense).",
       },
       {
         term: "Good Matchup",
-        definition: "When the opponent ranks 1-10 in DvP, meaning they allow more of that stat to the position. Highlighted in green.",
+        definition: "When the opponent ranks 21-30 in DvP, meaning they allow more of that stat to the position (weak defense). Highlighted in green.",
       },
       {
         term: "Bad Matchup",
-        definition: "When the opponent ranks 21-30 in DvP, meaning they're strong defensively against the position. Highlighted in red.",
+        definition: "When the opponent ranks 1-10 in DvP, meaning they're strong defensively against the position. Highlighted in red.",
       },
       {
         term: "Points Per Possession",

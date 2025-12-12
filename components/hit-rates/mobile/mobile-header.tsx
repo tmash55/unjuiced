@@ -136,6 +136,11 @@ const SORT_CATEGORIES = {
     icon: TrendingUp,
     fields: ["l5Pct", "l10Pct", "l20Pct", "seasonPct"]
   },
+  matchup: {
+    label: "Matchup (DvP)",
+    icon: Target,
+    fields: ["matchupRank"]
+  },
   prop: {
     label: "Prop Line",
     icon: Hash,
@@ -799,7 +804,7 @@ export function MobileHeader({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onSortChange("dvp_asc")}
+                    onClick={() => onSortChange("dvp_desc")}
                     className={cn(
                       "px-2 py-1 rounded text-[11px] font-semibold transition-all",
                       sortField.startsWith("dvp")

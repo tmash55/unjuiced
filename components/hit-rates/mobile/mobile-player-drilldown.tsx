@@ -2736,7 +2736,7 @@ function DefenseVsPositionTab({ profile, effectiveLine, selectedMarket }: Defens
           {/* Footer */}
           <div className="px-4 py-2 border-t border-neutral-200/60 dark:border-neutral-700/40 bg-neutral-50/30 dark:bg-neutral-800/20">
             <p className="text-[9px] text-neutral-400 dark:text-neutral-500">
-              {profile.opponentTeamAbbr} defense rankings vs all positions • Lower rank = weaker defense
+              {profile.opponentTeamAbbr} defense rankings vs all positions • Lower rank = stronger defense
             </p>
           </div>
         </div>

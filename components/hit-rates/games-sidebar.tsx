@@ -588,9 +588,11 @@ export function GamesSidebar({
                                     </span>
                                   )}
                                   {game.neutral_site && (
-                                    <span className="flex items-center gap-0.5 text-[8px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">
-                                      <MapPin className="h-2.5 w-2.5" />
-                                    </span>
+                                    <Tooltip content="Neutral Site" side="top">
+                                      <span className="flex items-center gap-0.5 text-[8px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded cursor-help">
+                                        <MapPin className="h-2.5 w-2.5" />
+                                      </span>
+                                    </Tooltip>
                                   )}
                                 </div>
                               )}
