@@ -225,16 +225,16 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
     <th
       onClick={() => handleSort(field)}
       className={cn(
-        "h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors group",
+        "h-10 md:h-12 px-1.5 md:px-3 text-center text-[10px] md:text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors group",
         className
       )}
     >
-      <div className="flex items-center justify-center gap-1.5">
-        <div className="flex items-center gap-1">
-          {label}
+      <div className="flex items-center justify-center gap-0.5 md:gap-1.5">
+        <div className="flex items-center gap-0.5 md:gap-1">
+          <span className="whitespace-nowrap">{label}</span>
           {tooltip && (
             <Tooltip content={tooltip}>
-              <Info className="h-3 w-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300" />
+              <Info className="h-2.5 w-2.5 md:h-3 md:w-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 hidden md:block" />
             </Tooltip>
           )}
         </div>
@@ -243,6 +243,9 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
     </th>
   );
 
+  // Base cell class for responsive padding
+  const cellClass = "px-1.5 md:px-3 py-2 md:py-4 text-center text-xs md:text-sm font-medium tabular-nums";
+
   const renderColumns = (team: DvpTeamRanking) => {
     const showRanks = displayMode === "ranks";
     
@@ -250,25 +253,25 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
       case "basic":
         return (
           <>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.ptsRank))}>
+            <td className={cn(cellClass, getRankBg(team.ptsRank))}>
               {showRanks ? fmtRank(team.ptsRank) : fmt(getValue(team, "ptsAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.rebRank))}>
+            <td className={cn(cellClass, getRankBg(team.rebRank))}>
               {showRanks ? fmtRank(team.rebRank) : fmt(getValue(team, "rebAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.astRank))}>
+            <td className={cn(cellClass, getRankBg(team.astRank))}>
               {showRanks ? fmtRank(team.astRank) : fmt(getValue(team, "astAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.fg3mRank))}>
+            <td className={cn(cellClass, getRankBg(team.fg3mRank))}>
               {showRanks ? fmtRank(team.fg3mRank) : fmt(getValue(team, "fg3mAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.stlRank))}>
+            <td className={cn(cellClass, getRankBg(team.stlRank))}>
               {showRanks ? fmtRank(team.stlRank) : fmt(getValue(team, "stlAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.blkRank))}>
+            <td className={cn(cellClass, getRankBg(team.blkRank))}>
               {showRanks ? fmtRank(team.blkRank) : fmt(getValue(team, "blkAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.tovRank))}>
+            <td className={cn(cellClass, getRankBg(team.tovRank))}>
               {showRanks ? fmtRank(team.tovRank) : fmt(getValue(team, "tovAvg"))}
             </td>
           </>
@@ -276,40 +279,40 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
       case "advanced":
         return (
           <>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.fgPctRank))}>
+            <td className={cn(cellClass, getRankBg(team.fgPctRank))}>
               {showRanks ? fmtRank(team.fgPctRank) : fmtPct(team.fgPct)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.fg3PctRank))}>
+            <td className={cn(cellClass, getRankBg(team.fg3PctRank))}>
               {showRanks ? fmtRank(team.fg3PctRank) : fmtPct(team.fg3Pct)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.fgaRank))}>
+            <td className={cn(cellClass, getRankBg(team.fgaRank))}>
               {showRanks ? fmtRank(team.fgaRank) : fmt(team.fgaAvg)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.fg3aRank))}>
+            <td className={cn(cellClass, getRankBg(team.fg3aRank))}>
               {showRanks ? fmtRank(team.fg3aRank) : fmt(team.fg3aAvg)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.ftaRank))}>
+            <td className={cn(cellClass, getRankBg(team.ftaRank))}>
               {showRanks ? fmtRank(team.ftaRank) : fmt(team.ftaAvg)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.minutesRank))}>
+            <td className={cn(cellClass, getRankBg(team.minutesRank))}>
               {showRanks ? fmtRank(team.minutesRank) : fmt(team.minutesAvg)}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.praRank))}>
+            <td className={cn(cellClass, getRankBg(team.praRank))}>
               {showRanks ? fmtRank(team.praRank) : fmt(getValue(team, "praAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.prRank))}>
+            <td className={cn(cellClass, getRankBg(team.prRank))}>
               {showRanks ? fmtRank(team.prRank) : fmt(getValue(team, "prAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.paRank))}>
+            <td className={cn(cellClass, getRankBg(team.paRank))}>
               {showRanks ? fmtRank(team.paRank) : fmt(getValue(team, "paAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.raRank))}>
+            <td className={cn(cellClass, getRankBg(team.raRank))}>
               {showRanks ? fmtRank(team.raRank) : fmt(getValue(team, "raAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.bsRank))}>
+            <td className={cn(cellClass, getRankBg(team.bsRank))}>
               {showRanks ? fmtRank(team.bsRank) : fmt(getValue(team, "bsAvg"))}
             </td>
-            <td className={cn("px-3 py-4 text-center text-sm font-medium tabular-nums", getRankBg(team.dd2PctRank))}>
+            <td className={cn(cellClass, getRankBg(team.dd2PctRank))}>
               {showRanks ? fmtRank(team.dd2PctRank) : fmtPct(team.dd2Pct)}
             </td>
           </>
@@ -328,9 +331,9 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
         // Trend icon
         const getTrendIcon = () => {
           if (delta === null) return null;
-          if (delta >= 1) return <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />;
-          if (delta <= -1) return <TrendingDown className="w-3.5 h-3.5 text-red-500" />;
-          return <Minus className="w-3.5 h-3.5 text-neutral-400" />;
+          if (delta >= 1) return <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-500" />;
+          if (delta <= -1) return <TrendingDown className="w-3 h-3 md:w-3.5 md:h-3.5 text-red-500" />;
+          return <Minus className="w-3 h-3 md:w-3.5 md:h-3.5 text-neutral-400" />;
         };
         
         // Get delta background color
@@ -346,50 +349,35 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
         return (
           <>
             {/* Season */}
-            <td className={cn(
-              "px-3 py-4 text-center text-sm font-medium tabular-nums",
-              getRankBg(seasonRank)
-            )}>
+            <td className={cn(cellClass, getRankBg(seasonRank))}>
               {showRanks ? fmtRank(seasonRank) : fmt(seasonVal)}
             </td>
             
             {/* L20 */}
-            <td className={cn(
-              "px-3 py-4 text-center text-sm font-medium tabular-nums",
-              getRankBg(seasonRank)
-            )}>
+            <td className={cn(cellClass, getRankBg(seasonRank))}>
               {fmt(l20Val)}
             </td>
             
             {/* L15 */}
-            <td className={cn(
-              "px-3 py-4 text-center text-sm font-medium tabular-nums",
-              getRankBg(seasonRank)
-            )}>
+            <td className={cn(cellClass, getRankBg(seasonRank))}>
               {fmt(l15Val)}
             </td>
             
             {/* L10 */}
-            <td className={cn(
-              "px-3 py-4 text-center text-sm font-medium tabular-nums",
-              getRankBg(seasonRank)
-            )}>
+            <td className={cn(cellClass, getRankBg(seasonRank))}>
               {fmt(l10Val)}
             </td>
             
             {/* L5 */}
-            <td className={cn(
-              "px-3 py-4 text-center text-sm font-bold tabular-nums",
-              getRankBg(seasonRank)
-            )}>
+            <td className={cn(cellClass, "font-bold", getRankBg(seasonRank))}>
               {fmt(l5Val)}
             </td>
             
             {/* Delta with trend icon */}
-            <td className={cn("px-3 py-4", getDeltaBg(delta))}>
-              <div className="flex items-center justify-center gap-1.5">
+            <td className={cn("px-1.5 md:px-3 py-2 md:py-4", getDeltaBg(delta))}>
+              <div className="flex items-center justify-center gap-1 md:gap-1.5">
                 {getTrendIcon()}
-                <span className={cn("text-sm font-bold tabular-nums", getDeltaClasses(delta))}>
+                <span className={cn("text-xs md:text-sm font-bold tabular-nums", getDeltaClasses(delta))}>
                   {fmtDelta(delta)}
                 </span>
               </div>
@@ -456,20 +444,20 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
   };
 
   return (
-    <div className="w-full overflow-auto max-h-[70vh]">
+    <div className="w-full overflow-auto max-h-[70vh] md:max-h-[70vh]">
       <table className="w-full border-collapse text-left">
         <thead className="sticky top-0 z-30">
           <tr className="shadow-[0_1px_3px_rgba(0,0,0,0.08)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
-            <th className="sticky left-0 z-40 h-12 w-[240px] px-4 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+            <th className="sticky left-0 z-40 h-10 md:h-12 w-[120px] md:w-[200px] px-2 md:px-4 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
               <div 
-                className="flex items-center gap-1.5 cursor-pointer group"
+                className="flex items-center gap-1 cursor-pointer group"
                 onClick={() => handleSort("teamAbbr")}
               >
-                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-colors">Team</span>
+                <span className="text-[10px] md:text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-colors">Team</span>
                 <SortIcon field="teamAbbr" />
               </div>
             </th>
-            {renderHeaderCell("GP", "games", undefined, "w-16")}
+            {renderHeaderCell("GP", "games", undefined, "w-10 md:w-16")}
             {renderHeaders()}
           </tr>
         </thead>
@@ -478,27 +466,29 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
             <tr 
               key={team.teamId}
               onClick={() => onTeamClick(team.teamId)}
-              className="group hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-all cursor-pointer"
+              className="group hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-all cursor-pointer active:bg-neutral-100 dark:active:bg-neutral-800"
             >
-              <td className="sticky left-0 z-10 w-[240px] px-4 py-3 bg-white dark:bg-neutral-900 group-hover:bg-neutral-50/80 dark:group-hover:bg-neutral-800/50 border-r border-neutral-100 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)] transition-all">
-                <div className="flex items-center gap-3">
-                  <div className="relative h-8 w-8 shrink-0 flex items-center justify-center rounded bg-neutral-100 dark:bg-neutral-800">
+              <td className="sticky left-0 z-10 w-[120px] md:w-[200px] px-2 md:px-4 py-2 md:py-3 bg-white dark:bg-neutral-900 group-hover:bg-neutral-50/80 dark:group-hover:bg-neutral-800/50 border-r border-neutral-100 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)] transition-all">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="relative h-6 w-6 md:h-8 md:w-8 shrink-0 flex items-center justify-center rounded bg-neutral-100 dark:bg-neutral-800">
                     <img 
                       src={`/team-logos/nba/${team.teamAbbr}.svg`}
                       alt={team.teamAbbr}
-                      className="h-6 w-6 object-contain"
+                      className="h-4 w-4 md:h-6 md:w-6 object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-sm text-neutral-900 dark:text-white truncate leading-none">{team.teamName}</span>
+                    {/* Show abbreviation on mobile, full name on desktop */}
+                    <span className="font-bold text-xs md:text-sm text-neutral-900 dark:text-white truncate leading-none md:hidden">{team.teamAbbr}</span>
+                    <span className="font-bold text-sm text-neutral-900 dark:text-white truncate leading-none hidden md:block">{team.teamName}</span>
                   </div>
                 </div>
               </td>
 
-              <td className="px-3 py-4 text-center text-sm font-medium text-neutral-500 tabular-nums">
+              <td className="px-1.5 md:px-3 py-2 md:py-4 text-center text-xs md:text-sm font-medium text-neutral-500 tabular-nums">
                 {team.games}
               </td>
 

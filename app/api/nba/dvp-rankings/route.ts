@@ -100,6 +100,20 @@ export interface DvpTeamRanking {
   l5RaAvg: number | null;
   l5BsAvg: number | null;
   
+  // L5 ranks
+  l5PtsRank: number | null;
+  l5RebRank: number | null;
+  l5AstRank: number | null;
+  l5Fg3mRank: number | null;
+  l5StlRank: number | null;
+  l5BlkRank: number | null;
+  l5TovRank: number | null;
+  l5PraRank: number | null;
+  l5PrRank: number | null;
+  l5PaRank: number | null;
+  l5RaRank: number | null;
+  l5BsRank: number | null;
+  
   // L10 trending stats
   l10PtsAvg: number | null;
   l10RebAvg: number | null;
@@ -113,6 +127,20 @@ export interface DvpTeamRanking {
   l10PaAvg: number | null;
   l10RaAvg: number | null;
   l10BsAvg: number | null;
+  
+  // L10 ranks
+  l10PtsRank: number | null;
+  l10RebRank: number | null;
+  l10AstRank: number | null;
+  l10Fg3mRank: number | null;
+  l10StlRank: number | null;
+  l10BlkRank: number | null;
+  l10TovRank: number | null;
+  l10PraRank: number | null;
+  l10PrRank: number | null;
+  l10PaRank: number | null;
+  l10RaRank: number | null;
+  l10BsRank: number | null;
   
   // L15 trending stats
   l15PtsAvg: number | null;
@@ -128,6 +156,20 @@ export interface DvpTeamRanking {
   l15RaAvg: number | null;
   l15BsAvg: number | null;
   
+  // L15 ranks
+  l15PtsRank: number | null;
+  l15RebRank: number | null;
+  l15AstRank: number | null;
+  l15Fg3mRank: number | null;
+  l15StlRank: number | null;
+  l15BlkRank: number | null;
+  l15TovRank: number | null;
+  l15PraRank: number | null;
+  l15PrRank: number | null;
+  l15PaRank: number | null;
+  l15RaRank: number | null;
+  l15BsRank: number | null;
+  
   // L20 trending stats
   l20PtsAvg: number | null;
   l20RebAvg: number | null;
@@ -141,6 +183,20 @@ export interface DvpTeamRanking {
   l20PaAvg: number | null;
   l20RaAvg: number | null;
   l20BsAvg: number | null;
+  
+  // L20 ranks
+  l20PtsRank: number | null;
+  l20RebRank: number | null;
+  l20AstRank: number | null;
+  l20Fg3mRank: number | null;
+  l20StlRank: number | null;
+  l20BlkRank: number | null;
+  l20TovRank: number | null;
+  l20PraRank: number | null;
+  l20PrRank: number | null;
+  l20PaRank: number | null;
+  l20RaRank: number | null;
+  l20BsRank: number | null;
   
   // Min/max for heatmap scaling (basic stats)
   minPts: number | null;
@@ -317,6 +373,20 @@ export async function GET(req: NextRequest) {
       l5RaAvg: row.l5_ra_avg,
       l5BsAvg: row.l5_bs_avg,
       
+      // L5 ranks
+      l5PtsRank: row.l5_pts_rank,
+      l5RebRank: row.l5_reb_rank,
+      l5AstRank: row.l5_ast_rank,
+      l5Fg3mRank: row.l5_fg3m_rank,
+      l5StlRank: row.l5_stl_rank,
+      l5BlkRank: row.l5_blk_rank,
+      l5TovRank: row.l5_tov_rank,
+      l5PraRank: row.l5_pra_rank,
+      l5PrRank: row.l5_pr_rank,
+      l5PaRank: row.l5_pa_rank,
+      l5RaRank: row.l5_ra_rank,
+      l5BsRank: row.l5_bs_rank,
+      
       // L10 trending stats
       l10PtsAvg: row.l10_pts_avg,
       l10RebAvg: row.l10_reb_avg,
@@ -330,6 +400,20 @@ export async function GET(req: NextRequest) {
       l10PaAvg: row.l10_pa_avg,
       l10RaAvg: row.l10_ra_avg,
       l10BsAvg: row.l10_bs_avg,
+      
+      // L10 ranks
+      l10PtsRank: row.l10_pts_rank,
+      l10RebRank: row.l10_reb_rank,
+      l10AstRank: row.l10_ast_rank,
+      l10Fg3mRank: row.l10_fg3m_rank,
+      l10StlRank: row.l10_stl_rank,
+      l10BlkRank: row.l10_blk_rank,
+      l10TovRank: row.l10_tov_rank,
+      l10PraRank: row.l10_pra_rank,
+      l10PrRank: row.l10_pr_rank,
+      l10PaRank: row.l10_pa_rank,
+      l10RaRank: row.l10_ra_rank,
+      l10BsRank: row.l10_bs_rank,
       
       // L15 trending stats
       l15PtsAvg: row.l15_pts_avg,
@@ -345,6 +429,20 @@ export async function GET(req: NextRequest) {
       l15RaAvg: row.l15_ra_avg,
       l15BsAvg: row.l15_bs_avg,
       
+      // L15 ranks
+      l15PtsRank: row.l15_pts_rank,
+      l15RebRank: row.l15_reb_rank,
+      l15AstRank: row.l15_ast_rank,
+      l15Fg3mRank: row.l15_fg3m_rank,
+      l15StlRank: row.l15_stl_rank,
+      l15BlkRank: row.l15_blk_rank,
+      l15TovRank: row.l15_tov_rank,
+      l15PraRank: row.l15_pra_rank,
+      l15PrRank: row.l15_pr_rank,
+      l15PaRank: row.l15_pa_rank,
+      l15RaRank: row.l15_ra_rank,
+      l15BsRank: row.l15_bs_rank,
+      
       // L20 trending stats
       l20PtsAvg: row.l20_pts_avg,
       l20RebAvg: row.l20_reb_avg,
@@ -358,6 +456,20 @@ export async function GET(req: NextRequest) {
       l20PaAvg: row.l20_pa_avg,
       l20RaAvg: row.l20_ra_avg,
       l20BsAvg: row.l20_bs_avg,
+      
+      // L20 ranks
+      l20PtsRank: row.l20_pts_rank,
+      l20RebRank: row.l20_reb_rank,
+      l20AstRank: row.l20_ast_rank,
+      l20Fg3mRank: row.l20_fg3m_rank,
+      l20StlRank: row.l20_stl_rank,
+      l20BlkRank: row.l20_blk_rank,
+      l20TovRank: row.l20_tov_rank,
+      l20PraRank: row.l20_pra_rank,
+      l20PrRank: row.l20_pr_rank,
+      l20PaRank: row.l20_pa_rank,
+      l20RaRank: row.l20_ra_rank,
+      l20BsRank: row.l20_bs_rank,
       
       // Min/max for heatmap scaling (basic stats)
       minPts: row.min_pts,

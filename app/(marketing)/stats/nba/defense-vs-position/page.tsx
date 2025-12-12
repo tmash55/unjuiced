@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Shield, TrendingUp, TrendingDown } from 'lucide-react';
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from '@/components/nba/dvp-table/dvp-filters';
+import { MobileDvpFilters } from '@/components/nba/dvp-table/mobile-dvp-filters';
 import { DvpTable } from '@/components/nba/dvp-table/dvp-table';
 import { useDvpRankings, DvpSampleSize } from '@/hooks/use-dvp-rankings';
 import { cn } from '@/lib/utils';
@@ -52,8 +53,8 @@ export default function DefenseVsPositionPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Header */}
-      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+      {/* Desktop Header */}
+      <div className="hidden md:block border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-start justify-between">
             <div>
@@ -71,11 +72,39 @@ export default function DefenseVsPositionPage() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
+      {/* Mobile Header */}
+      <div className="md:hidden border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <h1 className="text-lg font-bold tracking-tight">
+              Defense vs Position
+            </h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Filters - Fixed at top */}
+      <div className="md:hidden sticky top-14 z-40 shadow-sm">
+        <MobileDvpFilters
+          position={selectedPosition}
+          onPositionChange={setSelectedPosition}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          sampleSize={sampleSize}
+          onSampleSizeChange={setSampleSize}
+          trendStat={trendStat}
+          onTrendStatChange={setTrendStat}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
+        />
+      </div>
+
+      {/* Desktop Main Content */}
+      <div className="hidden md:block container mx-auto px-4 py-6">
         {/* Main Table Section */}
         <div className="flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm">
-          {/* Filters Bar */}
+          {/* Desktop Filters Bar */}
           <DvpFilters 
             position={selectedPosition}
             onPositionChange={setSelectedPosition}
@@ -202,7 +231,23 @@ export default function DefenseVsPositionPage() {
             </div>
           )}
           
-          {/* Table Content */}
+          {/* Desktop Table Content */}
+          <DvpTable 
+            data={teams}
+            viewMode={viewMode}
+            sampleSize={sampleSize}
+            displayMode={displayMode}
+            trendBaseline={trendBaseline}
+            trendStat={trendStat}
+            isLoading={isLoading}
+            onTeamClick={handleTeamClick}
+          />
+        </div>
+      </div>
+
+      {/* Mobile Table Content */}
+      <div className="md:hidden">
+        <div className="bg-white dark:bg-neutral-900">
           <DvpTable 
             data={teams}
             viewMode={viewMode}
