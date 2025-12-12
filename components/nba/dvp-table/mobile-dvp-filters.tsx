@@ -28,9 +28,9 @@ const POSITIONS: { value: Position; label: string }[] = [
 ];
 
 const VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode }[] = [
-  { value: "basic", label: "Basic", icon: <LayoutGrid className="w-4 h-4" /> },
-  { value: "advanced", label: "Advanced", icon: <BarChart3 className="w-4 h-4" /> },
-  { value: "trends", label: "Trends", icon: <TrendingUp className="w-4 h-4" /> },
+  { value: "basic", label: "Basic", icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+  { value: "advanced", label: "Advanced", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+  { value: "trends", label: "Trends", icon: <TrendingUp className="w-3.5 h-3.5" /> },
 ];
 
 const SAMPLE_SIZE_OPTIONS: { value: DvpSampleSize; label: string; shortLabel: string }[] = [
@@ -193,57 +193,57 @@ export function MobileDvpFilters({
     <>
       <div className="bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/60">
         {/* Row 1: Three Primary Dropdowns */}
-        <div className="px-3 pt-3 pb-2 flex items-center gap-2">
+        <div className="px-3 pt-2.5 pb-1.5 flex items-center gap-1.5">
           {/* Position Dropdown */}
           <button
             type="button"
             onClick={() => setShowPositionSheet(true)}
-            className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
+            className="flex-1 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
           >
             <span>{position}</span>
-            <ChevronDown className="w-4 h-4 text-neutral-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
           </button>
 
           {/* Sample Size Dropdown */}
           <button
             type="button"
             onClick={() => setShowSampleSheet(true)}
-            className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
+            className="flex-1 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
           >
             <span>{currentSampleSize.shortLabel}</span>
-            <ChevronDown className="w-4 h-4 text-neutral-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
           </button>
 
           {/* Display Mode Dropdown */}
           <button
             type="button"
             onClick={() => setShowDisplaySheet(true)}
-            className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
+            className="flex-1 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
           >
             <span>{displayLabel}</span>
-            <ChevronDown className="w-4 h-4 text-neutral-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
           </button>
 
           {/* Help Button */}
           <button
             type="button"
             onClick={() => setShowGlossary(true)}
-            className="p-2.5 rounded-lg text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
+            className="p-1.5 rounded-lg text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-all active:scale-[0.98]"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Row 2: View Mode Selector */}
-        <div className="px-3 pb-2">
-          <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800/80 p-1 rounded-xl border border-neutral-200/60 dark:border-neutral-700/60">
+        <div className="px-3 pb-1.5">
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
             {VIEW_MODES.map((mode) => (
               <button
                 key={mode.value}
                 type="button"
                 onClick={() => onViewModeChange(mode.value)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]",
+                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold transition-all active:scale-[0.97]",
                   viewMode === mode.value
                     ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
                     : "text-neutral-500 dark:text-neutral-400"
@@ -257,7 +257,7 @@ export function MobileDvpFilters({
         </div>
 
         {/* Row 3: Stat Selector (Trends only) + Legend */}
-        <div className="px-3 pb-2 flex items-center gap-3 border-t border-neutral-100 dark:border-neutral-800/50 pt-2">
+        <div className="px-3 pb-1.5 flex items-center gap-2.5 border-t border-neutral-100 dark:border-neutral-800/50 pt-1.5">
           {/* Stat Selector - Only for Trends */}
           {viewMode === "trends" && (
             <button

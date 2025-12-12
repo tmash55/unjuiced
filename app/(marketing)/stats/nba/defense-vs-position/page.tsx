@@ -240,7 +240,7 @@ export default function DefenseVsPositionPage() {
       </div>
 
       {/* Mobile Table Content */}
-      <div className="md:hidden">
+      <div className="md:hidden pb-24">
         <div className="bg-white dark:bg-neutral-900">
           <DvpTable 
             data={teams}
