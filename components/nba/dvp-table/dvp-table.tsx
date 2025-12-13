@@ -513,9 +513,9 @@ export function DvpTable({ data, viewMode, sampleSize, displayMode, trendBaselin
   return (
     <div className="w-full overflow-auto max-h-[70vh] md:max-h-[70vh] scroll-smooth-touch">
       <table className="w-full border-collapse text-left">
-        <thead className="sticky top-0 z-20 bg-neutral-50 dark:bg-neutral-900">
+        <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-900">
           <tr className="shadow-[0_1px_3px_rgba(0,0,0,0.08)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
-            <th className="sticky left-0 z-30 h-10 md:h-12 w-[120px] md:w-[200px] px-2 md:px-4 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+            <th className="sticky left-0 z-20 h-10 md:h-12 w-[120px] md:w-[200px] px-2 md:px-4 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
               <div 
                 className="flex items-center gap-1 cursor-pointer group"
                 onClick={() => handleSort("teamAbbr")}

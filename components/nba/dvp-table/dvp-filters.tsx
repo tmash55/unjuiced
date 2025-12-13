@@ -119,7 +119,7 @@ export function DvpFilters({
   const currentStatOption = ALL_STAT_OPTIONS.find(s => s.value === trendStat) || ALL_STAT_OPTIONS[0];
 
   return (
-    <div className="flex flex-col gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 sticky top-0 z-20">
+    <div className="flex flex-col gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 sticky top-0 z-30">
       <div className="flex flex-wrap items-center justify-between gap-4">
         {/* Left Side: Filters */}
         <div className="flex flex-wrap items-center gap-3">
@@ -154,7 +154,7 @@ export function DvpFilters({
               </button>
 
               {sampleDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-[40] overflow-hidden">
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-[100] overflow-hidden">
                   {SAMPLE_SIZE_OPTIONS.map((option) => (
                     <button
                       key={option.value}
@@ -193,7 +193,7 @@ export function DvpFilters({
               </button>
 
               {statDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-[40] overflow-hidden max-h-[400px] overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-[100] overflow-hidden max-h-[400px] overflow-y-auto">
                   {TREND_STAT_OPTIONS.map((group, groupIdx) => (
                     <div key={group.category}>
                       {groupIdx > 0 && (
