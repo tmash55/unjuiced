@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { Trophy, TrendingUp, BarChart3, Shield } from "lucide-react";
+import { Trophy, TrendingUp, BarChart3, Shield, FileText } from "lucide-react";
 import { Crown } from "@/components/icons/crown";
 
 const stats = [
@@ -31,6 +31,19 @@ const stats = [
     description: "Team defensive rankings by position. Find the best matchups.",
     href: "/stats/nba/defense-vs-position",
     color: "#60a5fa", // Blue
+    comingSoon: false,
+    badge: "NEW",
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-emerald-400">
+        <FileText className="size-2.5 text-emerald-900" />
+      </div>
+    ),
+    title: "NBA • Hit Rate Cheat Sheet",
+    description: "Quick reference guide for today's best prop bets.",
+    href: "/hit-rates/nba/cheat-sheet",
+    color: "#34d399", // Emerald
     comingSoon: false,
     badge: "NEW",
   },
