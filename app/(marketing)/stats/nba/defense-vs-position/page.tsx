@@ -52,7 +52,7 @@ export default function DefenseVsPositionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+    <div className="md:min-h-screen bg-neutral-50 dark:bg-neutral-950">
       {/* Desktop Header */}
       <div className="hidden md:block border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
         <div className="container mx-auto px-4 py-8">
@@ -240,19 +240,17 @@ export default function DefenseVsPositionPage() {
       </div>
 
       {/* Mobile Table Content */}
-      <div className="md:hidden pb-16">
-        <div className="bg-white dark:bg-neutral-900">
-          <DvpTable 
-            data={teams}
-            viewMode={viewMode}
-            sampleSize={sampleSize}
-            displayMode={displayMode}
-            trendBaseline={trendBaseline}
-            trendStat={trendStat}
-            isLoading={isLoading}
-            onTeamClick={handleTeamClick}
-          />
-        </div>
+      <div className="md:hidden bg-white dark:bg-neutral-900 pb-20">
+        <DvpTable 
+          data={teams}
+          viewMode={viewMode}
+          sampleSize={sampleSize}
+          displayMode={displayMode}
+          trendBaseline={trendBaseline}
+          trendStat={trendStat}
+          isLoading={isLoading}
+          onTeamClick={handleTeamClick}
+        />
       </div>
 
       {/* Mobile Bottom Navigation */}
@@ -270,10 +268,10 @@ export default function DefenseVsPositionPage() {
                 type="button"
                 onClick={() => setViewMode(tab.id)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-1 max-w-[100px]",
+                  "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-1 max-w-[80px]",
                   isActive
                     ? "bg-brand/10 text-brand"
-                    : "text-neutral-500 dark:text-neutral-400"
+                    : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 )}
               >
                 <tab.icon className={cn(

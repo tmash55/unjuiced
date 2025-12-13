@@ -9,7 +9,9 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       <Nav />
       <DivideX />
       {children}
-      <Footer />
+      <div className="hidden md:block">
+        <Footer />
+      </div>
     </main>
   );
 }
