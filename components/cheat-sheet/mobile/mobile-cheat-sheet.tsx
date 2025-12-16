@@ -15,14 +15,14 @@ import {
   SlidersHorizontal,
   BarChart3,
   TrendingUp,
-  UserMinus
+  UserMinus,
+  ArrowUpDown
 } from "lucide-react";
 import { CheatSheetRow, OddsData } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "../cheat-sheet-filters";
 import { TIME_WINDOW_OPTIONS, CHEAT_SHEET_MARKETS, HIT_RATE_OPTIONS } from "@/hooks/use-cheat-sheet";
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
-import { Heart } from "@/components/icons/heart";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Cheat sheet tabs
@@ -63,6 +63,17 @@ const DATE_OPTIONS = [
   { value: "tomorrow" as const, label: "Tomorrow" },
   { value: "all" as const, label: "All" },
 ];
+
+// Sort options for mobile
+const SORT_OPTIONS = [
+  { value: "confidence", label: "Grade", key: "confidenceScore" },
+  { value: "hitRate", label: "Hit %", key: "hitRate" },
+  { value: "edge", label: "Edge", key: "edge" },
+  { value: "dvp", label: "DvP", key: "dvpRank" },
+  { value: "odds", label: "Odds", key: "odds" },
+] as const;
+
+type SortOption = typeof SORT_OPTIONS[number]["value"];
 
 // Market short labels
 const MARKET_SHORT_LABELS: Record<string, string> = {
@@ -348,7 +359,26 @@ export function MobileCheatSheet({
 }: MobileCheatSheetProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [sortBy, setSortBy] = useState<SortOption>("confidence");
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const dateDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortDropdown(false);
+      }
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target as Node)) {
+        setShowDateDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const updateFilter = <K extends keyof CheatSheetFilterState>(
     key: K, 
@@ -357,8 +387,51 @@ export function MobileCheatSheet({
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount]);
-  const hasMore = rows.length > visibleCount;
+  // Get hit rate based on time window
+  const getRowHitRate = (row: CheatSheetRow): number => {
+    switch (filters.timeWindow) {
+      case "last_5_pct": return row.last5Pct ?? 0;
+      case "last_10_pct": return row.last10Pct ?? 0;
+      case "last_20_pct": return row.last20Pct ?? 0;
+      case "season_pct": return row.seasonPct ?? 0;
+      default: return row.last10Pct ?? 0;
+    }
+  };
+
+  // Sort rows based on selected option
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows];
+    
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "confidence":
+          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+        case "hitRate":
+          return getRowHitRate(b) - getRowHitRate(a);
+        case "edge": {
+          const edgeA = a.edge ?? (a.avgStat != null ? a.avgStat - a.line : 0);
+          const edgeB = b.edge ?? (b.avgStat != null ? b.avgStat - b.line : 0);
+          return edgeB - edgeA;
+        }
+        case "dvp":
+          // Higher rank = easier matchup = better, so sort descending
+          return (b.dvpRank ?? 0) - (a.dvpRank ?? 0);
+        case "odds":
+          // We'd need to look up odds - for now just use confidence as fallback
+          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+        default:
+          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+      }
+    });
+    
+    return sorted;
+  }, [rows, sortBy, filters.timeWindow]);
+
+  const visibleRows = useMemo(() => sortedRows.slice(0, visibleCount), [sortedRows, visibleCount]);
+  const hasMore = sortedRows.length > visibleCount;
+
+  const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? "Grade";
+  const currentDateLabel = DATE_OPTIONS.find(o => o.value === filters.dateFilter)?.label ?? "Today";
 
   const getLiveOdds = (row: CheatSheetRow): OddsData | undefined => {
     if (!oddsData || !row.oddsSelectionId) return undefined;
@@ -379,7 +452,7 @@ export function MobileCheatSheet({
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950">
       {/* Sticky Header - Matches Hit Rate Mobile Layout */}
-      <div className="sticky top-0 z-30 bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+      <div className="sticky top-0 z-30 bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/60">
         <div className="px-3 pt-2 pb-1.5 space-y-2">
           {/* Row 1: Sheet Tabs + Help Button */}
           <div className="flex items-center border-b border-neutral-200 dark:border-neutral-800">
@@ -477,60 +550,133 @@ export function MobileCheatSheet({
             })}
           </div>
 
-          {/* Row 3: Date, Time Window Toggles, Filters Button */}
-          <div className="flex items-center gap-2 pb-1">
-            {/* Date Toggle */}
-            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
-              {DATE_OPTIONS.map((opt) => (
+          {/* Row 3: Date, Time Window Toggles, Sort, Filters Button */}
+          <div className="flex items-center justify-between gap-2 pb-1">
+            {/* Left: Date + Time Window */}
+            <div className="flex items-center gap-2">
+              {/* Date Dropdown */}
+              <div ref={dateDropdownRef} className="relative shrink-0">
                 <button
-                  key={opt.value}
                   type="button"
-                  onClick={() => updateFilter("dateFilter", opt.value)}
+                  onClick={() => setShowDateDropdown(!showDateDropdown)}
                   className={cn(
-                    "px-2 py-1 rounded text-[11px] font-semibold transition-all",
-                    filters.dateFilter === opt.value
-                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                      : "text-neutral-500 dark:text-neutral-400"
+                    "flex items-center gap-1 px-2 py-1.5 rounded-lg shrink-0",
+                    "border transition-all duration-150 active:scale-[0.96]",
+                    "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
                   )}
                 >
-                  {opt.label}
+                  <Calendar className="h-3 w-3 text-neutral-500" />
+                  <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">{currentDateLabel}</span>
+                  <ChevronDown className={cn(
+                    "h-3 w-3 text-neutral-400 transition-transform",
+                    showDateDropdown && "rotate-180"
+                  )} />
                 </button>
-              ))}
-            </div>
 
-            {/* Time Window Toggles */}
-            <div className="flex items-center gap-0.5 ml-auto shrink-0 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
-              {TIME_WINDOW_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => updateFilter("timeWindow", opt.value)}
-                  className={cn(
-                    "px-2 py-1 rounded text-[11px] font-semibold transition-all",
-                    filters.timeWindow === opt.value
-                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                      : "text-neutral-500 dark:text-neutral-400"
-                  )}
-                >
-                  {opt.shortLabel}
-                </button>
-              ))}
-            </div>
-
-            {/* Advanced Filters Button */}
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                "flex items-center justify-center px-2.5 py-1.5 rounded-lg shrink-0",
-                "border transition-all duration-150 active:scale-[0.96]",
-                showFilters
-                  ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
-                  : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
+                {showDateDropdown && (
+                  <div className="absolute left-0 top-full z-[200] mt-1 min-w-[100px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                  {DATE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        updateFilter("dateFilter", opt.value);
+                        setShowDateDropdown(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[11px] font-semibold transition-colors",
+                        filters.dateFilter === opt.value
+                          ? "bg-brand/10 text-brand"
+                          : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               )}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-            </button>
+              </div>
+
+              {/* Time Window Toggles */}
+              <div className="flex items-center gap-0.5 shrink-0 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
+                {TIME_WINDOW_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateFilter("timeWindow", opt.value)}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] font-semibold transition-all",
+                      filters.timeWindow === opt.value
+                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}
+                  >
+                    {opt.shortLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Sort + Filters */}
+            <div className="flex items-center gap-2">
+              {/* Sort Dropdown */}
+              <div ref={sortDropdownRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1.5 rounded-lg shrink-0",
+                    "border transition-all duration-150 active:scale-[0.96]",
+                    "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
+                  )}
+                >
+                  <ArrowUpDown className="h-3 w-3 text-neutral-500" />
+                  <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">{currentSortLabel}</span>
+                  <ChevronDown className={cn(
+                    "h-3 w-3 text-neutral-400 transition-transform",
+                    showSortDropdown && "rotate-180"
+                  )} />
+                </button>
+
+                {showSortDropdown && (
+                  <div className="absolute right-0 top-full z-[200] mt-1 min-w-[120px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                    {SORT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setSortBy(opt.value);
+                          setShowSortDropdown(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[11px] font-semibold transition-colors",
+                          sortBy === opt.value
+                            ? "bg-brand/10 text-brand"
+                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced Filters Button */}
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0",
+                  "border transition-all duration-150 active:scale-[0.96]",
+                  showFilters
+                    ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
+                    : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
+                )}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -647,9 +793,6 @@ export function MobileCheatSheet({
                     </th>
                     <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[75px]">
                       Odds
-                    </th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[35px]">
-                      
                     </th>
                   </tr>
                 </thead>
@@ -812,19 +955,6 @@ export function MobileCheatSheet({
                         {/* Odds */}
                         <td className="text-center px-2 py-2">
                           <MobileOddsDropdown odds={odds ?? null} line={row.line} />
-                        </td>
-
-                        {/* Action */}
-                        <td className="text-center px-2 py-2">
-                          <Tooltip content="Favorites coming soon">
-                            <button
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1.5 rounded-md text-neutral-300 dark:text-neutral-600 hover:text-neutral-400 dark:hover:text-neutral-500 transition-colors"
-                              disabled
-                            >
-                              <Heart className="w-3.5 h-3.5" />
-                            </button>
-                          </Tooltip>
                         </td>
                       </tr>
                     );
