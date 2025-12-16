@@ -123,10 +123,10 @@ export function CheatSheetFilters({
   const resetFilters = () => {
     onFiltersChange({
       timeWindow: "last_10_pct",
-      minHitRate: 0.70,
+      minHitRate: 0.80,
       oddsFloor: -250,
       oddsCeiling: 250,
-      markets: [],
+      markets: CHEAT_SHEET_MARKETS.map(m => m.value),
       hideAlternates: false,
       matchupFilter: "all",
       confidenceFilter: [],
@@ -138,8 +138,8 @@ export function CheatSheetFilters({
   };
 
   const activeFilterCount = [
-    filters.markets.length > 0,
-    filters.minHitRate !== 0.70,
+    filters.markets.length !== CHEAT_SHEET_MARKETS.length,
+    filters.minHitRate !== 0.80,
     filters.oddsFloor !== -250 || filters.oddsCeiling !== 250,
     filters.hideAlternates,
     filters.matchupFilter !== "all",
@@ -406,10 +406,10 @@ export function CheatSheetFilters({
 // Default filter state
 export const DEFAULT_CHEAT_SHEET_FILTERS: CheatSheetFilterState = {
   timeWindow: "last_10_pct",
-  minHitRate: 0.70,
+  minHitRate: 0.80,
   oddsFloor: -250,
   oddsCeiling: 250,
-  markets: [],
+  markets: CHEAT_SHEET_MARKETS.map(m => m.value),
   hideAlternates: false,
   matchupFilter: "all",
   confidenceFilter: [],

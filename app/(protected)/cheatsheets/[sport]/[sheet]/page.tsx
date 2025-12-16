@@ -11,17 +11,95 @@ import {
 import { CheatSheetTable } from "@/components/cheat-sheet/cheat-sheet-table";
 import { CheatSheetFilterBar } from "@/components/cheat-sheet/cheat-sheet-filter-bar";
 import { ConfidenceGlossary } from "@/components/cheat-sheet/confidence-glossary";
+import { MobileConfidenceGlossary } from "@/components/cheat-sheet/mobile/mobile-confidence-glossary";
+import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
+import { MobileCheatSheet } from "@/components/cheat-sheet/mobile/mobile-cheat-sheet";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 const SUPPORTED_SPORTS = ["nba"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact"] as const;
 
-export default function CheatSheetPage({ params }: { params: Promise<{ sport: string }> }) {
+type SupportedSport = typeof SUPPORTED_SPORTS[number];
+type SupportedSheet = typeof SUPPORTED_SHEETS[number];
+
+// Sheet display names and descriptions
+const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }> = {
+  "hit-rates": {
+    title: "Hit Rate Cheat Sheet",
+    description: "High-confidence props ranked by our scoring system",
+  },
+  "alt-hit-matrix": {
+    title: "Alt Hit Matrix",
+    description: "Find the best alternate lines with highest hit rates",
+  },
+  "injury-impact": {
+    title: "Injury Impact",
+    description: "Props affected by injuries and lineup changes",
+  },
+};
+
+export default function CheatSheetPage({ 
+  params 
+}: { 
+  params: Promise<{ sport: string; sheet: string }> 
+}) {
   const resolvedParams = use(params);
-  const sport = resolvedParams.sport?.toLowerCase();
+  const sport = resolvedParams.sport?.toLowerCase() as SupportedSport;
+  const sheet = resolvedParams.sheet?.toLowerCase() as SupportedSheet;
   
-  if (!SUPPORTED_SPORTS.includes(sport as typeof SUPPORTED_SPORTS[number])) {
+  // Validate sport
+  if (!SUPPORTED_SPORTS.includes(sport)) {
     notFound();
   }
 
+  // Validate sheet type
+  if (!SUPPORTED_SHEETS.includes(sheet)) {
+    notFound();
+  }
+
+  const sheetInfo = SHEET_INFO[sheet];
+
+  // For now, only hit-rates is implemented
+  if (sheet !== "hit-rates") {
+    return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
+  }
+
+  return <HitRatesCheatSheet sport={sport} sheet={sheet} />;
+}
+
+function ComingSoonSheet({ 
+  sport, 
+  sheet, 
+  sheetInfo 
+}: { 
+  sport: SupportedSport; 
+  sheet: SupportedSheet; 
+  sheetInfo: { title: string; description: string } 
+}) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Tab Navigation */}
+      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
+      
+      <div className={isMobile ? "px-4 py-6" : "container mx-auto px-4 py-6"}>
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+          <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
+            <p className="text-lg font-bold text-neutral-900 dark:text-white">{sheetInfo.title}</p>
+            <p className="text-sm mt-1 text-center px-4">{sheetInfo.description}</p>
+            <span className="mt-4 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold">
+              Coming Soon
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const [filters, setFilters] = useState<CheatSheetFilterState>(DEFAULT_CHEAT_SHEET_FILTERS);
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
 
@@ -77,8 +155,37 @@ export default function CheatSheetPage({ params }: { params: Promise<{ sport: st
     console.log("Clicked row:", row);
   };
 
+  // Mobile Layout
+  if (isMobile) {
+    return (
+      <>
+        <MobileCheatSheet
+          rows={filteredRows}
+          isLoading={isLoading}
+          oddsData={oddsData}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onGlossaryOpen={() => setIsGlossaryOpen(true)}
+          onRowClick={handleRowClick}
+          sport={sport}
+          currentSheet={sheet}
+        />
+
+        {/* Mobile Glossary Bottom Sheet */}
+        <MobileConfidenceGlossary 
+          isOpen={isGlossaryOpen} 
+          onClose={() => setIsGlossaryOpen(false)} 
+        />
+      </>
+    );
+  }
+
+  // Desktop Layout
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Tab Navigation */}
+      <CheatSheetNav sport={sport} currentSheet={sheet} />
+      
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
@@ -118,3 +225,4 @@ export default function CheatSheetPage({ params }: { params: Promise<{ sport: st
     </div>
   );
 }
+

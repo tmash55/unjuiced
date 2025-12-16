@@ -42,7 +42,7 @@ const stats = [
     ),
     title: "NBA • Hit Rate Cheat Sheet",
     description: "Quick reference guide for today's best prop bets.",
-    href: "/hit-rates/nba/cheat-sheet",
+    href: "/cheatsheets/nba/hit-rates",
     color: "#34d399", // Emerald
     comingSoon: false,
     badge: "NEW",

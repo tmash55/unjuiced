@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
   ChevronUp, 
-  Plus, 
   Flame, 
   HeartPulse,
   ArrowDown,
@@ -15,6 +14,7 @@ import {
   TrendingDown,
   Minus
 } from "lucide-react";
+import { Heart } from "@/components/icons/heart";
 import { 
   CheatSheetRow, 
   getGradeColor, 
@@ -401,31 +401,41 @@ function TrendIcon({ trend }: { trend: CheatSheetRow["trend"] }) {
   }
 }
 
-// DvP rank badge - simplified
-function DvpBadge({ rank, avgAllowed }: { rank: number | null; avgAllowed: number | null }) {
+// DvP rank badge - simplified with tooltip
+function DvpBadge({ rank, position }: { rank: number | null; position?: string }) {
   if (rank === null) return <span className="text-neutral-400">—</span>;
   
   const getColor = () => {
-    if (rank <= 10) return "text-red-500";
-    if (rank <= 20) return "text-yellow-500";
-    return "text-green-500";
+    if (rank >= 21) return "text-emerald-500"; // Easy matchup (rank 21-30)
+    if (rank >= 11) return "text-yellow-500";  // Neutral matchup (rank 11-20)
+    return "text-red-500";                      // Tough matchup (rank 1-10)
+  };
+
+  const getBgColor = () => {
+    if (rank >= 21) return "bg-emerald-500/10";
+    if (rank >= 11) return "bg-yellow-500/10";
+    return "bg-red-500/10";
   };
 
   const getLabel = () => {
-    if (rank <= 10) return "Tough";
-    if (rank <= 20) return "Neutral";
-    return "Easy";
+    if (rank >= 21) return "Easy";
+    if (rank >= 11) return "Neutral";
+    return "Tough";
   };
 
+  const tooltipText = `${getLabel()} matchup${position ? ` vs ${position}` : ""}`;
+
   return (
-    <div className="flex flex-col items-center">
-      <span className={cn("text-sm font-bold tabular-nums", getColor())}>
-        #{rank}
-      </span>
-      <span className={cn("text-[10px] font-medium", getColor())}>
-        {getLabel()}
-      </span>
-    </div>
+    <Tooltip content={tooltipText} side="top">
+      <div className={cn(
+        "flex items-center justify-center w-8 h-8 rounded-lg cursor-help",
+        getBgColor()
+      )}>
+        <span className={cn("text-sm font-bold tabular-nums", getColor())}>
+          {rank}
+        </span>
+      </div>
+    </Tooltip>
   );
 }
 
@@ -485,12 +495,18 @@ function HitRateDisplay({
 
   return (
     <div className="flex flex-col items-center">
-      <span className={cn("text-sm font-bold tabular-nums", getColor(pct))}>
-        {pctDisplay}%
-      </span>
-      {hits !== null && games !== null && (
-        <span className="text-[10px] text-neutral-400 tabular-nums">
-          {hits}/{games}
+      {hits !== null && games !== null ? (
+        <>
+          <span className={cn("text-sm font-bold tabular-nums", getColor(pct))}>
+            {hits}/{games}
+          </span>
+          <span className="text-[10px] text-neutral-400 tabular-nums">
+            {pctDisplay}%
+          </span>
+        </>
+      ) : (
+        <span className={cn("text-sm font-bold tabular-nums", getColor(pct))}>
+          {pctDisplay}%
         </span>
       )}
     </div>
@@ -620,14 +636,6 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                 Prop <SortIcon field="line" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[90px] bg-neutral-50 dark:bg-neutral-800/80">
-              <button 
-                onClick={() => handleSort("avgStat")}
-                className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-              >
-                {getTimeWindowLabel(timeWindow)} <SortIcon field="avgStat" currentField={sortField} direction={sortDirection} />
-              </button>
-            </th>
             <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
               <button 
                 onClick={() => handleSort("hitRate")}
@@ -635,6 +643,16 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
               >
                 Hit Rate <SortIcon field="hitRate" currentField={sortField} direction={sortDirection} />
               </button>
+            </th>
+            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[90px] bg-neutral-50 dark:bg-neutral-800/80">
+              <Tooltip content="Average over selected time window with edge (difference from line)" side="top">
+                <button 
+                  onClick={() => handleSort("avgStat")}
+                  className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-help"
+                >
+                  {getTimeWindowLabel(timeWindow)} Avg <SortIcon field="avgStat" currentField={sortField} direction={sortDirection} />
+                </button>
+              </Tooltip>
             </th>
             <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
               <button 
@@ -727,8 +745,8 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                         {row.playerName}
                       </span>
                       {/* Hot streak indicator */}
-                      {row.trend === "hot" && (
-                        <Tooltip content="On fire! 5+ game hit streak" side="top">
+                      {row.hitStreak >= 5 && (
+                        <Tooltip content={`${row.hitStreak} game hit streak 🔥`} side="top">
                           <Flame className="w-3.5 h-3.5 text-orange-500 cursor-help" />
                         </Tooltip>
                       )}
@@ -784,17 +802,13 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
               </td>
 
               {/* Prop Column */}
-              <td className="px-3 py-2 text-center">
-                <span className="font-bold text-sm text-neutral-900 dark:text-white">
-                  {row.line} {MARKET_SHORT_LABELS[row.market] || row.market}
-                </span>
-              </td>
-
-              {/* Average Column */}
-              <td className="px-3 py-2 text-center">
-                <span className="font-bold text-sm text-neutral-900 dark:text-white tabular-nums">
-                  {row.avgStat?.toFixed(1) ?? "—"}
-                </span>
+              <td className="px-3 py-2">
+                <div className="flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                    <span className="font-semibold text-neutral-900 dark:text-white">{row.line}+</span>
+                    {MARKET_SHORT_LABELS[row.market] || row.market}
+                  </span>
+                </div>
               </td>
 
               {/* Hit Rates Column */}
@@ -810,10 +824,32 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                 </div>
               </td>
 
+              {/* Average + Edge Column */}
+              <td className="px-3 py-2 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="font-medium text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
+                    {row.avgStat?.toFixed(1) ?? "—"}
+                  </span>
+                  {(() => {
+                    const edge = row.edge ?? (row.avgStat != null ? row.avgStat - row.line : null);
+                    if (edge == null) return null;
+                    const isPositive = edge >= 0;
+                    return (
+                      <span className={cn(
+                        "text-sm font-bold tabular-nums",
+                        isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                      )}>
+                        {isPositive ? "+" : ""}{edge.toFixed(1)}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </td>
+
               {/* DvP Column */}
               <td className="px-3 py-2">
                 <div className="flex justify-center">
-                  <DvpBadge rank={row.dvpRank} avgAllowed={row.dvpAvg} />
+                  <DvpBadge rank={row.dvpRank} position={row.playerPosition} />
                 </div>
               </td>
 
@@ -841,12 +877,12 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
               {/* Action Column */}
               <td className="px-2 py-2">
                 <div className="flex justify-center">
-                  <Tooltip content="SGP coming soon" side="left">
+                  <Tooltip content="Favorites coming soon" side="left">
                     <button
                       disabled
-                      className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                      className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed hover:opacity-70 transition-opacity"
                     >
-                      <Plus className="w-4 h-4 text-neutral-400" />
+                      <Heart className="w-4 h-4 text-neutral-400" />
                     </button>
                   </Tooltip>
                 </div>

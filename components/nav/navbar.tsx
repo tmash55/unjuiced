@@ -316,7 +316,7 @@ function MobileNav({ domain }: { domain: string }) {
       items: [
         { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
         { title: "Defense vs Position", href: "/stats/nba/defense-vs-position", badge: "NEW" },
-        { title: "Hit Rate Cheat Sheet", href: "/hit-rates/nba/cheat-sheet", badge: "NEW" },
+        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
       ],
     },
     {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
@@ -18,6 +18,8 @@ import {
   HIT_RATE_OPTIONS 
 } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip } from "@/components/tooltip";
 
 interface CheatSheetFilterBarProps {
   filters: CheatSheetFilterState;
@@ -48,9 +50,7 @@ const MATCHUP_OPTIONS = [
 ];
 
 const TREND_OPTIONS = [
-  { value: "hot", label: "Hot", icon: Flame },
-  { value: "improving", label: "Improving" },
-  { value: "stable", label: "Stable" },
+  { value: "hot", label: "Hot", icon: Flame, tooltip: "Players on 5+ game hit streaks" },
 ];
 
 export function CheatSheetFilterBar({ 
@@ -60,6 +60,19 @@ export function CheatSheetFilterBar({
   onGlossaryOpen
 }: CheatSheetFilterBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
+  const marketDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close market dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (marketDropdownRef.current && !marketDropdownRef.current.contains(e.target as Node)) {
+        setMarketDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const updateFilter = <K extends keyof CheatSheetFilterState>(
     key: K, 
@@ -73,6 +86,15 @@ export function CheatSheetFilterBar({
       ? filters.markets.filter((m) => m !== market)
       : [...filters.markets, market];
     updateFilter("markets", newMarkets);
+  };
+
+  const selectAllMarkets = () => {
+    updateFilter("markets", CHEAT_SHEET_MARKETS.map((m) => m.value));
+  };
+
+  const deselectAllMarkets = () => {
+    // Default to Points when deselecting all
+    updateFilter("markets", ["player_points"]);
   };
 
   const toggleConfidence = (grade: string) => {
@@ -92,10 +114,10 @@ export function CheatSheetFilterBar({
   const resetFilters = () => {
     onFiltersChange({
       timeWindow: "last_10_pct",
-      minHitRate: 0.70,
+      minHitRate: 0.80,
       oddsFloor: -250,
       oddsCeiling: 250,
-      markets: [],
+      markets: CHEAT_SHEET_MARKETS.map(m => m.value),
       hideAlternates: false,
       matchupFilter: "all",
       confidenceFilter: [],
@@ -107,8 +129,8 @@ export function CheatSheetFilterBar({
   };
 
   const activeFilterCount = [
-    filters.markets.length > 0,
-    filters.minHitRate !== 0.70,
+    filters.markets.length !== CHEAT_SHEET_MARKETS.length,
+    filters.minHitRate !== 0.80,
     filters.oddsFloor !== -250 || filters.oddsCeiling !== 250,
     filters.hideAlternates,
     filters.matchupFilter !== "all",
@@ -195,7 +217,7 @@ export function CheatSheetFilterBar({
           >
             {HIT_RATE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}+
+                {opt.label}
               </option>
             ))}
           </select>
@@ -256,49 +278,75 @@ export function CheatSheetFilterBar({
       {/* Advanced Filters Panel */}
       {showAdvanced && (
         <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/20">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Markets */}
-            <div>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            {/* Markets Dropdown */}
+            <div ref={marketDropdownRef} className="relative">
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
                 Markets
               </label>
-              <div className="flex flex-wrap gap-1">
-                {CHEAT_SHEET_MARKETS.slice(0, 8).map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => toggleMarket(m.value)}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-all",
-                      filters.markets.includes(m.value)
-                        ? "bg-brand text-white"
-                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
-                    )}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
+                className={cn(
+                  "flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700 w-[180px]"
+                )}
+              >
+                <span className="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                  {filters.markets.length === 0
+                    ? "All Markets"
+                    : filters.markets.length === CHEAT_SHEET_MARKETS.length
+                    ? "All Markets"
+                    : filters.markets.length === 1
+                    ? CHEAT_SHEET_MARKETS.find(o => o.value === filters.markets[0])?.label ?? "1 selected"
+                    : filters.markets.length === 2
+                    ? filters.markets.map(m => CHEAT_SHEET_MARKETS.find(o => o.value === m)?.label).filter(Boolean).join(", ")
+                    : `${filters.markets.length} selected`}
+                </span>
+                <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform shrink-0", marketDropdownOpen && "rotate-180")} />
+              </button>
+
+              {marketDropdownOpen && (
+                <div className="absolute left-0 top-full z-[100] mt-1 w-[220px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                  <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">
+                    <button type="button" onClick={selectAllMarkets} className="text-xs font-medium text-brand hover:underline">
+                      Select All
+                    </button>
+                    <button type="button" onClick={deselectAllMarkets} className="text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                      Deselect All
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-0.5 max-h-64 overflow-auto">
+                    {CHEAT_SHEET_MARKETS.map((opt) => (
+                      <label key={opt.value} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
+                        <Checkbox checked={filters.markets.includes(opt.value)} onCheckedChange={() => toggleMarket(opt.value)} />
+                        <span className="text-sm font-medium text-neutral-900 dark:text-white">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Matchup (DvP) */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
-                Matchup (DvP)
+                Matchup
               </label>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex gap-1">
                 {MATCHUP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => updateFilter("matchupFilter", opt.value as any)}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-all",
-                      filters.matchupFilter === opt.value
-                        ? "bg-brand text-white"
-                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
+                  <Tooltip key={opt.value} content={`Defense vs Position rank ${opt.value === "favorable" ? "21-30 (weak defense)" : opt.value === "neutral" ? "11-20" : opt.value === "unfavorable" ? "1-10 (strong defense)" : "Show all"}`} side="top">
+                    <button
+                      onClick={() => updateFilter("matchupFilter", opt.value as any)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                        filters.matchupFilter === opt.value
+                          ? "bg-brand text-white"
+                          : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             </div>
@@ -308,20 +356,21 @@ export function CheatSheetFilterBar({
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
                 Confidence
               </label>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex gap-1">
                 {CONFIDENCE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => toggleConfidence(opt.value)}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
-                      filters.confidenceFilter.includes(opt.value)
-                        ? "bg-brand text-white"
-                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
+                  <Tooltip key={opt.value} content={`Filter by ${opt.value} confidence grade`} side="top">
+                    <button
+                      onClick={() => toggleConfidence(opt.value)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-xs font-bold transition-all",
+                        filters.confidenceFilter.includes(opt.value)
+                          ? "bg-brand text-white"
+                          : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             </div>
@@ -331,46 +380,51 @@ export function CheatSheetFilterBar({
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
                 Quick Filters
               </label>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex gap-1">
                 {TREND_OPTIONS.map((opt) => (
+                  <Tooltip key={opt.value} content={opt.tooltip} side="top">
+                    <button
+                      onClick={() => toggleTrend(opt.value)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
+                        filters.trendFilter.includes(opt.value)
+                          ? "bg-brand text-white"
+                          : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
+                      )}
+                    >
+                      {opt.icon && <opt.icon className="w-3.5 h-3.5" />}
+                      {opt.label}
+                    </button>
+                  </Tooltip>
+                ))}
+                <Tooltip content="Hide players with injury designations" side="top">
                   <button
-                    key={opt.value}
-                    onClick={() => toggleTrend(opt.value)}
+                    onClick={() => updateFilter("hideInjured", !filters.hideInjured)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-1",
-                      filters.trendFilter.includes(opt.value)
-                        ? "bg-brand text-white"
-                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-brand"
+                      "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
+                      filters.hideInjured
+                        ? "bg-red-500 text-white"
+                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-red-500"
                     )}
                   >
-                    {opt.icon && <opt.icon className="w-2.5 h-2.5" />}
-                    {opt.label}
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    No Injured
                   </button>
-                ))}
-                <button
-                  onClick={() => updateFilter("hideInjured", !filters.hideInjured)}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-1",
-                    filters.hideInjured
-                      ? "bg-red-500 text-white"
-                      : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-red-500"
-                  )}
-                >
-                  <AlertCircle className="w-2.5 h-2.5" />
-                  No Injured
-                </button>
-                <button
-                  onClick={() => updateFilter("hideB2B", !filters.hideB2B)}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-1",
-                    filters.hideB2B
-                      ? "bg-orange-500 text-white"
-                      : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-orange-500"
-                  )}
-                >
-                  <Calendar className="w-2.5 h-2.5" />
-                  No B2B
-                </button>
+                </Tooltip>
+                <Tooltip content="Hide players on back-to-back games" side="top">
+                  <button
+                    onClick={() => updateFilter("hideB2B", !filters.hideB2B)}
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
+                      filters.hideB2B
+                        ? "bg-orange-500 text-white"
+                        : "bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 hover:border-orange-500"
+                    )}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    No B2B
+                  </button>
+                </Tooltip>
               </div>
             </div>
           </div>
