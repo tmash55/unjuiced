@@ -524,22 +524,20 @@ export function MobileCheatSheet({
               All
             </button>
             {CHEAT_SHEET_MARKETS.map((market) => {
-              const isSelected = filters.markets.includes(market.value);
+              const isOnlyThisSelected = filters.markets.length === 1 && filters.markets[0] === market.value;
               return (
                 <button
                   key={market.value}
                   type="button"
                   onClick={() => {
-                    const newMarkets = isSelected
-                      ? filters.markets.filter(m => m !== market.value)
-                      : [...filters.markets, market.value];
-                    updateFilter("markets", newMarkets.length > 0 ? newMarkets : [market.value]);
+                    // Single-select: clicking a market selects only that market
+                    updateFilter("markets", [market.value]);
                   }}
                   className={cn(
                     "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0",
                     "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
                     "border",
-                    isSelected
+                    isOnlyThisSelected
                       ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
                       : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
                   )}

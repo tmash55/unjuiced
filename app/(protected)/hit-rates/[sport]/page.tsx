@@ -79,7 +79,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
   const [mobileSortField, setMobileSortField] = useState("l10Pct_desc");
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
-  const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[]>([]);
+  const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[] | null>(null); // null = not initialized yet
   
   // Advanced filter state (shared between table and sidebar)
   const [hideNoOdds, setHideNoOdds] = useState(false);
@@ -95,6 +95,29 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Get game data to find dates
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
+  
+  // Default mobile to today's games on first load
+  useEffect(() => {
+    if (mobileSelectedGameIds === null && allGames && allGames.length > 0) {
+      // Get today's date in ET
+      const now = new Date();
+      const etOptions: Intl.DateTimeFormatOptions = { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' };
+      const todayET = now.toLocaleDateString('en-CA', etOptions);
+      
+      // Filter to today's games only
+      const todayGames = allGames.filter(g => g.game_date === todayET);
+      
+      if (todayGames.length > 0) {
+        setMobileSelectedGameIds(todayGames.map(g => g.game_id));
+      } else {
+        // No games today, show all games
+        setMobileSelectedGameIds([]);
+      }
+    }
+  }, [allGames, mobileSelectedGameIds]);
+  
+  // Ensure we always have an array to pass to children (not null)
+  const effectiveMobileGameIds = mobileSelectedGameIds ?? [];
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
 
   // Update selectedDate when selectedGameIds changes
@@ -360,7 +383,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Mobile does its own market/game filtering internally, but we pre-filter started games
   const mobileFilteredRows = useMemo(() => {
     // If specific games are selected on mobile, don't filter started games (user explicitly selected them)
-    if (mobileSelectedGameIds.length > 0) {
+    if (effectiveMobileGameIds.length > 0) {
       return rows;
     }
     
@@ -369,7 +392,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       if (!row.gameId) return true;
       return !startedGameIds.has(normalizeGameId(row.gameId));
     });
-  }, [rows, mobileSelectedGameIds, startedGameIds]);
+  }, [rows, effectiveMobileGameIds, startedGameIds]);
 
   // Get all profiles for the selected player (all their different markets)
   const selectedPlayerAllProfiles = useMemo(() => {
@@ -404,7 +427,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         onSortChange={setMobileSortField}
         searchQuery={mobileSearchQuery}
         onSearchChange={setMobileSearchQuery}
-        selectedGameIds={mobileSelectedGameIds}
+        selectedGameIds={effectiveMobileGameIds}
         onGameIdsChange={setMobileSelectedGameIds}
         startedGameIds={startedGameIds}
       />

@@ -157,6 +157,12 @@ export function MobileHitRates({
       if (aIsOut && !bIsOut) return 1;
       if (!aIsOut && bIsOut) return -1;
       
+      // Push players without odds to the bottom (after "out" players are handled)
+      const aHasOdds = !!a.oddsSelectionId;
+      const bHasOdds = !!b.oddsSelectionId;
+      if (aHasOdds && !bHasOdds) return -1;
+      if (!aHasOdds && bHasOdds) return 1;
+      
       let comparison = 0;
       
       if (field === "name") {

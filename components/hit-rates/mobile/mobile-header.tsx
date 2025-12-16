@@ -694,14 +694,18 @@ export function MobileHeader({
               {/* Upgrade Banner - shown for free users */}
               {upgradeBanner}
 
-              {/* Row 2: Market Selection */}
+              {/* Row 2: Market Selection - Single select (tap to select only that market) */}
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
                 {MARKET_OPTIONS.map((market) => {
                   // Handle "All" selection
                   const isAll = market.value === "all";
-                  const isSelected = isAll 
-                    ? selectedMarkets.length === MARKET_OPTIONS.length - 1 // All markets except "all" itself
-                    : selectedMarkets.includes(market.value);
+                  const allMarketsCount = MARKET_OPTIONS.length - 1; // Exclude "all" itself
+                  const isAllSelected = selectedMarkets.length === allMarketsCount;
+                  const isOnlyThisSelected = selectedMarkets.length === 1 && selectedMarkets[0] === market.value;
+                  
+                  // "All" is selected when all markets are selected
+                  // Individual market is selected when it's the only one selected
+                  const isSelected = isAll ? isAllSelected : isOnlyThisSelected;
                   
                   return (
                     <button
@@ -709,19 +713,16 @@ export function MobileHeader({
                       type="button"
                       onClick={() => {
                         if (isAll) {
-                          // If all markets are already selected, deselect to just Points
-                          if (isSelected) {
+                          // Toggle all markets
+                          if (isAllSelected) {
                             onMarketsChange(["player_points"]);
                           } else {
-                            // Select all markets
                             const allMarketValues = MARKET_OPTIONS.filter(m => m.value !== "all").map(m => m.value);
                             onMarketsChange(allMarketValues);
                           }
                         } else {
-                          const newMarkets = isSelected
-                            ? selectedMarkets.filter(m => m !== market.value)
-                            : [...selectedMarkets, market.value];
-                          onMarketsChange(newMarkets.length > 0 ? newMarkets : [market.value]);
+                          // Single-select: clicking a market selects only that market
+                          onMarketsChange([market.value]);
                         }
                       }}
                       className={cn(
