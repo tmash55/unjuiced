@@ -33,11 +33,21 @@ export interface CheatSheetFilterState {
   dateFilter: "today" | "tomorrow" | "all";
 }
 
-// Helper to get formatted date string (YYYY-MM-DD)
+// Helper to get formatted date string (YYYY-MM-DD) in Eastern Time
+// NBA games are scheduled in ET, so we need to use ET for date calculations
 function getDateString(daysFromNow: number = 0): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
-  return date.toISOString().split("T")[0];
+  
+  // Format in Eastern Time (NBA schedule timezone)
+  const etFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  return etFormatter.format(date);
 }
 
 // Get dates array based on filter selection
