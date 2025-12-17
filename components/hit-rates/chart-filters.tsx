@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useMemo, useCallback } from "react";
+import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Grid3X3, LayoutList } from "lucide-react";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
@@ -505,6 +505,83 @@ export function ChartFilters({
     if (games.length === 0) return 0;
     return games.reduce((sum, g) => sum + getValue(g), 0) / games.length;
   };
+  
+  // Calculate min/max for each stat (used for clamping filters when games change)
+  const statsRanges = useMemo(() => {
+    if (games.length === 0) return null;
+    
+    const calcRange = (getValue: (g: BoxScoreGame) => number) => {
+      const values = games.map(getValue);
+      return {
+        min: Math.min(...values),
+        max: Math.max(...values),
+      };
+    };
+    
+    return {
+      minutes: calcRange(g => g.minutes),
+      usage: calcRange(g => g.usagePct),
+      points: calcRange(g => g.pts),
+      rebounds: calcRange(g => g.reb),
+      assists: calcRange(g => g.ast),
+      steals: calcRange(g => g.stl),
+      blocks: calcRange(g => g.blk),
+      turnovers: calcRange(g => g.tov),
+      fga: calcRange(g => g.fga),
+      fgm: calcRange(g => g.fgm),
+      fg3a: calcRange(g => g.fg3a),
+      fg3m: calcRange(g => g.fg3m),
+      fta: calcRange(g => g.fta),
+      ftm: calcRange(g => g.ftm),
+      oreb: calcRange(g => g.oreb),
+      dreb: calcRange(g => g.dreb),
+      potentialReb: calcRange(g => g.potentialReb),
+      passes: calcRange(g => g.passes),
+      plusMinus: calcRange(g => g.plusMinus),
+      tsPct: calcRange(g => g.tsPct),
+      efgPct: calcRange(g => g.efgPct),
+    };
+  }, [games]);
+  
+  // Clamp filter values to new data range when games change
+  // This prevents slider handles from appearing outside the valid range
+  useEffect(() => {
+    if (!statsRanges) return;
+    
+    const rangeFilterKeys: Array<keyof typeof statsRanges> = [
+      'minutes', 'usage', 'points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers',
+      'fga', 'fgm', 'fg3a', 'fg3m', 'fta', 'ftm', 'oreb', 'dreb', 'potentialReb',
+      'passes', 'plusMinus', 'tsPct', 'efgPct'
+    ];
+    
+    let hasChanges = false;
+    const newFilters = { ...filters };
+    
+    for (const key of rangeFilterKeys) {
+      const filterValue = filters[key as keyof typeof filters] as FilterRange | null;
+      const statRange = statsRanges[key];
+      
+      if (filterValue && statRange) {
+        // Check if filter is completely outside the new range - clear it
+        if (filterValue.max < statRange.min || filterValue.min > statRange.max) {
+          (newFilters as any)[key] = null;
+          hasChanges = true;
+        }
+        // Check if filter needs clamping to fit within new range
+        else if (filterValue.min < statRange.min || filterValue.max > statRange.max) {
+          (newFilters as any)[key] = {
+            min: Math.max(filterValue.min, statRange.min),
+            max: Math.min(filterValue.max, statRange.max),
+          };
+          hasChanges = true;
+        }
+      }
+    }
+    
+    if (hasChanges) {
+      onFiltersChange(newFilters);
+    }
+  }, [statsRanges]); // Only run when stats change, not filters (to avoid infinite loop)
   
   const avgMinutes = calcAvg(g => g.minutes);
   const avgUsage = calcAvg(g => g.usagePct);

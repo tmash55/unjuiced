@@ -1091,6 +1091,41 @@ function TrendingFilters({ market, games, filters, onFiltersChange, onActiveFilt
       assists: calc(g => g.ast),
     };
   }, [games]);
+
+  // Clamp existing filter values to new data range when games change
+  // This prevents slider handles from appearing outside the valid range
+  useEffect(() => {
+    if (!stats) return;
+    
+    const filterKeys: Array<keyof typeof stats> = ['minutes', 'usage', 'fga', 'fg3a', 'fta', 'potentialReb', 'passes', 'points', 'rebounds', 'assists'];
+    let hasChanges = false;
+    const newFilters = { ...filters };
+    
+    for (const key of filterKeys) {
+      const filterValue = filters[key as keyof typeof filters] as { min: number; max: number } | null;
+      const statRange = stats[key];
+      
+      if (filterValue && statRange) {
+        // Check if filter is completely outside the new range - clear it
+        if (filterValue.max < statRange.min || filterValue.min > statRange.max) {
+          (newFilters as any)[key] = null;
+          hasChanges = true;
+        }
+        // Check if filter needs clamping to fit within new range
+        else if (filterValue.min < statRange.min || filterValue.max > statRange.max) {
+          (newFilters as any)[key] = {
+            min: Math.max(filterValue.min, statRange.min),
+            max: Math.min(filterValue.max, statRange.max),
+          };
+          hasChanges = true;
+        }
+      }
+    }
+    
+    if (hasChanges) {
+      onFiltersChange(newFilters);
+    }
+  }, [stats]); // Only run when stats change, not filters (to avoid infinite loop)
   
   // Slider drag handling - must be before any early returns to follow Rules of Hooks
   const handleDrag = useCallback((clientX: number, handle: "min" | "max", config: { key: string; stats: { min: number; max: number } } | null, currentValue: { min: number; max: number } | null) => {
@@ -3292,6 +3327,55 @@ export function MobilePlayerDrilldown({
     
     return games;
   }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
+
+  // Games for TrendingFilters/AdvancedFilters histograms - applies quick + injury filters but NOT advanced filters
+  // This way when you filter "without Sam Merrill", the histogram shows only those games
+  const gamesForTrendingFilters = useMemo(() => {
+    if (boxScoreGames.length === 0) return [];
+    
+    let games = [...boxScoreGames];
+    
+    // Apply quick filters
+    if (quickFilters.size > 0) {
+      games = games.filter(game => {
+        if (quickFilters.has("home") && game.homeAway !== "H") return false;
+        if (quickFilters.has("away") && game.homeAway !== "A") return false;
+        if (quickFilters.has("win") && game.result !== "W") return false;
+        if (quickFilters.has("loss") && game.result !== "L") return false;
+        const margin = parseInt(String(game.margin)) || 0;
+        if (quickFilters.has("wonBy10") && (game.result !== "W" || margin < 10)) return false;
+        if (quickFilters.has("lostBy10") && (game.result !== "L" || Math.abs(margin) < 10)) return false;
+        if (quickFilters.has("high_mins") && game.minutes < 30) return false;
+        return true;
+      });
+    }
+    
+    // Apply injury filters
+    if (injuryFilters.length > 0) {
+      games = games.filter(game => {
+        const gameIdStr = String(game.gameId || "");
+        const normalizedGameId = gameIdStr.replace(/^0+/, "");
+        const playersOutThisGame = teammatesOutByGame.get(normalizedGameId) || new Set<number>();
+        
+        for (const filter of injuryFilters) {
+          const wasPlayerOut = playersOutThisGame.has(filter.playerId);
+          if (filter.mode === "with" && wasPlayerOut) return false;
+          if (filter.mode === "without" && !wasPlayerOut) return false;
+        }
+        return true;
+      });
+    }
+    
+    // Apply game count filter
+    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
+      games = games.filter(game => game.opponentAbbr === profile.opponentTeamAbbr);
+    }
+    if (gameCount !== "season" && gameCount !== "h2h") {
+      games = games.slice(0, gameCount);
+    }
+    
+    return games;
+  }, [boxScoreGames, quickFilters, injuryFilters, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
   
   // Calculate average from filtered games
   const avg = useMemo(() => {
@@ -3831,7 +3915,7 @@ export function MobilePlayerDrilldown({
         onClose={() => setShowAdvancedFilters(false)}
         filters={advancedFilters}
         onFiltersChange={setAdvancedFilters}
-        games={boxScoreGames}
+        games={gamesForTrendingFilters}
         market={profile.market}
       />
 
@@ -4169,7 +4253,7 @@ export function MobilePlayerDrilldown({
             <TrendingFilters
               market={profile.market}
               onActiveFilterChange={setActiveOverlayFilter}
-              games={boxScoreGames}
+              games={gamesForTrendingFilters}
               filters={advancedFilters}
               onFiltersChange={setAdvancedFilters}
             />
