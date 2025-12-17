@@ -28,7 +28,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 // Cheat sheet tabs
 const SHEET_TABS = [
   { slug: "hit-rates", label: "Hit Rates", enabled: true },
-  { slug: "alt-hit-matrix", label: "Alt Matrix", enabled: false },
+  { slug: "alt-hit-matrix", label: "Alt Matrix", enabled: true },
   { slug: "injury-impact", label: "Injuries", enabled: false },
 ];
 

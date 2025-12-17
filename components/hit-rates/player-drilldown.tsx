@@ -686,6 +686,85 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return map;
   }, [profile.gameLogs]);
 
+  // Helper function to apply quick filters
+  const applyQuickFilters = (games: typeof boxScoreGames) => {
+    if (quickFilters.size === 0) return games;
+    
+    return games.filter(game => {
+      // Home/Away
+      if (quickFilters.has("home") && game.homeAway !== "H") return false;
+      if (quickFilters.has("away") && game.homeAway !== "A") return false;
+      
+      // Win/Loss
+      if (quickFilters.has("win") && game.result !== "W") return false;
+      if (quickFilters.has("loss") && game.result !== "L") return false;
+      
+      // Win by 10+ / Lost by 10+
+      const margin = parseInt(String(game.margin)) || 0;
+      if (quickFilters.has("wonBy10") && (game.result !== "W" || margin < 10)) return false;
+      if (quickFilters.has("lostBy10") && (game.result !== "L" || Math.abs(margin) < 10)) return false;
+      
+      // Primetime (nationally televised) - check if field exists
+      if (quickFilters.has("primetime") && !(game as any).nationalBroadcast) return false;
+      
+      return true;
+    });
+  };
+
+  // Helper function to apply injury filters
+  const applyInjuryFilters = (games: typeof boxScoreGames) => {
+    if (injuryFilters.length === 0) return games;
+    
+    return games.filter(game => {
+      const gameIdStr = game.gameId ? String(game.gameId) : "";
+      const normalizedGameId = gameIdStr.replace(/^0+/, "");
+      const playersOutThisGame = teammatesOutByGame.get(normalizedGameId) || new Set<number>();
+      
+      for (const filter of injuryFilters) {
+        const wasPlayerOut = playersOutThisGame.has(filter.playerId);
+        
+        if (filter.mode === "with") {
+          // "With" = player was playing (NOT out) 
+          if (wasPlayerOut) return false;
+        } else if (filter.mode === "without") {
+          // "Without" = player was out
+          if (!wasPlayerOut) return false;
+        }
+      }
+      return true;
+    });
+  };
+
+  // Helper function to apply game count/H2H filter
+  const applyGameCountFilter = (games: typeof boxScoreGames) => {
+    let result = games;
+    
+    // Filter by opponent if H2H is selected
+    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
+      result = result.filter(game => game.opponentAbbr === profile.opponentTeamAbbr);
+    }
+    
+    // Limit by game count (not for season or h2h which show all matching games)
+    if (gameCount !== "season" && gameCount !== "h2h") {
+      result = result.slice(0, gameCount);
+    }
+    
+    return result;
+  };
+
+  // Games for ChartFilters histograms - applies quick + injury filters but NOT chart filters
+  // This way when you filter "without Sam Merrill", the histogram shows only those games
+  const gamesForChartFilters = useMemo(() => {
+    if (boxScoreGames.length === 0) return [];
+    
+    let games = [...boxScoreGames];
+    games = applyQuickFilters(games);
+    games = applyInjuryFilters(games);
+    games = applyGameCountFilter(games);
+    
+    return games;
+  }, [boxScoreGames, gameCount, quickFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr]);
+
   // Filter games based on quick filters, chart filters, injury filters, THEN limit by game count
   // This way "L5 + Win" shows the last 5 wins, not wins from the last 5 games
   const filteredGames = useMemo(() => {
@@ -693,63 +772,17 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     
     let games = [...boxScoreGames];
     
-    // First, apply quick filters
-    if (quickFilters.size > 0) {
-      games = games.filter(game => {
-        // Home/Away
-        if (quickFilters.has("home") && game.homeAway !== "H") return false;
-        if (quickFilters.has("away") && game.homeAway !== "A") return false;
-        
-        // Win/Loss
-        if (quickFilters.has("win") && game.result !== "W") return false;
-        if (quickFilters.has("loss") && game.result !== "L") return false;
-        
-        // Win by 10+ / Lost by 10+
-        const margin = parseInt(String(game.margin)) || 0;
-        if (quickFilters.has("wonBy10") && (game.result !== "W" || margin < 10)) return false;
-        if (quickFilters.has("lostBy10") && (game.result !== "L" || Math.abs(margin) < 10)) return false;
-        
-        // Primetime (nationally televised) - check if field exists
-        if (quickFilters.has("primetime") && !(game as any).nationalBroadcast) return false;
-        
-        return true;
-      });
-    }
+    // Apply quick filters
+    games = applyQuickFilters(games);
     
-    // Then apply chart filters
+    // Apply chart filters
     games = applyChartFilters(games, chartFilters);
     
-    // Apply injury filters (with/without specific players)
-    if (injuryFilters.length > 0) {
-      games = games.filter(game => {
-        const gameIdStr = game.gameId ? String(game.gameId) : "";
-        const normalizedGameId = gameIdStr.replace(/^0+/, "");
-        const playersOutThisGame = teammatesOutByGame.get(normalizedGameId) || new Set<number>();
-        
-        for (const filter of injuryFilters) {
-          const wasPlayerOut = playersOutThisGame.has(filter.playerId);
-          
-          if (filter.mode === "with") {
-            // "With" = player was playing (NOT out) 
-            if (wasPlayerOut) return false;
-          } else if (filter.mode === "without") {
-            // "Without" = player was out
-            if (!wasPlayerOut) return false;
-          }
-        }
-        return true;
-      });
-    }
+    // Apply injury filters
+    games = applyInjuryFilters(games);
     
-    // Filter by opponent if H2H is selected
-    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
-      games = games.filter(game => game.opponentAbbr === profile.opponentTeamAbbr);
-    }
-    
-    // Finally, limit by game count (not for season or h2h which show all matching games)
-    if (gameCount !== "season" && gameCount !== "h2h") {
-      games = games.slice(0, gameCount);
-    }
+    // Apply game count filter
+    games = applyGameCountFilter(games);
     
     return games;
   }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr]);
@@ -1488,7 +1521,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
           <div className="p-5">
             <ChartFilters
-              games={gameCount === "season" || gameCount === "h2h" ? boxScoreGames : boxScoreGames.slice(0, gameCount)}
+              games={gamesForChartFilters}
               filters={chartFilters}
               onFiltersChange={setChartFilters}
               market={profile.market}
