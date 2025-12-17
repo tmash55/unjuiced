@@ -31,7 +31,6 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "Alt Matrix",
     icon: TrendingUp,
     description: "Best alternate lines",
-    comingSoon: true,
   },
   {
     slug: "injury-impact",
@@ -39,7 +38,6 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "Injuries",
     icon: UserMinus,
     description: "Injury-affected props",
-    comingSoon: true,
   },
 ];
 
