@@ -314,6 +314,12 @@ export function InjuryImpactTable({
         case "confidenceScore":
           comparison = (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
           break;
+        case "odds":
+          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
+          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
+          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
+          comparison = (bOdds?.bestOver?.price ?? -9999) - (aOdds?.bestOver?.price ?? -9999);
+          break;
         default:
           break;
       }
@@ -336,7 +342,7 @@ export function InjuryImpactTable({
     } else {
       setSortField(field);
       // Default to descending for numeric fields (highest first), ascending for text fields
-      const numericFields = ["hitRate", "statBoost", "gamesWithTeammateOut", "confidenceScore", "opportunityGrade"];
+      const numericFields = ["hitRate", "statBoost", "gamesWithTeammateOut", "confidenceScore", "opportunityGrade", "odds"];
       setSortDir(numericFields.includes(field) ? "desc" : "asc");
     }
   };
@@ -410,7 +416,7 @@ export function InjuryImpactTable({
                 <SortButton field="confidenceScore">Grade</SortButton>
               </th>
               <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[75px] bg-neutral-50 dark:bg-neutral-800/80">
-                <div className="w-full flex items-center justify-center">Odds</div>
+                <SortButton field="odds">Odds</SortButton>
               </th>
               <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-12 bg-neutral-50 dark:bg-neutral-800/80">
                 Action
@@ -588,18 +594,18 @@ function KeyStatCell({
           </span>
           {/* Overall → When Out */}
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-neutral-500 tabular-nums">
+            <span className="text-[10px] text-neutral-500 dark:text-neutral-500 tabular-nums">
               {keyStat.overall.toFixed(1)}
             </span>
-            <span className="text-neutral-600 text-[10px]">→</span>
-            <span className="text-xs text-neutral-300 tabular-nums font-medium">
+            <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">→</span>
+            <span className="text-xs text-neutral-700 dark:text-neutral-300 tabular-nums font-medium">
               {keyStat.whenOut.toFixed(1)}
             </span>
           </div>
           {/* Boost */}
           <span className={cn(
             "text-[10px] font-semibold tabular-nums",
-            keyStat.boost > 0 ? "text-green-400" : keyStat.boost < 0 ? "text-red-400" : "text-neutral-500"
+            keyStat.boost > 0 ? "text-green-500 dark:text-green-400" : keyStat.boost < 0 ? "text-red-500 dark:text-red-400" : "text-neutral-500"
           )}>
             {keyStat.boost > 0 ? "+" : ""}{keyStat.boost.toFixed(1)}
           </span>
@@ -1149,11 +1155,11 @@ function InjuryImpactRow({
           )}>
             {/* Main row: Season Avg → Avg When Out */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-neutral-500 tabular-nums">
+              <span className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums">
                 {stats.avgStatOverall.toFixed(1)}
               </span>
-              <span className="text-neutral-500">→</span>
-              <span className="text-sm font-semibold text-neutral-200 tabular-nums">
+              <span className="text-neutral-400 dark:text-neutral-500">→</span>
+              <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 tabular-nums">
                 {stats.avgStatWhenOut.toFixed(1)}
               </span>
             </div>
@@ -1167,8 +1173,8 @@ function InjuryImpactRow({
               </span>
               <span className={cn(
                 "text-[10px] tabular-nums",
-                stats.statBoostPct !== null && stats.statBoostPct > 0 ? "text-green-400/70" : 
-                stats.statBoostPct !== null && stats.statBoostPct < 0 ? "text-red-400/70" : "text-neutral-500"
+                stats.statBoostPct !== null && stats.statBoostPct > 0 ? "text-green-600/80 dark:text-green-400/70" : 
+                stats.statBoostPct !== null && stats.statBoostPct < 0 ? "text-red-600/80 dark:text-red-400/70" : "text-neutral-500"
               )}>
                 ({stats.statBoostPct !== null && stats.statBoostPct > 0 ? "+" : ""}
                 {stats.statBoostPct?.toFixed(0)}%)
@@ -1188,7 +1194,7 @@ function InjuryImpactRow({
         <div className="relative inline-flex items-center justify-center min-w-[32px] min-h-[24px]">
           <span className={cn(
             "text-sm transition-opacity duration-150",
-            stats.games >= 5 ? "text-neutral-200" : "text-neutral-500",
+            stats.games >= 5 ? "text-neutral-800 dark:text-neutral-200" : "text-neutral-500 dark:text-neutral-500",
             isRecalculating && "opacity-40"
           )}>
             {stats.games}
@@ -1254,26 +1260,26 @@ function InjuryImpactRow({
             )}>
               {/* Minutes: overall → when out (boost) */}
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-neutral-500 w-7">MIN</span>
-                <span className="text-[10px] text-neutral-500 tabular-nums">{stats.avgMinutesOverall.toFixed(0)}</span>
-                <span className="text-neutral-600 text-[10px]">→</span>
-                <span className="text-xs text-neutral-300 tabular-nums font-medium">{stats.avgMinutesWhenOut.toFixed(0)}</span>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-500 w-7">MIN</span>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-500 tabular-nums">{stats.avgMinutesOverall.toFixed(0)}</span>
+                <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">→</span>
+                <span className="text-xs text-neutral-700 dark:text-neutral-300 tabular-nums font-medium">{stats.avgMinutesWhenOut.toFixed(0)}</span>
                 <span className={cn(
                   "text-[10px] font-semibold tabular-nums",
-                  stats.minutesBoost > 0 ? "text-green-400" : stats.minutesBoost < 0 ? "text-red-400" : "text-neutral-500"
+                  stats.minutesBoost > 0 ? "text-green-500 dark:text-green-400" : stats.minutesBoost < 0 ? "text-red-500 dark:text-red-400" : "text-neutral-500"
                 )}>
                   {stats.minutesBoost > 0 ? "+" : ""}{stats.minutesBoost.toFixed(1)}
                 </span>
               </div>
               {/* Usage: overall → when out (boost) - multiply by 100 to convert decimal to % */}
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-neutral-500 w-7">USG</span>
-                <span className="text-[10px] text-neutral-500 tabular-nums">{(stats.usageOverall * 100).toFixed(0)}%</span>
-                <span className="text-neutral-600 text-[10px]">→</span>
-                <span className="text-xs text-neutral-300 tabular-nums font-medium">{(stats.usageWhenOut * 100).toFixed(0)}%</span>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-500 w-7">USG</span>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-500 tabular-nums">{(stats.usageOverall * 100).toFixed(0)}%</span>
+                <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">→</span>
+                <span className="text-xs text-neutral-700 dark:text-neutral-300 tabular-nums font-medium">{(stats.usageWhenOut * 100).toFixed(0)}%</span>
                 <span className={cn(
                   "text-[10px] font-semibold tabular-nums",
-                  stats.usageBoost > 0 ? "text-green-400" : stats.usageBoost < 0 ? "text-red-400" : "text-neutral-500"
+                  stats.usageBoost > 0 ? "text-green-500 dark:text-green-400" : stats.usageBoost < 0 ? "text-red-500 dark:text-red-400" : "text-neutral-500"
                 )}>
                   {stats.usageBoost > 0 ? "+" : ""}{(stats.usageBoost * 100).toFixed(1)}
                 </span>

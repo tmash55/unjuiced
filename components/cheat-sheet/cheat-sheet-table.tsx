@@ -204,10 +204,10 @@ function HitRateDisplay({
   timeWindow?: string;
 }) {
   const getColor = (value: number) => {
-    if (value >= 0.85) return "text-emerald-500";
-    if (value >= 0.75) return "text-green-500";
-    if (value >= 0.65) return "text-yellow-500";
-    return "text-red-500";
+    if (value >= 0.85) return "text-emerald-600 dark:text-emerald-500";
+    if (value >= 0.75) return "text-green-600 dark:text-green-500";
+    if (value >= 0.65) return "text-yellow-600 dark:text-yellow-500";
+    return "text-red-600 dark:text-red-500";
   };
 
   // Get the relevant hit rate and game count based on time window
@@ -237,7 +237,7 @@ function HitRateDisplay({
           <span className={cn("text-sm font-bold tabular-nums", getColor(pct))}>
             {hits}/{games}
           </span>
-          <span className="text-[10px] text-neutral-400 tabular-nums">
+          <span className="text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums">
             {pctDisplay}%
           </span>
         </>
@@ -332,8 +332,11 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
           bVal = b.dvpRank ?? 31;
           break;
         case "odds":
-          aVal = a.overOddsDecimal ?? 0;
-          bVal = b.overOddsDecimal ?? 0;
+          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
+          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
+          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
+          aVal = aOdds?.bestOver?.price ?? -9999;
+          bVal = bOdds?.bestOver?.price ?? -9999;
           break;
         case "line":
           aVal = a.line;

@@ -429,14 +429,14 @@ export function useTeammateOutStats(params: {
 export function getOpportunityGradeColor(grade: string): string {
   switch (grade) {
     case "A":
-      return "bg-green-500/20 text-green-400 border-green-500/30";
+      return "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-500/30";
     case "B":
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      return "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/30";
     case "C":
-      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      return "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-500/30";
     case "D":
     default:
-      return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
+      return "bg-neutral-100 dark:bg-neutral-500/20 text-neutral-600 dark:text-neutral-400 border-neutral-300 dark:border-neutral-500/30";
   }
 }
 
@@ -444,24 +444,24 @@ export function getOpportunityGradeColor(grade: string): string {
  * Get color for stat boost
  */
 export function getStatBoostColor(boost: number): string {
-  if (boost >= 3) return "text-green-400";
-  if (boost >= 1) return "text-green-300";
-  if (boost > 0) return "text-green-200";
-  if (boost < -1) return "text-red-400";
-  if (boost < 0) return "text-red-300";
-  return "text-neutral-400";
+  if (boost >= 3) return "text-green-600 dark:text-green-400";
+  if (boost >= 1) return "text-green-500 dark:text-green-300";
+  if (boost > 0) return "text-green-500 dark:text-green-200";
+  if (boost < -1) return "text-red-600 dark:text-red-400";
+  if (boost < 0) return "text-red-500 dark:text-red-300";
+  return "text-neutral-500 dark:text-neutral-400";
 }
 
 /**
  * Get color for hit rate
  */
 export function getHitRateColor(hitRate: number | null): string {
-  if (hitRate === null) return "text-neutral-400";
-  if (hitRate >= 0.8) return "text-green-400";
-  if (hitRate >= 0.7) return "text-green-300";
-  if (hitRate >= 0.6) return "text-yellow-400";
-  if (hitRate >= 0.5) return "text-yellow-300";
-  return "text-red-400";
+  if (hitRate === null) return "text-neutral-500 dark:text-neutral-400";
+  if (hitRate >= 0.8) return "text-green-600 dark:text-green-400";
+  if (hitRate >= 0.7) return "text-green-500 dark:text-green-300";
+  if (hitRate >= 0.6) return "text-yellow-600 dark:text-yellow-400";
+  if (hitRate >= 0.5) return "text-yellow-500 dark:text-yellow-300";
+  return "text-red-600 dark:text-red-400";
 }
 
 /**

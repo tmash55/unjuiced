@@ -447,8 +447,10 @@ export function MobileCheatSheet({
           // Higher rank = easier matchup = better, so sort descending
           return (b.dvpRank ?? 0) - (a.dvpRank ?? 0);
         case "odds":
-          // We'd need to look up odds - for now just use confidence as fallback
-          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
+          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
+          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
+          return (bOdds?.bestOver?.price ?? -9999) - (aOdds?.bestOver?.price ?? -9999);
         default:
           return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
       }

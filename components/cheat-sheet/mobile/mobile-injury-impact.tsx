@@ -73,6 +73,7 @@ const SORT_OPTIONS = [
   { value: "statBoost", label: "Boost", key: "statBoost" },
   { value: "games", label: "Games", key: "games" },
   { value: "grade", label: "Grade", key: "grade" },
+  { value: "odds", label: "Odds", key: "odds" },
 ] as const;
 
 type SortOption = typeof SORT_OPTIONS[number]["value"];
@@ -420,6 +421,12 @@ export function MobileInjuryImpact({
         case "grade": {
           const gradeOrder: Record<string, number> = { A: 1, B: 2, C: 3, D: 4 };
           return (gradeOrder[a.opportunityGrade] ?? 5) - (gradeOrder[b.opportunityGrade] ?? 5);
+        }
+        case "odds": {
+          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
+          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
+          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
+          return (bOdds?.bestOver?.price ?? -9999) - (aOdds?.bestOver?.price ?? -9999);
         }
         default:
           return (b.hitRate ?? 0) - (a.hitRate ?? 0);
