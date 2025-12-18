@@ -35,7 +35,7 @@ export interface CheatSheetFilterState {
 
 // Helper to get formatted date string (YYYY-MM-DD) in Eastern Time
 // NBA games are scheduled in ET, so we need to use ET for date calculations
-function getDateString(daysFromNow: number = 0): string {
+function getDateStringET(daysFromNow: number = 0): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
   
@@ -50,13 +50,32 @@ function getDateString(daysFromNow: number = 0): string {
   return etFormatter.format(date);
 }
 
+// Get current hour in Eastern Time (0-23)
+function getCurrentHourET(): number {
+  const now = new Date();
+  const etTimeString = now.toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hour12: false,
+  });
+  return parseInt(etTimeString, 10);
+}
+
+// Determine smart default date: "tomorrow" if all today's games likely started (after 8pm ET)
+export function getSmartDefaultDateFilter(): "today" | "tomorrow" {
+  const hourET = getCurrentHourET();
+  // NBA games typically start between 7pm-10pm ET
+  // If it's after 8pm ET, most/all games have started, show tomorrow
+  return hourET >= 20 ? "tomorrow" : "today";
+}
+
 // Get dates array based on filter selection
 export function getDateFilterDates(filter: "today" | "tomorrow" | "all"): string[] | undefined {
   switch (filter) {
     case "today":
-      return [getDateString(0)];
+      return [getDateStringET(0)];
     case "tomorrow":
-      return [getDateString(1)];
+      return [getDateStringET(1)];
     case "all":
       return undefined;
   }

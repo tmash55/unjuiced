@@ -3,10 +3,12 @@
 import { use, useState, useMemo } from "react";
 import { notFound } from "next/navigation";
 import { useCheatSheet, useCheatSheetOdds, CheatSheetRow } from "@/hooks/use-cheat-sheet";
+import { useInjuryImpactCheatsheet, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
 import { 
   CheatSheetFilterState,
   DEFAULT_CHEAT_SHEET_FILTERS,
-  getDateFilterDates
+  getDateFilterDates,
+  getSmartDefaultDateFilter
 } from "@/components/cheat-sheet/cheat-sheet-filters";
 import { CheatSheetTable } from "@/components/cheat-sheet/cheat-sheet-table";
 import { CheatSheetFilterBar } from "@/components/cheat-sheet/cheat-sheet-filter-bar";
@@ -14,6 +16,8 @@ import { ConfidenceGlossary } from "@/components/cheat-sheet/confidence-glossary
 import { MobileConfidenceGlossary } from "@/components/cheat-sheet/mobile/mobile-confidence-glossary";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 import { MobileCheatSheet } from "@/components/cheat-sheet/mobile/mobile-cheat-sheet";
+import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
+import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
 const SUPPORTED_SPORTS = ["nba"] as const;
@@ -59,12 +63,21 @@ export default function CheatSheetPage({
 
   const sheetInfo = SHEET_INFO[sheet];
 
-  // For now, only hit-rates is implemented
-  if (sheet !== "hit-rates") {
-    return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
+  // Route to appropriate sheet component
+  if (sheet === "hit-rates") {
+    return <HitRatesCheatSheet sport={sport} sheet={sheet} />;
+  }
+  
+  if (sheet === "alt-hit-matrix") {
+    return <AltHitMatrixSheet sport={sport} sheet={sheet} />;
+  }
+  
+  if (sheet === "injury-impact") {
+    return <InjuryImpactSheet sport={sport} sheet={sheet} />;
   }
 
-  return <HitRatesCheatSheet sport={sport} sheet={sheet} />;
+  // Other sheets coming soon
+  return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
 }
 
 function ComingSoonSheet({ 
@@ -98,9 +111,112 @@ function ComingSoonSheet({
   );
 }
 
+function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Tab Navigation */}
+      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
+      
+      <div className={isMobile ? "px-2 py-4" : "container mx-auto px-4 py-6"}>
+        <AltHitMatrix sport={sport} />
+      </div>
+    </div>
+  );
+}
+
+function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  // Use smart default: "tomorrow" if all today's games have started (after 8pm ET)
+  const [filters, setFilters] = useState<CheatSheetFilterState>(() => ({
+    ...DEFAULT_CHEAT_SHEET_FILTERS,
+    dateFilter: getSmartDefaultDateFilter(),
+    markets: ["player_points"], // Default to Points for injury impact
+  }));
+  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+
+  // Fetch injury impact data
+  const { rows, isLoading, error } = useInjuryImpactCheatsheet({
+    dates: getDateFilterDates(filters.dateFilter),
+    markets: filters.markets.length > 0 ? filters.markets : undefined,
+    minGames: 2,
+    minTeammateMinutes: 15,
+  });
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Tab Navigation */}
+      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
+      
+      <div className={isMobile ? "px-2 py-4" : "container mx-auto px-4 py-6"}>
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+          {/* Market Filter Bar */}
+          <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mr-2">
+                Market:
+              </span>
+              {INJURY_IMPACT_MARKETS.slice(0, 7).map((market) => {
+                const isSelected = filters.markets.includes(market.value);
+                return (
+                  <button
+                    key={market.value}
+                    onClick={() => setFilters(prev => ({
+                      ...prev,
+                      markets: [market.value], // Single select for injury impact
+                    }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "bg-blue-500 text-white"
+                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                    }`}
+                  >
+                    {market.label}
+                  </button>
+                );
+              })}
+              
+              {/* Date filter */}
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-neutral-500">Date:</span>
+                <select
+                  value={filters.dateFilter}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    dateFilter: e.target.value as "today" | "tomorrow" | "all",
+                  }))}
+                  className="px-2 py-1 rounded-lg text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-none"
+                >
+                  <option value="today">Today</option>
+                  <option value="tomorrow">Tomorrow</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <InjuryImpactTable
+            rows={rows}
+            isLoading={isLoading}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onGlossaryOpen={() => setIsGlossaryOpen(true)}
+            sport={sport}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const [filters, setFilters] = useState<CheatSheetFilterState>(DEFAULT_CHEAT_SHEET_FILTERS);
+  // Use smart default: "tomorrow" if all today's games have started (after 8pm ET)
+  const [filters, setFilters] = useState<CheatSheetFilterState>(() => ({
+    ...DEFAULT_CHEAT_SHEET_FILTERS,
+    dateFilter: getSmartDefaultDateFilter(),
+  }));
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
 
   // Fetch data with API filters
