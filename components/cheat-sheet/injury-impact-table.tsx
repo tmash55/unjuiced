@@ -30,6 +30,7 @@ import {
   X,
   Plus,
   UserMinus,
+  Lock,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
@@ -334,6 +335,15 @@ export function InjuryImpactTable({
     </button>
   );
 
+  // Early return for loading state - matches cheat sheet table style
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       {/* Scrollable Table Container */}
@@ -383,14 +393,7 @@ export function InjuryImpactTable({
             </tr>
           </thead>
         <tbody>
-          {isLoading ? (
-            <tr>
-              <td colSpan={10} className="py-16 text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-neutral-400" />
-                <p className="mt-2 text-neutral-500">Loading injury impact data...</p>
-              </td>
-            </tr>
-          ) : sortedRows.length === 0 ? (
+          {sortedRows.length === 0 ? (
             <tr>
               <td colSpan={10} className="py-16 text-center text-neutral-500">
                 <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -414,6 +417,7 @@ export function InjuryImpactTable({
                   onStateChange={(update) => updateRowState(key, update)}
                   onPinChange={(pinned) => setPinned(key, pinned)}
                   liveOdds={liveOdds}
+                  isGated={isGated}
                 />
               );
             })
@@ -593,6 +597,7 @@ interface InjuryImpactRowProps {
   onStateChange: (update: Partial<RowState>) => void;
   onPinChange: (pinned: boolean) => void;
   liveOdds: OddsData | null;
+  isGated?: boolean;
 }
 
 function InjuryImpactRow({
@@ -602,6 +607,7 @@ function InjuryImpactRow({
   onStateChange,
   onPinChange,
   liveOdds,
+  isGated = false,
 }: InjuryImpactRowProps) {
   // Dropdown states
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
@@ -1018,7 +1024,17 @@ function InjuryImpactRow({
                 </div>
               </div>
               
-              <div className="max-h-48 overflow-y-auto">
+              {/* Upgrade banner for gated users */}
+              {isGated && (
+                <div className="px-3 py-2 bg-brand/10 border-b border-brand/20">
+                  <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-300">
+                    <Lock className="w-3 h-3 text-brand shrink-0" />
+                    <span><a href="/pricing" className="font-semibold text-brand hover:underline">Upgrade</a> to change markets</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className={cn("max-h-48 overflow-y-auto", isGated && "opacity-50 pointer-events-none")}>
                 {linesLoading ? (
                   <div className="p-4 text-center">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto text-neutral-400" />
@@ -1034,7 +1050,8 @@ function InjuryImpactRow({
                     return (
                       <button
                         key={`${line.market}-${line.line}`}
-                        onClick={() => handleMarketSelect(line)}
+                        onClick={() => !isGated && handleMarketSelect(line)}
+                        disabled={isGated}
                         className={cn(
                           "w-full px-3 py-2 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors",
                           isSelected && "bg-brand/10 dark:bg-brand/20"

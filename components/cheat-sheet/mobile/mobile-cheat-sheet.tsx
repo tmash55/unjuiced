@@ -699,42 +699,47 @@ export function MobileCheatSheet({
                 )}
               </div>
 
-              {/* Advanced Filters Button - Locked for gated users */}
-              {isGated ? (
-                <div className="flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0 border bg-neutral-100 dark:bg-neutral-800 text-neutral-400 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed">
-                  <Lock className="h-3.5 w-3.5" />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={cn(
-                    "flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0",
-                    "border transition-all duration-150 active:scale-[0.96]",
-                    showFilters
-                      ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
-                      : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
-                  )}
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                </button>
-              )}
+              {/* Advanced Filters Button - Always clickable, filters locked for gated users */}
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0",
+                  "border transition-all duration-150 active:scale-[0.96]",
+                  showFilters
+                    ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
+                    : "bg-white dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700"
+                )}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Expanded Advanced Filters - Hidden for gated users */}
-        {showFilters && !isGated && (
+        {/* Expanded Advanced Filters - Visible for all, but locked for gated users */}
+        {showFilters && (
           <div className="px-3 pb-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
+            {/* Upgrade banner for gated users */}
+            {isGated && (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-brand/10 border border-brand/20">
+                <Lock className="w-3.5 h-3.5 text-brand shrink-0" />
+                <span className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                  <Link href="/pricing" className="font-semibold text-brand hover:underline">Upgrade</Link> to unlock all filters
+                </span>
+              </div>
+            )}
+            
             {/* Hit Rate */}
-            <div>
+            <div className={cn(isGated && "opacity-50 pointer-events-none")}>
               <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5 block">Min Hit Rate</label>
               <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
                 {HIT_RATE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => updateFilter("minHitRate", opt.value)}
+                    onClick={() => !isGated && updateFilter("minHitRate", opt.value)}
+                    disabled={isGated}
                     className={cn(
                       "flex-1 px-2 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap",
                       filters.minHitRate === opt.value
@@ -749,12 +754,13 @@ export function MobileCheatSheet({
             </div>
 
             {/* Quick Toggles */}
-            <div>
+            <div className={cn(isGated && "opacity-50 pointer-events-none")}>
               <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5 block">Quick Filters</label>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => updateFilter("trendFilter", filters.trendFilter.includes("hot") ? [] : ["hot"])}
+                  onClick={() => !isGated && updateFilter("trendFilter", filters.trendFilter.includes("hot") ? [] : ["hot"])}
+                  disabled={isGated}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                     filters.trendFilter.includes("hot")
@@ -767,7 +773,8 @@ export function MobileCheatSheet({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateFilter("hideInjured", !filters.hideInjured)}
+                  onClick={() => !isGated && updateFilter("hideInjured", !filters.hideInjured)}
+                  disabled={isGated}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                     filters.hideInjured
@@ -780,7 +787,8 @@ export function MobileCheatSheet({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateFilter("hideB2B", !filters.hideB2B)}
+                  onClick={() => !isGated && updateFilter("hideB2B", !filters.hideB2B)}
+                  disabled={isGated}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                     filters.hideB2B
@@ -793,7 +801,8 @@ export function MobileCheatSheet({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateFilter("hideNoOdds", !filters.hideNoOdds)}
+                  onClick={() => !isGated && updateFilter("hideNoOdds", !filters.hideNoOdds)}
+                  disabled={isGated}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                     filters.hideNoOdds

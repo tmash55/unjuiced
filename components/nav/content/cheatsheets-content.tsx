@@ -18,7 +18,7 @@ const cheatsheets = [
     href: "/cheatsheets/nba/hit-rates",
     color: "#34d399", // Emerald
     comingSoon: false,
-    badge: null,
+    badge: "NEW",
   },
   {
     icon: (
@@ -31,7 +31,7 @@ const cheatsheets = [
     href: "/cheatsheets/nba/injury-impact",
     color: "#fb923c", // Orange
     comingSoon: false,
-    badge: null,
+    badge: "NEW",
   },
   {
     icon: (
