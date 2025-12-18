@@ -418,51 +418,50 @@ export function CheatSheetFilterBar({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Advanced Filters Toggle */}
-        {isGated ? (
-          <Tooltip content={upgradeTooltip}>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
-              <Lock className="w-3 h-3" />
-              Filters
-            </div>
-          </Tooltip>
-        ) : (
-          <>
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                showAdvanced || activeFilterCount > 0
-                  ? "bg-brand/10 text-brand"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-              )}
-            >
-              <Filter className="w-3 h-3" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="bg-brand text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
+        {/* Advanced Filters Toggle - Always clickable, filters locked for gated users */}
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+            showAdvanced || activeFilterCount > 0
+              ? "bg-brand/10 text-brand"
+              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+          )}
+        >
+          <Filter className="w-3 h-3" />
+          Filters
+          {activeFilterCount > 0 && !isGated && (
+            <span className="bg-brand text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
 
-            {activeFilterCount > 0 && (
-              <button
-                onClick={resetFilters}
-                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                title="Reset filters"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </>
+        {activeFilterCount > 0 && !isGated && (
+          <button
+            onClick={resetFilters}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            title="Reset filters"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
 
-      {/* Advanced Filters Panel - Hidden when gated */}
-      {showAdvanced && !isGated && (
+      {/* Advanced Filters Panel - Visible for all, but locked for gated users */}
+      {showAdvanced && (
         <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/20">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          {/* Upgrade banner for gated users */}
+          {isGated && (
+            <div className="flex items-center gap-2 p-2.5 mb-3 rounded-lg bg-brand/10 border border-brand/20">
+              <Lock className="w-3.5 h-3.5 text-brand shrink-0" />
+              <span className="text-xs text-neutral-600 dark:text-neutral-300">
+                <a href="/pricing" className="font-semibold text-brand hover:underline">Upgrade</a> to unlock all filters
+              </span>
+            </div>
+          )}
+          
+          <div className={cn("flex flex-wrap items-end justify-between gap-4", isGated && "opacity-50 pointer-events-none")}>
             {/* Matchup (DvP) */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
@@ -472,7 +471,8 @@ export function CheatSheetFilterBar({
                 {MATCHUP_OPTIONS.map((opt) => (
                   <Tooltip key={opt.value} content={`Defense vs Position rank ${opt.value === "favorable" ? "21-30 (weak defense)" : opt.value === "neutral" ? "11-20" : opt.value === "unfavorable" ? "1-10 (strong defense)" : "Show all"}`} side="top">
                     <button
-                      onClick={() => updateFilter("matchupFilter", opt.value as any)}
+                      onClick={() => !isGated && updateFilter("matchupFilter", opt.value as any)}
+                      disabled={isGated}
                       className={cn(
                         "px-3 py-2 rounded-lg text-xs font-medium transition-all",
                         filters.matchupFilter === opt.value
@@ -496,7 +496,8 @@ export function CheatSheetFilterBar({
                 {CONFIDENCE_OPTIONS.map((opt) => (
                   <Tooltip key={opt.value} content={`Filter by ${opt.value} confidence grade`} side="top">
                     <button
-                      onClick={() => toggleConfidence(opt.value)}
+                      onClick={() => !isGated && toggleConfidence(opt.value)}
+                      disabled={isGated}
                       className={cn(
                         "px-3 py-2 rounded-lg text-xs font-bold transition-all",
                         filters.confidenceFilter.includes(opt.value)
@@ -520,7 +521,8 @@ export function CheatSheetFilterBar({
                 {TREND_OPTIONS.map((opt) => (
                   <Tooltip key={opt.value} content={opt.tooltip} side="top">
                     <button
-                      onClick={() => toggleTrend(opt.value)}
+                      onClick={() => !isGated && toggleTrend(opt.value)}
+                      disabled={isGated}
                       className={cn(
                         "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
                         filters.trendFilter.includes(opt.value)
@@ -535,7 +537,8 @@ export function CheatSheetFilterBar({
                 ))}
                 <Tooltip content="Hide players with injury designations" side="top">
                   <button
-                    onClick={() => updateFilter("hideInjured", !filters.hideInjured)}
+                    onClick={() => !isGated && updateFilter("hideInjured", !filters.hideInjured)}
+                    disabled={isGated}
                     className={cn(
                       "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
                       filters.hideInjured
@@ -549,7 +552,8 @@ export function CheatSheetFilterBar({
                 </Tooltip>
                 <Tooltip content="Hide players on back-to-back games" side="top">
                   <button
-                    onClick={() => updateFilter("hideB2B", !filters.hideB2B)}
+                    onClick={() => !isGated && updateFilter("hideB2B", !filters.hideB2B)}
+                    disabled={isGated}
                     className={cn(
                       "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5",
                       filters.hideB2B
