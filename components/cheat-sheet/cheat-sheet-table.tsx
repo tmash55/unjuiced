@@ -11,9 +11,7 @@ import {
   HelpCircle,
   TrendingUp,
   TrendingDown,
-  Minus,
-  Eye,
-  EyeOff
+  Minus
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { 
@@ -35,7 +33,6 @@ interface CheatSheetTableProps {
   onRowClick?: (row: CheatSheetRow) => void;
   onGlossaryOpen?: () => void;
   hideNoOdds?: boolean;
-  onHideNoOddsChange?: (value: boolean) => void;
 }
 
 type SortField = 
@@ -267,7 +264,7 @@ function SortIcon({ field, currentField, direction }: {
     : <ChevronUp className="w-3 h-3 text-brand" />;
 }
 
-export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, timeWindow, onRowClick, onGlossaryOpen, hideNoOdds = true, onHideNoOddsChange }: CheatSheetTableProps) {
+export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, timeWindow, onRowClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
   // Helper to get live odds for a row
   const getLiveOdds = (row: CheatSheetRow) => {
     if (!oddsData || !row.oddsSelectionId) return null;
@@ -296,12 +293,6 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
            odds !== undefined && 
            (odds.bestOver !== null || odds.bestUnder !== null);
   };
-
-  // Count rows without odds for the toggle label
-  const noOddsCount = useMemo(() => {
-    if (!oddsData) return 0;
-    return rows.filter(row => !hasLiveOdds(row)).length;
-  }, [rows, oddsData]);
 
   const sortedRows = useMemo(() => {
     // First filter out rows without odds if hideNoOdds is true
@@ -386,33 +377,6 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
 
   return (
     <div className="relative">
-      {/* Toggle for hiding rows without odds */}
-      {noOddsCount > 0 && onHideNoOddsChange && (
-        <div className="flex items-center justify-end px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-          <button
-            onClick={() => onHideNoOddsChange(!hideNoOdds)}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
-              hideNoOdds
-                ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-                : "bg-brand/10 text-brand border border-brand/30"
-            )}
-          >
-            {hideNoOdds ? (
-              <>
-                <EyeOff className="w-3.5 h-3.5" />
-                <span>{noOddsCount} without odds hidden</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-3.5 h-3.5" />
-                <span>Showing all ({noOddsCount} without odds)</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
       {/* Scrollable Table Container */}
       <div className="overflow-auto max-h-[calc(100vh-200px)] min-h-[500px]">
         <table className="w-full border-collapse text-sm">

@@ -4,27 +4,23 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
-  Filter, 
   X, 
-  Flame,
-  AlertCircle,
-  Calendar,
   BookOpen,
-  ExternalLink,
-  SlidersHorizontal,
-  BarChart3,
-  TrendingUp,
-  UserMinus,
   ArrowUpDown,
   Eye,
   EyeOff,
+  Users,
+  Loader2,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Calendar,
+  SlidersHorizontal,
+  ExternalLink
 } from "lucide-react";
 import Link from "next/link";
-import { CheatSheetRow, OddsData } from "@/hooks/use-cheat-sheet";
+import { InjuryImpactRow } from "@/hooks/use-injury-impact";
+import { OddsData } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "../cheat-sheet-filters";
-import { TIME_WINDOW_OPTIONS, CHEAT_SHEET_MARKETS, HIT_RATE_OPTIONS } from "@/hooks/use-cheat-sheet";
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -43,18 +39,27 @@ const getBookName = (bookId?: string): string => {
   return sb?.name || bookId;
 };
 
-interface MobileCheatSheetProps {
-  rows: CheatSheetRow[];
+interface MobileInjuryImpactProps {
+  rows: InjuryImpactRow[];
   isLoading: boolean;
   oddsData?: Record<string, OddsData>;
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
-  onRowClick?: (row: CheatSheetRow) => void;
   sport?: string;
-  currentSheet?: string;
   isGated?: boolean; // If true, show upgrade banners and disable filters
 }
+
+// Markets for injury impact
+const INJURY_IMPACT_MARKETS = [
+  { value: "player_points", label: "PTS" },
+  { value: "player_rebounds", label: "REB" },
+  { value: "player_assists", label: "AST" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_points_rebounds", label: "P+R" },
+  { value: "player_points_assists", label: "P+A" },
+];
 
 const DATE_OPTIONS = [
   { value: "today" as const, label: "Today" },
@@ -64,11 +69,10 @@ const DATE_OPTIONS = [
 
 // Sort options for mobile
 const SORT_OPTIONS = [
-  { value: "confidence", label: "Grade", key: "confidenceScore" },
   { value: "hitRate", label: "Hit %", key: "hitRate" },
-  { value: "edge", label: "Edge", key: "edge" },
-  { value: "dvp", label: "DvP", key: "dvpRank" },
-  { value: "odds", label: "Odds", key: "odds" },
+  { value: "statBoost", label: "Boost", key: "statBoost" },
+  { value: "games", label: "Games", key: "games" },
+  { value: "grade", label: "Grade", key: "grade" },
 ] as const;
 
 type SortOption = typeof SORT_OPTIONS[number]["value"];
@@ -102,13 +106,11 @@ const formatPlayerName = (fullName: string): string => {
   const hasSuffix = NAME_SUFFIXES.includes(lastPart);
   
   if (hasSuffix && parts.length >= 3) {
-    // "LeBron James Jr." -> "L. James Jr."
     const firstName = parts[0];
     const lastName = parts[parts.length - 2];
     const suffix = lastPart;
     return `${firstName.charAt(0)}. ${lastName} ${suffix}`;
   } else if (parts.length >= 2) {
-    // "LeBron James" -> "L. James"
     const firstName = parts[0];
     const lastName = parts[parts.length - 1];
     return `${firstName.charAt(0)}. ${lastName}`;
@@ -118,7 +120,8 @@ const formatPlayerName = (fullName: string): string => {
 };
 
 // Helper functions
-const getHitRateColor = (value: number) => {
+const getHitRateColor = (value: number | null) => {
+  if (value === null) return "text-neutral-400";
   if (value >= 0.85) return "text-emerald-500";
   if (value >= 0.75) return "text-green-500";
   if (value >= 0.65) return "text-yellow-500";
@@ -131,22 +134,23 @@ const getGradeColor = (grade: string) => {
     case "A": return "bg-green-500/10 text-green-500";
     case "B+": return "bg-yellow-500/10 text-yellow-500";
     case "B": return "bg-orange-500/10 text-orange-500";
+    case "C": return "bg-neutral-500/10 text-neutral-500";
     default: return "bg-neutral-500/10 text-neutral-500";
   }
 };
 
-const getDvpColor = (rank: number | null) => {
-  if (rank === null) return "text-neutral-400 bg-neutral-100 dark:bg-neutral-800";
-  if (rank >= 21) return "text-emerald-600 bg-emerald-500/15";
-  if (rank >= 11) return "text-yellow-600 bg-yellow-500/15";
-  return "text-red-600 bg-red-500/15";
+const getBoostColor = (boost: number) => {
+  if (boost > 0) return "text-emerald-500";
+  if (boost < 0) return "text-red-500";
+  return "text-neutral-400";
 };
 
-const getEdgeColor = (edge: number | null) => {
-  if (edge === null) return "text-neutral-400";
-  if (edge >= 2) return "text-emerald-500";
-  if (edge >= 0) return "text-green-500";
-  return "text-red-500";
+const getInjuryStatusColor = (status: string) => {
+  const statusLower = status?.toLowerCase() || "";
+  if (statusLower === "out") return "text-red-500 bg-red-500/10";
+  if (statusLower === "questionable") return "text-yellow-500 bg-yellow-500/10";
+  if (statusLower === "doubtful") return "text-orange-500 bg-orange-500/10";
+  return "text-neutral-500 bg-neutral-500/10";
 };
 
 // Format odds display
@@ -165,7 +169,6 @@ function MobileOddsDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -176,15 +179,12 @@ function MobileOddsDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Build the list of books with odds for the current line
   const booksForLine = useMemo(() => {
     if (!odds) return [];
 
-    // Find the line in allLines
     const lineData = odds.allLines?.find((l) => l.line === line);
     
     if (!lineData?.books) {
-      // Fall back to bestOver if we have it
       if (odds.bestOver) {
         return [{
           book: odds.bestOver.book,
@@ -196,7 +196,6 @@ function MobileOddsDropdown({
       return [];
     }
 
-    // Extract all books with over odds, sorted by price (best first)
     const books: Array<{ book: string; price: number; url: string | null; mobileUrl: string | null }> = [];
     for (const [bookId, bookOdds] of Object.entries(lineData.books)) {
       if (bookOdds.over !== undefined) {
@@ -209,12 +208,10 @@ function MobileOddsDropdown({
       }
     }
 
-    // Sort by price descending (higher/better odds first)
     books.sort((a, b) => b.price - a.price);
     return books;
   }, [odds, line]);
 
-  // No odds available
   if (!odds || booksForLine.length === 0) {
     return <span className="text-[10px] text-neutral-400">—</span>;
   }
@@ -229,7 +226,6 @@ function MobileOddsDropdown({
     if (hasMultipleBooks) {
       setIsOpen(!isOpen);
     } else {
-      // Single book - go directly to link
       const link = bestBook.mobileUrl || bestBook.url;
       if (link) {
         window.open(link, "_blank", "noopener,noreferrer");
@@ -252,7 +248,7 @@ function MobileOddsDropdown({
         type="button"
         onClick={handleToggle}
         className={cn(
-          "inline-flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all min-w-[75px] justify-center",
+          "inline-flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all min-w-[70px] justify-center",
           "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700",
           isOpen && "ring-2 ring-brand/30"
         )}
@@ -282,7 +278,6 @@ function MobileOddsDropdown({
         )}
       </button>
 
-      {/* Dropdown */}
       {isOpen && hasMultipleBooks && (
         <div className="absolute right-0 top-full z-[100] mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
           <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto">
@@ -344,18 +339,16 @@ function MobileOddsDropdown({
   );
 }
 
-export function MobileCheatSheet({
+export function MobileInjuryImpact({
   rows,
   isLoading,
   oddsData,
   filters,
   onFiltersChange,
   onGlossaryOpen,
-  onRowClick,
   sport = "nba",
-  currentSheet = "hit-rates",
   isGated = false,
-}: MobileCheatSheetProps) {
+}: MobileInjuryImpactProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
   const [sortBy, setSortBy] = useState<SortOption>("hitRate");
@@ -386,36 +379,21 @@ export function MobileCheatSheet({
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  // Get hit rate based on time window
-  const getRowHitRate = (row: CheatSheetRow): number => {
-    switch (filters.timeWindow) {
-      case "last_5_pct": return row.last5Pct ?? 0;
-      case "last_10_pct": return row.last10Pct ?? 0;
-      case "last_20_pct": return row.last20Pct ?? 0;
-      case "season_pct": return row.seasonPct ?? 0;
-      default: return row.last10Pct ?? 0;
-    }
-  };
-
-  // Helper to check if a row has live odds in Redis
-  const hasLiveOdds = (row: CheatSheetRow): boolean => {
+  // Helper to check if a row has live odds
+  const hasLiveOdds = (row: InjuryImpactRow): boolean => {
     if (!oddsData || !row.oddsSelectionId) return false;
     const odds = oddsData[row.oddsSelectionId];
-    // Check if odds object exists AND has actual betting lines (bestOver or bestUnder)
-    return odds !== null && 
-           odds !== undefined && 
-           (odds.bestOver !== null || odds.bestUnder !== null);
+    return odds !== null && odds !== undefined && (odds.bestOver !== null || odds.bestUnder !== null);
   };
 
-  // Count rows without odds for the toggle label
+  // Count rows without odds
   const noOddsCount = useMemo(() => {
     if (!oddsData) return 0;
     return rows.filter(row => !hasLiveOdds(row)).length;
   }, [rows, oddsData]);
 
-  // Sort rows based on selected option
+  // Sort rows
   const sortedRows = useMemo(() => {
-    // First filter out rows without odds if hideNoOdds is true
     let filteredRows = rows;
     if (filters.hideNoOdds && oddsData) {
       filteredRows = rows.filter(row => hasLiveOdds(row));
@@ -424,7 +402,7 @@ export function MobileCheatSheet({
     const sorted = [...filteredRows];
     
     sorted.sort((a, b) => {
-      // Push rows without live odds to the bottom (when hideNoOdds is false)
+      // Push rows without live odds to the bottom
       if (!filters.hideNoOdds) {
         const aHasOdds = hasLiveOdds(a);
         const bHasOdds = hasLiveOdds(b);
@@ -432,51 +410,34 @@ export function MobileCheatSheet({
         if (!aHasOdds && bHasOdds) return 1;
       }
 
-      // Then sort by selected option
       switch (sortBy) {
-        case "confidence":
-          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
         case "hitRate":
-          return getRowHitRate(b) - getRowHitRate(a);
-        case "edge": {
-          const edgeA = a.edge ?? (a.avgStat != null ? a.avgStat - a.line : 0);
-          const edgeB = b.edge ?? (b.avgStat != null ? b.avgStat - b.line : 0);
-          return edgeB - edgeA;
+          return (b.hitRate ?? 0) - (a.hitRate ?? 0);
+        case "statBoost":
+          return (b.statBoost ?? 0) - (a.statBoost ?? 0);
+        case "games":
+          return (b.gamesWithTeammateOut ?? 0) - (a.gamesWithTeammateOut ?? 0);
+        case "grade": {
+          const gradeOrder: Record<string, number> = { A: 1, B: 2, C: 3, D: 4 };
+          return (gradeOrder[a.opportunityGrade] ?? 5) - (gradeOrder[b.opportunityGrade] ?? 5);
         }
-        case "dvp":
-          // Higher rank = easier matchup = better, so sort descending
-          return (b.dvpRank ?? 0) - (a.dvpRank ?? 0);
-        case "odds":
-          // We'd need to look up odds - for now just use confidence as fallback
-          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
         default:
-          return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+          return (b.hitRate ?? 0) - (a.hitRate ?? 0);
       }
     });
     
     return sorted;
-  }, [rows, sortBy, filters.timeWindow, filters.hideNoOdds, oddsData]);
+  }, [rows, sortBy, filters.hideNoOdds, oddsData]);
 
   const visibleRows = useMemo(() => sortedRows.slice(0, visibleCount), [sortedRows, visibleCount]);
   const hasMore = sortedRows.length > visibleCount;
 
-  const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? "Grade";
+  const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? "Hit %";
   const currentDateLabel = DATE_OPTIONS.find(o => o.value === filters.dateFilter)?.label ?? "Today";
 
-  const getLiveOdds = (row: CheatSheetRow): OddsData | undefined => {
+  const getLiveOdds = (row: InjuryImpactRow): OddsData | undefined => {
     if (!oddsData || !row.oddsSelectionId) return undefined;
     return oddsData[row.oddsSelectionId];
-  };
-
-  // Get the relevant hit rate based on time window
-  const getHitRateData = (row: CheatSheetRow) => {
-    switch (filters.timeWindow) {
-      case "last_5_pct": return { pct: row.last5Pct, games: 5 };
-      case "last_10_pct": return { pct: row.last10Pct, games: 10 };
-      case "last_20_pct": return { pct: row.last20Pct, games: 20 };
-      case "season_pct": return { pct: row.seasonPct, games: null };
-      default: return { pct: row.last10Pct, games: 10 };
-    }
   };
 
   return (
@@ -488,10 +449,10 @@ export function MobileCheatSheet({
           <div className="flex items-center justify-between pb-1">
             <div>
               <h1 className="text-base font-bold text-neutral-900 dark:text-white">
-                Hit Rate Cheat Sheet
+                Injury Impact
               </h1>
               <p className="text-[10px] text-neutral-500">
-                High-confidence props ranked by score
+                Props boosted when teammates are out
               </p>
             </div>
             
@@ -525,57 +486,32 @@ export function MobileCheatSheet({
             </div>
           ) : (
             <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-              {/* All Markets */}
-              <button
-                type="button"
-                onClick={() => {
-                  const allSelected = filters.markets.length === CHEAT_SHEET_MARKETS.length;
-                  if (allSelected) {
-                    updateFilter("markets", ["player_points"]);
-                  } else {
-                    updateFilter("markets", CHEAT_SHEET_MARKETS.map(m => m.value));
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0",
-                  "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
-                  "border",
-                  filters.markets.length === CHEAT_SHEET_MARKETS.length
-                    ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
-                    : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
-                )}
-              >
-                All
-              </button>
-              {CHEAT_SHEET_MARKETS.map((market) => {
-                const isOnlyThisSelected = filters.markets.length === 1 && filters.markets[0] === market.value;
+              {INJURY_IMPACT_MARKETS.map((market) => {
+                const isSelected = filters.markets.length === 1 && filters.markets[0] === market.value;
                 return (
                   <button
                     key={market.value}
                     type="button"
-                    onClick={() => {
-                      // Single-select: clicking a market selects only that market
-                      updateFilter("markets", [market.value]);
-                    }}
+                    onClick={() => updateFilter("markets", [market.value])}
                     className={cn(
                       "flex items-center gap-1 px-2.5 py-1 rounded-full shrink-0",
                       "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
                       "border",
-                      isOnlyThisSelected
+                      isSelected
                         ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
                         : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
                     )}
                   >
-                    {MARKET_SHORT_LABELS[market.value] || market.label}
+                    {market.label}
                   </button>
                 );
               })}
             </div>
           )}
 
-          {/* Row 3: Date, Time Window Toggles, Sort, Filters Button */}
+          {/* Row 3: Date + Sort + Filter Controls */}
           <div className="flex items-center justify-between gap-2 pb-1">
-            {/* Left: Date + Time Window */}
+            {/* Left: Date */}
             <div className="flex items-center gap-2">
               {/* Date Dropdown - Locked for gated users */}
               {isGated ? (
@@ -601,55 +537,29 @@ export function MobileCheatSheet({
                       showDateDropdown && "rotate-180"
                     )} />
                   </button>
-
+                  
                   {showDateDropdown && (
                     <div className="absolute left-0 top-full z-[200] mt-1 min-w-[100px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                    {DATE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => {
-                          updateFilter("dateFilter", opt.value);
-                          setShowDateDropdown(false);
-                        }}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[11px] font-semibold transition-colors",
-                          filters.dateFilter === opt.value
-                            ? "bg-brand/10 text-brand"
-                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                </div>
-              )}
-
-              {/* Time Window Toggles - Locked for gated users */}
-              {isGated ? (
-                <div className="flex items-center gap-1 px-2 py-1 rounded-lg shrink-0 bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60 opacity-50 cursor-not-allowed">
-                  <Lock className="h-3 w-3 text-neutral-400" />
-                  <span className="text-[11px] font-semibold text-neutral-400">L10%</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-0.5 shrink-0 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
-                  {TIME_WINDOW_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => updateFilter("timeWindow", opt.value)}
-                      className={cn(
-                        "px-2 py-1 rounded text-[11px] font-semibold transition-all",
-                        filters.timeWindow === opt.value
-                          ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                          : "text-neutral-500 dark:text-neutral-400"
-                      )}
-                    >
-                      {opt.shortLabel}
-                    </button>
-                  ))}
+                      {DATE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            updateFilter("dateFilter", opt.value);
+                            setShowDateDropdown(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[11px] font-semibold transition-colors",
+                            filters.dateFilter === opt.value
+                              ? "bg-brand/10 text-brand"
+                              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -674,7 +584,7 @@ export function MobileCheatSheet({
                     showSortDropdown && "rotate-180"
                   )} />
                 </button>
-
+                
                 {showSortDropdown && (
                   <div className="absolute right-0 top-full z-[200] mt-1 min-w-[120px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
                     {SORT_OPTIONS.map((opt) => (
@@ -699,7 +609,7 @@ export function MobileCheatSheet({
                 )}
               </div>
 
-              {/* Advanced Filters Button - Locked for gated users */}
+              {/* Filter Toggle - Locked for gated users */}
               {isGated ? (
                 <div className="flex items-center justify-center px-2 py-1.5 rounded-lg shrink-0 border bg-neutral-100 dark:bg-neutral-800 text-neutral-400 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed">
                   <Lock className="h-3.5 w-3.5" />
@@ -722,93 +632,32 @@ export function MobileCheatSheet({
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Expanded Advanced Filters - Hidden for gated users */}
-        {showFilters && !isGated && (
-          <div className="px-3 pb-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
-            {/* Hit Rate */}
-            <div>
-              <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5 block">Min Hit Rate</label>
-              <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-                {HIT_RATE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => updateFilter("minHitRate", opt.value)}
-                    className={cn(
-                      "flex-1 px-2 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap",
-                      filters.minHitRate === opt.value
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Toggles */}
-            <div>
-              <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5 block">Quick Filters</label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => updateFilter("trendFilter", filters.trendFilter.includes("hot") ? [] : ["hot"])}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    filters.trendFilter.includes("hot")
-                      ? "bg-orange-500 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                  )}
-                >
-                  <Flame className="w-3.5 h-3.5" />
-                  Hot Streak
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateFilter("hideInjured", !filters.hideInjured)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    filters.hideInjured
-                      ? "bg-red-500 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                  )}
-                >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Hide Injured
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateFilter("hideB2B", !filters.hideB2B)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    filters.hideB2B
-                      ? "bg-orange-500 text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                  )}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Hide B2B
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateFilter("hideNoOdds", !filters.hideNoOdds)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    filters.hideNoOdds
-                      ? "bg-brand text-white"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                  )}
-                >
-                  {filters.hideNoOdds ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  {filters.hideNoOdds ? `Hide No Odds (${noOddsCount})` : "Show All"}
-                </button>
-              </div>
+      {/* Expandable Filters Panel - Hidden for gated users */}
+      {showFilters && !isGated && (
+        <div className="px-3 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 space-y-4">
+          {/* Quick Toggles */}
+          <div>
+            <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-1.5 block">Quick Filters</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => updateFilter("hideNoOdds", !filters.hideNoOdds)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  filters.hideNoOdds
+                    ? "bg-brand text-white"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                )}
+              >
+                {filters.hideNoOdds ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {filters.hideNoOdds ? `Hide No Odds (${noOddsCount})` : "Show All"}
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Table Area */}
       <div className="flex-1">
@@ -818,36 +667,37 @@ export function MobileCheatSheet({
           </div>
         ) : visibleRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-            <p className="text-base font-medium">No props match your filters</p>
+            <Users className="w-8 h-8 mb-2 opacity-50" />
+            <p className="text-base font-medium">No injury impact opportunities</p>
             <p className="text-sm mt-1">Try adjusting your filters</p>
           </div>
         ) : (
           <>
             {/* Horizontally Scrolling Table */}
             <div ref={tableRef} className="overflow-x-auto">
-              <table className="w-full min-w-[580px]">
+              <table className="w-full min-w-[570px]">
                 {/* Table Header */}
                 <thead className="bg-neutral-100 dark:bg-neutral-800">
                   <tr className="border-b border-neutral-200/60 dark:border-neutral-700/40">
-                    <th className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 text-left px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[120px] min-w-[120px]">
+                    <th className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 text-left px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[115px] min-w-[115px]">
                       Player
                     </th>
                     <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[70px]">
                       Prop
                     </th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[65px]">
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[80px]">
+                      Out
+                    </th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[50px]">
+                      Hit %
+                    </th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[50px]">
                       Grade
                     </th>
                     <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[55px]">
-                      Hit %
+                      Boost
                     </th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[55px]">
-                      Avg
-                    </th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[40px]">
-                      DvP
-                    </th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[75px]">
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[70px]">
                       Odds
                     </th>
                   </tr>
@@ -856,28 +706,23 @@ export function MobileCheatSheet({
                 <tbody className="bg-white dark:bg-neutral-900">
                   {visibleRows.map((row, idx) => {
                     const odds = getLiveOdds(row);
-                    const { pct, games } = getHitRateData(row);
-                    const hits = games ? Math.round(pct * games) : null;
-                    const pctDisplay = Math.round(pct * 100);
-                    const edge = row.edge ?? (row.avgStat != null ? row.avgStat - row.line : null);
+                    const hitRatePct = row.hitRate !== null ? Math.round(row.hitRate * 100) : null;
 
                     return (
                       <tr 
                         key={`${row.playerId}-${row.market}-${row.line}-${idx}`}
-                        onClick={() => onRowClick?.(row)}
                         className={cn(
                           "border-b border-neutral-100 dark:border-neutral-800/50",
-                          idx % 2 === 0 ? "bg-white dark:bg-[#171717]" : "bg-[#f0f9ff] dark:bg-[#1c1c1f]",
-                          "active:bg-neutral-100 dark:active:bg-neutral-800"
+                          idx % 2 === 0 ? "bg-white dark:bg-[#171717]" : "bg-[#f0f9ff] dark:bg-[#1c1c1f]"
                         )}
                       >
-                        {/* Player - Sticky (same colors as row to match perfectly) */}
+                        {/* Player - Sticky */}
                         <td className={cn(
                           "sticky left-0 z-10 px-2 py-2",
                           idx % 2 === 0 ? "bg-white dark:bg-[#171717]" : "bg-[#f0f9ff] dark:bg-[#1c1c1f]"
                         )}>
                           <div className="flex items-center gap-1.5">
-                            {/* Headshot with team logo overlay */}
+                            {/* Headshot with team color */}
                             <div className="relative shrink-0">
                               <div 
                                 className="w-7 h-7 rounded-full p-[1px]"
@@ -924,20 +769,9 @@ export function MobileCheatSheet({
                                 <span className="text-[11px] font-bold text-neutral-900 dark:text-white truncate">
                                   {formatPlayerName(row.playerName)}
                                 </span>
-                                {row.hitStreak >= 5 && (
-                                  <Tooltip content={`🔥 ${row.hitStreak} game streak`}>
-                                    <button 
-                                      type="button"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="p-0.5 -m-0.5"
-                                    >
-                                      <Flame className="w-2.5 h-2.5 text-orange-500 shrink-0" />
-                                    </button>
-                                  </Tooltip>
-                                )}
                               </div>
                               <div className="text-[9px] text-neutral-500 truncate">
-                                {row.homeAway?.toUpperCase() === "H" ? "vs" : "@"} {row.opponentAbbr}
+                                {row.homeAway?.toLowerCase() === "home" ? "vs" : "@"} {row.opponentAbbr}
                               </div>
                             </div>
                           </div>
@@ -955,57 +789,64 @@ export function MobileCheatSheet({
                           </div>
                         </td>
 
-                        {/* Grade (with score) */}
-                        <td className="text-center px-2 py-2">
+                        {/* Teammate Out */}
+                        <td className="text-center px-1.5 py-2">
                           <div className="flex flex-col items-center">
-                            <span className={cn(
-                              "inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold",
-                              getGradeColor(row.confidenceGrade)
-                            )}>
-                              {row.confidenceGrade}
+                            <span className="text-[10px] font-semibold text-neutral-900 dark:text-white truncate max-w-[70px]">
+                              {formatPlayerName(row.defaultTeammateName)}
                             </span>
-                            <span className="text-[9px] text-neutral-400 tabular-nums">
-                              {Math.round(row.confidenceScore)}
+                            <span className={cn(
+                              "text-[8px] px-1 py-0.5 rounded font-medium",
+                              getInjuryStatusColor(row.defaultTeammateInjuryStatus)
+                            )}>
+                              {row.defaultTeammateInjuryStatus?.toUpperCase() || "OUT"}
                             </span>
                           </div>
                         </td>
 
                         {/* Hit Rate */}
                         <td className="text-center px-2 py-2">
-                          <div className={cn("text-xs font-bold tabular-nums", getHitRateColor(pct))}>
-                            {hits !== null ? `${hits}/${games}` : `${pctDisplay}%`}
-                          </div>
-                          {hits !== null && (
-                            <div className="text-[10px] text-neutral-400 tabular-nums">
-                              {pctDisplay}%
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Avg + Edge */}
-                        <td className="text-center px-2 py-2">
-                          <div className="text-[10px] text-neutral-400 tabular-nums">
-                            {row.avgStat?.toFixed(1) ?? "—"}
-                          </div>
-                          {edge !== null && (
-                            <div className={cn("text-xs font-bold tabular-nums", getEdgeColor(edge))}>
-                              {edge >= 0 ? "+" : ""}{edge.toFixed(1)}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* DvP */}
-                        <td className="text-center px-2 py-2">
-                          {row.dvpRank ? (
+                          <div className="flex flex-col items-center">
                             <span className={cn(
-                              "inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold",
-                              getDvpColor(row.dvpRank)
+                              "text-xs font-bold tabular-nums",
+                              getHitRateColor(row.hitRate)
                             )}>
-                              {row.dvpRank}
+                              {hitRatePct !== null ? `${hitRatePct}%` : "—"}
                             </span>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
+                            <span className="text-[9px] text-neutral-400 tabular-nums">
+                              {row.hits}/{row.gamesWithTeammateOut}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Grade */}
+                        <td className="text-center px-2 py-2">
+                          <div className="flex flex-col items-center">
+                            <span className={cn(
+                              "inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold",
+                              getGradeColor(row.opportunityGrade)
+                            )}>
+                              {row.opportunityGrade}
+                            </span>
+                            <span className="text-[9px] text-neutral-400 tabular-nums">
+                              {Math.round(row.confidenceScore ?? 0)}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Boost */}
+                        <td className="text-center px-2 py-2">
+                          <div className="flex flex-col items-center">
+                            <span className={cn(
+                              "text-xs font-bold tabular-nums",
+                              getBoostColor(row.statBoost)
+                            )}>
+                              {row.statBoost > 0 ? "+" : ""}{row.statBoost.toFixed(1)}
+                            </span>
+                            <span className="text-[9px] text-neutral-400 tabular-nums">
+                              {row.avgStatWhenOut.toFixed(1)} avg
+                            </span>
+                          </div>
                         </td>
 
                         {/* Odds */}
@@ -1031,7 +872,7 @@ export function MobileCheatSheet({
                       <Lock className="w-5 h-5 text-brand" />
                     </div>
                     <h3 className="text-base font-bold text-neutral-900 dark:text-white mb-1">
-                      Unlock All Props
+                      Unlock Full Injury Impact
                     </h3>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
                       Access all markets, filters, and unlimited props
@@ -1054,7 +895,7 @@ export function MobileCheatSheet({
                 onClick={() => setVisibleCount((prev) => prev + 30)}
                 className="w-full py-4 text-sm font-semibold text-brand bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800"
               >
-                Load More ({rows.length - visibleCount} remaining)
+                Load More ({sortedRows.length - visibleCount} remaining)
               </button>
             )}
           </>
@@ -1063,3 +904,4 @@ export function MobileCheatSheet({
     </div>
   );
 }
+

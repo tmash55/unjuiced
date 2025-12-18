@@ -30,12 +30,8 @@ import {
   X,
   Plus,
   UserMinus,
-  Eye,
-  EyeOff,
-  HelpCircle,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
-import { InjuryImpactGlossary } from "./injury-impact-glossary";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
 
 // ============================================================
@@ -158,6 +154,7 @@ interface InjuryImpactTableProps {
   sport?: string;
   hideNoOdds?: boolean;
   onHideNoOddsChange?: (value: boolean) => void;
+  isGated?: boolean; // If true, hide interactive features
 }
 
 export function InjuryImpactTable({
@@ -171,12 +168,26 @@ export function InjuryImpactTable({
   sport = "nba",
   hideNoOdds = true,
   onHideNoOddsChange,
+  isGated = false,
 }: InjuryImpactTableProps) {
-  // Glossary modal state
-  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
-
   // Row states for each row (keyed by unique row identifier)
   const [rowStates, setRowStates] = useState<Map<string, RowState>>(new Map());
+  
+  // Track rows with open dropdowns - these should not be re-sorted
+  const [pinnedRows, setPinnedRows] = useState<Set<string>>(new Set());
+  
+  // Callback for rows to register/unregister as pinned
+  const setPinned = useCallback((key: string, pinned: boolean) => {
+    setPinnedRows(prev => {
+      const next = new Set(prev);
+      if (pinned) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  }, []);
   
   // Initialize row states when rows change
   useEffect(() => {
@@ -226,7 +237,7 @@ export function InjuryImpactTable({
     return rows.filter(row => !hasLiveOdds(row)).length;
   }, [rows, oddsData]);
 
-  // Sort rows
+  // Sort rows - but preserve positions of pinned rows (those with open dropdowns)
   const sortedRows = useMemo(() => {
     // First filter out rows without odds if hideNoOdds is true
     let filteredRows = rows;
@@ -234,9 +245,12 @@ export function InjuryImpactTable({
       filteredRows = rows.filter(row => hasLiveOdds(row));
     }
 
-    let result = [...filteredRows];
+    // Separate pinned and unpinned rows
+    const unpinnedRows = filteredRows.filter(row => !pinnedRows.has(getRowKey(row)));
+    const pinnedRowsList = filteredRows.filter(row => pinnedRows.has(getRowKey(row)));
 
-    result.sort((a, b) => {
+    // Sort only unpinned rows
+    unpinnedRows.sort((a, b) => {
       // Push rows without live odds to the bottom (for when hideNoOdds is false)
       if (!hideNoOdds) {
         const aHasOdds = hasLiveOdds(a);
@@ -285,8 +299,10 @@ export function InjuryImpactTable({
       return sortDir === "desc" ? comparison : -comparison;
     });
 
-    return result;
-  }, [rows, rowStates, sortField, sortDir, oddsData, hideNoOdds]);
+    // Merge pinned rows back into their original positions
+    // We'll insert them at the front to keep them visible while editing
+    return [...pinnedRowsList, ...unpinnedRows];
+  }, [rows, rowStates, sortField, sortDir, oddsData, hideNoOdds, pinnedRows]);
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -320,83 +336,48 @@ export function InjuryImpactTable({
 
   return (
     <div className="relative">
-      {/* Toggle for hiding rows without odds */}
-      {onHideNoOddsChange && (
-        <div className="flex items-center justify-end px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-          <button
-            onClick={() => onHideNoOddsChange(!hideNoOdds)}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
-              hideNoOdds
-                ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-                : "bg-brand/10 text-brand border border-brand/30"
-            )}
-          >
-            {hideNoOdds ? (
-              <>
-                <EyeOff className="w-3.5 h-3.5" />
-                <span>{noOddsCount} without odds hidden</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-3.5 h-3.5" />
-                <span>Showing all ({noOddsCount} without odds)</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-      
       {/* Scrollable Table Container */}
       <div className="overflow-auto max-h-[calc(100vh-200px)] min-h-[500px]">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="bg-neutral-50 dark:bg-neutral-800/80">
-              <th className="h-10 px-4 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[180px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[160px] bg-neutral-50 dark:bg-neutral-800/80">
                 Player
               </th>
-              <th className="h-10 px-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[200px] bg-neutral-50 dark:bg-neutral-800/80">
-                <SortButton field="teammateName">Teammate(s) Out</SortButton>
+              <th className="h-10 px-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[150px] bg-neutral-50 dark:bg-neutral-800/80">
+                <SortButton field="teammateName">Teammate Out</SortButton>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[120px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[95px] bg-neutral-50 dark:bg-neutral-800/80">
                 <div className="w-full flex items-center justify-center">Prop</div>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
-                <SortButton field="hitRate">Hit Rate</SortButton>
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[70px] bg-neutral-50 dark:bg-neutral-800/80">
+                <SortButton field="hitRate">Hit %</SortButton>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[130px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
                 <Tooltip content="Season Avg → Avg When Out (Boost)">
-                  <div className="w-full flex items-center justify-center cursor-help">Avg When Out</div>
+                  <div className="w-full flex items-center justify-center cursor-help">Avg / Boost</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[60px] bg-neutral-50 dark:bg-neutral-800/80">
-                <SortButton field="gamesWithTeammateOut">Games</SortButton>
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[50px] bg-neutral-50 dark:bg-neutral-800/80">
+                <SortButton field="gamesWithTeammateOut">Gms</SortButton>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[85px] bg-neutral-50 dark:bg-neutral-800/80">
                 <Tooltip content="Key opportunity stat when teammate is out">
                   <div className="w-full flex items-center justify-center cursor-help">Key Stat</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[120px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[95px] bg-neutral-50 dark:bg-neutral-800/80">
                 <Tooltip content="Minutes and Usage when teammate is out vs season average">
-                  <div className="w-full flex items-center justify-center cursor-help">Min / Usage</div>
+                  <div className="w-full flex items-center justify-center cursor-help">Min / Usg</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
-                <div className="w-full flex items-center justify-center gap-1">
-                  <SortButton field="confidenceScore">Confidence</SortButton>
-                  <button
-                    onClick={() => setIsGlossaryOpen(true)}
-                    className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                  >
-                    <HelpCircle className="w-3.5 h-3.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300" />
-                  </button>
-                </div>
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
+                <SortButton field="confidenceScore">Grade</SortButton>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[75px] bg-neutral-50 dark:bg-neutral-800/80">
                 <div className="w-full flex items-center justify-center">Odds</div>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-16 bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-12 bg-neutral-50 dark:bg-neutral-800/80">
                 Action
               </th>
             </tr>
@@ -431,6 +412,7 @@ export function InjuryImpactTable({
                   state={rowState}
                   rowBg={rowBg}
                   onStateChange={(update) => updateRowState(key, update)}
+                  onPinChange={(pinned) => setPinned(key, pinned)}
                   liveOdds={liveOdds}
                 />
               );
@@ -439,12 +421,6 @@ export function InjuryImpactTable({
         </tbody>
       </table>
       </div>
-
-      {/* Confidence Score Glossary Modal */}
-      <InjuryImpactGlossary 
-        isOpen={isGlossaryOpen} 
-        onClose={() => setIsGlossaryOpen(false)} 
-      />
     </div>
   );
 }
@@ -568,7 +544,7 @@ function KeyStatCell({
   const keyStat = getKeyStatForMarket(market, stats);
   
   return (
-    <td className="px-4 py-3 text-center">
+    <td className="px-2 py-2 text-center">
       <div className="relative inline-flex flex-col items-center min-h-[44px] justify-center">
         <div className={cn(
           "flex flex-col items-center transition-opacity duration-150",
@@ -598,7 +574,7 @@ function KeyStatCell({
         </div>
         {isRecalculating && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+            <Loader2 className="w-3 h-3 animate-spin text-brand" />
           </div>
         )}
       </div>
@@ -615,6 +591,7 @@ interface InjuryImpactRowProps {
   state: RowState;
   rowBg: string;
   onStateChange: (update: Partial<RowState>) => void;
+  onPinChange: (pinned: boolean) => void;
   liveOdds: OddsData | null;
 }
 
@@ -623,12 +600,23 @@ function InjuryImpactRow({
   state,
   rowBg,
   onStateChange,
+  onPinChange,
   liveOdds,
 }: InjuryImpactRowProps) {
   // Dropdown states
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [showTeammateDropdown, setShowTeammateDropdown] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  
+  // Use ref to store the callback to avoid infinite loops
+  const onPinChangeRef = useRef(onPinChange);
+  onPinChangeRef.current = onPinChange;
+  
+  // Notify parent when any dropdown is open/closed
+  useEffect(() => {
+    const isOpen = showMarketDropdown || showTeammateDropdown;
+    onPinChangeRef.current(isOpen);
+  }, [showMarketDropdown, showTeammateDropdown]);
   
   // Refs for click outside
   const marketDropdownRef = useRef<HTMLDivElement>(null);
@@ -869,7 +857,7 @@ function InjuryImpactRow({
       </td>
 
       {/* Teammate(s) Out Column - Interactive */}
-      <td className="px-4 py-3">
+      <td className="px-2 py-2">
         <div className="relative" ref={teammateDropdownRef}>
           <button
             onClick={() => setShowTeammateDropdown(!showTeammateDropdown)}
@@ -903,7 +891,7 @@ function InjuryImpactRow({
               
               {/* Show "add more" hint if others are injured */}
               {state.selectedTeammateIds.length === 1 && row.otherInjuredTeammatesCount > 0 && (
-                <div className="text-xs text-blue-400 mt-0.5">
+                <div className="text-xs text-brand mt-0.5">
                   +{row.otherInjuredTeammatesCount} more injured
                 </div>
               )}
@@ -949,15 +937,15 @@ function InjuryImpactRow({
                         className={cn(
                           "w-full px-3 py-2.5 flex items-center gap-3 transition-all duration-150",
                           "hover:bg-neutral-100 dark:hover:bg-neutral-800",
-                          isSelected && "bg-blue-50/80 dark:bg-blue-900/30"
+                          isSelected && "bg-brand/10 dark:bg-brand/20"
                         )}
                       >
                         <div className={cn(
                           "w-5 h-5 rounded-md flex items-center justify-center shrink-0",
                           "transition-all duration-150 ease-out",
                           isSelected 
-                            ? "bg-blue-500 border-2 border-blue-500 scale-100" 
-                            : "border-2 border-neutral-300 dark:border-neutral-600 scale-100 hover:border-blue-400"
+                            ? "bg-brand border-2 border-brand scale-100" 
+                            : "border-2 border-neutral-300 dark:border-neutral-600 scale-100 hover:border-brand"
                         )}>
                           <Check className={cn(
                             "w-3 h-3 text-white transition-all duration-150",
@@ -997,7 +985,7 @@ function InjuryImpactRow({
       </td>
 
       {/* Prop Column - Interactive Market Dropdown */}
-      <td className="px-4 py-3">
+      <td className="px-2 py-2">
         <div className="relative flex justify-center" ref={marketDropdownRef}>
           <button
             onClick={() => setShowMarketDropdown(!showMarketDropdown)}
@@ -1049,7 +1037,7 @@ function InjuryImpactRow({
                         onClick={() => handleMarketSelect(line)}
                         className={cn(
                           "w-full px-3 py-2 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors",
-                          isSelected && "bg-blue-50 dark:bg-blue-900/20"
+                          isSelected && "bg-brand/10 dark:bg-brand/20"
                         )}
                       >
                         <span className="font-medium text-sm text-neutral-900 dark:text-white">
@@ -1058,7 +1046,7 @@ function InjuryImpactRow({
                         <span className="text-sm text-neutral-500">
                           {line.line}
                         </span>
-                        {isSelected && <Check className="w-4 h-4 text-blue-500 ml-2" />}
+                        {isSelected && <Check className="w-4 h-4 text-brand ml-2" />}
                       </button>
                     );
                   })
@@ -1070,7 +1058,7 @@ function InjuryImpactRow({
       </td>
 
       {/* Hit Rate Column */}
-      <td className="px-4 py-3 text-center">
+      <td className="px-2 py-2 text-center">
         <Tooltip content={`${stats.hits}/${stats.games} games hit when selected teammate(s) out`}>
           <div className="relative inline-flex flex-col items-center min-w-[48px] min-h-[36px] justify-center">
             <div className={cn(
@@ -1089,7 +1077,7 @@ function InjuryImpactRow({
             </div>
             {isRecalculating && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-brand" />
               </div>
             )}
           </div>
@@ -1097,7 +1085,7 @@ function InjuryImpactRow({
       </td>
 
       {/* Avg When Out Column - Shows season avg → avg when out (boost) */}
-      <td className="px-4 py-3 text-center">
+      <td className="px-2 py-2 text-center">
         <div className="relative inline-flex flex-col items-center min-h-[36px] justify-center">
           <div className={cn(
             "flex flex-col items-center transition-opacity duration-150",
@@ -1133,14 +1121,14 @@ function InjuryImpactRow({
           </div>
           {isRecalculating && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-brand" />
             </div>
           )}
         </div>
       </td>
 
       {/* Sample Size Column */}
-      <td className="px-4 py-3 text-center">
+      <td className="px-2 py-2 text-center">
         <div className="relative inline-flex items-center justify-center min-w-[32px] min-h-[24px]">
           <span className={cn(
             "text-sm transition-opacity duration-150",
@@ -1151,7 +1139,7 @@ function InjuryImpactRow({
           </span>
           {isRecalculating && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+              <Loader2 className="w-3 h-3 animate-spin text-brand" />
             </div>
           )}
         </div>
@@ -1165,7 +1153,7 @@ function InjuryImpactRow({
       />
 
       {/* Minutes / Usage Column - Shows season avg → avg when out */}
-      <td className="px-4 py-3 text-center">
+      <td className="px-2 py-2 text-center">
         <Tooltip content={
           <div className="space-y-2 min-w-[140px]">
             <div className="text-xs font-semibold text-neutral-300 border-b border-neutral-700 pb-1">
@@ -1237,7 +1225,7 @@ function InjuryImpactRow({
             </div>
             {isRecalculating && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+                <Loader2 className="w-3 h-3 animate-spin text-brand" />
               </div>
             )}
           </div>
@@ -1245,7 +1233,7 @@ function InjuryImpactRow({
       </td>
 
       {/* Grade Column - matching hit rate sheet style */}
-      <td className="px-4 py-3 text-center">
+      <td className="px-2 py-2 text-center">
         <div className="flex justify-center">
           <div className={cn(
             "inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-bold",

@@ -67,12 +67,17 @@ function OddsInput({
 }
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/tooltip";
+import { Lock } from "lucide-react";
 
 interface CheatSheetFilterBarProps {
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   resultCount?: number;
   onGlossaryOpen?: () => void;
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (value: boolean) => void;
+  noOddsCount?: number;
+  isGated?: boolean; // If true, disable filters and show upgrade tooltips
 }
 
 const DATE_OPTIONS = [
@@ -104,11 +109,18 @@ export function CheatSheetFilterBar({
   filters, 
   onFiltersChange,
   resultCount,
-  onGlossaryOpen
+  onGlossaryOpen,
+  hideNoOdds,
+  onHideNoOddsChange,
+  noOddsCount = 0,
+  isGated = false,
 }: CheatSheetFilterBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const marketDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Upgrade tooltip content for gated users
+  const upgradeTooltip = "Upgrade to Hit Rate or Pro plan to unlock all filters";
 
   // Close market dropdown on outside click
   useEffect(() => {
@@ -164,19 +176,21 @@ export function CheatSheetFilterBar({
       minHitRate: 0.80,
       oddsFloor: -250,
       oddsCeiling: 250,
-      markets: CHEAT_SHEET_MARKETS.map(m => m.value),
+      markets: ["player_points"], // Default to Points only
       hideAlternates: false,
       matchupFilter: "all",
       confidenceFilter: [],
       hideInjured: false,
       hideB2B: false,
+      hideNoOdds: true,
       trendFilter: [],
       dateFilter: "today",
     });
   };
 
   const activeFilterCount = [
-    filters.markets.length !== CHEAT_SHEET_MARKETS.length,
+    // Markets is active if not just Points (the default)
+    !(filters.markets.length === 1 && filters.markets[0] === "player_points"),
     filters.minHitRate !== 0.80,
     filters.oddsFloor !== -250 || filters.oddsCeiling !== 250,
     filters.hideAlternates,
@@ -218,162 +232,237 @@ export function CheatSheetFilterBar({
       </div>
 
       {/* Primary Filters Row */}
-      <div className="px-4 py-2.5 flex flex-wrap items-center gap-2">
+      <div className="px-4 py-2.5 flex flex-wrap items-center gap-4">
         {/* Date Filter */}
-        <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-          {DATE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => updateFilter("dateFilter", opt.value)}
-              className={cn(
-                "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                filters.dateFilter === opt.value
-                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 opacity-50 cursor-not-allowed">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-neutral-400">
+                <Lock className="w-3 h-3" />
+                <span>Today</span>
+              </div>
+            </div>
+          </Tooltip>
+        ) : (
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+            {DATE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => updateFilter("dateFilter", opt.value)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
+                  filters.dateFilter === opt.value
+                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-700" />
 
         {/* Time Window */}
-        <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-          {TIME_WINDOW_OPTIONS.map((opt) => (
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 opacity-50 cursor-not-allowed">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-neutral-400">
+                <Lock className="w-3 h-3" />
+                <span>Last 10%</span>
+              </div>
+            </div>
+          </Tooltip>
+        ) : (
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+            {TIME_WINDOW_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => updateFilter("timeWindow", opt.value)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
+                  filters.timeWindow === opt.value
+                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                {opt.shortLabel}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-700" />
+
+        {/* Market Filter - Inline */}
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
+              <Lock className="w-3 h-3" />
+              <span>Points Only</span>
+            </div>
+          </Tooltip>
+        ) : (
+          <div ref={marketDropdownRef} className="relative">
             <button
-              key={opt.value}
-              onClick={() => updateFilter("timeWindow", opt.value)}
+              type="button"
+              onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
               className={cn(
-                "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                filters.timeWindow === opt.value
-                  ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                filters.markets.length !== CHEAT_SHEET_MARKETS.length
+                  ? "bg-brand/10 text-brand"
+                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
             >
-              {opt.shortLabel}
+              <span>
+                {filters.markets.length === 0 || filters.markets.length === CHEAT_SHEET_MARKETS.length
+                  ? "All Markets"
+                  : filters.markets.length === 1
+                  ? CHEAT_SHEET_MARKETS.find(o => o.value === filters.markets[0])?.label ?? "1 Market"
+                  : `${filters.markets.length} Markets`}
+              </span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", marketDropdownOpen && "rotate-180")} />
             </button>
-          ))}
-        </div>
+
+            {marketDropdownOpen && (
+              <div className="absolute left-0 top-full z-[100] mt-1 w-[220px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">
+                  <button type="button" onClick={selectAllMarkets} className="text-xs font-medium text-brand hover:underline">
+                    Select All
+                  </button>
+                  <button type="button" onClick={deselectAllMarkets} className="text-xs font-medium text-neutral-400 hover:underline">
+                    Clear
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto">
+                  {CHEAT_SHEET_MARKETS.map((market) => {
+                    const isSelected = filters.markets.includes(market.value);
+                    return (
+                      <label
+                        key={market.value}
+                        className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleMarket(market.value)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{market.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-700" />
 
         {/* Hit Rate Threshold */}
-        <div className="relative">
-          <select
-            value={filters.minHitRate}
-            onChange={(e) => updateFilter("minHitRate", parseFloat(e.target.value))}
-            className="appearance-none bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2.5 py-1.5 pr-7 text-xs font-semibold cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-neutral-700 dark:text-neutral-300"
-          >
-            {HIT_RATE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
-        </div>
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
+              <Lock className="w-3 h-3" />
+              <span>≥80%</span>
+            </div>
+          </Tooltip>
+        ) : (
+          <div className="relative">
+            <select
+              value={filters.minHitRate}
+              onChange={(e) => updateFilter("minHitRate", parseFloat(e.target.value))}
+              className="appearance-none bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2.5 py-1.5 pr-7 text-xs font-semibold cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-neutral-700 dark:text-neutral-300"
+            >
+              {HIT_RATE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
+          </div>
+        )}
 
         {/* Odds Range - Compact */}
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-neutral-400 font-medium">Odds:</span>
-          <OddsInput
-            value={filters.oddsFloor}
-            onChange={(val) => updateFilter("oddsFloor", val)}
-            placeholder="-250"
-            className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
-          />
-          <span className="text-neutral-300 dark:text-neutral-600">→</span>
-          <OddsInput
-            value={filters.oddsCeiling}
-            onChange={(val) => updateFilter("oddsCeiling", val)}
-            placeholder="+250"
-            className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
-          />
-        </div>
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-1 text-xs opacity-50 cursor-not-allowed">
+              <Lock className="w-3 h-3 text-neutral-400" />
+              <span className="text-neutral-400 font-medium">Odds: All</span>
+            </div>
+          </Tooltip>
+        ) : (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-neutral-400 font-medium">Odds:</span>
+            <OddsInput
+              value={filters.oddsFloor}
+              onChange={(val) => updateFilter("oddsFloor", val)}
+              placeholder="-250"
+              className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
+            />
+            <span className="text-neutral-300 dark:text-neutral-600">→</span>
+            <OddsInput
+              value={filters.oddsCeiling}
+              onChange={(val) => updateFilter("oddsCeiling", val)}
+              placeholder="+250"
+              className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
+            />
+          </div>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Advanced Filters Toggle */}
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
-            showAdvanced || activeFilterCount > 0
-              ? "bg-brand/10 text-brand"
-              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-          )}
-        >
-          <Filter className="w-3 h-3" />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="bg-brand text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+        {isGated ? (
+          <Tooltip content={upgradeTooltip}>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
+              <Lock className="w-3 h-3" />
+              Filters
+            </div>
+          </Tooltip>
+        ) : (
+          <>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                showAdvanced || activeFilterCount > 0
+                  ? "bg-brand/10 text-brand"
+                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              )}
+            >
+              <Filter className="w-3 h-3" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-brand text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
 
-        {activeFilterCount > 0 && (
-          <button
-            onClick={resetFilters}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-            title="Reset filters"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={resetFilters}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                title="Reset filters"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      {/* Advanced Filters Panel */}
-      {showAdvanced && (
+      {/* Advanced Filters Panel - Hidden when gated */}
+      {showAdvanced && !isGated && (
         <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/20">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            {/* Markets Dropdown */}
-            <div ref={marketDropdownRef} className="relative">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
-                Markets
-              </label>
-              <button
-                type="button"
-                onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
-                className={cn(
-                  "flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700 w-[180px]"
-                )}
-              >
-                <span className="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                  {filters.markets.length === 0
-                    ? "All Markets"
-                    : filters.markets.length === CHEAT_SHEET_MARKETS.length
-                    ? "All Markets"
-                    : filters.markets.length === 1
-                    ? CHEAT_SHEET_MARKETS.find(o => o.value === filters.markets[0])?.label ?? "1 selected"
-                    : filters.markets.length === 2
-                    ? filters.markets.map(m => CHEAT_SHEET_MARKETS.find(o => o.value === m)?.label).filter(Boolean).join(", ")
-                    : `${filters.markets.length} selected`}
-                </span>
-                <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform shrink-0", marketDropdownOpen && "rotate-180")} />
-              </button>
-
-              {marketDropdownOpen && (
-                <div className="absolute left-0 top-full z-[100] mt-1 w-[220px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                  <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">
-                    <button type="button" onClick={selectAllMarkets} className="text-xs font-medium text-brand hover:underline">
-                      Select All
-                    </button>
-                    <button type="button" onClick={deselectAllMarkets} className="text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
-                      Deselect All
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-0.5 max-h-64 overflow-auto">
-                    {CHEAT_SHEET_MARKETS.map((opt) => (
-                      <label key={opt.value} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-                        <Checkbox checked={filters.markets.includes(opt.value)} onCheckedChange={() => toggleMarket(opt.value)} />
-                        <span className="text-sm font-medium text-neutral-900 dark:text-white">{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Matchup (DvP) */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
@@ -505,19 +594,41 @@ export function CheatSheetFilterBar({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-neutral-400">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            Easy matchup
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-            Neutral
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-            Tough
-          </span>
+        <div className="flex items-center gap-6">
+          {/* Hide/Show without odds toggle */}
+          {onHideNoOddsChange && (
+            <button
+              onClick={() => onHideNoOddsChange(!hideNoOdds)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors",
+                hideNoOdds
+                  ? "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
+                  : "bg-neutral-500/10 text-neutral-400 hover:bg-neutral-500/20"
+              )}
+            >
+              {hideNoOdds ? (
+                <>Show {noOddsCount} without odds</>
+              ) : (
+                <>Hide {noOddsCount} without odds</>
+              )}
+            </button>
+          )}
+          
+          {/* Matchup legend */}
+          <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              Easy matchup
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+              Neutral
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              Tough
+            </span>
+          </div>
         </div>
       </div>
     </div>

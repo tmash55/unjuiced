@@ -323,8 +323,8 @@ function MobileNav({ domain }: { domain: string }) {
     {
       group: "Cheat Sheets",
       items: [
-        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates" },
-        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", disabled: true },
+        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
+        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", badge: "NEW" },
         { title: "Alt Line Matrix", href: "/cheatsheets/nba/alt-hit-matrix", disabled: true },
       ],
     },

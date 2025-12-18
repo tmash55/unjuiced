@@ -209,6 +209,7 @@ export function CheatSheetFilters({
       confidenceFilter: [],
       hideInjured: false,
       hideB2B: false,
+      hideNoOdds: true,
       trendFilter: [],
       dateFilter: "today",
     });
@@ -484,7 +485,7 @@ export const DEFAULT_CHEAT_SHEET_FILTERS: CheatSheetFilterState = {
   minHitRate: 0.80,
   oddsFloor: -250,
   oddsCeiling: 250,
-  markets: CHEAT_SHEET_MARKETS.map(m => m.value),
+  markets: ["player_points"], // Default to Points only
   hideAlternates: false,
   matchupFilter: "all",
   confidenceFilter: [],

@@ -2,20 +2,20 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { X, Target, BarChart3, TrendingUp, Users, HelpCircle } from "lucide-react";
+import { X, Target, BarChart3, TrendingUp, Users, HelpCircle, ExternalLink } from "lucide-react";
 
 interface InjuryImpactGlossaryProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Grade thresholds for Injury Impact
+// Grade thresholds for Injury Impact (same as hit rate sheets)
 const GRADE_THRESHOLDS = [
-  { grade: "A+", range: "85 - 100", color: "text-emerald-500 bg-emerald-500/10", meaning: "Elite opportunity" },
-  { grade: "A", range: "75 - 84", color: "text-green-500 bg-green-500/10", meaning: "Strong opportunity" },
-  { grade: "B+", range: "65 - 74", color: "text-yellow-500 bg-yellow-500/10", meaning: "Good opportunity" },
-  { grade: "B", range: "55 - 64", color: "text-orange-500 bg-orange-500/10", meaning: "Moderate opportunity" },
-  { grade: "C", range: "Below 55", color: "text-neutral-500 bg-neutral-500/10", meaning: "Speculative" },
+  { grade: "A+", range: "90 - 100", color: "text-emerald-500 bg-emerald-500/10", meaning: "Elite opportunity" },
+  { grade: "A", range: "80 - 89", color: "text-green-500 bg-green-500/10", meaning: "Strong opportunity" },
+  { grade: "B+", range: "70 - 79", color: "text-yellow-500 bg-yellow-500/10", meaning: "Good opportunity" },
+  { grade: "B", range: "60 - 69", color: "text-orange-500 bg-orange-500/10", meaning: "Moderate opportunity" },
+  { grade: "C", range: "Below 60", color: "text-neutral-500 bg-neutral-500/10", meaning: "Speculative" },
 ];
 
 // Score factors for Injury Impact
@@ -297,6 +297,29 @@ export function InjuryImpactGlossary({ isOpen, onClose }: InjuryImpactGlossaryPr
                 <span><strong>Star teammates matter most</strong> — a 35+ minute player being out creates the biggest ripple effect.</span>
               </li>
             </ul>
+          </div>
+
+          {/* Official NBA Injury Report Link */}
+          <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
+              Official Source
+            </h3>
+            <a
+              href="https://official.nba.com/nba-injury-report-2025-26-season/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand hover:bg-brand/5 transition-all group"
+            >
+              <div>
+                <div className="font-semibold text-neutral-900 dark:text-white text-sm group-hover:text-brand transition-colors">
+                  NBA Official Injury Report
+                </div>
+                <div className="text-xs text-neutral-500 mt-0.5">
+                  Updated hourly on game days • official.nba.com
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-brand transition-colors" />
+            </a>
           </div>
         </div>
       </div>
