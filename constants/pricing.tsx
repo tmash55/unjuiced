@@ -17,6 +17,8 @@ export const tiers = [
     features: [
       "NBA only",
       "Player prop hit rates",
+      "Hit Rate Cheat Sheet",
+      "Injury Impact Cheat Sheet",
       "L5, L10, L20, Season stats",
       "Head-to-head matchup data",
       "Defensive matchup analysis",
@@ -57,6 +59,20 @@ export const tiers = [
 export const pricingTable = [
   {
     title: "NBA Hit Rates",
+    tiers: [
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "Hit Rate Cheat Sheet",
+    tiers: [
+      { title: TierName.HIT_RATES, value: <CheckIcon /> },
+      { title: TierName.PRO, value: <CheckIcon /> },
+    ],
+  },
+  {
+    title: "Injury Impact Cheat Sheet",
     tiers: [
       { title: TierName.HIT_RATES, value: <CheckIcon /> },
       { title: TierName.PRO, value: <CheckIcon /> },
