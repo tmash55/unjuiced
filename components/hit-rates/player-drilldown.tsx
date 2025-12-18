@@ -20,6 +20,7 @@ import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
 import { PlayTypeAnalysis } from "./play-type-analysis";
 import { ShootingZones } from "./shooting-zones";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
+import { usePlayerGamesWithInjuries } from "@/hooks/use-injury-context";
 import { Tooltip } from "@/components/tooltip";
 
 // Injury status color helpers
@@ -556,6 +557,13 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     playerId: profile.playerId,
     limit: 50, // Get plenty of games for season view
   });
+  
+  // Fetch games with injury context (for accurate teammates_out data across ALL games)
+  // This replaces the limited gameLogs data from the profile
+  const { games: gamesWithInjuries, isLoading: injuryGamesLoading } = usePlayerGamesWithInjuries({
+    playerId: profile.playerId,
+    enabled: !!profile.playerId,
+  });
 
   // Fetch odds for current profile
   const { data: oddsData } = useQuery({
@@ -670,21 +678,36 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   };
 
   // Build a map of gameId -> teammates out (player IDs who were out for that game)
+  // Uses the full injury context data from get_player_games_with_injuries RPC
+  // which includes ALL games, not just the last 20 from gameLogs
   const teammatesOutByGame = useMemo(() => {
     const map = new Map<string, Set<number>>();
-    const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
     
-    if (!gameLogs) return map;
-    
-    for (const log of gameLogs) {
-      if (log.game_id && log.teammates_out) {
-        const normalizedId = log.game_id.replace(/^0+/, ""); // Remove leading zeros
-        const playerIds = new Set(log.teammates_out.map(t => t.player_id));
-        map.set(normalizedId, playerIds);
+    // Prefer the full injury context data if available
+    if (gamesWithInjuries && gamesWithInjuries.length > 0) {
+      for (const game of gamesWithInjuries) {
+        if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
+          const normalizedId = String(game.game_id).replace(/^0+/, "");
+          const playerIds = new Set(game.teammates_out.map(t => t.player_id));
+          map.set(normalizedId, playerIds);
+        }
+      }
+    } else {
+      // Fallback to gameLogs from profile if injury data not yet loaded
+      const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
+      if (gameLogs) {
+        for (const log of gameLogs) {
+          if (log.game_id && log.teammates_out) {
+            const normalizedId = log.game_id.replace(/^0+/, "");
+            const playerIds = new Set(log.teammates_out.map(t => t.player_id));
+            map.set(normalizedId, playerIds);
+          }
+        }
       }
     }
+    
     return map;
-  }, [profile.gameLogs]);
+  }, [gamesWithInjuries, profile.gameLogs]);
 
   // Helper function to apply quick filters
   const applyQuickFilters = (games: typeof boxScoreGames) => {

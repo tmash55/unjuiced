@@ -88,17 +88,36 @@ function calculateHitRateForLine(stats: number[], line: number): { hitRate: numb
  * Get stat value from game log based on market
  */
 function getStatFromLog(log: any, market: string): number | null {
-  if (market === "player_points_rebounds_assists") {
-    return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
-  } else if (market === "player_points_rebounds") {
-    return (log.pts ?? 0) + (log.reb ?? 0);
-  } else if (market === "player_points_assists") {
-    return (log.pts ?? 0) + (log.ast ?? 0);
-  } else if (market === "player_rebounds_assists") {
-    return (log.reb ?? 0) + (log.ast ?? 0);
-  } else if (market === "player_blocks_steals") {
-    return (log.blk ?? 0) + (log.stl ?? 0);
+  // First, check if market_stat exists (pre-calculated value from profile)
+  // This handles combo markets from profile game_logs
+  if (log.market_stat !== undefined && log.market_stat !== null) {
+    return log.market_stat;
   }
+  
+  // For box score data, calculate combo stats from components
+  if (market === "player_points_rebounds_assists") {
+    if (log.pts !== undefined || log.reb !== undefined || log.ast !== undefined) {
+      return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
+    }
+  } else if (market === "player_points_rebounds") {
+    if (log.pts !== undefined || log.reb !== undefined) {
+      return (log.pts ?? 0) + (log.reb ?? 0);
+    }
+  } else if (market === "player_points_assists") {
+    if (log.pts !== undefined || log.ast !== undefined) {
+      return (log.pts ?? 0) + (log.ast ?? 0);
+    }
+  } else if (market === "player_rebounds_assists") {
+    if (log.reb !== undefined || log.ast !== undefined) {
+      return (log.reb ?? 0) + (log.ast ?? 0);
+    }
+  } else if (market === "player_blocks_steals") {
+    if (log.blk !== undefined || log.stl !== undefined) {
+      return (log.blk ?? 0) + (log.stl ?? 0);
+    }
+  }
+  
+  // For single-stat markets, use the stat column
   const statColumn = MARKET_TO_STAT[market];
   return log[statColumn] ?? null;
 }
@@ -132,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Get hit rate profiles for the selected market and date
+    // Get hit rate profiles for the selected market and date (works for all markets including combo)
     // Join with nba_players to get player name
     const { data: profiles, error: profilesError } = await supabase
       .from("nba_hit_rate_profiles")
@@ -185,6 +204,7 @@ export async function POST(req: NextRequest) {
     const rows: AltHitMatrixRow[] = [];
 
     for (const profile of profiles) {
+      // Use game_logs from profile (contains market_stat for all markets including combo)
       const gameLogs = profile.game_logs || [];
       
       // Skip if not enough games

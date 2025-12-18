@@ -32,6 +32,7 @@ import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
+import { usePlayerGamesWithInjuries } from "@/hooks/use-injury-context";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Helper to get sportsbook logo
@@ -144,6 +145,282 @@ const MARKET_TO_FIELD: Record<string, string> = {
   "player_turnovers": "tov",
   "player_blocks_steals": "blk_stl",
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOBILE ODDS LINE ROW COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface BookOddsEntry {
+  book: string;
+  over?: { price: number; u?: string | null; m?: string | null } | null;
+  under?: { price: number; u?: string | null; m?: string | null } | null;
+}
+
+interface MobileOddsLineRowProps {
+  lineData: {
+    line: number;
+    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    books: Record<string, { over?: { price: number; u?: string | null; m?: string | null }; under?: { price: number; u?: string | null; m?: string | null } }>;
+  };
+  isActive: boolean;
+  rates: { l5: number | null; l10: number | null; l20: number | null; szn: number | null };
+  allBooks: BookOddsEntry[];
+  index: number;
+  onSelectLine: () => void;
+  getBookLogo: (book: string) => string | null;
+  getOddsHitRateColor: (value: number | null) => string;
+}
+
+function MobileOddsLineRow({
+  lineData,
+  isActive,
+  rates,
+  allBooks,
+  index,
+  onSelectLine,
+  getBookLogo,
+  getOddsHitRateColor,
+}: MobileOddsLineRowProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const handleBookClick = (book: BookOddsEntry, type: "over" | "under", e: React.MouseEvent) => {
+    e.stopPropagation();
+    const oddsData = type === "over" ? book.over : book.under;
+    if (!oddsData) return;
+    
+    // Prefer mobile URL on mobile devices
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const url = isMobile ? (oddsData.m || oddsData.u) : (oddsData.u || oddsData.m);
+    
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      // Fallback to sportsbook homepage
+      const sportsbookInfo = getSportsbookById(book.book);
+      if (sportsbookInfo?.links?.mobile || sportsbookInfo?.links?.desktop) {
+        const fallbackUrl = isMobile ? (sportsbookInfo.links.mobile || sportsbookInfo.links.desktop) : sportsbookInfo.links.desktop;
+        if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    }
+  };
+  
+  const formatPrice = (price: number | undefined | null) => {
+    if (price === undefined || price === null) return "—";
+    return price > 0 ? `+${price}` : `${price}`;
+  };
+  
+  const hasMultipleBooks = allBooks.length > 1;
+  
+  return (
+    <div className={cn(
+      "border-b border-neutral-100/50 dark:border-neutral-800/50 last:border-0",
+      isActive && "bg-brand/10 dark:bg-brand/20 border-l-2 border-l-brand"
+    )}>
+      {/* Main Row */}
+      <div
+        onClick={() => {
+          onSelectLine();
+          if (hasMultipleBooks) setIsExpanded(!isExpanded);
+        }}
+        className={cn(
+          "grid grid-cols-[50px_1fr_70px_70px] gap-1 px-3 py-2.5 transition-colors cursor-pointer",
+          !isActive && (index % 2 === 0 ? "bg-neutral-50/50 dark:bg-neutral-800/20" : "bg-white dark:bg-neutral-900/20"),
+          !isActive && "active:bg-neutral-100 dark:active:bg-neutral-800/50"
+        )}
+      >
+        {/* Line */}
+        <div className="flex items-center gap-1">
+          <span className={cn(
+            "text-xs font-bold tabular-nums",
+            isActive ? "text-brand" : "text-neutral-900 dark:text-white"
+          )}>
+            {lineData.line}+
+          </span>
+          {isActive && (
+            <span className="text-[7px] font-bold uppercase text-brand">★</span>
+          )}
+        </div>
+
+        {/* Hit Rate + Bar */}
+        <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "text-[10px] font-bold tabular-nums min-w-[28px]",
+            getOddsHitRateColor(rates.l10)
+          )}>
+            {rates.l10 !== null ? `${rates.l10}%` : "—"}
+          </span>
+          <div className="flex-1 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+            <div 
+              className={cn(
+                "h-full rounded-full transition-all",
+                rates.l10 !== null && rates.l10 >= 60 
+                  ? "bg-gradient-to-r from-emerald-400 to-emerald-500"
+                  : rates.l10 !== null && rates.l10 >= 50
+                    ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                    : "bg-gradient-to-r from-red-400 to-red-500"
+              )}
+              style={{ width: `${rates.l10 ?? 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Best Over */}
+        <div className="flex items-center justify-center gap-1">
+          {lineData.bestOver ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const url = lineData.bestOver?.mobileUrl || lineData.bestOver?.url;
+                if (url) window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 active:scale-95 transition-transform"
+            >
+              {getBookLogo(lineData.bestOver.book) && (
+                <img src={getBookLogo(lineData.bestOver.book)!} alt="" className="h-3.5 w-3.5 rounded" />
+              )}
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {formatPrice(lineData.bestOver.price)}
+              </span>
+            </button>
+          ) : (
+            <span className="text-[10px] text-neutral-400">—</span>
+          )}
+        </div>
+
+        {/* Best Under */}
+        <div className="flex items-center justify-center gap-1">
+          {lineData.bestUnder ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const url = lineData.bestUnder?.mobileUrl || lineData.bestUnder?.url;
+                if (url) window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 active:scale-95 transition-transform"
+            >
+              {getBookLogo(lineData.bestUnder.book) && (
+                <img src={getBookLogo(lineData.bestUnder.book)!} alt="" className="h-3.5 w-3.5 rounded" />
+              )}
+              <span className="text-[10px] font-bold text-red-500 dark:text-red-400 tabular-nums">
+                {formatPrice(lineData.bestUnder.price)}
+              </span>
+            </button>
+          ) : (
+            <span className="text-[10px] text-neutral-400">—</span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Books Dropdown */}
+      {isExpanded && hasMultipleBooks && (
+        <div className="bg-neutral-50 dark:bg-neutral-800/50 border-t border-neutral-200/60 dark:border-neutral-700/60 px-3 py-2">
+          <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 flex items-center justify-between">
+            <span>All Sportsbooks</span>
+            <span className="text-neutral-400">{allBooks.length} books</span>
+          </div>
+          <div className="space-y-1.5">
+            {allBooks.map((book) => {
+              const logo = getBookLogo(book.book);
+              const bookInfo = getSportsbookById(book.book);
+              const bookName = bookInfo?.name || book.book;
+              const isBestOver = lineData.bestOver?.book === book.book;
+              const isBestUnder = lineData.bestUnder?.book === book.book;
+              
+              return (
+                <div
+                  key={book.book}
+                  className={cn(
+                    "flex items-center gap-2 p-2 rounded-lg",
+                    "bg-white dark:bg-neutral-900/60",
+                    "border border-neutral-200/40 dark:border-neutral-700/40"
+                  )}
+                >
+                  {/* Book Logo & Name */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {logo ? (
+                      <img src={logo} alt={bookName} className="h-5 w-5 rounded shrink-0" />
+                    ) : (
+                      <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700 shrink-0" />
+                    )}
+                    <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                      {bookName}
+                    </span>
+                  </div>
+
+                  {/* Over Button */}
+                  {book.over ? (
+                    <button
+                      type="button"
+                      onClick={(e) => handleBookClick(book, "over", e)}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1 rounded-md transition-all active:scale-95",
+                        isBestOver 
+                          ? "bg-emerald-500 text-white" 
+                          : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                      )}
+                    >
+                      <span className="text-[10px] font-bold tabular-nums">
+                        {formatPrice(book.over.price)}
+                      </span>
+                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                    </button>
+                  ) : (
+                    <div className="w-14 text-center text-[10px] text-neutral-400">—</div>
+                  )}
+
+                  {/* Under Button */}
+                  {book.under ? (
+                    <button
+                      type="button"
+                      onClick={(e) => handleBookClick(book, "under", e)}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1 rounded-md transition-all active:scale-95",
+                        isBestUnder 
+                          ? "bg-red-500 text-white" 
+                          : "bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400"
+                      )}
+                    >
+                      <span className="text-[10px] font-bold tabular-nums">
+                        {formatPrice(book.under.price)}
+                      </span>
+                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                    </button>
+                  ) : (
+                    <div className="w-14 text-center text-[10px] text-neutral-400">—</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* Expand Indicator */}
+      {hasMultipleBooks && (
+        <div 
+          className={cn(
+            "flex items-center justify-center py-1 cursor-pointer",
+            "text-[9px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300",
+            isExpanded ? "bg-neutral-100/50 dark:bg-neutral-800/30" : ""
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+        >
+          <ChevronDown className={cn(
+            "h-3 w-3 transition-transform",
+            isExpanded && "rotate-180"
+          )} />
+          <span className="ml-1">{isExpanded ? "Hide" : `${allBooks.length} books`}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Get the stat value for a market from a box score game
 const getMarketStat = (game: any, market: string): number => {
@@ -3024,31 +3301,52 @@ export function MobilePlayerDrilldown({
     limit: 50,
   });
   
+  // Fetch games with injury context (for accurate teammates_out data across ALL games)
+  // This replaces the limited gameLogs data from the profile
+  const { games: gamesWithInjuries, isLoading: injuryGamesLoading } = usePlayerGamesWithInjuries({
+    playerId: profile.playerId,
+    enabled: !!profile.playerId,
+  });
+  
   // Build a map of gameId -> teammates out (player IDs who were out for that game)
+  // Uses the full injury context data from get_player_games_with_injuries RPC
+  // which includes ALL games, not just the last 20 from gameLogs
   const teammatesOutByGame = useMemo(() => {
     const map = new Map<string, Set<number>>();
-    const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
     
-    if (!gameLogs) return map;
-    
-    for (const gameLog of gameLogs) {
-      if (!gameLog.game_id) continue;
-      const gameId = String(gameLog.game_id).replace(/^0+/, "");
-      const outSet = new Set<number>();
-      
-      if (gameLog.teammates_out) {
-        for (const out of gameLog.teammates_out) {
-          if (out.player_id) {
-            outSet.add(out.player_id);
-          }
+    // Prefer the full injury context data if available
+    if (gamesWithInjuries && gamesWithInjuries.length > 0) {
+      for (const game of gamesWithInjuries) {
+        if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
+          const normalizedId = String(game.game_id).replace(/^0+/, "");
+          const playerIds = new Set(game.teammates_out.map(t => t.player_id));
+          map.set(normalizedId, playerIds);
         }
       }
-      
-      map.set(gameId, outSet);
+    } else {
+      // Fallback to gameLogs from profile if injury data not yet loaded
+      const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
+      if (gameLogs) {
+        for (const gameLog of gameLogs) {
+          if (!gameLog.game_id) continue;
+          const gameId = String(gameLog.game_id).replace(/^0+/, "");
+          const outSet = new Set<number>();
+          
+          if (gameLog.teammates_out) {
+            for (const out of gameLog.teammates_out) {
+              if (out.player_id) {
+                outSet.add(out.player_id);
+              }
+            }
+          }
+          
+          map.set(gameId, outSet);
+        }
+      }
     }
     
     return map;
-  }, [profile.gameLogs]);
+  }, [gamesWithInjuries, profile.gameLogs]);
   
   // Fetch team rosters for injury report (and for filter labels)
   const { playerTeam, opponentTeam, isLoading: rostersLoading } = useGameRosters({
@@ -5195,67 +5493,37 @@ export function MobilePlayerDrilldown({
                   </div>
                 </div>
 
-                {/* Hit Rate Pills */}
-                {(() => {
-                  const rates = getOddsHitRates(effectiveLine);
-                  return (
-                    <div className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center gap-2">
-                      <span className="text-[10px] text-neutral-400 uppercase tracking-wide">Hit Rate</span>
-                      <div className="flex items-center gap-1.5">
-                        {[
-                          { label: "L5", value: rates.l5 },
-                          { label: "L10", value: rates.l10 },
-                          { label: "L20", value: rates.l20 },
-                          { label: "SZN", value: rates.szn },
-                        ].map(({ label, value }) => (
-                          <span
-                            key={label}
-                            className={cn(
-                              "px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums",
-                              "bg-neutral-100 dark:bg-neutral-800",
-                              getOddsHitRateColor(value)
-                            )}
-                          >
-                            {value !== null ? `${value}%` : "—"}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Over/Under Cards */}
-                <div className="p-3">
-                  <div className="grid grid-cols-2 gap-2.5">
+                {/* Over/Under Cards - Compact */}
+                <div className="p-2.5">
+                  <div className="grid grid-cols-2 gap-2">
                     {/* Over */}
                     <button
                       type="button"
                       onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
-                        "relative p-3 rounded-xl transition-all active:scale-[0.98]",
+                        "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/30 dark:to-emerald-900/10",
-                        "border border-emerald-200/60 dark:border-emerald-700/30",
-                        "shadow-sm shadow-emerald-100/50 dark:shadow-none"
+                        "border border-emerald-200/60 dark:border-emerald-700/30"
                       )}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Over</span>
-                        {odds?.bestOver?.mobileUrl && (
-                          <ExternalLink className="h-3 w-3 text-emerald-400" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Over</span>
+                        </div>
+                        {odds?.bestOver ? (
+                          <div className="flex items-center gap-1.5">
+                            {getBookLogo(odds.bestOver.book) && (
+                              <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-5 w-5 rounded" />
+                            )}
+                            <span className="text-base font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
+                            </span>
+                            <ExternalLink className="h-2.5 w-2.5 text-emerald-400 opacity-60" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
                         )}
                       </div>
-                      {odds?.bestOver ? (
-                        <div className="flex items-center gap-2">
-                          {getBookLogo(odds.bestOver.book) && (
-                            <img src={getBookLogo(odds.bestOver.book)!} alt={odds.bestOver.book} className="h-6 w-6 rounded shadow-sm" />
-                          )}
-                          <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            {odds.bestOver.price > 0 ? "+" : ""}{odds.bestOver.price}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-neutral-400">No odds</div>
-                      )}
                     </button>
                     
                     {/* Under */}
@@ -5263,30 +5531,29 @@ export function MobilePlayerDrilldown({
                       type="button"
                       onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       className={cn(
-                        "relative p-3 rounded-xl transition-all active:scale-[0.98]",
+                        "relative px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
                         "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/30 dark:to-red-900/10",
-                        "border border-red-200/60 dark:border-red-700/30",
-                        "shadow-sm shadow-red-100/50 dark:shadow-none"
+                        "border border-red-200/60 dark:border-red-700/30"
                       )}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-red-500 dark:text-red-400">Under</span>
-                        {odds?.bestUnder?.mobileUrl && (
-                          <ExternalLink className="h-3 w-3 text-red-400" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-red-500 dark:text-red-400">Under</span>
+                        </div>
+                        {odds?.bestUnder ? (
+                          <div className="flex items-center gap-1.5">
+                            {getBookLogo(odds.bestUnder.book) && (
+                              <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-5 w-5 rounded" />
+                            )}
+                            <span className="text-base font-black text-red-500 dark:text-red-400 tabular-nums">
+                              {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
+                            </span>
+                            <ExternalLink className="h-2.5 w-2.5 text-red-400 opacity-60" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
                         )}
                       </div>
-                      {odds?.bestUnder ? (
-                        <div className="flex items-center gap-2">
-                          {getBookLogo(odds.bestUnder.book) && (
-                            <img src={getBookLogo(odds.bestUnder.book)!} alt={odds.bestUnder.book} className="h-6 w-6 rounded shadow-sm" />
-                          )}
-                          <span className="text-2xl font-black text-red-500 dark:text-red-400 tabular-nums">
-                            {odds.bestUnder.price > 0 ? "+" : ""}{odds.bestUnder.price}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-neutral-400">No odds</div>
-                      )}
                     </button>
                   </div>
                 </div>
@@ -5308,108 +5575,44 @@ export function MobilePlayerDrilldown({
                   </div>
 
                   {/* Table Header */}
-                  <div className="grid grid-cols-[auto_1fr_50px_50px_80px] gap-1 px-3 py-2 bg-neutral-100/70 dark:bg-neutral-800/70 border-b border-neutral-200 dark:border-neutral-700">
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 w-14">Line</div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">Hit %</div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">L10</div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">SZN</div>
-                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">Best</div>
+                  <div className="grid grid-cols-[50px_1fr_70px_70px] gap-1 px-3 py-2 bg-neutral-100/70 dark:bg-neutral-800/70 border-b border-neutral-200 dark:border-neutral-700">
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500">Line</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500 text-center">Hit Rate</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-emerald-600 text-center">Over</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide text-red-500 text-center">Under</div>
                   </div>
 
                   {/* Lines */}
-                  <div className="max-h-[320px] overflow-y-auto overscroll-contain">
+                  <div className="max-h-[400px] overflow-y-auto overscroll-contain">
                     {sortedAllLines.map((lineData, index) => {
                       const isActive = lineData.line === effectiveLine;
                       const rates = getOddsHitRates(lineData.line);
-                      const bestBook = lineData.bestOver;
-                      const bookLogo = bestBook ? getBookLogo(bestBook.book) : null;
+                      
+                      // Get all books for this line
+                      const allBooks = Object.entries(lineData.books || {}).map(([bookKey, bookData]) => ({
+                        book: bookKey,
+                        over: bookData.over,
+                        under: bookData.under,
+                      })).filter(b => b.over || b.under);
+                      
+                      // Sort by best over price
+                      allBooks.sort((a, b) => (b.over?.price ?? -9999) - (a.over?.price ?? -9999));
                       
                       return (
-                        <button
+                        <MobileOddsLineRow
                           key={lineData.line}
-                          type="button"
-                          onClick={() => {
+                          lineData={lineData}
+                          isActive={isActive}
+                          rates={rates}
+                          allBooks={allBooks}
+                          index={index}
+                          onSelectLine={() => {
                             setCustomLine(lineData.line);
                             setLineInputValue(String(lineData.line));
                           }}
-                          className={cn(
-                            "w-full grid grid-cols-[auto_1fr_50px_50px_80px] gap-1 px-3 py-2.5 transition-colors border-b border-neutral-100/50 dark:border-neutral-800/50 last:border-0",
-                            isActive 
-                              ? "bg-brand/10 dark:bg-brand/20 border-l-2 border-l-brand"
-                              : index % 2 === 0
-                                ? "bg-neutral-50/50 dark:bg-neutral-800/20"
-                                : "bg-white dark:bg-neutral-900/20",
-                            !isActive && "active:bg-neutral-100 dark:active:bg-neutral-800/50"
-                          )}
-                        >
-                          {/* Line */}
-                          <div className="flex items-center gap-1.5 w-14">
-                            <span className={cn(
-                              "text-xs font-bold tabular-nums",
-                              isActive ? "text-brand" : "text-neutral-900 dark:text-white"
-                            )}>
-                              {lineData.line}+
-                            </span>
-                            {isActive && (
-                              <span className="text-[8px] font-bold uppercase text-brand bg-brand/10 dark:bg-brand/20 px-1 py-0.5 rounded">
-                                ★
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Visual Hit Rate Bar */}
-                          <div className="flex items-center gap-1 px-1">
-                            <div className="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-                              <div 
-                                className={cn(
-                                  "h-full rounded-full transition-all",
-                                  rates.l10 !== null && rates.l10 >= 60 
-                                    ? "bg-gradient-to-r from-emerald-400 to-emerald-500"
-                                    : rates.l10 !== null && rates.l10 >= 50
-                                      ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                                      : "bg-gradient-to-r from-red-400 to-red-500"
-                                )}
-                                style={{ width: `${rates.l10 ?? 0}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* L10 */}
-                          <div className="text-center">
-                            <span className={cn(
-                              "text-[11px] font-bold tabular-nums",
-                              getOddsHitRateColor(rates.l10)
-                            )}>
-                              {rates.l10 !== null ? `${rates.l10}%` : "—"}
-                            </span>
-                          </div>
-
-                          {/* Season */}
-                          <div className="text-center">
-                            <span className={cn(
-                              "text-[11px] font-bold tabular-nums",
-                              getOddsHitRateColor(rates.szn)
-                            )}>
-                              {rates.szn !== null ? `${rates.szn}%` : "—"}
-                            </span>
-                          </div>
-
-                          {/* Best Odds */}
-                          <div className="flex items-center justify-center gap-1">
-                            {bestBook ? (
-                              <>
-                                {bookLogo && (
-                                  <img src={bookLogo} alt={bestBook.book} className="h-4 w-4 rounded" />
-                                )}
-                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                  {bestBook.price > 0 ? "+" : ""}{bestBook.price}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-neutral-400">—</span>
-                            )}
-                          </div>
-                        </button>
+                          getBookLogo={getBookLogo}
+                          getOddsHitRateColor={getOddsHitRateColor}
+                        />
                       );
                     })}
                   </div>

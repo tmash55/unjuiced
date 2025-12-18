@@ -95,18 +95,37 @@ function calculateHitRate(
   }
 
   const stats = gameLogs.map((log) => {
-    if (market === "player_points_rebounds_assists") {
-      return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_points_rebounds") {
-      return (log.pts ?? 0) + (log.reb ?? 0);
-    } else if (market === "player_points_assists") {
-      return (log.pts ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_rebounds_assists") {
-      return (log.reb ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_blocks_steals") {
-      return (log.blk ?? 0) + (log.stl ?? 0);
+    // First, check if market_stat exists (pre-calculated value from profile)
+    // This handles combo markets from profile game_logs
+    if (log.market_stat !== undefined && log.market_stat !== null) {
+      return log.market_stat;
     }
-    return log.market_stat ?? log[MARKET_TO_STAT[market]] ?? null;
+    
+    // For box score data, calculate combo stats from components
+    if (market === "player_points_rebounds_assists") {
+      if (log.pts !== undefined || log.reb !== undefined || log.ast !== undefined) {
+        return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_points_rebounds") {
+      if (log.pts !== undefined || log.reb !== undefined) {
+        return (log.pts ?? 0) + (log.reb ?? 0);
+      }
+    } else if (market === "player_points_assists") {
+      if (log.pts !== undefined || log.ast !== undefined) {
+        return (log.pts ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_rebounds_assists") {
+      if (log.reb !== undefined || log.ast !== undefined) {
+        return (log.reb ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_blocks_steals") {
+      if (log.blk !== undefined || log.stl !== undefined) {
+        return (log.blk ?? 0) + (log.stl ?? 0);
+      }
+    }
+    
+    // For single-stat markets, use the stat column
+    return log[MARKET_TO_STAT[market]] ?? null;
   }).filter((v) => v !== null);
 
   if (stats.length === 0) {
@@ -134,18 +153,36 @@ function calculateAverage(gameLogs: any[], market: string, window: number): numb
   if (!gameLogs || gameLogs.length === 0) return null;
 
   const stats = gameLogs.slice(0, window).map((log) => {
-    if (market === "player_points_rebounds_assists") {
-      return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_points_rebounds") {
-      return (log.pts ?? 0) + (log.reb ?? 0);
-    } else if (market === "player_points_assists") {
-      return (log.pts ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_rebounds_assists") {
-      return (log.reb ?? 0) + (log.ast ?? 0);
-    } else if (market === "player_blocks_steals") {
-      return (log.blk ?? 0) + (log.stl ?? 0);
+    // First, check if market_stat exists (pre-calculated value from profile)
+    if (log.market_stat !== undefined && log.market_stat !== null) {
+      return log.market_stat;
     }
-    return log.market_stat ?? log[MARKET_TO_STAT[market]] ?? null;
+    
+    // For box score data, calculate combo stats from components
+    if (market === "player_points_rebounds_assists") {
+      if (log.pts !== undefined || log.reb !== undefined || log.ast !== undefined) {
+        return (log.pts ?? 0) + (log.reb ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_points_rebounds") {
+      if (log.pts !== undefined || log.reb !== undefined) {
+        return (log.pts ?? 0) + (log.reb ?? 0);
+      }
+    } else if (market === "player_points_assists") {
+      if (log.pts !== undefined || log.ast !== undefined) {
+        return (log.pts ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_rebounds_assists") {
+      if (log.reb !== undefined || log.ast !== undefined) {
+        return (log.reb ?? 0) + (log.ast ?? 0);
+      }
+    } else if (market === "player_blocks_steals") {
+      if (log.blk !== undefined || log.stl !== undefined) {
+        return (log.blk ?? 0) + (log.stl ?? 0);
+      }
+    }
+    
+    // For single-stat markets, use the stat column
+    return log[MARKET_TO_STAT[market]] ?? null;
   }).filter((v) => v !== null);
 
   if (stats.length === 0) return null;
@@ -275,7 +312,9 @@ export async function POST(req: NextRequest) {
     // Fetch game logs from Supabase for hit rate calculations
     const supabase = createServerSupabaseClient();
     
-    // First, try to get game logs from the hit rate profile
+    let gameLogs: any[] = [];
+    
+    // First, try to get game logs from the hit rate profile (works for all markets including combo)
     const { data: profile } = await supabase
       .from("nba_hit_rate_profiles")
       .select("game_logs")
@@ -285,25 +324,24 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .single();
 
-    let gameLogs = profile?.game_logs || [];
+    gameLogs = profile?.game_logs || [];
 
     // If we need more games for L20/season, fetch from box scores
     if (gameLogs.length < 20) {
-      const statColumn = MARKET_TO_STAT[market];
+      const isComboMarket = market.includes("points_rebounds") || 
+                            market.includes("points_assists") || 
+                            market.includes("rebounds_assists") || 
+                            market.includes("blocks_steals");
       
-      let selectColumns = "*";
-      if (market.includes("points_rebounds_assists")) {
-        selectColumns = "game_id, game_date, pts, reb, ast";
-      } else if (market.includes("points_rebounds")) {
-        selectColumns = "game_id, game_date, pts, reb";
-      } else if (market.includes("points_assists")) {
-        selectColumns = "game_id, game_date, pts, ast";
-      } else if (market.includes("rebounds_assists")) {
-        selectColumns = "game_id, game_date, reb, ast";
-      } else if (market.includes("blocks_steals")) {
-        selectColumns = "game_id, game_date, blk, stl";
-      } else if (statColumn) {
-        selectColumns = `game_id, game_date, ${statColumn}`;
+      // For combo markets, select all component stats
+      let selectColumns = "game_id, game_date, pts, reb, ast, blk, stl";
+      
+      // For single-stat markets, can be more targeted
+      if (!isComboMarket) {
+        const statColumn = MARKET_TO_STAT[market];
+        if (statColumn) {
+          selectColumns = `game_id, game_date, ${statColumn}`;
+        }
       }
 
       const { data: boxScores } = await supabase

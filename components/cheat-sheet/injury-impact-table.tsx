@@ -31,9 +31,12 @@ import {
   Plus,
   UserMinus,
   Lock,
+  BarChart3,
+  Pin,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
+import { InjuryImpactStatsModal } from "./injury-impact-stats-modal";
 
 // ============================================================
 // Row State Management
@@ -238,7 +241,7 @@ export function InjuryImpactTable({
     return rows.filter(row => !hasLiveOdds(row)).length;
   }, [rows, oddsData]);
 
-  // Sort rows - but preserve positions of pinned rows (those with open dropdowns)
+  // Sort rows - preserve positions of pinned rows (open dropdowns) and modified rows (user customized)
   const sortedRows = useMemo(() => {
     // First filter out rows without odds if hideNoOdds is true
     let filteredRows = rows;
@@ -246,12 +249,30 @@ export function InjuryImpactTable({
       filteredRows = rows.filter(row => hasLiveOdds(row));
     }
 
-    // Separate pinned and unpinned rows
-    const unpinnedRows = filteredRows.filter(row => !pinnedRows.has(getRowKey(row)));
-    const pinnedRowsList = filteredRows.filter(row => pinnedRows.has(getRowKey(row)));
+    // Separate rows into categories:
+    // 1. Pinned (actively editing - open dropdowns/modals)
+    // 2. Modified (user has customized teammates or market)
+    // 3. Normal (default state)
+    const pinnedRowsList: InjuryImpactRowType[] = [];
+    const modifiedRowsList: InjuryImpactRowType[] = [];
+    const normalRows: InjuryImpactRowType[] = [];
 
-    // Sort only unpinned rows
-    unpinnedRows.sort((a, b) => {
+    filteredRows.forEach(row => {
+      const key = getRowKey(row);
+      const isPinned = pinnedRows.has(key);
+      const isModified = rowStates.get(key)?.isModified ?? false;
+
+      if (isPinned) {
+        pinnedRowsList.push(row);
+      } else if (isModified) {
+        modifiedRowsList.push(row);
+      } else {
+        normalRows.push(row);
+      }
+    });
+
+    // Sort function for both modified and normal rows
+    const sortFn = (a: InjuryImpactRowType, b: InjuryImpactRowType) => {
       // Push rows without live odds to the bottom (for when hideNoOdds is false)
       if (!hideNoOdds) {
         const aHasOdds = hasLiveOdds(a);
@@ -298,11 +319,15 @@ export function InjuryImpactTable({
       }
 
       return sortDir === "desc" ? comparison : -comparison;
-    });
+    };
 
-    // Merge pinned rows back into their original positions
-    // We'll insert them at the front to keep them visible while editing
-    return [...pinnedRowsList, ...unpinnedRows];
+    // Sort modified rows among themselves
+    modifiedRowsList.sort(sortFn);
+    // Sort normal rows
+    normalRows.sort(sortFn);
+
+    // Final order: Pinned (editing) > Modified (customized) > Normal
+    return [...pinnedRowsList, ...modifiedRowsList, ...normalRows];
   }, [rows, rowStates, sortField, sortDir, oddsData, hideNoOdds, pinnedRows]);
 
   const toggleSort = (field: string) => {
@@ -408,6 +433,8 @@ export function InjuryImpactTable({
               const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd';
               const liveOdds = row.oddsSelectionId && oddsData ? oddsData[row.oddsSelectionId] || null : null;
               
+              const isPinned = pinnedRows.has(key) || rowState.isModified;
+              
               return (
                 <InjuryImpactRow
                   key={key}
@@ -418,6 +445,7 @@ export function InjuryImpactTable({
                   onPinChange={(pinned) => setPinned(key, pinned)}
                   liveOdds={liveOdds}
                   isGated={isGated}
+                  isPinned={isPinned}
                 />
               );
             })
@@ -598,6 +626,7 @@ interface InjuryImpactRowProps {
   onPinChange: (pinned: boolean) => void;
   liveOdds: OddsData | null;
   isGated?: boolean;
+  isPinned?: boolean;
 }
 
 function InjuryImpactRow({
@@ -608,21 +637,23 @@ function InjuryImpactRow({
   onPinChange,
   liveOdds,
   isGated = false,
+  isPinned = false,
 }: InjuryImpactRowProps) {
   // Dropdown states
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [showTeammateDropdown, setShowTeammateDropdown] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
   
   // Use ref to store the callback to avoid infinite loops
   const onPinChangeRef = useRef(onPinChange);
   onPinChangeRef.current = onPinChange;
   
-  // Notify parent when any dropdown is open/closed
+  // Notify parent when any dropdown or modal is open/closed
   useEffect(() => {
-    const isOpen = showMarketDropdown || showTeammateDropdown;
+    const isOpen = showMarketDropdown || showTeammateDropdown || showStatsModal;
     onPinChangeRef.current(isOpen);
-  }, [showMarketDropdown, showTeammateDropdown]);
+  }, [showMarketDropdown, showTeammateDropdown, showStatsModal]);
   
   // Refs for click outside
   const marketDropdownRef = useRef<HTMLDivElement>(null);
@@ -820,7 +851,8 @@ function InjuryImpactRow({
   return (
     <tr className={cn(
       rowBg,
-      "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors"
+      "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors",
+      isPinned && "border-l-2 border-l-brand bg-brand/5 dark:bg-brand/10"
     )}>
       {/* Player Column */}
       <td className="px-3 py-2">
@@ -842,8 +874,15 @@ function InjuryImpactRow({
             />
           </div>
           <div className="min-w-0">
-            <div className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+            <div className="flex items-center gap-1.5 font-medium text-sm text-neutral-900 dark:text-white truncate">
               {row.playerName}
+              {isPinned && (
+                <Tooltip content="Customized - pinned to top">
+                  <span className="flex items-center justify-center h-4 w-4 rounded bg-brand/20 text-brand">
+                    <Pin className="h-2.5 w-2.5" />
+                  </span>
+                </Tooltip>
+              )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-neutral-500">
               {row.teamAbbr && (
@@ -1273,19 +1312,40 @@ function InjuryImpactRow({
         </div>
       </td>
 
-      {/* Action Column - Favorites */}
+      {/* Action Column - View Full Stats */}
       <td className="px-2 py-2">
         <div className="flex justify-center">
-          <Tooltip content="Favorites coming soon" side="left">
+          <Tooltip content="View all stat boosts" side="left">
             <button
-              disabled
-              className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed hover:opacity-70 transition-opacity"
+              onClick={() => setShowStatsModal(true)}
+              className="p-2 rounded-lg bg-brand/10 hover:bg-brand/20 text-brand transition-colors"
             >
-              <Heart className="w-4 h-4 text-neutral-400" />
+              <BarChart3 className="w-4 h-4" />
             </button>
           </Tooltip>
         </div>
       </td>
+
+      {/* Stats Modal */}
+      <InjuryImpactStatsModal
+        isOpen={showStatsModal}
+        onClose={() => setShowStatsModal(false)}
+        playerName={row.playerName}
+        playerId={row.playerId}
+        teamAbbr={row.teamAbbr}
+        teammateNames={teammates
+          .filter(t => state.selectedTeammateIds.includes(t.teammateId))
+          .map(t => t.teammateName)
+          .length > 0 
+            ? teammates
+                .filter(t => state.selectedTeammateIds.includes(t.teammateId))
+                .map(t => t.teammateName)
+            : [row.defaultTeammateName]
+        }
+        market={state.selectedMarket}
+        line={state.selectedLine}
+        stats={state.currentStats}
+      />
     </tr>
   );
 }
