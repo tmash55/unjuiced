@@ -16,6 +16,8 @@ import {
   getMarketDisplayName,
   formatInjuryStatus,
 } from "@/hooks/use-injury-impact";
+import { getGradeColor, OddsData } from "@/hooks/use-cheat-sheet";
+import { OddsDropdownCell } from "./odds-dropdown-cell";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { 
@@ -28,7 +30,12 @@ import {
   X,
   Plus,
   UserMinus,
+  Eye,
+  EyeOff,
+  HelpCircle,
 } from "lucide-react";
+import { Heart } from "@/components/icons/heart";
+import { InjuryImpactGlossary } from "./injury-impact-glossary";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
 
 // ============================================================
@@ -50,6 +57,37 @@ interface RowState {
     avgStatOverall: number;
     statBoost: number;
     statBoostPct: number | null;
+    // Minutes
+    avgMinutesWhenOut: number;
+    avgMinutesOverall: number;
+    minutesBoost: number;
+    // Usage & Shooting
+    usageWhenOut: number;
+    usageOverall: number;
+    usageBoost: number;
+    fgaWhenOut: number;
+    fgaOverall: number;
+    fgaBoost: number;
+    fg3aWhenOut: number;
+    fg3aOverall: number;
+    fg3aBoost: number;
+    // Rebounds
+    orebWhenOut: number;
+    orebOverall: number;
+    orebBoost: number;
+    drebWhenOut: number;
+    drebOverall: number;
+    drebBoost: number;
+    rebWhenOut: number;
+    rebOverall: number;
+    rebBoost: number;
+    // Playmaking
+    passesWhenOut: number;
+    passesOverall: number;
+    passesBoost: number;
+    potentialAstWhenOut: number;
+    potentialAstOverall: number;
+    potentialAstBoost: number;
   };
   
   // Has user modified this row from defaults?
@@ -69,6 +107,37 @@ function initRowState(row: InjuryImpactRowType): RowState {
       avgStatOverall: row.avgStatOverall,
       statBoost: row.statBoost,
       statBoostPct: row.statBoostPct,
+      // Minutes
+      avgMinutesWhenOut: row.avgMinutesWhenOut,
+      avgMinutesOverall: row.avgMinutesOverall,
+      minutesBoost: row.minutesBoost,
+      // Usage & Shooting
+      usageWhenOut: row.usageWhenOut,
+      usageOverall: row.usageOverall,
+      usageBoost: row.usageBoost,
+      fgaWhenOut: row.fgaWhenOut,
+      fgaOverall: row.fgaOverall,
+      fgaBoost: row.fgaBoost,
+      fg3aWhenOut: row.fg3aWhenOut,
+      fg3aOverall: row.fg3aOverall,
+      fg3aBoost: row.fg3aBoost,
+      // Rebounds
+      orebWhenOut: row.orebWhenOut,
+      orebOverall: row.orebOverall,
+      orebBoost: row.orebBoost,
+      drebWhenOut: row.drebWhenOut,
+      drebOverall: row.drebOverall,
+      drebBoost: row.drebBoost,
+      rebWhenOut: row.rebWhenOut,
+      rebOverall: row.rebOverall,
+      rebBoost: row.rebBoost,
+      // Playmaking
+      passesWhenOut: row.passesWhenOut,
+      passesOverall: row.passesOverall,
+      passesBoost: row.passesBoost,
+      potentialAstWhenOut: row.potentialAstWhenOut,
+      potentialAstOverall: row.potentialAstOverall,
+      potentialAstBoost: row.potentialAstBoost,
     },
     isModified: false,
   };
@@ -81,20 +150,31 @@ function initRowState(row: InjuryImpactRowType): RowState {
 interface InjuryImpactTableProps {
   rows: InjuryImpactRowType[];
   isLoading: boolean;
+  oddsData?: Record<string, OddsData>;
+  isLoadingOdds?: boolean;
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
   sport?: string;
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (value: boolean) => void;
 }
 
 export function InjuryImpactTable({
   rows,
   isLoading,
+  oddsData,
+  isLoadingOdds,
   filters,
   onFiltersChange,
   onGlossaryOpen,
   sport = "nba",
+  hideNoOdds = true,
+  onHideNoOddsChange,
 }: InjuryImpactTableProps) {
+  // Glossary modal state
+  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+
   // Row states for each row (keyed by unique row identifier)
   const [rowStates, setRowStates] = useState<Map<string, RowState>>(new Map());
   
@@ -126,15 +206,44 @@ export function InjuryImpactTable({
     });
   }, []);
 
-  // Sorting
-  const [sortField, setSortField] = useState<string>("opportunityGrade");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Sorting - default to hit rate descending (highest first)
+  const [sortField, setSortField] = useState<string>("hitRate");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // Helper to check if a row has live odds in Redis
+  const hasLiveOdds = (row: InjuryImpactRowType): boolean => {
+    if (!oddsData || !row.oddsSelectionId) return false;
+    const odds = oddsData[row.oddsSelectionId];
+    // Check if odds object exists AND has actual betting odds (bestOver or bestUnder)
+    return odds !== null && 
+           odds !== undefined && 
+           (odds.bestOver !== null || odds.bestUnder !== null);
+  };
+
+  // Count rows without odds for the toggle label
+  const noOddsCount = useMemo(() => {
+    if (!oddsData) return 0;
+    return rows.filter(row => !hasLiveOdds(row)).length;
+  }, [rows, oddsData]);
 
   // Sort rows
   const sortedRows = useMemo(() => {
-    let result = [...rows];
+    // First filter out rows without odds if hideNoOdds is true
+    let filteredRows = rows;
+    if (hideNoOdds && oddsData) {
+      filteredRows = rows.filter(row => hasLiveOdds(row));
+    }
+
+    let result = [...filteredRows];
 
     result.sort((a, b) => {
+      // Push rows without live odds to the bottom (for when hideNoOdds is false)
+      if (!hideNoOdds) {
+        const aHasOdds = hasLiveOdds(a);
+        const bHasOdds = hasLiveOdds(b);
+        if (aHasOdds && !bHasOdds) return -1;
+        if (!aHasOdds && bHasOdds) return 1;
+      }
       let comparison = 0;
       const aState = rowStates.get(getRowKey(a));
       const bState = rowStates.get(getRowKey(b));
@@ -173,18 +282,20 @@ export function InjuryImpactTable({
           break;
       }
 
-      return sortDir === "asc" ? comparison : -comparison;
+      return sortDir === "desc" ? comparison : -comparison;
     });
 
     return result;
-  }, [rows, rowStates, sortField, sortDir]);
+  }, [rows, rowStates, sortField, sortDir, oddsData, hideNoOdds]);
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDir("asc");
+      // Default to descending for numeric fields (highest first), ascending for text fields
+      const numericFields = ["hitRate", "statBoost", "gamesWithTeammateOut", "confidenceScore", "opportunityGrade"];
+      setSortDir(numericFields.includes(field) ? "desc" : "asc");
     }
   };
 
@@ -209,8 +320,35 @@ export function InjuryImpactTable({
 
   return (
     <div className="relative">
+      {/* Toggle for hiding rows without odds */}
+      {onHideNoOddsChange && (
+        <div className="flex items-center justify-end px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
+          <button
+            onClick={() => onHideNoOddsChange(!hideNoOdds)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+              hideNoOdds
+                ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                : "bg-brand/10 text-brand border border-brand/30"
+            )}
+          >
+            {hideNoOdds ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>{noOddsCount} without odds hidden</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Showing all ({noOddsCount} without odds)</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      
       {/* Scrollable Table Container */}
-      <div className="overflow-auto max-h-[calc(100vh-280px)] min-h-[400px]">
+      <div className="overflow-auto max-h-[calc(100vh-200px)] min-h-[500px]">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="bg-neutral-50 dark:bg-neutral-800/80">
@@ -244,11 +382,22 @@ export function InjuryImpactTable({
                   <div className="w-full flex items-center justify-center cursor-help">Min / Usage</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[70px] bg-neutral-50 dark:bg-neutral-800/80">
-                <SortButton field="confidenceScore">Grade</SortButton>
+              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
+                <div className="w-full flex items-center justify-center gap-1">
+                  <SortButton field="confidenceScore">Confidence</SortButton>
+                  <button
+                    onClick={() => setIsGlossaryOpen(true)}
+                    className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300" />
+                  </button>
+                </div>
               </th>
               <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
                 <div className="w-full flex items-center justify-center">Odds</div>
+              </th>
+              <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-16 bg-neutral-50 dark:bg-neutral-800/80">
+                Action
               </th>
             </tr>
           </thead>
@@ -273,6 +422,7 @@ export function InjuryImpactTable({
               const key = getRowKey(row);
               const rowState = rowStates.get(key) || initRowState(row);
               const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd';
+              const liveOdds = row.oddsSelectionId && oddsData ? oddsData[row.oddsSelectionId] || null : null;
               
               return (
                 <InjuryImpactRow
@@ -281,6 +431,7 @@ export function InjuryImpactTable({
                   state={rowState}
                   rowBg={rowBg}
                   onStateChange={(update) => updateRowState(key, update)}
+                  liveOdds={liveOdds}
                 />
               );
             })
@@ -288,6 +439,12 @@ export function InjuryImpactTable({
         </tbody>
       </table>
       </div>
+
+      {/* Confidence Score Glossary Modal */}
+      <InjuryImpactGlossary 
+        isOpen={isGlossaryOpen} 
+        onClose={() => setIsGlossaryOpen(false)} 
+      />
     </div>
   );
 }
@@ -296,8 +453,27 @@ function getRowKey(row: InjuryImpactRowType): string {
   return `${row.playerId}-${row.market}-${row.gameId}`;
 }
 
+// Stats structure for key stat lookup (can be from row or currentStats)
+interface SecondaryStats {
+  fgaWhenOut: number;
+  fgaOverall: number;
+  fgaBoost: number;
+  fg3aWhenOut: number;
+  fg3aOverall: number;
+  fg3aBoost: number;
+  rebWhenOut: number;
+  rebOverall: number;
+  rebBoost: number;
+  passesWhenOut: number;
+  passesOverall: number;
+  passesBoost: number;
+  potentialAstWhenOut: number;
+  potentialAstOverall: number;
+  potentialAstBoost: number;
+}
+
 // Get the key stat label and values based on market
-function getKeyStatForMarket(market: string, row: InjuryImpactRowType): {
+function getKeyStatForMarket(market: string, stats: SecondaryStats): {
   label: string;
   overall: number;
   whenOut: number;
@@ -308,36 +484,36 @@ function getKeyStatForMarket(market: string, row: InjuryImpactRowType): {
     case "player_points":
       return {
         label: "FGA",
-        overall: row.fgaOverall,
-        whenOut: row.fgaWhenOut,
-        boost: row.fgaBoost,
+        overall: stats.fgaOverall,
+        whenOut: stats.fgaWhenOut,
+        boost: stats.fgaBoost,
       };
     
     // Threes → 3PA
     case "player_threes_made":
       return {
         label: "3PA",
-        overall: row.fg3aOverall,
-        whenOut: row.fg3aWhenOut,
-        boost: row.fg3aBoost,
+        overall: stats.fg3aOverall,
+        whenOut: stats.fg3aWhenOut,
+        boost: stats.fg3aBoost,
       };
     
     // Assists → Passes (more ball handling = more assist opportunities)
     case "player_assists":
       return {
         label: "PASS",
-        overall: row.passesOverall,
-        whenOut: row.passesWhenOut,
-        boost: row.passesBoost,
+        overall: stats.passesOverall,
+        whenOut: stats.passesWhenOut,
+        boost: stats.passesBoost,
       };
     
     // Rebounds → Total rebounds (OREB + DREB combined effect)
     case "player_rebounds":
       return {
         label: "REB",
-        overall: row.rebOverall,
-        whenOut: row.rebWhenOut,
-        boost: row.rebBoost,
+        overall: stats.rebOverall,
+        whenOut: stats.rebWhenOut,
+        boost: stats.rebBoost,
       };
     
     // Combo markets with assists → Potential Assists
@@ -345,68 +521,86 @@ function getKeyStatForMarket(market: string, row: InjuryImpactRowType): {
     case "player_rebounds_assists":
       return {
         label: "POT AST",
-        overall: row.potentialAstOverall,
-        whenOut: row.potentialAstWhenOut,
-        boost: row.potentialAstBoost,
+        overall: stats.potentialAstOverall,
+        whenOut: stats.potentialAstWhenOut,
+        boost: stats.potentialAstBoost,
       };
     
     // Combo markets with rebounds → Total rebounds
     case "player_points_rebounds":
       return {
         label: "REB",
-        overall: row.rebOverall,
-        whenOut: row.rebWhenOut,
-        boost: row.rebBoost,
+        overall: stats.rebOverall,
+        whenOut: stats.rebWhenOut,
+        boost: stats.rebBoost,
       };
     
     // PRA → FGA (general offensive involvement)
     case "player_points_rebounds_assists":
       return {
         label: "FGA",
-        overall: row.fgaOverall,
-        whenOut: row.fgaWhenOut,
-        boost: row.fgaBoost,
+        overall: stats.fgaOverall,
+        whenOut: stats.fgaWhenOut,
+        boost: stats.fgaBoost,
       };
     
     // Default fallback to FGA
     default:
       return {
         label: "FGA",
-        overall: row.fgaOverall,
-        whenOut: row.fgaWhenOut,
-        boost: row.fgaBoost,
+        overall: stats.fgaOverall,
+        whenOut: stats.fgaWhenOut,
+        boost: stats.fgaBoost,
       };
   }
 }
 
 // Key Stat Cell Component - Shows dynamic stat based on market
-function KeyStatCell({ market, row }: { market: string; row: InjuryImpactRowType }) {
-  const keyStat = getKeyStatForMarket(market, row);
+function KeyStatCell({ 
+  market, 
+  stats, 
+  isRecalculating 
+}: { 
+  market: string; 
+  stats: SecondaryStats;
+  isRecalculating?: boolean;
+}) {
+  const keyStat = getKeyStatForMarket(market, stats);
   
   return (
     <td className="px-4 py-3 text-center">
-      <div className="inline-flex flex-col items-center">
-        {/* Label */}
-        <span className="text-[10px] text-neutral-500 font-medium mb-0.5">
-          {keyStat.label}
-        </span>
-        {/* Overall → When Out */}
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-neutral-500 tabular-nums">
-            {keyStat.overall.toFixed(1)}
+      <div className="relative inline-flex flex-col items-center min-h-[44px] justify-center">
+        <div className={cn(
+          "flex flex-col items-center transition-opacity duration-150",
+          isRecalculating && "opacity-40"
+        )}>
+          {/* Label */}
+          <span className="text-[10px] text-neutral-500 font-medium mb-0.5">
+            {keyStat.label}
           </span>
-          <span className="text-neutral-600 text-[10px]">→</span>
-          <span className="text-xs text-neutral-300 tabular-nums font-medium">
-            {keyStat.whenOut.toFixed(1)}
+          {/* Overall → When Out */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-neutral-500 tabular-nums">
+              {keyStat.overall.toFixed(1)}
+            </span>
+            <span className="text-neutral-600 text-[10px]">→</span>
+            <span className="text-xs text-neutral-300 tabular-nums font-medium">
+              {keyStat.whenOut.toFixed(1)}
+            </span>
+          </div>
+          {/* Boost */}
+          <span className={cn(
+            "text-[10px] font-semibold tabular-nums",
+            keyStat.boost > 0 ? "text-green-400" : keyStat.boost < 0 ? "text-red-400" : "text-neutral-500"
+          )}>
+            {keyStat.boost > 0 ? "+" : ""}{keyStat.boost.toFixed(1)}
           </span>
         </div>
-        {/* Boost */}
-        <span className={cn(
-          "text-[10px] font-semibold tabular-nums",
-          keyStat.boost > 0 ? "text-green-400" : keyStat.boost < 0 ? "text-red-400" : "text-neutral-500"
-        )}>
-          {keyStat.boost > 0 ? "+" : ""}{keyStat.boost.toFixed(1)}
-        </span>
+        {isRecalculating && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+          </div>
+        )}
       </div>
     </td>
   );
@@ -421,6 +615,7 @@ interface InjuryImpactRowProps {
   state: RowState;
   rowBg: string;
   onStateChange: (update: Partial<RowState>) => void;
+  liveOdds: OddsData | null;
 }
 
 function InjuryImpactRow({
@@ -428,6 +623,7 @@ function InjuryImpactRow({
   state,
   rowBg,
   onStateChange,
+  liveOdds,
 }: InjuryImpactRowProps) {
   // Dropdown states
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
@@ -494,6 +690,37 @@ function InjuryImpactRow({
           avgStatOverall: result.stats.avgStatOverall,
           statBoost: result.stats.statBoost,
           statBoostPct: result.stats.statBoostPct,
+          // Minutes
+          avgMinutesWhenOut: result.stats.avgMinutes,
+          avgMinutesOverall: result.stats.avgMinutesOverall,
+          minutesBoost: result.stats.minutesBoost,
+          // Usage & Shooting
+          usageWhenOut: result.stats.usageWhenOut,
+          usageOverall: result.stats.usageOverall,
+          usageBoost: result.stats.usageBoost,
+          fgaWhenOut: result.stats.fgaWhenOut,
+          fgaOverall: result.stats.fgaOverall,
+          fgaBoost: result.stats.fgaBoost,
+          fg3aWhenOut: result.stats.fg3aWhenOut,
+          fg3aOverall: result.stats.fg3aOverall,
+          fg3aBoost: result.stats.fg3aBoost,
+          // Rebounds
+          orebWhenOut: result.stats.orebWhenOut,
+          orebOverall: result.stats.orebOverall,
+          orebBoost: result.stats.orebBoost,
+          drebWhenOut: result.stats.drebWhenOut,
+          drebOverall: result.stats.drebOverall,
+          drebBoost: result.stats.drebBoost,
+          rebWhenOut: result.stats.rebWhenOut,
+          rebOverall: result.stats.rebOverall,
+          rebBoost: result.stats.rebBoost,
+          // Playmaking
+          passesWhenOut: result.stats.passesWhenOut,
+          passesOverall: result.stats.passesOverall,
+          passesBoost: result.stats.passesBoost,
+          potentialAstWhenOut: result.stats.potentialAstWhenOut,
+          potentialAstOverall: result.stats.potentialAstOverall,
+          potentialAstBoost: result.stats.potentialAstBoost,
         },
       });
     } catch (error) {
@@ -503,7 +730,7 @@ function InjuryImpactRow({
     }
   };
   
-  // Handle teammate toggle
+  // Handle teammate toggle with optimistic UI
   const handleTeammateToggle = async (teammateId: number) => {
     const newIds = state.selectedTeammateIds.includes(teammateId)
       ? state.selectedTeammateIds.filter(id => id !== teammateId)
@@ -512,6 +739,8 @@ function InjuryImpactRow({
     // Don't allow empty selection
     if (newIds.length === 0) return;
     
+    // Optimistic update - immediately update selected teammates
+    onStateChange({ selectedTeammateIds: newIds });
     setIsRecalculating(true);
     
     try {
@@ -523,7 +752,6 @@ function InjuryImpactRow({
       });
       
       onStateChange({
-        selectedTeammateIds: newIds,
         currentStats: {
           games: result.stats.games,
           hits: result.stats.hits,
@@ -532,10 +760,43 @@ function InjuryImpactRow({
           avgStatOverall: result.stats.avgStatOverall,
           statBoost: result.stats.statBoost,
           statBoostPct: result.stats.statBoostPct,
+          // Minutes
+          avgMinutesWhenOut: result.stats.avgMinutes,
+          avgMinutesOverall: result.stats.avgMinutesOverall,
+          minutesBoost: result.stats.minutesBoost,
+          // Usage & Shooting
+          usageWhenOut: result.stats.usageWhenOut,
+          usageOverall: result.stats.usageOverall,
+          usageBoost: result.stats.usageBoost,
+          fgaWhenOut: result.stats.fgaWhenOut,
+          fgaOverall: result.stats.fgaOverall,
+          fgaBoost: result.stats.fgaBoost,
+          fg3aWhenOut: result.stats.fg3aWhenOut,
+          fg3aOverall: result.stats.fg3aOverall,
+          fg3aBoost: result.stats.fg3aBoost,
+          // Rebounds
+          orebWhenOut: result.stats.orebWhenOut,
+          orebOverall: result.stats.orebOverall,
+          orebBoost: result.stats.orebBoost,
+          drebWhenOut: result.stats.drebWhenOut,
+          drebOverall: result.stats.drebOverall,
+          drebBoost: result.stats.drebBoost,
+          rebWhenOut: result.stats.rebWhenOut,
+          rebOverall: result.stats.rebOverall,
+          rebBoost: result.stats.rebBoost,
+          // Playmaking
+          passesWhenOut: result.stats.passesWhenOut,
+          passesOverall: result.stats.passesOverall,
+          passesBoost: result.stats.passesBoost,
+          potentialAstWhenOut: result.stats.potentialAstWhenOut,
+          potentialAstOverall: result.stats.potentialAstOverall,
+          potentialAstBoost: result.stats.potentialAstBoost,
         },
       });
     } catch (error) {
       console.error("Failed to recalculate stats:", error);
+      // Revert on error
+      onStateChange({ selectedTeammateIds: state.selectedTeammateIds });
     } finally {
       setIsRecalculating(false);
     }
@@ -565,27 +826,40 @@ function InjuryImpactRow({
   return (
     <tr className={cn(
       rowBg,
-      "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors",
-      isRecalculating && "opacity-60"
+      "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors"
     )}>
       {/* Player Column */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <PlayerHeadshot
-            nbaPlayerId={row.playerId}
-            name={row.playerName}
-            size="small"
-            className="rounded-full shrink-0 w-10 h-10"
-          />
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-2.5">
+          {/* Player headshot with team color gradient */}
+          <div 
+            className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg shadow-sm"
+            style={{ 
+              background: row.primaryColor && row.secondaryColor 
+                ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
+                : row.primaryColor || "#6b7280"
+            }}
+          >
+            <PlayerHeadshot
+              nbaPlayerId={row.playerId}
+              name={row.playerName}
+              size="tiny"
+              className="h-full w-full object-cover"
+            />
+          </div>
           <div className="min-w-0">
             <div className="font-medium text-sm text-neutral-900 dark:text-white truncate">
               {row.playerName}
             </div>
-            <div className="flex items-center gap-1 text-xs text-neutral-500">
-              <span>{row.teamAbbr}</span>
-              <span>•</span>
+            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+              {row.teamAbbr && (
+                <img
+                  src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                  alt={row.teamAbbr}
+                  className="h-4 w-4 object-contain"
+                />
+              )}
               <span>{row.playerPosition}</span>
-              <span>•</span>
               <span className="text-neutral-400">
                 {row.homeAway === "home" ? "vs" : "@"} {row.opponentAbbr}
               </span>
@@ -673,17 +947,22 @@ function InjuryImpactRow({
                         key={teammate.teammateId}
                         onClick={() => handleTeammateToggle(teammate.teammateId)}
                         className={cn(
-                          "w-full px-3 py-2 flex items-center gap-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors",
-                          isSelected && "bg-blue-50 dark:bg-blue-900/20"
+                          "w-full px-3 py-2.5 flex items-center gap-3 transition-all duration-150",
+                          "hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                          isSelected && "bg-blue-50/80 dark:bg-blue-900/30"
                         )}
                       >
                         <div className={cn(
-                          "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                          "w-5 h-5 rounded-md flex items-center justify-center shrink-0",
+                          "transition-all duration-150 ease-out",
                           isSelected 
-                            ? "bg-blue-500 border-blue-500" 
-                            : "border-neutral-300 dark:border-neutral-600"
+                            ? "bg-blue-500 border-2 border-blue-500 scale-100" 
+                            : "border-2 border-neutral-300 dark:border-neutral-600 scale-100 hover:border-blue-400"
                         )}>
-                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                          <Check className={cn(
+                            "w-3 h-3 text-white transition-all duration-150",
+                            isSelected ? "opacity-100 scale-100" : "opacity-0 scale-75"
+                          )} />
                         </div>
                         
                         <div className="flex-1 min-w-0 text-left">
@@ -793,21 +1072,25 @@ function InjuryImpactRow({
       {/* Hit Rate Column */}
       <td className="px-4 py-3 text-center">
         <Tooltip content={`${stats.hits}/${stats.games} games hit when selected teammate(s) out`}>
-          <div className="inline-flex flex-col items-center">
-            {isRecalculating ? (
-              <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
-            ) : (
-              <>
-                <span className={cn(
-                  "font-bold text-sm",
-                  getHitRateColor(stats.hitRate)
-                )}>
-                  {stats.hitRate !== null ? `${(stats.hitRate * 100).toFixed(0)}%` : "—"}
-                </span>
-                <span className="text-xs text-neutral-500">
-                  {stats.hits}/{stats.games}
-                </span>
-              </>
+          <div className="relative inline-flex flex-col items-center min-w-[48px] min-h-[36px] justify-center">
+            <div className={cn(
+              "flex flex-col items-center transition-opacity duration-150",
+              isRecalculating && "opacity-40"
+            )}>
+              <span className={cn(
+                "font-bold text-sm",
+                getHitRateColor(stats.hitRate)
+              )}>
+                {stats.hitRate !== null ? `${(stats.hitRate * 100).toFixed(0)}%` : "—"}
+              </span>
+              <span className="text-xs text-neutral-500">
+                {stats.hits}/{stats.games}
+              </span>
+            </div>
+            {isRecalculating && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+              </div>
             )}
           </div>
         </Tooltip>
@@ -815,130 +1098,188 @@ function InjuryImpactRow({
 
       {/* Avg When Out Column - Shows season avg → avg when out (boost) */}
       <td className="px-4 py-3 text-center">
-        <div className="inline-flex flex-col items-center">
-          {isRecalculating ? (
-            <Loader2 className="w-4 h-4 animate-spin text-neutral-400" />
-          ) : (
-            <>
-              {/* Main row: Season Avg → Avg When Out */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-neutral-500 tabular-nums">
-                  {stats.avgStatOverall.toFixed(1)}
-                </span>
-                <span className="text-neutral-500">→</span>
-                <span className="text-sm font-semibold text-neutral-200 tabular-nums">
-                  {stats.avgStatWhenOut.toFixed(1)}
-                </span>
-              </div>
-              {/* Boost amount with percentage */}
-              <div className="flex items-center gap-1">
-                <span className={cn(
-                  "text-xs font-bold tabular-nums",
-                  getStatBoostColor(stats.statBoost)
-                )}>
-                  {stats.statBoost > 0 ? "+" : ""}{stats.statBoost.toFixed(1)}
-                </span>
-                <span className={cn(
-                  "text-[10px] tabular-nums",
-                  stats.statBoostPct !== null && stats.statBoostPct > 0 ? "text-green-400/70" : 
-                  stats.statBoostPct !== null && stats.statBoostPct < 0 ? "text-red-400/70" : "text-neutral-500"
-                )}>
-                  ({stats.statBoostPct !== null && stats.statBoostPct > 0 ? "+" : ""}
-                  {stats.statBoostPct?.toFixed(0)}%)
-                </span>
-              </div>
-            </>
+        <div className="relative inline-flex flex-col items-center min-h-[36px] justify-center">
+          <div className={cn(
+            "flex flex-col items-center transition-opacity duration-150",
+            isRecalculating && "opacity-40"
+          )}>
+            {/* Main row: Season Avg → Avg When Out */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-neutral-500 tabular-nums">
+                {stats.avgStatOverall.toFixed(1)}
+              </span>
+              <span className="text-neutral-500">→</span>
+              <span className="text-sm font-semibold text-neutral-200 tabular-nums">
+                {stats.avgStatWhenOut.toFixed(1)}
+              </span>
+            </div>
+            {/* Boost amount with percentage */}
+            <div className="flex items-center gap-1">
+              <span className={cn(
+                "text-xs font-bold tabular-nums",
+                getStatBoostColor(stats.statBoost)
+              )}>
+                {stats.statBoost > 0 ? "+" : ""}{stats.statBoost.toFixed(1)}
+              </span>
+              <span className={cn(
+                "text-[10px] tabular-nums",
+                stats.statBoostPct !== null && stats.statBoostPct > 0 ? "text-green-400/70" : 
+                stats.statBoostPct !== null && stats.statBoostPct < 0 ? "text-red-400/70" : "text-neutral-500"
+              )}>
+                ({stats.statBoostPct !== null && stats.statBoostPct > 0 ? "+" : ""}
+                {stats.statBoostPct?.toFixed(0)}%)
+              </span>
+            </div>
+          </div>
+          {isRecalculating && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+            </div>
           )}
         </div>
       </td>
 
       {/* Sample Size Column */}
       <td className="px-4 py-3 text-center">
-        <span className={cn(
-          "text-sm",
-          stats.games >= 5 ? "text-neutral-200" : "text-neutral-500"
-        )}>
-          {isRecalculating ? (
-            <Loader2 className="w-4 h-4 animate-spin text-neutral-400 mx-auto" />
-          ) : (
-            stats.games
+        <div className="relative inline-flex items-center justify-center min-w-[32px] min-h-[24px]">
+          <span className={cn(
+            "text-sm transition-opacity duration-150",
+            stats.games >= 5 ? "text-neutral-200" : "text-neutral-500",
+            isRecalculating && "opacity-40"
+          )}>
+            {stats.games}
+          </span>
+          {isRecalculating && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+            </div>
           )}
-        </span>
+        </div>
       </td>
 
       {/* Key Stat Column - Dynamic based on market */}
-      <KeyStatCell market={state.selectedMarket} row={row} />
+      <KeyStatCell 
+        market={state.selectedMarket} 
+        stats={stats} 
+        isRecalculating={isRecalculating}
+      />
 
       {/* Minutes / Usage Column - Shows season avg → avg when out */}
       <td className="px-4 py-3 text-center">
         <Tooltip content={
-          <div className="text-xs space-y-1">
-            {row.fgaBoost !== 0 && <div>FGA: {row.fgaOverall.toFixed(1)} → {row.fgaWhenOut.toFixed(1)} ({row.fgaBoost > 0 ? '+' : ''}{row.fgaBoost.toFixed(1)})</div>}
-            {row.fg3aBoost !== 0 && <div>3PA: {row.fg3aOverall.toFixed(1)} → {row.fg3aWhenOut.toFixed(1)} ({row.fg3aBoost > 0 ? '+' : ''}{row.fg3aBoost.toFixed(1)})</div>}
+          <div className="space-y-2 min-w-[140px]">
+            <div className="text-xs font-semibold text-neutral-300 border-b border-neutral-700 pb-1">
+              Additional Stats
+            </div>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">FGA</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-neutral-500">{stats.fgaOverall.toFixed(1)}</span>
+                  <span className="text-neutral-600">→</span>
+                  <span className="text-neutral-200 font-medium">{stats.fgaWhenOut.toFixed(1)}</span>
+                  <span className={cn(
+                    "font-semibold",
+                    stats.fgaBoost > 0 ? "text-green-400" : stats.fgaBoost < 0 ? "text-red-400" : "text-neutral-500"
+                  )}>
+                    {stats.fgaBoost > 0 ? "+" : ""}{stats.fgaBoost.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">3PA</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-neutral-500">{stats.fg3aOverall.toFixed(1)}</span>
+                  <span className="text-neutral-600">→</span>
+                  <span className="text-neutral-200 font-medium">{stats.fg3aWhenOut.toFixed(1)}</span>
+                  <span className={cn(
+                    "font-semibold",
+                    stats.fg3aBoost > 0 ? "text-green-400" : stats.fg3aBoost < 0 ? "text-red-400" : "text-neutral-500"
+                  )}>
+                    {stats.fg3aBoost > 0 ? "+" : ""}{stats.fg3aBoost.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         }>
-          <div className="inline-flex flex-col items-center gap-0.5">
-            {/* Minutes: overall → when out (boost) */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-neutral-500 w-7">MIN</span>
-              <span className="text-[10px] text-neutral-500 tabular-nums">{row.avgMinutesOverall.toFixed(0)}</span>
-              <span className="text-neutral-600 text-[10px]">→</span>
-              <span className="text-xs text-neutral-300 tabular-nums font-medium">{row.avgMinutesWhenOut.toFixed(0)}</span>
-              <span className={cn(
-                "text-[10px] font-semibold tabular-nums",
-                row.minutesBoost > 0 ? "text-green-400" : row.minutesBoost < 0 ? "text-red-400" : "text-neutral-500"
-              )}>
-                {row.minutesBoost > 0 ? "+" : ""}{row.minutesBoost.toFixed(1)}
-              </span>
-            </div>
-            {/* Usage: overall → when out (boost) - multiply by 100 to convert decimal to % */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-neutral-500 w-7">USG</span>
-              <span className="text-[10px] text-neutral-500 tabular-nums">{(row.usageOverall * 100).toFixed(0)}%</span>
-              <span className="text-neutral-600 text-[10px]">→</span>
-              <span className="text-xs text-neutral-300 tabular-nums font-medium">{(row.usageWhenOut * 100).toFixed(0)}%</span>
-              <span className={cn(
-                "text-[10px] font-semibold tabular-nums",
-                row.usageBoost > 0 ? "text-green-400" : row.usageBoost < 0 ? "text-red-400" : "text-neutral-500"
-              )}>
-                {row.usageBoost > 0 ? "+" : ""}{(row.usageBoost * 100).toFixed(1)}
-              </span>
-            </div>
-          </div>
-        </Tooltip>
-      </td>
-
-      {/* Opportunity Grade Column */}
-      <td className="px-4 py-3 text-center">
-        <Tooltip content={`Confidence Score: ${row.confidenceScore.toFixed(0)}/100`}>
-          <div className="inline-flex flex-col items-center gap-0.5">
-            <span className={cn(
-              "inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold border",
-              getOpportunityGradeColor(row.opportunityGrade)
+          <div className="relative inline-flex flex-col items-center gap-0.5 min-h-[40px] justify-center">
+            <div className={cn(
+              "flex flex-col items-center gap-0.5 transition-opacity duration-150",
+              isRecalculating && "opacity-40"
             )}>
-              {row.opportunityGrade}
-            </span>
-            <span className="text-[10px] text-neutral-500 tabular-nums">
-              {row.confidenceScore.toFixed(0)}
-            </span>
+              {/* Minutes: overall → when out (boost) */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-neutral-500 w-7">MIN</span>
+                <span className="text-[10px] text-neutral-500 tabular-nums">{stats.avgMinutesOverall.toFixed(0)}</span>
+                <span className="text-neutral-600 text-[10px]">→</span>
+                <span className="text-xs text-neutral-300 tabular-nums font-medium">{stats.avgMinutesWhenOut.toFixed(0)}</span>
+                <span className={cn(
+                  "text-[10px] font-semibold tabular-nums",
+                  stats.minutesBoost > 0 ? "text-green-400" : stats.minutesBoost < 0 ? "text-red-400" : "text-neutral-500"
+                )}>
+                  {stats.minutesBoost > 0 ? "+" : ""}{stats.minutesBoost.toFixed(1)}
+                </span>
+              </div>
+              {/* Usage: overall → when out (boost) - multiply by 100 to convert decimal to % */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-neutral-500 w-7">USG</span>
+                <span className="text-[10px] text-neutral-500 tabular-nums">{(stats.usageOverall * 100).toFixed(0)}%</span>
+                <span className="text-neutral-600 text-[10px]">→</span>
+                <span className="text-xs text-neutral-300 tabular-nums font-medium">{(stats.usageWhenOut * 100).toFixed(0)}%</span>
+                <span className={cn(
+                  "text-[10px] font-semibold tabular-nums",
+                  stats.usageBoost > 0 ? "text-green-400" : stats.usageBoost < 0 ? "text-red-400" : "text-neutral-500"
+                )}>
+                  {stats.usageBoost > 0 ? "+" : ""}{(stats.usageBoost * 100).toFixed(1)}
+                </span>
+              </div>
+            </div>
+            {isRecalculating && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+              </div>
+            )}
           </div>
         </Tooltip>
       </td>
 
-      {/* Odds Column */}
+      {/* Grade Column - matching hit rate sheet style */}
       <td className="px-4 py-3 text-center">
-        {row.overOdds ? (
-          <span className={cn(
-            "inline-flex items-center justify-center px-2 py-1 rounded text-sm font-mono",
-            "bg-neutral-800 text-neutral-200"
+        <div className="flex justify-center">
+          <div className={cn(
+            "inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-bold",
+            getGradeColor(row.opportunityGrade as "A+" | "A" | "B+" | "B" | "C")
           )}>
-            {row.overOdds.startsWith("-") || row.overOdds.startsWith("+")
-              ? row.overOdds
-              : `+${row.overOdds}`}
-          </span>
-        ) : (
-          <span className="text-neutral-500">—</span>
-        )}
+            <span>{row.opportunityGrade}</span>
+            <span className="opacity-70 text-xs">({Math.round(row.confidenceScore)})</span>
+          </div>
+        </div>
+      </td>
+
+      {/* Odds Column - Live from Redis */}
+      <td className="px-3 py-2">
+        <div className="flex justify-center">
+          <OddsDropdownCell
+            odds={liveOdds}
+            line={row.line}
+            isLive={liveOdds?.live}
+          />
+        </div>
+      </td>
+
+      {/* Action Column - Favorites */}
+      <td className="px-2 py-2">
+        <div className="flex justify-center">
+          <Tooltip content="Favorites coming soon" side="left">
+            <button
+              disabled
+              className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed hover:opacity-70 transition-opacity"
+            >
+              <Heart className="w-4 h-4 text-neutral-400" />
+            </button>
+          </Tooltip>
+        </div>
       </td>
     </tr>
   );

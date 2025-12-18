@@ -3,7 +3,7 @@
 import { use, useState, useMemo } from "react";
 import { notFound } from "next/navigation";
 import { useCheatSheet, useCheatSheetOdds, CheatSheetRow } from "@/hooks/use-cheat-sheet";
-import { useInjuryImpactCheatsheet, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
+import { useInjuryImpactCheatsheet, useInjuryImpactOdds, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
 import { 
   CheatSheetFilterState,
   DEFAULT_CHEAT_SHEET_FILTERS,
@@ -14,7 +14,6 @@ import { CheatSheetTable } from "@/components/cheat-sheet/cheat-sheet-table";
 import { CheatSheetFilterBar } from "@/components/cheat-sheet/cheat-sheet-filter-bar";
 import { ConfidenceGlossary } from "@/components/cheat-sheet/confidence-glossary";
 import { MobileConfidenceGlossary } from "@/components/cheat-sheet/mobile/mobile-confidence-glossary";
-import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 import { MobileCheatSheet } from "@/components/cheat-sheet/mobile/mobile-cheat-sheet";
 import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
@@ -93,9 +92,6 @@ function ComingSoonSheet({
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Tab Navigation */}
-      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
-      
       <div className={isMobile ? "px-4 py-6" : "container mx-auto px-4 py-6"}>
         <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
           <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
@@ -116,9 +112,6 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Tab Navigation */}
-      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
-      
       <div className={isMobile ? "px-2 py-4" : "container mx-auto px-4 py-6"}>
         <AltHitMatrix sport={sport} />
       </div>
@@ -135,6 +128,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
     markets: ["player_points"], // Default to Points for injury impact
   }));
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+  const [hideNoOdds, setHideNoOdds] = useState(true);
 
   // Fetch injury impact data
   const { rows, isLoading, error } = useInjuryImpactCheatsheet({
@@ -144,13 +138,30 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
     minTeammateMinutes: 15,
   });
 
+  // Fetch live odds from Redis
+  const { data: oddsData, isLoading: isLoadingOdds } = useInjuryImpactOdds(rows);
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Tab Navigation */}
-      <CheatSheetNav sport={sport} currentSheet={sheet} isMobile={isMobile} />
-      
       <div className={isMobile ? "px-2 py-4" : "container mx-auto px-4 py-6"}>
         <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+          {/* Header Row */}
+          <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+            <div>
+              <h1 className="text-lg font-bold text-neutral-900 dark:text-white">
+                NBA Injury Impact
+              </h1>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Props boosted when key teammates are out
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-neutral-400">
+                {rows.length} {rows.length === 1 ? "prop" : "props"}
+              </span>
+            </div>
+          </div>
+
           {/* Market Filter Bar */}
           <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center gap-2 flex-wrap">
@@ -199,10 +210,14 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           <InjuryImpactTable
             rows={rows}
             isLoading={isLoading}
+            oddsData={oddsData}
+            isLoadingOdds={isLoadingOdds}
             filters={filters}
             onFiltersChange={setFilters}
             onGlossaryOpen={() => setIsGlossaryOpen(true)}
             sport={sport}
+            hideNoOdds={hideNoOdds}
+            onHideNoOddsChange={setHideNoOdds}
           />
         </div>
       </div>
@@ -299,9 +314,6 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   // Desktop Layout
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Tab Navigation */}
-      <CheatSheetNav sport={sport} currentSheet={sheet} />
-      
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
@@ -328,6 +340,8 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
               timeWindow={filters.timeWindow}
               onRowClick={handleRowClick}
               onGlossaryOpen={() => setIsGlossaryOpen(true)}
+              hideNoOdds={filters.hideNoOdds}
+              onHideNoOddsChange={(value) => setFilters({ ...filters, hideNoOdds: value })}
             />
           )}
         </div>

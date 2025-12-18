@@ -38,6 +38,8 @@ export interface InjuryImpactRow {
   line: number;
   overOdds: string | null;
   overOddsDecimal: number | null;
+  oddsSelectionId: string | null;
+  eventId: string | null;
   
   // Default injured teammate
   defaultTeammateId: number;
@@ -133,6 +135,34 @@ export interface TeammateOutStats {
   avgMinutes: number;
   avgMinutesOverall: number;
   minutesBoost: number;
+  // Additional stats
+  usageWhenOut: number;
+  usageOverall: number;
+  usageBoost: number;
+  fgaWhenOut: number;
+  fgaOverall: number;
+  fgaBoost: number;
+  fg3aWhenOut: number;
+  fg3aOverall: number;
+  fg3aBoost: number;
+  // Rebound stats
+  orebWhenOut: number;
+  orebOverall: number;
+  orebBoost: number;
+  drebWhenOut: number;
+  drebOverall: number;
+  drebBoost: number;
+  rebWhenOut: number;
+  rebOverall: number;
+  rebBoost: number;
+  // Playmaking stats
+  passesWhenOut: number;
+  passesOverall: number;
+  passesBoost: number;
+  potentialAstWhenOut: number;
+  potentialAstOverall: number;
+  potentialAstBoost: number;
+  // Game arrays
   gameDates: string[];
   gameStats: number[];
 }
@@ -250,6 +280,42 @@ export function useInjuryImpactCheatsheet(options: {
     error: query.error as Error | null,
     refetch: query.refetch,
   };
+}
+
+/**
+ * Hook 1b: Fetch live odds for injury impact rows
+ * Uses the same odds API as the hit rate cheat sheet
+ */
+export function useInjuryImpactOdds(rows: InjuryImpactRow[] | undefined) {
+  const selections = (rows || [])
+    .filter((row) => row.oddsSelectionId)
+    .map((row) => ({
+      stableKey: row.oddsSelectionId!,
+      line: row.line,
+    }));
+
+  return useQuery({
+    queryKey: ["injury-impact-odds", selections.map((s) => s.stableKey).sort()],
+    queryFn: async () => {
+      if (!selections.length) return {};
+      
+      const response = await fetch("/api/nba/hit-rates/odds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selections }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch odds");
+      }
+
+      const data = await response.json();
+      return data.odds || {};
+    },
+    enabled: selections.length > 0,
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 30 * 1000, // Refetch every 30 seconds for live odds
+  });
 }
 
 /**

@@ -18,6 +18,53 @@ import {
   HIT_RATE_OPTIONS 
 } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
+
+// Controlled number input that allows clearing during typing
+function OddsInput({ 
+  value, 
+  onChange, 
+  placeholder,
+  className 
+}: { 
+  value: number; 
+  onChange: (val: number) => void; 
+  placeholder: string;
+  className?: string;
+}) {
+  const [localValue, setLocalValue] = useState(String(value));
+  
+  // Sync from parent when value changes externally
+  useEffect(() => {
+    setLocalValue(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={localValue}
+      onChange={(e) => {
+        const val = e.target.value;
+        setLocalValue(val); // Always update local display
+        
+        // Only update parent if valid number
+        const num = parseInt(val);
+        if (!isNaN(num)) {
+          onChange(num);
+        }
+      }}
+      onBlur={() => {
+        // On blur, if empty or invalid, reset to current filter value
+        const num = parseInt(localValue);
+        if (isNaN(num)) {
+          setLocalValue(String(value));
+        }
+      }}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+}
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/tooltip";
 
@@ -227,17 +274,17 @@ export function CheatSheetFilterBar({
         {/* Odds Range - Compact */}
         <div className="flex items-center gap-1 text-xs">
           <span className="text-neutral-400 font-medium">Odds:</span>
-          <input
-            type="number"
+          <OddsInput
             value={filters.oddsFloor}
-            onChange={(e) => updateFilter("oddsFloor", parseInt(e.target.value) || -250)}
+            onChange={(val) => updateFilter("oddsFloor", val)}
+            placeholder="-250"
             className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
           />
           <span className="text-neutral-300 dark:text-neutral-600">→</span>
-          <input
-            type="number"
+          <OddsInput
             value={filters.oddsCeiling}
-            onChange={(e) => updateFilter("oddsCeiling", parseInt(e.target.value) || 250)}
+            onChange={(val) => updateFilter("oddsCeiling", val)}
+            placeholder="+250"
             className="w-14 bg-neutral-100 dark:bg-neutral-800 rounded-lg px-2 py-1.5 text-xs font-semibold text-center text-neutral-700 dark:text-neutral-300"
           />
         </div>

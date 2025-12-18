@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
@@ -11,6 +11,53 @@ import {
   AlertCircle,
   Calendar
 } from "lucide-react";
+
+// Controlled number input that allows clearing during typing
+function OddsInput({ 
+  value, 
+  onChange, 
+  placeholder,
+  className 
+}: { 
+  value: number; 
+  onChange: (val: number) => void; 
+  placeholder: string;
+  className?: string;
+}) {
+  const [localValue, setLocalValue] = useState(String(value));
+  
+  // Sync from parent when value changes externally
+  useEffect(() => {
+    setLocalValue(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={localValue}
+      onChange={(e) => {
+        const val = e.target.value;
+        setLocalValue(val); // Always update local display
+        
+        // Only update parent if valid number
+        const num = parseInt(val);
+        if (!isNaN(num)) {
+          onChange(num);
+        }
+      }}
+      onBlur={() => {
+        // On blur, if empty or invalid, reset to current filter value
+        const num = parseInt(localValue);
+        if (isNaN(num)) {
+          setLocalValue(String(value));
+        }
+      }}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+}
 import { 
   TimeWindow, 
   TIME_WINDOW_OPTIONS, 
@@ -29,6 +76,7 @@ export interface CheatSheetFilterState {
   confidenceFilter: string[];
   hideInjured: boolean;
   hideB2B: boolean;
+  hideNoOdds: boolean; // Hide rows without live odds from Redis
   trendFilter: string[];
   dateFilter: "today" | "tomorrow" | "all";
 }
@@ -238,20 +286,18 @@ export function CheatSheetFilters({
         {/* Odds Range */}
         <div className="flex items-center gap-2 text-xs">
           <span className="text-neutral-500 font-medium">Odds:</span>
-          <input
-            type="number"
+          <OddsInput
             value={filters.oddsFloor}
-            onChange={(e) => updateFilter("oddsFloor", parseInt(e.target.value) || -250)}
-            className="w-16 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-xs font-semibold text-center"
+            onChange={(val) => updateFilter("oddsFloor", val)}
             placeholder="-250"
+            className="w-16 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-xs font-semibold text-center"
           />
           <span className="text-neutral-400">to</span>
-          <input
-            type="number"
+          <OddsInput
             value={filters.oddsCeiling}
-            onChange={(e) => updateFilter("oddsCeiling", parseInt(e.target.value) || 250)}
-            className="w-16 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-xs font-semibold text-center"
+            onChange={(val) => updateFilter("oddsCeiling", val)}
             placeholder="+250"
+            className="w-16 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-xs font-semibold text-center"
           />
         </div>
 
@@ -444,6 +490,7 @@ export const DEFAULT_CHEAT_SHEET_FILTERS: CheatSheetFilterState = {
   confidenceFilter: [],
   hideInjured: false,
   hideB2B: false,
+  hideNoOdds: true, // Default: hide rows without live odds
   trendFilter: [],
   dateFilter: "today",
 };

@@ -39,6 +39,8 @@ export interface InjuryImpactRow {
   line: number;
   overOdds: string | null;
   overOddsDecimal: number | null;
+  oddsSelectionId: string | null;
+  eventId: string | null;
   
   // Default injured teammate
   defaultTeammateId: number;
@@ -157,6 +159,8 @@ export async function POST(req: NextRequest) {
       line: parseFloat(row.line),
       overOdds: row.over_odds,
       overOddsDecimal: row.over_odds_decimal ? parseFloat(row.over_odds_decimal) : null,
+      oddsSelectionId: row.odds_selection_id || null,
+      eventId: row.event_id || null,
       
       defaultTeammateId: row.default_teammate_id,
       defaultTeammateName: row.default_teammate_name,

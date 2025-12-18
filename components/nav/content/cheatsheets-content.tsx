@@ -4,44 +4,56 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { Shield } from "lucide-react";
-import { Crown } from "@/components/icons/crown";
+import { FileText, UserMinus, Grid3X3 } from "lucide-react";
 
-const stats = [
+const cheatsheets = [
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-yellow-400">
-        <Crown className="size-2.5 text-yellow-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-emerald-400">
+        <FileText className="size-2.5 text-emerald-900" />
       </div>
     ),
-    title: "NBA • King of the Court",
-    description: "Live PRA leaderboard with real-time stats and betting odds.",
-    href: "/stats/nba/king-of-the-court",
-    color: "#fbbf24", // Yellow
+    title: "Hit Rate Cheat Sheet",
+    description: "Today's best props ranked by hit rate and confidence score.",
+    href: "/cheatsheets/nba/hit-rates",
+    color: "#34d399", // Emerald
     comingSoon: false,
     badge: null,
   },
   {
     icon: (
-      <div className="flex size-4 items-center justify-center rounded bg-blue-400">
-        <Shield className="size-2.5 text-blue-900" />
+      <div className="flex size-4 items-center justify-center rounded bg-orange-400">
+        <UserMinus className="size-2.5 text-orange-900" />
       </div>
     ),
-    title: "NBA • Defense vs Position",
-    description: "Team defensive rankings by position. Find the best matchups.",
-    href: "/stats/nba/defense-vs-position",
-    color: "#60a5fa", // Blue
+    title: "Injury Impact",
+    description: "Props boosted when key teammates are out. Find the edge.",
+    href: "/cheatsheets/nba/injury-impact",
+    color: "#fb923c", // Orange
     comingSoon: false,
-    badge: "NEW",
+    badge: null,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-purple-400">
+        <Grid3X3 className="size-2.5 text-purple-900" />
+      </div>
+    ),
+    title: "Alt Line Matrix",
+    description: "Compare hit rates across alternate lines. Find value.",
+    href: "/cheatsheets/nba/alt-hit-matrix",
+    color: "#c084fc", // Purple
+    comingSoon: true,
+    badge: null,
   },
 ];
 
-export function StatsContent({ domain }: { domain: string }) {
+export function CheatSheetsContent({ domain }: { domain: string }) {
   return (
     <div className="w-[1020px] p-4">
-      <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>Live Stats & Analysis</p>
+      <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>NBA Cheat Sheets</p>
       <div className="grid grid-cols-3 gap-4">
-        {stats.map(({ icon, title, description, href, color, comingSoon, badge }) =>
+        {cheatsheets.map(({ icon, title, description, href, color, comingSoon, badge }) =>
           comingSoon ? (
             <div
               key={title}

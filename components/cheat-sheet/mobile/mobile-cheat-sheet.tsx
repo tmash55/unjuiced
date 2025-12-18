@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
@@ -16,7 +15,9 @@ import {
   BarChart3,
   TrendingUp,
   UserMinus,
-  ArrowUpDown
+  ArrowUpDown,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { CheatSheetRow, OddsData } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "../cheat-sheet-filters";
@@ -24,13 +25,6 @@ import { TIME_WINDOW_OPTIONS, CHEAT_SHEET_MARKETS, HIT_RATE_OPTIONS } from "@/ho
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-
-// Cheat sheet tabs
-const SHEET_TABS = [
-  { slug: "hit-rates", label: "Hit Rates", enabled: true },
-  { slug: "alt-hit-matrix", label: "Alt Matrix", enabled: true },
-  { slug: "injury-impact", label: "Injuries", enabled: false },
-];
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -359,7 +353,7 @@ export function MobileCheatSheet({
 }: MobileCheatSheetProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
-  const [sortBy, setSortBy] = useState<SortOption>("confidence");
+  const [sortBy, setSortBy] = useState<SortOption>("hitRate");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -398,11 +392,39 @@ export function MobileCheatSheet({
     }
   };
 
+  // Helper to check if a row has live odds in Redis
+  const hasLiveOdds = (row: CheatSheetRow): boolean => {
+    if (!oddsData || !row.oddsSelectionId) return false;
+    const odds = oddsData[row.oddsSelectionId];
+    return odds !== null && odds !== undefined;
+  };
+
+  // Count rows without odds for the toggle label
+  const noOddsCount = useMemo(() => {
+    if (!oddsData) return 0;
+    return rows.filter(row => !hasLiveOdds(row)).length;
+  }, [rows, oddsData]);
+
   // Sort rows based on selected option
   const sortedRows = useMemo(() => {
-    const sorted = [...rows];
+    // First filter out rows without odds if hideNoOdds is true
+    let filteredRows = rows;
+    if (filters.hideNoOdds && oddsData) {
+      filteredRows = rows.filter(row => hasLiveOdds(row));
+    }
+
+    const sorted = [...filteredRows];
     
     sorted.sort((a, b) => {
+      // Push rows without live odds to the bottom (when hideNoOdds is false)
+      if (!filters.hideNoOdds) {
+        const aHasOdds = hasLiveOdds(a);
+        const bHasOdds = hasLiveOdds(b);
+        if (aHasOdds && !bHasOdds) return -1;
+        if (!aHasOdds && bHasOdds) return 1;
+      }
+
+      // Then sort by selected option
       switch (sortBy) {
         case "confidence":
           return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
@@ -425,7 +447,7 @@ export function MobileCheatSheet({
     });
     
     return sorted;
-  }, [rows, sortBy, filters.timeWindow]);
+  }, [rows, sortBy, filters.timeWindow, filters.hideNoOdds, oddsData]);
 
   const visibleRows = useMemo(() => sortedRows.slice(0, visibleCount), [sortedRows, visibleCount]);
   const hasMore = sortedRows.length > visibleCount;
@@ -451,43 +473,21 @@ export function MobileCheatSheet({
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Sticky Header - Matches Hit Rate Mobile Layout */}
+      {/* Sticky Header */}
       <div className="sticky top-0 z-30 bg-white dark:bg-neutral-950 border-b border-neutral-200/60 dark:border-neutral-800/60">
         <div className="px-3 pt-2 pb-1.5 space-y-2">
-          {/* Row 1: Sheet Tabs + Help Button */}
-          <div className="flex items-center border-b border-neutral-200 dark:border-neutral-800">
-            <div className="flex gap-0 overflow-x-auto scrollbar-hide flex-1">
-              {SHEET_TABS.map((tab) => {
-                const isSelected = currentSheet === tab.slug;
-                const href = `/cheatsheets/${sport}/${tab.slug}`;
-                return (
-                  <Link
-                    key={tab.slug}
-                    href={href}
-                    className={cn(
-                      "px-4 py-2 text-sm font-semibold transition-all duration-150 shrink-0 relative",
-                      tab.enabled
-                        ? isSelected
-                          ? "text-brand"
-                          : "text-neutral-500 dark:text-neutral-400"
-                        : "text-neutral-400 dark:text-neutral-600 pointer-events-none opacity-50"
-                    )}
-                  >
-                    {tab.label}
-                    {isSelected && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
+          {/* Row 1: Title + Help Button */}
+          <div className="flex items-center justify-between pb-1">
+            <h1 className="text-base font-bold text-neutral-900 dark:text-white">
+              Hit Rate Cheat Sheet
+            </h1>
             
             {/* Help Button */}
             <button
               type="button"
               onClick={onGlossaryOpen}
               className={cn(
-                "flex items-center gap-1 px-2.5 py-1 mr-2 rounded-md shrink-0",
+                "flex items-center gap-1 px-2.5 py-1 rounded-md shrink-0",
                 "text-xs font-medium transition-all duration-150 active:scale-[0.96]",
                 "text-neutral-500 dark:text-neutral-400",
                 "hover:text-neutral-700 dark:hover:text-neutral-300",
@@ -745,6 +745,19 @@ export function MobileCheatSheet({
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   Hide B2B
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateFilter("hideNoOdds", !filters.hideNoOdds)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    filters.hideNoOdds
+                      ? "bg-brand text-white"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                  )}
+                >
+                  {filters.hideNoOdds ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {filters.hideNoOdds ? `Hide No Odds (${noOddsCount})` : "Show All"}
                 </button>
               </div>
             </div>

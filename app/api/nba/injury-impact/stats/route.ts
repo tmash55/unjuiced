@@ -29,6 +29,34 @@ export interface TeammateOutStats {
   avgMinutes: number;
   avgMinutesOverall: number;
   minutesBoost: number;
+  // Additional stats
+  usageWhenOut: number;
+  usageOverall: number;
+  usageBoost: number;
+  fgaWhenOut: number;
+  fgaOverall: number;
+  fgaBoost: number;
+  fg3aWhenOut: number;
+  fg3aOverall: number;
+  fg3aBoost: number;
+  // Rebound stats
+  orebWhenOut: number;
+  orebOverall: number;
+  orebBoost: number;
+  drebWhenOut: number;
+  drebOverall: number;
+  drebBoost: number;
+  rebWhenOut: number;
+  rebOverall: number;
+  rebBoost: number;
+  // Playmaking stats
+  passesWhenOut: number;
+  passesOverall: number;
+  passesBoost: number;
+  potentialAstWhenOut: number;
+  potentialAstOverall: number;
+  potentialAstBoost: number;
+  // Game arrays
   gameDates: string[];
   gameStats: number[];
 }
@@ -89,6 +117,30 @@ export async function POST(req: NextRequest) {
           avgMinutes: 0,
           avgMinutesOverall: 0,
           minutesBoost: 0,
+          usageWhenOut: 0,
+          usageOverall: 0,
+          usageBoost: 0,
+          fgaWhenOut: 0,
+          fgaOverall: 0,
+          fgaBoost: 0,
+          fg3aWhenOut: 0,
+          fg3aOverall: 0,
+          fg3aBoost: 0,
+          orebWhenOut: 0,
+          orebOverall: 0,
+          orebBoost: 0,
+          drebWhenOut: 0,
+          drebOverall: 0,
+          drebBoost: 0,
+          rebWhenOut: 0,
+          rebOverall: 0,
+          rebBoost: 0,
+          passesWhenOut: 0,
+          passesOverall: 0,
+          passesBoost: 0,
+          potentialAstWhenOut: 0,
+          potentialAstOverall: 0,
+          potentialAstBoost: 0,
           gameDates: [],
           gameStats: [],
         }
@@ -97,17 +149,48 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Helper to safely parse float
+    const getFloat = (val: any) => (val !== null && val !== undefined) ? parseFloat(val) : 0;
+    
     const stats: TeammateOutStats = {
       games: row.games || 0,
       hits: row.hits || 0,
-      hitRate: row.hit_rate ? parseFloat(row.hit_rate) : null,
-      avgStat: parseFloat(row.avg_stat) || 0,
-      avgStatOverall: parseFloat(row.avg_stat_overall) || 0,
-      statBoost: parseFloat(row.stat_boost) || 0,
-      statBoostPct: row.stat_boost_pct ? parseFloat(row.stat_boost_pct) : null,
-      avgMinutes: parseFloat(row.avg_minutes) || 0,
-      avgMinutesOverall: parseFloat(row.avg_minutes_overall) || 0,
-      minutesBoost: parseFloat(row.minutes_boost) || 0,
+      hitRate: row.hit_rate !== null ? parseFloat(row.hit_rate) : null,
+      avgStat: getFloat(row.avg_stat),
+      avgStatOverall: getFloat(row.avg_stat_overall),
+      statBoost: getFloat(row.stat_boost),
+      statBoostPct: row.stat_boost_pct !== null ? parseFloat(row.stat_boost_pct) : null,
+      avgMinutes: getFloat(row.avg_minutes),
+      avgMinutesOverall: getFloat(row.avg_minutes_overall),
+      minutesBoost: getFloat(row.minutes_boost),
+      // Additional stats
+      usageWhenOut: getFloat(row.usage_when_out),
+      usageOverall: getFloat(row.usage_overall),
+      usageBoost: getFloat(row.usage_boost),
+      fgaWhenOut: getFloat(row.fga_when_out),
+      fgaOverall: getFloat(row.fga_overall),
+      fgaBoost: getFloat(row.fga_boost),
+      fg3aWhenOut: getFloat(row.fg3a_when_out),
+      fg3aOverall: getFloat(row.fg3a_overall),
+      fg3aBoost: getFloat(row.fg3a_boost),
+      // Rebound stats
+      orebWhenOut: getFloat(row.oreb_when_out),
+      orebOverall: getFloat(row.oreb_overall),
+      orebBoost: getFloat(row.oreb_boost),
+      drebWhenOut: getFloat(row.dreb_when_out),
+      drebOverall: getFloat(row.dreb_overall),
+      drebBoost: getFloat(row.dreb_boost),
+      rebWhenOut: getFloat(row.reb_when_out),
+      rebOverall: getFloat(row.reb_overall),
+      rebBoost: getFloat(row.reb_boost),
+      // Playmaking stats
+      passesWhenOut: getFloat(row.passes_when_out),
+      passesOverall: getFloat(row.passes_overall),
+      passesBoost: getFloat(row.passes_boost),
+      potentialAstWhenOut: getFloat(row.potential_ast_when_out),
+      potentialAstOverall: getFloat(row.potential_ast_overall),
+      potentialAstBoost: getFloat(row.potential_ast_boost),
+      // Game arrays
       gameDates: row.game_dates || [],
       gameStats: (row.game_stats || []).map((s: any) => parseFloat(s) || 0),
     };

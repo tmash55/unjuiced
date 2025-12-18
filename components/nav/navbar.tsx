@@ -14,6 +14,7 @@ import { NavWordmark } from "@/components/nav-wordmark";
 import { ProductContent } from "@/components/nav/content/tools-content";
 import { StatsContent } from "@/components/nav/content/stats-content";
 import { ResourcesContent } from "@/components/nav/content/resources-content";
+import { CheatSheetsContent } from "@/components/nav/content/cheatsheets-content";
 import { TOOLS } from "@/lib/tools";
 import { STATS } from "@/lib/stats";
 import { RESOURCES } from "@/lib/resources";
@@ -46,6 +47,14 @@ export const navItems = [
       "/integrations",
       "/compare",
       "/features",
+    ],
+  },
+  {
+    name: "Cheat Sheets",
+    content: CheatSheetsContent,
+    childItems: [],
+    segments: [
+      "/cheatsheets",
     ],
   },
   {
@@ -312,11 +321,18 @@ function MobileNav({ domain }: { domain: string }) {
       ],
     },
     {
+      group: "Cheat Sheets",
+      items: [
+        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates" },
+        { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", disabled: true },
+        { title: "Alt Line Matrix", href: "/cheatsheets/nba/alt-hit-matrix", disabled: true },
+      ],
+    },
+    {
       group: "NBA Stats",
       items: [
         { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
         { title: "Defense vs Position", href: "/stats/nba/defense-vs-position", badge: "NEW" },
-        { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
       ],
     },
     {
