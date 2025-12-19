@@ -21,6 +21,16 @@ const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallbac
   return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
 };
 
+// Convert American odds to decimal odds
+// +105 → 2.05, -110 → 1.909
+const americanToDecimal = (american: number): number => {
+  if (american > 0) {
+    return 1 + (american / 100);
+  } else {
+    return 1 + (100 / Math.abs(american));
+  }
+};
+
 // Compute baseline price for comparison based on user prefs
 const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
   if (!prefs) return deal.avgPrice ?? null;
@@ -50,7 +60,8 @@ const getBaselinePrice = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | n
   return deal.avgPrice ?? null;
 };
 
-// Compute improvement vs chosen baseline
+// Compute improvement vs chosen baseline using DECIMAL odds (not American)
+// This gives meaningful percentages: +105 vs -102 = ~3.5% improvement, not 203%
 const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): number | null => {
   // If comparing to market average, use the backend's pre-computed priceImprovement
   const mode = prefs?.comparisonMode ?? 'average';
@@ -58,13 +69,19 @@ const getDisplayImprovement = (deal: BestOddsDeal, prefs?: BestOddsPrefs): numbe
     return deal.priceImprovement ?? null;
   }
 
-  // For other comparison modes, calculate on the fly
+  // For other comparison modes, calculate on the fly using decimal odds
   const baseline = getBaselinePrice(deal, prefs);
   if (baseline == null || !Number.isFinite(baseline) || !Number.isFinite(deal.bestPrice)) {
     return null;
   }
-  const diff = deal.bestPrice - baseline;
-  return (diff / Math.abs(baseline)) * 100;
+  
+  // Convert both to decimal odds before calculating improvement
+  const bestDecimal = americanToDecimal(deal.bestPrice);
+  const baselineDecimal = americanToDecimal(baseline);
+  
+  // Calculate percentage improvement in decimal odds
+  // (2.05 - 1.98) / 1.98 * 100 = 3.54%
+  return ((bestDecimal - baselineDecimal) / baselineDecimal) * 100;
 };
 
 type SortField = 'improvement' | 'time';
