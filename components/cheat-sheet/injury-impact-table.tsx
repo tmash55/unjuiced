@@ -35,8 +35,10 @@ import {
   Pin,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
 import { InjuryImpactStatsModal } from "./injury-impact-stats-modal";
+import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
 
 // ============================================================
 // Row State Management
@@ -682,6 +684,94 @@ function InjuryImpactRow({
   // Mutation for recalculating stats
   const statsMutation = useTeammateOutStatsMutation();
   
+  // Favorites
+  const { isFavorited, toggleFavorite, isLoggedIn } = useFavorites();
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  
+  // Build favorite params for this row
+  const buildFavoriteParams = useCallback((): AddFavoriteParams => {
+    // Get best price info from live odds
+    const bestPrice = liveOdds?.bestOver?.price ?? null;
+    const bestBook = liveOdds?.bestOver?.book ?? null;
+    
+    // Build books snapshot from allLines if available
+    let booksSnapshot: Record<string, any> | null = null;
+    if (liveOdds?.allLines?.length) {
+      const matchingLine = liveOdds.allLines.find(l => l.line === state.selectedLine);
+      if (matchingLine?.books && Object.keys(matchingLine.books).length > 0) {
+        booksSnapshot = {};
+        Object.entries(matchingLine.books).forEach(([bookKey, bookData]) => {
+          if (bookData.over) {
+            booksSnapshot![bookKey] = {
+              price: bookData.over.price,
+              u: bookData.over.url || null,
+              m: bookData.over.mobileUrl || null,
+              sgp: null,
+            };
+          }
+        });
+      }
+    }
+    
+    // If we still don't have books snapshot but we have bestOver, save that at minimum
+    if (!booksSnapshot && bestBook && liveOdds?.bestOver) {
+      booksSnapshot = {
+        [bestBook]: {
+          price: bestPrice,
+          u: liveOdds.bestOver.url || null,
+          m: liveOdds.bestOver.mobileUrl || null,
+          sgp: null,
+        },
+      };
+    }
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: row.eventId || `game_${row.gameId}`,
+      game_date: row.gameDate,
+      home_team: null,
+      away_team: null,
+      start_time: null,
+      player_id: String(row.playerId),
+      player_name: row.playerName,
+      player_team: row.teamAbbr,
+      player_position: row.playerPosition,
+      market: state.selectedMarket,
+      line: state.selectedLine,
+      side: "over",
+      odds_key: null,
+      odds_selection_id: row.oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestPrice,
+      best_book_at_save: bestBook,
+      source: "injury_impact",
+    };
+  }, [row, state.selectedMarket, state.selectedLine, liveOdds]);
+  
+  // Check if this row is favorited
+  const isRowFavorited = useMemo(() => {
+    return isFavorited({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: state.selectedMarket,
+      line: state.selectedLine,
+      side: "over",
+    });
+  }, [isFavorited, row.eventId, row.gameId, row.playerId, state.selectedMarket, state.selectedLine]);
+  
+  // Handle favorite toggle
+  const handleToggleFavorite = async () => {
+    if (!isLoggedIn) return;
+    setIsTogglingFavorite(true);
+    try {
+      await toggleFavorite(buildFavoriteParams());
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  };
+  
   // Click outside handlers
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -1318,9 +1408,9 @@ function InjuryImpactRow({
         </div>
       </td>
 
-      {/* Action Column - View Full Stats */}
+      {/* Action Column - View Full Stats + Favorites */}
       <td className="px-2 py-2">
-        <div className="flex justify-center">
+        <div className="flex items-center justify-center gap-1">
           <Tooltip content="View all stat boosts" side="left">
             <button
               onClick={() => setShowStatsModal(true)}
@@ -1329,6 +1419,39 @@ function InjuryImpactRow({
               <BarChart3 className="w-4 h-4" />
             </button>
           </Tooltip>
+          
+          {/* Favorites Button */}
+          {!isLoggedIn ? (
+            <Tooltip content="Sign in to save favorites" side="left">
+              <button
+                disabled
+                className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+              >
+                <Heart className="w-4 h-4 text-neutral-400" />
+              </button>
+            </Tooltip>
+          ) : (
+            <Tooltip content={isRowFavorited ? "Remove from favorites" : "Add to favorites"} side="left">
+              <button
+                onClick={handleToggleFavorite}
+                disabled={isTogglingFavorite}
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  isRowFavorited
+                    ? "bg-red-500/10 hover:bg-red-500/20"
+                    : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                )}
+              >
+                {isTogglingFavorite ? (
+                  <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                ) : isRowFavorited ? (
+                  <HeartFill className="w-4 h-4 text-red-500" />
+                ) : (
+                  <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                )}
+              </button>
+            </Tooltip>
+          )}
         </div>
       </td>
 

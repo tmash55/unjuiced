@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { 
   ChevronDown, 
@@ -11,9 +11,10 @@ import {
   HelpCircle,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 import { 
   CheatSheetRow, 
   getGradeColor, 
@@ -23,6 +24,7 @@ import {
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdownCell } from "./odds-dropdown-cell";
+import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
 
 interface CheatSheetTableProps {
   rows: CheatSheetRow[];
@@ -274,6 +276,128 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
   const [sortField, setSortField] = useState<SortField>("hitRate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   // const [expandedRow, setExpandedRow] = useState<number | null>(null); // Reserved for SGP feature
+  
+  // Favorites hook
+  const { 
+    isFavorited, 
+    toggleFavorite, 
+    isLoggedIn,
+    favoriteKeys 
+  } = useFavorites();
+  
+  // Track which row is being toggled (for loading state)
+  const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
+  
+  // Build favorite params from a cheat sheet row
+  const buildFavoriteParams = useCallback((row: CheatSheetRow, liveOdds: OddsData | null): AddFavoriteParams => {
+    // Build books snapshot from live odds if available
+    let booksSnapshot: Record<string, any> | null = null;
+    let bestPrice: number | null = null;
+    let bestBook: string | null = null;
+    
+    if (liveOdds?.bestOver) {
+      bestPrice = liveOdds.bestOver.price;
+      bestBook = liveOdds.bestOver.book;
+      
+      // Build snapshot from allLines for the current line
+      const currentLineData = liveOdds.allLines?.find(l => l.line === row.line);
+      if (currentLineData?.books && Object.keys(currentLineData.books).length > 0) {
+        booksSnapshot = {};
+        Object.entries(currentLineData.books).forEach(([bookId, bookData]) => {
+          if (bookData.over) {
+            booksSnapshot![bookId] = {
+              price: bookData.over.price,
+              u: bookData.over.url || null,
+              m: bookData.over.mobileUrl || null,
+              sgp: null,
+            };
+          }
+        });
+      }
+      
+      // If we still don't have books snapshot but we have bestOver, save that at minimum
+      if (!booksSnapshot && bestBook) {
+        booksSnapshot = {
+          [bestBook]: {
+            price: bestPrice,
+            u: liveOdds.bestOver.url || null,
+            m: liveOdds.bestOver.mobileUrl || null,
+            sgp: null,
+          },
+        };
+      }
+    }
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: row.eventId || `game_${row.gameId}`,
+      game_date: row.gameDate,
+      home_team: row.homeTeamAbbr,
+      away_team: row.awayTeamAbbr,
+      start_time: null, // Would need game start time from data
+      player_id: String(row.playerId),
+      player_name: row.playerName,
+      player_team: row.teamAbbr,
+      player_position: row.playerPosition,
+      market: row.market,
+      line: row.line,
+      side: "over", // Cheat sheet focuses on overs
+      odds_key: null,
+      odds_selection_id: row.oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestPrice,
+      best_book_at_save: bestBook,
+      source: "cheat_sheet",
+    };
+  }, []);
+  
+  // Handle favorite toggle
+  const handleToggleFavorite = useCallback(async (row: CheatSheetRow) => {
+    const liveOdds = getLiveOdds(row);
+    const params = buildFavoriteParams(row, liveOdds);
+    const key = createFavoriteKey({
+      event_id: params.event_id,
+      type: params.type,
+      player_id: params.player_id,
+      market: params.market,
+      line: params.line,
+      side: params.side,
+    });
+    
+    setTogglingRowKey(key);
+    try {
+      await toggleFavorite(params);
+    } finally {
+      setTogglingRowKey(null);
+    }
+  }, [toggleFavorite, buildFavoriteParams, getLiveOdds]);
+  
+  // Check if a row is favorited
+  const isRowFavorited = useCallback((row: CheatSheetRow): boolean => {
+    return isFavorited({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+  }, [isFavorited]);
+  
+  // Check if a row is currently being toggled
+  const isRowToggling = useCallback((row: CheatSheetRow): boolean => {
+    if (!togglingRowKey) return false;
+    const key = createFavoriteKey({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+    return key === togglingRowKey;
+  }, [togglingRowKey]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -642,14 +766,44 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
               {/* Action Column */}
               <td className="px-2 py-2">
                 <div className="flex justify-center">
-                  <Tooltip content="Favorites coming soon" side="left">
-                    <button
-                      disabled
-                      className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed hover:opacity-70 transition-opacity"
+                  {!isLoggedIn ? (
+                    <Tooltip content="Sign in to save favorites" side="left">
+                      <button
+                        disabled
+                        className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                      >
+                        <Heart className="w-4 h-4 text-neutral-400" />
+                      </button>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip 
+                      content={isRowFavorited(row) ? "Remove from favorites" : "Add to favorites"} 
+                      side="left"
                     >
-                      <Heart className="w-4 h-4 text-neutral-400" />
-                    </button>
-                  </Tooltip>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleFavorite(row);
+                        }}
+                        disabled={isRowToggling(row)}
+                        className={cn(
+                          "p-2 rounded-lg transition-all",
+                          isRowFavorited(row)
+                            ? "bg-red-500/10 hover:bg-red-500/20"
+                            : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                        )}
+                      >
+                        {isRowToggling(row) ? (
+                          // Pulsing heart animation while loading
+                          <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                        ) : isRowFavorited(row) ? (
+                          <HeartFill className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                        )}
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
               </td>
             </tr>

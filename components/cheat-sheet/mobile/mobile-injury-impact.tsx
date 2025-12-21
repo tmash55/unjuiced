@@ -24,6 +24,9 @@ import { CheatSheetFilterState } from "../cheat-sheet-filters";
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -380,6 +383,115 @@ export function MobileInjuryImpact({
     onFiltersChange({ ...filters, [key]: value });
   };
 
+  // Favorites
+  const { isFavorited, toggleFavorite, isLoggedIn } = useFavorites();
+  const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
+  
+  // Build favorite params from a row
+  const buildFavoriteParams = (row: InjuryImpactRow, liveOdds: OddsData | null): AddFavoriteParams => {
+    const bestPrice = liveOdds?.bestOver?.price ?? null;
+    const bestBook = liveOdds?.bestOver?.book ?? null;
+    
+    let booksSnapshot: Record<string, any> | null = null;
+    if (liveOdds?.allLines?.length) {
+      const matchingLine = liveOdds.allLines.find(l => l.line === row.line);
+      if (matchingLine?.books && Object.keys(matchingLine.books).length > 0) {
+        booksSnapshot = {};
+        Object.entries(matchingLine.books).forEach(([bookKey, bookData]) => {
+          if (bookData.over) {
+            booksSnapshot![bookKey] = {
+              price: bookData.over.price,
+              u: bookData.over.url || null,
+              m: bookData.over.mobileUrl || null,
+              sgp: null,
+            };
+          }
+        });
+      }
+    }
+    
+    if (!booksSnapshot && bestBook && liveOdds?.bestOver) {
+      booksSnapshot = {
+        [bestBook]: {
+          price: bestPrice,
+          u: liveOdds.bestOver.url || null,
+          m: liveOdds.bestOver.mobileUrl || null,
+          sgp: null,
+        },
+      };
+    }
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: row.eventId || `game_${row.gameId}`,
+      game_date: row.gameDate,
+      home_team: null,
+      away_team: null,
+      start_time: null,
+      player_id: String(row.playerId),
+      player_name: row.playerName,
+      player_team: row.teamAbbr,
+      player_position: row.playerPosition,
+      market: row.market,
+      line: row.line,
+      side: "over",
+      odds_key: null,
+      odds_selection_id: row.oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestPrice,
+      best_book_at_save: bestBook,
+      source: "injury_impact_mobile",
+    };
+  };
+  
+  const isRowFavorited = (row: InjuryImpactRow): boolean => {
+    return isFavorited({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+  };
+  
+  const isRowToggling = (row: InjuryImpactRow): boolean => {
+    if (!togglingRowKey) return false;
+    const key = createFavoriteKey({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+    return key === togglingRowKey;
+  };
+  
+  const handleToggleFavorite = async (row: InjuryImpactRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLoggedIn) return;
+    
+    const liveOdds = (oddsData && row.oddsSelectionId) ? oddsData[row.oddsSelectionId] : null;
+    const params = buildFavoriteParams(row, liveOdds ?? null);
+    const key = createFavoriteKey({
+      event_id: params.event_id,
+      type: params.type,
+      player_id: params.player_id,
+      market: params.market,
+      line: params.line,
+      side: params.side,
+    });
+    
+    setTogglingRowKey(key);
+    try {
+      await toggleFavorite(params);
+    } finally {
+      setTogglingRowKey(null);
+    }
+  };
+
   // Helper to check if a row has live odds
   const hasLiveOdds = (row: InjuryImpactRow): boolean => {
     if (!oddsData || !row.oddsSelectionId) return false;
@@ -687,7 +799,7 @@ export function MobileInjuryImpact({
           <>
             {/* Horizontally Scrolling Table */}
             <div ref={tableRef} className="overflow-x-auto">
-              <table className="w-full min-w-[570px]">
+              <table className="w-full min-w-[610px]">
                 {/* Table Header */}
                 <thead className="bg-neutral-100 dark:bg-neutral-800">
                   <tr className="border-b border-neutral-200/60 dark:border-neutral-700/40">
@@ -711,6 +823,9 @@ export function MobileInjuryImpact({
                     </th>
                     <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[70px]">
                       Odds
+                    </th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[40px]">
+                      <Heart className="w-3.5 h-3.5 mx-auto" />
                     </th>
                   </tr>
                 </thead>
@@ -864,6 +979,37 @@ export function MobileInjuryImpact({
                         {/* Odds */}
                         <td className="text-center px-2 py-2">
                           <MobileOddsDropdown odds={odds ?? null} line={row.line} />
+                        </td>
+                        
+                        {/* Favorites */}
+                        <td className="text-center px-1 py-2">
+                          {!isLoggedIn ? (
+                            <button
+                              disabled
+                              className="p-1.5 rounded-lg opacity-40 cursor-not-allowed"
+                            >
+                              <Heart className="w-4 h-4 text-neutral-400" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleToggleFavorite(row, e)}
+                              disabled={isRowToggling(row)}
+                              className={cn(
+                                "p-1.5 rounded-lg transition-colors",
+                                isRowFavorited(row)
+                                  ? "bg-red-500/10"
+                                  : "bg-neutral-100 dark:bg-neutral-800"
+                              )}
+                            >
+                              {isRowToggling(row) ? (
+                                <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                              ) : isRowFavorited(row) ? (
+                                <HeartFill className="w-4 h-4 text-red-500" />
+                              ) : (
+                                <Heart className="w-4 h-4 text-neutral-400" />
+                              )}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

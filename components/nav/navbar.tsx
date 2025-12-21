@@ -5,7 +5,7 @@ import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PropsWithChildren, SVGProps, createContext, useId, useState } from "react";
+import { PropsWithChildren, SVGProps, createContext, useId, useState, useEffect } from "react";
 import { buttonVariants } from "../button";
 
 import { useScroll } from "@/hooks/use-scroll";
@@ -20,7 +20,10 @@ import { STATS } from "@/lib/stats";
 import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Moon, Sun, Monitor } from "lucide-react";
+import { MobileFavoritesButton } from "@/components/nav/favorites-button";
+import { FavoritesDropdown } from "@/components/nav/favorites-dropdown";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
 import { useEntitlements } from "@/hooks/use-entitlements";
@@ -217,14 +220,15 @@ export function Nav({
                 </div>
               </NavigationMenuPrimitive.Root>
 
-              <div className="hidden grow basis-0 justify-end gap-2 lg:flex">
-                <ModeToggle />
+              <div className="hidden grow basis-0 justify-end gap-2 lg:flex items-center">
+                <FavoritesDropdown />
                 {!loading && (
                   <>
                     {user ? (
                       <AccountDropdown user={user} />
                     ) : (
                       <>
+                        <ModeToggle />
                         <Link
                           href={createHref("/login", domain, { utm_content: "login" })}
                           className={cn(
@@ -301,6 +305,13 @@ function MobileNav({ domain }: { domain: string }) {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
   const { data: entitlements } = useEntitlements();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
+  // Avoid hydration mismatch for theme
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Hide pricing if user is on an active subscription (not trial)
   const showPricing = !entitlements || entitlements.entitlement_source !== 'subscription';
@@ -356,7 +367,7 @@ function MobileNav({ domain }: { domain: string }) {
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
-      <ModeToggle />
+      <MobileFavoritesButton />
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex size-8 items-center justify-center rounded-md text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800"
@@ -484,6 +495,53 @@ function MobileNav({ domain }: { domain: string }) {
                             {user.user_metadata?.full_name || "User"}
                           </div>
                         </div>
+                        {/* Theme Toggle */}
+                        {mounted && (
+                          <div className="rounded-xl border border-neutral-200 p-3 dark:border-white/10">
+                            <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
+                              Theme
+                            </div>
+                            <div className="flex gap-1 p-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                              <button
+                                onClick={() => setTheme("light")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "light"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Sun className="h-4 w-4" />
+                                Light
+                              </button>
+                              <button
+                                onClick={() => setTheme("dark")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "dark"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Moon className="h-4 w-4" />
+                                Dark
+                              </button>
+                              <button
+                                onClick={() => setTheme("system")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "system"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Monitor className="h-4 w-4" />
+                                Auto
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
                         {/* Settings & Sign Out Buttons */}
                         <div className="space-y-3">
                           <Link
@@ -514,6 +572,53 @@ function MobileNav({ domain }: { domain: string }) {
                       </>
                     ) : (
                       <>
+                        {/* Theme Toggle for logged out users */}
+                        {mounted && (
+                          <div className="rounded-xl border border-neutral-200 p-3 dark:border-white/10 mb-4">
+                            <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
+                              Theme
+                            </div>
+                            <div className="flex gap-1 p-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                              <button
+                                onClick={() => setTheme("light")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "light"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Sun className="h-4 w-4" />
+                                Light
+                              </button>
+                              <button
+                                onClick={() => setTheme("dark")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "dark"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Moon className="h-4 w-4" />
+                                Dark
+                              </button>
+                              <button
+                                onClick={() => setTheme("system")}
+                                className={cn(
+                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
+                                  theme === "system"
+                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                )}
+                              >
+                                <Monitor className="h-4 w-4" />
+                                Auto
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="space-y-3">
                           <Link
                             href={createHref("/login", domain, { utm_content: "login" })}

@@ -6,16 +6,24 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { cn } from "@/lib/utils";
-import { CircleUserRound } from "lucide-react";
+import { CircleUserRound, Moon, Sun, Monitor } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Gear } from "@/icons/gear";
 import { UserIcon } from "@/icons/user-icon";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useTheme } from "next-themes";
 
 export function AccountDropdown({ user }: { user: User }) {
   const [isOpen, setIsOpen] = useState(false);
   const { signOut } = useAuth();
   const { data: entitlements, isLoading } = useEntitlements();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
+  // Avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -122,6 +130,53 @@ export function AccountDropdown({ user }: { user: User }) {
                   <Gear className="h-4 w-4" />
                   Settings
                 </Link>
+                
+                {/* Theme Toggle */}
+                {mounted && (
+                  <div className="px-3 py-2">
+                    <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
+                      Theme
+                    </div>
+                    <div className="flex gap-1 p-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                      <button
+                        onClick={() => setTheme("light")}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                          theme === "light"
+                            ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                        )}
+                      >
+                        <Sun className="h-3.5 w-3.5" />
+                        Light
+                      </button>
+                      <button
+                        onClick={() => setTheme("dark")}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                          theme === "dark"
+                            ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                        )}
+                      >
+                        <Moon className="h-3.5 w-3.5" />
+                        Dark
+                      </button>
+                      <button
+                        onClick={() => setTheme("system")}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                          theme === "system"
+                            ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                        )}
+                      >
+                        <Monitor className="h-3.5 w-3.5" />
+                        Auto
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={() => {

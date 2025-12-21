@@ -28,6 +28,9 @@ import { TIME_WINDOW_OPTIONS, CHEAT_SHEET_MARKETS, HIT_RATE_OPTIONS } from "@/ho
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -384,6 +387,119 @@ export function MobileCheatSheet({
     value: CheatSheetFilterState[K]
   ) => {
     onFiltersChange({ ...filters, [key]: value });
+  };
+
+  // Favorites
+  const { isFavorited, toggleFavorite, isLoggedIn } = useFavorites();
+  const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
+  
+  // Build favorite params from a row
+  const buildFavoriteParams = (row: CheatSheetRow, liveOdds: OddsData | null): AddFavoriteParams => {
+    let booksSnapshot: Record<string, any> | null = null;
+    let bestPrice: number | null = null;
+    let bestBook: string | null = null;
+    
+    if (liveOdds?.bestOver) {
+      bestPrice = liveOdds.bestOver.price;
+      bestBook = liveOdds.bestOver.book;
+      
+      const currentLineData = liveOdds.allLines?.find(l => l.line === row.line);
+      if (currentLineData?.books && Object.keys(currentLineData.books).length > 0) {
+        booksSnapshot = {};
+        Object.entries(currentLineData.books).forEach(([bookId, bookData]) => {
+          if (bookData.over) {
+            booksSnapshot![bookId] = {
+              price: bookData.over.price,
+              u: bookData.over.url || null,
+              m: bookData.over.mobileUrl || null,
+              sgp: null,
+            };
+          }
+        });
+      }
+      
+      if (!booksSnapshot && bestBook) {
+        booksSnapshot = {
+          [bestBook]: {
+            price: bestPrice,
+            u: liveOdds.bestOver.url || null,
+            m: liveOdds.bestOver.mobileUrl || null,
+            sgp: null,
+          },
+        };
+      }
+    }
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: row.eventId || `game_${row.gameId}`,
+      game_date: row.gameDate,
+      home_team: row.homeTeamAbbr,
+      away_team: row.awayTeamAbbr,
+      start_time: null,
+      player_id: String(row.playerId),
+      player_name: row.playerName,
+      player_team: row.teamAbbr,
+      player_position: row.playerPosition,
+      market: row.market,
+      line: row.line,
+      side: "over",
+      odds_key: null,
+      odds_selection_id: row.oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestPrice,
+      best_book_at_save: bestBook,
+      source: "cheat_sheet_mobile",
+    };
+  };
+  
+  const isRowFavorited = (row: CheatSheetRow): boolean => {
+    return isFavorited({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+  };
+  
+  const isRowToggling = (row: CheatSheetRow): boolean => {
+    if (!togglingRowKey) return false;
+    const key = createFavoriteKey({
+      event_id: row.eventId || `game_${row.gameId}`,
+      type: "player",
+      player_id: String(row.playerId),
+      market: row.market,
+      line: row.line,
+      side: "over",
+    });
+    return key === togglingRowKey;
+  };
+  
+  const handleToggleFavorite = async (row: CheatSheetRow, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click
+    if (!isLoggedIn) return;
+    
+    // Get live odds inline to avoid reference before declaration
+    const liveOdds = (oddsData && row.oddsSelectionId) ? oddsData[row.oddsSelectionId] : null;
+    const params = buildFavoriteParams(row, liveOdds ?? null);
+    const key = createFavoriteKey({
+      event_id: params.event_id,
+      type: params.type,
+      player_id: params.player_id,
+      market: params.market,
+      line: params.line,
+      side: params.side,
+    });
+    
+    setTogglingRowKey(key);
+    try {
+      await toggleFavorite(params);
+    } finally {
+      setTogglingRowKey(null);
+    }
   };
 
   // Get hit rate based on time window
@@ -836,7 +952,7 @@ export function MobileCheatSheet({
           <>
             {/* Horizontally Scrolling Table */}
             <div ref={tableRef} className="overflow-x-auto">
-              <table className="w-full min-w-[580px]">
+              <table className="w-full min-w-[620px]">
                 {/* Table Header */}
                 <thead className="bg-neutral-100 dark:bg-neutral-800">
                   <tr className="border-b border-neutral-200/60 dark:border-neutral-700/40">
@@ -860,6 +976,9 @@ export function MobileCheatSheet({
                     </th>
                     <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[75px]">
                       Odds
+                    </th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider w-[40px]">
+                      <Heart className="w-3.5 h-3.5 mx-auto" />
                     </th>
                   </tr>
                 </thead>
@@ -1022,6 +1141,38 @@ export function MobileCheatSheet({
                         {/* Odds */}
                         <td className="text-center px-2 py-2">
                           <MobileOddsDropdown odds={odds ?? null} line={row.line} />
+                        </td>
+                        
+                        {/* Favorites */}
+                        <td className="text-center px-1 py-2">
+                          {!isLoggedIn ? (
+                            <button
+                              disabled
+                              className="p-1.5 rounded-lg opacity-40 cursor-not-allowed"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Heart className="w-4 h-4 text-neutral-400" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleToggleFavorite(row, e)}
+                              disabled={isRowToggling(row)}
+                              className={cn(
+                                "p-1.5 rounded-lg transition-colors",
+                                isRowFavorited(row)
+                                  ? "bg-red-500/10"
+                                  : "bg-neutral-100 dark:bg-neutral-800"
+                              )}
+                            >
+                              {isRowToggling(row) ? (
+                                <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                              ) : isRowFavorited(row) ? (
+                                <HeartFill className="w-4 h-4 text-red-500" />
+                              ) : (
+                                <Heart className="w-4 h-4 text-neutral-400" />
+                              )}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
