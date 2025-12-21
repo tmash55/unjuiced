@@ -5,6 +5,8 @@ import { SubHeading } from "@/components/subheading";
 import { Badge } from "@/components/badge";
 import { DivideX } from "@/components/divide";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Blog | Unjuiced - Sports Betting Insights & Analysis",
   description:

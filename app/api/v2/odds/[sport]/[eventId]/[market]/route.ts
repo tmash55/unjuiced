@@ -265,16 +265,16 @@ export async function GET(
  */
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor: string | number = "0";
+  let cursor = "0";
 
   do {
-    const result = await redis.scan(cursor, {
+    const result: [string, string[]] = await redis.scan(cursor, {
       match: pattern,
       count: 100,
     });
     cursor = result[0];
     keys.push(...result[1]);
-  } while (cursor !== "0" && cursor !== 0);
+  } while (cursor !== "0");
 
   return keys;
 }
