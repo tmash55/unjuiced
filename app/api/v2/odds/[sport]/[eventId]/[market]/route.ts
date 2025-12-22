@@ -212,6 +212,7 @@ export async function GET(
                 price: o.selection.price,
                 decimal: o.selection.price_decimal,
                 link: o.selection.link,
+                sgp: o.selection.sgp || null,
               })),
             }
           : null,
@@ -227,6 +228,7 @@ export async function GET(
                 price: u.selection.price,
                 decimal: u.selection.price_decimal,
                 link: u.selection.link,
+                sgp: u.selection.sgp || null,
               })),
             }
           : null,

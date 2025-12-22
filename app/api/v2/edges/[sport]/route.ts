@@ -217,6 +217,7 @@ export async function GET(
             price: b.price,
             decimal: b.decimal,
             link: b.link,
+            sgp: b.sgp || null,
           })),
         });
       }
