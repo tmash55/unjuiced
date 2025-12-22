@@ -23,7 +23,8 @@ interface GamesResponse {
 }
 
 async function fetchNbaGames(): Promise<GamesResponse> {
-  const res = await fetch("/api/nba/games", { cache: "no-store" });
+  // Allow browser/CDN caching - API sets appropriate Cache-Control headers
+  const res = await fetch("/api/nba/games");
 
   if (!res.ok) {
     throw new Error("Failed to fetch games");
@@ -36,9 +37,10 @@ export function useNbaGames() {
   const query = useQuery<GamesResponse>({
     queryKey: ["nba-games"],
     queryFn: fetchNbaGames,
-    staleTime: 60_000, // 1 minute
-    gcTime: 5 * 60_000, // 5 minutes
+    staleTime: 2 * 60_000, // 2 minutes - games don't change often
+    gcTime: 10 * 60_000, // 10 minutes - keep in cache longer
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   return {

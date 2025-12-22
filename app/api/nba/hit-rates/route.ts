@@ -19,9 +19,9 @@ const QuerySchema = z.object({
   search: z.string().optional(),
 });
 
-const DEFAULT_LIMIT = 500;
-const PER_DAY_LIMIT = 5000; // Fetch up to 5000 per day (10k total for both days)
-const FAST_LOAD_THRESHOLD = 100; // Skip matchups & tomorrow for fast initial load
+const DEFAULT_LIMIT = 200;
+const PER_DAY_LIMIT = 3000; // Fetch up to 3000 per day
+const FAST_LOAD_THRESHOLD = 250; // Skip matchups & tomorrow for fast initial load (under 250)
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -105,13 +105,16 @@ export async function GET(request: Request) {
     totalCount = data?.[0]?.total_profiles ?? 0;
   } else {
     // FULL LOAD: Fetch BOTH today and tomorrow in parallel
-    const [todayResult, tomorrowResult] = await Promise.all([
+    // Use Promise.allSettled so one timeout doesn't block the other
+    const queryLimit = Math.min(requestedLimit, PER_DAY_LIMIT);
+    
+    const [todayResult, tomorrowResult] = await Promise.allSettled([
       supabase.rpc("get_hit_rate_profiles", {
         p_dates: [todayET],
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
-        p_limit: PER_DAY_LIMIT,
+        p_limit: queryLimit,
         p_offset: 0,
       }),
       supabase.rpc("get_hit_rate_profiles", {
@@ -119,24 +122,39 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
-        p_limit: PER_DAY_LIMIT,
+        p_limit: queryLimit,
         p_offset: 0,
       }),
     ]);
 
-    if (todayResult.error) {
-      console.error("[Hit Rates API] Today RPC error:", todayResult.error.message);
-    }
-    if (tomorrowResult.error) {
-      console.error("[Hit Rates API] Tomorrow RPC error:", tomorrowResult.error.message);
+    // Extract data with graceful fallback - if one times out, still use the other
+    let todayData: any[] = [];
+    let tomorrowData: any[] = [];
+
+    if (todayResult.status === "fulfilled") {
+      if (todayResult.value.error) {
+        console.error("[Hit Rates API] Today RPC error:", todayResult.value.error.message);
+      } else {
+        todayData = todayResult.value.data ?? [];
+      }
+    } else {
+      console.error("[Hit Rates API] Today RPC rejected:", todayResult.reason);
     }
 
-    // Combine results (today first, then tomorrow)
-    const todayData = todayResult.data ?? [];
-    const tomorrowData = tomorrowResult.data ?? [];
+    if (tomorrowResult.status === "fulfilled") {
+      if (tomorrowResult.value.error) {
+        console.error("[Hit Rates API] Tomorrow RPC error:", tomorrowResult.value.error.message);
+      } else {
+        tomorrowData = tomorrowResult.value.data ?? [];
+      }
+    } else {
+      console.error("[Hit Rates API] Tomorrow RPC rejected:", tomorrowResult.reason);
+    }
+
+    // Combine results (today first, then tomorrow) - graceful degradation
     allData = [...todayData, ...tomorrowData];
     
-    // Total count from both days
+    // Total count from available days
     const todayCount = todayData[0]?.total_profiles ?? 0;
     const tomorrowCount = tomorrowData[0]?.total_profiles ?? 0;
     totalCount = todayCount + tomorrowCount;
