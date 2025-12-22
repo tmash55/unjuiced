@@ -143,7 +143,7 @@ export function DubDiscountBanner() {
             {partner.image ? (
               <img
                 src={partner.image}
-                alt={partner.name}
+                alt="Partner"
                 className="w-16 h-16 rounded-full border-4 border-emerald-100 dark:border-emerald-900/50 shadow-lg mb-4"
               />
             ) : (
@@ -154,7 +154,7 @@ export function DubDiscountBanner() {
 
             {/* Heading */}
             <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">
-              {partner.name} has gifted you
+              You've been gifted
               <br />
               <span className="text-emerald-600 dark:text-emerald-400">
                 {discountText} {durationText}!
@@ -197,14 +197,12 @@ export function DubDiscountBanner() {
           {partner.image && (
             <img
               src={partner.image}
-              alt={partner.name}
+              alt="Partner"
               className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white/30 shrink-0"
             />
           )}
           <p className="text-xs sm:text-sm font-medium text-center pr-6">
-            <span className="font-semibold">{partner.name}</span>
-            <span className="hidden xs:inline"> gifted you</span>
-            <span className="xs:hidden"> →</span>{" "}
+            <span className="font-semibold">You've been gifted</span>{" "}
             <span className="font-bold">{discountText}</span>
             <span className="hidden sm:inline"> {durationText}</span>
             <span className="hidden md:inline opacity-90"> • Applied at checkout</span>

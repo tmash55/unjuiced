@@ -71,8 +71,6 @@ export class PreferencesRPC {
    * Get user preferences with default values
    */
   async getPreferences(userId: string): Promise<UserPreferences> {
-    console.log('🔍 PreferencesRPC: Fetching preferences for user:', userId);
-    
     const { data, error } = await this.supabase
       .from("user_preferences")
       .select("*")
@@ -80,15 +78,8 @@ export class PreferencesRPC {
       .single();
 
     if (error && error.code !== "PGRST116") {
-      console.error('❌ PreferencesRPC: Database error:', error);
       throw new Error(`Failed to fetch preferences: ${error.message}`);
     }
-
-    console.log('📊 PreferencesRPC: Raw database data:', {
-      found: !!data,
-      preferred_sportsbooks: data?.preferred_sportsbooks,
-      error: error?.code
-    });
 
     // Return preferences with default values
     return {
@@ -178,27 +169,14 @@ export class PreferencesRPC {
     key: K, 
     value: UserPreferencesUpdate[K]
   ): Promise<void> {
-    const stackTrace = new Error().stack?.split('\n').slice(1, 5).join('\n') || 'No stack trace'
-    
-    console.log('💾 PreferencesRPC: Updating single preference', {
-      userId,
-      key,
-      value,
-      valueType: typeof value,
-      isArray: Array.isArray(value),
-      caller: stackTrace
-    });
-
     const updateData = {
       id: userId,
       [key]: value,
       updated_at: new Date().toISOString(),
     };
 
-    console.log('💾 PreferencesRPC: Update data:', updateData);
-
     // Use upsert with explicit conflict resolution
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from("user_preferences")
       .upsert(updateData, {
         onConflict: 'id',
@@ -207,11 +185,8 @@ export class PreferencesRPC {
       .select();
 
     if (error) {
-      console.error('❌ PreferencesRPC: Update failed:', error);
       throw new Error(`Failed to update ${String(key)}: ${error.message}`);
     }
-
-    console.log('✅ PreferencesRPC: Update completed successfully');
   }
 
   /**

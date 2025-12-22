@@ -30,7 +30,8 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (params.search?.trim()) searchParams.set("search", params.search.trim());
 
   const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-  const res = await fetch(url, { cache: "no-store" });
+  // Allow browser/CDN caching for performance - API sets appropriate Cache-Control headers
+  const res = await fetch(url);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -107,9 +108,10 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
     queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search }],
     queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search }),
     enabled,
-    staleTime: 30_000, // 30 seconds - fresher data
-    gcTime: 2 * 60_000, // 2 minutes
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
+    gcTime: 5 * 60_000, // 5 minutes - keep data longer
+    refetchOnWindowFocus: false, // Prevent reload when switching tabs
+    refetchOnReconnect: false, // Don't refetch on network reconnect
   });
 
   const rows = queryResult.data?.rows ?? [];

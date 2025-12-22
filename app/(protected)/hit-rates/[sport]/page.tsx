@@ -33,9 +33,9 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-const INITIAL_PAGE_SIZE = 500; // Fast initial load - enough for all markets across multiple games
-const BACKGROUND_PAGE_SIZE = 10000; // Load rest in background
-const FULL_DATA_SIZE = 15000; // Load all when in drilldown or filtering
+const INITIAL_PAGE_SIZE = 200; // Reduced for faster initial paint (1 game worth of props)
+const BACKGROUND_PAGE_SIZE = 2000; // Load more in background
+const FULL_DATA_SIZE = 10000; // Load all when in drilldown or filtering
 
 // Table display pagination - limit visible rows for performance
 const TABLE_PAGE_SIZE = 100; // Show 100 rows at a time
