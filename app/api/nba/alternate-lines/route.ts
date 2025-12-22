@@ -315,14 +315,30 @@ export async function POST(req: NextRequest) {
     let gameLogs: any[] = [];
     
     // First, try to get game logs from the hit rate profile (works for all markets including combo)
-    const { data: profile } = await supabase
-      .from("nba_hit_rate_profiles")
-      .select("game_logs")
-      .eq("player_id", playerId)
-      .eq("market", market)
-      .order("game_date", { ascending: false })
-      .limit(1)
-      .single();
+    // Add retry for transient 503 errors
+    let retries = 2;
+    let profile: any = null;
+    
+    while (retries >= 0) {
+      const { data, error } = await supabase
+        .from("nba_hit_rate_profiles")
+        .select("game_logs")
+        .eq("player_id", playerId)
+        .eq("market", market)
+        .order("game_date", { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error && (error.code === "503" || error.message?.includes("503") || error.message?.includes("timeout"))) {
+        retries--;
+        if (retries >= 0) {
+          await new Promise(r => setTimeout(r, 300));
+          continue;
+        }
+      }
+      profile = data;
+      break;
+    }
 
     gameLogs = profile?.game_logs || [];
 

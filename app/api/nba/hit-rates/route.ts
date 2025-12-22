@@ -88,17 +88,42 @@ export async function GET(request: Request) {
     totalCount = data?.[0]?.total_profiles ?? 0;
   } else if (isFastLoad) {
     // FAST INITIAL LOAD: Only fetch today, skip tomorrow for speed
-    const { data, error } = await supabase.rpc("get_hit_rate_profiles", {
-      p_dates: [todayET],
-      p_market: market || null,
-      p_min_hit_rate: minHitRate || null,
-      p_search: null,
-      p_limit: requestedLimit,
-      p_offset: 0,
-    });
+    // Add retry for transient failures (503s from Supabase overload)
+    let retries = 2;
+    let data: any = null;
+    let error: any = null;
+    
+    while (retries >= 0) {
+      const result = await supabase.rpc("get_hit_rate_profiles", {
+        p_dates: [todayET],
+        p_market: market || null,
+        p_min_hit_rate: minHitRate || null,
+        p_search: null,
+        p_limit: requestedLimit,
+        p_offset: 0,
+      });
+      
+      data = result.data;
+      error = result.error;
+      
+      // Retry on 503/timeout errors
+      if (error && (error.message?.includes("503") || error.message?.includes("timeout"))) {
+        retries--;
+        if (retries >= 0) {
+          await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
+          continue;
+        }
+      }
+      break;
+    }
 
     if (error) {
       console.error("[Hit Rates API] Fast load RPC error:", error.message);
+      // Return empty data with error flag instead of failing completely
+      return NextResponse.json(
+        { data: [], count: 0, meta: { date: todayET, availableDates: [], error: error.message } },
+        { status: 200, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     allData = data ?? [];
