@@ -63,7 +63,10 @@ export interface Opportunity {
   sport: Sport;
   eventId: string;
   player: string;
+  team: string | null;     // Player's team abbreviation
+  position: string | null; // Player's position (e.g., "G/F", "QB")
   market: string;
+  marketDisplay: string;   // Human-readable market (e.g., "Player Points")
   line: number;
   side: Side;
 
@@ -87,6 +90,7 @@ export interface Opportunity {
   sharpBooks: string[];
   blendComplete: boolean;
   blendWeight: number;
+  avgBookCount: number;    // Number of books used in average calculation (after RSI dedup)
 
   // Edge metrics
   edge: number | null;
@@ -150,10 +154,12 @@ export interface OpportunityFilters {
   minEV: number | null;
   minOdds: number;
   maxOdds: number;
+  minBooksPerSide: number;
   requireTwoWay: boolean;
   searchQuery: string;
   selectedBooks: string[];
   selectedMarkets: string[];
+  selectedLeagues: string[];  // For league filtering (derived from sports)
   sortBy: "edge_pct" | "ev_pct" | "best_decimal" | "kelly_fraction";
   sortDir: "asc" | "desc";
 }
@@ -169,10 +175,12 @@ export const DEFAULT_FILTERS: OpportunityFilters = {
   minEV: null,
   minOdds: -500,
   maxOdds: 500,
+  minBooksPerSide: 2,
   requireTwoWay: false,
   searchQuery: "",
   selectedBooks: [],
   selectedMarkets: [],
+  selectedLeagues: [],
   sortBy: "edge_pct",
   sortDir: "desc",
 };
@@ -185,18 +193,25 @@ export const DEFAULT_FILTERS: OpportunityFilters = {
  * Parse API response to native Opportunity format
  */
 export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
+  // Parse event data safely
+  const eventData = raw.event as Record<string, unknown> | null;
+  
   return {
     id: `${raw.sport}:${raw.event_id}:${raw.player}:${raw.market}:${raw.line}:${raw.side}`,
     sport: raw.sport as Sport,
     eventId: raw.event_id as string,
-    player: raw.player as string,
-    market: raw.market as string,
+    player: (raw.player as string) || "",
+    team: (raw.team as string) || null,
+    position: (raw.position as string) || null,
+    market: (raw.market as string) || "",
+    marketDisplay: (raw.market_display as string) || (raw.market as string) || "",
     line: raw.line as number,
     side: raw.side as Side,
 
-    homeTeam: raw.home_team as string,
-    awayTeam: raw.away_team as string,
-    gameStart: raw.game_start as string,
+    // Event data can be nested or flat
+    homeTeam: eventData?.home_team as string || (raw.home_team as string) || "",
+    awayTeam: eventData?.away_team as string || (raw.away_team as string) || "",
+    gameStart: eventData?.start_time as string || (raw.game_start as string) || "",
     timestamp: raw.timestamp as number,
 
     bestBook: raw.best_book as string,
@@ -218,6 +233,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
     sharpBooks: (raw.sharp_books as string[]) || [],
     blendComplete: raw.blend_complete as boolean,
     blendWeight: raw.blend_weight_available as number,
+    avgBookCount: (raw.avg_book_count as number) || 0,
 
     edge: raw.edge as number | null,
     edgePct: raw.edge_pct as number | null,

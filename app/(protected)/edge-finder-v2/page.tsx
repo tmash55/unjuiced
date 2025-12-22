@@ -3,49 +3,147 @@
 /**
  * Edge Finder V2 - Native implementation using v2 API
  * 
- * Uses native Opportunity types and components - no adapters.
- * Compare to /edge-finder (v1) to validate.
+ * Uses native Opportunity types and components.
+ * Shares preferences with V1 via useBestOddsPreferences.
  * 
  * URL: /edge-finder-v2
  */
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useCallback, useState } from "react";
 import { ToolHeading } from "@/components/common/tool-heading";
 import { ToolSubheading } from "@/components/common/tool-subheading";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { cn } from "@/lib/utils";
-import { TrendingUp, RefreshCw, Beaker, Filter } from "lucide-react";
+import { RefreshCw, Beaker } from "lucide-react";
 import { LoadingState } from "@/components/common/loading-state";
 import { Tooltip } from "@/components/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 
 // V2 Native imports
 import { useOpportunities } from "@/hooks/use-opportunities";
 import { OpportunitiesTable } from "@/components/opportunities/opportunities-table";
 import { type OpportunityFilters, type Sport, DEFAULT_FILTERS } from "@/lib/types/opportunities";
 
+// Shared preferences & V1 filters component
+import { useBestOddsPreferences } from "@/context/preferences-context";
+import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+import type { BestOddsPrefs } from "@/lib/best-odds-schema";
+
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
+import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 
-const SPORTS: { value: Sport; label: string }[] = [
-  { value: "nba", label: "NBA" },
-  { value: "nfl", label: "NFL" },
-  { value: "ncaab", label: "NCAAB" },
-  { value: "ncaaf", label: "NCAAF" },
-  { value: "nhl", label: "NHL" },
-  { value: "mlb", label: "MLB" },
+// Available leagues for the filters component
+const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba"];
+
+// Available markets (subset of common player props)
+const AVAILABLE_MARKETS = [
+  "player_points",
+  "player_rebounds", 
+  "player_assists",
+  "pra",
+  "player_threes",
+  "player_steals",
+  "player_blocks",
+  "player_turnovers",
+  "player_double_double",
+  "player_triple_double",
+  "passing_yards",
+  "passing_touchdowns",
+  "passing_completions",
+  "passing_attempts",
+  "passing_interceptions",
+  "rushing_yards",
+  "rushing_attempts",
+  "rushing_touchdowns",
+  "receiving_yards",
+  "receptions",
+  "receiving_touchdowns",
+  "player_touchdowns",
+  "player_anytime_td",
+  "player_shots_on_goal",
+  "player_goals",
+  "player_assists_hockey",
+  "player_points_hockey",
+  "player_saves",
+  "player_blocked_shots",
+  "batter_hits",
+  "batter_total_bases",
+  "batter_rbis",
+  "batter_runs_scored",
+  "batter_home_runs",
+  "batter_stolen_bases",
+  "pitcher_strikeouts",
+  "pitcher_hits_allowed",
+  "pitcher_walks",
+  "pitcher_outs",
 ];
 
-const PRESETS = [
-  { value: "pinnacle", label: "Pinnacle" },
-  { value: "circa", label: "Circa Sports" },
-  { value: "average", label: "Market Average" },
-  { value: "sharp_consensus", label: "Sharp Consensus" },
-];
+/**
+ * Map V1 BestOddsPrefs to V2 OpportunityFilters
+ */
+function mapPrefsToFilters(prefs: BestOddsPrefs): OpportunityFilters {
+  // Derive sports from selected leagues
+  const leagueToSport: Record<string, Sport> = {
+    nba: "nba",
+    nfl: "nfl",
+    ncaaf: "ncaaf",
+    ncaab: "ncaab",
+    nhl: "nhl",
+    mlb: "mlb",
+    wnba: "wnba",
+  };
+  
+  // If no leagues selected (empty = all), use default sports (nba, nfl) for performance
+  // Empty array in prefs means "all selected" in V1 - but querying all is slow
+  // Default to NBA + NFL which is what V1 does in practice
+  let sports: Sport[];
+  if (prefs.selectedLeagues.length > 0) {
+    sports = [...new Set(
+      prefs.selectedLeagues
+        .map(l => leagueToSport[l])
+        .filter((s): s is Sport => !!s)
+    )];
+  } else {
+    // Default to NBA and NFL when "all" is selected
+    sports = ["nba", "nfl"];
+  }
+
+  // Map comparison mode to preset
+  let preset: string = "average";
+  if (prefs.comparisonMode === "book" && prefs.comparisonBook) {
+    preset = prefs.comparisonBook;
+  } else if (prefs.comparisonMode === "average") {
+    preset = "average";
+  }
+  // Note: next_best doesn't map to a preset, we'll handle it client-side
+
+  return {
+    ...DEFAULT_FILTERS,
+    sports: sports.length > 0 ? sports : ["nba", "nfl"],
+    preset,
+    minEdge: prefs.minImprovement || 0,
+    minOdds: prefs.minOdds ?? -500,
+    maxOdds: prefs.maxOdds ?? 500,
+    searchQuery: prefs.searchQuery || "",
+    selectedBooks: prefs.selectedBooks || [],
+    selectedMarkets: prefs.selectedMarkets || [],
+    selectedLeagues: prefs.selectedLeagues || [],
+    minBooksPerSide: 2,
+  };
+}
+
+/**
+ * Map V2 preset back to V1 comparison mode
+ */
+function mapPresetToComparisonMode(preset: string): { mode: BestOddsPrefs['comparisonMode']; book: string | null } {
+  if (preset === "average") {
+    return { mode: "average", book: null };
+  }
+  // Assume it's a book ID
+  return { mode: "book", book: preset };
+}
 
 export default function EdgeFinderV2Page() {
   const { user } = useAuth();
@@ -60,20 +158,47 @@ export default function EdgeFinderV2Page() {
   }, [planLoading, isPro]);
 
   const effectiveIsPro = planLoading ? stablePlanRef.current : isPro;
+  const locked = !effectiveIsPro;
 
-  // Filter state
-  const [filters, setFilters] = useState<OpportunityFilters>({
-    ...DEFAULT_FILTERS,
-    sports: ["nba", "nfl"],
-  });
-
-  const [searchLocal, setSearchLocal] = useState("");
+  // Use shared preferences
+  const { filters: prefs, updateFilters: updatePrefs, isLoading: prefsLoading } = useBestOddsPreferences();
+  
+  // Local search state (debounced before saving to prefs)
+  const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
   const [refreshing, setRefreshing] = useState(false);
+
+  // Hidden edges management
+  const { 
+    hiddenCount, 
+    hideEdge, 
+    unhideEdge, 
+    isHidden,
+    clearAllHidden 
+  } = useHiddenEdges();
+
+  // Sync local search with prefs on load
+  useEffect(() => {
+    setSearchLocal(prefs.searchQuery || "");
+  }, [prefs.searchQuery]);
+
+  // Debounce search updates to prefs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchLocal !== (prefs.searchQuery || "")) {
+        updatePrefs({ searchQuery: searchLocal });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchLocal, prefs.searchQuery, updatePrefs]);
+
+  // Convert prefs to V2 filters
+  const filters = useMemo(() => mapPrefsToFilters(prefs), [prefs]);
 
   // Use v2 hook
   const {
     opportunities,
     totalScanned,
+    totalAfterFilters,
     timingMs,
     isLoading,
     isFetching,
@@ -82,21 +207,47 @@ export default function EdgeFinderV2Page() {
   } = useOpportunities({
     filters,
     isPro: effectiveIsPro,
-    enabled: !planLoading,
+    enabled: !planLoading && !prefsLoading,
   });
 
-  // Apply search filter client-side
+  // Apply client-side filters (search, hidden, books)
   const filteredOpportunities = useMemo(() => {
-    if (!searchLocal.trim()) return opportunities;
-    const q = searchLocal.toLowerCase();
-    return opportunities.filter(
-      (opp) =>
-        opp.player.toLowerCase().includes(q) ||
-        opp.homeTeam.toLowerCase().includes(q) ||
-        opp.awayTeam.toLowerCase().includes(q) ||
-        opp.market.toLowerCase().includes(q)
-    );
-  }, [opportunities, searchLocal]);
+    let filtered = opportunities;
+
+    // Search filter
+    if (searchLocal.trim()) {
+      const q = searchLocal.toLowerCase();
+      filtered = filtered.filter(
+        (opp) =>
+          (opp.player || "").toLowerCase().includes(q) ||
+          (opp.homeTeam || "").toLowerCase().includes(q) ||
+          (opp.awayTeam || "").toLowerCase().includes(q) ||
+          (opp.market || "").toLowerCase().includes(q)
+      );
+    }
+
+    // Hidden edges filter
+    if (!prefs.showHidden) {
+      filtered = filtered.filter((opp) => !isHidden(opp.id));
+    }
+
+    // Book filter (client-side since API doesn't support it)
+    if (prefs.selectedBooks.length > 0) {
+      filtered = filtered.filter((opp) => prefs.selectedBooks.includes(opp.bestBook));
+    }
+
+    // College player props filter
+    if (prefs.hideCollegePlayerProps) {
+      filtered = filtered.filter((opp) => {
+        const isCollege = opp.sport === "ncaaf" || opp.sport === "ncaab";
+        // Allow game markets for college, just filter player props
+        const isPlayerProp = opp.player && opp.player !== "game";
+        return !(isCollege && isPlayerProp);
+      });
+    }
+
+    return filtered;
+  }, [opportunities, searchLocal, prefs.showHidden, prefs.selectedBooks, prefs.hideCollegePlayerProps, isHidden]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -104,34 +255,49 @@ export default function EdgeFinderV2Page() {
     setRefreshing(false);
   };
 
-  const updateFilter = <K extends keyof OpportunityFilters>(
-    key: K,
-    value: OpportunityFilters[K]
-  ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
+  // Handler for prefs changes from BestOddsFilters
+  const handlePrefsChange = useCallback((newPrefs: BestOddsPrefs) => {
+    updatePrefs({
+      selectedBooks: newPrefs.selectedBooks,
+      selectedLeagues: newPrefs.selectedLeagues,
+      selectedMarkets: newPrefs.selectedMarkets,
+      minImprovement: newPrefs.minImprovement,
+      maxOdds: newPrefs.maxOdds,
+      minOdds: newPrefs.minOdds,
+      hideCollegePlayerProps: newPrefs.hideCollegePlayerProps,
+      comparisonMode: newPrefs.comparisonMode,
+      comparisonBook: newPrefs.comparisonBook,
+      searchQuery: newPrefs.searchQuery,
+      showHidden: newPrefs.showHidden,
+    });
+  }, [updatePrefs]);
 
-  const toggleSport = (sport: Sport) => {
-    setFilters((prev) => ({
-      ...prev,
-      sports: prev.sports.includes(sport)
-        ? prev.sports.filter((s) => s !== sport)
-        : [...prev.sports, sport],
-    }));
-  };
+  // Toggle show hidden
+  const handleToggleShowHidden = useCallback(() => {
+    updatePrefs({ showHidden: !prefs.showHidden });
+  }, [updatePrefs, prefs.showHidden]);
+
+  // Get available sportsbooks from current deals for counts
+  const availableSportsbooks = useMemo(() => {
+    const books = new Set<string>();
+    opportunities.forEach((opp) => {
+      opp.allBooks.forEach((b) => books.add(b.book));
+    });
+    return Array.from(books);
+  }, [opportunities]);
 
   if (planLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
         <LoadingState text="Loading Edge Finder V2..." />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 space-y-6">
+    <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
       {/* V2 Test Banner */}
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-3">
+      <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-3">
         <Beaker className="w-5 h-5 text-amber-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-amber-500">V2 Native Mode</p>
@@ -144,185 +310,83 @@ export default function EdgeFinderV2Page() {
         </div>
         <div className="text-right text-xs text-muted-foreground shrink-0">
           <p>Scanned: {totalScanned.toLocaleString()}</p>
+          <p>
+            After filters: {totalAfterFilters.toLocaleString()}{" "}
+            {totalAfterFilters > 500 && <span className="text-amber-500">(limit: 500)</span>}
+          </p>
           <p>Timing: {timingMs}ms</p>
         </div>
       </div>
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <ToolHeading>
-            <TrendingUp className="inline w-6 h-6 mr-2" />
-            Edge Finder V2
-          </ToolHeading>
-          <ToolSubheading>
-            {isLoading
-              ? "Loading..."
-              : `${filteredOpportunities.length} opportunities found`}
-          </ToolSubheading>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <ToolHeading>Edge Finder</ToolHeading>
+          <Tooltip content={effectiveIsPro ? "Refresh data" : "Pro only"}>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || isLoading || !effectiveIsPro}
+              className={cn(
+                "p-2 rounded-md border transition-colors",
+                "hover:bg-muted/50 disabled:opacity-50"
+              )}
+            >
+              <RefreshCw className={cn("w-4 h-4", (refreshing || isFetching) && "animate-spin")} />
+            </button>
+          </Tooltip>
         </div>
-
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing || isLoading}
-          className={cn(
-            "p-2 rounded-md border transition-colors self-start md:self-auto",
-            "hover:bg-muted/50 disabled:opacity-50"
-          )}
-        >
-          <RefreshCw className={cn("w-4 h-4", (refreshing || isFetching) && "animate-spin")} />
-        </button>
+        <ToolSubheading>
+          {isLoading
+            ? "Loading opportunities..."
+            : `${filteredOpportunities.length} opportunities found`}
+        </ToolSubheading>
       </div>
 
-      {/* Filters */}
-      <FiltersBar>
-        <FiltersBarSection>
-          {/* Search */}
-          <div className="relative">
-            <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search players, teams..."
-              value={searchLocal}
-              onChange={(e) => setSearchLocal(e.target.value)}
-              className="pl-9 w-64"
+      {/* Filters Bar */}
+      <div className="mb-6 relative z-10">
+        <FiltersBar>
+          <FiltersBarSection>
+            {/* Search */}
+            <div className="relative">
+              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search players, teams..."
+                value={searchLocal}
+                onChange={(e) => setSearchLocal(e.target.value)}
+                className="pl-9 w-64"
+                disabled={locked}
+              />
+            </div>
+
+            {/* V1 BestOddsFilters component - handles all advanced filtering */}
+            <BestOddsFilters
+              prefs={prefs}
+              onPrefsChange={handlePrefsChange}
+              availableLeagues={AVAILABLE_LEAGUES}
+              availableMarkets={AVAILABLE_MARKETS}
+              availableSportsbooks={availableSportsbooks}
+              deals={filteredOpportunities.map((opp) => ({
+                bestBook: opp.bestBook,
+                bestPrice: opp.bestDecimal,
+                allBooks: opp.allBooks.map((b) => ({
+                  book: b.book,
+                  price: b.price,
+                  link: b.link || "",
+                })),
+              }))}
+              locked={locked}
+              isLoggedIn={isLoggedIn}
+              isPro={effectiveIsPro}
+              refreshing={refreshing || isFetching}
+              onRefresh={handleRefresh}
+              hiddenCount={hiddenCount}
+              showHidden={prefs.showHidden}
+              onToggleShowHidden={handleToggleShowHidden}
+              onClearAllHidden={clearAllHidden}
             />
-          </div>
-
-          {/* Sports Toggle */}
-          <div className="flex gap-1">
-            {SPORTS.map((sport) => (
-              <button
-                key={sport.value}
-                onClick={() => toggleSport(sport.value)}
-                className={cn(
-                  "px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors border",
-                  filters.sports.includes(sport.value)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-transparent hover:bg-muted/50 border-border"
-                )}
-              >
-                {sport.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Preset Selector */}
-          <select
-            value={filters.preset || "pinnacle"}
-            onChange={(e) => updateFilter("preset", e.target.value)}
-            className="h-9 w-40 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            {PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Advanced Filters Dialog */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="flex items-center gap-1 px-3 py-2 text-sm rounded-md border hover:bg-muted/50 transition-colors">
-                <Filter className="w-4 h-4" />
-                Filters
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Filter Options</DialogTitle>
-                <DialogDescription>
-                  Customize which opportunities appear
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                {/* Min Edge */}
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="minEdge">Min Edge %</Label>
-                  <Input
-                    id="minEdge"
-                    type="number"
-                    value={filters.minEdge}
-                    onChange={(e) => updateFilter("minEdge", Number(e.target.value))}
-                    className="w-20"
-                    min={0}
-                    step={1}
-                  />
-                </div>
-
-                {/* Min EV */}
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="minEV">Min EV % (leave blank for edge only)</Label>
-                  <Input
-                    id="minEV"
-                    type="number"
-                    value={filters.minEV ?? ""}
-                    onChange={(e) => 
-                      updateFilter("minEV", e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="w-20"
-                    placeholder="—"
-                    step={0.5}
-                  />
-                </div>
-
-                {/* Require Two-Way */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="twoWay">Require Two-Way Devig</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Only show properly devigged opportunities
-                    </p>
-                  </div>
-                  <Switch
-                    id="twoWay"
-                    checked={filters.requireTwoWay}
-                    onCheckedChange={(v) => updateFilter("requireTwoWay", v)}
-                  />
-                </div>
-
-                {/* Odds Range */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="minOdds">Min Odds</Label>
-                    <Input
-                      id="minOdds"
-                      type="number"
-                      value={filters.minOdds}
-                      onChange={(e) => updateFilter("minOdds", Number(e.target.value))}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="maxOdds">Max Odds</Label>
-                    <Input
-                      id="maxOdds"
-                      type="number"
-                      value={filters.maxOdds}
-                      onChange={(e) => updateFilter("maxOdds", Number(e.target.value))}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Sort */}
-                <div className="flex items-center justify-between">
-                  <Label>Sort By</Label>
-                  <select
-                    value={filters.sortBy}
-                    onChange={(e) => updateFilter("sortBy", e.target.value as OpportunityFilters["sortBy"])}
-                    className="h-9 w-40 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="edge_pct">Edge %</option>
-                    <option value="ev_pct">EV %</option>
-                    <option value="best_decimal">Best Odds</option>
-                    <option value="kelly_fraction">Kelly Stake</option>
-                  </select>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </FiltersBarSection>
-      </FiltersBar>
+          </FiltersBarSection>
+        </FiltersBar>
+      </div>
 
       {/* Error */}
       {error && (
@@ -336,20 +400,26 @@ export default function EdgeFinderV2Page() {
         opportunities={filteredOpportunities}
         isLoading={isLoading}
         isPro={effectiveIsPro}
-        showEV={filters.minEV !== null || filters.requireTwoWay}
+        showEV={false}
+        showHidden={prefs.showHidden}
+        onHideEdge={hideEdge}
+        onUnhideEdge={unhideEdge}
+        isHidden={isHidden}
       />
 
       {/* Pro Upgrade CTA */}
-      {!effectiveIsPro && !isLoggedIn && (
+      {!effectiveIsPro && (
         <div className="text-center py-8 border-t">
           <p className="text-muted-foreground mb-2">
-            Sign up for Pro to unlock all opportunities and features
+            {isLoggedIn 
+              ? "Upgrade to Pro to unlock all opportunities and filters"
+              : "Sign up for Pro to unlock all opportunities and filters"}
           </p>
           <a
             href="/pricing"
             className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium"
           >
-            View Plans
+            {isLoggedIn ? "Upgrade to Pro" : "View Plans"}
           </a>
         </div>
       )}

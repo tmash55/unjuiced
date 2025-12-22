@@ -33,6 +33,7 @@ interface UseOpportunitiesResult {
   // Data
   opportunities: Opportunity[];
   totalScanned: number;
+  totalAfterFilters: number;  // Count after filters but before limit - helps diagnose if limit is hiding results
   timingMs: number;
   
   // State
@@ -59,6 +60,11 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
     params.set("sports", filters.sports.join(","));
   }
 
+  // Markets - send to API for server-side filtering (empty = all markets)
+  if (filters.selectedMarkets.length > 0) {
+    params.set("markets", filters.selectedMarkets.join(","));
+  }
+
   // Sharp reference
   if (filters.blend && filters.blend.length > 0) {
     params.set("blend", filters.blend.map((b) => `${b.book}:${b.weight}`).join(","));
@@ -70,14 +76,17 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
   if (filters.minEdge > 0) params.set("minEdge", String(filters.minEdge));
   if (filters.minEV !== null) params.set("minEV", String(filters.minEV));
   if (filters.requireTwoWay) params.set("requireTwoWay", "true");
+  
+  // Min books per side (2 for edge finder, 2 for +EV)
+  params.set("minBooksPerSide", String(filters.minBooksPerSide));
 
   // Odds range
   if (filters.minOdds !== -500) params.set("minOdds", String(filters.minOdds));
   if (filters.maxOdds !== 500) params.set("maxOdds", String(filters.maxOdds));
 
-  // Sorting
-  params.set("sortBy", filters.sortBy);
-  params.set("sortDir", filters.sortDir);
+  // Sorting - API expects "sort" param with "edge" or "ev"
+  const sortValue = filters.sortBy === "ev_pct" ? "ev" : "edge";
+  params.set("sort", sortValue);
 
   // Limit based on plan
   params.set("limit", isPro ? "500" : "50");
@@ -94,6 +103,7 @@ async function fetchOpportunities(
 ): Promise<{
   opportunities: Opportunity[];
   totalScanned: number;
+  totalAfterFilters: number;
   timingMs: number;
 }> {
   const params = buildQueryParams(filters, isPro);
@@ -115,6 +125,7 @@ async function fetchOpportunities(
   return {
     opportunities,
     totalScanned: data.total_scanned || 0,
+    totalAfterFilters: data.total_after_filters || 0,
     timingMs: data.timing_ms || 0,
   };
 }
@@ -131,10 +142,10 @@ function filterOpportunities(
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
       const matches =
-        opp.player.toLowerCase().includes(q) ||
-        opp.homeTeam.toLowerCase().includes(q) ||
-        opp.awayTeam.toLowerCase().includes(q) ||
-        opp.market.toLowerCase().includes(q);
+        (opp.player || "").toLowerCase().includes(q) ||
+        (opp.homeTeam || "").toLowerCase().includes(q) ||
+        (opp.awayTeam || "").toLowerCase().includes(q) ||
+        (opp.market || "").toLowerCase().includes(q);
       if (!matches) return false;
     }
 
@@ -176,15 +187,16 @@ export function useOpportunities({
     () => [
       "opportunities-v2",
       filters.sports.join(","),
+      filters.selectedMarkets.join(","), // Server-side market filter
       filters.preset,
       filters.blend ? JSON.stringify(filters.blend) : null,
       filters.minEdge,
       filters.minEV,
       filters.requireTwoWay,
+      filters.minBooksPerSide,
       filters.minOdds,
       filters.maxOdds,
-      filters.sortBy,
-      filters.sortDir,
+      filters.sortBy, // Used for query key even though API uses simplified "sort"
       isPro,
     ],
     [filters, isPro]
@@ -199,10 +211,10 @@ export function useOpportunities({
   } = useQuery({
     queryKey,
     queryFn: () => fetchOpportunities(filters, isPro),
-    staleTime: 30_000, // Fresh for 30 seconds
+    staleTime: 60_000, // Fresh for 60 seconds
     gcTime: 5 * 60_000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
+    refetchOnReconnect: false,
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,
@@ -232,6 +244,7 @@ export function useOpportunities({
   return {
     opportunities,
     totalScanned: data?.totalScanned || 0,
+    totalAfterFilters: data?.totalAfterFilters || 0,
     timingMs: data?.timingMs || 0,
     isLoading,
     isFetching,
@@ -262,6 +275,7 @@ export function usePositiveEVOpportunities({
       preset,
       minEV,
       requireTwoWay: true,
+      minBooksPerSide: 2,  // Require 2 books per side for proper EV calculation
       sortBy: "ev_pct",
       sortDir: "desc",
     },
@@ -289,6 +303,7 @@ export function useEdgeOpportunities({
       preset,
       minEdge,
       requireTwoWay: false,
+      minBooksPerSide: 2,  // Need 2 books on same side for edge comparison
       sortBy: "edge_pct",
       sortDir: "desc",
     },

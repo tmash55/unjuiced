@@ -1,416 +1,723 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   type Opportunity,
   formatEdge,
-  formatEV,
-  formatKelly,
   formatMarketName,
-  formatProbability,
-  getOpportunityGrade,
 } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
+import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { 
-  ChevronDown, 
+  ChevronRight,
   ChevronUp, 
+  ChevronDown,
   ExternalLink, 
   TrendingUp,
-  CheckCircle2,
-  AlertCircle,
-  Info,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+
+interface HideEdgeParams {
+  edgeKey: string;
+  eventId?: string;
+  eventDate?: string;
+  sport?: string;
+  playerName?: string;
+  market?: string;
+  line?: number;
+  autoUnhideHours?: number;
+}
 
 interface OpportunitiesTableProps {
   opportunities: Opportunity[];
   isLoading?: boolean;
   isPro?: boolean;
   showEV?: boolean;
+  showHidden?: boolean;
   onRowClick?: (opp: Opportunity) => void;
+  onHideEdge?: (params: HideEdgeParams) => void;
+  onUnhideEdge?: (edgeKey: string) => void;
+  isHidden?: (edgeKey: string) => boolean;
 }
 
-const GRADE_COLORS = {
-  A: "bg-green-500/20 text-green-500 border-green-500/30",
-  B: "bg-blue-500/20 text-blue-500 border-blue-500/30",
-  C: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
-  D: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+type SortField = 'edge' | 'time';
+type SortDirection = 'asc' | 'desc';
+
+const TABLE_SCROLL_KEY = 'edgeFinderV2_tableScrollTop';
+
+// Helper to choose link based on device
+const chooseBookLink = (desktop?: string | null, mobile?: string | null, fallback?: string | null) => {
+  const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+  return isMobile ? (mobile || desktop || fallback || undefined) : (desktop || mobile || fallback || undefined);
+};
+
+// Get team logo URL
+const getTeamLogoUrl = (teamName: string, sport: string): string => {
+  if (!teamName) return '';
+  const abbr = getStandardAbbreviation(teamName, sport);
+  const logoSport = sport.toLowerCase() === 'ncaab' ? 'ncaaf' : sport;
+  return `/team-logos/${logoSport}/${abbr.toUpperCase()}.svg`;
+};
+
+// Check if sport has team logos
+const hasTeamLogos = (sportKey: string): boolean => {
+  const sportsWithLogos = ['nfl', 'nhl', 'nba', 'ncaaf', 'ncaab'];
+  return sportsWithLogos.includes(sportKey.toLowerCase());
+};
+
+// Format odds display
+const formatOdds = (price: string | number) => {
+  const num = typeof price === 'string' ? parseInt(price, 10) : price;
+  return num > 0 ? `+${num}` : String(num);
+};
+
+// Get sportsbook logo
+const getBookLogo = (bookId?: string) => {
+  if (!bookId) return null;
+  const sb = getSportsbookById(bookId);
+  return sb?.image?.light || sb?.icon || null;
+};
+
+// Get sportsbook name
+const getBookName = (bookId?: string) => {
+  if (!bookId) return "";
+  const sb = getSportsbookById(bookId);
+  return sb?.name || bookId;
+};
+
+// Get fallback URL for book
+const getBookFallbackUrl = (bookId?: string): string | undefined => {
+  if (!bookId) return undefined;
+  const sb = getSportsbookById(bookId);
+  if (!sb) return undefined;
+  const base = (sb.affiliate && sb.affiliateLink) ? sb.affiliateLink : (sb.links?.desktop || undefined);
+  if (!base) return undefined;
+  if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
+  return base;
 };
 
 /**
- * Format game time as relative or absolute
- */
-function formatGameTime(gameStart: string): string {
-  const date = new Date(gameStart);
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-
-  if (diffHours < 0) return "Live";
-  if (diffHours < 1) return `${Math.round(diffHours * 60)}m`;
-  if (diffHours < 24) return `${Math.round(diffHours)}h`;
-  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-}
-
-/**
- * Single opportunity row
- */
-function OpportunityRow({
-  opp,
-  showEV,
-  onRowClick,
-}: {
-  opp: Opportunity;
-  showEV: boolean;
-  onRowClick?: (opp: Opportunity) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const grade = getOpportunityGrade(opp);
-  const sportsbook = getSportsbookById(opp.bestBook);
-
-  const handleBetClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (opp.bestLink) {
-      window.open(opp.bestLink, "_blank");
-    }
-  };
-
-  return (
-    <>
-      <tr
-        onClick={() => setExpanded(!expanded)}
-        className={cn(
-          "group cursor-pointer transition-colors",
-          "hover:bg-muted/50",
-          expanded && "bg-muted/30"
-        )}
-      >
-        {/* Sport */}
-        <td className="py-3 px-3">
-          <div className="flex items-center gap-2">
-            <SportIcon sport={opp.sport} className="w-4 h-4" />
-            <span className="text-xs text-muted-foreground uppercase">{opp.sport}</span>
-          </div>
-        </td>
-
-        {/* Player & Market */}
-        <td className="py-3 px-3">
-          <div className="flex flex-col">
-            <span className="font-medium text-sm">{opp.player}</span>
-            <span className="text-xs text-muted-foreground">
-              {formatMarketName(opp.market)} {opp.side === "over" ? "O" : "U"} {opp.line}
-            </span>
-          </div>
-        </td>
-
-        {/* Game */}
-        <td className="py-3 px-3">
-          <div className="flex flex-col">
-            <span className="text-sm">{opp.awayTeam} @ {opp.homeTeam}</span>
-            <span className="text-xs text-muted-foreground">{formatGameTime(opp.gameStart)}</span>
-          </div>
-        </td>
-
-        {/* Best Book */}
-        <td className="py-3 px-3">
-          <div className="flex items-center gap-2">
-            {sportsbook?.icon && (
-              <img src={sportsbook.icon} alt={sportsbook.name} className="w-5 h-5 rounded" />
-            )}
-            <span className="text-sm">{sportsbook?.name || opp.bestBook}</span>
-          </div>
-        </td>
-
-        {/* Best Price */}
-        <td className="py-3 px-3">
-          <span className={cn(
-            "font-mono font-semibold text-sm",
-            opp.bestPrice.startsWith("+") ? "text-green-500" : "text-foreground"
-          )}>
-            {opp.bestPrice}
-          </span>
-          <span className="text-xs text-muted-foreground ml-1">
-            ({opp.nBooks} books)
-          </span>
-        </td>
-
-        {/* Sharp Price */}
-        <td className="py-3 px-3">
-          <Tooltip content={`Sharp books: ${opp.sharpBooks.join(", ") || "N/A"}`}>
-            <span className="font-mono text-sm text-muted-foreground">
-              {opp.sharpPrice || "—"}
-            </span>
-          </Tooltip>
-        </td>
-
-        {/* Edge % */}
-        <td className="py-3 px-3">
-          <span className={cn(
-            "font-mono font-semibold text-sm",
-            (opp.edgePct || 0) > 5 ? "text-green-500" : 
-            (opp.edgePct || 0) > 0 ? "text-blue-500" : "text-muted-foreground"
-          )}>
-            {formatEdge(opp.edgePct)}
-          </span>
-        </td>
-
-        {/* EV % (conditional) */}
-        {showEV && (
-          <td className="py-3 px-3">
-            <div className="flex items-center gap-1">
-              <span className={cn(
-                "font-mono font-semibold text-sm",
-                (opp.evPct || 0) > 3 ? "text-green-500" : 
-                (opp.evPct || 0) > 0 ? "text-blue-500" : "text-muted-foreground"
-              )}>
-                {formatEV(opp.evPct)}
-              </span>
-              {opp.devigMethod === "proper" ? (
-                <Tooltip content="Properly devigged using both sides">
-                  <CheckCircle2 className="w-3 h-3 text-green-500" />
-                </Tooltip>
-              ) : opp.devigMethod === "estimated" ? (
-                <Tooltip content="Estimated (one-sided devig)">
-                  <AlertCircle className="w-3 h-3 text-yellow-500" />
-                </Tooltip>
-              ) : null}
-            </div>
-          </td>
-        )}
-
-        {/* Grade */}
-        <td className="py-3 px-3">
-          {grade && (
-            <span className={cn(
-              "px-2 py-0.5 rounded text-xs font-bold border",
-              GRADE_COLORS[grade]
-            )}>
-              {grade}
-            </span>
-          )}
-        </td>
-
-        {/* Bet Button */}
-        <td className="py-3 px-3">
-          <button
-            onClick={handleBetClick}
-            className={cn(
-              "flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-              "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-          >
-            Bet <ExternalLink className="w-3 h-3" />
-          </button>
-        </td>
-
-        {/* Expand Icon */}
-        <td className="py-3 px-2">
-          {expanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          )}
-        </td>
-      </tr>
-
-      {/* Expanded Row */}
-      <AnimatePresence>
-        {expanded && (
-          <tr>
-            <td colSpan={showEV ? 11 : 10} className="p-0">
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <ExpandedContent opp={opp} showEV={showEV} />
-              </motion.div>
-            </td>
-          </tr>
-        )}
-      </AnimatePresence>
-    </>
-  );
-}
-
-/**
- * Expanded row content
- */
-function ExpandedContent({ opp, showEV }: { opp: Opportunity; showEV: boolean }) {
-  return (
-    <div className="bg-muted/20 border-t border-b border-border p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* All Books */}
-      <div>
-        <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          All Books ({opp.nBooks})
-        </h4>
-        <div className="space-y-1">
-          {opp.allBooks.slice(0, 8).map((book) => {
-            const sb = getSportsbookById(book.book);
-            return (
-              <div key={book.book} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  {sb?.icon && <img src={sb.icon} alt={sb.name} className="w-4 h-4 rounded" />}
-                  <span>{sb?.name || book.book}</span>
-                </div>
-                <span className="font-mono">{book.priceFormatted}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* EV Details */}
-      {showEV && (
-        <div>
-          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-            +EV Analysis
-          </h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">True Probability</span>
-              <span className="font-mono">{formatProbability(opp.trueProbability)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Fair Odds</span>
-              <span className="font-mono">{opp.fairAmerican || "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Kelly Stake</span>
-              <span className="font-mono">{formatKelly(opp.kellyFraction)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Market Vig</span>
-              <span className="font-mono">
-                {opp.overround !== null ? `${(opp.overround * 100).toFixed(1)}%` : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Devig Method</span>
-              <span className={cn(
-                "text-xs px-2 py-0.5 rounded",
-                opp.devigMethod === "proper" 
-                  ? "bg-green-500/20 text-green-500" 
-                  : "bg-yellow-500/20 text-yellow-500"
-              )}>
-                {opp.devigMethod || "N/A"}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Opposite Side */}
-      <div>
-        <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-          Opposite Side ({opp.oppositeSide?.side || "—"})
-        </h4>
-        {opp.oppositeSide ? (
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Best Book</span>
-              <span>{opp.oppositeSide.bestBook || "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Best Price</span>
-              <span className="font-mono">{opp.oppositeSide.bestPrice || "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Sharp Price</span>
-              <span className="font-mono">{opp.oppositeSide.sharpPrice || "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Books Available</span>
-              <span>{opp.oppositeSide.allBooks.length}</span>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No opposite side data</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Main table component
+ * Main table component styled like V1
  */
 export function OpportunitiesTable({
   opportunities,
   isLoading,
   isPro = true,
-  showEV = true,
+  showEV = false,
+  showHidden = false,
   onRowClick,
+  onHideEdge,
+  onUnhideEdge,
+  isHidden,
 }: OpportunitiesTableProps) {
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [sortField, setSortField] = useState<SortField>('edge');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRestoredRef = useRef(false);
+
+  // Restore scroll position
+  useEffect(() => {
+    if (tableScrollRestoredRef.current) return;
+    if (isLoading) return;
+    const container = tableRef.current;
+    if (!container) return;
+    const saved = sessionStorage.getItem(TABLE_SCROLL_KEY);
+    if (saved) {
+      container.scrollTop = parseInt(saved, 10);
+    }
+    tableScrollRestoredRef.current = true;
+  }, [isLoading, opportunities.length]);
+
+  // Save scroll position
+  useEffect(() => {
+    const container = tableRef.current;
+    if (!container) return;
+    let rafId: number | null = null;
+    const handleScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        sessionStorage.setItem(TABLE_SCROLL_KEY, container.scrollTop.toString());
+      });
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [opportunities.length]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openBetDropdown) {
+        setOpenBetDropdown(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openBetDropdown]);
+
+  const toggleRow = (key: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'edge' ? 'desc' : 'asc');
+    }
+  };
+
+  // Filter hidden and sort opportunities
+  const sortedOpportunities = React.useMemo(() => {
+    // Filter out hidden opportunities (unless showHidden is true)
+    let filtered = opportunities;
+    if (!showHidden && isHidden) {
+      filtered = opportunities.filter(opp => !isHidden(opp.id));
+    }
+    
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      let aValue: number;
+      let bValue: number;
+
+      if (sortField === 'edge') {
+        aValue = a.edgePct ?? 0;
+        bValue = b.edgePct ?? 0;
+      } else {
+        aValue = a.gameStart ? new Date(a.gameStart).getTime() : 0;
+        bValue = b.gameStart ? new Date(b.gameStart).getTime() : 0;
+      }
+
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    });
+    return sorted;
+  }, [opportunities, sortField, sortDirection, showHidden, isHidden]);
+
+  const openLink = (bookId?: string, link?: string | null) => {
+    const fallback = getBookFallbackUrl(bookId);
+    const target = link || fallback;
+    if (!target) return;
+    sessionStorage.setItem('edgeFinder_scrollPos', window.scrollY.toString());
+    try {
+      window.open(target, '_blank', 'noopener,noreferrer,width=1200,height=800,scrollbars=yes,resizable=yes');
+    } catch {void 0;}
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-pulse text-muted-foreground">Loading opportunities...</div>
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading opportunities...</p>
+        </div>
       </div>
     );
   }
 
   if (opportunities.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <TrendingUp className="w-12 h-12 text-muted-foreground mb-4" />
-        <h3 className="font-semibold mb-1">No opportunities found</h3>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-lg font-medium mb-2">No edges found</p>
         <p className="text-sm text-muted-foreground">
-          Try adjusting your filters or check back later
+            Try adjusting your filters to see more opportunities
         </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full">
-        <thead className="bg-muted/50 sticky top-0 z-10">
-          <tr className="text-left text-xs uppercase text-muted-foreground">
-            <th className="py-3 px-3 font-medium">Sport</th>
-            <th className="py-3 px-3 font-medium">Player / Market</th>
-            <th className="py-3 px-3 font-medium">Game</th>
-            <th className="py-3 px-3 font-medium">Best Book</th>
-            <th className="py-3 px-3 font-medium">Best Price</th>
-            <th className="py-3 px-3 font-medium">
-              <Tooltip content="Sharp reference price (vs Pinnacle or blend)">
-                <span className="flex items-center gap-1">
-                  Sharp <Info className="w-3 h-3" />
-                </span>
+    <div
+      ref={tableRef}
+      className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
+    >
+      <table className="min-w-full text-sm table-fixed">
+        <colgroup>
+          <col style={{ width: 100 }} />
+          <col style={{ width: 80 }} />
+          <col style={{ width: 110 }} />
+          <col style={{ width: 240 }} />
+          <col style={{ width: 200 }} />
+          <col style={{ width: 180 }} />
+          <col style={{ width: 120 }} />
+          <col style={{ width: 120 }} />
+          <col style={{ width: 100 }} />
+        </colgroup>
+        <thead className="bg-neutral-50 dark:bg-neutral-900 sticky top-0 z-[5]">
+          <tr>
+            <th 
+              className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              onClick={() => handleSort('edge')}
+            >
+              <div className="flex items-center justify-center gap-1">
+                <span>Edge %</span>
+                <Tooltip content="Edge vs market average or sharp reference. Calculated using decimal odds.">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    aria-hidden
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z"
+                    />
+                  </svg>
               </Tooltip>
+                {sortField === 'edge' && (
+                  sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
             </th>
-            <th className="py-3 px-3 font-medium">Edge %</th>
-            {showEV && (
-              <th className="py-3 px-3 font-medium">
-                <Tooltip content="Expected Value after proper devigging">
-                  <span className="flex items-center gap-1">
-                    EV % <Info className="w-3 h-3" />
-                  </span>
-                </Tooltip>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              League
               </th>
-            )}
-            <th className="py-3 px-3 font-medium">Grade</th>
-            <th className="py-3 px-3 font-medium">Action</th>
-            <th className="py-3 px-2 w-8"></th>
+            <th 
+              className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              onClick={() => handleSort('time')}
+            >
+              <div className="flex items-center gap-1">
+                <span>Time</span>
+                {sortField === 'time' && (
+                  sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">
+              Player
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">
+              Market
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              Best Book
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              Next Best
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              Average
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">
+              Action
+            </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
-          {opportunities.map((opp) => (
-            <OpportunityRow
-              key={opp.id}
-              opp={opp}
-              showEV={showEV}
-              onRowClick={onRowClick}
-            />
-          ))}
+        <tbody>
+          {sortedOpportunities.map((opp, index) => {
+            const isExpanded = expandedRows.has(opp.id);
+            const showLogos = hasTeamLogos(opp.sport);
+            const bestLogo = getBookLogo(opp.bestBook);
+            
+            // Find all books with best price
+            const bestBooksWithPrice = opp.allBooks?.filter(b => b.decimal === opp.bestDecimal) || [];
+            
+            // Format game time
+            const gameDate = opp.gameStart ? new Date(opp.gameStart) : null;
+            const isToday = gameDate ? (() => {
+              const today = new Date();
+              return gameDate.getDate() === today.getDate() &&
+                     gameDate.getMonth() === today.getMonth() &&
+                     gameDate.getFullYear() === today.getFullYear();
+            })() : false;
+            const dateStr = gameDate ? (isToday ? 'Today' : gameDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })) : 'TBD';
+            const timeStr = gameDate ? gameDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+
+            // Calculate average from all books
+            const avgDecimal = opp.allBooks && opp.allBooks.length > 0
+              ? opp.allBooks.reduce((sum, b) => sum + b.decimal, 0) / opp.allBooks.length
+              : null;
+            let avgAmerican: string | null = null;
+            if (avgDecimal) {
+              if (avgDecimal >= 2) {
+                avgAmerican = `+${Math.round((avgDecimal - 1) * 100)}`;
+              } else {
+                avgAmerican = `${Math.round(-100 / (avgDecimal - 1))}`;
+              }
+            }
+
+            // Find next best book
+            const sortedBooks = [...(opp.allBooks || [])].sort((a, b) => b.decimal - a.decimal);
+            const nextBestBook = sortedBooks.find(b => b.decimal < opp.bestDecimal);
+
+            const isHiddenRow = showHidden && isHidden?.(opp.id);
+            
+            return (
+              <React.Fragment key={opp.id}>
+                <tr
+                  onClick={() => toggleRow(opp.id)}
+                  className={cn(
+                    "group/row transition-colors cursor-pointer hover:!bg-neutral-100 dark:hover:!bg-neutral-800/50",
+                    index % 2 === 0 ? "bg-white dark:bg-neutral-950" : "bg-neutral-50/50 dark:bg-neutral-900/50",
+                    isHiddenRow && "opacity-40 bg-neutral-100/50 dark:bg-neutral-800/30"
+                  )}
+                >
+                  {/* Edge % */}
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRow(opp.id);
+                        }}
+                        className={cn(
+                          "flex items-center justify-center w-6 h-6 rounded-md transition-all shrink-0",
+                          "hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                          "text-neutral-500 dark:text-neutral-400",
+                          isExpanded && "bg-neutral-100 dark:bg-neutral-800"
+                        )}
+                        aria-label={isExpanded ? "Collapse" : "Expand"}
+                      >
+                        <motion.div
+                          initial={false}
+                          animate={{ rotate: isExpanded ? 90 : 0 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </motion.div>
+                      </button>
+                      <span className={cn(
+                        "inline-flex items-center gap-0.5 px-2 py-1 rounded-md text-sm font-bold",
+                        (opp.edgePct ?? 0) >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                        (opp.edgePct ?? 0) >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      )}>
+                        <span className="text-[10px]">▲</span>
+                        +{(opp.edgePct ?? 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* League */}
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                      <SportIcon sport={opp.sport} className="h-3.5 w-3.5" />
+                      {opp.sport.toUpperCase()}
+                    </div>
+                  </td>
+
+                  {/* Time */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div>
+                      <div className="text-sm text-neutral-600 dark:text-neutral-400">{dateStr}</div>
+                      {timeStr && <div className="text-xs text-neutral-500 dark:text-neutral-500">{timeStr}</div>}
+                    </div>
+                  </td>
+
+                  {/* Player */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="text-sm md:text-base font-medium text-neutral-900 dark:text-neutral-100">
+                      {opp.player}
+                      {opp.position && (
+                        <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                          ({opp.position})
+                        </span>
+                      )}
+                    </div>
+                    {opp.awayTeam && opp.homeTeam && (
+                      <div className="flex items-center gap-1 text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        {showLogos && (
+                          <img
+                            src={getTeamLogoUrl(opp.awayTeam, opp.sport)}
+                            alt={opp.awayTeam}
+                            className="w-4 h-4 object-contain"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className={cn(
+                          opp.team === opp.awayTeam && "font-semibold text-neutral-900 dark:text-neutral-100"
+                        )}>
+                          {opp.awayTeam}
+                        </span>
+                        <span className="mx-0.5">@</span>
+                        {showLogos && (
+                          <img
+                            src={getTeamLogoUrl(opp.homeTeam, opp.sport)}
+                            alt={opp.homeTeam}
+                            className="w-4 h-4 object-contain"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className={cn(
+                          opp.team === opp.homeTeam && "font-semibold text-neutral-900 dark:text-neutral-100"
+                        )}>
+                          {opp.homeTeam}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Market */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                        {opp.marketDisplay || formatMarketName(opp.market)}
+                      </span>
+                      <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                        {opp.side === "over" ? "O" : "U"} {opp.line}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Best Book */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center -space-x-1">
+                        {bestBooksWithPrice.slice(0, 3).map((book) => {
+                          const bookLogo = getBookLogo(book.book);
+                          return bookLogo ? (
+                            <img 
+                              key={book.book}
+                              src={bookLogo} 
+                              alt={getBookName(book.book)} 
+                              className="h-6 w-6 object-contain"
+                              title={getBookName(book.book)}
+                            />
+                          ) : null;
+                        })}
+                        {bestBooksWithPrice.length > 3 && (
+                          <div className="h-6 w-6 flex items-center justify-center">
+                            <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-400">
+                              +{bestBooksWithPrice.length - 3}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-center leading-tight">
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">
+                          {opp.bestPrice}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Next Best */}
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    {nextBestBook ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {getBookLogo(nextBestBook.book) && (
+                            <img
+                              src={getBookLogo(nextBestBook.book)!}
+                              alt={getBookName(nextBestBook.book)}
+                              className="w-5 h-5 object-contain"
+                            />
+                          )}
+                        </div>
+                        <div className="text-neutral-700 dark:text-neutral-300 font-bold text-base">
+                          {nextBestBook.priceFormatted}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-neutral-400 dark:text-neutral-500">N/A</span>
+                    )}
+                  </td>
+
+                  {/* Average */}
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="font-bold text-lg text-neutral-600 dark:text-neutral-400">
+                        {avgAmerican || "—"}
+                      </span>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-500">
+                        ({opp.avgBookCount || opp.nBooks})
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Action */}
+                  <td className="p-2 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="relative flex items-center justify-center gap-2">
+                      {bestBooksWithPrice.length > 0 && (
+                        <>
+                          {bestBooksWithPrice.length === 1 ? (
+                            <Tooltip content={`Place bet on ${getBookName(opp.bestBook)}`}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openLink(opp.bestBook, opp.bestLink);
+                                }}
+                                className="inline-flex items-center justify-center gap-1 h-9 px-4 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all font-medium text-sm"
+                              >
+                                <span>Bet</span>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </Tooltip>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenBetDropdown(openBetDropdown === opp.id ? null : opp.id);
+                                }}
+                                className="inline-flex items-center justify-center gap-1 h-9 px-4 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all font-medium text-sm"
+                              >
+                                <span>Bet</span>
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              </button>
+                              
+                              {openBetDropdown === opp.id && (
+                                <div className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg py-1">
+                                  {bestBooksWithPrice.map((book) => {
+                                    const bookLogo = getBookLogo(book.book);
+                                    return (
+                                      <button
+                                        key={book.book}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openLink(book.book, book.link);
+                                          setOpenBetDropdown(null);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors text-left"
+                                      >
+                                        {bookLogo && (
+                                          <img src={bookLogo} alt={book.book} className="h-5 w-5 object-contain" />
+                                        )}
+                                        <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                          {getBookName(book.book)}
+                                        </span>
+                                        <ExternalLink className="h-3 w-3 ml-auto text-neutral-400" />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* Hide/Unhide Button */}
+                      {onHideEdge && onUnhideEdge && (
+                        <Tooltip content={isHidden?.(opp.id) ? "Unhide this edge" : "Hide this edge"}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isHidden?.(opp.id)) {
+                                onUnhideEdge(opp.id);
+                              } else {
+                                onHideEdge({
+                                  edgeKey: opp.id,
+                                  eventId: opp.eventId,
+                                  eventDate: opp.gameStart,
+                                  sport: opp.sport,
+                                  playerName: opp.player,
+                                  market: opp.market,
+                                  line: opp.line,
+                                  autoUnhideHours: 24
+                                });
+                              }
+                            }}
+                            className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-700 dark:hover:text-neutral-300 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all"
+                          >
+                            {isHidden?.(opp.id) ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <EyeOff className="h-4 w-4" />
+                            )}
+                          </button>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+
+                {/* Expanded Row - All Books */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.tr
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className={cn(
+                        "bg-neutral-50/50 dark:bg-neutral-900/50",
+                        index % 2 === 0 ? "bg-white dark:bg-neutral-950" : ""
+                      )}
+                    >
+                      <td colSpan={9} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                        <div className="flex items-center justify-center gap-3 flex-wrap">
+                          {sortedBooks.map((book) => {
+                            const bookLogo = getBookLogo(book.book);
+                            const isBest = book.decimal === opp.bestDecimal;
+                            const hasLink = !!book.link || !!getBookFallbackUrl(book.book);
+                            
+                            return (
+                              <Tooltip 
+                                key={`${opp.id}-${book.book}`}
+                                content={hasLink ? `Place bet on ${getBookName(book.book)}` : `${getBookName(book.book)} - No link available`}
+                              >
+                                <button
+                                  onClick={() => openLink(book.book, book.link)}
+                                  disabled={!hasLink}
+                                  className={cn(
+                                    "flex items-center gap-2.5 px-4 py-3 rounded-lg border transition-all",
+                                    hasLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+                                    isBest
+                                      ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 shadow-sm"
+                                      : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md"
+                                  )}
+                                >
+                                  {bookLogo && (
+                                    <img
+                                      src={bookLogo}
+                                      alt={book.book}
+                                      className="h-6 w-6 object-contain shrink-0"
+                                    />
+                                  )}
+                                  <span className={cn(
+                                    "text-base font-bold",
+                                    isBest
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : "text-neutral-900 dark:text-neutral-100"
+                                  )}>
+                                    {book.priceFormatted}
+                                  </span>
+                                  {hasLink && (
+                                    <ExternalLink className="h-4 w-4 text-neutral-400 dark:text-neutral-500 ml-1" />
+                                  )}
+                                </button>
+                              </Tooltip>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  )}
+                </AnimatePresence>
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
-

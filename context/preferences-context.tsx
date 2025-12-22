@@ -172,6 +172,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     totalLoadTime: 0,
   });
 
+  // Track last loaded user to prevent loading state flash on auth refreshes
+  const lastLoadedUserIdRef = useRef<string | null>(null);
+
   const publishMetrics = useCallback(() => {
     if (DEV_LOGGING && typeof window !== 'undefined') {
       (window as any).__prefsMetrics = { ...metricsRef.current };
@@ -183,17 +186,24 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (!user) {
       if (DEV_LOGGING) console.log('🔄 PreferencesContext: No user, clearing preferences');
       setPreferences(null);
+      lastLoadedUserIdRef.current = null;
       setIsLoading(false);
       return;
     }
 
     const startTime = performance.now();
+    const isUserSwitch = lastLoadedUserIdRef.current !== user.id;
+
     if (DEV_LOGGING) {
-      console.log('🔄 PreferencesContext: Loading preferences for user:', user.id, 'at', new Date().toISOString());
+      console.log('🔄 PreferencesContext: Loading preferences for user:', user.id, isUserSwitch ? '(new user)' : '(refresh)', 'at', new Date().toISOString());
     }
 
     try {
-      setIsLoading(true);
+      // Only show loading state if we're switching users or initial load
+      // This prevents the table from reloading/flashing during background auth token refreshes
+      if (isUserSwitch) {
+        setIsLoading(true);
+      }
       setError(null);
       const prefs = await preferencesRPC.getPreferences(user.id);
       
@@ -209,6 +219,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       }
       
       setPreferences(prefs);
+      lastLoadedUserIdRef.current = user.id;
       publishMetrics();
     } catch (err) {
       if (DEV_LOGGING) console.error("❌ Failed to load preferences:", err);

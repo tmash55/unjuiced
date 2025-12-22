@@ -15,6 +15,37 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
+// Cache TTL in seconds - how long to cache per-sport raw opportunities
+const SPORT_CACHE_TTL = 30; // 30 seconds
+const ENABLE_CACHE = true; // Set to false to disable caching for debugging
+
+/**
+ * Generate a cache key for raw sport opportunities
+ */
+function getSportCacheKey(sport: string, markets: string[] | null, minBooksPerSide: number): string {
+  const marketsKey = markets ? markets.sort().join(",") : "all";
+  return `v2:sport:${sport}:${marketsKey}:${minBooksPerSide}`;
+}
+
+/**
+ * Format multi-position strings like "GF" → "G/F", "FC" → "F/C", "PF" → "PF"
+ * Common in basketball for players who play multiple positions
+ */
+function formatPosition(position: string | null): string | null {
+  if (!position) return null;
+  
+  // Common multi-position combos that need a slash
+  const multiPosPatterns = ["GF", "FG", "FC", "CF", "SF", "FS", "PG", "SG", "PF"];
+  const upper = position.toUpperCase();
+  
+  // If it's exactly 2 characters and matches a multi-position pattern, add slash
+  if (position.length === 2 && multiPosPatterns.includes(upper)) {
+    return `${position[0]}/${position[1]}`;
+  }
+  
+  return position;
+}
+
 // Supported sports
 const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba"]);
 
@@ -42,7 +73,7 @@ interface Opportunity {
 
   // Best odds
   best_book: string;
-  best_price: number;
+  best_price: string;              // Signed American odds (e.g. "+158", "-110")
   best_decimal: number;
   best_link: string | null;
 
@@ -52,6 +83,7 @@ interface Opportunity {
   sharp_books: string[];
   blend_complete: boolean;
   blend_weight_available: number;
+  avg_book_count: number;             // Number of books used in average calculation (after RSI dedup)
 
   // Edge metrics
   edge: number | null;
@@ -120,6 +152,7 @@ interface OpportunitiesResponse {
   opportunities: Opportunity[];
   count: number;
   total_scanned: number;
+  total_after_filters: number;  // Count after filters but before limit - helps diagnose if limit is hiding results
   filters: {
     sports: string[];
     markets: string[] | null;
@@ -134,6 +167,7 @@ interface OpportunitiesResponse {
     require_two_way: boolean;
   };
   timing_ms: number;
+  cache_hit: boolean;  // Whether data came from cache
 }
 
 /**
@@ -169,7 +203,7 @@ export async function GET(req: NextRequest) {
 
     const markets = params.get("markets")?.toLowerCase().split(",").filter(Boolean) || null;
     const minOdds = parseInt(params.get("minOdds") || "-500");
-    const maxOdds = parseInt(params.get("maxOdds") || "500");
+    const maxOdds = parseInt(params.get("maxOdds") || "10000");
     const minEdge = parseFloat(params.get("minEdge") || "0");
     const minEV = parseFloat(params.get("minEV") || "0");
     const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
@@ -205,20 +239,24 @@ export async function GET(req: NextRequest) {
     }
     // If neither, blend is null (default behavior: Pinnacle > Circa > average)
 
-    // Fetch all sports in parallel
+    // Fetch all sports in parallel (per-sport caching happens inside)
     const sportPromises = sports.map((sport) =>
-      fetchSportOpportunities(sport, markets, blend, minBooksPerSide, useAverage)
+      fetchSportOpportunitiesCached(sport, markets, blend, minBooksPerSide, useAverage)
     );
     const results = await Promise.all(sportPromises);
+    
+    // Track cache hits
+    const cacheHit = results.some(r => r.cacheHit);
 
     // Merge all results
-    let allOpportunities = results.flat();
+    let allOpportunities = results.flatMap(r => r.opportunities);
     const totalScanned = allOpportunities.length;
 
     // Apply filters
     allOpportunities = allOpportunities.filter((o) => {
-      // Odds range filter
-      if (o.best_price < minOdds || o.best_price > maxOdds) return false;
+      // Odds range filter (parse the formatted price string back to number for comparison)
+      const priceNum = parseInt(o.best_price.replace("+", ""), 10);
+      if (priceNum < minOdds || priceNum > maxOdds) return false;
 
       // Edge filter
       if (minEdge > 0 && (o.edge_pct === null || o.edge_pct < minEdge)) return false;
@@ -242,6 +280,9 @@ export async function GET(req: NextRequest) {
       allOpportunities.sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0));
     }
 
+    // Track count after filters but before limit
+    const totalAfterFilters = allOpportunities.length;
+
     // Limit
     const opportunities = allOpportunities.slice(0, limit);
 
@@ -249,6 +290,7 @@ export async function GET(req: NextRequest) {
       opportunities,
       count: opportunities.length,
       total_scanned: totalScanned,
+      total_after_filters: totalAfterFilters,
       filters: {
         sports,
         markets,
@@ -263,6 +305,7 @@ export async function GET(req: NextRequest) {
         require_two_way: requireTwoWay,
       },
       timing_ms: Date.now() - startTime,
+      cache_hit: cacheHit,
     };
 
     return NextResponse.json(response, {
@@ -313,11 +356,12 @@ interface SelectionPair {
   sport: string;
   eventId: string;
   event: { home_team: string; away_team: string; start_time: string } | null;
-  player: string;
-  playerRaw: string;
+  player: string;          // Normalized key format (e.g., "andrew_ogletree")
+  playerDisplay: string;   // Readable format (e.g., "Andrew Ogletree")
   team: string | null;
   position: string | null;
   market: string;
+  marketDisplay: string;   // Human-readable market (e.g., "Player Points" instead of "player_points")
   line: number;
   over: {
     books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null }[];
@@ -327,6 +371,43 @@ interface SelectionPair {
     books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null }[];
     best: { book: string; price: number; decimal: number; link: string | null } | null;
   };
+}
+
+/**
+ * Cached wrapper for fetchSportOpportunities
+ * Caches raw opportunities per-sport for SPORT_CACHE_TTL seconds
+ */
+async function fetchSportOpportunitiesCached(
+  sport: string,
+  markets: string[] | null,
+  blend: BookWeight[] | null,
+  minBooksPerSide: number,
+  useAverage: boolean
+): Promise<{ opportunities: Opportunity[]; cacheHit: boolean }> {
+  const cacheKey = getSportCacheKey(sport, markets, minBooksPerSide);
+  
+  if (ENABLE_CACHE) {
+    try {
+      const cached = await redis.get<{ opportunities: Opportunity[]; timestamp: number }>(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < SPORT_CACHE_TTL * 1000) {
+        return { opportunities: cached.opportunities, cacheHit: true };
+      }
+    } catch {
+      // Cache read failed, continue without cache
+    }
+  }
+  
+  // Fetch fresh data
+  const opportunities = await fetchSportOpportunities(sport, markets, blend, minBooksPerSide, useAverage);
+  
+  // Cache the results (fire and forget, limit to 1000 per sport to avoid size issues)
+  if (ENABLE_CACHE && opportunities.length > 0) {
+    const toCache = opportunities.slice(0, 1000); // Limit cache size
+    redis.set(cacheKey, { opportunities: toCache, timestamp: Date.now() }, { ex: SPORT_CACHE_TTL * 2 })
+      .catch(() => { /* ignore cache write errors */ });
+  }
+  
+  return { opportunities, cacheHit: false };
 }
 
 async function fetchSportOpportunities(
@@ -345,11 +426,63 @@ async function fetchSportOpportunities(
     const eventIds = await getActiveEventIds(sport);
     if (eventIds.length === 0) return [];
 
-    // Fetch event details
+    // OPTIMIZATION: Single SCAN for ALL odds keys for this sport
+    // Instead of scanning per-event, scan all at once and filter in memory
+    const allOddsPattern = `odds:${sport}:*`;
+    const allOddsKeys = await scanKeys(allOddsPattern);
+    
+    if (allOddsKeys.length === 0) return [];
+
+    // Filter keys to only active events and group by event+market
+    const eventIdSet = new Set(eventIds);
+    const filteredKeys: string[] = [];
+    const keysByEventMarket = new Map<string, string[]>(); // "eventId:market" -> keys
+    
+    for (const key of allOddsKeys) {
+      const parts = key.split(":");
+      // odds:sport:eventId:market:book
+      const eventId = parts[2];
+      const market = parts[3];
+      const book = parts[4];
+      
+      if (!eventId || !market || !book) continue;
+      if (!eventIdSet.has(eventId)) continue;
+      if (markets && !markets.includes(market)) continue;
+      
+      filteredKeys.push(key);
+      const groupKey = `${eventId}:${market}`;
+      if (!keysByEventMarket.has(groupKey)) {
+        keysByEventMarket.set(groupKey, []);
+      }
+      keysByEventMarket.get(groupKey)!.push(key);
+    }
+    
+    if (filteredKeys.length === 0) return [];
+
+    // OPTIMIZATION: Batch fetch ALL odds data in one MGET (chunked if needed)
+    const MGET_CHUNK_SIZE = 500; // Upstash limit
+    const allOddsData: (SSEBookSelections | string | null)[] = [];
+    
+    for (let i = 0; i < filteredKeys.length; i += MGET_CHUNK_SIZE) {
+      const chunk = filteredKeys.slice(i, i + MGET_CHUNK_SIZE);
+      const chunkData = await redis.mget<(SSEBookSelections | string | null)[]>(...chunk);
+      allOddsData.push(...chunkData);
+    }
+    
+    // Build key -> data map
+    const oddsDataMap = new Map<string, SSEBookSelections>();
+    filteredKeys.forEach((key, i) => {
+      const data = allOddsData[i];
+      if (data) {
+        oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+      }
+    });
+
+    // Fetch event details (already batched)
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
     const eventsRaw = await redis.mget<(Record<string, unknown> | null)[]>(...eventKeys);
 
-    // Build event map
+    // Build event map - use commence_time from Redis event data
     const eventMap = new Map<string, { home_team: string; away_team: string; start_time: string }>();
     eventIds.forEach((id, i) => {
       const event = eventsRaw[i];
@@ -357,139 +490,123 @@ async function fetchSportOpportunities(
         eventMap.set(id, {
           home_team: (event.home_team as string) || "",
           away_team: (event.away_team as string) || "",
-          start_time: (event.start_time as string) || "",
+          start_time: (event.commence_time as string) || (event.start_time as string) || "",
         });
       }
     });
 
-    // Process each event
-    for (const eventId of eventIds) {
+    // Process each event+market group (now all data is in memory)
+    for (const [groupKey, marketKeys] of keysByEventMarket) {
+      const [eventId, market] = groupKey.split(":");
       const event = eventMap.get(eventId) || null;
 
-      // Scan for all odds keys for this event: odds:nba:eventId:market:book
-      const oddsPattern = `odds:${sport}:${eventId}:*`;
-      const oddsKeys = await scanKeys(oddsPattern);
-
-      if (oddsKeys.length === 0) continue;
-
-      // Group keys by market
-      const keysByMarket = new Map<string, string[]>();
-      for (const key of oddsKeys) {
-        const parts = key.split(":");
-        const market = parts[3];
-        const book = parts[4];
-        if (!market || !book) continue;
-        
-        // Filter by markets if specified
-        if (markets && !markets.includes(market)) continue;
-
-        if (!keysByMarket.has(market)) {
-          keysByMarket.set(market, []);
+      // Build book → selections map from pre-fetched data
+      const bookSelections: Record<string, SSEBookSelections> = {};
+      for (const key of marketKeys) {
+        const book = key.split(":").pop()!;
+        const data = oddsDataMap.get(key);
+        if (data) {
+          bookSelections[book] = data;
         }
-        keysByMarket.get(market)!.push(key);
       }
 
-      // Process each market
-      for (const [market, marketKeys] of keysByMarket) {
-        // Batch fetch all books for this market
-        const oddsDataRaw = await redis.mget<(SSEBookSelections | string | null)[]>(...marketKeys);
-
-        // Build book → selections map
-        const bookSelections: Record<string, SSEBookSelections> = {};
-        marketKeys.forEach((key, i) => {
-          const book = key.split(":").pop()!;
-          const data = oddsDataRaw[i];
-          if (data) {
-            bookSelections[book] = typeof data === "string" ? JSON.parse(data) : data;
-          }
-        });
-
-        // Get all unique base selection keys (player|line without side)
-        const baseSelectionKeys = new Set<string>();
-        for (const selections of Object.values(bookSelections)) {
-          for (const key of Object.keys(selections)) {
-            const [playerRaw, , lineStr] = key.split("|");
-            if (playerRaw && lineStr) {
-              baseSelectionKeys.add(`${playerRaw}|${lineStr}`);
-            }
+      // Get all unique base selection keys (player|line without side)
+      const baseSelectionKeys = new Set<string>();
+      for (const [bookName, selections] of Object.entries(bookSelections)) {
+        for (const key of Object.keys(selections)) {
+          const [playerRaw, , lineStr] = key.split("|");
+          if (playerRaw && lineStr) {
+            baseSelectionKeys.add(`${playerRaw}|${lineStr}`);
           }
         }
+      }
 
-        // Process each player/line pair (collecting both over and under)
-        for (const baseKey of baseSelectionKeys) {
-          const [playerRaw, lineStr] = baseKey.split("|");
-          const player = normalizePlayerName(playerRaw);
-          const line = parseFloat(lineStr);
+      // Process each player/line pair (collecting both over and under)
+      for (const baseKey of baseSelectionKeys) {
+        const [playerRaw, lineStr] = baseKey.split("|");
+        const player = normalizePlayerName(playerRaw);
+        const line = parseFloat(lineStr);
 
-          // Create unique pair key (without side)
-          const pairKey = `${eventId}:${market}:${player}:${line}`;
+        // Create unique pair key (without side)
+        const pairKey = `${eventId}:${market}:${player}:${line}`;
 
-          // Get or create selection pair
-          let pair = pairMap.get(pairKey);
-          if (!pair) {
-            pair = {
-              sport,
-              eventId,
-              event,
-              player,
-              playerRaw,
-              team: null,
-              position: null,
-              market,
-              line,
-              over: { books: [], best: null },
-              under: { books: [], best: null },
-            };
-            pairMap.set(pairKey, pair);
-          }
+        // Get or create selection pair
+        let pair = pairMap.get(pairKey);
+        if (!pair) {
+          pair = {
+            sport,
+            eventId,
+            event,
+            player,
+            playerDisplay: "", // Will be populated from selection data
+            team: null,
+            position: null,
+            market,
+            marketDisplay: "", // Will be populated from raw_market field
+            line,
+            over: { books: [], best: null },
+            under: { books: [], best: null },
+          };
+          pairMap.set(pairKey, pair);
+        }
 
-          // Gather prices from all books for both sides
-          for (const [book, selections] of Object.entries(bookSelections)) {
-            // Check over side
-            const overKey = `${playerRaw}|over|${lineStr}`;
-            const overSel = selections[overKey] as SSESelection | undefined;
-            if (overSel && !overSel.locked) {
-              pair.over.books.push({
+        // Gather prices from all books for both sides
+        // Support both over/under AND yes/no (for double/triple double, anytime scorer, etc.)
+        for (const [book, selections] of Object.entries(bookSelections)) {
+          // Check "over" side (also check "yes" for yes/no markets like double double)
+          const overKey = `${playerRaw}|over|${lineStr}`;
+          const yesKey = `${playerRaw}|yes|${lineStr}`;
+          const overSel = (selections[overKey] || selections[yesKey]) as SSESelection | undefined;
+          if (overSel && !overSel.locked) {
+            const overPrice = parseInt(String(overSel.price), 10);
+            pair.over.books.push({
+              book,
+              price: overPrice,
+              decimal: overSel.price_decimal,
+              link: overSel.link || null,
+              sgp: overSel.sgp || null,
+            });
+            if (!pair.over.best || overSel.price_decimal > pair.over.best.decimal) {
+              pair.over.best = {
                 book,
-                price: overSel.price,
+                price: overPrice,
                 decimal: overSel.price_decimal,
                 link: overSel.link || null,
-                sgp: overSel.sgp || null,
-              });
-              if (!pair.over.best || overSel.price_decimal > pair.over.best.decimal) {
-                pair.over.best = {
-                  book,
-                  price: overSel.price,
-                  decimal: overSel.price_decimal,
-                  link: overSel.link || null,
-                };
-              }
-              if (overSel.team && !pair.team) pair.team = overSel.team;
-              if (overSel.position && !pair.position) pair.position = overSel.position;
+              };
             }
+            // Populate metadata from selection
+            if (overSel.player && !pair.playerDisplay) pair.playerDisplay = overSel.player;
+            if (overSel.team && !pair.team) pair.team = overSel.team;
+            if (overSel.position && !pair.position) pair.position = formatPosition(overSel.position);
+            if (overSel.raw_market && !pair.marketDisplay) pair.marketDisplay = overSel.raw_market;
+          }
 
-            // Check under side
-            const underKey = `${playerRaw}|under|${lineStr}`;
-            const underSel = selections[underKey] as SSESelection | undefined;
-            if (underSel && !underSel.locked) {
-              pair.under.books.push({
+          // Check "under" side (also check "no" for yes/no markets)
+          const underKey = `${playerRaw}|under|${lineStr}`;
+          const noKey = `${playerRaw}|no|${lineStr}`;
+          const underSel = (selections[underKey] || selections[noKey]) as SSESelection | undefined;
+          if (underSel && !underSel.locked) {
+            const underPrice = parseInt(String(underSel.price), 10);
+            pair.under.books.push({
+              book,
+              price: underPrice,
+              decimal: underSel.price_decimal,
+              link: underSel.link || null,
+              sgp: underSel.sgp || null,
+            });
+            if (!pair.under.best || underSel.price_decimal > pair.under.best.decimal) {
+              pair.under.best = {
                 book,
-                price: underSel.price,
+                price: underPrice,
                 decimal: underSel.price_decimal,
                 link: underSel.link || null,
-                sgp: underSel.sgp || null,
-              });
-              if (!pair.under.best || underSel.price_decimal > pair.under.best.decimal) {
-                pair.under.best = {
-                  book,
-                  price: underSel.price,
-                  decimal: underSel.price_decimal,
-                  link: underSel.link || null,
-                };
-              }
-              if (underSel.team && !pair.team) pair.team = underSel.team;
-              if (underSel.position && !pair.position) pair.position = underSel.position;
+              };
             }
+            // Populate metadata from selection
+            if (underSel.player && !pair.playerDisplay) pair.playerDisplay = underSel.player;
+            if (underSel.team && !pair.team) pair.team = underSel.team;
+            if (underSel.position && !pair.position) pair.position = formatPosition(underSel.position);
+            if (underSel.raw_market && !pair.marketDisplay) pair.marketDisplay = underSel.raw_market;
           }
         }
       }
@@ -505,22 +622,24 @@ async function fetchSportOpportunities(
         const oppositeSide = side === "over" ? "under" : "over";
         const oppositeData = pair[oppositeSide];
 
-        // Need at least 2 books on this side
-        if (sideData.books.length < 2 || !sideData.best) continue;
+        // Need at least minBooksPerSide books on this side (default: 2 for EV, can be 1 for edge finder)
+        if (sideData.books.length < minBooksPerSide || !sideData.best) continue;
 
         const opp: Opportunity = {
           sport: pair.sport,
           event_id: pair.eventId,
           event: pair.event,
-          player: pair.player,
+          // Use readable player name, fall back to normalized if not available
+          player: pair.playerDisplay || pair.player,
           team: pair.team,
           position: pair.position,
           market: pair.market,
-          market_display: getMarketDisplay(pair.market),
+          // Use raw_market from SSE data for human-readable display, fallback to formatted market
+          market_display: pair.marketDisplay || getMarketDisplay(pair.market),
           line: pair.line,
           side,
           best_book: sideData.best.book,
-          best_price: sideData.best.price,
+          best_price: formatAmericanOdds(sideData.best.price),
           best_decimal: sideData.best.decimal,
           best_link: sideData.best.link,
           sharp_price: null,
@@ -528,6 +647,7 @@ async function fetchSportOpportunities(
           sharp_books: [],
           blend_complete: true,
           blend_weight_available: 1.0,
+          avg_book_count: 0,
           edge: null,
           edge_pct: null,
           best_implied: null,
@@ -558,6 +678,7 @@ async function fetchSportOpportunities(
         // Calculate metrics with proper devigging
         calculateMetricsWithDevig(opp, sideData, oppositeData, blend, minBooksPerSide, useAverage);
         opportunities.push(opp);
+        
       }
     }
 
@@ -598,9 +719,10 @@ function calculateMetricsWithDevig(
   // Get sharp odds for OPPOSITE side (needed for devig)
   const oppositeSharp = getSharpOdds(oppositeData.books, blend, useAverage);
 
-  // Update blend flags
+  // Update blend flags and book count
   opp.blend_complete = thisSharp.blendComplete;
   opp.blend_weight_available = thisSharp.blendWeight;
+  opp.avg_book_count = thisSharp.bookCount;
 
   // Set market coverage info
   const nBooksOver = opp.side === "over" ? sideData.books.length : oppositeData.books.length;
@@ -738,6 +860,53 @@ function calculateMetricsWithDevig(
 }
 
 /**
+ * RSI (Rush Street Interactive) books that often share the same odds feed.
+ * When all have identical odds, we should only count them once in averages
+ * to avoid skewing the market average unfairly.
+ */
+const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
+
+/**
+ * Deduplicate RSI group books for average calculation.
+ * - If all RSI books present have the same odds, only include one
+ * - If they differ, include each unique price once (from this group)
+ * - Non-RSI books are always included normally
+ */
+function deduplicateBooksForAverage(
+  books: { book: string; decimal: number }[]
+): { book: string; decimal: number }[] {
+  // Separate RSI books from others
+  const rsiBooks: { book: string; decimal: number }[] = [];
+  const otherBooks: { book: string; decimal: number }[] = [];
+  
+  for (const b of books) {
+    if (RSI_BOOKS.has(b.book)) {
+      rsiBooks.push(b);
+    } else {
+      otherBooks.push(b);
+    }
+  }
+  
+  // If no RSI books, return original
+  if (rsiBooks.length === 0) {
+    return books;
+  }
+  
+  // Group RSI books by their decimal odds
+  const rsiByDecimal = new Map<number, { book: string; decimal: number }>();
+  for (const b of rsiBooks) {
+    // Use rounded decimal to handle floating point comparison
+    const roundedDecimal = Math.round(b.decimal * 10000) / 10000;
+    if (!rsiByDecimal.has(roundedDecimal)) {
+      rsiByDecimal.set(roundedDecimal, b);
+    }
+  }
+  
+  // Return other books plus unique RSI prices
+  return [...otherBooks, ...rsiByDecimal.values()];
+}
+
+/**
  * Get sharp odds from a list of book prices (using blend, average, or default)
  */
 function getSharpOdds(
@@ -749,20 +918,24 @@ function getSharpOdds(
   sharpBooks: string[];
   blendComplete: boolean;
   blendWeight: number;
+  bookCount: number;  // Number of books used in calculation (after RSI dedup for averages)
 } {
   if (books.length === 0) {
-    return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0 };
+    return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0, bookCount: 0 };
   }
 
   let sharpDecimal: number | null = null;
   const sharpBooks: string[] = [];
   let blendComplete = true;
   let blendWeight = 1.0;
+  let bookCount = 0;
 
   if (useAverage) {
-    // Explicit market average: use all books
-    sharpDecimal = books.reduce((sum, b) => sum + b.decimal, 0) / books.length;
-    // List all books used in the average
+    // Explicit market average: use all books, but deduplicate RSI group
+    const dedupedBooks = deduplicateBooksForAverage(books);
+    sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
+    bookCount = dedupedBooks.length;
+    // List all books used in the average (original list for transparency)
     books.forEach(b => sharpBooks.push(b.book));
   } else if (blend && blend.length > 0) {
     // Custom blend of specific books
@@ -781,6 +954,7 @@ function getSharpOdds(
 
     blendWeight = requestedWeight > 0 ? totalWeight / requestedWeight : 0;
     blendComplete = totalWeight >= requestedWeight * 0.99;
+    bookCount = sharpBooks.length;
 
     if (totalWeight > 0) {
       sharpDecimal = weightedSum / totalWeight;
@@ -793,17 +967,21 @@ function getSharpOdds(
     if (pinnacle) {
       sharpDecimal = pinnacle.decimal;
       sharpBooks.push("pinnacle");
+      bookCount = 1;
     } else if (circa) {
       sharpDecimal = circa.decimal;
       sharpBooks.push("circa");
+      bookCount = 1;
     } else {
-      // Fallback to average
-      sharpDecimal = books.reduce((sum, b) => sum + b.decimal, 0) / books.length;
+      // Fallback to average (with RSI deduplication)
+      const dedupedBooks = deduplicateBooksForAverage(books);
+      sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
       sharpBooks.push("average");
+      bookCount = dedupedBooks.length;
     }
   }
 
-  return { sharpDecimal, sharpBooks, blendComplete, blendWeight };
+  return { sharpDecimal, sharpBooks, blendComplete, blendWeight, bookCount };
 }
 
 /**
