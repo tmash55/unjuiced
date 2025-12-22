@@ -4,6 +4,8 @@ import { getBlogFrontMatterBySlug, getSingleBlog } from "@/lib/blogs";
 import { redirect } from "next/navigation";
 import { DivideX } from "@/components/divide";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {

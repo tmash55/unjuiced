@@ -436,8 +436,8 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       light: "/images/sports-books/bet365.png",
       long: "/images/sports-books/bet365_long.png"
     },
-    priority: 1,
-    isActive: false,
+    priority: 9,
+    isActive: true,
     requiresState: false
   },
 
