@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
       away_team_name, 
       home_team_tricode, 
       away_team_tricode, 
+      home_team_score,
+      away_team_score,
       game_status,
       is_primetime,
       national_broadcast,
@@ -113,11 +115,61 @@ export async function GET(req: NextRequest) {
     // Get unique dates for the response
     const dates = [...new Set(sortedGames.map(g => g.game_date))];
 
+    // Transform flat database records to the nested format expected by components
+    const transformedGames = sortedGames.map(game => {
+      // Determine game status
+      const statusText = game.game_status || "";
+      const isLive = statusText.toLowerCase().includes("q") || 
+                     statusText.toLowerCase().includes("half") ||
+                     statusText.toLowerCase().includes("ot");
+      const isFinal = statusText.toLowerCase().includes("final");
+      
+      return {
+        game_id: game.game_id,
+        matchup: `${game.away_team_tricode} @ ${game.home_team_tricode}`,
+        full_matchup: `${game.away_team_name} @ ${game.home_team_name}`,
+        away_team: {
+          tricode: game.away_team_tricode || "—",
+          name: game.away_team_name || "Away Team",
+          score: game.away_team_score || 0,
+          record: "", // Could add record from another table if needed
+        },
+        home_team: {
+          tricode: game.home_team_tricode || "—",
+          name: game.home_team_name || "Home Team",
+          score: game.home_team_score || 0,
+          record: "",
+        },
+        status: isFinal ? 3 : isLive ? 2 : 1,
+        status_text: statusText,
+        display_time: statusText,
+        period: 0,
+        game_clock: "",
+        start_time: game.game_date,
+        is_live: isLive,
+        is_final: isFinal,
+        // Keep original fields for reference
+        game_date: game.game_date,
+        national_broadcast: game.national_broadcast,
+        is_primetime: game.is_primetime,
+      };
+    });
+
+    // Calculate summary
+    const summary = {
+      total: transformedGames.length,
+      live: transformedGames.filter(g => g.is_live).length,
+      scheduled: transformedGames.filter(g => !g.is_live && !g.is_final).length,
+      final: transformedGames.filter(g => g.is_final).length,
+    };
+
     return NextResponse.json(
       { 
-        games: sortedGames,
+        games: transformedGames,
+        date: dates[0] || today,
         dates: dates,
-        primaryDate: dates[0] || today
+        primaryDate: dates[0] || today,
+        summary,
       },
       { 
         headers: { 
