@@ -273,10 +273,27 @@ export function groupMarketsBySport(markets: string[]): Record<string, string[]>
   markets.forEach(market => {
     const m = market.toLowerCase();
     
+    // Check for explicit sport markers first (highest priority)
+    if (m.includes('hockey')) {
+      groups.hockey.push(market);
+    }
+    // Hockey-specific markets (check before basketball to avoid "block" overlap)
+    // "shot" catches "Blocked Shots" before basketball's "block" check
+    else if (m.includes('goal') || m.includes('save') || m.includes('shot') || 
+             m.includes('power_play') || m.includes('puck')) {
+      groups.hockey.push(market);
+    }
+    // Baseball markets (check before football to catch pitcher/batter stats)
+    else if (m.includes('hit') || m.includes('rbi') || m.includes('strikeout') ||
+             m.includes('base') || m.includes('home_run') || m.includes('walk') ||
+             m.includes('out') || m.includes('pitch') || m.includes('batter') ||
+             m.includes('pitcher') || m.includes('earned')) {
+      groups.baseball.push(market);
+    }
     // Basketball markets
-    if (m.includes('point') || m.includes('rebound') || m.includes('assist') || 
-        m.includes('three') || m.includes('block') || m.includes('steal') ||
-        m.includes('pra') || m.includes('double')) {
+    else if (m.includes('point') || m.includes('rebound') || m.includes('assist') || 
+             m.includes('three') || m.includes('block') || m.includes('steal') ||
+             m.includes('pra') || m.includes('double') || m.includes('turnover')) {
       groups.basketball.push(market);
     }
     // Football markets
@@ -284,16 +301,6 @@ export function groupMarketsBySport(markets: string[]): Record<string, string[]>
              m.includes('receiving') || m.includes('touchdown') || m.includes('yard') ||
              m.includes('sack') || m.includes('interception')) {
       groups.football.push(market);
-    }
-    // Hockey markets
-    else if (m.includes('goal') || m.includes('save') || m.includes('shot') || 
-             m.includes('hit') || m.includes('power_play')) {
-      groups.hockey.push(market);
-    }
-    // Baseball markets
-    else if (m.includes('hit') || m.includes('run') || m.includes('rbi') || 
-             m.includes('strikeout') || m.includes('base') || m.includes('home_run')) {
-      groups.baseball.push(market);
     }
     // Default to football if unclear
     else {

@@ -1,0 +1,1183 @@
+"use client";
+
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { 
+  Loader2, 
+  ChevronDown, 
+  ChevronRight, 
+  Filter,
+  Info
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
+import { useFilterPresets } from "@/hooks/use-filter-presets";
+import { 
+  PRESET_SPORTS, 
+  parseSports,
+  formatSportsForStorage,
+  getEqualWeights,
+  type FilterPreset, 
+  type FilterPresetCreate 
+} from "@/lib/types/filter-presets";
+import { sportsbooks } from "@/lib/data/sportsbooks";
+import { SportIcon } from "@/components/icons/sport-icons";
+import { SPORT_MARKETS, type SportMarket } from "@/lib/data/markets";
+
+interface FilterPresetFormModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  preset?: FilterPreset;
+  onSuccess?: () => void;
+}
+
+// Get all active sportsbooks for reference book selection
+// Priority order for sorting (higher priority = shown first)
+const PRIORITY_BOOKS = ['pinnacle', 'fanduel', 'draftkings', 'caesars', 'betmgm', 'bet365'];
+
+const REFERENCE_BOOKS = sportsbooks
+  .filter(book => book.isActive !== false)
+  .sort((a, b) => {
+    // Sort by priority first (priority books come first)
+    const aIdx = PRIORITY_BOOKS.indexOf(a.id);
+    const bIdx = PRIORITY_BOOKS.indexOf(b.id);
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+    // Then alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+
+// Pie chart colors
+const PIE_COLORS = [
+  '#10b981', // emerald-500
+  '#3b82f6', // blue-500
+  '#f59e0b', // amber-500
+  '#ef4444', // red-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#14b8a6', // teal-500
+  '#f97316', // orange-500
+];
+
+// Helper to get sport key for markets lookup
+function getSportMarketKey(sport: string): string {
+  const mapping: Record<string, string> = {
+    'nba': 'basketball_nba',
+    'wnba': 'basketball_wnba',
+    'ncaab': 'basketball_ncaab',
+    'nfl': 'football_nfl',
+    'ncaaf': 'football_ncaaf',
+    'mlb': 'baseball_mlb',
+    'nhl': 'icehockey_nhl',
+  };
+  return mapping[sport] || sport;
+}
+
+// Categorize markets into game lines and player props
+function categorizeMarkets(markets: SportMarket[]): { 
+  gameLines: SportMarket[], 
+  playerProps: Record<string, SportMarket[]>,
+  gameLineIds: string[],
+  playerPropIds: string[]
+} {
+  const gameLines: SportMarket[] = [];
+  const playerProps: Record<string, SportMarket[]> = {};
+  
+  markets.forEach(market => {
+    const group = market.group || 'Other';
+    
+    // Check if it's a player prop by looking at apiKey
+    const isPlayerProp = market.apiKey.includes('player_') || 
+                         market.apiKey.includes('batter_') || 
+                         market.apiKey.includes('pitcher_') ||
+                         market.apiKey.includes('passing_') ||
+                         market.apiKey.includes('rushing_') ||
+                         market.apiKey.includes('receiving_') ||
+                         market.apiKey.includes('receptions') ||
+                         market.apiKey.includes('first_td') ||
+                         market.apiKey.includes('last_td');
+    
+    if (isPlayerProp) {
+      if (!playerProps[group]) playerProps[group] = [];
+      playerProps[group].push(market);
+    } else {
+      gameLines.push(market);
+    }
+  });
+  
+  return { 
+    gameLines, 
+    playerProps,
+    gameLineIds: gameLines.map(m => m.apiKey),
+    playerPropIds: Object.values(playerProps).flat().map(m => m.apiKey)
+  };
+}
+
+// Smooth Pie Chart component using stroke-dasharray animation
+function PieChart({ 
+  data, 
+  size = 180 
+}: { 
+  data: { id: string; name: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  if (total === 0) return null;
+  
+  const radius = size / 2;
+  const innerRadius = radius * 0.6;
+  const strokeWidth = radius - innerRadius;
+  const circleRadius = (radius + innerRadius) / 2;
+  const circumference = 2 * Math.PI * circleRadius;
+  
+  // Calculate cumulative offsets for each segment
+  const segments = useMemo(() => {
+    let cumulativePercent = 0;
+    return data.map((item) => {
+      const percent = total > 0 ? item.value / total : 0;
+      const offset = cumulativePercent;
+      cumulativePercent += percent;
+      return {
+        ...item,
+        percent,
+        offset,
+        dashArray: `${percent * circumference} ${circumference}`,
+        dashOffset: -offset * circumference,
+      };
+    });
+  }, [data, total, circumference]);
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg 
+        width={size} 
+        height={size} 
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ transform: 'rotate(-90deg)' }}
+      >
+        {/* Background circle */}
+        <circle
+          cx={radius}
+          cy={radius}
+          r={circleRadius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          className="text-neutral-200 dark:text-neutral-700"
+        />
+        {/* Animated segments */}
+        {segments.map((segment) => (
+          <circle
+            key={segment.id}
+            cx={radius}
+            cy={radius}
+            r={circleRadius}
+            fill="none"
+            stroke={segment.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={segment.dashArray}
+            strokeDashoffset={segment.dashOffset}
+            strokeLinecap="butt"
+            className="transition-all duration-500 ease-out"
+            style={{
+              transitionProperty: 'stroke-dasharray, stroke-dashoffset',
+            }}
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold text-neutral-900 dark:text-white transition-all duration-300">
+          {data.length}
+        </span>
+        <span className="text-xs text-neutral-500">{data.length === 1 ? 'Book' : 'Books'}</span>
+      </div>
+    </div>
+  );
+}
+
+export function FilterPresetFormModal({
+  open,
+  onOpenChange,
+  preset,
+  onSuccess,
+}: FilterPresetFormModalProps) {
+  const { createPreset, updatePreset, isCreating, isUpdating } = useFilterPresets();
+  const isEditing = !!preset;
+
+  // Form state
+  const [name, setName] = useState("");
+  const [selectedSports, setSelectedSports] = useState<string[]>(["nba"]);
+  const [expandedSports, setExpandedSports] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  
+  // Track selected markets per sport - empty means "all selected"
+  // Keys are like "nba:gameLines" or "nba:playerProps" or "nba:Scoring" (for groups)
+  const [selectedMarkets, setSelectedMarkets] = useState<Record<string, Set<string>>>({});
+  
+  const [referenceBooks, setReferenceBooks] = useState<string[]>([]);
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [minBooksRequired, setMinBooksRequired] = useState(2);
+  const [minOdds, setMinOdds] = useState(-500);
+  const [maxOdds, setMaxOdds] = useState(500);
+  const [error, setError] = useState<string | null>(null);
+
+  // Helper to get all market IDs for a sport
+  const getMarketData = useCallback((sportId: string) => {
+    const marketKey = getSportMarketKey(sportId);
+    const markets = SPORT_MARKETS[marketKey] || [];
+    return categorizeMarkets(markets);
+  }, []);
+
+  // Build markets payload (only include when there is a custom selection)
+  const buildSelectedMarketsPayload = useCallback((): string[] | null => {
+    console.log('[FilterPreset] Building markets payload...');
+    console.log('[FilterPreset] selectedSports:', selectedSports);
+    console.log('[FilterPreset] selectedMarkets state:', Object.fromEntries(
+      Object.entries(selectedMarkets).map(([k, v]) => [k, Array.from(v)])
+    ));
+    
+    let hasCustom = false;
+    const markets: string[] = [];
+
+    selectedSports.forEach((sportId) => {
+      const data = getMarketData(sportId);
+      const glKey = `${sportId}:gameLines`;
+      const ppKey = `${sportId}:playerProps`;
+
+      const glSet = selectedMarkets[glKey];
+      const ppSet = selectedMarkets[ppKey];
+
+      console.log(`[FilterPreset] Sport ${sportId}:`, {
+        glKey,
+        ppKey,
+        hasGlSet: !!glSet,
+        hasPpSet: !!ppSet,
+        glSetSize: glSet?.size,
+        ppSetSize: ppSet?.size,
+        totalGameLines: data.gameLineIds.length,
+        totalPlayerProps: data.playerPropIds.length,
+      });
+
+      // If a set exists, it means the user customized this category
+      if (glSet) {
+        hasCustom = true;
+        markets.push(...Array.from(glSet));
+        console.log(`[FilterPreset] Adding ${glSet.size} game lines for ${sportId}`);
+      }
+      if (ppSet) {
+        hasCustom = true;
+        markets.push(...Array.from(ppSet));
+        console.log(`[FilterPreset] Adding ${ppSet.size} player props for ${sportId}`);
+      }
+    });
+
+    console.log('[FilterPreset] Final payload:', { hasCustom, marketCount: markets.length, markets: markets.slice(0, 10) });
+    return hasCustom ? markets : null;
+  }, [selectedMarkets, selectedSports, getMarketData]);
+
+  // Build selectedMarkets state from an existing preset (for edit mode)
+  const buildSelectedMarketsFromPreset = useCallback((presetToLoad: FilterPreset, sportsToUse: string[]) => {
+    console.log('[FilterPreset] === Loading preset markets ===');
+    console.log('[FilterPreset] Preset name:', presetToLoad.name);
+    console.log('[FilterPreset] Preset markets from DB:', presetToLoad.markets);
+    console.log('[FilterPreset] Sports to use:', sportsToUse);
+    
+    const next: Record<string, Set<string>> = {};
+    const presetMarkets = presetToLoad.markets;
+    if (!presetMarkets || presetMarkets.length === 0) {
+      console.log('[FilterPreset] No custom markets in preset - using all markets');
+      return next; // all markets
+    }
+
+    // Preset has custom markets - we need to reconstruct the selection state
+    sportsToUse.forEach((sportId) => {
+      const data = getMarketData(sportId);
+
+      const glKey = `${sportId}:gameLines`;
+      const ppKey = `${sportId}:playerProps`;
+      const glSet = new Set<string>();
+      const ppSet = new Set<string>();
+
+      presetMarkets.forEach((m) => {
+        if (data.gameLineIds.includes(m)) glSet.add(m);
+        if (data.playerPropIds.includes(m)) ppSet.add(m);
+      });
+
+      console.log(`[FilterPreset] Sport ${sportId}:`, {
+        glMatched: glSet.size,
+        glTotal: data.gameLineIds.length,
+        ppMatched: ppSet.size,
+        ppTotal: data.playerPropIds.length,
+      });
+
+      // IMPORTANT: If preset has custom markets, we MUST create entries for each category
+      // An empty Set means "none selected", no entry means "all selected"
+      // Since the preset has markets, any category not in the preset should be empty (deselected)
+      
+      // For game lines: if none matched or only some matched, store the set
+      if (glSet.size < data.gameLineIds.length) {
+        next[glKey] = glSet; // Could be empty (all deselected) or partial
+        console.log(`[FilterPreset] Storing gameLines for ${sportId}: ${glSet.size} selected (${glSet.size === 0 ? 'ALL DESELECTED' : 'partial'})`);
+      }
+      // For player props: if none matched or only some matched, store the set
+      if (ppSet.size < data.playerPropIds.length) {
+        next[ppKey] = ppSet; // Could be empty (all deselected) or partial
+        console.log(`[FilterPreset] Storing playerProps for ${sportId}: ${ppSet.size} selected (${ppSet.size === 0 ? 'ALL DESELECTED' : 'partial'})`);
+      }
+    });
+
+    console.log('[FilterPreset] Final loaded state:', Object.keys(next));
+    return next;
+  }, [getMarketData]);
+
+  // Check if a category is fully selected
+  const isCategorySelected = useCallback((sportId: string, category: 'gameLines' | 'playerProps') => {
+    const key = `${sportId}:${category}`;
+    const data = getMarketData(sportId);
+    const allIds = category === 'gameLines' ? data.gameLineIds : data.playerPropIds;
+    
+    // If no selection set, it's fully selected
+    if (!selectedMarkets[key]) return true;
+    
+    return allIds.every(id => selectedMarkets[key].has(id));
+  }, [selectedMarkets, getMarketData]);
+
+  // Check if a category is partially selected
+  const isCategoryPartial = useCallback((sportId: string, category: 'gameLines' | 'playerProps') => {
+    const key = `${sportId}:${category}`;
+    const data = getMarketData(sportId);
+    const allIds = category === 'gameLines' ? data.gameLineIds : data.playerPropIds;
+    
+    if (!selectedMarkets[key]) return false;
+    
+    const selectedCount = allIds.filter(id => selectedMarkets[key].has(id)).length;
+    return selectedCount > 0 && selectedCount < allIds.length;
+  }, [selectedMarkets, getMarketData]);
+
+  // Check if a specific market is selected
+  const isMarketSelected = useCallback((sportId: string, category: 'gameLines' | 'playerProps', marketId: string) => {
+    const key = `${sportId}:${category}`;
+    if (!selectedMarkets[key]) return true; // Default to all selected
+    return selectedMarkets[key].has(marketId);
+  }, [selectedMarkets]);
+
+  // Toggle entire category
+  const toggleCategory = useCallback((sportId: string, category: 'gameLines' | 'playerProps') => {
+    const key = `${sportId}:${category}`;
+    const data = getMarketData(sportId);
+    const allIds = category === 'gameLines' ? data.gameLineIds : data.playerPropIds;
+    const wasSelected = isCategorySelected(sportId, category);
+    
+    console.log(`[FilterPreset] toggleCategory called:`, {
+      sportId,
+      category,
+      key,
+      wasSelected,
+      willBe: wasSelected ? 'DESELECTED' : 'SELECTED',
+      totalIds: allIds.length,
+    });
+    
+    setSelectedMarkets(prev => {
+      const next = { ...prev };
+      
+      if (wasSelected) {
+        // Deselect all
+        next[key] = new Set();
+        console.log(`[FilterPreset] Category ${key} now EMPTY (deselected all)`);
+      } else {
+        // Select all
+        next[key] = new Set(allIds);
+        console.log(`[FilterPreset] Category ${key} now has ALL ${allIds.length} markets`);
+      }
+      
+      return next;
+    });
+  }, [getMarketData, isCategorySelected]);
+
+  // Toggle individual market
+  const toggleMarket = useCallback((sportId: string, category: 'gameLines' | 'playerProps', marketId: string) => {
+    const key = `${sportId}:${category}`;
+    const data = getMarketData(sportId);
+    const allIds = category === 'gameLines' ? data.gameLineIds : data.playerPropIds;
+    
+    console.log(`[FilterPreset] toggleMarket called:`, {
+      sportId,
+      category,
+      marketId,
+      key,
+    });
+    
+    setSelectedMarkets(prev => {
+      const next = { ...prev };
+      
+      // Initialize if needed
+      if (!next[key]) {
+        console.log(`[FilterPreset] Initializing ${key} with all ${allIds.length} markets`);
+        next[key] = new Set(allIds);
+      }
+      
+      const current = new Set(next[key]);
+      const wasSelected = current.has(marketId);
+      if (wasSelected) {
+        current.delete(marketId);
+        console.log(`[FilterPreset] Removed ${marketId} from ${key}, now has ${current.size} markets`);
+      } else {
+        current.add(marketId);
+        console.log(`[FilterPreset] Added ${marketId} to ${key}, now has ${current.size} markets`);
+      }
+      next[key] = current;
+      
+      return next;
+    });
+  }, [getMarketData]);
+
+  // Toggle category expand
+  const toggleCategoryExpand = (key: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // Reset form when modal opens/closes or preset changes
+  useEffect(() => {
+    if (open) {
+      if (preset) {
+        console.log('[FilterPreset] Modal opened for editing, hydrating form...');
+        const sports = parseSports(preset.sport);
+        setName(preset.name);
+        setSelectedSports(sports);
+        setReferenceBooks(preset.sharp_books || []);
+        setWeights(preset.book_weights || getEqualWeights(preset.sharp_books || []));
+        setMinBooksRequired(preset.min_books_reference || 2);
+        setMinOdds(preset.min_odds ?? -500);
+        setMaxOdds(preset.max_odds ?? 500);
+        // Load markets from preset (don't reset to empty!)
+        const marketsState = buildSelectedMarketsFromPreset(preset, sports.length ? sports : ["nba"]);
+        console.log('[FilterPreset] Loaded markets state:', Object.keys(marketsState).length > 0 ? Object.keys(marketsState) : '(all markets - no custom selection)');
+        setSelectedMarkets(marketsState);
+        setExpandedSports(new Set());
+        setExpandedCategories(new Set());
+      } else {
+        setName("");
+        setSelectedSports(["nba"]);
+        setExpandedSports(new Set());
+        setExpandedCategories(new Set());
+        setSelectedMarkets({});
+        setReferenceBooks(["pinnacle", "fanduel", "draftkings"]);
+        setWeights(getEqualWeights(["pinnacle", "fanduel", "draftkings"]));
+        setMinBooksRequired(2);
+        setMinOdds(-500);
+        setMaxOdds(500);
+      }
+      setError(null);
+    }
+  }, [open, preset]);
+
+  // Toggle a sport
+  const toggleSport = (sportId: string) => {
+    console.log(`[FilterPreset] toggleSport called:`, { sportId });
+    setSelectedSports(prev => {
+      const wasSelected = prev.includes(sportId);
+      let next: string[];
+      if (wasSelected) {
+        if (prev.length === 1) {
+          console.log(`[FilterPreset] Cannot deselect ${sportId} - it's the only sport selected`);
+          return prev;
+        }
+        next = prev.filter(s => s !== sportId);
+        console.log(`[FilterPreset] Deselected ${sportId}, now selected:`, next);
+      } else {
+        next = [...prev, sportId];
+        console.log(`[FilterPreset] Selected ${sportId}, now selected:`, next);
+      }
+      return next;
+    });
+  };
+
+  // Toggle expand/collapse for a sport
+  const toggleExpand = (sportId: string) => {
+    setExpandedSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sportId)) {
+        next.delete(sportId);
+      } else {
+        next.add(sportId);
+      }
+      return next;
+    });
+  };
+
+  // Toggle a reference book
+  const toggleReferenceBook = (bookId: string) => {
+    setReferenceBooks(prev => {
+      const newBooks = prev.includes(bookId) 
+        ? prev.filter(b => b !== bookId)
+        : [...prev, bookId];
+      
+      if (newBooks.length > 0) {
+        setWeights(getEqualWeights(newBooks));
+      }
+      
+      return newBooks;
+    });
+  };
+
+  // Handle weight change - only adjust the LAST book to maintain 100%
+  // This allows setting specific weights from top to bottom without them changing
+  const handleWeightChange = useCallback((bookId: string, newValue: number) => {
+    setWeights(prev => {
+      const newWeights: Record<string, number> = { ...prev, [bookId]: newValue };
+      
+      // Find the last book in the reference list (the one that will absorb changes)
+      const lastBook = referenceBooks[referenceBooks.length - 1];
+      
+      // If we're changing the last book, don't auto-adjust
+      if (bookId === lastBook) {
+        return newWeights;
+      }
+      
+      // Calculate total of all other books (excluding the last one)
+      const otherBooksTotal = referenceBooks
+        .filter(b => b !== lastBook)
+        .reduce((sum, b) => sum + (newWeights[b] ?? prev[b] ?? 0), 0);
+      
+      // Adjust the last book to make total = 100
+      const lastBookWeight = Math.max(0, 100 - otherBooksTotal);
+      newWeights[lastBook] = lastBookWeight;
+      
+      return newWeights;
+    });
+  }, [referenceBooks]);
+
+  // Calculate total weight
+  const totalWeight = useMemo(() => 
+    referenceBooks.reduce((sum, book) => sum + (weights[book] || 0), 0),
+    [referenceBooks, weights]
+  );
+
+  // Prepare pie chart data
+  const pieData = useMemo(() => 
+    referenceBooks.map((bookId, idx) => {
+      const book = sportsbooks.find(b => b.id === bookId);
+      return {
+        id: bookId,
+        name: book?.name || bookId,
+        value: weights[bookId] || 0,
+        color: PIE_COLORS[idx % PIE_COLORS.length],
+      };
+    }),
+    [referenceBooks, weights]
+  );
+
+  // Determine market_type based on selections
+  const getMarketType = (): "all" | "player" | "game" => {
+    let hasGameLines = false;
+    let hasPlayerProps = false;
+    
+    selectedSports.forEach(sportId => {
+      if (isCategorySelected(sportId, 'gameLines') || isCategoryPartial(sportId, 'gameLines')) {
+        hasGameLines = true;
+      }
+      if (isCategorySelected(sportId, 'playerProps') || isCategoryPartial(sportId, 'playerProps')) {
+        hasPlayerProps = true;
+      }
+    });
+    
+    if (hasGameLines && hasPlayerProps) return "all";
+    if (hasPlayerProps) return "player";
+    if (hasGameLines) return "game";
+    return "all";
+  };
+
+  // Get selected market count for a sport
+  const getSelectedMarketCount = (sportId: string): number => {
+    const data = getMarketData(sportId);
+    let count = 0;
+    
+    const glKey = `${sportId}:gameLines`;
+    const ppKey = `${sportId}:playerProps`;
+    
+    if (!selectedMarkets[glKey]) {
+      count += data.gameLineIds.length;
+    } else {
+      count += data.gameLineIds.filter(id => selectedMarkets[glKey].has(id)).length;
+    }
+    
+    if (!selectedMarkets[ppKey]) {
+      count += data.playerPropIds.length;
+    } else {
+      count += data.playerPropIds.filter(id => selectedMarkets[ppKey].has(id)).length;
+    }
+    
+    return count;
+  };
+
+  // Handle submit
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim()) {
+      setError("Please enter a name for this filter");
+      return;
+    }
+    if (selectedSports.length === 0) {
+      setError("Please select at least one sport");
+      return;
+    }
+    if (referenceBooks.length === 0) {
+      setError("Please select at least one reference book");
+      return;
+    }
+    if (referenceBooks.length < minBooksRequired) {
+      setError(`You need at least ${minBooksRequired} reference books selected`);
+      return;
+    }
+    if (Math.abs(totalWeight - 100) > 0.5) {
+      setError("Weights must add up to 100%");
+      return;
+    }
+
+    try {
+      const marketsPayload = buildSelectedMarketsPayload();
+      const data: FilterPresetCreate = {
+        name: name.trim(),
+        sport: formatSportsForStorage(selectedSports),
+        markets: marketsPayload,
+        market_type: getMarketType(),
+        sharp_books: referenceBooks,
+        book_weights: weights,
+        fallback_mode: "hide",
+        fallback_weights: null,
+        min_books_reference: minBooksRequired,
+        min_odds: minOdds,
+        max_odds: maxOdds,
+      };
+
+      console.log('[FilterPreset] === SUBMITTING FILTER ===');
+      console.log('[FilterPreset] Full data being saved:', JSON.stringify(data, null, 2));
+      console.log('[FilterPreset] Markets payload:', marketsPayload);
+      console.log('[FilterPreset] Market count:', marketsPayload?.length ?? 'null (all markets)');
+      console.log('[FilterPreset] Sports:', data.sport);
+      console.log('[FilterPreset] Market type:', data.market_type);
+
+      if (isEditing && preset) {
+        console.log('[FilterPreset] Updating preset ID:', preset.id);
+        await updatePreset(preset.id, data);
+      } else {
+        console.log('[FilterPreset] Creating new preset');
+        await createPreset(data);
+      }
+
+      console.log('[FilterPreset] Save successful!');
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (err) {
+      console.error('[FilterPreset] Save failed:', err);
+      setError(err instanceof Error ? err.message : "Failed to save filter");
+    }
+  };
+
+  const isLoading = isCreating || isUpdating;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-full sm:max-w-5xl max-h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
+          {/* Header */}
+          <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-5 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                <Filter className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-white">
+                  {isEditing ? "Edit Filter" : "Create Filter"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-neutral-500 dark:text-neutral-400">
+                  Configure your custom edge detection filter
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6">
+              
+              {/* Filter Name */}
+              <div>
+                <Label htmlFor="name" className="text-sm font-medium text-neutral-900 dark:text-white mb-2 block">
+                  Filter Name
+                </Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Sharp Consensus NBA"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11 bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
+                />
+              </div>
+
+              {/* Sportsbook Distribution Section */}
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8 mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-white uppercase tracking-wide mb-1">
+                      Sportsbook Distribution
+                    </h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Enter values below to weight sportsbooks differently in your edge calculation.
+                    </p>
+                    
+                    <div className="flex flex-col gap-3 mt-4">
+                      {/* Selected Books Legend */}
+                      {referenceBooks.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3">
+                          {referenceBooks.map((bookId) => {
+                            const book = sportsbooks.find(b => b.id === bookId);
+                            return (
+                              <div key={bookId} className="flex items-center gap-1.5">
+                                <img 
+                                  src={book?.logo || `/sportsbook-logos/${bookId}.png`}
+                                  alt={book?.name}
+                                  className="h-4 w-4 object-contain"
+                                />
+                                <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                                  {book?.name}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Equal Button */}
+                      {referenceBooks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setWeights(getEqualWeights(referenceBooks))}
+                          disabled={isLoading}
+                          className="self-start text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                        >
+                          Equal Weights
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Pie Chart */}
+                  <div className="shrink-0 flex flex-col items-center lg:items-end gap-2 pr-2 lg:pr-4">
+                    <PieChart data={pieData} size={180} />
+                  </div>
+                </div>
+
+                {/* Sportsbook Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {REFERENCE_BOOKS.map((book) => {
+                    const isSelected = referenceBooks.includes(book.id);
+                    const weight = weights[book.id] || 0;
+                    const colorIndex = referenceBooks.indexOf(book.id);
+                    
+                    return (
+                      <div
+                        key={book.id}
+                        onClick={() => !isLoading && toggleReferenceBook(book.id)}
+                        className={cn(
+                          "relative rounded-xl border p-3 cursor-pointer transition-all",
+                          isSelected
+                            ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 ring-1 ring-emerald-200 dark:ring-emerald-800"
+                            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <img 
+                              src={book.logo} 
+                              alt={book.name}
+                              className="h-10 w-10 object-contain rounded-lg"
+                            />
+                            {isSelected && (
+                              <div 
+                                className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-neutral-900"
+                                style={{ backgroundColor: PIE_COLORS[colorIndex % PIE_COLORS.length] }}
+                              />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn(
+                              "text-sm font-medium truncate",
+                              isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"
+                            )}>
+                              {book.name}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={weight}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleWeightChange(book.id, Math.min(100, Math.max(0, Number(e.target.value))));
+                              }}
+                              disabled={isLoading}
+                              className="w-14 h-8 text-center text-sm font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Settings Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Min Books Required */}
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4">
+                  <Label className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                    Min Books Required
+                  </Label>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 mb-3">
+                    Hide if fewer books available
+                  </p>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setMinBooksRequired(n)}
+                        disabled={isLoading || n > referenceBooks.length}
+                        className={cn(
+                          "flex-1 h-9 rounded-lg text-sm font-medium transition-all border",
+                          minBooksRequired === n
+                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600",
+                          n > referenceBooks.length && "opacity-30 cursor-not-allowed"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Odds Range */}
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 md:col-span-2">
+                  <Label className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                    Odds Range
+                  </Label>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 mb-3">
+                    Filter by American odds
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-neutral-500 mb-1 block">Min</label>
+                      <Input
+                        type="number"
+                        value={minOdds}
+                        onChange={(e) => setMinOdds(Number(e.target.value))}
+                        disabled={isLoading}
+                        className="h-9 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-500 mb-1 block">Max</label>
+                      <Input
+                        type="number"
+                        value={maxOdds}
+                        onChange={(e) => setMaxOdds(Number(e.target.value))}
+                        disabled={isLoading}
+                        className="h-9 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sports & Markets Section */}
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                      Sports & Markets
+                    </h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Click to select, expand to customize
+                    </p>
+                  </div>
+                  <span className="text-xs text-neutral-400">
+                    {selectedSports.length} selected
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {PRESET_SPORTS.map((sport) => {
+                    const isSelected = selectedSports.includes(sport.value);
+                    const isExpanded = expandedSports.has(sport.value);
+                    const data = getMarketData(sport.value);
+                    const totalMarkets = data.gameLineIds.length + data.playerPropIds.length;
+                    const selectedCount = isSelected ? getSelectedMarketCount(sport.value) : 0;
+
+                    return (
+                      <div
+                        key={sport.value}
+                        className={cn(
+                          "rounded-lg overflow-hidden transition-all duration-200",
+                          isSelected
+                            ? "bg-white dark:bg-neutral-900 ring-1 ring-emerald-500/50 shadow-sm"
+                            : "bg-white/50 dark:bg-neutral-900/50 hover:bg-white dark:hover:bg-neutral-900"
+                        )}
+                      >
+                        {/* Sport Header - Entire row clickable */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            if (isSelected) {
+                              toggleExpand(sport.value);
+                            } else {
+                              toggleSport(sport.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              if (isSelected) {
+                                toggleExpand(sport.value);
+                              } else {
+                                toggleSport(sport.value);
+                              }
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors",
+                            isSelected 
+                              ? "hover:bg-neutral-50 dark:hover:bg-neutral-800/50" 
+                              : "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30"
+                          )}
+                        >
+                          {/* Checkbox - stops propagation to allow independent toggle */}
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSport(sport.value)}
+                              disabled={isLoading}
+                              className={cn(
+                                "h-4 w-4 transition-colors",
+                                isSelected && "border-emerald-500 data-[state=checked]:bg-emerald-500"
+                              )}
+                            />
+                          </div>
+                          
+                          <SportIcon 
+                            sport={sport.value} 
+                            className={cn(
+                              "w-5 h-5 transition-colors",
+                              isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
+                            )} 
+                          />
+                          
+                          <span className={cn(
+                            "text-sm font-medium flex-1 transition-colors",
+                            isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
+                          )}>
+                            {sport.label}
+                          </span>
+                          
+                          {isSelected && (
+                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                              {selectedCount}/{totalMarkets}
+                            </span>
+                          )}
+                          
+                          <ChevronDown className={cn(
+                            "w-4 h-4 transition-all duration-200",
+                            isSelected ? "text-neutral-400" : "text-neutral-300",
+                            isExpanded && "rotate-180"
+                          )} />
+                        </div>
+
+                        {/* Expanded Content */}
+                        {isSelected && isExpanded && (
+                          <div className="border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/30">
+                            <div className="p-3 space-y-2">
+                              {/* Game Lines */}
+                              {data.gameLines.length > 0 && (
+                                <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => toggleCategoryExpand(`${sport.value}:gameLines`)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:gameLines`); }}}
+                                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                  >
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      <Checkbox
+                                        checked={isCategorySelected(sport.value, 'gameLines') ? true : isCategoryPartial(sport.value, 'gameLines') ? "indeterminate" : false}
+                                        onCheckedChange={() => toggleCategory(sport.value, 'gameLines')}
+                                        className="h-3.5 w-3.5"
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
+                                      Game Lines
+                                    </span>
+                                    <span className="text-[11px] text-neutral-400 tabular-nums">
+                                      {data.gameLineIds.filter(id => isMarketSelected(sport.value, 'gameLines', id)).length}/{data.gameLines.length}
+                                    </span>
+                                    <ChevronDown className={cn(
+                                      "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
+                                      expandedCategories.has(`${sport.value}:gameLines`) && "rotate-180"
+                                    )} />
+                                  </div>
+                                  
+                                  {expandedCategories.has(`${sport.value}:gameLines`) && (
+                                    <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 grid grid-cols-2 gap-0.5 max-h-36 overflow-y-auto">
+                                      {data.gameLines.map((market) => (
+                                        <label
+                                          key={market.apiKey}
+                                          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                                        >
+                                          <Checkbox
+                                            checked={isMarketSelected(sport.value, 'gameLines', market.apiKey)}
+                                            onCheckedChange={() => toggleMarket(sport.value, 'gameLines', market.apiKey)}
+                                            className="h-3 w-3"
+                                          />
+                                          <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
+                                            {market.label}
+                                          </span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Player Props */}
+                              {Object.keys(data.playerProps).length > 0 && (
+                                <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => toggleCategoryExpand(`${sport.value}:playerProps`)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:playerProps`); }}}
+                                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                  >
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      <Checkbox
+                                        checked={isCategorySelected(sport.value, 'playerProps') ? true : isCategoryPartial(sport.value, 'playerProps') ? "indeterminate" : false}
+                                        onCheckedChange={() => toggleCategory(sport.value, 'playerProps')}
+                                        className="h-3.5 w-3.5"
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
+                                      Player Props
+                                    </span>
+                                    <span className="text-[11px] text-neutral-400 tabular-nums">
+                                      {data.playerPropIds.filter(id => isMarketSelected(sport.value, 'playerProps', id)).length}/{data.playerPropIds.length}
+                                    </span>
+                                    <ChevronDown className={cn(
+                                      "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
+                                      expandedCategories.has(`${sport.value}:playerProps`) && "rotate-180"
+                                    )} />
+                                  </div>
+                                  
+                                  {expandedCategories.has(`${sport.value}:playerProps`) && (
+                                    <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 space-y-2 max-h-48 overflow-y-auto">
+                                      {Object.entries(data.playerProps).map(([group, markets]) => (
+                                        <div key={group}>
+                                          <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 px-2">
+                                            {group}
+                                          </p>
+                                          <div className="grid grid-cols-2 gap-0.5">
+                                            {markets.map((market) => (
+                                              <label
+                                                key={market.apiKey}
+                                                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                                              >
+                                                <Checkbox
+                                                  checked={isMarketSelected(sport.value, 'playerProps', market.apiKey)}
+                                                  onCheckedChange={() => toggleMarket(sport.value, 'playerProps', market.apiKey)}
+                                                  className="h-3 w-3"
+                                                />
+                                                <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
+                                                  {market.label}
+                                                </span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-3">
+                <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+              </div>
+            )}
+          </div>
+          
+
+          {/* Footer */}
+          <div className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50 shrink-0">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                {selectedSports.length} sport{selectedSports.length !== 1 ? 's' : ''} • {referenceBooks.length} book{referenceBooks.length !== 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isLoading}
+                  className="h-10 px-4 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isEditing ? "Save Changes" : "Create Filter"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

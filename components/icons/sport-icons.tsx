@@ -9,7 +9,7 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
   const sportLower = sport.toLowerCase();
 
   // Football (American Football)
-  if (sportLower.includes('football') || sportLower.includes('nfl') || sportLower === 'americanfootball') {
+  if (sportLower.includes('football') || sportLower.includes('nfl') || sportLower === 'americanfootball' || sportLower === 'ncaaf') {
     return (
       <svg 
         xmlns="http://www.w3.org/2000/svg"
@@ -23,7 +23,7 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
   }
 
   // Basketball
-  if (sportLower.includes('basketball') || sportLower.includes('nba')) {
+  if (sportLower.includes('basketball') || sportLower.includes('nba') || sportLower === 'ncaab' || sportLower === 'wnba') {
     return (
       <svg 
         xmlns="http://www.w3.org/2000/svg"

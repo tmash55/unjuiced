@@ -512,13 +512,15 @@ export const sportsbooks: Sportsbook[] = Object.values(SPORTSBOOKS_META).map(sb 
 }));
 
 // Helper function to normalize sportsbook IDs (handle variations)
-function normalizeSportsbookId(id: string): string {
+export function normalizeSportsbookId(id: string): string {
   // Common variations mapping
   const idMappings: Record<string, string> = {
     'ballybet': 'bally-bet',
     'sportsinteraction': 'sports-interaction',
     'hardrockbet': 'hard-rock',
     'hardrock': 'hard-rock',
+    'hard-rock-indiana': 'hard-rock',  // Treat Indiana variant as same book
+    'hardrockindiana': 'hard-rock',
     'espnbet': 'espn',
     'thescore': 'thescore',
     'betparx': 'betparx',

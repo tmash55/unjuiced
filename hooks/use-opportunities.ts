@@ -13,6 +13,7 @@ import {
   DEFAULT_FILTERS,
   parseOpportunity,
 } from "@/lib/types/opportunities";
+import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
 
 interface UseOpportunitiesOptions {
   /**
@@ -77,6 +78,19 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
   if (filters.minEV !== null) params.set("minEV", String(filters.minEV));
   if (filters.requireTwoWay) params.set("requireTwoWay", "true");
   
+  // Require full blend (hide records if blend books are missing)
+  if (filters.requireFullBlend) params.set("requireFullBlend", "true");
+  
+  // Market type filter (player props vs game lines)
+  if (filters.marketType && filters.marketType !== "all") {
+    params.set("marketType", filters.marketType);
+  }
+  
+  // Market line filters (e.g., {"touchdowns": [0.5]} to only show "Anytime" touchdowns)
+  if (filters.marketLines && Object.keys(filters.marketLines).length > 0) {
+    params.set("marketLines", JSON.stringify(filters.marketLines));
+  }
+  
   // Min books per side (2 for edge finder, 2 for +EV)
   params.set("minBooksPerSide", String(filters.minBooksPerSide));
 
@@ -89,7 +103,7 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
   params.set("sort", sortValue);
 
   // Limit based on plan
-  params.set("limit", isPro ? "500" : "50");
+  params.set("limit", String(filters.limit || (isPro ? 200 : 50)));
 
   return params;
 }
@@ -149,12 +163,16 @@ function filterOpportunities(
       if (!matches) return false;
     }
 
-    // Book filter
+    // Book filter (selectedBooks contains EXCLUDED books - inverted logic)
+    // Empty = all selected, non-empty = those books are excluded
+    // Normalize bestBook ID to match the format in selectedBooks (e.g., "hardrockbet" → "hard-rock")
     if (filters.selectedBooks.length > 0) {
-      if (!filters.selectedBooks.includes(opp.bestBook)) return false;
+      const normalizedBook = normalizeSportsbookId(opp.bestBook);
+      if (filters.selectedBooks.includes(normalizedBook)) return false;
     }
 
-    // Market filter
+    // Market filter (selectedMarkets contains SELECTED markets - normal logic)
+    // Empty = all selected, non-empty = those are the only markets to show
     if (filters.selectedMarkets.length > 0) {
       if (!filters.selectedMarkets.includes(opp.market)) return false;
     }
@@ -193,6 +211,8 @@ export function useOpportunities({
       filters.minEdge,
       filters.minEV,
       filters.requireTwoWay,
+      filters.requireFullBlend,
+      filters.marketType,
       filters.minBooksPerSide,
       filters.minOdds,
       filters.maxOdds,

@@ -9,6 +9,7 @@ import {
 } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -43,6 +44,14 @@ interface OpportunitiesTableProps {
   onHideEdge?: (params: HideEdgeParams) => void;
   onUnhideEdge?: (edgeKey: string) => void;
   isHidden?: (edgeKey: string) => boolean;
+  /**
+   * Comparison mode for dynamic column headers
+   * - "book" with comparisonLabel = show book name (e.g., "FanDuel")
+   * - "next_best" = show "Next Best" 
+   * - "average" = show "Average"
+   */
+  comparisonMode?: "book" | "next_best" | "average";
+  comparisonLabel?: string; // Book name when mode is "book"
 }
 
 type SortField = 'edge' | 'time';
@@ -114,7 +123,22 @@ export function OpportunitiesTable({
   onHideEdge,
   onUnhideEdge,
   isHidden,
+  comparisonMode = "average",
+  comparisonLabel,
 }: OpportunitiesTableProps) {
+  // Dynamic column header based on comparison mode
+  const referenceColumnLabel = comparisonMode === "book" && comparisonLabel
+    ? comparisonLabel
+    : comparisonMode === "next_best"
+    ? "Next Best"
+    : "Reference";
+  
+  const referenceColumnTooltip = comparisonMode === "book" && comparisonLabel
+    ? `Odds from ${comparisonLabel} used as reference for edge calculation`
+    : comparisonMode === "next_best"
+    ? "Second-best available odds (after the best book)"
+    : "Sharp reference odds used for edge calculation";
+
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('edge');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -252,16 +276,18 @@ export function OpportunitiesTable({
       className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
     >
       <table className="min-w-full text-sm table-fixed">
+        {/* Column widths: Edge%, League, Time, Player, Market, Best Book, Reference, [Fair], Filter, Action */}
         <colgroup>
           <col style={{ width: 100 }} />
           <col style={{ width: 80 }} />
-          <col style={{ width: 110 }} />
-          <col style={{ width: 240 }} />
-          <col style={{ width: 200 }} />
-          <col style={{ width: 180 }} />
-          <col style={{ width: 120 }} />
-          <col style={{ width: 120 }} />
           <col style={{ width: 100 }} />
+          <col style={{ width: 200 }} />
+          <col style={{ width: 170 }} />
+          <col style={{ width: 150 }} />
+          <col style={{ width: 100 }} />
+          {comparisonMode !== "next_best" && <col style={{ width: 100 }} />}
+          <col style={{ width: 130 }} />
+          <col style={{ width: 90 }} />
         </colgroup>
         <thead className="bg-neutral-50 dark:bg-neutral-900 sticky top-0 z-[5]">
           <tr>
@@ -313,14 +339,49 @@ export function OpportunitiesTable({
               Best Book
             </th>
             <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
-              Next Best
+              <div className="flex items-center justify-center gap-1">
+                <span>{referenceColumnLabel}</span>
+                <Tooltip content={referenceColumnTooltip}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    aria-hidden
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z"
+                    />
+                  </svg>
+                </Tooltip>
+              </div>
             </th>
+            {comparisonMode !== "next_best" && (
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-center justify-center gap-1">
+                  <span>Fair</span>
+                  <Tooltip content="Devigged fair odds (no-vig true probability). Calculated from both sides of the market when available.">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                      aria-hidden
+                    >
+                      <path
+                        fill="currentColor"
+                        d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z"
+                      />
+                    </svg>
+                  </Tooltip>
+                </div>
+              </th>
+            )}
             <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
-              Average
+              Filter
             </th>
             <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">
               Action
-            </th>
+              </th>
           </tr>
         </thead>
         <tbody>
@@ -515,38 +576,69 @@ export function OpportunitiesTable({
                     </div>
                   </td>
 
-                  {/* Next Best */}
+                  {/* Sharp Odds (Reference) */}
                   <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-                    {nextBestBook ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="flex items-center gap-1">
-                          {getBookLogo(nextBestBook.book) && (
-                            <img
-                              src={getBookLogo(nextBestBook.book)!}
-                              alt={getBookName(nextBestBook.book)}
-                              className="w-5 h-5 object-contain"
-                            />
-                          )}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
+                        {opp.sharpPrice || "—"}
+                      </span>
+                      {opp.sharpBooks && opp.sharpBooks.length > 0 && (
+                        <div className="flex items-center -space-x-1">
+                          {opp.sharpBooks.slice(0, 3).map((book) => {
+                            const bookLogo = getBookLogo(book);
+                            return bookLogo ? (
+                              <img 
+                                key={book}
+                                src={bookLogo} 
+                                alt={getBookName(book)} 
+                                className="h-4 w-4 object-contain"
+                                title={getBookName(book)}
+                              />
+                            ) : null;
+                          })}
                         </div>
-                        <div className="text-neutral-700 dark:text-neutral-300 font-bold text-base">
-                          {nextBestBook.priceFormatted}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-neutral-400 dark:text-neutral-500">N/A</span>
-                    )}
+                      )}
+                    </div>
                   </td>
 
-                  {/* Average */}
+                  {/* Fair Odds (Devigged) - hidden for next_best mode */}
+                  {comparisonMode !== "next_best" && (
+                    <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                      <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
+                        {opp.fairAmerican || opp.sharpPrice || "—"}
+                      </span>
+                    </td>
+                  )}
+
+                  {/* Filter Indicator */}
                   <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="font-bold text-lg text-neutral-600 dark:text-neutral-400">
-                        {avgAmerican || "—"}
-                      </span>
-                      <span className="text-sm text-neutral-500 dark:text-neutral-500">
-                        ({opp.avgBookCount || opp.nBooks})
-                      </span>
-                    </div>
+                    {opp.filterId && opp.filterId !== "default" ? (
+                      <Tooltip content={opp.filterName || "Custom Filter"}>
+                        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--tertiary)]/10 text-[var(--tertiary)] text-xs font-medium">
+                          <span className="flex -space-x-1">
+                            {parseSports(opp.filterIcon || "").slice(0, 2).map((sport, idx) => (
+                              <span key={`${opp.id}-${sport}-${idx}`} className="rounded-full ring-1 ring-white dark:ring-neutral-800">
+                                <SportIcon sport={sport} className="w-4 h-4" />
+                              </span>
+                            ))}
+                            {parseSports(opp.filterIcon || "").length > 2 && (
+                              <span className="text-[9px] text-neutral-500 ml-1">
+                                +{parseSports(opp.filterIcon || "").length - 2}
+                              </span>
+                            )}
+                          </span>
+                          <span className="max-w-[80px] truncate">{opp.filterName}</span>
+                        </div>
+                      </Tooltip>
+                    ) : opp.filterName ? (
+                      <Tooltip content={opp.filterName}>
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                          {opp.filterName}
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
+                    )}
                   </td>
 
                   {/* Action */}
@@ -663,7 +755,7 @@ export function OpportunitiesTable({
                         index % 2 === 0 ? "bg-white dark:bg-neutral-950" : ""
                       )}
                     >
-                      <td colSpan={9} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                      <td colSpan={comparisonMode === "next_best" ? 9 : 10} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
                         <div className="flex items-center justify-center gap-3 flex-wrap">
                           {sortedBooks.map((book) => {
                             const bookLogo = getBookLogo(book.book);
@@ -691,7 +783,7 @@ export function OpportunitiesTable({
                                       src={bookLogo}
                                       alt={book.book}
                                       className="h-6 w-6 object-contain shrink-0"
-                                    />
+            />
                                   )}
                                   <span className={cn(
                                     "text-base font-bold",

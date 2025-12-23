@@ -117,6 +117,11 @@ export interface Opportunity {
 
   // Opposite side
   oppositeSide: OppositeSide | null;
+
+  // Filter metadata (for multi-filter support)
+  filterId: string | null;       // ID of the custom filter that matched (null = preset mode)
+  filterName: string | null;     // Display name of the filter
+  filterIcon: string | null;     // Sports string (e.g., "nba" or "nba,nfl")
 }
 
 /**
@@ -150,18 +155,35 @@ export interface OpportunityFilters {
   sports: Sport[];
   preset: string | null;
   blend: Array<{ book: string; weight: number }> | null;
+  limit: number;
   minEdge: number;
   minEV: number | null;
   minOdds: number;
   maxOdds: number;
   minBooksPerSide: number;
   requireTwoWay: boolean;
+  requireFullBlend: boolean;  // If true, hide records when blend books are missing
+  marketType: "all" | "player" | "game";  // Filter by player props or game lines
   searchQuery: string;
   selectedBooks: string[];
   selectedMarkets: string[];
   selectedLeagues: string[];  // For league filtering (derived from sports)
+  marketLines: Record<string, number[]>;  // Line values per market (e.g., {"touchdowns": [0.5]}). Empty = all lines
   sortBy: "edge_pct" | "ev_pct" | "best_decimal" | "kelly_fraction";
   sortDir: "asc" | "desc";
+}
+
+/**
+ * Filter configuration with metadata (for multi-filter support)
+ */
+export interface FilterConfig {
+  filters: OpportunityFilters;
+  metadata: {
+    filterId: string;        // Unique ID (preset ID or "default")
+    filterName: string;      // Display name
+    filterIcon: string;      // Sport icon(s)
+    isCustom: boolean;       // true = custom preset, false = preset mode
+  };
 }
 
 /**
@@ -171,16 +193,20 @@ export const DEFAULT_FILTERS: OpportunityFilters = {
   sports: ["nba"],
   preset: "pinnacle",
   blend: null,
+  limit: 200,
   minEdge: 0,
   minEV: null,
   minOdds: -500,
   maxOdds: 500,
   minBooksPerSide: 2,
   requireTwoWay: false,
+  requireFullBlend: false,
+  marketType: "all",
   searchQuery: "",
   selectedBooks: [],
   selectedMarkets: [],
   selectedLeagues: [],
+  marketLines: {},
   sortBy: "edge_pct",
   sortDir: "desc",
 };
@@ -287,6 +313,11 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
           })),
         }
       : null,
+
+    // Filter metadata (populated after parsing for multi-filter support)
+    filterId: (raw.filter_id as string) || null,
+    filterName: (raw.filter_name as string) || null,
+    filterIcon: (raw.filter_icon as string) || null,
   };
 }
 

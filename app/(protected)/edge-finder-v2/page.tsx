@@ -15,15 +15,12 @@ import { ToolSubheading } from "@/components/common/tool-subheading";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
-import { cn } from "@/lib/utils";
-import { RefreshCw, Beaker } from "lucide-react";
 import { LoadingState } from "@/components/common/loading-state";
-import { Tooltip } from "@/components/tooltip";
 
 // V2 Native imports
-import { useOpportunities } from "@/hooks/use-opportunities";
+import { useMultiFilterOpportunities } from "@/hooks/use-multi-filter-opportunities";
 import { OpportunitiesTable } from "@/components/opportunities/opportunities-table";
-import { type OpportunityFilters, type Sport, DEFAULT_FILTERS } from "@/lib/types/opportunities";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Shared preferences & V1 filters component
 import { useBestOddsPreferences } from "@/context/preferences-context";
@@ -33,6 +30,8 @@ import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
+import { FilterPresetsBar } from "@/components/filter-presets";
+import { useFilterPresets } from "@/hooks/use-filter-presets";
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba"];
@@ -81,60 +80,6 @@ const AVAILABLE_MARKETS = [
 ];
 
 /**
- * Map V1 BestOddsPrefs to V2 OpportunityFilters
- */
-function mapPrefsToFilters(prefs: BestOddsPrefs): OpportunityFilters {
-  // Derive sports from selected leagues
-  const leagueToSport: Record<string, Sport> = {
-    nba: "nba",
-    nfl: "nfl",
-    ncaaf: "ncaaf",
-    ncaab: "ncaab",
-    nhl: "nhl",
-    mlb: "mlb",
-    wnba: "wnba",
-  };
-  
-  // If no leagues selected (empty = all), use default sports (nba, nfl) for performance
-  // Empty array in prefs means "all selected" in V1 - but querying all is slow
-  // Default to NBA + NFL which is what V1 does in practice
-  let sports: Sport[];
-  if (prefs.selectedLeagues.length > 0) {
-    sports = [...new Set(
-      prefs.selectedLeagues
-        .map(l => leagueToSport[l])
-        .filter((s): s is Sport => !!s)
-    )];
-  } else {
-    // Default to NBA and NFL when "all" is selected
-    sports = ["nba", "nfl"];
-  }
-
-  // Map comparison mode to preset
-  let preset: string = "average";
-  if (prefs.comparisonMode === "book" && prefs.comparisonBook) {
-    preset = prefs.comparisonBook;
-  } else if (prefs.comparisonMode === "average") {
-    preset = "average";
-  }
-  // Note: next_best doesn't map to a preset, we'll handle it client-side
-
-  return {
-    ...DEFAULT_FILTERS,
-    sports: sports.length > 0 ? sports : ["nba", "nfl"],
-    preset,
-    minEdge: prefs.minImprovement || 0,
-    minOdds: prefs.minOdds ?? -500,
-    maxOdds: prefs.maxOdds ?? 500,
-    searchQuery: prefs.searchQuery || "",
-    selectedBooks: prefs.selectedBooks || [],
-    selectedMarkets: prefs.selectedMarkets || [],
-    selectedLeagues: prefs.selectedLeagues || [],
-    minBooksPerSide: 2,
-  };
-}
-
-/**
  * Map V2 preset back to V1 comparison mode
  */
 function mapPresetToComparisonMode(preset: string): { mode: BestOddsPrefs['comparisonMode']; book: string | null } {
@@ -163,6 +108,9 @@ export default function EdgeFinderV2Page() {
   // Use shared preferences
   const { filters: prefs, updateFilters: updatePrefs, isLoading: prefsLoading } = useBestOddsPreferences();
   
+  // Get active filter presets
+  const { activePresets, isLoading: presetsLoading } = useFilterPresets();
+  
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
   const [refreshing, setRefreshing] = useState(false);
@@ -176,10 +124,24 @@ export default function EdgeFinderV2Page() {
     clearAllHidden 
   } = useHiddenEdges();
 
+  // Result limit (default 200 for Pro, 50 for free)
+  const [limit, setLimit] = useState(200);
+
   // Sync local search with prefs on load
   useEffect(() => {
     setSearchLocal(prefs.searchQuery || "");
   }, [prefs.searchQuery]);
+
+  // Reset limit when plan changes
+  useEffect(() => {
+    setLimit(effectiveIsPro ? 200 : 50);
+  }, [effectiveIsPro]);
+
+  // When user searches, fetch full set for coverage; otherwise use default
+  useEffect(() => {
+    const hasSearch = (searchLocal || "").trim().length > 0;
+    setLimit(hasSearch ? 500 : (effectiveIsPro ? 200 : 50));
+  }, [searchLocal, effectiveIsPro]);
 
   // Debounce search updates to prefs
   useEffect(() => {
@@ -191,63 +153,34 @@ export default function EdgeFinderV2Page() {
     return () => clearTimeout(timer);
   }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
-  // Convert prefs to V2 filters
-  const filters = useMemo(() => mapPrefsToFilters(prefs), [prefs]);
-
-  // Use v2 hook
+  // Use multi-filter hook (handles multiple active presets, parallel fetching, deduplication)
   const {
     opportunities,
-    totalScanned,
-    totalAfterFilters,
-    timingMs,
+    activeFilters,
+    isCustomMode,
     isLoading,
     isFetching,
     error,
     refetch,
-  } = useOpportunities({
-    filters,
+  } = useMultiFilterOpportunities({
+    prefs,
+    activePresets,
     isPro: effectiveIsPro,
-    enabled: !planLoading && !prefsLoading,
+    limit,
+    enabled: !planLoading && !prefsLoading && !presetsLoading,
   });
 
-  // Apply client-side filters (search, hidden, books)
+  // Apply hidden edges filter (must be done client-side due to user-specific state)
   const filteredOpportunities = useMemo(() => {
     let filtered = opportunities;
-
-    // Search filter
-    if (searchLocal.trim()) {
-      const q = searchLocal.toLowerCase();
-      filtered = filtered.filter(
-        (opp) =>
-          (opp.player || "").toLowerCase().includes(q) ||
-          (opp.homeTeam || "").toLowerCase().includes(q) ||
-          (opp.awayTeam || "").toLowerCase().includes(q) ||
-          (opp.market || "").toLowerCase().includes(q)
-      );
-    }
 
     // Hidden edges filter
     if (!prefs.showHidden) {
       filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
 
-    // Book filter (client-side since API doesn't support it)
-    if (prefs.selectedBooks.length > 0) {
-      filtered = filtered.filter((opp) => prefs.selectedBooks.includes(opp.bestBook));
-    }
-
-    // College player props filter
-    if (prefs.hideCollegePlayerProps) {
-      filtered = filtered.filter((opp) => {
-        const isCollege = opp.sport === "ncaaf" || opp.sport === "ncaab";
-        // Allow game markets for college, just filter player props
-        const isPlayerProp = opp.player && opp.player !== "game";
-        return !(isCollege && isPlayerProp);
-      });
-    }
-
     return filtered;
-  }, [opportunities, searchLocal, prefs.showHidden, prefs.selectedBooks, prefs.hideCollegePlayerProps, isHidden]);
+  }, [opportunities, prefs.showHidden, isHidden]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -261,6 +194,7 @@ export default function EdgeFinderV2Page() {
       selectedBooks: newPrefs.selectedBooks,
       selectedLeagues: newPrefs.selectedLeagues,
       selectedMarkets: newPrefs.selectedMarkets,
+      marketLines: newPrefs.marketLines, // Market-specific line filters (e.g., touchdowns: [0.5])
       minImprovement: newPrefs.minImprovement,
       maxOdds: newPrefs.maxOdds,
       minOdds: newPrefs.minOdds,
@@ -296,51 +230,21 @@ export default function EdgeFinderV2Page() {
 
   return (
     <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* V2 Test Banner */}
-      <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-3">
-        <Beaker className="w-5 h-5 text-amber-500 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-amber-500">V2 Native Mode</p>
-          <p className="text-xs text-muted-foreground truncate">
-            Using native components with /api/v2/opportunities. Compare to{" "}
-            <a href="/edge-finder" className="underline text-primary">
-              /edge-finder (v1)
-            </a>
-          </p>
-        </div>
-        <div className="text-right text-xs text-muted-foreground shrink-0">
-          <p>Scanned: {totalScanned.toLocaleString()}</p>
-          <p>
-            After filters: {totalAfterFilters.toLocaleString()}{" "}
-            {totalAfterFilters > 500 && <span className="text-amber-500">(limit: 500)</span>}
-          </p>
-          <p>Timing: {timingMs}ms</p>
-        </div>
-      </div>
-
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <ToolHeading>Edge Finder</ToolHeading>
-          <Tooltip content={effectiveIsPro ? "Refresh data" : "Pro only"}>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || isLoading || !effectiveIsPro}
-              className={cn(
-                "p-2 rounded-md border transition-colors",
-                "hover:bg-muted/50 disabled:opacity-50"
-              )}
-            >
-              <RefreshCw className={cn("w-4 h-4", (refreshing || isFetching) && "animate-spin")} />
-            </button>
-          </Tooltip>
-        </div>
+        <ToolHeading>Edge Finder</ToolHeading>
         <ToolSubheading>
           {isLoading
             ? "Loading opportunities..."
             : `${filteredOpportunities.length} opportunities found`}
         </ToolSubheading>
       </div>
+
+      {/* Custom Filter Presets */}
+      <FilterPresetsBar 
+        className="mb-6" 
+        onPresetsChange={() => refetch()}
+      />
 
       {/* Filters Bar */}
       <div className="mb-6 relative z-10">
@@ -383,6 +287,8 @@ export default function EdgeFinderV2Page() {
               showHidden={prefs.showHidden}
               onToggleShowHidden={handleToggleShowHidden}
               onClearAllHidden={clearAllHidden}
+              customPresetActive={isCustomMode}
+              activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : null}
             />
           </FiltersBarSection>
         </FiltersBar>
@@ -405,7 +311,28 @@ export default function EdgeFinderV2Page() {
         onHideEdge={hideEdge}
         onUnhideEdge={unhideEdge}
         isHidden={isHidden}
+        comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
+        comparisonLabel={
+          isCustomMode 
+            ? undefined 
+            : prefs.comparisonMode === "book" && prefs.comparisonBook
+              ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
+              : undefined
+        }
       />
+
+      {/* Load more button */}
+      {limit < 500 && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => setLimit(500)}
+            className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
+            disabled={isLoading || isFetching}
+          >
+            Load more results
+          </button>
+        </div>
+      )}
 
       {/* Pro Upgrade CTA */}
       {!effectiveIsPro && (
