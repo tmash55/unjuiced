@@ -68,8 +68,26 @@ const MiniPieChart = ({
   const center = size / 2;
   const outer = (size / 2) - 4;
   const inner = outer * 0.55;
+  const strokeWidth = outer - inner;
 
-  // Build segments
+  // Single book - render as solid donut ring
+  if (books.length === 1) {
+    const midRadius = (outer + inner) / 2;
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          cx={center}
+          cy={center}
+          r={midRadius}
+          fill="none"
+          stroke={CHART_COLORS[0]}
+          strokeWidth={strokeWidth}
+        />
+      </svg>
+    );
+  }
+
+  // Build segments for multiple books
   const hasWeights = weights && Object.keys(weights).length > 0;
   let currentAngle = -90;
   const segments = books.map((book, i) => {
@@ -145,7 +163,7 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Create custom filters for better edge finding
+                Create custom models for better edge finding
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Compare against specific sharp books
@@ -155,7 +173,7 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
           <Button 
             onClick={() => setShowCreateModal(true)} 
             icon={<Plus className="w-4 h-4" />}
-            text="Create Filter"
+            text="Create Model"
             className="h-8 text-xs"
           />
         </div>
@@ -212,34 +230,30 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
                 <Tooltip
                   key={preset.id}
                   content={
-                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md">
-                      <div className="flex items-center gap-2 mb-2">
-                        <SportIcon sport={sports[0] || 'nba'} className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md min-w-[200px]">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                        <MiniPieChart books={sharpBooks} weights={weights} size={20} />
                         <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{preset.name}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <MiniPieChart books={sharpBooks} weights={weights} size={80} />
-                        <div className="flex flex-col gap-1">
-                          {sharpBooks.slice(0, 4).map((book, i) => {
-                            const logo = getBookLogo(book);
-                            const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
-                            return (
-                              <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-                                {logo ? (
-                                  <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
-                                ) : (
-                                  <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
-                                )}
-                                <span className="capitalize">{book}</span>
-                                <span className="text-neutral-400">•</span>
-                                <span className="font-semibold">{weight}%</span>
-                              </div>
-                            );
-                          })}
-                          {sharpBooks.length > 4 && (
-                            <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
-                          )}
-                        </div>
+                      <div className="flex flex-col gap-1.5">
+                        {sharpBooks.slice(0, 4).map((book, i) => {
+                          const logo = getBookLogo(book);
+                          const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
+                          return (
+                            <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+                              {logo ? (
+                                <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
+                              ) : (
+                                <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
+                              )}
+                              <span className="capitalize flex-1">{book}</span>
+                              <span className="font-semibold" style={{ color: CHART_COLORS[i % CHART_COLORS.length] }}>{weight}%</span>
+                            </div>
+                          );
+                        })}
+                        {sharpBooks.length > 4 && (
+                          <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
+                        )}
                       </div>
                     </div>
                   }
@@ -316,37 +330,37 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
                 <Tooltip
                   key={preset.id}
                   content={
-                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="text-emerald-600 dark:text-emerald-400">
-                          {renderSportsIcon(sports, 16)}
-                        </div>
+                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md min-w-[200px]">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                        {sharpBooks.length > 0 ? (
+                          <MiniPieChart books={sharpBooks} weights={weights} size={20} />
+                        ) : (
+                          <div className="text-emerald-600 dark:text-emerald-400">
+                            {renderSportsIcon(sports, 16)}
+                          </div>
+                        )}
                         <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{preset.name}</span>
                       </div>
                       {sharpBooks.length > 0 ? (
-                        <div className="flex items-center gap-3">
-                          <MiniPieChart books={sharpBooks} weights={weights} size={80} />
-                          <div className="flex flex-col gap-1">
-                            {sharpBooks.slice(0, 4).map((book, i) => {
-                              const logo = getBookLogo(book);
-                              const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
-                              return (
-                                <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-                                  {logo ? (
-                                    <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
-                                  ) : (
-                                    <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
-                                  )}
-                                  <span className="capitalize">{book}</span>
-                                  <span className="text-neutral-400">•</span>
-                                  <span className="font-semibold">{weight}%</span>
-                                </div>
-                              );
-                            })}
-                            {sharpBooks.length > 4 && (
-                              <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
-                            )}
-                          </div>
+                        <div className="flex flex-col gap-1.5">
+                          {sharpBooks.slice(0, 4).map((book, i) => {
+                            const logo = getBookLogo(book);
+                            const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
+                            return (
+                              <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+                                {logo ? (
+                                  <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
+                                ) : (
+                                  <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
+                                )}
+                                <span className="capitalize flex-1">{book}</span>
+                                <span className="font-semibold" style={{ color: CHART_COLORS[i % CHART_COLORS.length] }}>{weight}%</span>
+                              </div>
+                            );
+                          })}
+                          {sharpBooks.length > 4 && (
+                            <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-neutral-500">No sharp books set</span>
@@ -380,7 +394,7 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
 
         {/* Actions */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          <Tooltip content="Manage filters">
+          <Tooltip content="Manage models">
             <button
               onClick={() => setShowManagerModal(true)}
               className={cn(
@@ -391,7 +405,7 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
               <Settings className="w-3.5 h-3.5" />
             </button>
           </Tooltip>
-          <Tooltip content="New filter">
+          <Tooltip content="New model">
             <button
               onClick={() => setShowCreateModal(true)}
               className={cn(

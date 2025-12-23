@@ -707,7 +707,7 @@ export function FilterPresetFormModal({
               </div>
               <div>
                 <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-white">
-                  {isEditing ? "Edit Filter" : "Create Filter"}
+                  {isEditing ? "Edit Model" : "Create Model"}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-neutral-500 dark:text-neutral-400">
                   Configure your custom edge detection filter
@@ -1171,7 +1171,7 @@ export function FilterPresetFormModal({
                   className="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isEditing ? "Save Changes" : "Create Filter"}
+                  {isEditing ? "Save Changes" : "Create Model"}
                 </button>
               </div>
             </div>

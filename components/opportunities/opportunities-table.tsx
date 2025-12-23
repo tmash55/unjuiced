@@ -7,7 +7,7 @@ import {
   formatEdge,
   formatMarketName,
 } from "@/lib/types/opportunities";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
@@ -52,6 +52,12 @@ interface OpportunitiesTableProps {
    */
   comparisonMode?: "book" | "next_best" | "average";
   comparisonLabel?: string; // Book name when mode is "book"
+  /**
+   * Books that are excluded/unselected in user preferences.
+   * Used to filter which book logos to show in the "Best Book" column.
+   * Empty array = show all books.
+   */
+  excludedBooks?: string[];
 }
 
 type SortField = 'edge' | 'time';
@@ -125,6 +131,7 @@ export function OpportunitiesTable({
   isHidden,
   comparisonMode = "average",
   comparisonLabel,
+  excludedBooks = [],
 }: OpportunitiesTableProps) {
   // Dynamic column header based on comparison mode
   const referenceColumnLabel = comparisonMode === "book" && comparisonLabel
@@ -390,8 +397,11 @@ export function OpportunitiesTable({
             const showLogos = hasTeamLogos(opp.sport);
             const bestLogo = getBookLogo(opp.bestBook);
             
-            // Find all books with best price
-            const bestBooksWithPrice = opp.allBooks?.filter(b => b.decimal === opp.bestDecimal) || [];
+            // Find all books with best price, filtered to only show user-selected books
+            const allBestBooks = opp.allBooks?.filter(b => b.decimal === opp.bestDecimal) || [];
+            const bestBooksWithPrice = excludedBooks.length > 0
+              ? allBestBooks.filter(b => !excludedBooks.includes(normalizeSportsbookId(b.book)))
+              : allBestBooks;
             
             // Format game time
             const gameDate = opp.gameStart ? new Date(opp.gameStart) : null;
@@ -765,7 +775,11 @@ export function OpportunitiesTable({
                             return (
                               <Tooltip 
                                 key={`${opp.id}-${book.book}`}
-                                content={hasLink ? `Place bet on ${getBookName(book.book)}` : `${getBookName(book.book)} - No link available`}
+                                content={
+                                  book.limits?.max 
+                                    ? `${getBookName(book.book)} • Max: $${book.limits.max.toLocaleString()}${hasLink ? ' • Click to place bet' : ''}`
+                                    : hasLink ? `Place bet on ${getBookName(book.book)}` : `${getBookName(book.book)} - No link available`
+                                }
                               >
                                 <button
                                   onClick={() => openLink(book.book, book.link)}
@@ -783,16 +797,23 @@ export function OpportunitiesTable({
                                       src={bookLogo}
                                       alt={book.book}
                                       className="h-6 w-6 object-contain shrink-0"
-            />
+                                    />
                                   )}
-                                  <span className={cn(
-                                    "text-base font-bold",
-                                    isBest
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-neutral-900 dark:text-neutral-100"
-                                  )}>
-                                    {book.priceFormatted}
-                                  </span>
+                                  <div className="flex flex-col items-start">
+                                    <span className={cn(
+                                      "text-base font-bold",
+                                      isBest
+                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        : "text-neutral-900 dark:text-neutral-100"
+                                    )}>
+                                      {book.priceFormatted}
+                                    </span>
+                                    {book.limits?.max && (
+                                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                                        Max ${book.limits.max >= 1000 ? `${(book.limits.max / 1000).toFixed(0)}k` : book.limits.max}
+                                      </span>
+                                    )}
+                                  </div>
                                   {hasLink && (
                                     <ExternalLink className="h-4 w-4 text-neutral-400 dark:text-neutral-500 ml-1" />
                                   )}

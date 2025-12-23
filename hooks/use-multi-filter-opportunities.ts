@@ -430,9 +430,19 @@ function applyGlobalFilters(
     }
 
     // Book exclusions (selectedBooks contains EXCLUDED books)
+    // Only filter out if ALL books with the best odds are excluded
     if (prefs.selectedBooks.length > 0) {
-      const normalizedBook = normalizeSportsbookId(opp.bestBook);
-      if (prefs.selectedBooks.includes(normalizedBook)) return false;
+      // Get all books that have the best (same) odds
+      const booksWithBestOdds = (opp.allBooks || []).filter(b => b.decimal === opp.bestDecimal);
+      
+      // Check if at least one book with best odds is NOT excluded
+      const hasSelectedBookWithBestOdds = booksWithBestOdds.some(b => {
+        const normalizedBook = normalizeSportsbookId(b.book);
+        return !prefs.selectedBooks.includes(normalizedBook);
+      });
+      
+      // If all books with best odds are excluded, filter out this opportunity
+      if (!hasSelectedBookWithBestOdds) return false;
     }
 
     // College player props filter

@@ -57,6 +57,9 @@ export interface UserPreferences {
   best_odds_comparison_book?: string | null;
   best_odds_show_hidden?: boolean;
   
+  // Model templates preference
+  hide_model_templates?: boolean;
+  
   created_at?: string;
   updated_at?: string;
 }

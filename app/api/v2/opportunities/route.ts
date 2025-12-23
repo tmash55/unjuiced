@@ -157,6 +157,7 @@ interface Opportunity {
       decimal: number;
       link: string | null;
       sgp: string | null;
+      limits: { max: number } | null;
     }[];
   } | null;
 
@@ -167,6 +168,7 @@ interface Opportunity {
     decimal: number;
     link: string | null;
     sgp: string | null;
+    limits: { max: number } | null;  // Betting limits when available (e.g., Pinnacle)
   }[];
 }
 
@@ -457,11 +459,11 @@ interface SelectionPair {
   marketDisplay: string;   // Human-readable market (e.g., "Player Points" instead of "player_points")
   line: number;
   over: {
-    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null }[];
+    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
     best: { book: string; price: number; decimal: number; link: string | null } | null;
   };
   under: {
-    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null }[];
+    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
     best: { book: string; price: number; decimal: number; link: string | null } | null;
   };
 }
@@ -739,6 +741,7 @@ async function fetchSportOpportunities(
               decimal: overSel.price_decimal,
               link: overSel.link || null,
               sgp: overSel.sgp || null,
+              limits: overSel.limits || null,
             });
             if (!pair.over.best || overSel.price_decimal > pair.over.best.decimal) {
               pair.over.best = {
@@ -767,6 +770,7 @@ async function fetchSportOpportunities(
               decimal: underSel.price_decimal,
               link: underSel.link || null,
               sgp: underSel.sgp || null,
+              limits: underSel.limits || null,
             });
             if (!pair.under.best || underSel.price_decimal > pair.under.best.decimal) {
               pair.under.best = {
@@ -867,7 +871,7 @@ async function fetchSportOpportunities(
  * Calculate edge and EV metrics for an opportunity
  */
 interface SideData {
-  books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null }[];
+  books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
   best: { book: string; price: number; decimal: number; link: string | null } | null;
 }
 

@@ -191,6 +191,7 @@ export interface SSESelection {
   locked: boolean;
   link: string;
   sgp: string | null;
+  limits: { max: number } | null;  // Betting limits (max wager) when available
   raw_market: string;
   updated: string;
 }

@@ -42,7 +42,7 @@ export function useFilterPresets() {
   const presets = data?.presets || [];
   const activePresets = presets.filter((p) => p.is_active);
 
-  // Create a new preset
+  // Create a new preset (with optimistic update for faster UX)
   const createMutation = useMutation({
     mutationFn: async (preset: FilterPresetCreate) => {
       const res = await fetch("/api/user/filter-presets", {
@@ -56,7 +56,51 @@ export function useFilterPresets() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    // Optimistic update for instant UI feedback
+    onMutate: async (newPreset) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY });
+      const previousData = queryClient.getQueryData<FilterPresetsResponse>(QUERY_KEY);
+      
+      if (previousData) {
+        // Create a temporary preset object for optimistic display
+        const tempPreset: FilterPreset = {
+          id: `temp-${Date.now()}`, // Temporary ID
+          user_id: user?.id || '',
+          name: newPreset.name,
+          sport: newPreset.sport,
+          markets: newPreset.markets,
+          market_type: newPreset.market_type || 'all',
+          sharp_books: newPreset.sharp_books,
+          book_weights: newPreset.book_weights || null,
+          fallback_mode: newPreset.fallback_mode || 'hide',
+          fallback_weights: newPreset.fallback_weights || null,
+          min_books_reference: newPreset.min_books_reference,
+          min_odds: newPreset.min_odds,
+          max_odds: newPreset.max_odds,
+          is_active: false,
+          is_default: newPreset.is_default || false,
+          sort_order: previousData.presets.length,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        
+        queryClient.setQueryData<FilterPresetsResponse>(QUERY_KEY, {
+          ...previousData,
+          presets: [...previousData.presets, tempPreset],
+          count: previousData.count + 1,
+        });
+      }
+      
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      // Revert to previous state on error
+      if (context?.previousData) {
+        queryClient.setQueryData(QUERY_KEY, context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after mutation to get the real data
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
   });

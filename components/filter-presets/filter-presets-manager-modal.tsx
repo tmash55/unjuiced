@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, Loader2, Check, Filter, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Check, Filter, X, Sparkles, Copy, EyeOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,47 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { usePreferences } from "@/context/preferences-context";
+
+// Pre-built model templates for quick creation
+const MODEL_TEMPLATES = [
+  {
+    id: 'pinnacle-circa-props',
+    name: 'Sharp Blend - Props',
+    description: 'Pinnacle + Circa (50/50) • All sports player props',
+    sport: 'nba,nfl,nhl,mlb',
+    market_type: 'player' as const,
+    sharp_books: ['pinnacle', 'circa'],
+    book_weights: { pinnacle: 50, circa: 50 },
+    min_books_reference: 2,
+    min_odds: -300,
+    max_odds: 300,
+  },
+  {
+    id: 'pinnacle-only-props',
+    name: 'Pinnacle Only - Props',
+    description: 'Pinnacle sharp line • All sports player props',
+    sport: 'nba,nfl,nhl,mlb',
+    market_type: 'player' as const,
+    sharp_books: ['pinnacle'],
+    book_weights: { pinnacle: 100 },
+    min_books_reference: 1,
+    min_odds: -300,
+    max_odds: 300,
+  },
+  {
+    id: 'sharp-consensus-all',
+    name: 'Sharp Consensus',
+    description: 'Pinnacle + Circa + Bet365 • All markets',
+    sport: 'nba,nfl,nhl,mlb',
+    market_type: 'all' as const,
+    sharp_books: ['pinnacle', 'circa', 'bet365'],
+    book_weights: { pinnacle: 40, circa: 30, bet365: 30 },
+    min_books_reference: 2,
+    min_odds: -500,
+    max_odds: 500,
+  },
+];
 
 const renderSportsIcon = (sports: string[], sizePx = 16) => {
   if (!sports || sports.length === 0) return <SportIcon sport="nba" className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />;
@@ -224,13 +265,20 @@ export function FilterPresetsManagerModal({
     presetsBySport,
     togglePreset,
     deletePreset,
+    createPreset,
     isDeleting,
+    isCreating,
   } = useFilterPresets();
+
+  const { preferences, updatePreference } = usePreferences();
+  const hideTemplates = preferences?.hide_model_templates ?? false;
 
   const [editingPreset, setEditingPreset] = useState<FilterPreset | null>(null);
   const [deletingPreset, setDeletingPreset] = useState<FilterPreset | null>(null);
   const [hoveredPreset, setHoveredPreset] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
+  const [localHideTemplates, setLocalHideTemplates] = useState(false); // Local state for immediate hide
   
   // Local selection state - tracks which presets are selected
   const [localSelection, setLocalSelection] = useState<Set<string>>(new Set());
@@ -328,6 +376,51 @@ export function FilterPresetsManagerModal({
     onOpenChange(false);
   };
 
+  // Check if a template already exists (by name)
+  const isTemplateCreated = (templateName: string) => {
+    return presets.some(p => p.name === templateName);
+  };
+
+  // Create model from template
+  const handleCreateFromTemplate = async (template: typeof MODEL_TEMPLATES[0]) => {
+    if (isTemplateCreated(template.name)) return;
+    
+    setCreatingTemplateId(template.id);
+    try {
+      await createPreset({
+        name: template.name,
+        sport: template.sport,
+        markets: null, // all markets
+        market_type: template.market_type,
+        sharp_books: template.sharp_books,
+        book_weights: template.book_weights,
+        min_books_reference: template.min_books_reference,
+        min_odds: template.min_odds,
+        max_odds: template.max_odds,
+        fallback_mode: 'hide',
+        fallback_weights: null,
+      });
+    } catch (error) {
+      console.error("Failed to create model from template:", error);
+    } finally {
+      setCreatingTemplateId(null);
+    }
+  };
+
+  // Hide templates section permanently
+  const handleHideTemplates = async () => {
+    setLocalHideTemplates(true); // Immediate UI feedback
+    try {
+      await updatePreference('hide_model_templates', true);
+    } catch (error) {
+      console.error("Failed to hide templates:", error);
+      setLocalHideTemplates(false); // Revert on error
+    }
+  };
+
+  // Check if templates should be shown
+  const shouldShowTemplates = !hideTemplates && !localHideTemplates && MODEL_TEMPLATES.some(t => !isTemplateCreated(t.name));
+
   const sportOrder = ['multi', 'nba', 'nfl', 'nhl', 'mlb', 'ncaab', 'ncaaf', 'wnba', 'other'];
   const sortedSports = Object.keys(presetsBySport).sort(
     (a, b) => sportOrder.indexOf(a) - sportOrder.indexOf(b)
@@ -357,7 +450,7 @@ export function FilterPresetsManagerModal({
           showCloseButton={false}
           className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl"
         >
-          {/* Header with New Filter button */}
+          {/* Header with New Model button */}
           <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -366,7 +459,7 @@ export function FilterPresetsManagerModal({
                 </div>
                 <div>
                   <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-white">
-                    Filter Presets
+                    My Models
                   </DialogTitle>
                   <DialogDescription className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
                     Select filters to activate, then save
@@ -376,13 +469,13 @@ export function FilterPresetsManagerModal({
               
               {/* Actions */}
               <div className="flex items-center gap-2">
-                {/* New Filter button */}
+                {/* New Model button */}
                 <button
                   onClick={onCreateNew}
                   className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  New Filter
+                  New Model
                 </button>
                 
                 {/* Close button */}
@@ -398,6 +491,89 @@ export function FilterPresetsManagerModal({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
+            {/* Templates Section - Visible when there are templates to add and user hasn't hidden */}
+            {shouldShowTemplates && (
+              <div className="border-b border-neutral-200 dark:border-neutral-800 bg-gradient-to-r from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                        <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-neutral-900 dark:text-white">Quick Start Templates</h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Add pre-built models with one click</p>
+                      </div>
+                    </div>
+                    <Tooltip content="Don't show this section again">
+                      <button
+                        onClick={handleHideTemplates}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Hide</span>
+                      </button>
+                    </Tooltip>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {MODEL_TEMPLATES.map((template) => {
+                      const alreadyCreated = isTemplateCreated(template.name);
+                      const isCreatingThis = creatingTemplateId === template.id;
+                      const templateBooks = template.sharp_books;
+                      const templateWeights = template.book_weights;
+                      
+                      return (
+                        <button
+                          key={template.id}
+                          onClick={() => handleCreateFromTemplate(template)}
+                          disabled={alreadyCreated || isCreatingThis}
+                          className={cn(
+                            "flex items-start gap-3 p-4 rounded-xl border text-left transition-all",
+                            alreadyCreated
+                              ? "bg-neutral-100 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
+                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md cursor-pointer"
+                          )}
+                        >
+                          {/* Mini pie chart */}
+                          <MiniPieChart 
+                            books={templateBooks} 
+                            weights={templateWeights}
+                            size={40}
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+                                {template.name}
+                              </span>
+                              {alreadyCreated && (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-2">
+                              {template.description}
+                            </p>
+                          </div>
+                          
+                          {/* Add button */}
+                          {!alreadyCreated && (
+                            <div className="flex-shrink-0">
+                              {isCreatingThis ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-amber-500" />
+                              )}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {presets.length === 0 ? (
               /* Empty state */
               <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
@@ -405,17 +581,17 @@ export function FilterPresetsManagerModal({
                   <Plus className="w-8 h-8 text-neutral-400" />
                 </div>
                 <h3 className="font-semibold text-lg text-neutral-900 dark:text-white mb-2">
-                  Create Your First Filter
+                  Create Your First Model
                 </h3>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 max-w-sm">
-                  Build custom filters to find the best edges using your preferred sharp books and settings.
+                  Build custom models to find the best edges using your preferred sharp books and settings.
                 </p>
                 <button
                   onClick={onCreateNew}
                   className="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Create Filter
+                  Create Model
                 </button>
               </div>
             ) : (
@@ -555,7 +731,7 @@ export function FilterPresetsManagerModal({
                                   isHovered ? "opacity-100" : "opacity-0"
                                 )}
                               >
-                                <Tooltip content="Edit filter">
+                                <Tooltip content="Edit model">
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -567,7 +743,7 @@ export function FilterPresetsManagerModal({
                                     <Pencil className="w-3 h-3" />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Delete filter">
+                                <Tooltip content="Delete model">
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -709,7 +885,7 @@ export function FilterPresetsManagerModal({
             {/* Content */}
             <div className="text-center">
               <DialogTitle className="mb-2 text-lg font-semibold text-neutral-900 dark:text-white">
-                Delete Filter?
+                Delete Model?
               </DialogTitle>
               <DialogDescription className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
                 &quot;{deletingPreset?.name}&quot; will be permanently removed.

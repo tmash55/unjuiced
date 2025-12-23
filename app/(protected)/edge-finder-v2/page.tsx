@@ -319,6 +319,7 @@ export default function EdgeFinderV2Page() {
               ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
               : undefined
         }
+        excludedBooks={prefs.selectedBooks}
       />
 
       {/* Load more button */}
