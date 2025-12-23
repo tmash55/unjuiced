@@ -9,6 +9,8 @@ export interface NbaGame {
   away_team_name: string;
   home_team_tricode: string;
   away_team_tricode: string;
+  home_team_score: number | null;
+  away_team_score: number | null;
   game_status: string; // e.g., "7:00 pm ET" or "Final"
   is_primetime: boolean | null;
   national_broadcast: string | null;
@@ -23,8 +25,7 @@ interface GamesResponse {
 }
 
 async function fetchNbaGames(): Promise<GamesResponse> {
-  // Allow browser/CDN caching - API sets appropriate Cache-Control headers
-  const res = await fetch("/api/nba/games");
+  const res = await fetch("/api/nba/games", { cache: "no-store" });
 
   if (!res.ok) {
     throw new Error("Failed to fetch games");
@@ -37,10 +38,9 @@ export function useNbaGames() {
   const query = useQuery<GamesResponse>({
     queryKey: ["nba-games"],
     queryFn: fetchNbaGames,
-    staleTime: 2 * 60_000, // 2 minutes - games don't change often
-    gcTime: 10 * 60_000, // 10 minutes - keep in cache longer
+    staleTime: 60_000, // 1 minute
+    gcTime: 5 * 60_000, // 5 minutes
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
   });
 
   return {
