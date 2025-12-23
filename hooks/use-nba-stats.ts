@@ -13,6 +13,7 @@ import {
 /**
  * Hook to fetch today's NBA game schedule
  * Polls every 20 seconds
+ * Transforms flat API response to nested NBAGame format
  */
 export function useTodaysGames(enabled: boolean = true) {
   return useQuery<GamesResponse>({
@@ -22,7 +23,64 @@ export function useTodaysGames(enabled: boolean = true) {
       if (!response.ok) {
         throw new Error('Failed to fetch games');
       }
-      return response.json();
+      const data = await response.json();
+      
+      // Transform flat API response to nested NBAGame format
+      const games = (data.games || []).map((game: any) => {
+        const gameStatus = game.game_status || '';
+        const isLive = gameStatus.toLowerCase().includes('q') || 
+                       gameStatus.toLowerCase().includes('half') ||
+                       gameStatus.toLowerCase().includes('ot');
+        const isFinal = gameStatus.toLowerCase().includes('final');
+        
+        return {
+          game_id: game.game_id,
+          matchup: `${game.away_team_tricode || ''} @ ${game.home_team_tricode || ''}`,
+          full_matchup: `${game.away_team_name || ''} @ ${game.home_team_name || ''}`,
+          away_team: {
+            tricode: game.away_team_tricode || '',
+            name: game.away_team_name || '',
+            score: game.away_team_score || 0,
+            record: '', // Not available from current API
+          },
+          home_team: {
+            tricode: game.home_team_tricode || '',
+            name: game.home_team_name || '',
+            score: game.home_team_score || 0,
+            record: '', // Not available from current API
+          },
+          status: isFinal ? 3 : isLive ? 2 : 1,
+          status_text: gameStatus,
+          display_time: gameStatus,
+          period: 0,
+          game_clock: '',
+          start_time: game.game_date || '',
+          is_live: isLive,
+          is_final: isFinal,
+        };
+      });
+      
+      // Calculate summary
+      const live = games.filter((g: any) => g.is_live).length;
+      const final = games.filter((g: any) => g.is_final).length;
+      const scheduled = games.length - live - final;
+      
+      return {
+        date: data.primaryDate || new Date().toISOString().split('T')[0],
+        games,
+        summary: {
+          total: games.length,
+          live,
+          scheduled,
+          final,
+        },
+        grouped: {
+          live: games.filter((g: any) => g.is_live),
+          scheduled: games.filter((g: any) => !g.is_live && !g.is_final),
+          final: games.filter((g: any) => g.is_final),
+        },
+        lastUpdated: new Date().toISOString(),
+      };
     },
     refetchInterval: 20000, // Poll every 20 seconds
     enabled,

@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     const supabase = createServerSupabaseClient();
     
     // Use Eastern Time for "today" since NBA games are scheduled in ET
+    // This prevents timezone issues where UTC date is already "tomorrow"
     const now = new Date();
     const etFormatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York',
@@ -44,12 +45,7 @@ export async function GET(req: NextRequest) {
       month: '2-digit',
       day: '2-digit',
     });
-    const today = etFormatter.format(now);
-    
-    // Calculate tomorrow
-    const tomorrowDate = new Date(now);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrow = etFormatter.format(tomorrowDate);
+    const today = etFormatter.format(now); // Format: YYYY-MM-DD
 
     const selectFields = `
       game_id, 
@@ -67,33 +63,48 @@ export async function GET(req: NextRequest) {
       season_type
     `;
 
-    // OPTIMIZATION: Fetch today AND tomorrow in parallel (single round-trip)
-    const [todayResult, tomorrowResult] = await Promise.all([
-      supabase
-        .from("nba_games_hr")
-        .select(selectFields)
-        .eq("game_date", today),
-      supabase
-        .from("nba_games_hr")
-        .select(selectFields)
-        .eq("game_date", tomorrow),
-    ]);
+    // Get today's games
+    const { data: todayGames, error: todayError } = await supabase
+      .from("nba_games_hr")
+      .select(selectFields)
+      .eq("game_date", today);
 
-    if (todayResult.error) {
-      console.error("[/api/nba/games] Error fetching today's games:", todayResult.error);
+    if (todayError) {
+      console.error("[/api/nba/games] Error fetching today's games:", todayError);
       return NextResponse.json(
-        { error: "Failed to fetch games", details: todayResult.error.message },
+        { error: "Failed to fetch games", details: todayError.message },
         { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // Combine today's and tomorrow's games
-    let allGames = [
-      ...(todayResult.data || []),
-      ...(tomorrowResult.data || []),
-    ];
+    // Get the next day with games (after today)
+    const { data: futureDates, error: futureDatesError } = await supabase
+      .from("nba_games_hr")
+      .select("game_date")
+      .gt("game_date", today)
+      .order("game_date", { ascending: true })
+      .limit(1);
 
-    // If no games found, look further into the future (fallback)
+    let nextDayGames: any[] = [];
+    let nextGameDate: string | null = null;
+
+    if (!futureDatesError && futureDates && futureDates.length > 0) {
+      nextGameDate = futureDates[0].game_date;
+      
+      const { data: nextGames, error: nextGamesError } = await supabase
+        .from("nba_games_hr")
+        .select(selectFields)
+        .eq("game_date", nextGameDate);
+
+      if (!nextGamesError && nextGames) {
+        nextDayGames = nextGames;
+      }
+    }
+
+    // Combine today's games and next day's games
+    let allGames = [...(todayGames || []), ...nextDayGames];
+
+    // If no games at all, look further into the future
     if (allGames.length === 0) {
       const { data: futureGames, error: futureError } = await supabase
         .from("nba_games_hr")
@@ -115,66 +126,15 @@ export async function GET(req: NextRequest) {
     // Get unique dates for the response
     const dates = [...new Set(sortedGames.map(g => g.game_date))];
 
-    // Transform flat database records to the nested format expected by components
-    const transformedGames = sortedGames.map(game => {
-      // Determine game status
-      const statusText = game.game_status || "";
-      const isLive = statusText.toLowerCase().includes("q") || 
-                     statusText.toLowerCase().includes("half") ||
-                     statusText.toLowerCase().includes("ot");
-      const isFinal = statusText.toLowerCase().includes("final");
-      
-      return {
-        game_id: game.game_id,
-        matchup: `${game.away_team_tricode} @ ${game.home_team_tricode}`,
-        full_matchup: `${game.away_team_name} @ ${game.home_team_name}`,
-        away_team: {
-          tricode: game.away_team_tricode || "—",
-          name: game.away_team_name || "Away Team",
-          score: game.away_team_score || 0,
-          record: "", // Could add record from another table if needed
-        },
-        home_team: {
-          tricode: game.home_team_tricode || "—",
-          name: game.home_team_name || "Home Team",
-          score: game.home_team_score || 0,
-          record: "",
-        },
-        status: isFinal ? 3 : isLive ? 2 : 1,
-        status_text: statusText,
-        display_time: statusText,
-        period: 0,
-        game_clock: "",
-        start_time: game.game_date,
-        is_live: isLive,
-        is_final: isFinal,
-        // Keep original fields for reference
-        game_date: game.game_date,
-        national_broadcast: game.national_broadcast,
-        is_primetime: game.is_primetime,
-      };
-    });
-
-    // Calculate summary
-    const summary = {
-      total: transformedGames.length,
-      live: transformedGames.filter(g => g.is_live).length,
-      scheduled: transformedGames.filter(g => !g.is_live && !g.is_final).length,
-      final: transformedGames.filter(g => g.is_final).length,
-    };
-
     return NextResponse.json(
       { 
-        games: transformedGames,
-        date: dates[0] || today,
-        dates: dates,
-        primaryDate: dates[0] || today,
-        summary,
+        games: sortedGames,
+        dates: dates, // Array of dates with games
+        primaryDate: dates[0] || today
       },
       { 
         headers: { 
-          // Aggressive caching for games data (changes infrequently)
-          "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300" 
+          "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120" 
         } 
       }
     );
