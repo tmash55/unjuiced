@@ -102,7 +102,8 @@ export class PreferencesRPC {
    * Get user preferences with default values
    */
   async getPreferences(userId: string): Promise<UserPreferences> {
-    let data: Record<string, unknown> | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any = null;
     
     try {
       const result = await withRetry(async () => {
