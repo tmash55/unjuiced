@@ -236,6 +236,8 @@ export default function EdgeFinderV2Page() {
         <ToolSubheading>
           {isLoading
             ? "Loading opportunities..."
+            : isFetching
+            ? "Updating opportunities..."
             : `${filteredOpportunities.length}+ opportunities found`}
         </ToolSubheading>
       </div>
@@ -307,6 +309,7 @@ export default function EdgeFinderV2Page() {
       <OpportunitiesTable
         opportunities={filteredOpportunities}
         isLoading={isLoading}
+        isFetching={isFetching || refreshing}
         isPro={effectiveIsPro}
         showEV={false}
         showHidden={prefs.showHidden}

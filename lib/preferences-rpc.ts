@@ -1,5 +1,33 @@
 import { createClient } from "@/libs/supabase/client";
 
+// Helper to check if error is a network error
+function isNetworkError(error: unknown): boolean {
+  return error instanceof TypeError && error.message === "Failed to fetch";
+}
+
+// Retry helper for transient network failures
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 2,
+  delayMs = 500
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      // Only retry on network errors
+      if (!isNetworkError(error) || attempt === maxRetries) {
+        throw error;
+      }
+      // Wait before retry
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 // Types for user preferences
 export interface UserPreferences {
   id: string;
@@ -74,14 +102,31 @@ export class PreferencesRPC {
    * Get user preferences with default values
    */
   async getPreferences(userId: string): Promise<UserPreferences> {
-    const { data, error } = await this.supabase
-      .from("user_preferences")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      throw new Error(`Failed to fetch preferences: ${error.message}`);
+    let data: Record<string, unknown> | null = null;
+    
+    try {
+      const result = await withRetry(async () => {
+        return await this.supabase
+          .from("user_preferences")
+          .select("*")
+          .eq("id", userId)
+          .single();
+      });
+      
+      data = result.data;
+      const error = result.error;
+      
+      if (error && error.code !== "PGRST116") {
+        throw new Error(`Failed to fetch preferences: ${error.message}`);
+      }
+    } catch (err) {
+      // On network failure, return defaults instead of crashing
+      if (isNetworkError(err)) {
+        console.warn("[PreferencesRPC] Network error fetching preferences, using defaults");
+        data = null;
+      } else {
+        throw err;
+      }
     }
 
     // Return preferences with default values
@@ -147,21 +192,32 @@ export class PreferencesRPC {
    * Update specific preference fields
    */
   async updatePreferences(userId: string, updates: UserPreferencesUpdate): Promise<UserPreferences> {
-    const { data, error } = await this.supabase
-      .from("user_preferences")
-      .upsert({
-        id: userId,
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await withRetry(async () => {
+        return await this.supabase
+          .from("user_preferences")
+          .upsert({
+            id: userId,
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+      });
 
-    if (error) {
-      throw new Error(`Failed to update preferences: ${error.message}`);
+      if (error) {
+        throw new Error(`Failed to update preferences: ${error.message}`);
+      }
+
+      return data;
+    } catch (err) {
+      if (isNetworkError(err)) {
+        console.warn("[PreferencesRPC] Network error updating preferences, will retry on next save");
+        // Return a mock response so the UI doesn't break
+        return { id: userId, ...updates } as UserPreferences;
+      }
+      throw err;
     }
-
-    return data;
   }
 
   /**
@@ -178,17 +234,27 @@ export class PreferencesRPC {
       updated_at: new Date().toISOString(),
     };
 
-    // Use upsert with explicit conflict resolution
-    const { error } = await this.supabase
-      .from("user_preferences")
-      .upsert(updateData, {
-        onConflict: 'id',
-        ignoreDuplicates: false
-      })
-      .select();
+    try {
+      // Use upsert with explicit conflict resolution
+      const { error } = await withRetry(async () => {
+        return await this.supabase
+          .from("user_preferences")
+          .upsert(updateData, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          })
+          .select();
+      });
 
-    if (error) {
-      throw new Error(`Failed to update ${String(key)}: ${error.message}`);
+      if (error) {
+        throw new Error(`Failed to update ${String(key)}: ${error.message}`);
+      }
+    } catch (err) {
+      if (isNetworkError(err)) {
+        console.warn(`[PreferencesRPC] Network error updating ${String(key)}, will retry on next save`);
+        return; // Fail silently for network errors
+      }
+      throw err;
     }
   }
 

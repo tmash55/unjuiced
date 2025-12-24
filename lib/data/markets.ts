@@ -338,6 +338,30 @@ export interface SportMarket {
     { value: "player_kicking_points", label: "Kicking Points", apiKey: "player_kicking_points", group: "Kicking", period: 'full' },
     { value: "1st_half_player_field_goals_made", label: "Field Goals Made (1H)", apiKey: "1st_half_player_field_goals_made", group: "Kicking", period: '1h' }
   ];
+
+  // Soccer (EPL) markets
+  // Note: Our data feed currently includes keys like odds:soccer_epl:*:player_goals:*
+  // Keep this list small + correct; we can expand as more EPL market keys appear.
+  const SOCCER_EPL_MARKETS: SportMarket[] = [
+    // Game-level markets
+    { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3way", group: "Game", period: "full" },
+    { value: "Draw No Bet", label: "Draw No Bet", apiKey: "draw_no_bet", group: "Game", period: "full" },
+    { value: "Total Goals", label: "Total Goals", apiKey: "total_goals", group: "Game", period: "full" },
+    { value: "Total Goals Odd/Even", label: "Total Goals Odd/Even", apiKey: "total_goals_odd_even", group: "Game", period: "full" },
+    { value: "Both Teams To Score", label: "Both Teams To Score", apiKey: "both_teams_to_score", group: "Game", period: "full" },
+
+    // Player props
+    {
+      value: "Goals",
+      label: "Goals",
+      apiKey: "player_goals",
+      hasAlternates: true,
+      alternateKey: "player_goals_alternate",
+      alwaysFetchAlternate: true,
+      group: "Player",
+      period: "full",
+    },
+  ];
   
   export const SPORT_MARKETS: SportMarkets = {
     basketball_nba: BASKETBALL_MARKETS,
@@ -345,6 +369,7 @@ export interface SportMarket {
     basketball_ncaab: BASKETBALL_MARKETS,
     football_nfl: FOOTBALL_MARKETS,
     football_ncaaf: FOOTBALL_MARKETS,
+    soccer_epl: SOCCER_EPL_MARKETS,
     baseball_mlb: [
       // Game-level markets
       { value: "Moneyline", label: "Moneyline", apiKey: "h2h", group: "Game" },

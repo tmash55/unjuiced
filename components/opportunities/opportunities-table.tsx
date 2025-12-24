@@ -24,6 +24,16 @@ import {
   EyeOff,
 } from "lucide-react";
 
+// Loading messages for edge finder
+const EDGE_LOADING_MESSAGES = [
+  "Removing the juice...",
+  "Finding sharp lines...",
+  "Scanning sportsbooks...",
+  "Calculating edges...",
+  "Comparing to sharp books...",
+  "Analyzing market odds...",
+];
+
 interface HideEdgeParams {
   edgeKey: string;
   eventId?: string;
@@ -38,6 +48,7 @@ interface HideEdgeParams {
 interface OpportunitiesTableProps {
   opportunities: Opportunity[];
   isLoading?: boolean;
+  isFetching?: boolean;
   isPro?: boolean;
   showEV?: boolean;
   showHidden?: boolean;
@@ -129,6 +140,7 @@ const getBookFallbackUrl = (bookId?: string): string | undefined => {
 export function OpportunitiesTable({
   opportunities,
   isLoading,
+  isFetching = false,
   isPro = true,
   showEV = false,
   showHidden = false,
@@ -268,13 +280,143 @@ export function OpportunitiesTable({
     } catch {void 0;}
   };
 
+  // Rotating loading message state
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  
+  useEffect(() => {
+    if (!isLoading && !isFetching) return;
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % EDGE_LOADING_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isLoading, isFetching]);
+
+  // Skeleton row component for reuse
+  const SkeletonRow = ({ index }: { index: number }) => (
+    <tr className={index % 2 === 0 ? "table-row-even" : "table-row-odd"}>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-12 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="space-y-1">
+          <div className="w-12 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-16 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="space-y-1.5">
+          <div className="w-32 h-4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-24 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-20 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+      <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center gap-2">
+          <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
+    </tr>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"></div>
-          <p className="text-sm text-muted-foreground">Loading opportunities...</p>
-        </div>
+      <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <table className="min-w-full text-sm table-fixed">
+          <colgroup>
+            <col style={{ width: 100 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 200 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 90 }} />
+          </colgroup>
+          <thead className="bg-neutral-50 dark:bg-neutral-900 sticky top-0 z-[5]">
+            <tr>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Edge %</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">League</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Time</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Selection</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Line</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Market</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Best Book</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Reference</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Fair</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Filter</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Loading message row */}
+            <tr>
+              <td colSpan={11} className="p-0 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                <div className="flex items-center justify-center py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-brand border-t-transparent" />
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={loadingMessageIndex}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-sm text-neutral-500 dark:text-neutral-400"
+                      >
+                        {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonRow key={`initial-skeleton-${i}`} index={i} />
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }
@@ -293,12 +435,15 @@ export function OpportunitiesTable({
     );
   }
 
+  // When switching filters, show loading state instead of stale data
+  const showLoadingState = isFetching;
+
   return (
     <div
       ref={tableRef}
       className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
     >
-      <table className="min-w-full text-sm table-fixed">
+        <table className="min-w-full text-sm table-fixed">
         {/* Column widths: Edge%, League, Time, Player, Line, Market, Best Book, Reference, [Fair], Filter, Action */}
         <colgroup>
           <col style={{ width: 100 }} />
@@ -412,7 +557,115 @@ export function OpportunitiesTable({
           </tr>
         </thead>
         <tbody>
-          {sortedOpportunities.map((opp, index) => {
+          {/* Skeleton loading state */}
+          {showLoadingState && (
+            <>
+              {/* Loading message row */}
+              <tr>
+                <td colSpan={comparisonMode !== "next_best" ? 11 : 10} className="p-0 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                  <div className="flex items-center justify-center py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
+                    <div className="flex items-center gap-3">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-brand border-t-transparent" />
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={loadingMessageIndex}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="text-sm text-neutral-500 dark:text-neutral-400"
+                        >
+                          {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {/* Skeleton rows */}
+              {Array.from({ length: 8 }).map((_, i) => (
+                <tr 
+                  key={`skeleton-${i}`} 
+                  className={i % 2 === 0 ? "table-row-even" : "table-row-odd"}
+                >
+                  {/* Edge % */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* League */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center">
+                      <div className="w-12 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Time */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="space-y-1">
+                      <div className="w-12 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      <div className="w-16 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Selection */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="space-y-1.5">
+                      <div className="w-32 h-4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      <div className="w-24 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Line */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center">
+                      <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Market */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center">
+                      <div className="w-20 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Best Book */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Reference */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center">
+                      <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Fair (conditional) */}
+                  {comparisonMode !== "next_best" && (
+                    <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                      <div className="flex justify-center">
+                        <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      </div>
+                    </td>
+                  )}
+                  {/* Filter */}
+                  <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center">
+                      <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                  {/* Action */}
+                  <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                    <div className="flex justify-center gap-2">
+                      <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                      <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </>
+          )}
+          {!showLoadingState && sortedOpportunities.map((opp, index) => {
             const isExpanded = expandedRows.has(opp.id);
             const showLogos = hasTeamLogos(opp.sport);
             const bestLogo = getBookLogo(opp.bestBook);

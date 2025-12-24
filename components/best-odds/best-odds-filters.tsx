@@ -165,24 +165,6 @@ export function BestOddsFilters({
     }
   };
 
-  // Show toast when comparison changes (only in preset mode)
-  useEffect(() => {
-    if (customPresetActive) return; // Avoid stale messaging when custom filters control results
-    if (!deals || deals.length === 0) return;
-
-    const suffix = deals.length !== 1 ? "s" : "";
-
-    if (prefs.comparisonMode === "book" && prefs.comparisonBook) {
-      const bookOption = comparisonOptions.find(opt => opt.value === `book:${prefs.comparisonBook}`);
-      const bookName = bookOption && typeof bookOption.label === "string" ? bookOption.label : prefs.comparisonBook;
-      toast.success(`Showing ${deals.length} edge${suffix} vs ${bookName}`, { duration: 3000 });
-    } else if (prefs.comparisonMode === "next_best") {
-      toast.success(`Showing ${deals.length} edge${suffix} vs Next Best`, { duration: 3000 });
-    } else if (prefs.comparisonMode === "average") {
-      toast.success(`Showing ${deals.length} edge${suffix} vs Market Average`, { duration: 3000 });
-    }
-  }, [prefs.comparisonMode, prefs.comparisonBook, deals?.length, comparisonOptions, customPresetActive]);
-
   // Debounce search query updates (400ms like desktop search)
   useEffect(() => {
     const timer = setTimeout(() => {
