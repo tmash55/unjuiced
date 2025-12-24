@@ -20,6 +20,13 @@ export const SPORTS: Sport[] = [
     ],
   },
   {
+    id: 'Soccer',
+    name: 'Soccer',
+    leagues: [
+      { id: 'soccer_epl', name: 'EPL', sportId: 'Soccer' },
+    ],
+  },
+  {
     id: 'Basketball',
     name: 'Basketball',
     leagues: [

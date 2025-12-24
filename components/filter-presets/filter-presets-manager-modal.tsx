@@ -25,7 +25,20 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { usePreferences } from "@/context/preferences-context";
 
 // Pre-built model templates for quick creation
-const MODEL_TEMPLATES = [
+type ModelTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  sport: string; // comma-separated sports string (matches FilterPreset schema)
+  market_type: "all" | "player" | "game";
+  sharp_books: string[];
+  book_weights: Record<string, number>;
+  min_books_reference: number;
+  min_odds: number;
+  max_odds: number;
+};
+
+const MODEL_TEMPLATES: ModelTemplate[] = [
   {
     id: 'pinnacle-circa-props',
     name: 'Sharp Blend - Props',
@@ -65,18 +78,32 @@ const MODEL_TEMPLATES = [
 ];
 
 const renderSportsIcon = (sports: string[], sizePx = 16) => {
-  if (!sports || sports.length === 0) return <SportIcon sport="nba" className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />;
-  if (sports.length === 1) return <SportIcon sport={sports[0]} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />;
+  if (!sports || sports.length === 0)
+    return (
+      <span className="inline-flex items-center justify-center" style={{ width: sizePx, height: sizePx }}>
+        <SportIcon sport="nba" className="w-full h-full" />
+      </span>
+    );
+  if (sports.length === 1)
+    return (
+      <span className="inline-flex items-center justify-center" style={{ width: sizePx, height: sizePx }}>
+        <SportIcon sport={sports[0]} className="w-full h-full" />
+      </span>
+    );
 
   const first = sports[0];
   const second = sports[1];
   return (
     <div className="flex -space-x-1 items-center">
       <div className="rounded-full ring-1 ring-white dark:ring-neutral-800">
-        <SportIcon sport={first} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />
+        <span className="inline-flex items-center justify-center" style={{ width: sizePx, height: sizePx }}>
+          <SportIcon sport={first} className="w-full h-full" />
+        </span>
       </div>
       <div className="rounded-full ring-1 ring-white dark:ring-neutral-800">
-        <SportIcon sport={second} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />
+        <span className="inline-flex items-center justify-center" style={{ width: sizePx, height: sizePx }}>
+          <SportIcon sport={second} className="w-full h-full" />
+        </span>
       </div>
     </div>
   );
@@ -85,7 +112,7 @@ const renderSportsIcon = (sports: string[], sizePx = 16) => {
 // Get sportsbook logo
 const getBookLogo = (bookId: string) => {
   const sb = getSportsbookById(bookId);
-  return sb?.image?.light || sb?.icon || null;
+  return sb?.image?.light || sb?.image?.dark || sb?.image?.square || sb?.image?.long || null;
 };
 
 // Get sportsbook name

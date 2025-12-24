@@ -5,6 +5,7 @@ import {
   Loader2, 
   ChevronDown, 
   ChevronRight, 
+  Check,
   Filter,
   Info
 } from "lucide-react";
@@ -455,38 +456,78 @@ export function FilterPresetFormModal({
 
   // Reset form when modal opens/closes or preset changes
   useEffect(() => {
-    if (open) {
-      if (preset) {
-        console.log('[FilterPreset] Modal opened for editing, hydrating form...');
-        const sports = parseSports(preset.sport);
-        setName(preset.name);
-        setSelectedSports(sports);
-        setReferenceBooks(preset.sharp_books || []);
-        setWeights(preset.book_weights || getEqualWeights(preset.sharp_books || []));
-        setMinBooksRequired(preset.min_books_reference || 2);
-        setMinOdds(preset.min_odds ?? -500);
-        setMaxOdds(preset.max_odds ?? 500);
-        // Load markets from preset (don't reset to empty!)
-        const marketsState = buildSelectedMarketsFromPreset(preset, sports.length ? sports : ["nba"]);
-        console.log('[FilterPreset] Loaded markets state:', Object.keys(marketsState).length > 0 ? Object.keys(marketsState) : '(all markets - no custom selection)');
-        setSelectedMarkets(marketsState);
-        setExpandedSports(new Set());
-        setExpandedCategories(new Set());
-      } else {
-        setName("");
-        setSelectedSports(["nba"]);
-        setExpandedSports(new Set());
-        setExpandedCategories(new Set());
+    if (!open) return;
+    
+    if (preset) {
+      console.log('[FilterPreset] Modal opened for editing, hydrating form...');
+      const sports = parseSports(preset.sport);
+      setName(preset.name);
+      setSelectedSports(sports);
+      setReferenceBooks(preset.sharp_books || []);
+      setWeights(preset.book_weights || getEqualWeights(preset.sharp_books || []));
+      setMinBooksRequired(preset.min_books_reference || 2);
+      setMinOdds(preset.min_odds ?? -500);
+      setMaxOdds(preset.max_odds ?? 500);
+      setExpandedSports(new Set());
+      setExpandedCategories(new Set());
+      
+      // Load markets inline to avoid dependency issues
+      const presetMarkets = preset.markets;
+      if (!presetMarkets || presetMarkets.length === 0) {
         setSelectedMarkets({});
-        setReferenceBooks(["pinnacle", "fanduel", "draftkings"]);
-        setWeights(getEqualWeights(["pinnacle", "fanduel", "draftkings"]));
-        setMinBooksRequired(2);
-        setMinOdds(-500);
-        setMaxOdds(500);
+      } else {
+        const next: Record<string, Set<string>> = {};
+        const sportsToUse = sports.length ? sports : ["nba"];
+        sportsToUse.forEach((sportId) => {
+          const marketKey = getSportMarketKey(sportId);
+          const markets = SPORT_MARKETS[marketKey] || [];
+          const categorized = categorizeMarkets(markets);
+          
+          const glKey = `${sportId}:gameLines`;
+          const ppKey = `${sportId}:playerProps`;
+          const glSet = new Set<string>();
+          const ppSet = new Set<string>();
+
+          presetMarkets.forEach((m) => {
+            if (categorized.gameLineIds.includes(m)) glSet.add(m);
+            if (categorized.playerPropIds.includes(m)) ppSet.add(m);
+          });
+
+          if (glSet.size < categorized.gameLineIds.length) {
+            next[glKey] = glSet;
+          }
+          if (ppSet.size < categorized.playerPropIds.length) {
+            next[ppKey] = ppSet;
+          }
+        });
+        setSelectedMarkets(next);
       }
-      setError(null);
+    } else {
+      setName("");
+      setSelectedSports(["nba"]);
+      setExpandedSports(new Set());
+      setExpandedCategories(new Set());
+      setSelectedMarkets({});
+      setReferenceBooks(["pinnacle", "fanduel", "draftkings"]);
+      setWeights(getEqualWeights(["pinnacle", "fanduel", "draftkings"]));
+      setMinBooksRequired(2);
+      setMinOdds(-500);
+      setMaxOdds(500);
     }
-  }, [open, preset]);
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, preset?.id]);
+
+  // Keep minBooksRequired valid when referenceBooks changes.
+  // If user removes books and minBooksRequired is now impossible, clamp it down.
+  useEffect(() => {
+    if (!open) return;
+    const maxAllowed = referenceBooks.length;
+    if (maxAllowed === 0) return;
+    if (minBooksRequired > maxAllowed) {
+      setMinBooksRequired(maxAllowed);
+    }
+  }, [open, referenceBooks.length, minBooksRequired]);
 
   // Toggle a sport
   const toggleSport = (sportId: string) => {
@@ -524,12 +565,15 @@ export function FilterPresetFormModal({
 
   // Toggle a reference book
   const toggleReferenceBook = (bookId: string) => {
+    // OLD (stable) behavior: update books and weights together.
     setReferenceBooks(prev => {
       const newBooks = prev.includes(bookId) 
         ? prev.filter(b => b !== bookId)
         : [...prev, bookId];
       
-      if (newBooks.length > 0) {
+      if (newBooks.length === 0) {
+        setWeights({});
+      } else {
         setWeights(getEqualWeights(newBooks));
       }
       
@@ -697,7 +741,7 @@ export function FilterPresetFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:max-w-5xl max-h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0">
+      <DialogContent className="w-full sm:max-w-6xl max-h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0">
         <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
           {/* Header */}
           <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-5 shrink-0">
@@ -716,12 +760,11 @@ export function FilterPresetFormModal({
             </div>
           </DialogHeader>
 
-          {/* Content */}
+          {/* Content - Two Column Layout */}
           <div className="flex-1 overflow-y-auto">
-            <div className="p-6 space-y-6">
-              
-              {/* Filter Name */}
-              <div>
+            <div className="p-6">
+              {/* Filter Name - Full Width */}
+              <div className="mb-6">
                 <Label htmlFor="name" className="text-sm font-medium text-neutral-900 dark:text-white mb-2 block">
                   Filter Name
                 </Label>
@@ -735,411 +778,434 @@ export function FilterPresetFormModal({
                 />
               </div>
 
-              {/* Sportsbook Distribution Section */}
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8 mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-white uppercase tracking-wide mb-1">
-                      Sportsbook Distribution
-                    </h3>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Enter values below to weight sportsbooks differently in your edge calculation.
-                    </p>
-                    
-                    <div className="flex flex-col gap-3 mt-4">
-                      {/* Selected Books Legend */}
-                      {referenceBooks.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-3">
-                          {referenceBooks.map((bookId) => {
-                            const book = sportsbooks.find(b => b.id === bookId);
-                            return (
-                              <div key={bookId} className="flex items-center gap-1.5">
-                                <img 
-                                  src={book?.logo || `/sportsbook-logos/${bookId}.png`}
-                                  alt={book?.name}
-                                  className="h-4 w-4 object-contain"
-                                />
-                                <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                                  {book?.name}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Equal Button */}
+              {/* Two Column Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-stretch">
+                
+                {/* LEFT COLUMN - Reference Books & Weights */}
+                <div className="space-y-5">
+                  {/* Pie Chart & Weights Section */}
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                          Adjust Weights
+                        </h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                          Weight each book&apos;s contribution
+                        </p>
+                      </div>
                       {referenceBooks.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => setWeights(getEqualWeights(referenceBooks))}
+                          onClick={() => {
+                            setWeights(getEqualWeights(referenceBooks));
+                          }}
                           disabled={isLoading}
-                          className="self-start text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                          className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                         >
-                          Equal Weights
+                          Equal
                         </button>
                       )}
                     </div>
-                  </div>
-                  
-                  {/* Pie Chart */}
-                  <div className="shrink-0 flex flex-col items-center lg:items-end gap-2 pr-2 lg:pr-4">
-                    <PieChart data={pieData} size={180} />
-                  </div>
-                </div>
 
-                {/* Sportsbook Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {REFERENCE_BOOKS.map((book) => {
-                    const isSelected = referenceBooks.includes(book.id);
-                    const weight = weights[book.id] || 0;
-                    const colorIndex = referenceBooks.indexOf(book.id);
-                    
-                    return (
-                      <div
-                        key={book.id}
-                        onClick={() => !isLoading && toggleReferenceBook(book.id)}
-                        className={cn(
-                          "relative rounded-xl border p-3 cursor-pointer transition-all",
-                          isSelected
-                            ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 ring-1 ring-emerald-200 dark:ring-emerald-800"
-                            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <img 
-                              src={book.logo} 
-                              alt={book.name}
-                              className="h-10 w-10 object-contain rounded-lg"
-                            />
-                            {isSelected && (
+                    <div className="flex gap-6">
+                      {/* Pie Chart */}
+                      <div className="shrink-0">
+                        <PieChart data={pieData} size={140} />
+                      </div>
+                      
+                      {/* Weight Inputs */}
+                      <div className="flex-1 space-y-2">
+                        {referenceBooks.map((bookId, idx) => {
+                          const book = sportsbooks.find(b => b.id === bookId);
+                          const weight = weights[bookId] || 0;
+                          return (
+                            <div key={bookId} className="flex items-center gap-2">
                               <div 
-                                className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-neutral-900"
-                                style={{ backgroundColor: PIE_COLORS[colorIndex % PIE_COLORS.length] }}
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
                               />
+                              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1 truncate">
+                                {book?.name || bookId}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={weight}
+                                  onChange={(e) => handleWeightChange(bookId, Math.min(100, Math.max(0, Number(e.target.value))))}
+                                  disabled={isLoading}
+                                  className="w-12 h-7 text-center text-xs font-semibold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md focus:ring-1 focus:ring-emerald-500"
+                                />
+                                <span className="text-xs text-neutral-400">%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {referenceBooks.length === 0 && (
+                          <p className="text-xs text-neutral-400 italic">Select books below</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reference Books Section */}
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                    <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide mb-1">
+                      Reference Books
+                    </h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
+                      Select books to calculate fair odds
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                      {REFERENCE_BOOKS.map((book) => {
+                        const isSelected = referenceBooks.includes(book.id);
+                        const colorIndex = referenceBooks.indexOf(book.id);
+                        
+                        return (
+                          <div
+                            key={book.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={isSelected}
+                            aria-disabled={isLoading}
+                            onClick={() => !isLoading && toggleReferenceBook(book.id)}
+                            onKeyDown={(e) => {
+                              if (isLoading) return;
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                toggleReferenceBook(book.id);
+                              }
+                            }}
+                            className={cn(
+                              "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all select-none",
+                              isSelected
+                                ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700"
+                                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600",
+                              isLoading && "opacity-60 cursor-not-allowed"
                             )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn(
-                              "text-sm font-medium truncate",
-                              isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"
+                          >
+                            {/* Visual checkbox (avoid Radix <button> to prevent dialog loops) */}
+                            <div
+                              aria-hidden
+                              className={cn(
+                                "h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                                isSelected
+                                  ? "bg-emerald-500 border-emerald-500 text-white"
+                                  : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-transparent"
+                              )}
+                            >
+                              <Check className="h-3 w-3" />
+                            </div>
+                            <div className="relative">
+                              <img 
+                                src={book.logo} 
+                                alt={book.name}
+                                className="h-6 w-6 object-contain"
+                              />
+                              {isSelected && colorIndex >= 0 && (
+                                <div 
+                                  className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-neutral-800"
+                                  style={{ backgroundColor: PIE_COLORS[colorIndex % PIE_COLORS.length] }}
+                                />
+                              )}
+                            </div>
+                            <span className={cn(
+                              "text-xs font-medium truncate",
+                              isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
                             )}>
                               {book.name}
-                            </p>
+                            </span>
                           </div>
-                          {isSelected && (
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={weight}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                handleWeightChange(book.id, Math.min(100, Math.max(0, Number(e.target.value))));
-                              }}
-                              disabled={isLoading}
-                              className="w-14 h-8 text-center text-sm font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Settings Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Min Books Required */}
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4">
-                  <Label className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
-                    Min Books Required
-                  </Label>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 mb-3">
-                    Hide if fewer books available
-                  </p>
-                  <div className="flex gap-1.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setMinBooksRequired(n)}
-                        disabled={isLoading || n > referenceBooks.length}
-                        className={cn(
-                          "flex-1 h-9 rounded-lg text-sm font-medium transition-all border",
-                          minBooksRequired === n
-                            ? "bg-emerald-500 border-emerald-500 text-white"
-                            : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600",
-                          n > referenceBooks.length && "opacity-30 cursor-not-allowed"
-                        )}
-                      >
-                        {n}
-                      </button>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
+
                 </div>
 
-                {/* Odds Range */}
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 md:col-span-2">
-                  <Label className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
-                    Odds Range
-                  </Label>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 mb-3">
-                    Filter by American odds
-                  </p>
+                {/* RIGHT COLUMN - Settings & Sports/Markets */}
+                <div className="space-y-4 lg:flex lg:flex-col lg:h-full">
+                  {/* Settings Row */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-neutral-500 mb-1 block">Min</label>
-                      <Input
-                        type="number"
-                        value={minOdds}
-                        onChange={(e) => setMinOdds(Number(e.target.value))}
-                        disabled={isLoading}
-                        className="h-9 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
-                      />
+                    {/* Min Books Required */}
+                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-3">
+                      <Label className="text-[10px] font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                        Min Books
+                      </Label>
+                      <div className="flex gap-1 mt-2">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setMinBooksRequired(n)}
+                            disabled={isLoading || n > referenceBooks.length}
+                            className={cn(
+                              "flex-1 h-7 rounded text-xs font-medium transition-all border",
+                              minBooksRequired === n
+                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400",
+                              n > referenceBooks.length && "opacity-30 cursor-not-allowed"
+                            )}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-neutral-500 mb-1 block">Max</label>
-                      <Input
-                        type="number"
-                        value={maxOdds}
-                        onChange={(e) => setMaxOdds(Number(e.target.value))}
-                        disabled={isLoading}
-                        className="h-9 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
-                      />
+
+                    {/* Odds Range */}
+                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-3">
+                      <Label className="text-[10px] font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                        Odds Range
+                      </Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          type="number"
+                          value={minOdds}
+                          onChange={(e) => setMinOdds(Number(e.target.value))}
+                          disabled={isLoading}
+                          placeholder="Min"
+                          className="h-7 text-xs bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                        />
+                        <Input
+                          type="number"
+                          value={maxOdds}
+                          onChange={(e) => setMaxOdds(Number(e.target.value))}
+                          disabled={isLoading}
+                          placeholder="Max"
+                          className="h-7 text-xs bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Sports & Markets Section */}
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
-                      Sports & Markets
-                    </h3>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                      Click to select, expand to customize
-                    </p>
+                  {/* Sports & Markets */}
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                        Sports & Markets
+                      </h3>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        Click to select, expand to customize
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs text-neutral-400">
-                    {selectedSports.length} selected
-                  </span>
-                </div>
 
-                <div className="space-y-1.5">
-                  {PRESET_SPORTS.map((sport) => {
-                    const isSelected = selectedSports.includes(sport.value);
-                    const isExpanded = expandedSports.has(sport.value);
-                    const data = getMarketData(sport.value);
-                    const totalMarkets = data.gameLineIds.length + data.playerPropIds.length;
-                    const selectedCount = isSelected ? getSelectedMarketCount(sport.value) : 0;
+                  <div className="space-y-1.5">
+                    {PRESET_SPORTS.map((sport) => {
+                      const isSelected = selectedSports.includes(sport.value);
+                      const isExpanded = expandedSports.has(sport.value);
+                      const data = getMarketData(sport.value);
+                      const totalMarkets = data.gameLineIds.length + data.playerPropIds.length;
+                      const selectedCount = isSelected ? getSelectedMarketCount(sport.value) : 0;
 
-                    return (
-                      <div
-                        key={sport.value}
-                        className={cn(
-                          "rounded-lg overflow-hidden transition-all duration-200",
-                          isSelected
-                            ? "bg-white dark:bg-neutral-900 ring-1 ring-emerald-500/50 shadow-sm"
-                            : "bg-white/50 dark:bg-neutral-900/50 hover:bg-white dark:hover:bg-neutral-900"
-                        )}
-                      >
-                        {/* Sport Header - Entire row clickable */}
+                      return (
                         <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            if (isSelected) {
-                              toggleExpand(sport.value);
-                            } else {
-                              toggleSport(sport.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
+                          key={sport.value}
+                          className={cn(
+                            "rounded-lg overflow-hidden transition-all duration-200",
+                            isSelected
+                              ? "bg-white dark:bg-neutral-900 ring-1 ring-emerald-500/50 shadow-sm"
+                              : "bg-white/50 dark:bg-neutral-900/50 hover:bg-white dark:hover:bg-neutral-900"
+                          )}
+                        >
+                          {/* Sport Header */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
                               if (isSelected) {
                                 toggleExpand(sport.value);
                               } else {
                                 toggleSport(sport.value);
                               }
-                            }
-                          }}
-                          className={cn(
-                            "flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors",
-                            isSelected 
-                              ? "hover:bg-neutral-50 dark:hover:bg-neutral-800/50" 
-                              : "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30"
-                          )}
-                        >
-                          {/* Checkbox - stops propagation to allow independent toggle */}
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => toggleSport(sport.value)}
-                              disabled={isLoading}
-                              className={cn(
-                                "h-4 w-4 transition-colors",
-                                isSelected && "border-emerald-500 data-[state=checked]:bg-emerald-500"
-                              )}
-                            />
-                          </div>
-                          
-                          <SportIcon 
-                            sport={sport.value} 
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                if (isSelected) {
+                                  toggleExpand(sport.value);
+                                } else {
+                                  toggleSport(sport.value);
+                                }
+                              }
+                            }}
                             className={cn(
-                              "w-5 h-5 transition-colors",
-                              isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
-                            )} 
-                          />
-                          
-                          <span className={cn(
-                            "text-sm font-medium flex-1 transition-colors",
-                            isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
-                          )}>
-                            {sport.label}
-                          </span>
-                          
-                          {isSelected && (
-                            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
-                              {selectedCount}/{totalMarkets}
-                            </span>
-                          )}
-                          
-                          <ChevronDown className={cn(
-                            "w-4 h-4 transition-all duration-200",
-                            isSelected ? "text-neutral-400" : "text-neutral-300",
-                            isExpanded && "rotate-180"
-                          )} />
-                        </div>
-
-                        {/* Expanded Content */}
-                        {isSelected && isExpanded && (
-                          <div className="border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/30">
-                            <div className="p-3 space-y-2">
-                              {/* Game Lines */}
-                              {data.gameLines.length > 0 && (
-                                <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                                  <div
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => toggleCategoryExpand(`${sport.value}:gameLines`)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:gameLines`); }}}
-                                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                                  >
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                      <Checkbox
-                                        checked={isCategorySelected(sport.value, 'gameLines') ? true : isCategoryPartial(sport.value, 'gameLines') ? "indeterminate" : false}
-                                        onCheckedChange={() => toggleCategory(sport.value, 'gameLines')}
-                                        className="h-3.5 w-3.5"
-                                      />
-                                    </div>
-                                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
-                                      Game Lines
-                                    </span>
-                                    <span className="text-[11px] text-neutral-400 tabular-nums">
-                                      {data.gameLineIds.filter(id => isMarketSelected(sport.value, 'gameLines', id)).length}/{data.gameLines.length}
-                                    </span>
-                                    <ChevronDown className={cn(
-                                      "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
-                                      expandedCategories.has(`${sport.value}:gameLines`) && "rotate-180"
-                                    )} />
-                                  </div>
-                                  
-                                  {expandedCategories.has(`${sport.value}:gameLines`) && (
-                                    <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 grid grid-cols-2 gap-0.5 max-h-36 overflow-y-auto">
-                                      {data.gameLines.map((market) => (
-                                        <label
-                                          key={market.apiKey}
-                                          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                                        >
-                                          <Checkbox
-                                            checked={isMarketSelected(sport.value, 'gameLines', market.apiKey)}
-                                            onCheckedChange={() => toggleMarket(sport.value, 'gameLines', market.apiKey)}
-                                            className="h-3 w-3"
-                                          />
-                                          <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
-                                            {market.label}
-                                          </span>
-                                        </label>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Player Props */}
-                              {Object.keys(data.playerProps).length > 0 && (
-                                <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                                  <div
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => toggleCategoryExpand(`${sport.value}:playerProps`)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:playerProps`); }}}
-                                    className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                                  >
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                      <Checkbox
-                                        checked={isCategorySelected(sport.value, 'playerProps') ? true : isCategoryPartial(sport.value, 'playerProps') ? "indeterminate" : false}
-                                        onCheckedChange={() => toggleCategory(sport.value, 'playerProps')}
-                                        className="h-3.5 w-3.5"
-                                      />
-                                    </div>
-                                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
-                                      Player Props
-                                    </span>
-                                    <span className="text-[11px] text-neutral-400 tabular-nums">
-                                      {data.playerPropIds.filter(id => isMarketSelected(sport.value, 'playerProps', id)).length}/{data.playerPropIds.length}
-                                    </span>
-                                    <ChevronDown className={cn(
-                                      "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
-                                      expandedCategories.has(`${sport.value}:playerProps`) && "rotate-180"
-                                    )} />
-                                  </div>
-                                  
-                                  {expandedCategories.has(`${sport.value}:playerProps`) && (
-                                    <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 space-y-2 max-h-48 overflow-y-auto">
-                                      {Object.entries(data.playerProps).map(([group, markets]) => (
-                                        <div key={group}>
-                                          <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 px-2">
-                                            {group}
-                                          </p>
-                                          <div className="grid grid-cols-2 gap-0.5">
-                                            {markets.map((market) => (
-                                              <label
-                                                key={market.apiKey}
-                                                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                                              >
-                                                <Checkbox
-                                                  checked={isMarketSelected(sport.value, 'playerProps', market.apiKey)}
-                                                  onCheckedChange={() => toggleMarket(sport.value, 'playerProps', market.apiKey)}
-                                                  className="h-3 w-3"
-                                                />
-                                                <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
-                                                  {market.label}
-                                                </span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                              "flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none transition-colors",
+                              isSelected 
+                                ? "hover:bg-neutral-50 dark:hover:bg-neutral-800/50" 
+                                : "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30"
+                            )}
+                          >
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleSport(sport.value)}
+                                disabled={isLoading}
+                                className={cn(
+                                  "h-4 w-4 transition-colors",
+                                  isSelected && "border-emerald-500 data-[state=checked]:bg-emerald-500"
+                                )}
+                              />
                             </div>
+                            
+                            <SportIcon 
+                              sport={sport.value} 
+                              className={cn(
+                                "w-4 h-4 transition-colors",
+                                isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"
+                              )} 
+                            />
+                            
+                            <span className={cn(
+                              "text-sm font-medium flex-1 transition-colors",
+                              isSelected ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
+                            )}>
+                              {sport.label}
+                            </span>
+                            
+                            {isSelected && (
+                              <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                                {selectedCount}/{totalMarkets} markets
+                              </span>
+                            )}
+                            
+                            <ChevronDown className={cn(
+                              "w-4 h-4 transition-all duration-200",
+                              isSelected ? "text-neutral-400" : "text-neutral-300",
+                              isExpanded && "rotate-180"
+                            )} />
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                          {/* Expanded Content */}
+                          {isSelected && isExpanded && (
+                            <div className="border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/30">
+                              <div className="p-2 space-y-2">
+                                {/* Game Lines */}
+                                {data.gameLines.length > 0 && (
+                                  <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => toggleCategoryExpand(`${sport.value}:gameLines`)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:gameLines`); }}}
+                                      className="flex items-center gap-3 px-3 py-2 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                    >
+                                      <div onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox
+                                          checked={isCategorySelected(sport.value, 'gameLines') ? true : isCategoryPartial(sport.value, 'gameLines') ? "indeterminate" : false}
+                                          onCheckedChange={() => toggleCategory(sport.value, 'gameLines')}
+                                          className="h-3.5 w-3.5"
+                                        />
+                                      </div>
+                                      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
+                                        Game Lines
+                                      </span>
+                                      <span className="text-[11px] text-neutral-400 tabular-nums">
+                                        {data.gameLineIds.filter(id => isMarketSelected(sport.value, 'gameLines', id)).length}/{data.gameLines.length}
+                                      </span>
+                                      <ChevronRight className={cn(
+                                        "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
+                                        expandedCategories.has(`${sport.value}:gameLines`) && "rotate-90"
+                                      )} />
+                                    </div>
+                                    
+                                    {expandedCategories.has(`${sport.value}:gameLines`) && (
+                                      <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 grid grid-cols-2 gap-0.5 max-h-32 overflow-y-auto">
+                                        {data.gameLines.map((market) => (
+                                          <label
+                                            key={market.apiKey}
+                                            className="flex items-center gap-2 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                                          >
+                                            <Checkbox
+                                              checked={isMarketSelected(sport.value, 'gameLines', market.apiKey)}
+                                              onCheckedChange={() => toggleMarket(sport.value, 'gameLines', market.apiKey)}
+                                              className="h-3 w-3"
+                                            />
+                                            <span className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate">
+                                              {market.label}
+                                            </span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Player Props */}
+                                {Object.keys(data.playerProps).length > 0 && (
+                                  <div className="rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => toggleCategoryExpand(`${sport.value}:playerProps`)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategoryExpand(`${sport.value}:playerProps`); }}}
+                                      className="flex items-center gap-3 px-3 py-2 cursor-pointer select-none hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                    >
+                                      <div onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox
+                                          checked={isCategorySelected(sport.value, 'playerProps') ? true : isCategoryPartial(sport.value, 'playerProps') ? "indeterminate" : false}
+                                          onCheckedChange={() => toggleCategory(sport.value, 'playerProps')}
+                                          className="h-3.5 w-3.5"
+                                        />
+                                      </div>
+                                      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1">
+                                        Player Props
+                                      </span>
+                                      <span className="text-[11px] text-neutral-400 tabular-nums">
+                                        {data.playerPropIds.filter(id => isMarketSelected(sport.value, 'playerProps', id)).length}/{data.playerPropIds.length}
+                                      </span>
+                                      <ChevronRight className={cn(
+                                        "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
+                                        expandedCategories.has(`${sport.value}:playerProps`) && "rotate-90"
+                                      )} />
+                                    </div>
+                                    
+                                    {expandedCategories.has(`${sport.value}:playerProps`) && (
+                                      <div className="border-t border-neutral-100 dark:border-neutral-800 p-2 space-y-2 max-h-40 overflow-y-auto">
+                                        {Object.entries(data.playerProps).map(([group, markets]) => (
+                                          <div key={group}>
+                                            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1 px-2">
+                                              {group}
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-0.5">
+                                              {markets.map((market) => (
+                                                <label
+                                                  key={market.apiKey}
+                                                  className="flex items-center gap-2 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                                                >
+                                                  <Checkbox
+                                                    checked={isMarketSelected(sport.value, 'playerProps', market.apiKey)}
+                                                    onCheckedChange={() => toggleMarket(sport.value, 'playerProps', market.apiKey)}
+                                                    className="h-3 w-3"
+                                                  />
+                                                  <span className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate">
+                                                    {market.label}
+                                                  </span>
+                                                </label>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
             {/* Error */}
             {error && (

@@ -6,6 +6,7 @@ import {
   type Opportunity,
   formatEdge,
   formatMarketName,
+  shortenPeriodPrefix,
 } from "@/lib/types/opportunities";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -49,6 +50,7 @@ interface OpportunitiesTableProps {
    * - "book" with comparisonLabel = show book name (e.g., "FanDuel")
    * - "next_best" = show "Next Best" 
    * - "average" = show "Average"
+   * - undefined when in custom mode (isCustomMode = true)
    */
   comparisonMode?: "book" | "next_best" | "average";
   comparisonLabel?: string; // Book name when mode is "book"
@@ -58,6 +60,11 @@ interface OpportunitiesTableProps {
    * Empty array = show all books.
    */
   excludedBooks?: string[];
+  /**
+   * Whether custom filter mode is active.
+   * When true, shows "Model" column with logos for ≤3 books.
+   */
+  isCustomMode?: boolean;
 }
 
 type SortField = 'edge' | 'time';
@@ -95,7 +102,7 @@ const formatOdds = (price: string | number) => {
 const getBookLogo = (bookId?: string) => {
   if (!bookId) return null;
   const sb = getSportsbookById(bookId);
-  return sb?.image?.light || sb?.icon || null;
+  return sb?.image?.light || sb?.image?.dark || sb?.image?.square || sb?.image?.long || null;
 };
 
 // Get sportsbook name
@@ -132,18 +139,27 @@ export function OpportunitiesTable({
   comparisonMode = "average",
   comparisonLabel,
   excludedBooks = [],
+  isCustomMode = false,
 }: OpportunitiesTableProps) {
   // Dynamic column header based on comparison mode
-  const referenceColumnLabel = comparisonMode === "book" && comparisonLabel
+  const referenceColumnLabel = isCustomMode
+    ? "Model"
+    : comparisonMode === "book" && comparisonLabel
     ? comparisonLabel
     : comparisonMode === "next_best"
     ? "Next Best"
+    : comparisonMode === "average"
+    ? "Average"
     : "Reference";
   
-  const referenceColumnTooltip = comparisonMode === "book" && comparisonLabel
+  const referenceColumnTooltip = isCustomMode
+    ? "Blended odds from your custom model's reference books"
+    : comparisonMode === "book" && comparisonLabel
     ? `Odds from ${comparisonLabel} used as reference for edge calculation`
     : comparisonMode === "next_best"
     ? "Second-best available odds (after the best book)"
+    : comparisonMode === "average"
+    ? "Average odds across all sharp books"
     : "Sharp reference odds used for edge calculation";
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -283,13 +299,14 @@ export function OpportunitiesTable({
       className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
     >
       <table className="min-w-full text-sm table-fixed">
-        {/* Column widths: Edge%, League, Time, Player, Market, Best Book, Reference, [Fair], Filter, Action */}
+        {/* Column widths: Edge%, League, Time, Player, Line, Market, Best Book, Reference, [Fair], Filter, Action */}
         <colgroup>
           <col style={{ width: 100 }} />
           <col style={{ width: 80 }} />
           <col style={{ width: 100 }} />
           <col style={{ width: 200 }} />
-          <col style={{ width: 170 }} />
+          <col style={{ width: 80 }} />
+          <col style={{ width: 140 }} />
           <col style={{ width: 150 }} />
           <col style={{ width: 100 }} />
           {comparisonMode !== "next_best" && <col style={{ width: 100 }} />}
@@ -337,7 +354,10 @@ export function OpportunitiesTable({
               </div>
             </th>
             <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">
-              Player
+              Selection
+            </th>
+            <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">
+              Line
             </th>
             <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">
               Market
@@ -411,7 +431,7 @@ export function OpportunitiesTable({
                      gameDate.getMonth() === today.getMonth() &&
                      gameDate.getFullYear() === today.getFullYear();
             })() : false;
-            const dateStr = gameDate ? (isToday ? 'Today' : gameDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })) : 'TBD';
+            const dateStr = gameDate ? (isToday ? 'Today' : gameDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })) : 'TBD';
             const timeStr = gameDate ? gameDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
 
             // Calculate average from all books
@@ -439,7 +459,7 @@ export function OpportunitiesTable({
                   onClick={() => toggleRow(opp.id)}
                   className={cn(
                     "group/row transition-colors cursor-pointer hover:!bg-neutral-100 dark:hover:!bg-neutral-800/50",
-                    index % 2 === 0 ? "bg-white dark:bg-neutral-950" : "bg-neutral-50/50 dark:bg-neutral-900/50",
+                    index % 2 === 0 ? "table-row-even" : "table-row-odd",
                     isHiddenRow && "opacity-40 bg-neutral-100/50 dark:bg-neutral-800/30"
                   )}
                 >
@@ -498,7 +518,10 @@ export function OpportunitiesTable({
                   {/* Player */}
                   <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
                     <div className="text-sm md:text-base font-medium text-neutral-900 dark:text-neutral-100">
-                      {opp.player}
+                      {/* Handle game props like "game_total" - show cleaner name */}
+                      {opp.player === "game_total" || opp.player === "Game" || !opp.player 
+                        ? "Game" 
+                        : opp.player}
                       {opp.position && (
                         <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
                           ({opp.position})
@@ -542,16 +565,21 @@ export function OpportunitiesTable({
                     )}
                   </td>
 
+                  {/* Line */}
+                  <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+                    <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+                      {/* Handle yes/no markets (overtime, etc.) */}
+                      {opp.side === "yes" ? "Yes" : 
+                       opp.side === "no" ? "No" : 
+                       `${opp.side === "over" ? "O" : "U"} ${opp.line}`}
+                    </span>
+                  </td>
+
                   {/* Market */}
                   <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
-                        {opp.marketDisplay || formatMarketName(opp.market)}
-                      </span>
-                      <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
-                        {opp.side === "over" ? "O" : "U"} {opp.line}
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300 truncate max-w-[130px]">
+                      {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketName(opp.market)}
+                    </span>
                   </td>
 
                   {/* Best Book */}
@@ -586,29 +614,44 @@ export function OpportunitiesTable({
                     </div>
                   </td>
 
-                  {/* Sharp Odds (Reference) */}
+                  {/* Sharp Odds (Reference/Average/Model) */}
                   <td className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
-                        {opp.sharpPrice || "—"}
-                      </span>
-                      {opp.sharpBooks && opp.sharpBooks.length > 0 && (
-                        <div className="flex items-center -space-x-1">
-                          {opp.sharpBooks.slice(0, 3).map((book) => {
-                            const bookLogo = getBookLogo(book);
-                            return bookLogo ? (
-                              <img 
-                                key={book}
-                                src={bookLogo} 
-                                alt={getBookName(book)} 
-                                className="h-4 w-4 object-contain"
-                                title={getBookName(book)}
-                              />
-                            ) : null;
-                          })}
+                    {(() => {
+                      const sharpBooksCount = opp.sharpBooks?.length || 0;
+                      
+                      // Show logos for:
+                      // - Book mode or next_best mode (always)
+                      // - Custom mode when ≤3 books
+                      const shouldShowLogos = 
+                        comparisonMode === "book" || 
+                        comparisonMode === "next_best" || 
+                        (isCustomMode && sharpBooksCount <= 3 && sharpBooksCount > 0);
+                      
+                      return (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
+                            {opp.sharpPrice || "—"}
+                          </span>
+                          {/* Sportsbook logos */}
+                          {shouldShowLogos && opp.sharpBooks && opp.sharpBooks.length > 0 && (
+                            <div className="flex items-center -space-x-1">
+                              {opp.sharpBooks.slice(0, 3).map((book) => {
+                                const bookLogo = getBookLogo(book);
+                                return bookLogo ? (
+                                  <img 
+                                    key={book}
+                                    src={bookLogo} 
+                                    alt={getBookName(book)} 
+                                    className="h-4 w-4 object-contain"
+                                    title={getBookName(book)}
+                                  />
+                                ) : null;
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Fair Odds (Devigged) - hidden for next_best mode */}
@@ -761,11 +804,10 @@ export function OpportunitiesTable({
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
                       className={cn(
-                        "bg-neutral-50/50 dark:bg-neutral-900/50",
-                        index % 2 === 0 ? "bg-white dark:bg-neutral-950" : ""
+                        index % 2 === 0 ? "table-row-even" : "table-row-odd"
                       )}
                     >
-                      <td colSpan={comparisonMode === "next_best" ? 9 : 10} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                      <td colSpan={comparisonMode === "next_best" ? 10 : 11} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
                         <div className="flex items-center justify-center gap-3 flex-wrap">
                           {sortedBooks.map((book) => {
                             const bookLogo = getBookLogo(book.book);

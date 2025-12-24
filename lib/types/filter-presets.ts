@@ -66,6 +66,7 @@ export const PRESET_SPORTS = [
   { value: 'ncaab', label: 'NCAAB', icon: '🏀' },
   { value: 'ncaaf', label: 'NCAAF', icon: '🏈' },
   { value: 'wnba', label: 'WNBA', icon: '🏀' },
+  { value: 'soccer_epl', label: 'EPL', icon: '⚽' },
 ] as const;
 
 // Common sharp book presets for quick selection

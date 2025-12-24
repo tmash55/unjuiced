@@ -185,8 +185,9 @@ export function useFilterPresets() {
   const updatePreset = (id: string, updates: FilterPresetUpdate) => 
     updateMutation.mutateAsync({ id, updates });
   const deletePreset = (id: string) => deleteMutation.mutateAsync(id);
-  const togglePreset = (id: string, is_active: boolean) => 
-    toggleMutation.mutate({ id, is_active });
+  // Return a promise so callers can await batch toggles (manager modal save)
+  const togglePreset = (id: string, is_active: boolean) =>
+    toggleMutation.mutateAsync({ id, is_active });
 
   // Get presets grouped by sport (multi-sport presets go under "multi")
   const presetsBySport = presets.reduce((acc, preset) => {

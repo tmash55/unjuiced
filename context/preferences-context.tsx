@@ -102,6 +102,7 @@ interface PreferencesContextType {
     selectedSports?: string[];
     selectedLeagues?: string[];
     selectedMarkets?: string[];
+    marketLines?: Record<string, number[]>;
     minImprovement?: number;
     maxOdds?: number;
     minOdds?: number;
@@ -109,6 +110,8 @@ interface PreferencesContextType {
     sortBy?: string;
     searchQuery?: string;
     hideCollegePlayerProps?: boolean;
+    comparisonMode?: 'average' | 'book' | 'next_best';
+    comparisonBook?: string | null;
     showHidden?: boolean;
   }) => Promise<void>;
   

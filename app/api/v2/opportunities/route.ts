@@ -1123,7 +1123,7 @@ function deduplicateBooksForAverage(
  */
 function getSharpOdds(
   books: { book: string; decimal: number }[],
-  blend: BookWeight | null[],
+  blend: BookWeight[] | null,
   useAverage: boolean = false,
   minBlendBooks: number = 1
 ): {

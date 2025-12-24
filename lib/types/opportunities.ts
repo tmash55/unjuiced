@@ -5,10 +5,17 @@
  * No adapters needed - components use these directly.
  */
 
-export type Sport = "nba" | "nfl" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba";
-export type Side = "over" | "under";
+export type Sport = "nba" | "nfl" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba" | "soccer_epl";
+export type Side = "over" | "under" | "yes" | "no";
 export type DevigMethod = "proper" | "estimated";
 export type DevigSource = "sharp_book" | "sharp_blend" | "market_average";
+
+/**
+ * Betting limits info (max wager)
+ */
+export interface BookLimits {
+  max: number;
+}
 
 /**
  * A single book's odds for a selection
@@ -20,6 +27,7 @@ export interface BookOdds {
   decimal: number;
   link: string | null;
   sgp: string | null;      // SGP eligibility token
+  limits: BookLimits | null;  // Betting limits when available
 }
 
 /**
@@ -252,6 +260,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
       decimal: b.decimal as number,
       link: b.link as string | null,
       sgp: b.sgp as string | null,
+      limits: b.limits as { max: number } | null,
     })),
 
     sharpPrice: raw.sharp_price as string | null,
@@ -310,6 +319,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
             decimal: b.decimal as number,
             link: b.link as string | null,
             sgp: b.sgp as string | null,
+            limits: (b.limits as { max: number } | null) ?? null,
           })),
         }
       : null,
@@ -386,7 +396,34 @@ export function getOpportunityGrade(opp: Opportunity): "A" | "B" | "C" | "D" | n
 }
 
 /**
- * Get market display name
+ * Shorten market names to save space
+ * - Period prefixes: "1st Half" -> "1H", "2nd Quarter" -> "2Q"
+ * - Remove redundant "Player" prefix
+ */
+export function shortenPeriodPrefix(text: string): string {
+  return text
+    // Shorten period prefixes
+    .replace(/1st Quarter /i, "1Q ")
+    .replace(/2nd Quarter /i, "2Q ")
+    .replace(/3rd Quarter /i, "3Q ")
+    .replace(/4th Quarter /i, "4Q ")
+    .replace(/1st Half /i, "1H ")
+    .replace(/2nd Half /i, "2H ")
+    .replace(/First Quarter /i, "1Q ")
+    .replace(/Second Quarter /i, "2Q ")
+    .replace(/Third Quarter /i, "3Q ")
+    .replace(/Fourth Quarter /i, "4Q ")
+    .replace(/First Half /i, "1H ")
+    .replace(/Second Half /i, "2H ")
+    .replace(/1st Period /i, "P1 ")
+    .replace(/2nd Period /i, "P2 ")
+    .replace(/3rd Period /i, "P3 ")
+    // Remove redundant "Player" prefix
+    .replace(/Player /gi, "");
+}
+
+/**
+ * Get market display name with shortened period prefixes
  */
 export function formatMarketName(market: string): string {
   const names: Record<string, string> = {
@@ -408,6 +445,8 @@ export function formatMarketName(market: string): string {
     rushing_touchdowns: "Rush TDs",
     receptions: "Receptions",
   };
-  return names[market] || market.replace(/_/g, " ").replace(/player /i, "");
+  
+  const result = names[market] || market.replace(/_/g, " ").replace(/player /i, "");
+  return shortenPeriodPrefix(result);
 }
 

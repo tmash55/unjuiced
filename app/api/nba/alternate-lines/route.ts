@@ -321,13 +321,13 @@ export async function POST(req: NextRequest) {
     
     while (retries >= 0) {
       const { data, error } = await supabase
-        .from("nba_hit_rate_profiles")
-        .select("game_logs")
-        .eq("player_id", playerId)
-        .eq("market", market)
-        .order("game_date", { ascending: false })
-        .limit(1)
-        .single();
+      .from("nba_hit_rate_profiles")
+      .select("game_logs")
+      .eq("player_id", playerId)
+      .eq("market", market)
+      .order("game_date", { ascending: false })
+      .limit(1)
+      .single();
       
       if (error && (error.code === "503" || error.message?.includes("503") || error.message?.includes("timeout"))) {
         retries--;

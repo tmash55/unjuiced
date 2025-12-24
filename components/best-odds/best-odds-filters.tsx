@@ -252,6 +252,7 @@ export function BestOddsFilters({
     ncaab: 'NCAAB',
     mlb: 'MLB',
     wnba: 'WNBA',
+    soccer_epl: 'EPL',
   };
 
   // Define which markets have line options and what those options are
@@ -284,15 +285,40 @@ export function BestOddsFilters({
     const groups: Record<string, string[]> = {
       Basketball: [],
       Football: [],
+      Soccer: [],
       Hockey: [],
       Baseball: [],
     };
 
+    const leagueSelected = (leagueId: string) => {
+      // In this UI, an empty selection array means "all selected"
+      if (localLeagues.length === 0) return availableLeagues.includes(leagueId);
+      return localLeagues.includes(leagueId);
+    };
+
+    const soccerInScope = leagueSelected('soccer_epl');
+
     availableMarkets.forEach(market => {
       const m = market.toLowerCase();
+      const isHockeyPeriodMarket = m.startsWith('p1_') || m.startsWith('p2_') || m.startsWith('p3_');
 
+      // Soccer markets (place before Hockey so shared "goals" markets don't get bucketed as Hockey)
+      if (
+        soccerInScope &&
+        !isHockeyPeriodMarket &&
+        (m === 'player_goals' ||
+          m === 'total_goals' ||
+          m === 'total_goals_odd_even' ||
+          m === 'moneyline_3way' ||
+          m === 'draw_no_bet' ||
+          m === 'both_teams_to_score' ||
+          m.includes('corner') ||
+          m.includes('card'))
+      ) {
+        groups.Soccer.push(market);
+      }
       // Check for explicit sport markers first (highest priority)
-      if (m.includes('hockey')) {
+      else if (m.includes('hockey')) {
         groups.Hockey.push(market);
       }
       // Hockey-specific markets (check before basketball to avoid "block" overlap)
@@ -334,7 +360,7 @@ export function BestOddsFilters({
     });
 
     return groups;
-  }, [availableMarkets]);
+  }, [availableMarkets, localLeagues, availableLeagues]);
 
   const toggleBook = (id: string) => {
     if (locked) return;
@@ -557,14 +583,14 @@ export function BestOddsFilters({
             "flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium transition-colors border",
             "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800",
             "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700",
-            activeFiltersCount > 0 && "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+            activeFiltersCount > 0 && "border-neutral-400 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
           )}
           title="Filters"
         >
           <Filter className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Filters</span>
           {activeFiltersCount > 0 && (
-            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
+            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-neutral-700 dark:bg-neutral-500 px-1 text-[10px] font-semibold text-white">
               {activeFiltersCount}
             </span>
           )}
@@ -601,13 +627,13 @@ export function BestOddsFilters({
             )}
 
             {customPresetActive && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-700 dark:bg-neutral-600">
                   <Filter className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase tracking-wider">Custom Mode</p>
-                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wider">Custom Mode</p>
+                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
                     {activePresetName || "Custom Filter"}
                   </p>
                 </div>

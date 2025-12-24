@@ -95,13 +95,13 @@ export async function GET(request: Request) {
     
     while (retries >= 0) {
       const result = await supabase.rpc("get_hit_rate_profiles", {
-        p_dates: [todayET],
-        p_market: market || null,
-        p_min_hit_rate: minHitRate || null,
-        p_search: null,
-        p_limit: requestedLimit,
-        p_offset: 0,
-      });
+      p_dates: [todayET],
+      p_market: market || null,
+      p_min_hit_rate: minHitRate || null,
+      p_search: null,
+      p_limit: requestedLimit,
+      p_offset: 0,
+    });
       
       data = result.data;
       error = result.error;

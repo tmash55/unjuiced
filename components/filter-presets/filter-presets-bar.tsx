@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Settings, X, Sparkles, Filter, ChevronDown } from "lucide-react";
+import Logout from "@/icons/logout";
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
@@ -12,20 +13,65 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
+// CSS for static gradient border in custom mode
+const customModeStyles = `
+.custom-mode-glow {
+  position: relative;
+}
+.custom-mode-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 14px;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    #f472b6,
+    #c084fc,
+    #818cf8,
+    #60a5fa,
+    #34d399,
+    #fbbf24,
+    #fb923c,
+    #f472b6
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.6;
+}
+`;
+
 // Get sportsbook logo
 const getBookLogo = (bookId: string) => {
   const sb = getSportsbookById(bookId);
-  return sb?.image?.light || sb?.icon || null;
+  return sb?.image?.light || sb?.image?.dark || sb?.image?.square || sb?.image?.long || null;
 };
 
 // Render single or multi-sport icon cluster
 const renderSportsIcon = (sports: string[], sizePx = 14) => {
   if (!sports || sports.length === 0) {
-    return <SportIcon sport="nba" className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />;
+    return (
+      <span
+        className="inline-flex items-center justify-center"
+        style={{ width: sizePx, height: sizePx }}
+      >
+        <SportIcon sport="nba" className="w-full h-full" />
+      </span>
+    );
   }
 
   if (sports.length === 1) {
-    return <SportIcon sport={sports[0]} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />;
+    return (
+      <span
+        className="inline-flex items-center justify-center"
+        style={{ width: sizePx, height: sizePx }}
+      >
+        <SportIcon sport={sports[0]} className="w-full h-full" />
+      </span>
+    );
   }
 
   const first = sports[0];
@@ -34,10 +80,20 @@ const renderSportsIcon = (sports: string[], sizePx = 14) => {
   return (
     <div className="flex -space-x-1 items-center">
       <div className="rounded-full ring-1 ring-white dark:ring-neutral-800">
-        <SportIcon sport={first} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />
+        <span
+          className="inline-flex items-center justify-center"
+          style={{ width: sizePx, height: sizePx }}
+        >
+          <SportIcon sport={first} className="w-full h-full" />
+        </span>
       </div>
       <div className="rounded-full ring-1 ring-white dark:ring-neutral-800">
-        <SportIcon sport={second} className="w-4 h-4" style={{ width: sizePx, height: sizePx }} />
+        <span
+          className="inline-flex items-center justify-center"
+          style={{ width: sizePx, height: sizePx }}
+        >
+          <SportIcon sport={second} className="w-full h-full" />
+        </span>
       </div>
     </div>
   );
@@ -199,19 +255,28 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
 
   return (
     <>
+      {/* Inject styles for animated gradient border */}
+      {isCustomMode && <style>{customModeStyles}</style>}
+      
       <div className={cn(
         "flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all",
-        "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50",
+        isCustomMode 
+          ? "custom-mode-glow border-transparent bg-white dark:bg-neutral-900/80"
+          : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50",
         className
       )}>
         {/* Mode Badge */}
         <div className={cn(
           "flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors",
           isCustomMode 
-            ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100" 
+            ? "bg-gradient-to-r from-pink-100 via-purple-100 to-blue-100 dark:from-pink-900/30 dark:via-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300" 
             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
         )}>
-          <Filter className="w-3 h-3" />
+          {isCustomMode ? (
+            <Sparkles className="w-3 h-3" />
+          ) : (
+            <Filter className="w-3 h-3" />
+          )}
           <span>{isCustomMode ? "Custom" : "Preset"}</span>
         </div>
 
@@ -425,10 +490,10 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
             <Tooltip content="Exit custom mode">
               <button
                 onClick={() => activePresets.forEach(p => togglePreset(p.id, false))}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               >
-                <X className="w-3 h-3" />
-                <span className="hidden sm:inline">Exit</span>
+                <span>Exit</span>
+                <Logout className="w-3.5 h-3.5" />
               </button>
             </Tooltip>
           </>

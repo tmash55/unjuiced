@@ -34,7 +34,7 @@ import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 
 // Available leagues for the filters component
-const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba"];
+const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
 
 // Available markets (subset of common player props)
 const AVAILABLE_MARKETS = [
@@ -223,7 +223,7 @@ export default function EdgeFinderV2Page() {
   if (planLoading) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <LoadingState text="Loading Edge Finder V2..." />
+        <LoadingState message="Loading Edge Finder V2..." />
       </div>
     );
   }
@@ -236,7 +236,7 @@ export default function EdgeFinderV2Page() {
         <ToolSubheading>
           {isLoading
             ? "Loading opportunities..."
-            : `${filteredOpportunities.length} opportunities found`}
+            : `${filteredOpportunities.length}+ opportunities found`}
         </ToolSubheading>
       </div>
 
@@ -249,10 +249,10 @@ export default function EdgeFinderV2Page() {
       {/* Filters Bar */}
       <div className="mb-6 relative z-10">
         <FiltersBar>
-          <FiltersBarSection>
+          <FiltersBarSection align="left">
             {/* Search */}
             <div className="relative">
-              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-neutral-500" />
               <Input
                 placeholder="Search players, teams..."
                 value={searchLocal}
@@ -261,7 +261,9 @@ export default function EdgeFinderV2Page() {
                 disabled={locked}
               />
             </div>
+          </FiltersBarSection>
 
+          <FiltersBarSection align="right">
             {/* V1 BestOddsFilters component - handles all advanced filtering */}
             <BestOddsFilters
               prefs={prefs}
@@ -288,7 +290,7 @@ export default function EdgeFinderV2Page() {
               onToggleShowHidden={handleToggleShowHidden}
               onClearAllHidden={clearAllHidden}
               customPresetActive={isCustomMode}
-              activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : null}
+              activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : undefined}
             />
           </FiltersBarSection>
         </FiltersBar>
@@ -320,6 +322,7 @@ export default function EdgeFinderV2Page() {
               : undefined
         }
         excludedBooks={prefs.selectedBooks}
+        isCustomMode={isCustomMode}
       />
 
       {/* Load more button */}
