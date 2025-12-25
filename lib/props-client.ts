@@ -94,3 +94,84 @@ export async function fetchAlternates(sport: string, sid: string): Promise<Props
   const json = await res.json();
   return (json?.family || null) as PropsFamily | null;
 }
+
+// =============================================================================
+// V2 API Functions (using new SSE key structure: odds:{sport}:{eventId}:{market}:{book})
+// =============================================================================
+
+export async function fetchPropsTableV2(params: {
+  sport: string;
+  market: string;
+  scope: PropsScope;
+  limit?: number;
+}): Promise<{ sids: string[]; rows: PropsRow[]; nextCursor: string | null; meta?: any }> {
+  const sp = new URLSearchParams();
+  sp.set("sport", params.sport);
+  sp.set("market", params.market);
+  sp.set("scope", params.scope);
+  if (params.limit != null) sp.set("limit", String(params.limit));
+  
+  const res = await fetch(`/api/v2/props/table?${sp.toString()}`, { 
+    credentials: "include", 
+    cache: "no-store" 
+  });
+  if (!res.ok) throw new Error(`GET /api/v2/props/table ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMarketsV2(sport: string): Promise<{ 
+  sport: string;
+  markets: Array<{ key: string; display: string; eventCount: number }>;
+  count: number;
+}> {
+  const sp = new URLSearchParams();
+  sp.set("sport", sport);
+  
+  const res = await fetch(`/api/v2/props/markets?${sp.toString()}`, { 
+    credentials: "include", 
+    cache: "no-store" 
+  });
+  if (!res.ok) throw new Error(`GET /api/v2/props/markets ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAlternatesV2(params: {
+  sport: string;
+  eventId: string;
+  market: string;
+  player: string;
+  primaryLine?: number;
+}): Promise<{
+  eventId: string;
+  sport: string;
+  market: string;
+  player: string | null;
+  team: string | null;
+  position: string | null;
+  primary_ln: number | null;
+  alternates: Array<{
+    ln: number;
+    books: Record<string, {
+      over?: { price: number; decimal: number; link: string | null; limit_max?: number | null };
+      under?: { price: number; decimal: number; link: string | null; limit_max?: number | null };
+    }>;
+    best?: {
+      over?: { bk: string; price: number };
+      under?: { bk: string; price: number };
+    };
+  }>;
+}> {
+  const sp = new URLSearchParams();
+  sp.set("sport", params.sport);
+  sp.set("eventId", params.eventId);
+  sp.set("market", params.market);
+  sp.set("player", params.player);
+  if (params.primaryLine !== undefined) sp.set("primaryLine", String(params.primaryLine));
+  
+  const res = await fetch(`/api/v2/props/alternates?${sp.toString()}`, { 
+    credentials: "include", 
+    cache: "no-store" 
+  });
+  if (!res.ok) throw new Error(`GET /api/v2/props/alternates ${res.status}`);
+  return res.json();
+}

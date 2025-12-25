@@ -15,10 +15,18 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// Cache TTL in seconds - how long to cache per-sport raw opportunities
-const SPORT_CACHE_TTL = 45; // 45 seconds - balance between freshness and performance
+// OPTIMIZATION: Cache settings balanced for freshness + efficiency
+const SPORT_CACHE_TTL = 20; // 20 seconds - fresh for SSE "Light Payload" strategy
 const ENABLE_CACHE = true; // Set to false to disable caching for debugging
-const SCAN_COUNT = 500; // Increase scan batch size for fewer round trips
+const SCAN_COUNT = 1000; // Higher = fewer round trips to Redis
+const MGET_CHUNK_SIZE = 500; // Upstash limit per MGET
+
+// Performance: Pre-warm hint for when SSE triggers a refetch
+// If provided, skip full recalculation and just invalidate cache
+const FAST_PATH_ENABLED = true;
+
+// OPTIMIZATION: Track timing for monitoring
+const TIMING_ENABLED = process.env.NODE_ENV === 'development';
 
 /**
  * Generate a cache key for raw sport opportunities
@@ -65,11 +73,43 @@ function formatPosition(position: string | null): string | null {
   return position;
 }
 
-// Supported sports
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba"]);
+// Supported sports (including soccer)
+const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba", "soccer_epl"]);
+
+/**
+ * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
+ */
+function normalizeBookId(id: string): string {
+  const lower = id.toLowerCase();
+  switch (lower) {
+    case "hardrock":
+      return "hard-rock";
+    case "hardrockindiana":
+    case "hardrock-indiana":
+      return "hard-rock-indiana";
+    case "ballybet":
+      return "bally-bet";
+    case "sportsinteraction":
+      return "sports-interaction";
+    // FanDuel YourWay - matches sportsbooks.ts ID
+    case "fanduel-yourway":
+    case "fanduel_yourway":
+      return "fanduelyourway";
+    default:
+      return lower;
+  }
+}
 
 // Books to exclude from all calculations (regional variants, inactive books, etc.)
 const EXCLUDED_BOOKS = new Set(["hard-rock-indiana", "hardrockindiana"]);
+
+// OPTIMIZATION: Known active books for pipeline construction (avoids wildcard scans)
+const KNOWN_ACTIVE_BOOKS = [
+  "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
+  "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
+  "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff"
+];
 
 // Types
 interface BookWeight {
@@ -223,6 +263,15 @@ export async function GET(req: NextRequest) {
     
     if (sports.length === 0) {
       return NextResponse.json({ error: "No valid sports provided" }, { status: 400 });
+    }
+
+    // SSE Fast-Path: If frontend provides "refresh" param, invalidate caches first
+    // This ensures fresh data when SSE indicates updates
+    const refreshHint = params.get("refresh");
+    if (refreshHint === "true" || refreshHint === "1") {
+      // Invalidate all sport caches to ensure fresh data
+      sports.forEach(sport => invalidateSportCaches(sport));
+      console.log(`[API] SSE refresh hint: invalidated caches for ${sports.join(", ")}`);
     }
 
     const markets = params.get("markets")?.toLowerCase().split(",").filter(Boolean) || null;
@@ -553,13 +602,13 @@ async function fetchSportOpportunities(
   const pairMap = new Map<string, SelectionPair>();
 
   try {
-    // Get active events and odds keys in parallel for better performance
-    const [eventIds, allOddsKeys] = await Promise.all([
-      getActiveEventIds(sport),
-      getOddsKeys(sport)
-    ]);
+    // Step 1: Get active events (small set, O(1) from SMEMBERS)
+    const eventIds = await getActiveEventIds(sport);
+    if (eventIds.length === 0) return [];
     
-    if (eventIds.length === 0 || allOddsKeys.length === 0) return [];
+    // Step 2: Get odds keys scoped to active events only (focused scans)
+    const allOddsKeys = await getOddsKeysForEvents(sport, eventIds);
+    if (allOddsKeys.length === 0) return [];
 
     // Filter keys to only active events and group by event+market
     const eventIdSet = new Set(eventIds);
@@ -676,7 +725,8 @@ async function fetchSportOpportunities(
       // Build book → selections map from pre-fetched data
       const bookSelections: Record<string, SSEBookSelections> = {};
       for (const key of marketKeys) {
-        const book = key.split(":").pop()!;
+        const rawBook = key.split(":").pop()!;
+        const book = normalizeBookId(rawBook);
         const data = oddsDataMap.get(key);
         if (data) {
           bookSelections[book] = data;
@@ -1236,25 +1286,29 @@ function decimalToAmerican(decimal: number): number {
 
 /**
  * Get active event IDs for a sport - with caching
+ * OPTIMIZATION: uses memory cache first (0ms), then Redis SET (O(1)), then SCAN fallback
+ * NOTE: If active_events:{sport} set doesn't exist, ingestor needs to populate it
  */
 const eventIdsCache = new Map<string, { ids: string[]; timestamp: number }>();
-const EVENT_IDS_CACHE_TTL = 30000; // 30 seconds in ms
+const EVENT_IDS_CACHE_TTL = 30000; // 30 seconds - longer cache since SCAN is expensive
 
 async function getActiveEventIds(sport: string): Promise<string[]> {
-  // Check memory cache first (fastest)
+  // Check memory cache first (fastest - 0ms)
   const cached = eventIdsCache.get(sport);
   if (cached && (Date.now() - cached.timestamp) < EVENT_IDS_CACHE_TTL) {
     return cached.ids;
   }
 
-  // Try active events set first (optimized path)
+  // Try active events set first (O(1) - maintained by ingestor)
   const activeSet = await redis.smembers(`active_events:${sport}`);
   if (activeSet && activeSet.length > 0) {
-    eventIdsCache.set(sport, { ids: activeSet, timestamp: Date.now() });
-    return activeSet;
+    const ids = activeSet.map(String);
+    eventIdsCache.set(sport, { ids, timestamp: Date.now() });
+    return ids;
   }
 
-  // Fallback to scanning event keys (slower path)
+  // Fallback to scanning event keys (slower - only if set not maintained)
+  console.warn(`[API] active_events:${sport} empty, falling back to SCAN`);
   const eventKeys = await scanKeys(`events:${sport}:*`);
   const ids = eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
   eventIdsCache.set(sport, { ids, timestamp: Date.now() });
@@ -1262,45 +1316,95 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
 }
 
 /**
- * Get odds keys for a sport - tries optimized set first, then scan
+ * Invalidate event cache for a sport - called when SSE indicates updates
+ */
+function invalidateEventCache(sport: string): void {
+  eventIdsCache.delete(sport);
+}
+
+/**
+ * Get odds keys for specific events - SCOPED SCANNING
+ * Architecture: active_events (small set) + per-event scans (focused)
+ * This avoids maintaining a massive global odds_keys set that's hard to clean up
  */
 const oddsKeysCache = new Map<string, { keys: string[]; timestamp: number }>();
-const ODDS_KEYS_CACHE_TTL = 15000; // 15 seconds in ms
+const ODDS_KEYS_CACHE_TTL = 20000; // 20 seconds
 
-async function getOddsKeys(sport: string): Promise<string[]> {
-  // Check memory cache first
-  const cached = oddsKeysCache.get(sport);
+async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
+  // Cache key includes event count for invalidation when events change
+  const cacheKey = `${sport}:${eventIds.length}`;
+  
+  // Check memory cache first (fastest - 0ms)
+  const cached = oddsKeysCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < ODDS_KEYS_CACHE_TTL) {
     return cached.keys;
   }
 
-  // Try odds keys set first (if available)
-  const oddsSet = await redis.smembers(`odds_keys:${sport}`);
-  if (oddsSet && oddsSet.length > 0) {
-    oddsKeysCache.set(sport, { keys: oddsSet, timestamp: Date.now() });
-    return oddsSet;
+  // OPTIMIZED: Scan only for active events (scoped, not global)
+  // This is efficient because we only scan keys for ~10-50 active games
+  const allKeys: string[] = [];
+  
+  // Batch scans in parallel for speed (limit concurrency to avoid overwhelming Redis)
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
+    const batch = eventIds.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(eventId => scanKeysForEvent(sport, eventId))
+    );
+    allKeys.push(...batchResults.flat());
   }
+  
+  oddsKeysCache.set(cacheKey, { keys: allKeys, timestamp: Date.now() });
+  return allKeys;
+}
 
-  // Fallback to scan (slower)
-  const keys = await scanKeys(`odds:${sport}:*`);
-  oddsKeysCache.set(sport, { keys, timestamp: Date.now() });
-  return keys;
+/**
+ * Scan keys for a single event - focused scan pattern
+ */
+async function scanKeysForEvent(sport: string, eventId: string): Promise<string[]> {
+  const pattern = `odds:${sport}:${eventId}:*`;
+  return scanKeys(pattern);
+}
+
+/**
+ * Invalidate odds cache for a sport - called when SSE indicates updates
+ */
+function invalidateOddsCache(sport: string): void {
+  oddsKeysCache.delete(sport);
+}
+
+/**
+ * Invalidate all caches for a sport - useful for SSE-triggered refreshes
+ */
+function invalidateSportCaches(sport: string): void {
+  invalidateEventCache(sport);
+  invalidateOddsCache(sport);
 }
 
 /**
  * Scan Redis keys with pattern - optimized for fewer round trips
+ * Uses high SCAN_COUNT for fewer iterations
  */
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
   let cursor = "0";
+  let iterations = 0;
+  const MAX_ITERATIONS = 50; // Safety limit
 
   do {
+    iterations++;
     const result: [string, string[]] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT, // Higher count = fewer round trips
     });
     cursor = result[0];
     keys.push(...result[1]);
+    
+    // Safety: prevent infinite loops
+    if (iterations >= MAX_ITERATIONS) {
+      console.warn(`[scanKeys] Hit iteration limit for pattern: ${pattern}`);
+      break;
+    }
   } while (cursor !== "0");
 
   return keys;

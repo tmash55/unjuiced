@@ -86,9 +86,9 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
         <button
           onClick={onClick}
           className={cn(
-            'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium',
+            'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium rounded-md',
             isHighlighted && 'sportsbook-cell--highlighted',
-            // Match player-props behavior: flash when either price or line changes
+            // Premium animation: subtle background glow that holds for 6 seconds
             (priceChanged || lineChanged) && (isPositiveChange ? 'animate-odds-flash-positive' : 'animate-odds-flash-negative')
           )}
         >
@@ -98,8 +98,11 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                 <div className="text-sm font-semibold leading-tight">
                   <span
                     className={cn(
-                      priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'),
-                      'transition-colors'
+                      // Animated text color that fades with the background
+                      priceChanged && (isPositiveChange 
+                        ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
+                        : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                      )
                     )}
                   >
                     {formatOdds(odds.price)}
@@ -114,11 +117,18 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
               // Other markets: Show line and odds
               <div className="text-xs font-medium leading-tight">
                 <div>
-                  <span className={`opacity-75 ${lineChanged ? 'animate-odds-flash-line px-1 rounded' : ''}`}>{formatLine(odds.line, side)}</span>
+                  <span className={cn(
+                    'opacity-75 px-0.5 rounded',
+                    lineChanged && 'animate-odds-flash-line'
+                  )}>{formatLine(odds.line, side)}</span>
                   <span
                     className={cn(
-                      'ml-1 font-semibold transition-colors',
-                      priceChanged && (isPositiveChange ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400')
+                      'ml-1 font-semibold',
+                      // Animated text color that syncs with background
+                      priceChanged && (isPositiveChange 
+                        ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
+                        : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                      )
                     )}
                   >
                     {formatOdds(odds.price)}
@@ -1159,33 +1169,36 @@ export function OddsTable({
       }
     })
 
+    // Animation duration: 6 seconds (matches CSS animation)
+    const ANIMATION_DURATION = 6500 // Slightly longer than CSS to ensure cleanup
+
     if (changed.size > 0) {
       setChangedRows(changed)
-      setTimeout(() => setChangedRows(new Set()), 2000) // Clear after 2s
+      setTimeout(() => setChangedRows(new Set()), ANIMATION_DURATION)
     }
 
     if (added.size > 0) {
       setNewRows(added)
-      setTimeout(() => setNewRows(new Set()), 3000) // Clear after 3s
+      setTimeout(() => setNewRows(new Set()), ANIMATION_DURATION)
     }
 
     if (priceChanged.size > 0) {
       setChangedPriceCells(priceChanged)
-      setTimeout(() => setChangedPriceCells(new Set()), 1500)
+      setTimeout(() => setChangedPriceCells(new Set()), ANIMATION_DURATION)
     }
     if (lineChanged.size > 0) {
       setChangedLineCells(lineChanged)
-      setTimeout(() => setChangedLineCells(new Set()), 1500)
+      setTimeout(() => setChangedLineCells(new Set()), ANIMATION_DURATION)
     }
 
-    // Set positive/negative changes and clear after 5 seconds
+    // Positive/negative odds direction - same duration for consistency
     if (positiveOddsChanges.size > 0) {
       setPositiveOddsChanges(positiveOddsChanges)
-      setTimeout(() => setPositiveOddsChanges(new Set()), 5000)
+      setTimeout(() => setPositiveOddsChanges(new Set()), ANIMATION_DURATION)
     }
     if (negativeOddsChanges.size > 0) {
       setNegativeOddsChanges(negativeOddsChanges)
-      setTimeout(() => setNegativeOddsChanges(new Set()), 5000)
+      setTimeout(() => setNegativeOddsChanges(new Set()), ANIMATION_DURATION)
     }
 
     prevDataRef.current = currentMap
@@ -2623,6 +2636,10 @@ export function OddsTable({
                         isPro={isPro}
                         setShowProGate={setShowProGate}
                         rowClassName={rowBg}
+                        // V2 API params for alternates
+                        eventId={item.event?.id}
+                        market={market}
+                        playerKey={item.entity?.id}
                       >
                         {cells}
                       </ExpandableRowWrapper>

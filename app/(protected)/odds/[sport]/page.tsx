@@ -268,17 +268,17 @@ function SportOddsContent({
     return items.map((m) => ({ key: m.apiKey, label: m.label, available: true }))
   }
 
-  // Fetch data when parameters change (using new props API with pub/sub support)
-  const queryKey = ['odds-props', sport, type, marketState, scope]
+  // Fetch data when parameters change (using v2 props API with new key structure)
+  const queryKey = ['odds-props-v2', sport, type, marketState, scope]
   const { data: queryData, isLoading, isError, error: queryError, isFetching, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      // Use new props API with transformation adapter
-      const url = `/api/props/table?sport=${encodeURIComponent(sport)}&market=${encodeURIComponent(marketState)}&scope=${encodeURIComponent(scope)}&limit=300`
+      // Use v2 props API with new SSE key structure
+      const url = `/api/v2/props/table?sport=${encodeURIComponent(sport)}&market=${encodeURIComponent(marketState)}&scope=${encodeURIComponent(scope)}&limit=300`
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[FETCH] Requesting: ${url}`)
-        console.log(`[FETCH] Redis key would be: props:${sport}:sort:roi:${scope}:${marketState}`)
+        console.log(`[FETCH v2] Requesting: ${url}`)
+        console.log(`[FETCH v2] Using new key structure: odds:${sport}:*:${marketState}:*`)
       }
       
       const startTime = performance.now()
@@ -286,14 +286,14 @@ function SportOddsContent({
       
       if (!res.ok) {
         const errorText = await res.text()
-        console.error(`[FETCH] Error response:`, errorText)
+        console.error(`[FETCH v2] Error response:`, errorText)
         throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       }
       
       const propsResponse = await res.json()
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[FETCH] Received ${propsResponse.rows?.length || 0} rows`)
+        console.log(`[FETCH v2] Received ${propsResponse.rows?.length || 0} rows in ${propsResponse.meta?.duration_ms || 0}ms`)
       }
       
       // Transform props format to OddsTableItem format
@@ -302,7 +302,7 @@ function SportOddsContent({
       
       const duration = performance.now() - startTime
       if (duration > 1000) {
-        console.warn(`[FETCH] Slow API response: ${duration.toFixed(0)}ms`)
+        console.warn(`[FETCH v2] Slow API response: ${duration.toFixed(0)}ms`)
       }
       
       return {
@@ -355,93 +355,62 @@ function SportOddsContent({
   }, [queryData, scope])
 
   // SSE Integration for Pro users (VC-grade efficiency)
-  const handleSSEUpdate = useCallback(async (message: any) => {
+  // V2 payload format: { type: "update", keys: ["odds:nba:event123:player_points:draftkings", ...], count: N, timestamp: "..." }
+  const handleSSEUpdateV2 = useCallback(async (message: any) => {
     const perfStart = performance.now();
-    const { add = [], upd = [], del = [] } = message;
     
     try {
-      // Early exit: no updates
-      if (add.length === 0 && upd.length === 0 && del.length === 0) return;
+      // V2 format: { type, keys, count, events_updated, timestamp }
+      const { type: msgType, keys = [], count = 0 } = message;
       
-      // Handle deletions (O(n) filter)
-      if (del.length > 0) {
-        const delSet = new Set(del);
-        setData(prev => prev.filter(item => !delSet.has(item.id)));
+      // Only process update messages
+      if (msgType !== 'update' || !Array.isArray(keys) || keys.length === 0) {
+        return;
       }
       
-      // Handle additions and updates
-      const needIds = [...new Set([...add, ...upd])];
-      if (needIds.length === 0) return;
+      // Parse keys to check if any match our current market
+      // Key format: odds:{sport}:{eventId}:{market}:{book}
+      const relevantUpdates = keys.filter((key: string) => {
+        const parts = key.split(':');
+        if (parts.length < 5) return false;
+        const [, keySport, , keyMarket] = parts;
+        // Only process updates for our current sport and market
+        return keySport === sport && keyMarket === marketState;
+      });
       
-      // Fetch updated rows (use typed client to keep params consistent)
-      const { fetchPropsRows } = await import('@/lib/props-client');
-      const fetchedRows = await fetchPropsRows(sport, needIds);
-      
-      if (!Array.isArray(fetchedRows)) return;
-      
-      // Single-pass filter: null rows + market/type match
-      const validRows = fetchedRows.reduce((acc: any[], item: any) => {
-        if (!item.row) return acc;
-        
-        const row = item.row;
-        // Defensive check: skip rows without valid ent property
-        if (!row.ent || typeof row.ent !== 'string') return acc;
-        
-        const matchesMarket = row.mkt === marketState;
-        const isPlayerRow = row.player !== null || row.ent?.startsWith('pid:');
-        const matchesType = (type === 'player') === isPlayerRow;
-        
-        if (matchesMarket && matchesType) acc.push(row);
-        return acc;
-      }, []);
-      
-      if (validRows.length === 0) return;
-      
-      // Transform (lazy-load adapter)
-      const { transformPropsResponseToOddsScreen } = await import('@/lib/api-adapters/props-to-odds');
-      const updatedItems = transformPropsResponseToOddsScreen(
-        { sids: [], rows: validRows, nextCursor: null },
-        type as 'player' | 'game'
-      );
-      
-      // Merge updates (O(n) with Map lookup)
-      setData(prevData => {
-        const updatedMap = new Map(updatedItems.map(item => [item.id, item]));
-        const merged = prevData.map(item => updatedMap.get(item.id) ?? item);
-        
-        // Apply pregame filter if in pregame mode
-        if (scope === 'pregame') {
-          const now = new Date();
-          return merged.filter(item => {
-            if (item.event?.startTime) {
-              const startTime = new Date(item.event.startTime);
-              return startTime.getTime() > now.getTime() - (5 * 60 * 1000);
-            }
-            return true;
-          });
+      if (relevantUpdates.length === 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[SSE v2] Skipping ${count} updates (no match for ${sport}/${marketState})`);
         }
-        
-        return merged;
-    });
-    
-    // Performance logging (dev only)
+        return;
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[SSE v2] 📡 ${relevantUpdates.length}/${count} updates match ${sport}/${marketState}`);
+      }
+      
+      // Trigger a refetch to get fresh data from v2 API
+      // This is more efficient than incremental updates for the new key structure
+      await refetch();
+      
       if (process.env.NODE_ENV === 'development') {
         const perfEnd = performance.now();
-        console.log(`[SSE] ⚡ ${validRows.length} rows in ${(perfEnd - perfStart).toFixed(1)}ms`);
+        console.log(`[SSE v2] ⚡ Refetched in ${(perfEnd - perfStart).toFixed(1)}ms`);
       }
     } catch (error) {
-      console.error('[SSE] Update failed:', error);
+      console.error('[SSE v2] Update failed:', error);
     }
-  }, [sport, type, marketState, scope]);
+  }, [sport, marketState, refetch]);
   
   // SSE enabled for Pro users (works for both pregame and live)
   const sseEnabled = shouldUseLiveUpdates
   
+  // Use V2 SSE endpoint with new channel format (odds_updates:{sport})
   const { isConnected: sseConnected, isReconnecting: sseReconnecting, hasFailed: sseFailed } = useSSE(
-    `/api/sse/props?sport=${sport}`,
+    `/api/v2/sse/props?sport=${sport}`,
     {
       enabled: sseEnabled,
-      onMessage: handleSSEUpdate,
+      onMessage: handleSSEUpdateV2,
       onError: (error) => {
         if (process.env.NODE_ENV === 'development') {
           console.error('[SSE] Connection error:', error)

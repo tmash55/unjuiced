@@ -89,6 +89,10 @@ interface ExpandableRowWrapperProps {
   includeAlternates?: boolean; // Whether to enable alternates expansion
   isPro?: boolean; // Whether user is Pro (for deep linking)
   setShowProGate?: (show: boolean) => void; // Show Pro gate modal
+  // V2 API params
+  eventId?: string; // Event ID for v2 alternates
+  market?: string; // Market key for v2 alternates
+  playerKey?: string; // Normalized player key for v2 alternates
 }
 
 // Client-side cache with TTL (60 seconds)
@@ -120,6 +124,9 @@ export function ExpandableRowWrapper({
   isPro = false,
   setShowProGate,
   rowClassName,
+  eventId,
+  market,
+  playerKey,
 }: ExpandableRowWrapperProps & { rowClassName?: string }) {
   // Always call hooks at the top level (Rules of Hooks)
   const [isExpanded, setIsExpanded] = useState(false);
@@ -130,6 +137,7 @@ export function ExpandableRowWrapper({
 
   /**
    * Fetch alternates from API with caching
+   * Uses v2 API when eventId, market, and playerKey are available
    */
   const fetchAlternates = useCallback(async () => {
     // Don't fetch if alternates are disabled
@@ -150,30 +158,52 @@ export function ExpandableRowWrapper({
     setError(null);
     
     try {
-      const query = new URLSearchParams({ sport, sid });
-      const response = await fetch(`/api/props/alternates?${query.toString()}`);
+      let url: string;
+      
+      // Use v2 API if we have the required params
+      if (eventId && market && playerKey) {
+        const query = new URLSearchParams({ 
+          sport, 
+          eventId, 
+          market, 
+          player: playerKey,
+          ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
+        });
+        url = `/api/v2/props/alternates?${query.toString()}`;
+        console.log(`[Alternates v2] Fetching: ${url}`);
+      } else {
+        // Fall back to v1 API
+        const query = new URLSearchParams({ sport, sid });
+        url = `/api/props/alternates?${query.toString()}`;
+        console.log(`[Alternates v1] Fetching: ${url}`);
+      }
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const result: AlternatesResponse = await response.json();
+      const result = await response.json();
+      
+      // v2 API returns "alternates" array, same as v1
+      const alternatesData = result.alternates || [];
       
       // Update cache
       alternatesCache.set(cacheKey, {
-        data: result,
+        data: { ...result, alternates: alternatesData },
         timestamp: Date.now(),
       });
       
-      setAlternates(result.alternates || []);
-      console.log(`[Alternates] Fetched ${result.alternates.length} alternates for ${sid}`);
+      setAlternates(alternatesData);
+      console.log(`[Alternates] Fetched ${alternatesData.length} alternates for ${sid}`);
     } catch (err: any) {
       console.error("[Alternates] Fetch error:", err);
       setError(err.message || "Failed to load alternates");
     } finally {
       setLoading(false);
     }
-  }, [sport, sid, includeAlternates]);
+  }, [sport, sid, includeAlternates, eventId, market, playerKey, primaryLine]);
 
   /**
    * Toggle expand/collapse

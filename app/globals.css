@@ -247,11 +247,21 @@
   }
 
   /* Odds update animations */
-  /* Smoother, more polished odds change animations */
+  /* Premium, polished odds change animations - visible for ~6 seconds */
+  /* Pattern: Quick flash in (5%) → Hold visible (80%) → Gentle fade out (15%) */
+  
   @keyframes odds-flash-bg-positive {
     0% { 
-      background: color-mix(in oklab, var(--accent) 25%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent) inset;
+      background: color-mix(in oklab, var(--accent) 35%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 40%, transparent) inset;
+    }
+    5% { 
+      background: color-mix(in oklab, var(--accent) 20%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent) inset;
+    }
+    80% { 
+      background: color-mix(in oklab, var(--accent) 15%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 20%, transparent) inset;
     }
     100% { 
       background: transparent;
@@ -261,8 +271,16 @@
 
   @keyframes odds-flash-bg-negative {
     0% { 
-      background: color-mix(in oklab, #EF4444 25%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 35%, transparent) inset;
+      background: color-mix(in oklab, #EF4444 35%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in oklab, #EF4444 40%, transparent) inset;
+    }
+    5% { 
+      background: color-mix(in oklab, #EF4444 20%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 30%, transparent) inset;
+    }
+    80% { 
+      background: color-mix(in oklab, #EF4444 15%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 20%, transparent) inset;
     }
     100% { 
       background: transparent;
@@ -272,13 +290,34 @@
 
   @keyframes odds-flash-bg-line {
     0% { 
-      background: color-mix(in oklab, var(--primary) 25%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent) inset;
+      background: color-mix(in oklab, var(--primary) 30%, transparent);
+      box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 30%, transparent) inset;
+    }
+    5% { 
+      background: color-mix(in oklab, var(--primary) 18%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent) inset;
+    }
+    80% { 
+      background: color-mix(in oklab, var(--primary) 12%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 15%, transparent) inset;
     }
     100% { 
       background: transparent;
       box-shadow: 0 0 0 0 transparent inset;
     }
+  }
+  
+  /* Text color pulse for odds changes - subtle pulse effect */
+  @keyframes odds-text-positive {
+    0%, 5% { color: var(--color-green-600); }
+    80% { color: var(--color-green-500); }
+    100% { color: inherit; }
+  }
+  
+  @keyframes odds-text-negative {
+    0%, 5% { color: var(--color-red-600); }
+    80% { color: var(--color-red-500); }
+    100% { color: inherit; }
   }
 }
 /* 2) Light theme (source of truth) */
@@ -737,15 +776,22 @@ code .line::before {
 @utility animate-spinner {
   animation: spinner-bar-fade 1.2s linear infinite;
 }
-/* Convenience utility classes for odds flashes */
+/* Convenience utility classes for odds flashes - 6 second duration */
 @utility animate-odds-flash-positive {
-  animation: odds-flash-bg-positive 600ms ease-out 1;
+  animation: odds-flash-bg-positive 6s ease-out 1;
 }
 @utility animate-odds-flash-negative {
-  animation: odds-flash-bg-negative 600ms ease-out 1;
+  animation: odds-flash-bg-negative 6s ease-out 1;
 }
 @utility animate-odds-flash-line {
-  animation: odds-flash-bg-line 600ms ease-out 1;
+  animation: odds-flash-bg-line 6s ease-out 1;
+}
+/* Text color animation utilities */
+@utility animate-odds-text-positive {
+  animation: odds-text-positive 6s ease-out 1;
+}
+@utility animate-odds-text-negative {
+  animation: odds-text-negative 6s ease-out 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

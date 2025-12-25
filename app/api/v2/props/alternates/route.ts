@@ -1,0 +1,350 @@
+export const runtime = "edge";
+
+import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
+import { SSESelection, SSEBookSelections } from "@/lib/odds/types";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+const VALID_SPORTS = new Set([
+  "nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba", "soccer_epl"
+]);
+
+const SCAN_COUNT = 500;
+
+/**
+ * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
+ */
+function normalizeBookId(id: string): string {
+  const lower = id.toLowerCase();
+  switch (lower) {
+    case "hardrock":
+      return "hard-rock";
+    case "hardrockindiana":
+    case "hardrock-indiana":
+      return "hard-rock-indiana";
+    case "ballybet":
+      return "bally-bet";
+    case "sportsinteraction":
+      return "sports-interaction";
+    // FanDuel YourWay - matches sportsbooks.ts ID
+    case "fanduel-yourway":
+    case "fanduel_yourway":
+      return "fanduelyourway";
+    default:
+      return lower;
+  }
+}
+
+/**
+ * Scan all keys matching a pattern using SCAN
+ */
+async function scanKeys(pattern: string): Promise<string[]> {
+  const results: string[] = [];
+  let cursor = 0;
+
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, {
+      match: pattern,
+      count: SCAN_COUNT,
+    });
+    cursor = Number(nextCursor);
+    results.push(...keys);
+  } while (cursor !== 0);
+
+  return results;
+}
+
+interface AlternateLine {
+  ln: number;
+  books: Record<string, {
+    over?: {
+      price: number;
+      decimal: number;
+      link: string | null;
+      limit_max?: number | null;
+    };
+    under?: {
+      price: number;
+      decimal: number;
+      link: string | null;
+      limit_max?: number | null;
+    };
+  }>;
+  best?: {
+    over?: { bk: string; price: number };
+    under?: { bk: string; price: number };
+  };
+}
+
+/**
+ * Build alternates from new key structure
+ * 
+ * @param sport - Sport key (nba, nfl, etc.)
+ * @param eventId - Event ID
+ * @param market - Market key (player_points, etc.)
+ * @param playerKey - Normalized player key (lebron_james)
+ * @param primaryLine - The primary line to filter around (optional)
+ */
+async function buildAlternates(
+  sport: string,
+  eventId: string,
+  market: string,
+  playerKey: string,
+  primaryLine?: number
+): Promise<{
+  lines: AlternateLine[];
+  player: string | null;
+  team: string | null;
+  position: string | null;
+  primary_ln: number | null;
+}> {
+  // Get all book keys for this event/market
+  const pattern = `odds:${sport}:${eventId}:${market}:*`;
+  const oddsKeys = await scanKeys(pattern);
+
+  if (oddsKeys.length === 0) {
+    return { lines: [], player: null, team: null, position: null, primary_ln: null };
+  }
+
+  // Fetch all books data
+  const oddsDataRaw = await redis.mget<(SSEBookSelections | string | null)[]>(...oddsKeys);
+
+  // Build line -> book -> odds map
+  const lineMap = new Map<number, Map<string, {
+    over?: SSESelection;
+    under?: SSESelection;
+  }>>();
+
+  let playerName: string | null = null;
+  let playerTeam: string | null = null;
+  let playerPosition: string | null = null;
+  let foundPrimaryLine: number | null = null;
+
+  oddsKeys.forEach((key, i) => {
+    const data = oddsDataRaw[i];
+    if (!data) return;
+
+    const selections: SSEBookSelections = typeof data === "string" ? JSON.parse(data) : data;
+    const book = normalizeBookId(key.split(":").pop()!);
+
+    // Process each selection
+    for (const [selKey, sel] of Object.entries(selections)) {
+      // Parse selection key: player|side|line
+      const parts = selKey.split("|");
+      if (parts.length !== 3) continue;
+
+      const [rawPlayer, side, lineStr] = parts;
+      
+      // Only process selections for our target player
+      // Match by player_id (UUID) OR normalized player name
+      const matchesById = sel.player_id && sel.player_id.toLowerCase() === playerKey.toLowerCase();
+      const normalizedPlayer = rawPlayer.toLowerCase().replace(/ /g, "_");
+      const matchesByName = normalizedPlayer === playerKey.toLowerCase() || 
+                            normalizedPlayer.replace(/_/g, "") === playerKey.toLowerCase().replace(/[_-]/g, "");
+      
+      if (!matchesById && !matchesByName) continue;
+
+      const line = parseFloat(lineStr);
+      if (isNaN(line)) continue;
+
+      // Capture player info from first match
+      if (!playerName && sel.player) {
+        playerName = sel.player;
+        playerTeam = sel.team || null;
+        playerPosition = sel.position || null;
+      }
+
+      // Track primary line (main === true)
+      if (sel.main && !foundPrimaryLine) {
+        foundPrimaryLine = line;
+      }
+
+      // Add to line map
+      if (!lineMap.has(line)) {
+        lineMap.set(line, new Map());
+      }
+
+      const bookMap = lineMap.get(line)!;
+      if (!bookMap.has(book)) {
+        bookMap.set(book, {});
+      }
+
+      const bookData = bookMap.get(book)!;
+      if (side === "over") {
+        bookData.over = sel;
+      } else if (side === "under") {
+        bookData.under = sel;
+      }
+    }
+  });
+
+  // If primaryLine provided, use that; otherwise use detected
+  const effectivePrimaryLine = primaryLine ?? foundPrimaryLine;
+
+  // Build lines array
+  const lines: AlternateLine[] = [];
+
+  for (const [lineValue, bookMap] of lineMap) {
+    const books: AlternateLine["books"] = {};
+    let bestOver: { bk: string; price: number } | undefined;
+    let bestUnder: { bk: string; price: number } | undefined;
+
+    for (const [bookId, data] of bookMap) {
+      const bookEntry: NonNullable<AlternateLine["books"]>[string] = {};
+
+      if (data.over) {
+        const price = parseInt(data.over.price.replace("+", ""), 10);
+        bookEntry.over = {
+          price,
+          decimal: data.over.price_decimal,
+          link: data.over.link || null,
+          limit_max: data.over.limits?.max || null,
+        };
+
+        if (!bestOver || price > bestOver.price) {
+          bestOver = { bk: bookId, price };
+        }
+      }
+
+      if (data.under) {
+        const price = parseInt(data.under.price.replace("+", ""), 10);
+        bookEntry.under = {
+          price,
+          decimal: data.under.price_decimal,
+          link: data.under.link || null,
+          limit_max: data.under.limits?.max || null,
+        };
+
+        if (!bestUnder || price > bestUnder.price) {
+          bestUnder = { bk: bookId, price };
+        }
+      }
+
+      if (bookEntry.over || bookEntry.under) {
+        books[bookId] = bookEntry;
+      }
+    }
+
+    if (Object.keys(books).length > 0) {
+      lines.push({
+        ln: lineValue,
+        books,
+        best: {
+          over: bestOver,
+          under: bestUnder,
+        },
+      });
+    }
+  }
+
+  // Sort lines by value
+  lines.sort((a, b) => a.ln - b.ln);
+
+  return {
+    lines,
+    player: playerName,
+    team: playerTeam,
+    position: playerPosition,
+    primary_ln: effectivePrimaryLine,
+  };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const sport = searchParams.get("sport")?.trim().toLowerCase() || "";
+    const eventId = searchParams.get("eventId")?.trim() || "";
+    const market = searchParams.get("market")?.trim() || "";
+    const playerKey = searchParams.get("player")?.trim() || "";
+    const primaryLineStr = searchParams.get("primaryLine");
+
+    // Validate required params
+    if (!sport || !VALID_SPORTS.has(sport)) {
+      return NextResponse.json(
+        { error: "invalid_sport", valid: Array.from(VALID_SPORTS) },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    if (!eventId) {
+      return NextResponse.json(
+        { error: "missing_eventId" },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    if (!market) {
+      return NextResponse.json(
+        { error: "missing_market" },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    if (!playerKey) {
+      return NextResponse.json(
+        { error: "missing_player" },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    const primaryLine = primaryLineStr ? parseFloat(primaryLineStr) : undefined;
+
+    const startTime = performance.now();
+
+    // Build alternates from new key structure
+    const { lines, player, team, position, primary_ln } = await buildAlternates(
+      sport,
+      eventId,
+      market,
+      playerKey,
+      primaryLine
+    );
+
+    const duration = performance.now() - startTime;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[v2/props/alternates] ${sport} ${eventId} ${market} ${playerKey}: ${lines.length} lines in ${duration.toFixed(0)}ms`);
+    }
+
+    // Filter out primary line from alternates
+    const alternates = lines.filter((l) => l.ln !== primary_ln);
+
+    return NextResponse.json(
+      {
+        eventId,
+        sport,
+        market,
+        player,
+        team,
+        position,
+        primary_ln,
+        alternates,
+        all_lines: lines,
+        timestamp: Date.now(),
+        meta: {
+          duration_ms: Math.round(duration),
+          line_count: lines.length,
+          alternate_count: alternates.length,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=30, s-maxage=30",
+          "X-Alternates-Count": String(alternates.length),
+          "X-Primary-Line": String(primary_ln || "unknown"),
+        },
+      }
+    );
+  } catch (error: any) {
+    console.error("[v2/props/alternates] Error:", error);
+    return NextResponse.json(
+      { error: "internal_error", message: error?.message || "" },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+}
+
