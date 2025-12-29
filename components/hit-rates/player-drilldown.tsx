@@ -1298,13 +1298,13 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                           "text-[11px] font-bold tabular-nums",
                           isSelected 
                             ? getPctColor(stat.value)
-                            : stat.value !== null && stat.value >= 70 
+                            : stat.value != null && stat.value >= 70 
                               ? "text-emerald-600/70 dark:text-emerald-400/70" 
-                              : stat.value !== null && stat.value >= 50 
+                              : stat.value != null && stat.value >= 50 
                                 ? "text-amber-600/70 dark:text-amber-400/70" 
                                 : "text-red-500/70 dark:text-red-400/70"
                         )}>
-                          {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
+                          {stat.value != null ? `${stat.value.toFixed(0)}%` : "—"}
             </span>
                       </button>
                     </React.Fragment>
