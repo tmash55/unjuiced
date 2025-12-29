@@ -245,7 +245,6 @@ export interface SportMarket {
     { value: "1h_total", label: "1st Half Total", apiKey: "1h_total", group: "Halves", period: '1h' },
     { value: "2h_total", label: "2nd Half Total", apiKey: "2h_total", group: "Halves", period: '2h' },
     { value: "1q_total", label: "1st Quarter Total", apiKey: "1q_total", group: "Quarters", period: '1q' },
-    { value: "2nd_half_total_points_reg_time", label: "2nd Half Total (Reg Time)", apiKey: "2nd_half_total_points_reg_time", group: "Halves", period: '2h' },
     
     // Touchdowns
     { value: "total_touchdowns", label: "Total Touchdowns", apiKey: "total_touchdowns", group: "Touchdowns", period: 'full' },
@@ -254,16 +253,12 @@ export interface SportMarket {
     { value: "1st_quarter_total_touchdowns", label: "Total TDs (1Q)", apiKey: "1st_quarter_total_touchdowns", group: "Touchdowns", period: '1q' },
     { value: "1st_half_home_team_total_touchdowns", label: "Home Team TDs (1H)", apiKey: "1st_half_home_team_total_touchdowns", group: "Touchdowns", period: '1h' },
     { value: "1st_half_away_team_total_touchdowns", label: "Away Team TDs (1H)", apiKey: "1st_half_away_team_total_touchdowns", group: "Touchdowns", period: '1h' },
-    { value: "total_td_yards", label: "Total TD Yards", apiKey: "total_td_yards", group: "Touchdowns", period: 'full' },
-    { value: "longest_td_yards", label: "Longest TD Yards", apiKey: "longest_td_yards", group: "Touchdowns", period: 'full' },
-    { value: "shortest_td_yards", label: "Shortest TD Yards", apiKey: "shortest_td_yards", group: "Touchdowns", period: 'full' },
-    { value: "first_td_yards", label: "First TD Yards", apiKey: "first_td_yards", group: "Touchdowns", period: 'full' },
     
     // Field Goals & Kicking
-    { value: "total_fgs", label: "Total Field Goals", apiKey: "total_fgs", group: "Field Goals", period: 'full' },
-    { value: "1h_total_fgs", label: "Total FGs (1H)", apiKey: "1h_total_fgs", group: "Field Goals", period: '1h' },
-    { value: "2h_total_fgs", label: "Total FGs (2H)", apiKey: "2h_total_fgs", group: "Field Goals", period: '2h' },
-    { value: "total_fg_yards", label: "Total FG Yards", apiKey: "total_fg_yards", group: "Field Goals", period: 'full' },
+    { value: "total_field_goals_made", label: "Total Field Goals Made", apiKey: "total_field_goals_made", group: "Field Goals", period: 'full' },
+    { value: "1st_half_total_field_goals_made", label: "Total FGs Made (1H)", apiKey: "1st_half_total_field_goals_made", group: "Field Goals", period: '1h' },
+    { value: "2nd_half_total_field_goals_made", label: "Total FGs Made (2H)", apiKey: "2nd_half_total_field_goals_made", group: "Field Goals", period: '2h' },
+    { value: "total_field_goal_yards", label: "Total FG Yards", apiKey: "total_field_goal_yards", group: "Field Goals", period: 'full' },
     { value: "longest_field_goal_made_yards", label: "Longest FG Yards", apiKey: "longest_field_goal_made_yards", group: "Field Goals", period: 'full' },
     { value: "shortest_field_goal_made_yards", label: "Shortest FG Yards", apiKey: "shortest_field_goal_made_yards", group: "Field Goals", period: 'full' },
     
@@ -271,15 +266,12 @@ export interface SportMarket {
     { value: "safety", label: "Safety", apiKey: "safety", group: "Special", period: 'full' },
     { value: "home_safety", label: "Home Team Safety", apiKey: "home_safety", group: "Special", period: 'full' },
     { value: "away_safety", label: "Away Team Safety", apiKey: "away_safety", group: "Special", period: 'full' },
-    { value: "2pt_attempt", label: "2-Point Attempt", apiKey: "2pt_attempt", group: "Special", period: 'full' },
-    { value: "2pt_conversion", label: "2-Point Conversion", apiKey: "2pt_conversion", group: "Special", period: 'full' },
     { value: "overtime", label: "Overtime", apiKey: "overtime", group: "Special", period: 'full' },
     
     // Other
     { value: "total_punts", label: "Total Punts", apiKey: "total_punts", group: "Other", period: 'full' },
     { value: "largest_lead", label: "Largest Lead", apiKey: "largest_lead", group: "Other", period: 'full' },
     { value: "first_score_yards", label: "First Score Yards", apiKey: "first_score_yards", group: "Other", period: 'full' },
-    { value: "1st_quarter_both_teams_to_score", label: "Both Teams Score (1Q)", apiKey: "1st_quarter_both_teams_to_score", group: "Other", period: '1q' },
   
     // Player props
     // Passing

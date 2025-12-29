@@ -34,9 +34,104 @@ function normalizeBookId(id: string): string {
     case "fanduel-yourway":
     case "fanduel_yourway":
       return "fanduelyourway";
+    // BetMGM Michigan is our preferred BetMGM source (US odds)
+    case "betmgm-michigan":
+    case "betmgm_michigan":
+      return "betmgm";
     default:
       return lower;
   }
+}
+
+// Books to exclude (Canada, regional variants)
+const EXCLUDED_BOOKS = new Set([
+  "hard-rock-indiana",
+  "hardrockindiana",
+  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
+]);
+
+/**
+ * Normalize market names to match Redis key format
+ * Maps frontend-friendly names to actual Redis key market names
+ */
+function normalizeMarketName(market: string): string {
+  const lower = market.toLowerCase();
+  
+  const marketMap: Record<string, string> = {
+    // Basketball player props
+    "points": "player_points",
+    "player_points": "player_points",
+    "assists": "player_assists",
+    "player_assists": "player_assists",
+    "rebounds": "player_rebounds",
+    "player_rebounds": "player_rebounds",
+    "threes": "player_threes_made",
+    "player_threes_made": "player_threes_made",
+    "steals": "player_steals",
+    "player_steals": "player_steals",
+    "blocks": "player_blocks",
+    "player_blocks": "player_blocks",
+    "turnovers": "player_turnovers",
+    "player_turnovers": "player_turnovers",
+    
+    // Combo stats
+    "pra": "player_pra",
+    "player_pra": "player_pra",
+    "player_points_rebounds_assists": "player_pra",
+    "pr": "player_pr",
+    "player_pr": "player_pr",
+    "player_points_rebounds": "player_pr",
+    "pa": "player_pa",
+    "player_pa": "player_pa",
+    "player_points_assists": "player_pa",
+    "ra": "player_ra",
+    "player_ra": "player_ra",
+    "player_rebounds_assists": "player_ra",
+    
+    // Football passing
+    "passing_yards": "player_passing_yards",
+    "player_passing_yards": "player_passing_yards",
+    "passing_tds": "player_passing_tds",
+    "player_passing_tds": "player_passing_tds",
+    "pass_attempts": "player_passing_attempts",
+    "player_passing_attempts": "player_passing_attempts",
+    "pass_completions": "player_passing_completions",
+    "player_passing_completions": "player_passing_completions",
+    "pass_interceptions": "player_interceptions_thrown",
+    "player_interceptions_thrown": "player_interceptions_thrown",
+    
+    // Football rushing
+    "rushing_yards": "player_rushing_yards",
+    "player_rushing_yards": "player_rushing_yards",
+    "rush_attempts": "player_rushing_attempts",
+    "player_rushing_attempts": "player_rushing_attempts",
+    "rushing_tds": "player_rushing_touchdowns",
+    "player_rushing_touchdowns": "player_rushing_touchdowns",
+    
+    // Football receiving
+    "receiving_yards": "player_receiving_yards",
+    "player_receiving_yards": "player_receiving_yards",
+    "receptions": "player_receptions",
+    "player_receptions": "player_receptions",
+    "receiving_tds": "player_receiving_touchdowns",
+    "player_receiving_touchdowns": "player_receiving_touchdowns",
+    
+    // Touchdowns
+    "anytime_td": "player_anytime_td",
+    "player_anytime_td": "player_anytime_td",
+    "first_td": "player_first_td_scorer",
+    "player_first_td_scorer": "player_first_td_scorer",
+    
+    // Hockey
+    "goals": "player_goals",
+    "player_goals": "player_goals",
+    "shots": "player_shots_on_goal",
+    "player_shots_on_goal": "player_shots_on_goal",
+    "saves": "player_saves",
+    "player_saves": "player_saves",
+  };
+  
+  return marketMap[lower] || lower;
 }
 
 /**
@@ -129,7 +224,12 @@ async function buildAlternates(
     if (!data) return;
 
     const selections: SSEBookSelections = typeof data === "string" ? JSON.parse(data) : data;
-    const book = normalizeBookId(key.split(":").pop()!);
+    const rawBook = key.split(":").pop()!;
+    
+    // Skip excluded books (Canada, regional variants)
+    if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) return;
+    
+    const book = normalizeBookId(rawBook);
 
     // Process each selection
     for (const [selKey, sel] of Object.entries(selections)) {
@@ -292,6 +392,9 @@ export async function GET(req: NextRequest) {
     }
 
     const primaryLine = primaryLineStr ? parseFloat(primaryLineStr) : undefined;
+    
+    // Normalize market name to match Redis key format
+    const normalizedMarket = normalizeMarketName(market);
 
     const startTime = performance.now();
 
@@ -299,7 +402,7 @@ export async function GET(req: NextRequest) {
     const { lines, player, team, position, primary_ln } = await buildAlternates(
       sport,
       eventId,
-      market,
+      normalizedMarket,
       playerKey,
       primaryLine
     );
@@ -307,7 +410,7 @@ export async function GET(req: NextRequest) {
     const duration = performance.now() - startTime;
 
     if (process.env.NODE_ENV === "development") {
-      console.log(`[v2/props/alternates] ${sport} ${eventId} ${market} ${playerKey}: ${lines.length} lines in ${duration.toFixed(0)}ms`);
+      console.log(`[v2/props/alternates] ${sport} ${eventId} ${market}→${normalizedMarket} ${playerKey}: ${lines.length} lines in ${duration.toFixed(0)}ms`);
     }
 
     // Filter out primary line from alternates

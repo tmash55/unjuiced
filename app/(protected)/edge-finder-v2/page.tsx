@@ -23,7 +23,7 @@ import { OpportunitiesTable } from "@/components/opportunities/opportunities-tab
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Shared preferences & V1 filters component
-import { useBestOddsPreferences } from "@/context/preferences-context";
+import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-context";
 import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 
@@ -107,6 +107,9 @@ export default function EdgeFinderV2Page() {
 
   // Use shared preferences
   const { filters: prefs, updateFilters: updatePrefs, isLoading: prefsLoading } = useBestOddsPreferences();
+  
+  // Get EV-specific preferences (bankroll, kelly %)
+  const { filters: evPrefs, updateFilters: updateEvPrefs } = useEvPreferences();
   
   // Get active filter presets
   const { activePresets, isLoading: presetsLoading } = useFilterPresets();
@@ -203,7 +206,22 @@ export default function EdgeFinderV2Page() {
       comparisonBook: newPrefs.comparisonBook,
       searchQuery: newPrefs.searchQuery,
       showHidden: newPrefs.showHidden,
+      columnOrder: newPrefs.columnOrder,
     });
+  }, [updatePrefs]);
+
+  // Kelly Criterion handlers
+  const handleBankrollChange = useCallback((value: number) => {
+    updateEvPrefs({ bankroll: value });
+  }, [updateEvPrefs]);
+
+  const handleKellyPercentChange = useCallback((value: number) => {
+    updateEvPrefs({ kellyPercent: value });
+  }, [updateEvPrefs]);
+
+  // Handle column order changes
+  const handleColumnOrderChange = useCallback((newOrder: string[]) => {
+    updatePrefs({ columnOrder: newOrder });
   }, [updatePrefs]);
 
   // Toggle show hidden
@@ -233,13 +251,13 @@ export default function EdgeFinderV2Page() {
       {/* Header */}
       <div className="mb-8">
         <ToolHeading>Edge Finder</ToolHeading>
-        <ToolSubheading>
-          {isLoading
+          <ToolSubheading>
+            {isLoading
             ? "Loading opportunities..."
             : isFetching
             ? "Updating opportunities..."
             : `${filteredOpportunities.length}+ opportunities found`}
-        </ToolSubheading>
+          </ToolSubheading>
       </div>
 
       {/* Custom Filter Presets */}
@@ -250,19 +268,19 @@ export default function EdgeFinderV2Page() {
 
       {/* Filters Bar */}
       <div className="mb-6 relative z-10">
-        <FiltersBar>
+      <FiltersBar>
           <FiltersBarSection align="left">
-            {/* Search */}
-            <div className="relative">
+          {/* Search */}
+          <div className="relative">
               <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-neutral-500" />
-              <Input
-                placeholder="Search players, teams..."
-                value={searchLocal}
-                onChange={(e) => setSearchLocal(e.target.value)}
-                className="pl-9 w-64"
+            <Input
+              placeholder="Search players, teams..."
+              value={searchLocal}
+              onChange={(e) => setSearchLocal(e.target.value)}
+              className="pl-9 w-64"
                 disabled={locked}
-              />
-            </div>
+            />
+          </div>
           </FiltersBarSection>
 
           <FiltersBarSection align="right">
@@ -293,9 +311,13 @@ export default function EdgeFinderV2Page() {
               onClearAllHidden={clearAllHidden}
               customPresetActive={isCustomMode}
               activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : undefined}
+              bankroll={evPrefs.bankroll}
+              kellyPercent={evPrefs.kellyPercent}
+              onBankrollChange={handleBankrollChange}
+              onKellyPercentChange={handleKellyPercentChange}
             />
-          </FiltersBarSection>
-        </FiltersBar>
+        </FiltersBarSection>
+      </FiltersBar>
       </div>
 
       {/* Error */}
@@ -326,6 +348,10 @@ export default function EdgeFinderV2Page() {
         }
         excludedBooks={prefs.selectedBooks}
         isCustomMode={isCustomMode}
+        bankroll={evPrefs.bankroll}
+        kellyPercent={evPrefs.kellyPercent || 25}
+        columnOrder={prefs.columnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
       />
 
       {/* Load more button */}

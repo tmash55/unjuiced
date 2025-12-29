@@ -651,7 +651,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         minOdds: -200,
         maxOdds: 200,
         bankroll: 1000,
-        kellyPercent: 50,
+        kellyPercent: 25,
         searchQuery: "",
       };
     }
@@ -664,7 +664,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       minOdds: preferences.ev_min_odds ?? -200,
       maxOdds: preferences.ev_max_odds ?? 200,
       bankroll: preferences.ev_bankroll ?? 1000,
-      kellyPercent: preferences.ev_kelly_percent ?? 50,
+      kellyPercent: preferences.ev_kelly_percent ?? 25, // Default to quarter Kelly
       searchQuery: preferences.ev_search_query || "",
     };
   }, [preferences]);
@@ -770,6 +770,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         comparisonMode,
         comparisonBook,
         showHidden: false,
+        columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
       };
     }
     
@@ -790,6 +791,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       comparisonMode,
       comparisonBook,
       showHidden: preferences.best_odds_show_hidden ?? false,
+      columnOrder: preferences.edge_finder_column_order ?? ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
     };
   }, [preferences]);
   
@@ -809,6 +811,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     comparisonMode?: 'average' | 'book' | 'next_best';
     comparisonBook?: string | null;
     showHidden?: boolean;
+    columnOrder?: string[];
   }) => {
     if (!user) {
       if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update best odds filters - no user');
@@ -863,6 +866,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.showHidden !== undefined) {
       updates.best_odds_show_hidden = filters.showHidden;
+    }
+    if (filters.columnOrder !== undefined) {
+      updates.edge_finder_column_order = filters.columnOrder;
     }
     
     if (Object.keys(updates).length > 0) {

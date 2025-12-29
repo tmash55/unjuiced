@@ -96,6 +96,7 @@ export interface BestOddsPrefs {
   comparisonMode: 'average' | 'book' | 'next_best'
   comparisonBook: string | null
   showHidden: boolean          // Show hidden edges with dimmed styling
+  columnOrder: string[]        // Column order for edge finder table (drag-and-drop customization)
 }
 
 /**

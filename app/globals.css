@@ -249,19 +249,20 @@
   /* Odds update animations */
   /* Premium, polished odds change animations - visible for ~6 seconds */
   /* Pattern: Quick flash in (5%) → Hold visible (80%) → Gentle fade out (15%) */
+  /* Optimized for both light and dark modes with better contrast */
   
   @keyframes odds-flash-bg-positive {
     0% { 
-      background: color-mix(in oklab, var(--accent) 35%, transparent);
-      box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 40%, transparent) inset;
+      background: color-mix(in oklab, var(--accent) 18%, transparent);
+      box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--accent) 25%, transparent) inset;
     }
     5% { 
-      background: color-mix(in oklab, var(--accent) 20%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent) inset;
+      background: color-mix(in oklab, var(--accent) 12%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 18%, transparent) inset;
     }
     80% { 
-      background: color-mix(in oklab, var(--accent) 15%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 20%, transparent) inset;
+      background: color-mix(in oklab, var(--accent) 8%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent) inset;
     }
     100% { 
       background: transparent;
@@ -271,16 +272,16 @@
 
   @keyframes odds-flash-bg-negative {
     0% { 
-      background: color-mix(in oklab, #EF4444 35%, transparent);
-      box-shadow: 0 0 0 2px color-mix(in oklab, #EF4444 40%, transparent) inset;
+      background: color-mix(in oklab, #EF4444 18%, transparent);
+      box-shadow: 0 0 0 1.5px color-mix(in oklab, #EF4444 25%, transparent) inset;
     }
     5% { 
-      background: color-mix(in oklab, #EF4444 20%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 30%, transparent) inset;
+      background: color-mix(in oklab, #EF4444 12%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 18%, transparent) inset;
     }
     80% { 
-      background: color-mix(in oklab, #EF4444 15%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 20%, transparent) inset;
+      background: color-mix(in oklab, #EF4444 8%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, #EF4444 12%, transparent) inset;
     }
     100% { 
       background: transparent;
@@ -290,16 +291,16 @@
 
   @keyframes odds-flash-bg-line {
     0% { 
-      background: color-mix(in oklab, var(--primary) 30%, transparent);
-      box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 30%, transparent) inset;
+      background: color-mix(in oklab, var(--primary) 15%, transparent);
+      box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--primary) 20%, transparent) inset;
     }
     5% { 
-      background: color-mix(in oklab, var(--primary) 18%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent) inset;
+      background: color-mix(in oklab, var(--primary) 10%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 14%, transparent) inset;
     }
     80% { 
-      background: color-mix(in oklab, var(--primary) 12%, transparent);
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 15%, transparent) inset;
+      background: color-mix(in oklab, var(--primary) 6%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 10%, transparent) inset;
     }
     100% { 
       background: transparent;

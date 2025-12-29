@@ -64,6 +64,8 @@ export interface UserPreferences {
   odds_sportsbook_order?: string[];
   odds_column_highlighting?: boolean;
   odds_show_best_line?: boolean;
+  
+  edge_finder_column_order?: string[];
   odds_show_average_line?: boolean;
   
   ladder_selected_books?: string[];
@@ -158,7 +160,7 @@ export class PreferencesRPC {
       ev_min_odds: data?.ev_min_odds ?? -200,
       ev_max_odds: data?.ev_max_odds ?? 200,
       ev_bankroll: data?.ev_bankroll ?? 1000,
-      ev_kelly_percent: data?.ev_kelly_percent ?? 50,
+      ev_kelly_percent: data?.ev_kelly_percent ?? 25, // Default to quarter Kelly
       ev_search_query: data?.ev_search_query || "",
 
       include_alternates: data?.include_alternates ?? false,
@@ -166,6 +168,11 @@ export class PreferencesRPC {
       odds_column_order: data?.odds_column_order || ['entity', 'event', 'best-line'],
       odds_sportsbook_order: data?.odds_sportsbook_order || [],
       odds_column_highlighting: data?.odds_column_highlighting ?? true,
+      
+      edge_finder_column_order: data?.edge_finder_column_order || [
+        'edge', 'league', 'time', 'selection', 'line', 'market', 
+        'best-book', 'reference', 'fair', 'stake', 'filter', 'action'
+      ],
       
       ladder_selected_books: data?.ladder_selected_books || [],
       best_odds_selected_books: data?.best_odds_selected_books || [],
@@ -286,13 +293,17 @@ export class PreferencesRPC {
         ev_min_odds: -200,
         ev_max_odds: 200,
         ev_bankroll: 1000,
-        ev_kelly_percent: 50,
+        ev_kelly_percent: 25, // Default to quarter Kelly
         ev_search_query: "",
         include_alternates: false,
         odds_selected_books: [],
         odds_column_order: ['entity', 'event', 'best-line'],
         odds_sportsbook_order: [],
         odds_column_highlighting: true,
+        edge_finder_column_order: [
+          'edge', 'league', 'time', 'selection', 'line', 'market',
+          'best-book', 'reference', 'fair', 'stake', 'filter', 'action'
+        ],
         ladder_selected_books: [],
         best_odds_selected_books: [],
         best_odds_selected_sports: [],

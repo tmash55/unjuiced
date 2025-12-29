@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
-import { ChevronUp, ChevronDown, GripVertical, Plus } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus } from 'lucide-react'
+
 import {
   DndContext,
   closestCenter,
@@ -39,6 +41,7 @@ import { useAuth } from '@/components/auth/auth-provider'
 import { useIsPro } from '@/hooks/use-entitlements'
 import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
+import Lock from '@/icons/lock'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -62,7 +65,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   sportsbookId: string
   sportsbookName: string
   side: 'over' | 'under'
-  odds: { line: number; price: number; link?: string | null; mobileLink?: string | null; limit_max?: number | null }
+  odds: { line: number; price: number; link?: string | null; mobileLink?: string | null; limit_max?: number | null; locked?: boolean }
   isHighlighted: boolean
   priceChanged: boolean
   lineChanged: boolean
@@ -75,6 +78,19 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   formatLine: (line: number, side: 'over' | 'under') => string
 }) {
   const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isPositiveChange, isNegativeChange, isMoneyline, onClick, formatOdds, formatLine } = props
+  
+  // If locked, show lock icon instead of odds
+  if (odds.locked) {
+    return (
+      <Tooltip content={`${sportsbookName} - Line currently locked`}>
+        <div className="sportsbook-cell sportsbook-cell--sm block w-full mx-auto rounded-md">
+          <div className="flex items-center justify-center h-full py-2">
+            <Lock className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+          </div>
+        </div>
+      </Tooltip>
+    )
+  }
   
   // Build tooltip content with limit info if available
   const tooltipContent = odds.limit_max 
@@ -154,6 +170,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
     prev.odds.price === next.odds.price &&
     prev.odds.line === next.odds.line &&
     prev.odds.limit_max === next.odds.limit_max &&
+    prev.odds.locked === next.odds.locked &&
     prev.isPositiveChange === next.isPositiveChange &&
     prev.isNegativeChange === next.isNegativeChange &&
     prev.isHighlighted === next.isHighlighted &&
@@ -1314,6 +1331,17 @@ export function OddsTable({
         case 'startTime':
           aValue = safeTime(a.event?.startTime)
           bValue = safeTime(b.event?.startTime)
+          // Secondary sort by event ID to group players from the same game
+          if (aValue === bValue) {
+            const aEvent = a.event?.id || ''
+            const bEvent = b.event?.id || ''
+            if (aEvent < bEvent) return sortDirection === 'asc' ? -1 : 1
+            if (aEvent > bEvent) return sortDirection === 'asc' ? 1 : -1
+            // Tertiary sort by player name within the same game
+            const aName = a.entity?.name || ''
+            const bName = b.entity?.name || ''
+            return aName.localeCompare(bName)
+          }
           break
         default:
           return 0
@@ -1362,20 +1390,68 @@ export function OddsTable({
   const ROW_HEIGHT = 64 // approximate row height
   const OVERSCAN = 10
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 })
+  const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set())
+  
+  // Expand all games by default when data changes (only for player props)
+  useEffect(() => {
+    if (sortedData && sortedData.length > 0) {
+      const eventIds = new Set<string>()
+      sortedData.forEach(item => {
+        // Only track games that have player props
+        if (item.event?.id && item.entity?.type === 'player') {
+          eventIds.add(item.event.id)
+        }
+      })
+      setExpandedGames(eventIds)
+    }
+  }, [sortedData])
+  
   // NOTE: effect moved below groupedData initialization so dependency order is valid
   
-  // Group data by date for rendering with separators
+  // Toggle game expansion
+  const toggleGameExpansion = useCallback((eventId: string) => {
+    setExpandedGames(prev => {
+      const next = new Set(prev)
+      if (next.has(eventId)) {
+        next.delete(eventId)
+      } else {
+        next.add(eventId)
+      }
+      return next
+    })
+  }, [])
+
+  // Format position with slashes (e.g., "FC" -> "F/C", "GF" -> "G/F")
+  const formatPosition = useCallback((position: string | undefined): string => {
+    if (!position) return ''
+    if (position.length >= 2 && /^[A-Z]+$/.test(position)) {
+      return position.split('').join('/')
+    }
+    return position
+  }, [])
+
+  // Group data by date and then by game for rendering with separators and game headers
   const groupedData = useMemo(() => {
     if (!sortedData || sortedData.length === 0) return []
 
-    const groups: Array<{ type: 'separator'; date: string; dateLabel: string } | { type: 'item'; item: OddsTableItem; index: number }> = []
+    const groups: Array<
+      | { type: 'separator'; date: string; dateLabel: string } 
+      | { type: 'game-header'; eventId: string; awayTeam: string; homeTeam: string; awayName?: string; homeName?: string; startTime: string; isExpanded: boolean } 
+      | { type: 'item'; item: OddsTableItem; index: number }
+    > = []
+    
     let currentDate = ''
+    let currentEventId = ''
 
     sortedData.forEach((item, index) => {
       const itemDate = item.event?.startTime ? new Date(item.event.startTime).toDateString() : 'No Date'
+      const isPlayerProp = item.entity?.type === 'player'
       
+      // Add date separator if date changed
       if (itemDate !== currentDate) {
         currentDate = itemDate
+        currentEventId = '' // Reset game grouping for new date
+        
         const date = item.event?.startTime ? new Date(item.event.startTime) : new Date()
         const today = new Date()
         const tomorrow = new Date(today)
@@ -1401,15 +1477,42 @@ export function OddsTable({
         })
       }
       
-      groups.push({
-        type: 'item',
-        item,
-        index
-      })
+      const eventId = item.event?.id || ''
+      
+      // Only add game header for PLAYER PROPS (not game markets like ML/Spread/Totals)
+      if (isPlayerProp) {
+        if (eventId && eventId !== currentEventId) {
+          currentEventId = eventId
+          const isExpanded = expandedGames.has(eventId)
+          groups.push({
+            type: 'game-header',
+            eventId,
+            awayTeam: item.event?.awayTeam || '',
+            homeTeam: item.event?.homeTeam || '',
+            awayName: item.event?.awayName,
+            homeName: item.event?.homeName,
+            startTime: item.event?.startTime || '',
+            isExpanded
+          })
+        }
+      } else {
+        // For game props, reset currentEventId so we don't track it
+        currentEventId = ''
+      }
+      
+      // For player props, only show if game is expanded
+      // For game props (ML/Spread/Totals), always show
+      if (!isPlayerProp || expandedGames.has(eventId)) {
+        groups.push({
+          type: 'item',
+          item,
+          index
+        })
+      }
     })
 
     return groups
-  }, [sortedData])
+  }, [sortedData, expandedGames])
 
   // Set up/update virtual window after groupedData is ready
   useEffect(() => {
@@ -1671,7 +1774,7 @@ export function OddsTable({
                   {/* Hide redundant market name for spreads/totals in game column */}
                   {item.entity.details && !['Point Spread', 'Total Points', 'Moneyline'].includes(item.entity.details) && (
                     <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                      {item.entity.details}
+                      {formatPosition(item.entity.details)}
                     </div>
                   )}
                 </div>
@@ -1680,8 +1783,6 @@ export function OddsTable({
           }
           // Player props
           const playerTeam = item.entity?.team; // Team abbreviation (e.g., "JAX")
-          const awayTeam = item.event?.awayTeam;
-          const homeTeam = item.event?.homeTeam;
           const showLogos = hasTeamLogos(sport);
           
           return (
@@ -1692,39 +1793,27 @@ export function OddsTable({
                   {item.entity?.name || 'Unknown'}
                   {item.entity?.details && (
                     <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-normal ml-1">
-                      ({item.entity.details})
+                      ({formatPosition(item.entity.details)})
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  {showLogos && awayTeam && (
-                    <img 
-                      src={getTeamLogoUrl(awayTeam)} 
-                      alt={awayTeam}
-                      className="w-4 h-4 object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                  )}
-                  <span className={playerTeam === awayTeam ? 'font-semibold text-neutral-900 dark:text-neutral-100' : ''}>
-                    {awayTeam}
-                  </span>
-                  <span className="mx-0.5">@</span>
-                  {showLogos && homeTeam && (
-                    <img 
-                      src={getTeamLogoUrl(homeTeam)} 
-                      alt={homeTeam}
-                      className="w-4 h-4 object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                  )}
-                  <span className={playerTeam === homeTeam ? 'font-semibold text-neutral-900 dark:text-neutral-100' : ''}>
-                    {homeTeam}
-                  </span>
-                </div>
+                {playerTeam && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
+                    {showLogos && (
+                      <img 
+                        src={getTeamLogoUrl(playerTeam)} 
+                        alt={playerTeam}
+                        className="w-4 h-4 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    )}
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                      {playerTeam}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -1833,11 +1922,11 @@ export function OddsTable({
             )
           return (
             <div className="space-y-1 text-center">
-              {/* Team markets (moneyline & spread): Away (top under), Home (bottom over). Totals unchanged */}
+              {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
-                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                   {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               ) : (
                 <>
@@ -1900,11 +1989,11 @@ export function OddsTable({
           )
           return (
             <div className="space-y-1 text-center">
-              {/* Team markets (moneyline & spread): Away (top under), Home (bottom over). Totals unchanged */}
+              {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
-                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                   {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
+                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               ) : (
                 <>
@@ -1996,18 +2085,19 @@ export function OddsTable({
             )
 
             // Prefer normalized mapping when present
+            // Convention: Away team → 'over' slot (top), Home team → 'under' slot (bottom)
             const isMoneyline = n?.marketKind === 'moneyline' || (item.entity.type === 'game' && (item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))))
             const isSpread = n?.marketKind === 'spread' || (item.entity.type === 'game' && ((item.entity.details === 'Point Spread') || (typeof market === 'string' && /spread/i.test(market))))
-            const sideTop = (isMoneyline || isSpread) && n?.sideMap?.away ? n!.sideMap!.away : (isMoneyline ? 'under' : 'over')
-            const sideBottom = (isMoneyline || isSpread) && n?.sideMap?.home ? n!.sideMap!.home : (isMoneyline ? 'over' : 'under')
+            const sideTop = (isMoneyline || isSpread) && n?.sideMap?.away ? n!.sideMap!.away : 'over'
+            const sideBottom = (isMoneyline || isSpread) && n?.sideMap?.home ? n!.sideMap!.home : 'under'
             const firstSide = sideTop
             const secondSide = sideBottom
             const firstData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.away : bookData.over
             const secondData = (isMoneyline || isSpread) && n ? n.books?.[book.id]?.home : bookData.under
 
-            // Fallback when normalized not available (keep current over/under)
-            const fd = firstData || (isMoneyline ? bookData.under : bookData.over)
-            const sd = secondData || (isMoneyline ? bookData.over : bookData.under)
+            // Fallback when normalized not available - use over (Away) for top, under (Home) for bottom
+            const fd = firstData || bookData.over
+            const sd = secondData || bookData.under
 
             return (
               <div className="space-y-1">
@@ -2050,12 +2140,31 @@ export function OddsTable({
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
                           if (isMoneyline) return ''
+                          
+                          // For Yes/No markets (line is 0.5), show Yes/No
+                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
+                          const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
+                          const isYesNoMarket = baseLine === 0.5 && (
+                            marketStr.includes('anytime') ||
+                            marketStr.includes('first_td') ||
+                            marketStr.includes('last_td') ||
+                            marketStr.includes('double_double') ||
+                            marketStr.includes('triple_double') ||
+                            marketStr.includes('shutout') ||
+                            marketStr.includes('hat_trick') ||
+                            marketStr.includes('overtime') ||
+                            marketStr.includes('safety')
+                          )
+                          
+                          if (isYesNoMarket) {
+                            return sd === 'over' ? 'Yes' : 'No'
+                          }
+                          
                           // For spreads, use the actual line value from the data (already signed correctly)
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
                           }
                           // Fallback for initial load if line is undefined
-                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                           if (isSpread) {
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
@@ -2105,12 +2214,31 @@ export function OddsTable({
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
                           if (isMoneyline) return ''
+                          
+                          // For Yes/No markets (line is 0.5), show Yes/No
+                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
+                          const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
+                          const isYesNoMarket = baseLine === 0.5 && (
+                            marketStr.includes('anytime') ||
+                            marketStr.includes('first_td') ||
+                            marketStr.includes('last_td') ||
+                            marketStr.includes('double_double') ||
+                            marketStr.includes('triple_double') ||
+                            marketStr.includes('shutout') ||
+                            marketStr.includes('hat_trick') ||
+                            marketStr.includes('overtime') ||
+                            marketStr.includes('safety')
+                          )
+                          
+                          if (isYesNoMarket) {
+                            return sd === 'over' ? 'Yes' : 'No'
+                          }
+                          
                           // For spreads, use the actual line value from the data (already signed correctly)
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
                           }
                           // Fallback for initial load if line is undefined
-                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                           if (isSpread) {
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
@@ -2155,6 +2283,25 @@ export function OddsTable({
   const formatLine = (line: number | undefined, side: 'over' | 'under', item?: OddsTableItem) => {
     // Guard: return empty string if line is undefined or null
     if (line === undefined || line === null) return ''
+    
+    // For Yes/No markets (line is 0.5), show Yes/No instead of o0.5/u0.5
+    // Common Yes/No markets: anytime_td, first_td, last_td, double_double, etc.
+    const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
+    const isYesNoMarket = line === 0.5 && (
+      marketStr.includes('anytime') ||
+      marketStr.includes('first_td') ||
+      marketStr.includes('last_td') ||
+      marketStr.includes('double_double') ||
+      marketStr.includes('triple_double') ||
+      marketStr.includes('shutout') ||
+      marketStr.includes('hat_trick') ||
+      marketStr.includes('overtime') ||
+      marketStr.includes('safety')
+    )
+    
+    if (isYesNoMarket) {
+      return side === 'over' ? 'Yes' : 'No'
+    }
     
     // For game markets, show contextual labels
     if (item?.entity.type === 'game') {
@@ -2299,7 +2446,7 @@ export function OddsTable({
       (((rowItem.odds?.best?.over?.line ?? 0) === 0) && ((rowItem.odds?.best?.under?.line ?? 0) === 0))
     )
     const label = isMoneyline
-      ? (side === 'under' ? rowItem.event.awayTeam : rowItem.event.homeTeam)
+      ? (side === 'over' ? rowItem.event.awayTeam : rowItem.event.homeTeam)
       : formatLine(displayOdds.line, side, rowItem)
 
     const chip = (
@@ -2584,6 +2731,85 @@ export function OddsTable({
                             colSpan={Math.max(totalColumns - 1, 1)}
                             className="date-row"
                           />
+                        </tr>
+                      )
+                    }
+
+                    // Render game header row
+                    if (entry.type === 'game-header') {
+                      const gameTime = entry.startTime ? new Date(entry.startTime) : null
+                      const timeString = gameTime ? gameTime.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      }) : ''
+                      
+                      const showLogos = ['nfl', 'nba', 'nhl', 'mlb'].includes(sport.toLowerCase())
+                      const showFullNames = sport === 'ncaaf' || sport === 'ncaab'
+                      const awayDisplay = showFullNames && entry.awayName ? entry.awayName : entry.awayTeam
+                      const homeDisplay = showFullNames && entry.homeName ? entry.homeName : entry.homeTeam
+                      
+                      return (
+                        <tr key={`game-${entry.eventId}-${idx}`} className="game-header-row cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" onClick={() => toggleGameExpansion(entry.eventId)}>
+                          {/* Sticky left matchup cell */}
+                          <td
+                            className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-4 py-3"
+                            style={{ width: entityColWidth, minWidth: entityColWidth }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {/* Expand/collapse button */}
+                              <button
+                                className="flex items-center justify-center w-6 h-6 rounded-md transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleGameExpansion(entry.eventId);
+                                }}
+                              >
+                                <motion.div
+                                  initial={false}
+                                  animate={{ rotate: entry.isExpanded ? 90 : 0 }}
+                                  transition={{ duration: 0.2, ease: "easeOut" }}
+                                >
+                                  <ChevronRight className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
+                                </motion.div>
+                              </button>
+                              
+                              {showLogos && (
+                                <>
+                                  <img
+                                    src={getTeamLogoUrl(entry.awayTeam)}
+                                    alt={entry.awayTeam}
+                                    className="w-6 h-6 object-contain"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                </>
+                              )}
+                              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                {awayDisplay} @ {homeDisplay}
+                              </span>
+                              {showLogos && (
+                                <>
+                                  <img
+                                    src={getTeamLogoUrl(entry.homeTeam)}
+                                    alt={entry.homeTeam}
+                                    className="w-6 h-6 object-contain"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          {/* Fill rest of row with time and styling */}
+                          <td
+                            colSpan={Math.max(totalColumns - 1, 1)}
+                            className="bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400"
+                          >
+                            {timeString}
+                          </td>
                         </tr>
                       )
                     }

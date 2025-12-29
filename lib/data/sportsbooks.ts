@@ -528,11 +528,19 @@ export function normalizeSportsbookId(id: string): string {
     'betonline': 'betonline',
     'fanduel-yourway': 'fanduelyourway',
     'fanduel_yourway': 'fanduelyourway',
+    // BetMGM Michigan is our preferred BetMGM source (US odds)
+    'betmgm-michigan': 'betmgm',
+    'betmgm_michigan': 'betmgm',
   };
   
   // Return mapped ID if exists, otherwise return original (lowercase)
   return idMappings[id.toLowerCase()] || id.toLowerCase();
 }
+
+// Books to exclude from all calculations (regional variants, Canada, etc.)
+export const EXCLUDED_SPORTSBOOK_KEYS = new Set([
+  'betmgm',  // Exclude base betmgm key (Canada) - use betmgm-michigan instead
+]);
 
 // Helper functions for the new structure
 export function getSportsbookById(id: SportsbookId): SportsbookMeta | undefined {

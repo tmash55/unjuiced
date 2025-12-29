@@ -44,6 +44,11 @@ interface BestOddsFiltersProps {
   onClearAllHidden?: () => void;
   customPresetActive?: boolean;  // When true, custom filter preset overrides comparison mode
   activePresetName?: string;     // Name of the active preset for display
+  // Kelly Criterion settings
+  bankroll?: number;
+  kellyPercent?: number;
+  onBankrollChange?: (value: number) => void;
+  onKellyPercentChange?: (value: number) => void;
 }
 
 export function BestOddsFilters({
@@ -64,6 +69,10 @@ export function BestOddsFilters({
   onRefresh,
   customPresetActive = false,
   activePresetName,
+  bankroll = 1000,
+  kellyPercent = 25,
+  onBankrollChange,
+  onKellyPercentChange,
 }: BestOddsFiltersProps) {
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), []);
   const allSports = useMemo(() => getAllSports(), []);
@@ -117,6 +126,10 @@ export function BestOddsFilters({
   const [localComparisonMode, setLocalComparisonMode] = useState<BestOddsPrefs['comparisonMode']>(prefs.comparisonMode ?? 'average');
   const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
   const [localSearchQuery, setLocalSearchQuery] = useState<string>(prefs.searchQuery || '');
+  
+  // Kelly Criterion local state
+  const [localBankroll, setLocalBankroll] = useState<number>(bankroll);
+  const [localKellyPercent, setLocalKellyPercent] = useState<number>(kellyPercent);
 
   const comparisonOptions: ComboboxOption[] = useMemo(() => {
     const baseOptions = [
@@ -203,6 +216,12 @@ export function BestOddsFilters({
     
     setHasUnsavedChanges(false);
   }, [prefs, allSports]);
+
+  // Keep Kelly settings in sync with props
+  useEffect(() => {
+    setLocalBankroll(bankroll);
+    setLocalKellyPercent(kellyPercent);
+  }, [bankroll, kellyPercent]);
 
   // Track changes to mark as unsaved
   useEffect(() => {
@@ -469,6 +488,15 @@ export function BestOddsFilters({
     }
 
     onPrefsChange(nextPrefs);
+    
+    // Save Kelly Criterion settings separately (they're EV-specific prefs)
+    if (onBankrollChange && localBankroll !== bankroll) {
+      onBankrollChange(localBankroll);
+    }
+    if (onKellyPercentChange && localKellyPercent !== kellyPercent) {
+      onKellyPercentChange(localKellyPercent);
+    }
+    
     setOpen(false);
   };
 
@@ -486,6 +514,9 @@ export function BestOddsFilters({
     setLocalHideCollegePlayerProps(false);
     setLocalComparisonMode('average');
     setLocalComparisonBook(null);
+    // Reset Kelly settings to defaults
+    setLocalBankroll(1000);
+    setLocalKellyPercent(25);
     
     onPrefsChange({
       ...prefs,
@@ -1204,6 +1235,75 @@ export function BestOddsFilters({
                       title={locked ? "Pro only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Filter out odds above this value</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Kelly Criterion Settings */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold">Kelly Criterion</h3>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Configure bet sizing recommendations</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Bankroll ($)</Label>
+                      <Input
+                        type="number"
+                        value={localBankroll}
+                        onChange={(e) => {
+                          if (locked) return;
+                          const val = Math.max(0, Number(e.target.value));
+                          setLocalBankroll(val);
+                          setHasUnsavedChanges(true);
+                        }}
+                        placeholder="1000"
+                        className="h-10"
+                        min="0"
+                        step="100"
+                        disabled={locked}
+                        title={locked ? "Pro only" : ""}
+                      />
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Your total betting bankroll</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Kelly Fraction (%)</Label>
+                      <Input
+                        type="number"
+                        value={localKellyPercent}
+                        onChange={(e) => {
+                          if (locked) return;
+                          const val = Math.max(1, Math.min(100, Number(e.target.value)));
+                          setLocalKellyPercent(val);
+                          setHasUnsavedChanges(true);
+                        }}
+                        placeholder="25"
+                        className="h-10"
+                        min="1"
+                        max="100"
+                        step="5"
+                        disabled={locked}
+                        title={locked ? "Pro only" : ""}
+                      />
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        {localKellyPercent <= 25 ? 'Quarter Kelly (conservative)' : 
+                         localKellyPercent <= 50 ? 'Half Kelly (moderate)' : 
+                         localKellyPercent <= 75 ? 'Three-quarter Kelly' : 'Full Kelly (aggressive)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                      <strong>Tip:</strong> Quarter Kelly (25%) is recommended for most bettors. It reduces volatility while still capturing most of the long-term growth.
+                    </p>
                   </div>
                 </div>
 

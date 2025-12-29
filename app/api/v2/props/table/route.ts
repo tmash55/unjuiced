@@ -22,7 +22,7 @@ const SCAN_COUNT = 1000;
 
 // OPTIMIZATION: Known sportsbooks to construct exact keys (avoids SCAN)
 const KNOWN_BOOKS = [
-  "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
+  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
   "superbook", "si-sportsbook", "betfred", "tipico", "fliff"
@@ -52,10 +52,21 @@ function normalizeBookId(id: string): string {
     case "fanduel-yourway":
     case "fanduel_yourway":
       return "fanduelyourway";
+    // BetMGM Michigan is our preferred BetMGM source (US odds)
+    case "betmgm-michigan":
+    case "betmgm_michigan":
+      return "betmgm";
     default:
       return lower;
   }
 }
+
+// Books to exclude (Canada, regional variants)
+const EXCLUDED_BOOKS = new Set([
+  "hard-rock-indiana",
+  "hardrockindiana",
+  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
+]);
 
 /**
  * Normalize market names to match Redis key format
@@ -66,7 +77,7 @@ function normalizeMarketName(market: string): string {
   
   // Common shorthand → full key mapping
   const marketMap: Record<string, string> = {
-    // Game lines
+    // ============ GAME LINES (All Sports) ============
     "spread": "game_spread",
     "point_spread": "game_spread",
     "pointspread": "game_spread",
@@ -81,13 +92,74 @@ function normalizeMarketName(market: string): string {
     
     // Half/Quarter shorthands
     "1h_spread": "1st_half_point_spread",
+    "1st_half_spread": "1st_half_point_spread",
+    "1st_half_point_spread": "1st_half_point_spread",
     "1h_total": "1st_half_total_points",
+    "1st_half_total": "1st_half_total_points",
+    "1st_half_total_points": "1st_half_total_points",
     "1h_ml": "game_1h_moneyline",
+    "1h_moneyline": "game_1h_moneyline",
+    "game_1h_moneyline": "game_1h_moneyline",
+    "1st_half_moneyline": "game_1h_moneyline",
+    "1st_half_moneyline_3_way": "1st_half_moneyline_3_way",
     "1q_spread": "1st_quarter_point_spread",
+    "1st_quarter_spread": "1st_quarter_point_spread",
+    "1st_quarter_point_spread": "1st_quarter_point_spread",
     "1q_total": "1st_quarter_total_points",
-    "1q_ml": "game_1q_moneyline",
+    "1st_quarter_total": "1st_quarter_total_points",
+    "1st_quarter_total_points": "1st_quarter_total_points",
+    "1q_ml": "1st_quarter_moneyline",
+    "1q_moneyline": "1st_quarter_moneyline",
+    "1st_quarter_moneyline": "1st_quarter_moneyline",
+    "2q_spread": "2nd_quarter_point_spread",
+    "2nd_quarter_spread": "2nd_quarter_point_spread",
+    "2nd_quarter_point_spread": "2nd_quarter_point_spread",
+    "3q_spread": "3rd_quarter_point_spread",
+    "3rd_quarter_spread": "3rd_quarter_point_spread",
+    "3rd_quarter_point_spread": "3rd_quarter_point_spread",
+    "4q_spread": "4th_quarter_point_spread",
+    "4th_quarter_spread": "4th_quarter_point_spread",
+    "4th_quarter_point_spread": "4th_quarter_point_spread",
     
-    // Player props shorthands
+    // Team totals
+    "home_total": "home_team_total_points",
+    "home_team_total": "home_team_total_points",
+    "home_team_total_points": "home_team_total_points",
+    "away_total": "away_team_total_points",
+    "away_team_total": "away_team_total_points",
+    "away_team_total_points": "away_team_total_points",
+    "1h_home_total": "1st_half_home_team_total_points",
+    "1st_half_home_team_total_points": "1st_half_home_team_total_points",
+    "1h_away_total": "1st_half_away_team_total_points",
+    "1st_half_away_team_total_points": "1st_half_away_team_total_points",
+    
+    // Touchdowns totals
+    "total_touchdowns": "game_total_touchdowns",
+    "game_total_touchdowns": "game_total_touchdowns",
+    "1h_total_touchdowns": "1st_half_total_touchdowns",
+    "1st_half_total_touchdowns": "1st_half_total_touchdowns",
+    "2h_total_touchdowns": "2nd_half_total_touchdowns",
+    "2nd_half_total_touchdowns": "2nd_half_total_touchdowns",
+    
+    // Field Goals (Game Totals)
+    "total_field_goals_made": "total_field_goals_made",
+    "1st_half_total_field_goals_made": "1st_half_total_field_goals_made",
+    "1h_total_field_goals_made": "1st_half_total_field_goals_made",
+    "2nd_half_total_field_goals_made": "2nd_half_total_field_goals_made",
+    "2h_total_field_goals_made": "2nd_half_total_field_goals_made",
+    "total_field_goal_yards": "total_field_goal_yards",
+    "total_fg_yards": "total_field_goal_yards",
+    "longest_field_goal_made_yards": "longest_field_goal_made_yards",
+    "shortest_field_goal_made_yards": "shortest_field_goal_made_yards",
+    
+    // Overtime
+    "overtime": "overtime",
+    
+    // 3-way moneyline
+    "moneyline_3_way": "moneyline_3_way",
+    "ml_3way": "moneyline_3_way",
+    
+    // ============ BASKETBALL PLAYER PROPS ============
     "points": "player_points",
     "assists": "player_assists",
     "rebounds": "player_rebounds",
@@ -98,16 +170,338 @@ function normalizeMarketName(market: string): string {
     "turnovers": "player_turnovers",
     "pra": "player_pra",
     "pts_reb_ast": "player_pra",
+    "player_points_rebounds_assists": "player_pra",
+    "points_rebounds_assists": "player_pra",
     "pr": "player_pr",
     "pts_reb": "player_pr",
+    "player_points_rebounds": "player_pr",
+    "points_rebounds": "player_pr",
     "pa": "player_pa",
     "pts_ast": "player_pa",
+    "player_points_assists": "player_pa",
+    "points_assists": "player_pa",
     "ra": "player_ra",
     "reb_ast": "player_ra",
+    "player_rebounds_assists": "player_ra",
+    "rebounds_assists": "player_ra",
     "double_double": "player_double_double",
     "dd": "player_double_double",
+    
+    // ============ FOOTBALL (NFL/NCAAF) PLAYER PROPS ============
+    // NOTE: Redis keys use "player_" prefix like NBA (e.g., player_passing_yards)
+    
+    // Passing - with and without player_ prefix for compatibility
+    "passing_yards": "player_passing_yards",
+    "pass_yards": "player_passing_yards",
+    "player_passing_yards": "player_passing_yards",
+    "passing_tds": "player_passing_tds",
+    "pass_tds": "player_passing_tds",
+    "passing_touchdowns": "player_passing_tds",
+    "player_passing_tds": "player_passing_tds",
+    "player_passing_touchdowns": "player_passing_tds",
+    "pass_attempts": "player_passing_attempts",
+    "passing_attempts": "player_passing_attempts",
+    "player_pass_attempts": "player_passing_attempts",
+    "player_passing_attempts": "player_passing_attempts",
+    "pass_completions": "player_passing_completions",
+    "passing_completions": "player_passing_completions",
+    "completions": "player_passing_completions",
+    "player_pass_completions": "player_passing_completions",
+    "player_passing_completions": "player_passing_completions",
+    "pass_interceptions": "player_interceptions_thrown",
+    "passing_interceptions": "player_interceptions_thrown",
+    "interceptions_thrown": "player_interceptions_thrown",
+    "player_interceptions": "player_interceptions_thrown",
+    "player_interceptions_thrown": "player_interceptions_thrown",
+    "longest_pass": "player_longest_passing_completion",
+    "player_longest_pass": "player_longest_passing_completion",
+    "longest_passing_completion": "player_longest_passing_completion",
+    "player_longest_passing_completion": "player_longest_passing_completion",
+    
+    // 1st Quarter Passing
+    "1q_passing_yards": "1st_quarter_player_passing_yards",
+    "1st_quarter_passing_yards": "1st_quarter_player_passing_yards",
+    "1st_quarter_player_passing_yards": "1st_quarter_player_passing_yards",
+    "1q_pass_attempts": "1st_quarter_player_passing_attempts",
+    "1st_quarter_pass_attempts": "1st_quarter_player_passing_attempts",
+    "1st_quarter_player_passing_attempts": "1st_quarter_player_passing_attempts",
+    "1q_pass_completions": "1st_quarter_player_passing_completions",
+    "1q_passing_completions": "1st_quarter_player_passing_completions",
+    "1st_quarter_pass_completions": "1st_quarter_player_passing_completions",
+    "1st_quarter_passing_completions": "1st_quarter_player_passing_completions",
+    "1st_quarter_player_passing_completions": "1st_quarter_player_passing_completions",
+    "1q_passing_tds": "1st_quarter_player_passing_touchdowns",
+    "1st_quarter_passing_tds": "1st_quarter_player_passing_touchdowns",
+    "1st_quarter_player_passing_touchdowns": "1st_quarter_player_passing_touchdowns",
+    
+    // 1st Half Passing
+    "1h_passing_yards": "1st_half_player_passing_yards",
+    "1st_half_passing_yards": "1st_half_player_passing_yards",
+    "1st_half_player_passing_yards": "1st_half_player_passing_yards",
+    "1h_pass_attempts": "1st_half_player_passing_attempts",
+    "1st_half_pass_attempts": "1st_half_player_passing_attempts",
+    "1st_half_player_passing_attempts": "1st_half_player_passing_attempts",
+    "1st_half_player_passing_touchdowns": "1st_half_player_passing_touchdowns",
+    "1h_passing_tds": "1st_half_player_passing_touchdowns",
+    "1st_half_passing_tds": "1st_half_player_passing_touchdowns",
+    
+    // Rushing - with and without player_ prefix
+    "rushing_yards": "player_rushing_yards",
+    "rush_yards": "player_rushing_yards",
+    "player_rushing_yards": "player_rushing_yards",
+    "rush_attempts": "player_rushing_attempts",
+    "rushing_attempts": "player_rushing_attempts",
+    "carries": "player_rushing_attempts",
+    "player_rush_attempts": "player_rushing_attempts",
+    "player_rushing_attempts": "player_rushing_attempts",
+    "rushing_tds": "player_rushing_touchdowns",
+    "rushing_touchdowns": "player_rushing_touchdowns",
+    "player_rushing_tds": "player_rushing_touchdowns",
+    "player_rushing_touchdowns": "player_rushing_touchdowns",
+    "longest_rush": "player_longest_rush",
+    "player_longest_rush": "player_longest_rush",
+    
+    // 1st Quarter Rushing
+    "1q_rushing_yards": "1st_quarter_player_rushing_yards",
+    "1st_quarter_rushing_yards": "1st_quarter_player_rushing_yards",
+    "1st_quarter_player_rushing_yards": "1st_quarter_player_rushing_yards",
+    "1q_rush_attempts": "1st_quarter_player_rushing_attempts",
+    "1st_quarter_rush_attempts": "1st_quarter_player_rushing_attempts",
+    "1st_quarter_player_rushing_attempts": "1st_quarter_player_rushing_attempts",
+    
+    // 1st Half Rushing
+    "1h_rushing_yards": "1st_half_player_rushing_yards",
+    "1st_half_rushing_yards": "1st_half_player_rushing_yards",
+    "1st_half_player_rushing_yards": "1st_half_player_rushing_yards",
+    
+    // Receiving - with and without player_ prefix
+    "receiving_yards": "player_receiving_yards",
+    "rec_yards": "player_receiving_yards",
+    "player_receiving_yards": "player_receiving_yards",
+    "receptions": "player_receptions",
+    "catches": "player_receptions",
+    "player_receptions": "player_receptions",
+    "receiving_tds": "player_receiving_touchdowns",
+    "receiving_touchdowns": "player_receiving_touchdowns",
+    "player_receiving_tds": "player_receiving_touchdowns",
+    "player_receiving_touchdowns": "player_receiving_touchdowns",
+    "longest_reception": "player_longest_reception",
+    "player_longest_reception": "player_longest_reception",
+    
+    // 1st Quarter Receiving
+    "1q_receiving_yards": "1st_quarter_player_receiving_yards",
+    "1st_quarter_receiving_yards": "1st_quarter_player_receiving_yards",
+    "1st_quarter_player_receiving_yards": "1st_quarter_player_receiving_yards",
+    "1q_receptions": "1st_quarter_player_receptions",
+    "1st_quarter_receptions": "1st_quarter_player_receptions",
+    "1st_quarter_player_receptions": "1st_quarter_player_receptions",
+    
+    // 1st Half Receiving
+    "1h_receiving_yards": "1st_half_player_receiving_yards",
+    "1st_half_receiving_yards": "1st_half_player_receiving_yards",
+    "1st_half_player_receiving_yards": "1st_half_player_receiving_yards",
+    
+    // Combo stats (note: Redis uses double underscore __)
+    "pass_rush_yards": "player_passing__rushing_yards",
+    "passing_rushing_yards": "player_passing__rushing_yards",
+    "player_pass_rush_yards": "player_passing__rushing_yards",
+    "player_passing__rushing_yards": "player_passing__rushing_yards",
+    "player_passing_+_rushing_yards": "player_passing__rushing_yards",
+    "rush_rec_yards": "player_rush_rec_yards",
+    "rushing_receiving_yards": "player_rush_rec_yards",
+    "player_rush_rec_yards": "player_rush_rec_yards",
+    "player_rushing_+_receiving_yards": "player_rush_rec_yards",
+    
+    // 1st Quarter Combo
+    "1q_pass_rush_yards": "1st_quarter_player_passing__rushing_yards",
+    "1st_quarter_player_passing__rushing_yards": "1st_quarter_player_passing__rushing_yards",
+    "1st_quarter_player_passing_+_rushing_yards": "1st_quarter_player_passing__rushing_yards",
+    
+    // 1st Half Combo
+    "1h_pass_rush_yards": "1st_half_player_passing__rushing_yards",
+    "1st_half_player_passing__rushing_yards": "1st_half_player_passing__rushing_yards",
+    "1st_half_player_passing_+_rushing_yards": "1st_half_player_passing__rushing_yards",
+    
+    // Touchdowns
+    "player_touchdowns": "player_touchdowns",
+    "anytime_td": "player_touchdowns",
+    "anytime_touchdown": "player_touchdowns",
+    "touchdowns": "player_touchdowns",
+    "first_td": "player_first_td",
+    "first_touchdown": "player_first_td",
+    "first_td_scorer": "player_first_td",
+    "player_first_td": "player_first_td",
+    "last_td": "player_last_td",
+    "last_touchdown": "player_last_td",
+    "last_td_scorer": "player_last_td",
+    "player_last_td": "player_last_td",
+    "anytime_td_scorer": "player_anytime_td",
+    "player_anytime_td": "player_anytime_td",
+    
+    // 1st Quarter Touchdowns
+    "1q_player_touchdowns": "1st_quarter_player_touchdowns",
+    "1st_quarter_player_touchdowns": "1st_quarter_player_touchdowns",
+    "1st_quarter_touchdowns": "1st_quarter_player_touchdowns",
+    
+    // 1st Half Touchdowns
+    "1h_player_touchdowns": "1st_half_player_touchdowns",
+    "1st_half_player_touchdowns": "1st_half_player_touchdowns",
+    "1st_half_touchdowns": "1st_half_player_touchdowns",
+    
+    // 2nd Half Touchdowns
+    "2h_player_touchdowns": "2nd_half_player_touchdowns",
+    "2nd_half_player_touchdowns": "2nd_half_player_touchdowns",
+    "2nd_half_touchdowns": "2nd_half_player_touchdowns",
+    
+    // Both halves
+    "both_halves_player_touchdowns": "both_halves_player_touchdowns",
+    "both_halves_touchdowns": "both_halves_player_touchdowns",
+    
+    // Defense
+    "player_sacks": "player_sacks",
+    "sacks": "player_sacks",
+    "player_tackles_and_assists": "player_tackles_assists",
+    "tackles_assists": "player_tackles_assists",
+    "player_tackles_assists": "player_tackles_assists",
+    "player_defensive_interceptions": "player_defense_interceptions",
+    "defensive_interceptions": "player_defense_interceptions",
+    "player_defense_interceptions": "player_defense_interceptions",
+    
+    // Kicking
+    "player_field_goals_made": "player_field_goals",
+    "field_goals": "player_field_goals",
+    "fgs_made": "player_field_goals",
+    "player_field_goals": "player_field_goals",
+    "player_extra_points_made": "player_extra_points",
+    "extra_points": "player_extra_points",
+    "player_extra_points": "player_extra_points",
+    "player_kicking_points": "player_kicking_points",
+    "kicking_points": "player_kicking_points",
     "triple_double": "player_triple_double",
     "td": "player_triple_double",
+    
+    // ============ HOCKEY (NHL) PLAYER PROPS ============
+    // Goals
+    "goals": "player_goals",
+    "player_goals": "player_goals",
+    "first_goal": "player_first_goal",
+    "player_first_goal": "player_first_goal",
+    "last_goal": "player_last_goal",
+    "player_last_goal": "player_last_goal",
+    "1p_player_goals": "1st_period_player_goals",
+    "1st_period_player_goals": "1st_period_player_goals",
+    "1st_period_goals": "1st_period_player_goals",
+    "2p_player_goals": "2nd_period_player_goals",
+    "2nd_period_player_goals": "2nd_period_player_goals",
+    "2nd_period_goals": "2nd_period_player_goals",
+    "3p_player_goals": "3rd_period_player_goals",
+    "3rd_period_player_goals": "3rd_period_player_goals",
+    "3rd_period_goals": "3rd_period_player_goals",
+    
+    // Assists & Points
+    "player_assists": "player_assists",
+    "player_points": "player_points",
+    "pp_points": "player_pp_points",
+    "player_pp_points": "player_pp_points",
+    "power_play_points": "player_pp_points",
+    "1p_player_assists": "1st_period_player_assists",
+    "1st_period_player_assists": "1st_period_player_assists",
+    "1p_player_points": "1st_period_player_points",
+    "1st_period_player_points": "1st_period_player_points",
+    "2p_player_assists": "2nd_period_player_assists",
+    "2nd_period_player_assists": "2nd_period_player_assists",
+    "2p_player_points": "2nd_period_player_points",
+    "2nd_period_player_points": "2nd_period_player_points",
+    "3p_player_assists": "3rd_period_player_assists",
+    "3rd_period_player_assists": "3rd_period_player_assists",
+    
+    // Shots & Other
+    "shots_on_goal": "player_shots_on_goal",
+    "player_shots_on_goal": "player_shots_on_goal",
+    "sog": "player_shots_on_goal",
+    "1p_shots_on_goal": "1st_period_player_shots_on_goal",
+    "1st_period_player_shots_on_goal": "1st_period_player_shots_on_goal",
+    "2p_shots_on_goal": "2nd_period_player_shots_on_goal",
+    "2nd_period_player_shots_on_goal": "2nd_period_player_shots_on_goal",
+    "3p_shots_on_goal": "3rd_period_player_shots_on_goal",
+    "3rd_period_player_shots_on_goal": "3rd_period_player_shots_on_goal",
+    "blocked_shots": "player_blocked_shots",
+    "player_blocked_shots": "player_blocked_shots",
+    "hits": "player_hits",
+    "player_hits": "player_hits",
+    "plus_minus": "player_plus_minus",
+    "player_plus_minus": "player_plus_minus",
+    
+    // ============ HOCKEY (NHL) GAME LINES ============
+    // Puck line (spread)
+    "puck_line": "game_spread",
+    "puckline": "game_spread",
+    "puck_line_reg_time": "puck_line_reg_time",
+    "1p_puck_line": "game_1p_spread",
+    "1p_spread": "game_1p_spread",
+    "game_1p_spread": "game_1p_spread",
+    "1st_period_puck_line": "game_1p_spread",
+    "2p_puck_line": "2nd_period_puck_line",
+    "2nd_period_puck_line": "2nd_period_puck_line",
+    "3p_puck_line": "3rd_period_puck_line",
+    "3rd_period_puck_line": "3rd_period_puck_line",
+    
+    // Total goals
+    "total_goals": "game_total_goals",
+    "game_total_goals": "game_total_goals",
+    "total_goals_reg_time": "total_goals_reg_time",
+    "1p_total": "1st_period_total_goals",
+    "1p_total_goals": "1st_period_total_goals",
+    "1st_period_total_goals": "1st_period_total_goals",
+    "2p_total": "2nd_period_total_goals",
+    "2p_total_goals": "2nd_period_total_goals",
+    "2nd_period_total_goals": "2nd_period_total_goals",
+    "3p_total": "3rd_period_total_goals",
+    "3p_total_goals": "3rd_period_total_goals",
+    "3rd_period_total_goals": "3rd_period_total_goals",
+    
+    // Team totals
+    "home_team_total_goals": "home_team_total_goals",
+    "away_team_total_goals": "away_team_total_goals",
+    "home_team_total_goals_reg_time": "home_team_total_goals_reg_time",
+    "away_team_total_goals_reg_time": "away_team_total_goals_reg_time",
+    "1st_period_home_team_total_goals": "1st_period_home_team_total_goals",
+    "1st_period_away_team_total_goals": "1st_period_away_team_total_goals",
+    
+    // Period moneylines
+    "1p_ml": "game_1p_moneyline",
+    "1p_moneyline": "game_1p_moneyline",
+    "game_1p_moneyline": "game_1p_moneyline",
+    "1st_period_moneyline": "game_1p_moneyline",
+    "1st_period_moneyline_3_way": "1st_period_moneyline_3_way",
+    "2p_ml": "2nd_period_moneyline",
+    "2p_moneyline": "2nd_period_moneyline",
+    "2nd_period_moneyline": "2nd_period_moneyline",
+    "2nd_period_moneyline_3_way": "2nd_period_moneyline_3_way",
+    "3p_ml": "3rd_period_moneyline",
+    "3p_moneyline": "3rd_period_moneyline",
+    "3rd_period_moneyline": "3rd_period_moneyline",
+    
+    // Both teams to score
+    "btts": "both_teams_to_score",
+    "both_teams_to_score": "both_teams_to_score",
+    "both_teams_to_score_2_goals": "both_teams_to_score_2_goals",
+    "1p_btts": "1st_period_both_teams_to_score",
+    "1st_period_both_teams_to_score": "1st_period_both_teams_to_score",
+    "2p_btts": "2nd_period_both_teams_to_score",
+    "2nd_period_both_teams_to_score": "2nd_period_both_teams_to_score",
+    
+    // Other game props
+    "draw_no_bet": "draw_no_bet",
+    "first_team_to_score": "first_team_to_score",
+    "first_team_to_score_3_way": "first_team_to_score_3_way",
+    "1st_period_first_team_to_score_3_way": "1st_period_first_team_to_score_3_way",
+    "last_team_to_score_3_way": "last_team_to_score_3_way",
+    
+    // 10 minute props
+    "1st_10_minutes_total_goals": "1st_10_minutes_total_goals",
+    "2nd_period_1st_10_minutes_total_goals": "2nd_period_1st_10_minutes_total_goals",
+    "3rd_period_1st_10_minutes_total_goals": "3rd_period_1st_10_minutes_total_goals",
   };
   
   return marketMap[lower] || lower;
@@ -248,13 +642,13 @@ interface PropsRow {
     away: { id: string; name: string; abbr: string };
   };
   best?: {
-    over?: { bk: string; price: number; limit_max?: number | null };
-    under?: { bk: string; price: number; limit_max?: number | null };
+    over?: { bk: string; price: number; limit_max?: number | null; locked?: boolean };
+    under?: { bk: string; price: number; limit_max?: number | null; locked?: boolean };
   };
   avg?: { over?: number; under?: number };
   books?: Record<string, {
-    over?: { price: number; line: number; u: string; m?: string; limit_max?: number | null };
-    under?: { price: number; line: number; u: string; m?: string; limit_max?: number | null };
+    over?: { price: number; line: number; u: string; m?: string; limit_max?: number | null; locked?: boolean };
+    under?: { price: number; line: number; u: string; m?: string; limit_max?: number | null; locked?: boolean };
   }>;
   ts?: number;
 }
@@ -380,10 +774,15 @@ async function buildPropsRows(
     }>;
   }>();
 
+  // Helper to identify game markets
+  const isGameTotal = market.includes("total") || market.includes("over_under");
+  const isGameLine = (market.includes("spread") || market.includes("moneyline") || market.includes("puck_line")) && !isGameTotal;
+  const isGameMarket = isGameTotal || isGameLine;
+
   // THREE-PASS APPROACH:
   // Pass 1: Find main lines (main=true) for each player per book
   // Pass 1.5: Determine canonical main line per player (FanDuel > DraftKings > any book with main=true)
-  // Pass 2: Build rows using canonical main lines for all books
+  // Pass 2: Build rows using canonical main lines for all rows
   
   // Structure to track main lines: eventId:player:book -> line number
   const mainLinesByPlayerBook = new Map<string, number>();
@@ -391,43 +790,84 @@ async function buildPropsRows(
   const canonicalMainLine = new Map<string, { line: number; priority: number }>();
   
   // Priority order for determining canonical main line (lower = higher priority)
+  // DraftKings first, then FanDuel as fallback (per user request)
   const BOOK_PRIORITY: Record<string, number> = {
-    "fanduel": 1,
-    "draftkings": 2,
+    "draftkings": 1,
+    "fanduel": 2,
     "betmgm": 3,
     "caesars": 4,
     "pinnacle": 5,
   };
   const DEFAULT_PRIORITY = 99;
   
+  // Track ALL lines available per entity+book for closest line fallback
+  // Structure: eventId:entity:book -> Set of lines
+  const allLinesByEntityBook = new Map<string, Set<number>>();
+  
   // PASS 1: Collect all main=true selections and their lines
+  // Also collect ALL available lines per entity+book for closest line fallback
   for (const [key, selections] of oddsDataMap) {
     const parts = key.split(":");
     const eventId = parts[2];
-    const book = normalizeBookId(parts[4]);
+    const rawBook = parts[4];
+    
+    // Skip excluded books (Canada, regional variants)
+    if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) continue;
+    
+    const book = normalizeBookId(rawBook);
 
     if (!eventMap.has(eventId)) continue;
 
     for (const [selKey, sel] of Object.entries(selections)) {
-      if (sel.main !== true) continue;
-      
-      const [playerRaw, , lineStr] = selKey.split("|");
-      if (!playerRaw || !lineStr) continue;
+      const [rawName, , lineStr] = selKey.split("|");
+      if (!rawName || !lineStr) continue;
 
       const line = parseFloat(lineStr);
       if (isNaN(line)) continue;
 
-      // Track the main line for this player+book
-      const playerBookKey = `${eventId}:${playerRaw}:${book}`;
-      mainLinesByPlayerBook.set(playerBookKey, line);
+      // For game markets, treat the "player" as a single entity "Game" so we find one main line per game
+      // For player props, use the player name
+      const entityKey = isGameMarket ? "Game" : rawName;
+
+      // Special handling for spreads where line signs differ (e.g. -3.5 vs +3.5)
+      const isSpread = market.includes("spread") || market.includes("puck_line");
+      const effectiveLine = isSpread && isGameMarket ? Math.abs(line) : line;
+
+      // Track ALL lines available for this entity+book (for closest line fallback)
+      const playerBookKey = `${eventId}:${entityKey}:${book}`;
+      if (!allLinesByEntityBook.has(playerBookKey)) {
+        allLinesByEntityBook.set(playerBookKey, new Set());
+      }
+      allLinesByEntityBook.get(playerBookKey)!.add(effectiveLine);
+
+      // Only process main=true for canonical line determination
+      if (sel.main !== true) continue;
+
+      // Sanity check: For game spreads, skip if odds are unreasonable (likely wrong line marked as main)
+      // Legitimate spread odds are typically between -200 and +200
+      if (isSpread && isGameMarket) {
+        const oddsValue = parseInt(sel.price.replace("+", ""), 10);
+        if (!isNaN(oddsValue)) {
+          // Skip if odds are outside reasonable range for spreads
+          if (oddsValue <= -500 || oddsValue >= +300) {
+            console.warn(
+              `[v2/props/table] Skipping unreasonable spread odds in canonical line selection for ${book}: ${sel.price} (line: ${line})`
+            );
+            continue;
+          }
+        }
+      }
+
+      // Track the main line for this entity+book
+      mainLinesByPlayerBook.set(playerBookKey, effectiveLine);
       
       // Update canonical main line if this book has higher priority
-      const playerKey = `${eventId}:${playerRaw}`;
+      const playerKey = `${eventId}:${entityKey}`;
       const bookPriority = BOOK_PRIORITY[book] || DEFAULT_PRIORITY;
       const existing = canonicalMainLine.get(playerKey);
       
       if (!existing || bookPriority < existing.priority) {
-        canonicalMainLine.set(playerKey, { line, priority: bookPriority });
+        canonicalMainLine.set(playerKey, { line: effectiveLine, priority: bookPriority });
       }
     }
   }
@@ -436,43 +876,241 @@ async function buildPropsRows(
   for (const [key, selections] of oddsDataMap) {
     const parts = key.split(":");
     const eventId = parts[2];
-    const book = normalizeBookId(parts[4]);
+    const rawBook = parts[4];
+    
+    // Skip excluded books (Canada, regional variants)
+    if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) continue;
+    
+    const book = normalizeBookId(rawBook);
 
-    if (!eventMap.has(eventId)) continue;
+    const event = eventMap.get(eventId);
+    if (!event) continue;
 
     for (const [selKey, sel] of Object.entries(selections)) {
-      const [playerRaw, side, lineStr] = selKey.split("|");
-      if (!playerRaw || !side || !lineStr) continue;
+      const [rawName, side, lineStr] = selKey.split("|");
+      if (!rawName || !side || !lineStr) continue;
 
       const line = parseFloat(lineStr);
       if (isNaN(line)) continue;
 
-      const playerBookKey = `${eventId}:${playerRaw}:${book}`;
-      const playerKey = `${eventId}:${playerRaw}`;
+      // Determine entity key for main line lookup
+      const entityKey = isGameMarket ? "Game" : rawName;
+      const playerBookKey = `${eventId}:${entityKey}:${book}`;
+      const playerKey = `${eventId}:${entityKey}`;
       
-      // Check if this book has its own main line
+      // Check if this book has its own main line (main=true)
       const bookMainLine = mainLinesByPlayerBook.get(playerBookKey);
-      // Get canonical main line (from FanDuel/DraftKings/etc)
+      // Get canonical main line (from DraftKings/FanDuel/etc)
       const canonical = canonicalMainLine.get(playerKey);
       
-      // Determine which line to use:
-      // 1. If this book has main=true for any line, use that
-      // 2. Otherwise, fall back to canonical main line from priority books
-      const targetLine = bookMainLine ?? canonical?.line;
+      // Determine which line to show for this book:
+      // 1. If this book has main=true for any line, use that line
+      // 2. Otherwise, use the canonical main line from DraftKings/FanDuel
+      // 3. If book doesn't have the canonical line, find the closest available line
+      let targetLine: number | undefined = bookMainLine;
       
-      // Only include if line matches the target (main or canonical)
-      if (targetLine === undefined || line !== targetLine) continue;
+      if (targetLine === undefined && canonical?.line !== undefined) {
+        // This book doesn't have main=true, check if it has the canonical line
+        const bookLines = allLinesByEntityBook.get(playerBookKey);
+        if (bookLines) {
+          const isSpread = market.includes("spread") || market.includes("puck_line");
+          const canonicalLine = canonical.line;
+          
+          // Check if book has exact canonical line
+          const hasExact = isSpread && isGameMarket
+            ? [...bookLines].some(l => Math.abs(l) === Math.abs(canonicalLine))
+            : bookLines.has(canonicalLine);
+          
+          if (hasExact) {
+            targetLine = canonicalLine;
+          } else {
+            // Find closest line to canonical
+            let closestLine: number | undefined;
+            let closestDiff = Infinity;
+            for (const availLine of bookLines) {
+              const diff = Math.abs(availLine - canonicalLine);
+              if (diff < closestDiff) {
+                closestDiff = diff;
+                closestLine = availLine;
+              }
+            }
+            // Only use closest if within reasonable range (0.5 for most markets)
+            if (closestLine !== undefined && closestDiff <= 0.5) {
+              targetLine = closestLine;
+            } else {
+              // No suitable line found, skip this selection
+              continue;
+            }
+          }
+        } else {
+          // Book has no lines for this entity
+          continue;
+        }
+      }
+      
+      // Only include if line matches the target
+      if (targetLine !== undefined) {
+        const isSpread = market.includes("spread") || market.includes("puck_line");
+        const match = (isSpread && isGameMarket) 
+          ? Math.abs(line) === Math.abs(targetLine)
+          : line === targetLine;
+          
+        if (!match) continue;
+      }
 
-      // Use player name from selection data
-      const player = sel.player || playerRaw;
-      const rowKey = `${eventId}:${playerRaw}`;
+      // SANITY CHECK: For game spreads/puck lines, reject unreasonable odds
+      // Legitimate spread odds are typically between -200 and +200
+      // Extreme odds (like -2500 or +900) indicate wrong line selection
+      if (isGameLine && (market.includes("spread") || market.includes("puck_line"))) {
+        const oddsValue = parseInt(sel.price.replace("+", ""), 10);
+        if (!isNaN(oddsValue)) {
+          // Reject if odds are outside reasonable range for spreads
+          if (oddsValue <= -500 || oddsValue >= +300) {
+            console.warn(
+              `[v2/props/table] Rejecting unreasonable spread odds for ${book} ${rawName}: ${sel.price} (line: ${line})`
+            );
+            continue;
+          }
+        }
+      }
+
+      // BUILD ROW KEY & MAP SIDES
+      let rowKey = "";
+      let finalPlayerName = sel.player || rawName;
+      let mappedSide: "over" | "under" | null = null;
+      let finalTeam: string | null = sel.team || null;
+
+      if (isGameLine) {
+        // GAME LINE (Spread/ML) - Single row per game
+        const awayAbbr = event.awayTeam || event.awayName.substring(0, 3).toUpperCase();
+        const homeAbbr = event.homeTeam || event.homeName.substring(0, 3).toUpperCase();
+        
+        // Use unique row key for game lines
+        rowKey = `${eventId}:GameLine`;
+        finalPlayerName = `${awayAbbr} @ ${homeAbbr}`; 
+        
+        // Map teams to sides (Away/Top -> Over, Home/Bottom -> Under)
+        // Use sel.player for better team name (e.g., "New Orleans Pelicans")
+        // Also check rawName from key (e.g., "new_orleans_pelicans")
+        const playerName = (sel.player || "").toLowerCase().replace(/_/g, " ");
+        const keyName = rawName.toLowerCase().replace(/_/g, " ");
+        const sideLower = side.toLowerCase();
+        
+        // Normalize event team names similarly
+        const homeNameNorm = event.homeName.toLowerCase().replace(/_/g, " ");
+        const homeTeamNorm = event.homeTeam.toLowerCase().replace(/_/g, " ");
+        const awayNameNorm = event.awayName.toLowerCase().replace(/_/g, " ");
+        const awayTeamNorm = event.awayTeam.toLowerCase().replace(/_/g, " ");
+
+        // Helper to check if input matches a team (exact, contains, or word match)
+        const matchesTeam = (input: string, teamName: string, teamAbbr: string): boolean => {
+          if (!input || input.length === 0) return false;
+          
+          // Normalize inputs
+          const inputNorm = input.toLowerCase().trim();
+          const teamNameNorm = teamName.toLowerCase().trim();
+          const teamAbbrNorm = teamAbbr.toLowerCase().trim();
+          
+          // Exact match
+          if (inputNorm === teamNameNorm || inputNorm === teamAbbrNorm) return true;
+          
+          // Input contains full team name or vice versa
+          if (inputNorm.includes(teamNameNorm) || teamNameNorm.includes(inputNorm)) return true;
+          
+          // Extract city and mascot from team name (e.g., "los angeles rams" -> ["los angeles", "rams"])
+          const teamParts = teamNameNorm.split(" ");
+          const mascot = teamParts[teamParts.length - 1]; // Last word is usually the mascot
+          const city = teamParts.slice(0, -1).join(" "); // Everything else is the city
+          
+          // Check if mascot matches (e.g., "rams", "falcons", "knicks")
+          if (mascot && mascot.length >= 3 && inputNorm.includes(mascot)) return true;
+          
+          // Check if input ends with mascot
+          if (mascot && inputNorm.endsWith(mascot)) return true;
+          
+          // Check abbreviation (3-letter codes like "LAR", "ATL")
+          if (teamAbbrNorm.length >= 2) {
+            // Direct abbreviation match
+            if (inputNorm === teamAbbrNorm) return true;
+            // Input ends with abbreviation (for cases like "la_rams" containing "lar")
+            if (inputNorm.includes(teamAbbrNorm) && teamAbbrNorm.length >= 3) return true;
+          }
+          
+          // Check city match for multi-word cities
+          if (city && city.length >= 4 && inputNorm.includes(city)) return true;
+          
+          return false;
+        };
+
+        // Check both player name and key name for matches
+        const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm) ||
+                       matchesTeam(keyName, homeNameNorm, homeTeamNorm) ||
+                       playerName === "home" || keyName === "home" ||
+                       sideLower === "home";
+                       
+        const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm) ||
+                       matchesTeam(keyName, awayNameNorm, awayTeamNorm) ||
+                       playerName === "away" || keyName === "away" ||
+                       sideLower === "away";
+
+        if (isAway && !isHome) mappedSide = "over";      // Top slot (Away)
+        else if (isHome && !isAway) mappedSide = "under"; // Bottom slot (Home)
+        else if (isAway && isHome) {
+          // Both matched (shouldn't happen with good data) - skip
+          continue;
+        } else {
+           // Fallback: If we can't determine team, check if it's Draw
+           if (playerName === "draw" || keyName === "draw" || sideLower === "draw") continue; 
+           
+           // For game lines where team matching fails completely, skip the entry
+           // DO NOT use spread line sign as fallback - it doesn't indicate home/away
+           // (negative spread = favorite, positive spread = underdog, NOT home/away)
+           console.warn(`[v2/props/table] Could not match team for game line: ${rawName} in event ${eventId}`);
+           continue;
+        }
+
+      } else if (isGameTotal) {
+        // GAME TOTAL - Single row per game
+        // Use different row key than game lines to prevent conflicts
+        rowKey = `${eventId}:GameTotal`;
+        
+        // For totals, show the matchup - frontend will display Over/Under in the data cells
+        const awayAbbr = event.awayTeam || event.awayName.substring(0, 3).toUpperCase();
+        const homeAbbr = event.homeTeam || event.homeName.substring(0, 3).toUpperCase();
+        finalPlayerName = `${awayAbbr} @ ${homeAbbr}`;
+        
+        // Normalize Over/Under
+        const norm = normalizeSide(side);
+        if (norm === "over") mappedSide = "over";
+        else if (norm === "under") mappedSide = "under";
+
+      } else {
+        // PLAYER PROP - Row per player
+        rowKey = `${eventId}:${rawName}`;
+        finalPlayerName = sel.player || rawName;
+        
+        // Standard normalization
+        const norm = normalizeSide(side);
+        if (norm === "over") mappedSide = "over";
+        else if (norm === "under") mappedSide = "under";
+      }
+
+      if (!mappedSide) continue;
 
       if (!rowMap.has(rowKey)) {
+        // Set entity type for proper identification
+        let entityId = sel.player_id || "";
+        if (isGameLine) {
+          entityId = "game_line";
+        } else if (isGameTotal) {
+          entityId = "game_total";
+        }
+        
         rowMap.set(rowKey, {
           eventId,
-          player,
-          playerId: sel.player_id || "",
-          team: sel.team || null,
+          player: finalPlayerName,
+          playerId: entityId,
+          team: finalTeam,
           position: sel.position || null,
           line,
           books: new Map(),
@@ -486,12 +1124,11 @@ async function buildPropsRows(
 
       const bookData = row.books.get(book)!;
       
-      // Handle different side types
-      const normalizedSide = normalizeSide(side);
-      if (normalizedSide === "over") {
+      if (mappedSide === "over") {
         bookData.over = sel;
+        // Ensure row line is set (prioritize non-zero if possible, though ML is 0)
         if (!row.line || row.line === 0) row.line = line;
-      } else if (normalizedSide === "under") {
+      } else if (mappedSide === "under") {
         bookData.under = sel;
         if (!row.line || row.line === 0) row.line = line;
       }
@@ -508,8 +1145,8 @@ async function buildPropsRows(
 
     // Build books object
     const books: PropsRow["books"] = {};
-    let bestOver: { bk: string; price: number; limit_max?: number | null } | undefined;
-    let bestUnder: { bk: string; price: number; limit_max?: number | null } | undefined;
+    let bestOver: { bk: string; price: number; limit_max?: number | null; locked?: boolean } | undefined;
+    let bestUnder: { bk: string; price: number; limit_max?: number | null; locked?: boolean } | undefined;
     let sumOverProb = 0;
     let countOver = 0;
     let sumUnderProb = 0;
@@ -521,46 +1158,54 @@ async function buildPropsRows(
       if (bookData.over) {
         const price = parseInt(bookData.over.price.replace("+", ""), 10);
         const limitMax = bookData.over.limits?.max || null;
+        const isLocked = bookData.over.locked === true;
         bookEntry.over = {
           price,
           line: bookData.over.line,
           u: bookData.over.link || "",
           limit_max: limitMax,
+          locked: isLocked,
         };
 
-        // Track best over (include limits for best book)
-        if (!bestOver || price > parseInt(bestOver.price.toString(), 10)) {
-          bestOver = { bk: bookId, price, limit_max: limitMax };
+        // Track best over (skip locked odds for best calculation)
+        if (!isLocked && (!bestOver || price > parseInt(bestOver.price.toString(), 10))) {
+          bestOver = { bk: bookId, price, limit_max: limitMax, locked: false };
         }
 
-        // Sum for average (convert to probability)
-        const decimal = bookData.over.price_decimal;
-        if (decimal > 0) {
-          sumOverProb += 1 / decimal;
-          countOver++;
+        // Sum for average (convert to probability) - skip locked
+        if (!isLocked) {
+          const decimal = bookData.over.price_decimal;
+          if (decimal > 0) {
+            sumOverProb += 1 / decimal;
+            countOver++;
+          }
         }
       }
 
       if (bookData.under) {
         const price = parseInt(bookData.under.price.replace("+", ""), 10);
         const limitMax = bookData.under.limits?.max || null;
+        const isLocked = bookData.under.locked === true;
         bookEntry.under = {
           price,
           line: bookData.under.line,
           u: bookData.under.link || "",
           limit_max: limitMax,
+          locked: isLocked,
         };
 
-        // Track best under (include limits for best book)
-        if (!bestUnder || price > parseInt(bestUnder.price.toString(), 10)) {
-          bestUnder = { bk: bookId, price, limit_max: limitMax };
+        // Track best under (skip locked odds for best calculation)
+        if (!isLocked && (!bestUnder || price > parseInt(bestUnder.price.toString(), 10))) {
+          bestUnder = { bk: bookId, price, limit_max: limitMax, locked: false };
         }
 
-        // Sum for average
-        const decimal = bookData.under.price_decimal;
-        if (decimal > 0) {
-          sumUnderProb += 1 / decimal;
-          countUnder++;
+        // Sum for average - skip locked
+        if (!isLocked) {
+          const decimal = bookData.under.price_decimal;
+          if (decimal > 0) {
+            sumUnderProb += 1 / decimal;
+            countUnder++;
+          }
         }
       }
 
@@ -587,7 +1232,12 @@ async function buildPropsRows(
     rows.push({
       sid,
       eid: data.eventId,
-      ent: data.playerId ? `pid:${data.playerId}` : `pid:${data.player}`,
+      // Use 'game:' prefix for game markets, 'pid:' for player props
+      ent: data.playerId === "game_line" || data.playerId === "game_total" 
+        ? `game:${data.playerId}` 
+        : data.playerId 
+          ? `pid:${data.playerId}` 
+          : `pid:${data.player}`,
       player: data.player,
       team: data.team,
       position: data.position,

@@ -53,6 +53,7 @@ export interface PropsRow {
         u: string // URL
         m?: string // Mobile URL
         limit_max?: number | null
+        locked?: boolean // Whether the line is currently locked
       }
       under?: {
         price: number
@@ -60,6 +61,7 @@ export interface PropsRow {
         u: string // URL
         m?: string // Mobile URL
         limit_max?: number | null
+        locked?: boolean // Whether the line is currently locked
       }
     }
   >
@@ -82,7 +84,10 @@ export function transformPropsRowToOddsItem(
 ): OddsScreenItem {
   // Parse entity ID
   const entityId = row.ent.includes(':') ? row.ent.split(':')[1] : row.ent
-  const isPlayer = type === 'player' || row.ent.startsWith('pid:')
+  // Game markets use 'game:' prefix (e.g., 'game:game_total', 'game:game_line')
+  // Player props use 'pid:' prefix
+  const isGameEntity = row.ent.startsWith('game:')
+  const isPlayer = type === 'player' && !isGameEntity
 
   // Build entity
   // Normalize market details for game rows so downstream UI can make consistent decisions
@@ -101,7 +106,8 @@ export function transformPropsRowToOddsItem(
     ? {
         type: 'player',
         name: row.player || 'Unknown Player',
-        details: row.position || row.team || undefined,
+        details: row.position || undefined,
+        team: row.team || undefined,
         id: entityId,
       }
     : {
@@ -163,9 +169,8 @@ export function transformPropsRowToOddsItem(
       marketKind: isMoneyline ? 'moneyline' : isSpread ? 'spread' : isTotal ? 'total' : 'other',
       displayOrder: isMoneyline || isSpread ? ['away','home'] : undefined,
       // For our UI, away should be treated as the top row.
-      // We align helper-side mapping so that calling code can still reuse over/under-based helpers when needed.
-      // Convention: for team markets, map away -> 'under', home -> 'over'
-      sideMap: isMoneyline || isSpread ? { away: 'under', home: 'over' } : undefined,
+      // API convention: Away team → 'over' slot, Home team → 'under' slot
+      sideMap: isMoneyline || isSpread ? { away: 'over', home: 'under' } : undefined,
       books: {},
       best: {},
       average: {},
@@ -201,7 +206,8 @@ export function transformPropsRowToOddsItem(
             line: isMoneyline ? 0 : bookData.over.line, 
             link: bookData.over.u || bookData.over.m || null,
             mobileLink: bookData.over.m || null,
-            limit_max: bookData.over.limit_max
+            limit_max: bookData.over.limit_max,
+            locked: bookData.over.locked
           }
         : undefined
       const under: OddsPrice | undefined = bookData.under
@@ -210,7 +216,8 @@ export function transformPropsRowToOddsItem(
             line: isMoneyline ? 0 : bookData.under.line, 
             link: bookData.under.u || bookData.under.m || null,
             mobileLink: bookData.under.m || null,
-            limit_max: bookData.under.limit_max
+            limit_max: bookData.under.limit_max,
+            locked: bookData.under.locked
           }
         : undefined
 
@@ -228,9 +235,9 @@ export function transformPropsRowToOddsItem(
         const n = odds.normalized
         n.books[canonicalId] = n.books[canonicalId] || {}
         if (n.marketKind === 'moneyline' || n.marketKind === 'spread') {
-          // Map away/home explicitly; away corresponds to 'under' side per our UI convention
-          if (under) n.books[canonicalId].away = under
-          if (over) n.books[canonicalId].home = over
+          // API maps: Away team → 'over' slot, Home team → 'under' slot
+          if (over) n.books[canonicalId].away = over
+          if (under) n.books[canonicalId].home = under
         } else if (n.marketKind === 'total') {
           if (over) n.books[canonicalId].over = over
           if (under) n.books[canonicalId].under = under
@@ -254,11 +261,11 @@ export function transformPropsRowToOddsItem(
   if (odds.normalized) {
     const n = odds.normalized
     if (n.marketKind === 'moneyline' || n.marketKind === 'spread') {
-      // Side convention: away = 'under', home = 'over'
-      if (odds.best.under) n.best!.away = odds.best.under
-      if (odds.best.over) n.best!.home = odds.best.over
-      if (odds.average.under) n.average!.away = odds.average.under
-      if (odds.average.over) n.average!.home = odds.average.over
+      // API convention: Away team → 'over' slot, Home team → 'under' slot
+      if (odds.best.over) n.best!.away = odds.best.over
+      if (odds.best.under) n.best!.home = odds.best.under
+      if (odds.average.over) n.average!.away = odds.average.over
+      if (odds.average.under) n.average!.home = odds.average.under
     } else if (n.marketKind === 'total') {
       if (odds.best.over) n.best!.over = odds.best.over
       if (odds.best.under) n.best!.under = odds.best.under

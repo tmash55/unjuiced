@@ -505,14 +505,38 @@ function SportOddsContent({
     leagueOptions.find((o) => o.value === sport) || null
   ), [leagueOptions, sport])
 
-  const marketOptions = useMemo(() => (
-    availableMarkets.map((m) => ({
-      value: m.key,
-      label: m.label,
-      disabled: !m.available,
-      disabledTooltip: !m.available ? 'Not available for this sport/period' : undefined,
-    }))
-  ), [availableMarkets])
+  const marketOptions = useMemo(() => {
+    // First, get the full SportMarket objects for each available market
+    const allMarkets = getMarketsForSport(resolveSportKey(sport))
+    const marketsByKey = new Map(allMarkets.map(m => [m.apiKey, m]))
+    
+    // Helper to get period label
+    const getPeriodGroup = (period: string | undefined): string => {
+      if (!period || period === 'full') return 'Full Game'
+      if (period === '1h') return '1st Half'
+      if (period === '2h') return '2nd Half'
+      if (period === '1q') return '1st Quarter'
+      if (period === '2q') return '2nd Quarter'
+      if (period === '3q') return '3rd Quarter'
+      if (period === '4q') return '4th Quarter'
+      if (period === 'both_halves') return 'Both Halves'
+      return 'Other'
+    }
+    
+    // Map available markets with group information
+    return availableMarkets.map((m) => {
+      const marketDetail = marketsByKey.get(m.key)
+      const periodGroup = marketDetail?.period ? getPeriodGroup(marketDetail.period) : 'Full Game'
+      
+      return {
+        value: m.key,
+        label: m.label,
+        disabled: !m.available,
+        disabledTooltip: !m.available ? 'Not available for this sport/period' : undefined,
+        group: periodGroup,
+      }
+    })
+  }, [availableMarkets, sport])
 
   const selectedMarket = useMemo(() => (
     marketOptions.find((o) => o.value === marketState) || null
@@ -739,7 +763,6 @@ function SportOddsContent({
                   selected={selectedMarket}
                   setSelected={(opt) => opt && handleMarketChange(opt.value)}
                   options={marketOptions}
-                  matchTriggerWidth
                   searchPlaceholder="Search markets..."
                   caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
                   buttonProps={{
@@ -810,11 +833,10 @@ function SportOddsContent({
                 selected={selectedMarket}
                 setSelected={(opt) => opt && handleMarketChange(opt.value)}
                 options={marketOptions}
-                matchTriggerWidth
                 searchPlaceholder="Search markets..."
                 caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
                 buttonProps={{
-                  className: "h-9 w-[180px] md:w-[240px] lg:w-[300px] xl:w-[320px]",
+                  className: "h-9 w-[180px] md:w-[240px] lg:w-[300px] xl:w-[380px]",
                   textWrapperClassName: "text-sm font-medium",
                 }}
               />

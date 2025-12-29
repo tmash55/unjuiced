@@ -137,6 +137,7 @@ export interface OddsScreenParams {
     link?: string | null             // Deep link to sportsbook
     mobileLink?: string | null       // Mobile deep link (if available)
     limit_max?: number | null        // Maximum bet limit (e.g., 250, 500)
+    locked?: boolean                 // Whether the line is currently locked
   }
   
   // ============================================================================

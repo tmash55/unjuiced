@@ -95,17 +95,25 @@ function normalizeBookId(id: string): string {
     case "fanduel-yourway":
     case "fanduel_yourway":
       return "fanduelyourway";
+    // BetMGM Michigan is our preferred BetMGM source (US odds)
+    case "betmgm-michigan":
+    case "betmgm_michigan":
+      return "betmgm";
     default:
       return lower;
   }
 }
 
-// Books to exclude from all calculations (regional variants, inactive books, etc.)
-const EXCLUDED_BOOKS = new Set(["hard-rock-indiana", "hardrockindiana"]);
+// Books to exclude from all calculations (regional variants, Canada, inactive books)
+const EXCLUDED_BOOKS = new Set([
+  "hard-rock-indiana", 
+  "hardrockindiana",
+  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
+]);
 
 // OPTIMIZATION: Known active books for pipeline construction (avoids wildcard scans)
 const KNOWN_ACTIVE_BOOKS = [
-  "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
+  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
   "superbook", "si-sportsbook", "betfred", "tipico", "fliff"

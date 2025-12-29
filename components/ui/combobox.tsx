@@ -13,6 +13,7 @@ export interface ComboboxOption<TMeta = any> {
   disabledTooltip?: React.ReactNode
   meta?: TMeta
   first?: boolean
+  group?: string // Optional group name for organizing options
 }
 
 export interface ComboboxProps<TMeta = any> {
@@ -93,6 +94,25 @@ export function Combobox<TMeta = any>({
     return options.filter((o) => String(o.label).toLowerCase().includes(q))
   }, [options, query, onSearchChange, shouldFilter])
 
+  // Group options by their group property
+  const groupedOptions = useMemo(() => {
+    const groups = new Map<string, ComboboxOption<TMeta>[]>()
+    const ungrouped: ComboboxOption<TMeta>[] = []
+    
+    filtered.forEach((opt) => {
+      if (opt.group) {
+        if (!groups.has(opt.group)) {
+          groups.set(opt.group, [])
+        }
+        groups.get(opt.group)!.push(opt)
+      } else {
+        ungrouped.push(opt)
+      }
+    })
+    
+    return { groups, ungrouped }
+  }, [filtered])
+
   return (
     <div ref={wrapperRef} className="relative inline-flex">
       <button
@@ -123,66 +143,112 @@ export function Combobox<TMeta = any>({
         <div
           ref={menuRef}
           className={cn(
-            "absolute left-0 top-full z-[60] mt-2 max-h-80 overflow-auto rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
-            matchTriggerWidth && "min-w-[var(--trigger-w)]",
+            "absolute left-0 top-full z-[60] mt-2 max-h-[calc(100vh-120px)] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            matchTriggerWidth ? "w-[var(--trigger-w)]" : "w-[min(calc(100vw-2rem),480px)]",
           )}
           style={{
             // Read trigger width for matchTriggerWidth; fallback gracefully
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
-            "--trigger-w": `${triggerRef.current?.offsetWidth || 240}px`,
+            "--trigger-w": `${triggerRef.current?.offsetWidth || 420}px`,
           }}
         >
           {/* Search */}
-          <div className="mb-2 flex items-center gap-2">
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
-                onSearchChange?.(e.target.value)
-              }}
-              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 outline-none ring-0 focus:border-brand focus:ring-2 focus:ring-brand/30 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder:text-neutral-500"
-            />
-            {inputRight}
+          <div className="p-2 pb-0">
+            <div className="mb-2 flex items-center gap-2">
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  onSearchChange?.(e.target.value)
+                }}
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 outline-none ring-0 focus:border-brand focus:ring-2 focus:ring-brand/30 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder:text-neutral-500"
+              />
+              {inputRight}
+            </div>
           </div>
 
           {/* Options */}
-          <div className="flex max-h-64 flex-col gap-1 overflow-auto">
+          <div className="flex max-h-[calc(100vh-200px)] flex-col gap-1 overflow-y-auto px-2 pb-2">
             {filtered && filtered.length > 0 ? (
-              filtered.map((opt) => {
-                const content = (
-                  <button
-                    key={opt.value}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 rounded-md border border-transparent px-3 py-2.5 text-sm transition-colors hover:bg-neutral-100 active:bg-neutral-200 dark:hover:bg-neutral-700 dark:active:bg-neutral-600",
-                      optionClassName,
-                      opt.disabled && "cursor-not-allowed opacity-60",
-                    )}
-                    onClick={() => {
-                      if (opt.disabled) return
-                      setSelected(opt)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {opt.icon}
-                      <span className="min-w-0 truncate text-neutral-900 dark:text-white font-medium">
-                        {opt.label}
+              <>
+                {/* Render ungrouped options first */}
+                {groupedOptions.ungrouped.map((opt) => {
+                  const content = (
+                    <button
+                      key={opt.value}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 rounded-md border border-transparent px-3 py-2.5 text-sm transition-colors hover:bg-neutral-100 active:bg-neutral-200 dark:hover:bg-neutral-700 dark:active:bg-neutral-600",
+                        optionClassName,
+                        opt.disabled && "cursor-not-allowed opacity-60",
+                      )}
+                      onClick={() => {
+                        if (opt.disabled) return
+                        setSelected(opt)
+                        setOpen(false)
+                      }}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        {opt.icon}
+                        <span className="min-w-0 truncate text-neutral-900 dark:text-white font-medium">
+                          {opt.label}
+                        </span>
                       </span>
-                    </span>
-                    {opt.right}
-                  </button>
-                )
-                return opt.disabledTooltip ? (
-                  <Tooltip key={opt.value} content={opt.disabledTooltip}>
-                    <div>{content}</div>
-                  </Tooltip>
-                ) : (
-                  <div key={opt.value}>{content}</div>
-                )
-              })
+                      {opt.right}
+                    </button>
+                  )
+                  return opt.disabledTooltip ? (
+                    <Tooltip key={opt.value} content={opt.disabledTooltip}>
+                      <div>{content}</div>
+                    </Tooltip>
+                  ) : (
+                    <div key={opt.value}>{content}</div>
+                  )
+                })}
+                
+                {/* Render grouped options with headers */}
+                {Array.from(groupedOptions.groups.entries()).map(([groupName, groupOpts], groupIdx) => (
+                  <div key={groupName} className={cn(groupIdx > 0 || groupedOptions.ungrouped.length > 0 ? "mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700" : "")}>
+                    <div className="px-3 py-1.5 -mx-2 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 sticky top-0 bg-white dark:bg-neutral-800 z-10">
+                      {groupName}
+                    </div>
+                    {groupOpts.map((opt) => {
+                      const content = (
+                        <button
+                          key={opt.value}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 rounded-md border border-transparent px-3 py-2.5 text-sm transition-colors hover:bg-neutral-100 active:bg-neutral-200 dark:hover:bg-neutral-700 dark:active:bg-neutral-600",
+                            optionClassName,
+                            opt.disabled && "cursor-not-allowed opacity-60",
+                          )}
+                          onClick={() => {
+                            if (opt.disabled) return
+                            setSelected(opt)
+                            setOpen(false)
+                          }}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            {opt.icon}
+                            <span className="min-w-0 truncate text-neutral-900 dark:text-white font-medium">
+                              {opt.label}
+                            </span>
+                          </span>
+                          {opt.right}
+                        </button>
+                      )
+                      return opt.disabledTooltip ? (
+                        <Tooltip key={opt.value} content={opt.disabledTooltip}>
+                          <div>{content}</div>
+                        </Tooltip>
+                      ) : (
+                        <div key={opt.value}>{content}</div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </>
             ) : (
               emptyState ?? (
                 <div className="py-6 text-center text-sm text-neutral-500 dark:text-neutral-400 font-medium">
