@@ -17,6 +17,7 @@ const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(15000).optional(),
   offset: z.coerce.number().min(0).optional(),
   search: z.string().optional(),
+  playerId: z.coerce.number().int().positive().optional(), // Filter by specific player
 });
 
 const DEFAULT_LIMIT = 200;
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
+    playerId: url.searchParams.get("playerId") ?? undefined,
   });
 
   if (!query.success) {
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { date, market, minHitRate, limit, offset, search } = query.data;
+  const { date, market, minHitRate, limit, offset, search, playerId } = query.data;
   
   const supabase = createServerSupabaseClient();
 
@@ -72,6 +74,7 @@ export async function GET(request: Request) {
       p_market: market || null,
       p_min_hit_rate: minHitRate || null,
       p_search: search || null,
+      p_player_id: playerId || null,
       p_limit: requestedLimit,
       p_offset: offset ?? 0,
     });
@@ -99,6 +102,7 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: null,
+        p_player_id: playerId || null,
         p_limit: requestedLimit,
         p_offset: 0,
       });
@@ -139,6 +143,7 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
+        p_player_id: playerId || null,
         p_limit: queryLimit,
         p_offset: 0,
       }),
@@ -147,6 +152,7 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
+        p_player_id: playerId || null,
         p_limit: queryLimit,
         p_offset: 0,
       }),

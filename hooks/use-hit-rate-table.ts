@@ -11,6 +11,7 @@ export interface UseHitRateTableOptions {
   limit?: number;
   offset?: number;
   search?: string; // Player name search (server-side)
+  playerId?: number; // Filter by specific player ID (nba_player_id)
   enabled?: boolean;
 }
 
@@ -28,6 +29,7 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
   if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
   if (params.search?.trim()) searchParams.set("search", params.search.trim());
+  if (typeof params.playerId === "number") searchParams.set("playerId", String(params.playerId));
 
   const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   // Allow browser/CDN caching for performance - API sets appropriate Cache-Control headers
@@ -102,11 +104,11 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
 }
 
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
-  const { date, market, minHitRate, limit, offset, search, enabled = true } = options;
+  const { date, market, minHitRate, limit, offset, search, playerId, enabled = true } = options;
 
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search }),
+    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId }],
+    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer
