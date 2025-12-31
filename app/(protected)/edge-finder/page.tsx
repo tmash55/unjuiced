@@ -1,230 +1,274 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { BestOddsPrefs, BestOddsDeal } from "@/lib/best-odds-schema";
-import { GatedBestOddsView } from "@/components/best-odds/gated-best-odds-view";
-import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+/**
+ * Edge Finder - Find betting edges across sportsbooks
+ * 
+ * Uses native Opportunity types and components.
+ * 
+ * URL: /edge-finder
+ */
+
+import { useEffect, useMemo, useRef, useCallback, useState } from "react";
 import { ToolHeading } from "@/components/common/tool-heading";
 import { ToolSubheading } from "@/components/common/tool-subheading";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
-import { cn } from "@/lib/utils";
-import { TrendingUp, RefreshCw, LayoutGrid, Table as TableIcon } from "lucide-react";
 import { LoadingState } from "@/components/common/loading-state";
-import { Tooltip } from "@/components/tooltip";
 
-import { useBestOddsView } from "@/hooks/use-best-odds-view";
-import { matchesBestOddsDeal, sortDeals, getUniqueLeagues, getUniqueMarkets, getUniqueSportsbooks } from "@/lib/best-odds-filters";
-import { getAllActiveSportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
-import { SUPPORTED_SPORTS } from "@/lib/data/markets";
-import { Lock } from "lucide-react";
+// Native imports
+import { useMultiFilterOpportunities } from "@/hooks/use-multi-filter-opportunities";
+import { OpportunitiesTable } from "@/components/opportunities/opportunities-table";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
+
+// Shared preferences & filters component
+import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-context";
+import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+import type { BestOddsPrefs } from "@/lib/best-odds-schema";
+
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
+import { FilterPresetsBar } from "@/components/filter-presets";
+import { useFilterPresets } from "@/hooks/use-filter-presets";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
 
-const WINDOW_SCROLL_KEY = "edgeFinder_windowScroll";
+// Available leagues for the filters component
+const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
 
-export default function BestOddsPage() {
-  // VC-Grade: Use centralized, cached Pro status and custom hook for data fetching
+/**
+ * Format timestamp as relative time (e.g., "5s ago", "2m ago")
+ * Billion-dollar UX: Show users when data was last refreshed
+ */
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
+// Available markets (subset of common player props)
+const AVAILABLE_MARKETS = [
+  "player_points",
+  "player_rebounds", 
+  "player_assists",
+  "pra",
+  "player_threes",
+  "player_steals",
+  "player_blocks",
+  "player_turnovers",
+  "player_double_double",
+  "player_triple_double",
+  "passing_yards",
+  "passing_touchdowns",
+  "passing_completions",
+  "passing_attempts",
+  "passing_interceptions",
+  "rushing_yards",
+  "rushing_attempts",
+  "rushing_touchdowns",
+  "receiving_yards",
+  "receptions",
+  "receiving_touchdowns",
+  "player_touchdowns",
+  "player_anytime_td",
+  "player_shots_on_goal",
+  "player_goals",
+  "player_assists_hockey",
+  "player_points_hockey",
+  "player_saves",
+  "player_blocked_shots",
+  "batter_hits",
+  "batter_total_bases",
+  "batter_rbis",
+  "batter_runs_scored",
+  "batter_home_runs",
+  "batter_stolen_bases",
+  "pitcher_strikeouts",
+  "pitcher_hits_allowed",
+  "pitcher_walks",
+  "pitcher_outs",
+];
+
+/**
+ * Map preset back to comparison mode
+ */
+function mapPresetToComparisonMode(preset: string): { mode: BestOddsPrefs['comparisonMode']; book: string | null } {
+  if (preset === "average") {
+    return { mode: "average", book: null };
+  }
+  // Assume it's a book ID
+  return { mode: "book", book: preset };
+}
+
+export default function EdgeFinderPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
   const isLoggedIn = !!user;
   const stablePlanRef = useRef(isPro);
-  const [hasResolvedPlan, setHasResolvedPlan] = useState(!planLoading);
+
   useEffect(() => {
     if (!planLoading) {
       stablePlanRef.current = isPro;
-      setHasResolvedPlan(true);
     }
   }, [planLoading, isPro]);
+
   const effectiveIsPro = planLoading ? stablePlanRef.current : isPro;
-  const windowScrollRestoredRef = useRef(false);
+  const locked = !effectiveIsPro;
+
+  // Use shared preferences
+  const { filters: prefs, updateFilters: updatePrefs, isLoading: prefsLoading } = useBestOddsPreferences();
   
-  // Custom hook handles all data fetching (Pro vs non-Pro)
-  const { deals, premiumCount, loading, error, refresh, prefs, prefsLoading, updateFilters } = useBestOddsView({ 
-    isPro: effectiveIsPro 
-  });
+  // Get EV-specific preferences (bankroll, kelly %)
+  const { filters: evPrefs, updateFilters: updateEvPrefs } = useEvPreferences();
   
-  // Hidden edges management
-  const { hiddenEdges, hiddenCount, isLoading: hiddenLoading, hideEdge, unhideEdge, clearAllHidden, isHidden } = useHiddenEdges();
+  // Get active filter presets
+  const { activePresets, isLoading: presetsLoading } = useFilterPresets();
   
+  // Local search state (debounced before saving to prefs)
+  const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Local search state for smooth typing (debounced like arbs)
-  const [searchLocal, setSearchLocal] = useState("");
-  
-  // View mode state (default to table, will adjust on mount)
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  
-  // Persist window scroll across refreshes / app resumes
-  useEffect(() => {
-    if (windowScrollRestoredRef.current) return;
-    if (typeof window === "undefined") return;
-    if (loading || prefsLoading) return;
-    const saved = sessionStorage.getItem(WINDOW_SCROLL_KEY);
-    if (saved) {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, parseInt(saved, 10));
-      });
-    }
-    windowScrollRestoredRef.current = true;
-  }, [loading, prefsLoading]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let rafId: number | null = null;
-    const handleScroll = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        sessionStorage.setItem(WINDOW_SCROLL_KEY, window.scrollY.toString());
-      });
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
+  // Hidden edges management
+  const { 
+    hiddenCount, 
+    hideEdge, 
+    unhideEdge, 
+    isHidden,
+    clearAllHidden 
+  } = useHiddenEdges();
 
-  // Set initial view mode based on screen size (client-side only, after mount)
-  useEffect(() => {
-    const handleResize = () => {
-      setViewMode(window.innerWidth < 768 ? 'cards' : 'table');
-    };
-    
-    // Set initial value
-    handleResize();
-    
-    // Optional: Listen for resize events
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // Result limit (default 200 for Pro, 50 for free)
+  const [limit, setLimit] = useState(200);
 
-  // Handle preference changes
-  const handlePrefsChange = useCallback((newPrefs: BestOddsPrefs) => {
-    updateFilters(newPrefs);
-  }, [updateFilters]);
+  // Player quick view modal state
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    odds_player_id: string;
+    player_name: string;
+    market: string;
+    event_id: string;
+    line?: number;
+    odds?: BestOddsData;
+  } | null>(null);
 
-  // Sync local search with preferences (when prefs change externally)
+  // Sync local search with prefs on load
   useEffect(() => {
     setSearchLocal(prefs.searchQuery || "");
   }, [prefs.searchQuery]);
 
-  // Debounce search query updates (400ms like arbs)
+  // Reset limit when plan changes
+  useEffect(() => {
+    setLimit(effectiveIsPro ? 200 : 50);
+  }, [effectiveIsPro]);
+
+  // When user searches, fetch full set for coverage; otherwise use default
+  useEffect(() => {
+    const hasSearch = (searchLocal || "").trim().length > 0;
+    setLimit(hasSearch ? 500 : (effectiveIsPro ? 200 : 50));
+  }, [searchLocal, effectiveIsPro]);
+
+  // Debounce search updates to prefs
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchLocal !== prefs.searchQuery) {
-        updateFilters({ ...prefs, searchQuery: searchLocal });
+      if (searchLocal !== (prefs.searchQuery || "")) {
+        updatePrefs({ searchQuery: searchLocal });
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchLocal, prefs, updateFilters]);
+  }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
-  // Show ALL possible options in filters (not just what's in current data)
-  const availableLeagues = useMemo(() => ['nba', 'nfl', 'ncaaf', 'ncaab', 'nhl', 'mlb', 'wnba'], []);
-  
-  // Dynamically extract unique markets from actual data (instead of hardcoding)
-  const availableMarkets = useMemo(() => {
-    const uniqueMarkets = new Set<string>();
-    deals.forEach((deal: BestOddsDeal) => {
-      if (deal.mkt) {
-        uniqueMarkets.add(deal.mkt);
-      }
-    });
-    return Array.from(uniqueMarkets).sort();
-  }, [deals]);
-  
-  const availableSportsbooks = useMemo(() => getAllActiveSportsbooks().map(b => b.id), []);
-
-  // Apply client-side filtering and sorting
-  const filteredDeals = useMemo(() => {
-    const prefsWithDefaults = {
+  // Use multi-filter hook (handles multiple active presets, parallel fetching, deduplication)
+  const {
+    opportunities,
+    activeFilters,
+    isCustomMode,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+    prefetchPreset,
+    dataUpdatedAt,
+    isStale,
+    isLoadingMore,
+    loadProgress,
+  } = useMultiFilterOpportunities({
+    prefs: {
       ...prefs,
       columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
-    };
-    let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefsWithDefaults));
-    
-    // Apply college player props filter if enabled
-    if (prefs.hideCollegePlayerProps) {
-      filtered = filtered.filter((deal: BestOddsDeal) => {
-        // Keep game markets (ent === 'game')
-        if (deal.ent === 'game') return true;
-        // Hide NCAAF and NCAAB player props
-        const isCollegePlayerProp = (deal.sport === 'ncaaf' || deal.sport === 'ncaab') && deal.ent !== 'game';
-        return !isCollegePlayerProp;
-      });
+    },
+    activePresets,
+    isPro: effectiveIsPro,
+    limit,
+    enabled: !planLoading && !prefsLoading && !presetsLoading,
+  });
+
+  // Apply hidden edges filter (must be done client-side due to user-specific state)
+  const filteredOpportunities = useMemo(() => {
+    let filtered = opportunities;
+
+    // Hidden edges filter
+    if (!prefs.showHidden) {
+      filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
-    
-    // If comparing to a specific book, only show deals where that book has odds
-    // AND where the best book is NOT the comparison book (otherwise it's 0% improvement)
-    if (prefs.comparisonMode === 'book' && prefs.comparisonBook) {
-      const targetBook = prefs.comparisonBook.toLowerCase();
-      filtered = filtered.filter((deal: BestOddsDeal) => {
-        // Check if the comparison book has odds for this deal
-        const hasOdds = deal.allBooks?.some(b => b.book.toLowerCase() === targetBook);
-        if (!hasOdds) return false;
-        
-        // Filter out deals where the best book is the same as the comparison book
-        const bestBookNormalized = deal.bestBook?.toLowerCase();
-        return bestBookNormalized !== targetBook;
-      });
-    }
-    
-    // Filter out hidden edges (unless showHidden is true)
-    if (!prefs.showHidden && !hiddenLoading) {
-      filtered = filtered.filter((deal: BestOddsDeal) => !isHidden(deal.key));
-    }
-    
-    filtered = sortDeals(filtered, prefs.sortBy);
+
     return filtered;
-  }, [deals, prefs, hiddenLoading, isHidden]);
+  }, [opportunities, prefs.showHidden, isHidden]);
 
-  // Calculate counts by scope for toggle buttons (using filtered deals)
-  const pregameCount = filteredDeals.filter((d: BestOddsDeal) => d.scope === 'pregame').length;
-  const liveCount = filteredDeals.filter((d: BestOddsDeal) => d.scope === 'live').length;
-
-  const stats = {
-    total: filteredDeals.length,
-    pregame: pregameCount,
-    live: liveCount,
-    avgImprovement: filteredDeals.length > 0
-      ? (filteredDeals.reduce((sum: number, d: BestOddsDeal) => sum + Number(d.priceImprovement || 0), 0) / filteredDeals.length).toFixed(1)
-      : '0'
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
   };
 
-  const comparisonBaseline = useMemo(() => {
-    const mode = prefs.comparisonMode ?? 'average';
-    if (mode === 'book') {
-      const name = prefs.comparisonBook
-        ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
-        : 'the selected book';
-      return {
-        dialogDescription: `the quote from ${name}`,
-        baselineStep: `decimal odds from ${name}`,
-        meaning: `${name} (or the book you selected)`,
-      };
-    }
-    if (mode === 'next_best') {
-      return {
-        dialogDescription: 'the next-best price offered by any other book',
-        baselineStep: 'decimal odds from the best price offered by any other book (ties count as zero edge)',
-        meaning: 'the next-best sportsbook',
-      };
-    }
-    return {
-      dialogDescription: 'the market average across all books',
-      baselineStep: 'the average of all decimal odds',
-      meaning: 'the rest of the market',
-    };
-  }, [prefs.comparisonMode, prefs.comparisonBook]);
+  // Handler for prefs changes from BestOddsFilters
+  const handlePrefsChange = useCallback((newPrefs: BestOddsPrefs) => {
+    updatePrefs({
+      selectedBooks: newPrefs.selectedBooks,
+      selectedLeagues: newPrefs.selectedLeagues,
+      selectedMarkets: newPrefs.selectedMarkets,
+      marketLines: newPrefs.marketLines, // Market-specific line filters (e.g., touchdowns: [0.5])
+      minImprovement: newPrefs.minImprovement,
+      maxOdds: newPrefs.maxOdds,
+      minOdds: newPrefs.minOdds,
+      hideCollegePlayerProps: newPrefs.hideCollegePlayerProps,
+      comparisonMode: newPrefs.comparisonMode,
+      comparisonBook: newPrefs.comparisonBook,
+      searchQuery: newPrefs.searchQuery,
+      showHidden: newPrefs.showHidden,
+    });
+  }, [updatePrefs]);
 
-  // Show loading state while checking plan
-  if (planLoading && !hasResolvedPlan) {
+  // Kelly Criterion handlers
+  const handleBankrollChange = useCallback((value: number) => {
+    updateEvPrefs({ bankroll: value });
+  }, [updateEvPrefs]);
+
+  const handleKellyPercentChange = useCallback((value: number) => {
+    updateEvPrefs({ kellyPercent: value });
+  }, [updateEvPrefs]);
+
+  // Toggle show hidden
+  const handleToggleShowHidden = useCallback(() => {
+    updatePrefs({ showHidden: !prefs.showHidden });
+  }, [updatePrefs, prefs.showHidden]);
+
+  // Get available sportsbooks from current deals for counts
+  const availableSportsbooks = useMemo(() => {
+    const books = new Set<string>();
+    opportunities.forEach((opp) => {
+      opp.allBooks.forEach((b) => books.add(b.book));
+    });
+    return Array.from(books);
+  }, [opportunities]);
+
+  if (planLoading) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <LoadingState type="account" />
+        <LoadingState message="Loading Edge Finder..." />
       </div>
     );
   }
@@ -234,254 +278,182 @@ export default function BestOddsPage() {
       {/* Header */}
       <div className="mb-8">
         <ToolHeading>Edge Finder</ToolHeading>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <ToolSubheading>
-        Track real-time discrepancies between sportsbooks to uncover edges before the market adjusts.
-        </ToolSubheading>
-          <Dialog>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                className="text-xs sm:text-sm font-medium text-brand hover:underline underline-offset-2 self-start sm:self-auto"
-              >
-                How improvement % is calculated
-              </button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md border-[var(--tertiary)]/20 bg-white p-0 shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-              <div className="p-6 sm:p-8 text-center">
-                {/* Icon with gradient glow (match ProGate style) */}
-                <div className="relative mx-auto mb-6 w-fit">
-                  <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[var(--tertiary)]/20 via-[var(--tertiary)]/30 to-[var(--tertiary-strong)]/30 blur-2xl" />
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--tertiary)]/20 bg-white shadow-sm dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
-                    <TrendingUp className="h-7 w-7 text-[var(--tertiary-strong)]" />
-                  </div>
-                </div>
-
-                <DialogHeader>
-                  <DialogTitle className="text-xl">Improvement %</DialogTitle>
-                  <DialogDescription className="text-sm">
-                    Currently comparing the best price vs {comparisonBaseline.dialogDescription}.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="mt-4 space-y-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 text-left">
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    1) Collect all book prices for the same line/side (need ≥ 2).
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    2) Convert American → Decimal:
-                    <br />o &gt; 0 → 1 + o/100
-                    <br />o ≤ 0 → 1 + 100/|o|
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    3) baseline_decimal = {comparisonBaseline.baselineStep}
-                    <br />4) best_decimal = decimal of the highest American price
-                  </p>
-                  <p className="font-semibold">
-                    Improvement % = ((best_decimal − baseline_decimal) / baseline_decimal) × 100
-                  </p>
-                  <p className="mt-2">
-                    A higher Improvement % means you’re getting a better deal compared to {comparisonBaseline.meaning}.
-                  </p>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      {/* Pregame/Live Toggle - Above Filter Bar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Pregame/Live Toggle */}
-          <div className="mode-toggle">
-            <button
-              type="button"
-              onClick={() => handlePrefsChange({ ...prefs, scope: 'pregame', columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'] })}
-              className={cn(prefs.scope === 'pregame' && 'active')}
-            >
-              Pre-Game {stats.pregame > 0 && `(${stats.pregame})`}
-            </button>
-            <button
-              type="button"
-              disabled={true}
-              className="relative group"
-              title="Coming soon"
-            >
-              <span className="flex items-center gap-1.5">
-                Live
-                <Lock className="h-3 w-3 opacity-60" />
-                <span className="text-xs opacity-60">(Soon)</span>
-              </span>
-            </button>
-          </div>
-
-          {/* Info Text - Hidden on Mobile */}
-          <div className="hidden md:block text-sm text-neutral-600 dark:text-neutral-400">
-            {prefs.scope === 'pregame' && 'Showing upcoming games'}
-            {prefs.scope === 'live' && 'Showing live in-progress games'}
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="mb-8">
-        <div className="sticky top-14 z-30">
-          <FiltersBar useDots={true}>
-            <FiltersBarSection align="left">
-              {/* View Toggle - Shows on left on mobile only */}
-              <Tooltip content="Pro only" disabled={isPro}>
-                <div className={cn(
-                  "flex md:hidden items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
-                  !isPro && "opacity-50"
-                )}>
-                  <button
-                    onClick={() => isPro && setViewMode('table')}
-                    disabled={!isPro}
-                    className={cn(
-                      "flex items-center justify-center h-7 w-7 rounded transition-all",
-                      viewMode === 'table'
-                        ? "bg-brand text-white"
-                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                      !isPro && "cursor-not-allowed"
-                    )}
-                    title={!isPro ? "Pro only" : "Table view"}
-                  >
-                    <TableIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => isPro && setViewMode('cards')}
-                    disabled={!isPro}
-                    className={cn(
-                      "flex items-center justify-center h-7 w-7 rounded transition-all",
-                      viewMode === 'cards'
-                        ? "bg-brand text-white"
-                        : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                      !isPro && "cursor-not-allowed"
-                    )}
-                    title={!isPro ? "Pro only" : "Card view"}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </button>
-                </div>
-              </Tooltip>
-
-              {/* Search Input - Hidden on mobile, disabled for non-pro */}
-              <Tooltip content="Pro only" disabled={isPro}>
-                <div className="relative hidden md:block">
-                  <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
-                  <Input
-                    type="text"
-                    placeholder="Search player or team..."
-                    value={searchLocal}
-                    onChange={(e) => setSearchLocal(e.target.value)}
-                    disabled={!isPro}
-                    className="w-64 pl-10"
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ToolSubheading>
+              {isLoading
+              ? "Loading opportunities..."
+              : isFetching && !isLoadingMore
+              ? "Updating opportunities..."
+              : `${filteredOpportunities.length}+ opportunities found`}
+            </ToolSubheading>
+            {/* Progressive Loading Indicator - Billion Dollar UX */}
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
+                <div className="w-16 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${loadProgress}%` }}
                   />
                 </div>
-              </Tooltip>
-            </FiltersBarSection>
-
-            <FiltersBarSection align="right">
-              {/* Filters Button */}
-                <BestOddsFilters
-                  prefs={{
-                    ...prefs,
-                    columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
-                  }}
-                  onPrefsChange={handlePrefsChange}
-                  availableLeagues={availableLeagues}
-                  availableMarkets={availableMarkets}
-                  availableSportsbooks={availableSportsbooks}
-                  deals={filteredDeals}
-                  locked={!isPro}
-                  isLoggedIn={isLoggedIn}
-                  isPro={isPro}
-                  refreshing={refreshing}
-                  hiddenCount={hiddenCount}
-                  showHidden={prefs.showHidden}
-                  onToggleShowHidden={() => updateFilters({ ...prefs, showHidden: !prefs.showHidden })}
-                  onClearAllHidden={clearAllHidden}
-                  onRefresh={async () => {
-                    if (!isPro) return;
-                    try { 
-                      setRefreshing(true); 
-                      await refresh(); 
-                    } finally { 
-                      setRefreshing(false); 
-                    }
-                  }}
-                />
-
-              {/* View Toggle - Shows on right on desktop only */}
-              <Tooltip content="Pro only" disabled={isPro}>
-              <div className={cn(
-                "hidden md:flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-800 dark:bg-neutral-900",
-                !isPro && "opacity-50"
-              )}>
-                <button
-                  onClick={() => isPro && setViewMode('table')}
-                  disabled={!isPro}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded transition-all",
-                    viewMode === 'table'
-                      ? "bg-brand text-white"
-                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                    !isPro && "cursor-not-allowed"
-                  )}
-                  title={!isPro ? "Pro only" : "Table view"}
-                >
-                  <TableIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => isPro && setViewMode('cards')}
-                  disabled={!isPro}
-                  className={cn(
-                    "flex items-center justify-center h-7 w-7 rounded transition-all",
-                    viewMode === 'cards'
-                      ? "bg-brand text-white"
-                      : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800",
-                    !isPro && "cursor-not-allowed"
-                  )}
-                  title={!isPro ? "Pro only" : "Card view"}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </button>
+                <span>Loading more...</span>
               </div>
-              </Tooltip>
-            </FiltersBarSection>
-          </FiltersBar>
+            )}
+          </div>
+          {/* Freshness Indicator - Right aligned */}
+          {dataUpdatedAt && !isLoading && !isLoadingMore && (
+            <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
+              <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+              {isFetching && (
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Error State */}
+      {/* Custom Filter Presets */}
+      <FilterPresetsBar 
+        className="mb-6" 
+        onPresetsChange={() => refetch()}
+        onPresetHover={prefetchPreset}
+      />
+
+      {/* Filters Bar */}
+      <div className="mb-6 relative z-10">
+      <FiltersBar>
+          <FiltersBarSection align="left">
+          {/* Search */}
+          <div className="relative">
+              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+            <Input
+              placeholder="Search players, teams..."
+              value={searchLocal}
+              onChange={(e) => setSearchLocal(e.target.value)}
+              className="pl-9 w-64"
+                disabled={locked}
+            />
+          </div>
+          </FiltersBarSection>
+
+          <FiltersBarSection align="right">
+            {/* BestOddsFilters component - handles all advanced filtering */}
+            <BestOddsFilters
+              prefs={{
+                ...prefs,
+                columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+              }}
+              onPrefsChange={handlePrefsChange}
+              availableLeagues={AVAILABLE_LEAGUES}
+              availableMarkets={AVAILABLE_MARKETS}
+              availableSportsbooks={availableSportsbooks}
+              deals={filteredOpportunities.map((opp) => ({
+                bestBook: opp.bestBook,
+                bestPrice: opp.bestDecimal,
+                allBooks: opp.allBooks.map((b) => ({
+                  book: b.book,
+                  price: b.price,
+                  link: b.link || "",
+                })),
+              }))}
+              locked={locked}
+              isLoggedIn={isLoggedIn}
+              isPro={effectiveIsPro}
+              refreshing={refreshing || isFetching}
+              onRefresh={handleRefresh}
+              hiddenCount={hiddenCount}
+              showHidden={prefs.showHidden}
+              onToggleShowHidden={handleToggleShowHidden}
+              onClearAllHidden={clearAllHidden}
+              customPresetActive={isCustomMode}
+              activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : undefined}
+              bankroll={evPrefs.bankroll}
+              kellyPercent={evPrefs.kellyPercent}
+              onBankrollChange={handleBankrollChange}
+              onKellyPercentChange={handleKellyPercentChange}
+            />
+        </FiltersBarSection>
+      </FiltersBar>
+      </div>
+
+      {/* Error */}
       {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-red-200">
-          <p className="font-medium">Error loading opportunities</p>
-          <p className="text-sm mt-1">{error}</p>
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+          Error: {error.message}
         </div>
       )}
 
-      {/* Content - Gated View */}
-      <GatedBestOddsView
-        deals={filteredDeals}
-        loading={loading || prefsLoading}
-        viewMode={viewMode}
-        isLoggedIn={isLoggedIn}
-        isPro={isPro}
-        premiumCount={premiumCount}
-        prefs={{
-          ...prefs,
-          columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
-        }}
-        hiddenCount={hiddenCount}
+      {/* Table */}
+      <OpportunitiesTable
+        opportunities={filteredOpportunities}
+        isLoading={isLoading}
+        isFetching={isFetching || refreshing}
+        isPro={effectiveIsPro}
+        showEV={false}
         showHidden={prefs.showHidden}
-        onToggleShowHidden={() => updateFilters({ ...prefs, showHidden: !prefs.showHidden })}
         onHideEdge={hideEdge}
         onUnhideEdge={unhideEdge}
-        onClearAllHidden={clearAllHidden}
         isHidden={isHidden}
+        onPlayerClick={setSelectedPlayer}
+        comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
+        comparisonLabel={
+          isCustomMode 
+            ? undefined 
+            : prefs.comparisonMode === "book" && prefs.comparisonBook
+              ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
+              : undefined
+        }
+        excludedBooks={prefs.selectedBooks}
+        isCustomMode={isCustomMode}
+        bankroll={evPrefs.bankroll}
+        kellyPercent={evPrefs.kellyPercent || 25}
       />
+
+      {/* Load more button */}
+      {limit < 500 && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => setLimit(500)}
+            className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
+            disabled={isLoading || isFetching}
+          >
+            Load more results
+          </button>
+        </div>
+      )}
+
+      {/* Pro Upgrade CTA */}
+      {!effectiveIsPro && (
+        <div className="text-center py-8 border-t">
+          <p className="text-muted-foreground mb-2">
+            {isLoggedIn 
+              ? "Upgrade to Pro to unlock all opportunities and filters"
+              : "Sign up for Pro to unlock all opportunities and filters"}
+          </p>
+          <a
+            href="/pricing"
+            className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium"
+          >
+            {isLoggedIn ? "Upgrade to Pro" : "View Plans"}
+          </a>
+        </div>
+      )}
+
+      {/* Player Quick View Modal */}
+      {selectedPlayer && (
+        <PlayerQuickViewModal
+          odds_player_id={selectedPlayer.odds_player_id}
+          player_name={selectedPlayer.player_name}
+          initial_market={selectedPlayer.market}
+          initial_line={selectedPlayer.line}
+          event_id={selectedPlayer.event_id}
+          odds={selectedPlayer.odds ?? undefined}
+          open={!!selectedPlayer}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPlayer(null);
+          }}
+        />
+      )}
     </div>
   );
 }
