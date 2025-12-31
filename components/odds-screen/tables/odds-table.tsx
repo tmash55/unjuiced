@@ -1450,10 +1450,18 @@ export function OddsTable({
   const OVERSCAN = 10
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 })
   const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set())
+  const hasInitializedExpanded = useRef(false)
   
-  // Expand all games by default when data changes (only for player props)
+  // Reset initialization flag when market, sport, or type changes
+  // This ensures all games expand again when switching contexts
   useEffect(() => {
-    if (sortedData && sortedData.length > 0) {
+    hasInitializedExpanded.current = false
+  }, [market, sport, type])
+  
+  // Expand all games by default on initial load (only for player props)
+  // Preserve user's collapse/expand state when odds update
+  useEffect(() => {
+    if (sortedData && sortedData.length > 0 && !hasInitializedExpanded.current) {
       const eventIds = new Set<string>()
       sortedData.forEach(item => {
         // Only track games that have player props
@@ -1462,6 +1470,7 @@ export function OddsTable({
         }
       })
       setExpandedGames(eventIds)
+      hasInitializedExpanded.current = true
     }
   }, [sortedData])
   
