@@ -843,7 +843,7 @@ export function FilterPresetsManagerModal({
             )}
           </div>
 
-          {/* Footer with Save/Cancel */}
+          {/* Footer with Apply/Cancel */}
           {presets.length > 0 && (
             <div className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-900/50">
               <div className="flex items-center justify-between">
@@ -853,7 +853,7 @@ export function FilterPresetsManagerModal({
                   </span>
                   {pendingChanges.hasChanges && (
                     <span className="text-xs px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                      {changeCount} unsaved
+                      {changeCount} pending
                     </span>
                   )}
                 </div>
@@ -875,12 +875,12 @@ export function FilterPresetsManagerModal({
                     {isSaving ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving...
+                        Applying...
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4" />
-                        Save
+                        Apply
                       </>
                     )}
                   </button>

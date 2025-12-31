@@ -124,7 +124,7 @@ interface OpportunitiesTableProps {
   onColumnOrderChange?: (newOrder: string[]) => void;
 }
 
-type SortField = 'edge' | 'time';
+type SortField = 'edge' | 'time' | 'fair' | 'stake' | 'filter';
 type SortDirection = 'asc' | 'desc';
 
 const TABLE_SCROLL_KEY = 'edgeFinderV2_tableScrollTop';
@@ -471,7 +471,8 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="fair"
             id="fair"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            onClick={() => handleSort('fair')}
           >
             <div className="flex items-center justify-center gap-1">
               <span>Fair</span>
@@ -488,6 +489,9 @@ export function OpportunitiesTable({
                   />
                 </svg>
               </Tooltip>
+              {sortField === 'fair' && (
+                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+              )}
             </div>
           </SortableColumnHeader>
         );
@@ -496,7 +500,8 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="stake"
             id="stake"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            onClick={() => handleSort('stake')}
           >
             <div className="flex items-center justify-center gap-1">
               <span>Stake</span>
@@ -513,6 +518,9 @@ export function OpportunitiesTable({
                   />
                 </svg>
               </Tooltip>
+              {sortField === 'stake' && (
+                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+              )}
             </div>
           </SortableColumnHeader>
         );
@@ -521,9 +529,15 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="filter"
             id="filter"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            onClick={() => handleSort('filter')}
           >
-            Filter
+            <div className="flex items-center justify-center gap-1">
+              <span>Filter</span>
+              {sortField === 'filter' && (
+                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+              )}
+            </div>
           </SortableColumnHeader>
         );
       case 'action':
@@ -1082,7 +1096,8 @@ export function OpportunitiesTable({
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection(field === 'edge' ? 'desc' : 'asc');
+      // Default to desc for edge, stake, and fair (show highest first)
+      setSortDirection(field === 'edge' || field === 'stake' || field === 'fair' ? 'desc' : 'asc');
     }
   };
 
@@ -1096,18 +1111,43 @@ export function OpportunitiesTable({
     
     const sorted = [...filtered];
     sorted.sort((a, b) => {
-      let aValue: number;
-      let bValue: number;
+      let aValue: number | string;
+      let bValue: number | string;
 
-      if (sortField === 'edge') {
-        aValue = a.edgePct ?? 0;
-        bValue = b.edgePct ?? 0;
-      } else {
-        aValue = a.gameStart ? new Date(a.gameStart).getTime() : 0;
-        bValue = b.gameStart ? new Date(b.gameStart).getTime() : 0;
+      switch (sortField) {
+        case 'edge':
+          aValue = a.edgePct ?? 0;
+          bValue = b.edgePct ?? 0;
+          break;
+        case 'time':
+          aValue = a.gameStart ? new Date(a.gameStart).getTime() : 0;
+          bValue = b.gameStart ? new Date(b.gameStart).getTime() : 0;
+          break;
+        case 'fair':
+          aValue = a.fairDecimal ?? 0;
+          bValue = b.fairDecimal ?? 0;
+          break;
+        case 'stake':
+          // Sort by kelly fraction (higher kelly = larger stake)
+          aValue = a.kellyFraction ?? 0;
+          bValue = b.kellyFraction ?? 0;
+          break;
+        case 'filter':
+          // Sort alphabetically by filter name
+          aValue = a.filterName?.toLowerCase() ?? '';
+          bValue = b.filterName?.toLowerCase() ?? '';
+          if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+          if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+          return 0;
+        default:
+          aValue = 0;
+          bValue = 0;
       }
 
-      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      return 0;
     });
     return sorted;
   }, [opportunities, sortField, sortDirection, showHidden, isHidden]);
@@ -1190,6 +1230,11 @@ export function OpportunitiesTable({
           <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
       </div>
       </td>
+      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <div className="flex justify-center">
+          <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        </div>
+      </td>
       <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center gap-2">
           <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
@@ -1219,6 +1264,7 @@ export function OpportunitiesTable({
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Best Book</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Reference</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Fair</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Stake</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Filter</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">Action</th>
             </tr>
