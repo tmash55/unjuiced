@@ -175,11 +175,20 @@ export function PlayerQuickViewModal({
   const [selectedMarket, setSelectedMarket] = useState<string | null>(initial_market || null);
   
   // Only sync initial_market on mount or when it changes from parent
+  // If the initial_market isn't available (e.g., double doubles), fall back to player_points
   useEffect(() => {
-    if (initial_market) {
-      setSelectedMarket(initial_market);
+    if (initial_market && availableMarkets.length > 0) {
+      if (availableMarkets.includes(initial_market)) {
+        setSelectedMarket(initial_market);
+      } else {
+        // Fallback to player_points if initial market isn't available
+        const fallbackMarket = availableMarkets.includes("player_points") 
+          ? "player_points" 
+          : availableMarkets[0];
+        setSelectedMarket(fallbackMarket);
+      }
     }
-  }, [initial_market]);
+  }, [initial_market, availableMarkets]);
   
   // Set default market if none selected
   useEffect(() => {
