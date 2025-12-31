@@ -68,7 +68,8 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
 
   // Handle preset toggle
   const handleTogglePreset = async (preset: FilterPreset) => {
-    await togglePreset(preset.id);
+    const isCurrentlyActive = activePresets.some(p => p.id === preset.id);
+    await togglePreset(preset.id, !isCurrentlyActive);
     onPresetsChange?.();
   };
 

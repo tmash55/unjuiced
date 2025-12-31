@@ -138,9 +138,10 @@ export function MobileModelsSheet({
   onEdit,
   onPresetsChange,
 }: MobileModelsSheetProps) {
-  const { deletePreset, duplicatePreset, updatePreset } = useFilterPresets();
+  const { deletePreset, createPreset } = useFilterPresets();
   const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const isActive = (presetId: string) => activePresets.some(p => p.id === presetId);
 
@@ -155,8 +156,27 @@ export function MobileModelsSheet({
   };
 
   const handleDuplicate = async (preset: FilterPreset) => {
-    await duplicatePreset(preset.id);
-    onPresetsChange?.();
+    setDuplicatingId(preset.id);
+    try {
+      // Create a new preset with the same configuration but a different name
+      await createPreset({
+        name: `${preset.name} (Copy)`,
+        sport: preset.sport,
+        markets: preset.markets,
+        market_type: preset.market_type,
+        sharp_books: preset.sharp_books,
+        book_weights: preset.book_weights,
+        fallback_mode: preset.fallback_mode,
+        fallback_weights: preset.fallback_weights,
+        min_books_reference: preset.min_books_reference,
+        min_odds: preset.min_odds,
+        max_odds: preset.max_odds,
+        is_default: false, // Don't copy default status
+      });
+      onPresetsChange?.();
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   if (!open) return null;
@@ -375,15 +395,17 @@ export function MobileModelsSheet({
                             
                             <button
                               onClick={() => handleDuplicate(preset)}
+                              disabled={duplicatingId === preset.id}
                               className={cn(
                                 "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl",
                                 "bg-neutral-100 dark:bg-neutral-800",
                                 "text-neutral-700 dark:text-neutral-300 text-sm font-medium",
-                                "active:scale-[0.98] transition-transform"
+                                "active:scale-[0.98] transition-transform",
+                                "disabled:opacity-50 disabled:cursor-not-allowed"
                               )}
                             >
                               <Copy className="w-4 h-4" />
-                              <span>Duplicate</span>
+                              <span>{duplicatingId === preset.id ? "Duplicating..." : "Duplicate"}</span>
                             </button>
                             
                             <button

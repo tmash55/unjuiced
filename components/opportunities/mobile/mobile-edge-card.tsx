@@ -112,11 +112,11 @@ export function MobileEdgeCard({
   const bestBookLogo = getBookLogo(opp.bestBook);
   
   // Determine if this is a player prop
-  const isPlayerProp = opp.selection && opp.selection !== opp.homeTeam && opp.selection !== opp.awayTeam;
+  const isPlayerProp = opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam;
   
   // Format the selection display
   const selectionDisplay = isPlayerProp 
-    ? opp.selection 
+    ? opp.player 
     : `${opp.awayTeam} @ ${opp.homeTeam}`;
   
   // Format the market display
@@ -140,7 +140,7 @@ export function MobileEdgeCard({
           <div className="flex items-center gap-2">
             <span className="text-sm">{getSportEmoji(opp.sport)}</span>
             <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">
-              {opp.league || opp.sport}
+              {opp.sport}
             </span>
             <span className="text-xs text-neutral-400 dark:text-neutral-500">
               • {formatGameTime(opp.gameStart)}
@@ -171,7 +171,7 @@ export function MobileEdgeCard({
               className="text-left"
             >
               <span className="text-base font-semibold text-neutral-900 dark:text-white hover:text-brand transition-colors">
-                {opp.selection}
+                {opp.player}
               </span>
             </button>
           ) : (
@@ -288,8 +288,7 @@ export function MobileEdgeCard({
                         key={`${book.book}-${idx}`}
                         type="button"
                         onClick={() => {
-                          const link = book.mobileLink || book.link;
-                          if (link) window.open(link, "_blank");
+                          if (book.link) window.open(book.link, "_blank");
                         }}
                         className={cn(
                           "flex items-center justify-between px-3 py-2 rounded-lg",

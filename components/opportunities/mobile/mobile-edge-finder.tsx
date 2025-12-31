@@ -93,7 +93,7 @@ export function MobileEdgeFinder({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(opp => 
-        opp.selection?.toLowerCase().includes(query) ||
+        opp.player?.toLowerCase().includes(query) ||
         opp.homeTeam?.toLowerCase().includes(query) ||
         opp.awayTeam?.toLowerCase().includes(query) ||
         opp.market?.toLowerCase().includes(query)
@@ -103,8 +103,7 @@ export function MobileEdgeFinder({
     // Sport filter
     if (selectedSport !== "all") {
       filtered = filtered.filter(opp => 
-        opp.sport?.toLowerCase() === selectedSport.toLowerCase() ||
-        opp.league?.toLowerCase() === selectedSport.toLowerCase()
+        opp.sport?.toLowerCase() === selectedSport.toLowerCase()
       );
     }
     
@@ -147,9 +146,8 @@ export function MobileEdgeFinder({
   }, []);
   
   const handleBetClick = useCallback((opp: Opportunity) => {
-    const link = opp.bestMobileLink || opp.bestLink;
-    if (link) {
-      window.open(link, "_blank");
+    if (opp.bestLink) {
+      window.open(opp.bestLink, "_blank");
     }
   }, []);
   

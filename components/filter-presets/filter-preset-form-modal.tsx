@@ -741,8 +741,8 @@ export function FilterPresetFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl">
-        <form onSubmit={handleSubmit} className="flex flex-col h-full sm:max-h-[90vh]">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl">
+        <form onSubmit={handleSubmit} className="flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh]">
           {/* Header */}
           <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 sm:py-5 shrink-0">
             <div className="flex items-center gap-3">
@@ -761,7 +761,7 @@ export function FilterPresetFormModal({
           </DialogHeader>
 
           {/* Content - Two Column Layout */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <div className="p-4 sm:p-6">
               {/* Filter Name - Full Width */}
               <div className="mb-6">

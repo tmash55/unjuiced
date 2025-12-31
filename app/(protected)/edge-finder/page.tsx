@@ -288,10 +288,10 @@ export default function EdgeFinderPage() {
           error={error}
           onRefresh={handleRefresh}
           onPlayerClick={(opp) => {
-            if (opp.playerId && opp.selection) {
+            if (opp.playerId && opp.player) {
               setSelectedPlayer({
                 odds_player_id: opp.playerId,
-                player_name: opp.selection,
+                player_name: opp.player,
                 market: opp.market || "",
                 event_id: opp.eventId || "",
                 line: opp.line,
@@ -303,7 +303,7 @@ export default function EdgeFinderPage() {
           isPro={effectiveIsPro}
           activePresets={activePresets}
           isCustomMode={isCustomMode}
-          dataUpdatedAt={dataUpdatedAt}
+          dataUpdatedAt={dataUpdatedAt ?? undefined}
           onPresetHover={prefetchPreset}
         />
         
