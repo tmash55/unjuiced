@@ -4,6 +4,7 @@
  * Edge Finder - Find betting edges across sportsbooks
  * 
  * Uses native Opportunity types and components.
+ * Responsive: Shows mobile-optimized view on small screens.
  * 
  * URL: /edge-finder
  */
@@ -19,6 +20,7 @@ import { LoadingState } from "@/components/common/loading-state";
 // Native imports
 import { useMultiFilterOpportunities } from "@/hooks/use-multi-filter-opportunities";
 import { OpportunitiesTable } from "@/components/opportunities/opportunities-table";
+import { MobileEdgeFinder } from "@/components/opportunities/mobile";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Shared preferences & filters component
@@ -29,6 +31,7 @@ import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
@@ -109,6 +112,7 @@ export default function EdgeFinderPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
   const isLoggedIn = !!user;
+  const isMobile = useIsMobile();
   const stablePlanRef = useRef(isPro);
 
   useEffect(() => {
@@ -273,6 +277,56 @@ export default function EdgeFinderPage() {
     );
   }
 
+  // Mobile View - Full-screen app-like experience
+  if (isMobile) {
+    return (
+      <>
+        <MobileEdgeFinder
+          opportunities={filteredOpportunities}
+          isLoading={isLoading}
+          isFetching={isFetching || refreshing}
+          error={error}
+          onRefresh={handleRefresh}
+          onPlayerClick={(opp) => {
+            if (opp.playerId && opp.selection) {
+              setSelectedPlayer({
+                odds_player_id: opp.playerId,
+                player_name: opp.selection,
+                market: opp.market || "",
+                event_id: opp.eventId || "",
+                line: opp.line,
+              });
+            }
+          }}
+          bankroll={evPrefs.bankroll}
+          kellyPercent={evPrefs.kellyPercent || 25}
+          isPro={effectiveIsPro}
+          activePresets={activePresets}
+          isCustomMode={isCustomMode}
+          dataUpdatedAt={dataUpdatedAt}
+          onPresetHover={prefetchPreset}
+        />
+        
+        {/* Player Quick View Modal */}
+        {selectedPlayer && (
+          <PlayerQuickViewModal
+            odds_player_id={selectedPlayer.odds_player_id}
+            player_name={selectedPlayer.player_name}
+            initial_market={selectedPlayer.market}
+            initial_line={selectedPlayer.line}
+            event_id={selectedPlayer.event_id}
+            odds={selectedPlayer.odds ?? undefined}
+            open={!!selectedPlayer}
+            onOpenChange={(open) => {
+              if (!open) setSelectedPlayer(null);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Desktop View
   return (
     <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}

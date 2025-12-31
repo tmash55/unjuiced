@@ -741,10 +741,10 @@ export function FilterPresetFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full sm:max-w-6xl max-h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0">
-        <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
+      <DialogContent className="w-full h-full sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full sm:max-h-[90vh]">
           {/* Header */}
-          <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-5 shrink-0">
+          <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 sm:py-5 shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
                 <Filter className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -762,7 +762,7 @@ export function FilterPresetFormModal({
 
           {/* Content - Two Column Layout */}
           <div className="flex-1 overflow-y-auto">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Filter Name - Full Width */}
               <div className="mb-6">
                 <Label htmlFor="name" className="text-sm font-medium text-neutral-900 dark:text-white mb-2 block">
@@ -784,7 +784,7 @@ export function FilterPresetFormModal({
                 {/* LEFT COLUMN - Reference Books & Weights */}
                 <div className="space-y-5">
                   {/* Pie Chart & Weights Section */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 sm:p-5">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
@@ -808,14 +808,14 @@ export function FilterPresetFormModal({
                       )}
                     </div>
 
-                    <div className="flex gap-6">
+                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                       {/* Pie Chart */}
-                      <div className="shrink-0">
-                        <PieChart data={pieData} size={140} />
+                      <div className="shrink-0 flex justify-center sm:justify-start">
+                        <PieChart data={pieData} size={100} />
                       </div>
                       
                       {/* Weight Inputs */}
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 space-y-2 min-w-0">
                         {referenceBooks.map((bookId, idx) => {
                           const book = sportsbooks.find(b => b.id === bookId);
                           const weight = weights[bookId] || 0;
@@ -825,10 +825,10 @@ export function FilterPresetFormModal({
                                 className="w-2.5 h-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
                               />
-                              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1 truncate">
+                              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 flex-1 truncate min-w-0">
                                 {book?.name || bookId}
                               </span>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <input
                                   type="number"
                                   min="0"
@@ -836,7 +836,7 @@ export function FilterPresetFormModal({
                                   value={weight}
                                   onChange={(e) => handleWeightChange(bookId, Math.min(100, Math.max(0, Number(e.target.value))))}
                                   disabled={isLoading}
-                                  className="w-12 h-7 text-center text-xs font-semibold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md focus:ring-1 focus:ring-emerald-500"
+                                  className="w-14 h-8 text-center text-sm font-semibold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md focus:ring-1 focus:ring-emerald-500"
                                 />
                                 <span className="text-xs text-neutral-400">%</span>
                               </div>
@@ -851,7 +851,7 @@ export function FilterPresetFormModal({
                   </div>
 
                   {/* Reference Books Section */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5">
+                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 sm:p-5">
                     <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide mb-1">
                       Reference Books
                     </h3>
@@ -859,7 +859,7 @@ export function FilterPresetFormModal({
                       Select books to calculate fair odds
                     </p>
 
-                    <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 gap-2 max-h-[250px] sm:max-h-[320px] overflow-y-auto pr-1">
                       {REFERENCE_BOOKS.map((book) => {
                         const isSelected = referenceBooks.includes(book.id);
                         const colorIndex = referenceBooks.indexOf(book.id);
@@ -1217,9 +1217,9 @@ export function FilterPresetFormModal({
           
 
           {/* Footer */}
-          <div className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50 shrink-0">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          <div className="border-t border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50 shrink-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center sm:text-left">
                 {selectedSports.length} sport{selectedSports.length !== 1 ? 's' : ''} • {referenceBooks.length} book{referenceBooks.length !== 1 ? 's' : ''}
               </p>
               <div className="flex items-center gap-3">
@@ -1227,14 +1227,14 @@ export function FilterPresetFormModal({
                   type="button"
                   onClick={() => onOpenChange(false)}
                   disabled={isLoading}
-                  className="h-10 px-4 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-4 rounded-xl sm:rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 sm:bg-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-5 rounded-xl sm:rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isEditing ? "Save Changes" : "Create Model"}

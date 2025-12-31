@@ -1215,26 +1215,33 @@ export function OpportunitiesTable({
           <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
                 </div>
       </td>
+      {/* Reference */}
       <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
               </div>
       </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-        </div>
-      </td>
+      {/* Fair - hidden in next_best mode */}
+      {comparisonMode !== "next_best" && (
+        <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <div className="flex justify-center">
+            <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          </div>
+        </td>
+      )}
+      {/* Stake */}
       <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
       </div>
       </td>
+      {/* Filter */}
       <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
         </div>
       </td>
+      {/* Action */}
       <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center gap-2">
           <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
@@ -1262,8 +1269,10 @@ export function OpportunitiesTable({
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Line</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Market</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Best Book</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Reference</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Fair</th>
+              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">{referenceColumnLabel}</th>
+              {comparisonMode !== "next_best" && (
+                <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Fair</th>
+              )}
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Stake</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Filter</th>
               <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">Action</th>

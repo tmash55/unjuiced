@@ -63,9 +63,19 @@ export function Combobox<TMeta = any>({
   const setOpen = onOpenChange ?? setInternalOpen
 
   const [query, setQuery] = useState("")
+  const [alignRight, setAlignRight] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Calculate dropdown alignment when opening
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      // If trigger is more than 60% to the right of viewport, align dropdown to right
+      setAlignRight(rect.left > window.innerWidth * 0.6)
+    }
+  }, [isOpen])
 
   // Close on outside click
   useEffect(() => {
@@ -143,8 +153,10 @@ export function Combobox<TMeta = any>({
         <div
           ref={menuRef}
           className={cn(
-            "absolute left-0 top-full z-[60] mt-2 max-h-[calc(100vh-120px)] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
-            matchTriggerWidth ? "w-[var(--trigger-w)]" : "w-[min(calc(100vw-2rem),480px)]",
+            "absolute top-full z-[60] mt-2 max-h-[calc(100vh-120px)] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            // Position from left or right based on available space
+            alignRight ? "right-0" : "left-0",
+            matchTriggerWidth ? "w-[var(--trigger-w)]" : "min-w-[200px] max-w-[min(calc(100vw-2rem),420px)]",
           )}
           style={{
             // Read trigger width for matchTriggerWidth; fallback gracefully

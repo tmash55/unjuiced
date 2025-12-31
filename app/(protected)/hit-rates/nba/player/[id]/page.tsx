@@ -3,12 +3,14 @@
 import { use, useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
+import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { GamesSidebar } from "@/components/hit-rates/games-sidebar";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import { ToolHeading } from "@/components/common/tool-heading";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 interface PlayerProfilePageProps {
   params: Promise<{ id: string }>;
@@ -20,6 +22,9 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const marketParam = searchParams.get("market");
+  
+  // Detect mobile viewport
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Fetch all profiles for this player (all markets)
   const { rows: playerProfiles, isLoading, error } = useHitRateTable({
@@ -121,6 +126,53 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   }
 
   if (isLoading) {
+    // Mobile Loading State
+    if (isMobile) {
+      return (
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 p-4 space-y-4">
+          {/* Header skeleton */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse" />
+            <div className="w-32 h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
+          </div>
+          
+          {/* Player card skeleton */}
+          <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4 space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse" />
+              <div className="space-y-2 flex-1">
+                <div className="w-40 h-6 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
+                <div className="w-24 h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
+              </div>
+            </div>
+            
+            {/* Market pills skeleton */}
+            <div className="flex gap-2 overflow-x-auto">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="w-20 h-8 bg-neutral-200 dark:bg-neutral-700 rounded-full animate-pulse shrink-0" />
+              ))}
+            </div>
+          </div>
+          
+          {/* Chart skeleton */}
+          <div className="rounded-2xl bg-white dark:bg-neutral-900 p-4">
+            <div className="w-full h-48 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
+          </div>
+          
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-4 gap-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-xl bg-white dark:bg-neutral-900 p-3">
+                <div className="w-8 h-3 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse mb-1" />
+                <div className="w-12 h-5 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Desktop Loading State
     return (
       <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
         {/* Header skeleton */}
@@ -246,6 +298,19 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
     );
   }
 
+  // Mobile View - Full screen player drilldown
+  if (isMobile) {
+    return (
+      <MobilePlayerDrilldown
+        profile={profile}
+        allPlayerProfiles={playerProfiles}
+        onBack={handleBack}
+        onMarketChange={handleMarketChange}
+      />
+    );
+  }
+
+  // Desktop View
   return (
     <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
       {/* Header with back button */}
