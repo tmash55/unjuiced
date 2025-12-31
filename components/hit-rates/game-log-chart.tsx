@@ -410,7 +410,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           <StatRow label="Assists" value={game.ast} />
           <StatRow label="Passes" value={game.passes} />
           <StatRow label="Turnovers" value={game.tov} />
-          <StatRow label="AST/TO" value={game.tov > 0 ? (game.ast / game.tov).toFixed(1) : "∞"} />
+          <StatRow label="AST/TO" value={game.ast === 0 ? "0" : game.tov === 0 ? game.ast.toString() : (game.ast / game.tov).toFixed(1)} />
           <StatRow label="Pace" value={Math.round(game.pace)} />
         </>
       );
@@ -527,7 +527,7 @@ const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => 
           <div className="my-2 border-t border-[#ffffff0d]" />
           <StatRow label="Turnovers" value={game.tov} />
           <StatRow label="Assists" value={game.ast} />
-          <StatRow label="AST/TO" value={game.tov > 0 ? (game.ast / game.tov).toFixed(1) : "∞"} />
+          <StatRow label="AST/TO" value={game.ast === 0 ? "0" : game.tov === 0 ? game.ast.toString() : (game.ast / game.tov).toFixed(1)} />
           <StatRow label="Passes" value={game.passes} />
           <StatRow label="Usage" value={`${Math.round(game.usagePct * 100)}%`} />
         </>

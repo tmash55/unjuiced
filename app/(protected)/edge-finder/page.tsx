@@ -140,7 +140,11 @@ export default function BestOddsPage() {
 
   // Apply client-side filtering and sorting
   const filteredDeals = useMemo(() => {
-    let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefs));
+    const prefsWithDefaults = {
+      ...prefs,
+      columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+    };
+    let filtered = deals.filter((deal: BestOddsDeal) => matchesBestOddsDeal(deal, prefsWithDefaults));
     
     // Apply college player props filter if enabled
     if (prefs.hideCollegePlayerProps) {
@@ -293,7 +297,7 @@ export default function BestOddsPage() {
           <div className="mode-toggle">
             <button
               type="button"
-              onClick={() => handlePrefsChange({ ...prefs, scope: 'pregame' })}
+              onClick={() => handlePrefsChange({ ...prefs, scope: 'pregame', columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'] })}
               className={cn(prefs.scope === 'pregame' && 'active')}
             >
               Pre-Game {stats.pregame > 0 && `(${stats.pregame})`}
@@ -381,7 +385,10 @@ export default function BestOddsPage() {
             <FiltersBarSection align="right">
               {/* Filters Button */}
                 <BestOddsFilters
-                  prefs={prefs}
+                  prefs={{
+                    ...prefs,
+                    columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+                  }}
                   onPrefsChange={handlePrefsChange}
                   availableLeagues={availableLeagues}
                   availableMarkets={availableMarkets}
@@ -463,7 +470,10 @@ export default function BestOddsPage() {
         isLoggedIn={isLoggedIn}
         isPro={isPro}
         premiumCount={premiumCount}
-        prefs={prefs}
+        prefs={{
+          ...prefs,
+          columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+        }}
         hiddenCount={hiddenCount}
         showHidden={prefs.showHidden}
         onToggleShowHidden={() => updateFilters({ ...prefs, showHidden: !prefs.showHidden })}

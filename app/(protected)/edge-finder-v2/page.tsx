@@ -32,9 +32,25 @@ import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
+
+/**
+ * Format timestamp as relative time (e.g., "5s ago", "2m ago")
+ * Billion-dollar UX: Show users when data was last refreshed
+ */
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
 
 // Available markets (subset of common player props)
 const AVAILABLE_MARKETS = [
@@ -130,6 +146,16 @@ export default function EdgeFinderV2Page() {
   // Result limit (default 200 for Pro, 50 for free)
   const [limit, setLimit] = useState(200);
 
+  // Player quick view modal state
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    odds_player_id: string;
+    player_name: string;
+    market: string;
+    event_id: string;
+    line?: number;
+    odds?: BestOddsData;
+  } | null>(null);
+
   // Sync local search with prefs on load
   useEffect(() => {
     setSearchLocal(prefs.searchQuery || "");
@@ -165,8 +191,16 @@ export default function EdgeFinderV2Page() {
     isFetching,
     error,
     refetch,
+    prefetchPreset,
+    dataUpdatedAt,
+    isStale,
+    isLoadingMore,
+    loadProgress,
   } = useMultiFilterOpportunities({
-    prefs,
+    prefs: {
+      ...prefs,
+      columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+    },
     activePresets,
     isPro: effectiveIsPro,
     limit,
@@ -206,7 +240,6 @@ export default function EdgeFinderV2Page() {
       comparisonBook: newPrefs.comparisonBook,
       searchQuery: newPrefs.searchQuery,
       showHidden: newPrefs.showHidden,
-      columnOrder: newPrefs.columnOrder,
     });
   }, [updatePrefs]);
 
@@ -218,11 +251,6 @@ export default function EdgeFinderV2Page() {
   const handleKellyPercentChange = useCallback((value: number) => {
     updateEvPrefs({ kellyPercent: value });
   }, [updateEvPrefs]);
-
-  // Handle column order changes
-  const handleColumnOrderChange = useCallback((newOrder: string[]) => {
-    updatePrefs({ columnOrder: newOrder });
-  }, [updatePrefs]);
 
   // Toggle show hidden
   const handleToggleShowHidden = useCallback(() => {
@@ -251,19 +279,45 @@ export default function EdgeFinderV2Page() {
       {/* Header */}
       <div className="mb-8">
         <ToolHeading>Edge Finder</ToolHeading>
-          <ToolSubheading>
-            {isLoading
-            ? "Loading opportunities..."
-            : isFetching
-            ? "Updating opportunities..."
-            : `${filteredOpportunities.length}+ opportunities found`}
-          </ToolSubheading>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ToolSubheading>
+              {isLoading
+              ? "Loading opportunities..."
+              : isFetching && !isLoadingMore
+              ? "Updating opportunities..."
+              : `${filteredOpportunities.length}+ opportunities found`}
+            </ToolSubheading>
+            {/* Progressive Loading Indicator - Billion Dollar UX */}
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
+                <div className="w-16 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${loadProgress}%` }}
+                  />
+                </div>
+                <span>Loading more...</span>
+              </div>
+            )}
+          </div>
+          {/* Freshness Indicator - Right aligned */}
+          {dataUpdatedAt && !isLoading && !isLoadingMore && (
+            <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
+              <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+              {isFetching && (
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Custom Filter Presets */}
       <FilterPresetsBar 
         className="mb-6" 
         onPresetsChange={() => refetch()}
+        onPresetHover={prefetchPreset}
       />
 
       {/* Filters Bar */}
@@ -286,7 +340,10 @@ export default function EdgeFinderV2Page() {
           <FiltersBarSection align="right">
             {/* V1 BestOddsFilters component - handles all advanced filtering */}
             <BestOddsFilters
-              prefs={prefs}
+              prefs={{
+                ...prefs,
+                columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+              }}
               onPrefsChange={handlePrefsChange}
               availableLeagues={AVAILABLE_LEAGUES}
               availableMarkets={AVAILABLE_MARKETS}
@@ -338,6 +395,7 @@ export default function EdgeFinderV2Page() {
         onHideEdge={hideEdge}
         onUnhideEdge={unhideEdge}
         isHidden={isHidden}
+        onPlayerClick={setSelectedPlayer}
         comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
         comparisonLabel={
           isCustomMode 
@@ -350,8 +408,6 @@ export default function EdgeFinderV2Page() {
         isCustomMode={isCustomMode}
         bankroll={evPrefs.bankroll}
         kellyPercent={evPrefs.kellyPercent || 25}
-        columnOrder={prefs.columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
       />
 
       {/* Load more button */}
@@ -382,6 +438,22 @@ export default function EdgeFinderV2Page() {
             {isLoggedIn ? "Upgrade to Pro" : "View Plans"}
           </a>
         </div>
+      )}
+
+      {/* Player Quick View Modal */}
+      {selectedPlayer && (
+        <PlayerQuickViewModal
+          odds_player_id={selectedPlayer.odds_player_id}
+          player_name={selectedPlayer.player_name}
+          initial_market={selectedPlayer.market}
+          initial_line={selectedPlayer.line}
+          event_id={selectedPlayer.event_id}
+          odds={selectedPlayer.odds ?? undefined}
+          open={!!selectedPlayer}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPlayer(null);
+          }}
+        />
       )}
     </div>
   );

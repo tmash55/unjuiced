@@ -33,6 +33,8 @@ interface CheatSheetTableProps {
   isLoadingOdds?: boolean;
   timeWindow?: string;
   onRowClick?: (row: CheatSheetRow) => void;
+  /** Click handler for player name to open hit rate modal */
+  onPlayerClick?: (row: CheatSheetRow) => void;
   onGlossaryOpen?: () => void;
   hideNoOdds?: boolean;
 }
@@ -266,7 +268,7 @@ function SortIcon({ field, currentField, direction }: {
     : <ChevronUp className="w-3 h-3 text-brand" />;
 }
 
-export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, timeWindow, onRowClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
+export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
   // Helper to get live odds for a row
   const getLiveOdds = (row: CheatSheetRow) => {
     if (!oddsData || !row.oddsSelectionId) return null;
@@ -630,9 +632,24 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                   <div className="min-w-0">
                     {/* Player name with injury icon */}
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
-                        {row.playerName}
-                      </span>
+                      {onPlayerClick ? (
+                        <Tooltip content="View Profile" side="top">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPlayerClick(row);
+                            }}
+                            className="font-bold text-sm text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline transition-colors leading-tight text-left"
+                          >
+                            {row.playerName}
+                          </button>
+                        </Tooltip>
+                      ) : (
+                        <span className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
+                          {row.playerName}
+                        </span>
+                      )}
                       {/* Hot streak indicator */}
                       {row.hitStreak >= 5 && (
                         <Tooltip content={`${row.hitStreak} game hit streak 🔥`} side="top">

@@ -121,23 +121,38 @@ export default function KingOfTheCourtPage() {
                   <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading games...</p>
                 </div>
               ) : gamesData ? (
-                <>
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold">Today&apos;s Schedule</h2>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                      {new Date(gamesData.date + 'T12:00:00Z').toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
-                    </p>
-                  </div>
-                  <TodaysGames 
-                    games={gamesData.games} 
-                    date={gamesData.date}
-                    summary={gamesData.summary}
-                  />
-                </>
+                (() => {
+                  // Filter to only today's games
+                  const todaysGames = gamesData.games.filter(game => game.start_time?.startsWith(gamesData.date));
+                  
+                  // Recalculate summary for today only
+                  const todaysSummary = {
+                    total: todaysGames.length,
+                    live: todaysGames.filter(g => g.is_live).length,
+                    scheduled: todaysGames.filter(g => !g.is_live && !g.is_final).length,
+                    final: todaysGames.filter(g => g.is_final).length,
+                  };
+
+                  return (
+                    <>
+                      <div className="mb-6">
+                        <h2 className="text-2xl font-bold">Today&apos;s Schedule</h2>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                          {new Date(gamesData.date + 'T12:00:00Z').toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                      <TodaysGames 
+                        games={todaysGames} 
+                        date={gamesData.date}
+                        summary={todaysSummary}
+                      />
+                    </>
+                  );
+                })()
               ) : (
                 <div className="py-12 text-center text-neutral-600 dark:text-neutral-400">
                   No data available

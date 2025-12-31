@@ -3,7 +3,7 @@
 import { use, useState, useMemo, useRef, useEffect } from "react";
 import { notFound } from "next/navigation";
 import { useCheatSheet, useCheatSheetOdds, CheatSheetRow } from "@/hooks/use-cheat-sheet";
-import { useInjuryImpactCheatsheet, useInjuryImpactOdds, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
+import { useInjuryImpactCheatsheet, useInjuryImpactOdds, INJURY_IMPACT_MARKETS, InjuryImpactRow } from "@/hooks/use-injury-impact";
 import { 
   CheatSheetFilterState,
   DEFAULT_CHEAT_SHEET_FILTERS,
@@ -24,6 +24,7 @@ import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
 import { Lock, ArrowRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 
 // Gating constants
 const FREE_USER_MAX_ROWS = 7;
@@ -184,6 +185,15 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
   );
 }
 
+// State for player quick view modal in injury impact
+interface SelectedInjuryPlayerForModal {
+  nba_player_id: number;
+  player_name: string;
+  market: string;
+  event_id: string | null;
+  line: number;
+}
+
 function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
@@ -198,6 +208,18 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
   const [hideNoOdds, setHideNoOdds] = useState(true);
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const marketDropdownRef = useRef<HTMLDivElement>(null);
+  const [selectedPlayerForModal, setSelectedPlayerForModal] = useState<SelectedInjuryPlayerForModal | null>(null);
+  
+  // Handle player name click to open hit rate modal
+  const handlePlayerClick = (row: InjuryImpactRow) => {
+    setSelectedPlayerForModal({
+      nba_player_id: row.playerId,
+      player_name: row.playerName,
+      market: row.market,
+      event_id: row.eventId,
+      line: row.line,
+    });
+  };
   
   // Close market dropdown on outside click
   useEffect(() => {
@@ -264,6 +286,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           filters={filters}
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
+          onPlayerClick={handlePlayerClick}
           sport={sport}
           isGated={isGated}
         />
@@ -272,6 +295,17 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
         <InjuryImpactGlossary 
           isOpen={isGlossaryOpen} 
           onClose={() => setIsGlossaryOpen(false)} 
+        />
+
+        {/* Player Quick View Modal */}
+        <PlayerQuickViewModal
+          open={!!selectedPlayerForModal}
+          onOpenChange={() => setSelectedPlayerForModal(null)}
+          nba_player_id={selectedPlayerForModal?.nba_player_id}
+          player_name={selectedPlayerForModal?.player_name}
+          initial_market={selectedPlayerForModal?.market}
+          initial_line={selectedPlayerForModal?.line}
+          event_id={selectedPlayerForModal?.event_id || undefined}
         />
       </>
     );
@@ -485,6 +519,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
             filters={filters}
             onFiltersChange={setFilters}
             onGlossaryOpen={() => setIsGlossaryOpen(true)}
+            onPlayerClick={handlePlayerClick}
             sport={sport}
             hideNoOdds={hideNoOdds}
             onHideNoOddsChange={setHideNoOdds}
@@ -503,8 +538,28 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
         isOpen={isGlossaryOpen} 
         onClose={() => setIsGlossaryOpen(false)} 
       />
+
+      {/* Player Quick View Modal */}
+      <PlayerQuickViewModal
+        open={!!selectedPlayerForModal}
+        onOpenChange={() => setSelectedPlayerForModal(null)}
+        nba_player_id={selectedPlayerForModal?.nba_player_id}
+        player_name={selectedPlayerForModal?.player_name}
+        initial_market={selectedPlayerForModal?.market}
+        initial_line={selectedPlayerForModal?.line}
+        event_id={selectedPlayerForModal?.event_id || undefined}
+      />
     </div>
   );
+}
+
+// State for player quick view modal
+interface SelectedPlayerForModal {
+  nba_player_id: number;
+  player_name: string;
+  market: string;
+  event_id: string | null;
+  line: number;
 }
 
 function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
@@ -517,10 +572,14 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     dateFilter: getSmartDefaultDateFilter(),
   }));
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+  const [selectedPlayerForModal, setSelectedPlayerForModal] = useState<SelectedPlayerForModal | null>(null);
   
   // Gated users are locked to Points market only
   const isGated = !isLoadingAccess && !hasAccess;
   const effectiveMarkets = isGated ? ["player_points"] : filters.markets;
+  
+  // Track if we've tried falling back to rebounds
+  const [hasTriedFallback, setHasTriedFallback] = useState(false);
 
   // Fetch data with API filters
   const { data, isLoading, error } = useCheatSheet({
@@ -531,6 +590,34 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     markets: effectiveMarkets.length > 0 ? effectiveMarkets : undefined,
     dates: getDateFilterDates(filters.dateFilter),
   });
+  
+  // Fallback to rebounds if points returns no results (only for default Points filter)
+  useEffect(() => {
+    // Only fallback if:
+    // - Data has loaded
+    // - No rows returned
+    // - Currently filtering by points only
+    // - Haven't already tried fallback
+    // - Not gated (gated users stay on points)
+    if (
+      !isLoading && 
+      data?.rows?.length === 0 && 
+      filters.markets.length === 1 && 
+      filters.markets[0] === "player_points" &&
+      !hasTriedFallback &&
+      !isGated
+    ) {
+      setHasTriedFallback(true);
+      setFilters(prev => ({ ...prev, markets: ["player_rebounds"] }));
+    }
+  }, [isLoading, data?.rows?.length, filters.markets, hasTriedFallback, isGated]);
+  
+  // Reset fallback flag when user manually changes markets
+  useEffect(() => {
+    if (filters.markets.length !== 1 || (filters.markets[0] !== "player_points" && filters.markets[0] !== "player_rebounds")) {
+      setHasTriedFallback(false);
+    }
+  }, [filters.markets]);
 
   // Apply client-side filters (for gated users, we'll filter after odds are loaded)
   const filteredRows = useMemo(() => {
@@ -607,6 +694,17 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     console.log("Clicked row:", row);
   };
 
+  // Handle player name click to open hit rate modal
+  const handlePlayerClick = (row: CheatSheetRow) => {
+    setSelectedPlayerForModal({
+      nba_player_id: row.playerId,
+      player_name: row.playerName,
+      market: row.market,
+      event_id: row.eventId,
+      line: row.line,
+    });
+  };
+
   // Mobile Layout
   if (isMobile) {
     return (
@@ -619,6 +717,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
           onRowClick={handleRowClick}
+          onPlayerClick={handlePlayerClick}
           sport={sport}
           currentSheet={sheet}
           isGated={isGated}
@@ -628,6 +727,17 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
         <MobileConfidenceGlossary 
           isOpen={isGlossaryOpen} 
           onClose={() => setIsGlossaryOpen(false)} 
+        />
+
+        {/* Player Quick View Modal */}
+        <PlayerQuickViewModal
+          open={!!selectedPlayerForModal}
+          onOpenChange={() => setSelectedPlayerForModal(null)}
+          nba_player_id={selectedPlayerForModal?.nba_player_id}
+          player_name={selectedPlayerForModal?.player_name}
+          initial_market={selectedPlayerForModal?.market}
+          initial_line={selectedPlayerForModal?.line}
+          event_id={selectedPlayerForModal?.event_id || undefined}
         />
       </>
     );
@@ -666,6 +776,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
                 isLoadingOdds={isLoadingOdds}
                 timeWindow={filters.timeWindow}
                 onRowClick={handleRowClick}
+                onPlayerClick={handlePlayerClick}
                 onGlossaryOpen={() => setIsGlossaryOpen(true)}
                 hideNoOdds={filters.hideNoOdds}
               />
@@ -683,6 +794,17 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
       <ConfidenceGlossary 
         isOpen={isGlossaryOpen} 
         onClose={() => setIsGlossaryOpen(false)} 
+      />
+
+      {/* Player Quick View Modal */}
+      <PlayerQuickViewModal
+        open={!!selectedPlayerForModal}
+        onOpenChange={() => setSelectedPlayerForModal(null)}
+        nba_player_id={selectedPlayerForModal?.nba_player_id}
+        player_name={selectedPlayerForModal?.player_name}
+        initial_market={selectedPlayerForModal?.market}
+        initial_line={selectedPlayerForModal?.line}
+        event_id={selectedPlayerForModal?.event_id || undefined}
       />
     </div>
   );

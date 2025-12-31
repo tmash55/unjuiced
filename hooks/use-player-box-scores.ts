@@ -129,8 +129,9 @@ export function usePlayerBoxScores(options: UsePlayerBoxScoresOptions) {
     queryKey: ["player-box-scores", playerId, season, limit],
     queryFn: () => fetchPlayerBoxScores(playerId!, season, limit),
     enabled: enabled && playerId !== null,
-    staleTime: 5 * 60_000, // 5 minutes
-    gcTime: 10 * 60_000, // 10 minutes
+    staleTime: 10 * 60_000, // 10 minutes - box scores don't change often
+    gcTime: 30 * 60_000, // 30 minutes - keep in cache longer
+    refetchOnWindowFocus: false, // Don't refetch on tab switch
   });
 
   return {

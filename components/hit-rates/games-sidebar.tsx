@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNbaGames, type NbaGame } from "@/hooks/use-nba-games";
-import { MapPin, ChevronDown, ChevronUp, HeartPulse, ArrowDown, Lock } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, HeartPulse, ArrowDown, Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Chart from "@/icons/chart";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { PlayerHeadshot } from "@/components/player-headshot";
@@ -109,6 +109,9 @@ interface GamesSidebarProps {
   // Filter props (shared with table)
   hideNoOdds?: boolean;
   idsWithOdds?: Set<string>;
+  // Collapse state
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 // Format game time - extract just the time portion
@@ -182,6 +185,8 @@ export function GamesSidebar({
   onPlayerSelect,
   hideNoOdds,
   idsWithOdds,
+  isCollapsed = false,
+  onToggleCollapse,
 }: GamesSidebarProps) {
   const { games, gamesDates, isLoading, error } = useNbaGames();
   const { hasAccess } = useHasHitRateAccess();
@@ -321,6 +326,23 @@ export function GamesSidebar({
     });
   };
 
+  // Collapsed state - show just the toggle button
+  if (isCollapsed) {
+    return (
+      <div className="shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 h-full flex flex-col items-center py-3 px-2">
+        <Tooltip content="Expand Games" side="right">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-colors border border-neutral-200 dark:border-neutral-700"
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </button>
+        </Tooltip>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="w-[20%] min-w-[260px] shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 p-4 h-full">
@@ -348,21 +370,34 @@ export function GamesSidebar({
       className="w-[20%] min-w-[260px] shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 h-full overflow-y-auto drilldown-scroll"
     >
       <div className="p-3">
-        {/* Header */}
+        {/* Header with collapse toggle */}
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
             {selectedPlayer ? "Switch Game" : "Upcoming Games"}
           </h3>
-          {/* Quick actions - only show in table mode */}
-          {!selectedPlayer && selectedGameIds.length > 0 && selectedGameIds.length < games.length && (
-            <button
-              type="button"
-              onClick={onClearAll}
-              className="text-[10px] font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-            >
-              Clear
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Quick actions - only show in table mode */}
+            {!selectedPlayer && selectedGameIds.length > 0 && selectedGameIds.length < games.length && (
+              <button
+                type="button"
+                onClick={onClearAll}
+                className="text-[10px] font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+              >
+                Clear
+              </button>
+            )}
+            {onToggleCollapse && (
+              <Tooltip content="Collapse" side="left">
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-colors border border-neutral-200 dark:border-neutral-700"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
         </div>
 
         {/* Today's Games Option - only show in table mode */}

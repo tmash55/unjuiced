@@ -27,6 +27,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
+import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -49,6 +50,8 @@ interface MobileInjuryImpactProps {
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
+  /** Click handler for player name to open hit rate modal */
+  onPlayerClick?: (row: InjuryImpactRow) => void;
   sport?: string;
   isGated?: boolean; // If true, show upgrade banners and disable filters
 }
@@ -350,9 +353,13 @@ export function MobileInjuryImpact({
   filters,
   onFiltersChange,
   onGlossaryOpen,
+  onPlayerClick,
   sport = "nba",
   isGated = false,
 }: MobileInjuryImpactProps) {
+  // Prefetch player data on hover for faster modal opens
+  const prefetchPlayer = usePrefetchPlayer();
+  
   const [showFilters, setShowFilters] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
   const [sortBy, setSortBy] = useState<SortOption>("hitRate");
@@ -893,9 +900,23 @@ export function MobileInjuryImpact({
                             {/* Name & Info */}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-0.5">
-                                <span className="text-[11px] font-bold text-neutral-900 dark:text-white truncate">
-                                  {formatPlayerName(row.playerName)}
-                                </span>
+                                {onPlayerClick ? (
+                                  <button
+                                    type="button"
+                                    onMouseEnter={() => prefetchPlayer(row.playerId)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onPlayerClick(row);
+                                    }}
+                                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 truncate text-left"
+                                  >
+                                    {formatPlayerName(row.playerName)}
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] font-bold text-neutral-900 dark:text-white truncate">
+                                    {formatPlayerName(row.playerName)}
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[9px] text-neutral-500 truncate">
                                 {row.homeAway?.toLowerCase() === "home" ? "vs" : "@"} {row.opponentAbbr}

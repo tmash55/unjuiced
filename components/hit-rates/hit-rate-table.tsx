@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
+import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
@@ -399,6 +400,9 @@ export function HitRateTable({
 }: HitRateTableProps) {
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Prefetch player data on hover for faster drilldown loading
+  const prefetchPlayer = usePrefetchPlayer();
   
   // Advanced filter states
   const [showFilterPopup, setShowFilterPopup] = useState(false);
@@ -1059,6 +1063,7 @@ export function HitRateTable({
             return (
               <tr
                 key={rowKey}
+                onMouseEnter={() => !isBlurred && prefetchPlayer(row.playerId)}
                 onClick={() => !isBlurred && onRowClick?.(row)}
                 className={cn(
                   "border-b border-neutral-100 dark:border-neutral-800 transition-all duration-150 group",

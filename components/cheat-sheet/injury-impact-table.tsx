@@ -39,6 +39,7 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
 import { InjuryImpactStatsModal } from "./injury-impact-stats-modal";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
+import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 
 // ============================================================
 // Row State Management
@@ -157,6 +158,8 @@ interface InjuryImpactTableProps {
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
+  /** Click handler for player name to open hit rate modal */
+  onPlayerClick?: (row: InjuryImpactRowType) => void;
   sport?: string;
   hideNoOdds?: boolean;
   onHideNoOddsChange?: (value: boolean) => void;
@@ -171,11 +174,15 @@ export function InjuryImpactTable({
   filters,
   onFiltersChange,
   onGlossaryOpen,
+  onPlayerClick,
   sport = "nba",
   hideNoOdds = true,
   onHideNoOddsChange,
   isGated = false,
 }: InjuryImpactTableProps) {
+  // Prefetch player data on hover for faster modal opens
+  const prefetchPlayer = usePrefetchPlayer();
+  
   // Row states for each row (keyed by unique row identifier)
   const [rowStates, setRowStates] = useState<Map<string, RowState>>(new Map());
   
@@ -454,6 +461,7 @@ export function InjuryImpactTable({
                   liveOdds={liveOdds}
                   isGated={isGated}
                   isPinned={isPinned}
+                  onPlayerClick={onPlayerClick}
                 />
               );
             })
@@ -635,6 +643,8 @@ interface InjuryImpactRowProps {
   liveOdds: OddsData | null;
   isGated?: boolean;
   isPinned?: boolean;
+  /** Click handler for player name to open hit rate modal */
+  onPlayerClick?: (row: InjuryImpactRowType) => void;
 }
 
 function InjuryImpactRow({
@@ -646,7 +656,11 @@ function InjuryImpactRow({
   liveOdds,
   isGated = false,
   isPinned = false,
+  onPlayerClick,
 }: InjuryImpactRowProps) {
+  // Prefetch player data on hover for faster modal opens
+  const prefetchPlayer = usePrefetchPlayer();
+  
   // Dropdown states
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [showTeammateDropdown, setShowTeammateDropdown] = useState(false);
@@ -970,8 +984,26 @@ function InjuryImpactRow({
             />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 font-medium text-sm text-neutral-900 dark:text-white truncate">
-              {row.playerName}
+            <div className="flex items-center gap-1.5 font-medium text-sm truncate">
+              {onPlayerClick ? (
+                <Tooltip content="View Profile" side="top">
+                  <button
+                    type="button"
+                    onMouseEnter={() => prefetchPlayer(row.playerId)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPlayerClick(row);
+                    }}
+                    className="text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline transition-colors text-left truncate"
+                  >
+                    {row.playerName}
+                  </button>
+                </Tooltip>
+              ) : (
+                <span className="text-neutral-900 dark:text-white truncate">
+                  {row.playerName}
+                </span>
+              )}
               {isPinned && (
                 <Tooltip content="Customized - pinned to top">
                   <span className="flex items-center justify-center h-4 w-4 rounded bg-brand/20 text-brand">

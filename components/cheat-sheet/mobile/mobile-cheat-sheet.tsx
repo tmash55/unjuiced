@@ -54,6 +54,8 @@ interface MobileCheatSheetProps {
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
   onRowClick?: (row: CheatSheetRow) => void;
+  /** Click handler for player name to open hit rate modal */
+  onPlayerClick?: (row: CheatSheetRow) => void;
   sport?: string;
   currentSheet?: string;
   isGated?: boolean; // If true, show upgrade banners and disable filters
@@ -355,6 +357,7 @@ export function MobileCheatSheet({
   onFiltersChange,
   onGlossaryOpen,
   onRowClick,
+  onPlayerClick,
   sport = "nba",
   currentSheet = "hit-rates",
   isGated = false,
@@ -1051,9 +1054,22 @@ export function MobileCheatSheet({
                             {/* Name & Info */}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-0.5">
-                                <span className="text-[11px] font-bold text-neutral-900 dark:text-white truncate">
-                                  {formatPlayerName(row.playerName)}
-                                </span>
+                                {onPlayerClick ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onPlayerClick(row);
+                                    }}
+                                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 truncate text-left"
+                                  >
+                                    {formatPlayerName(row.playerName)}
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] font-bold text-neutral-900 dark:text-white truncate">
+                                    {formatPlayerName(row.playerName)}
+                                  </span>
+                                )}
                                 {row.hitStreak >= 5 && (
                                   <Tooltip content={`🔥 ${row.hitStreak} game streak`}>
                                     <button 

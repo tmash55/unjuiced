@@ -1208,7 +1208,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 {/* Odds Section */}
                 <div className="flex items-center gap-2">
                   {/* Over Odds */}
-                  {oddsForChart?.bestOver && (
+                  {oddsForChart?.bestOver ? (
                     <button
                       type="button"
                       onClick={() => oddsForChart.bestOver?.mobileUrl && window.open(oddsForChart.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
@@ -1232,10 +1232,15 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 </span>
               </div>
                     </button>
+                  ) : (
+                    <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                      <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">O</span>
+                      <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
+                    </div>
                   )}
                   
                   {/* Under Odds */}
-                  {oddsForChart?.bestUnder && (
+                  {oddsForChart?.bestUnder ? (
                     <button
                       type="button"
                       onClick={() => oddsForChart.bestUnder?.mobileUrl && window.open(oddsForChart.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
@@ -1259,6 +1264,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                         </span>
                       </div>
                     </button>
+                  ) : (
+                    <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                      <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">U</span>
+                      <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
+                    </div>
                   )}
                 </div>
           </div>
@@ -1304,7 +1314,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                                 ? "text-amber-600/70 dark:text-amber-400/70" 
                                 : "text-red-500/70 dark:text-red-400/70"
                         )}>
-                          {stat.value !== null ? `${stat.value.toFixed(0)}%` : "—"}
+                          {stat.value != null ? `${stat.value.toFixed(0)}%` : "—"}
             </span>
                       </button>
                     </React.Fragment>

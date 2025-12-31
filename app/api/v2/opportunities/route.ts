@@ -134,6 +134,7 @@ interface Opportunity {
     start_time: string;
   } | null;
   player: string;
+  player_id: string | null;  // Player UUID from odds system (for hit rate profiles)
   team: string | null;
   position: string | null;
   market: string;
@@ -510,6 +511,7 @@ interface SelectionPair {
   event: { home_team: string; away_team: string; start_time: string } | null;
   player: string;          // Normalized key format (e.g., "andrew_ogletree")
   playerDisplay: string;   // Readable format (e.g., "Andrew Ogletree")
+  playerId: string | null; // Player UUID from odds system
   team: string | null;
   position: string | null;
   market: string;
@@ -770,6 +772,7 @@ async function fetchSportOpportunities(
             event,
             player,
             playerDisplay: "", // Will be populated from selection data
+            playerId: null,    // Will be populated from selection data
             team: null,
             position: null,
             market,
@@ -811,6 +814,7 @@ async function fetchSportOpportunities(
             }
             // Populate metadata from selection
             if (overSel.player && !pair.playerDisplay) pair.playerDisplay = overSel.player;
+            if (overSel.player_id && !pair.playerId) pair.playerId = overSel.player_id;
             if (overSel.team && !pair.team) pair.team = overSel.team;
             if (overSel.position && !pair.position) pair.position = formatPosition(overSel.position);
             if (overSel.raw_market && !pair.marketDisplay) pair.marketDisplay = overSel.raw_market;
@@ -840,6 +844,7 @@ async function fetchSportOpportunities(
             }
             // Populate metadata from selection
             if (underSel.player && !pair.playerDisplay) pair.playerDisplay = underSel.player;
+            if (underSel.player_id && !pair.playerId) pair.playerId = underSel.player_id;
             if (underSel.team && !pair.team) pair.team = underSel.team;
             if (underSel.position && !pair.position) pair.position = formatPosition(underSel.position);
             if (underSel.raw_market && !pair.marketDisplay) pair.marketDisplay = underSel.raw_market;
@@ -867,6 +872,7 @@ async function fetchSportOpportunities(
           event: pair.event,
           // Use readable player name, fall back to normalized if not available
           player: pair.playerDisplay || pair.player,
+          player_id: pair.playerId,
           team: pair.team,
           position: pair.position,
           market: pair.market,

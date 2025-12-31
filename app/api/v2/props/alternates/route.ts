@@ -159,13 +159,15 @@ interface AlternateLine {
     over?: {
       price: number;
       decimal: number;
-      link: string | null;
+      u: string | null;    // Desktop link
+      m: string | null;    // Mobile link
       limit_max?: number | null;
     };
     under?: {
       price: number;
       decimal: number;
-      link: string | null;
+      u: string | null;    // Desktop link
+      m: string | null;    // Mobile link
       limit_max?: number | null;
     };
   }>;
@@ -301,7 +303,8 @@ async function buildAlternates(
         bookEntry.over = {
           price,
           decimal: data.over.price_decimal,
-          link: data.over.link || null,
+          u: data.over.link || null,  // Desktop link
+          m: data.over.link || null,  // Mobile link (same as desktop for now)
           limit_max: data.over.limits?.max || null,
         };
 
@@ -315,7 +318,8 @@ async function buildAlternates(
         bookEntry.under = {
           price,
           decimal: data.under.price_decimal,
-          link: data.under.link || null,
+          u: data.under.link || null,  // Desktop link
+          m: data.under.link || null,  // Mobile link (same as desktop for now)
           limit_max: data.under.limits?.max || null,
         };
 

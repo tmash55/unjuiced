@@ -71,6 +71,7 @@ export interface Opportunity {
   sport: Sport;
   eventId: string;
   player: string;
+  playerId: string | null; // Player's unique ID (UUID from odds system)
   team: string | null;     // Player's team abbreviation
   position: string | null; // Player's position (e.g., "G/F", "QB")
   market: string;
@@ -235,6 +236,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
     sport: raw.sport as Sport,
     eventId: raw.event_id as string,
     player: (raw.player as string) || "",
+    playerId: (raw.player_id as string) || null,
     team: (raw.team as string) || null,
     position: (raw.position as string) || null,
     market: (raw.market as string) || "",

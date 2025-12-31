@@ -1,12 +1,10 @@
 "use client";
 
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
-import { notFound } from "next/navigation";
+import { notFound, useRouter, useSearchParams } from "next/navigation";
 import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
 import { GamesSidebar, hasGameStarted } from "@/components/hit-rates/games-sidebar";
-import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
 import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
-import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { GlossaryModal, GlossaryButton } from "@/components/hit-rates/glossary-modal";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
@@ -55,6 +53,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     notFound();
   }
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // Detect mobile viewport
   const isMobile = useMediaQuery("(max-width: 767px)");
 
@@ -87,6 +88,27 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Glossary modal state
   const [showGlossary, setShowGlossary] = useState(false);
+  
+  // Sidebar collapse state - initialize from URL
+  const sidebarParam = searchParams.get("sidebar");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(sidebarParam === "collapsed");
+  
+  // Toggle sidebar and persist to URL
+  const toggleSidebar = useCallback(() => {
+    const newCollapsedState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newCollapsedState);
+    
+    // Update URL with new sidebar state
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (newCollapsedState) {
+      newSearchParams.set("sidebar", "collapsed");
+    } else {
+      newSearchParams.delete("sidebar");
+    }
+    router.replace(`/hit-rates/${sport}?${newSearchParams.toString()}`, {
+      scroll: false,
+    });
+  }, [isSidebarCollapsed, searchParams, router, sport]);
   
   // Stable callback for odds availability changes to prevent infinite loops
   const handleOddsAvailabilityChange = useCallback((ids: Set<string>) => {
@@ -147,14 +169,11 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
   }, [selectedGameIds, allGames]);
   
-  // Player drill-down state
-  const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
   // Track the preferred market for drilldown - persists when switching players
   const [preferredMarket, setPreferredMarket] = useState<string | null>(null);
   
-  // Scroll position restoration - save position when entering drilldown
+  // Table scroll ref
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const [savedScrollPosition, setSavedScrollPosition] = useState<number>(0);
   
   // Table display pagination - limit visible rows for performance
   const [visibleRowCount, setVisibleRowCount] = useState(TABLE_PAGE_SIZE);
@@ -179,26 +198,11 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     setSelectedGameIds([]);
   }, []);
 
-  const handleBackToTable = useCallback(() => {
-    setSelectedPlayer(null);
-  }, []);
-
   // Sort change handler
   const handleSortChange = useCallback((field: typeof sortField, direction: typeof sortDirection) => {
     setSortField(field);
     setSortDirection(direction);
   }, []);
-
-  // Escape key to exit drilldown
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedPlayer) {
-        setSelectedPlayer(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedPlayer]);
 
   // Debounce search query for server-side search
   useEffect(() => {
@@ -211,10 +215,6 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Pagination state - progressive loading
   const [hasLoadedBackground, setHasLoadedBackground] = useState(false);
 
-  // When a player is selected (drilldown mode), we need ALL players for the sidebar
-  // to show complete rosters for each game
-  const isInDrilldown = selectedPlayer !== null;
-  
   // Check if specific games are selected (not "all games")
   const hasGameFilter = selectedGameIds.length > 0;
   
@@ -222,21 +222,20 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const hasMarketFilter = selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length;
 
   // Determine how much data to fetch:
-  // - User interaction (drilldown, search, filter): Full data immediately
+  // - User interaction (search, filter): Full data immediately
   // - Background loaded: Use background data
   // - Initial load: Just 50 rows for snappy UX
-  const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasMarketFilter;
+  const needsFullData = debouncedSearch || hasGameFilter || hasMarketFilter;
 
   // Calculate limit based on state
   const currentLimit = needsFullData 
-    ? FULL_DATA_SIZE 
+    ? FULL_DATA_SIZE
     : hasLoadedBackground 
-      ? BACKGROUND_PAGE_SIZE 
-      : INITIAL_PAGE_SIZE;
+    ? BACKGROUND_PAGE_SIZE 
+    : INITIAL_PAGE_SIZE;
 
-  // When in drilldown mode, fetch BOTH days (undefined = today + tomorrow)
-  // When a specific game is selected (not drilldown), fetch just that date
-  const dateToFetch = isInDrilldown ? undefined : selectedDate;
+  // Use selectedDate for fetching
+  const dateToFetch = selectedDate;
 
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
     date: dateToFetch,
@@ -282,46 +281,26 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     setVisibleRowCount(prev => prev + TABLE_LOAD_MORE);
   }, []);
 
-  // Player drill-down handler for TABLE clicks - always use exact profile clicked
+  // Player drill-down handler for TABLE clicks - navigate to player page
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
-    // Save scroll position before entering drilldown
-    if (tableScrollRef.current) {
-      setSavedScrollPosition(tableScrollRef.current.scrollTop);
-    }
-    // Reset search when entering drilldown
-    setSearchQuery("");
-    setDebouncedSearch("");
-    setSelectedPlayer(player);
-    setPreferredMarket(player.market);
-  }, []);
+    // Navigate to player page with market and sidebar collapse state
+    const params = new URLSearchParams({
+      market: player.market,
+      ...(isSidebarCollapsed && { sidebar: 'collapsed' }),
+    });
+    router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
+  }, [router, sport, isSidebarCollapsed]);
 
-  // Player drill-down handler for SIDEBAR clicks - try to keep same market
+  // Player drill-down handler for SIDEBAR clicks - navigate with preferred market
   const handleSidebarPlayerSelect = useCallback((player: HitRateProfile) => {
-    // When switching players from sidebar, try to find a profile with the same market
-    // This allows the user to stay on the same market when browsing players
-    if (preferredMarket && rows.length > 0) {
-      const sameMarketProfile = rows.find(
-        r => r.playerId === player.playerId && r.market === preferredMarket
-      );
-      if (sameMarketProfile) {
-        setSelectedPlayer(sameMarketProfile);
-        return;
-      }
-      
-      // Preferred market not available - fall back to Points market
-      const pointsProfile = rows.find(
-        r => r.playerId === player.playerId && r.market === "player_points"
-      );
-      if (pointsProfile) {
-        setSelectedPlayer(pointsProfile);
-        setPreferredMarket("player_points");
-        return;
-      }
-    }
-    // Final fallback: use the clicked profile and update preferred market
-    setSelectedPlayer(player);
-    setPreferredMarket(player.market);
-  }, [preferredMarket, rows]);
+    // Use preferred market if available, otherwise use the player's current market
+    const marketToUse = preferredMarket || player.market;
+    const params = new URLSearchParams({
+      market: marketToUse,
+      ...(isSidebarCollapsed && { sidebar: 'collapsed' }),
+    });
+    router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
+  }, [router, sport, preferredMarket, isSidebarCollapsed]);
 
   // Pre-compute normalized selected game IDs (avoids recalc in filter)
   const normalizedSelectedGameIds = useMemo(() => 
@@ -394,25 +373,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     });
   }, [rows, effectiveMobileGameIds, startedGameIds]);
 
-  // Get all profiles for the selected player (all their different markets)
-  const selectedPlayerAllProfiles = useMemo(() => {
-    if (!selectedPlayer) return [];
-    return rows.filter(r => r.playerId === selectedPlayer.playerId);
-  }, [rows, selectedPlayer]);
-
   // Mobile Layout
   if (isMobile) {
-    // Show mobile drilldown if a player is selected
-    if (selectedPlayer) {
-      return (
-        <MobilePlayerDrilldown 
-          profile={selectedPlayer} 
-          allPlayerProfiles={selectedPlayerAllProfiles}
-          onBack={handleBackToTable} 
-          onMarketChange={setPreferredMarket}
-        />
-      );
-    }
     
     return (
       <GatedMobileHitRates
@@ -449,32 +411,26 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       <GlossaryModal isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
 
       {/* Games Sidebar + Table/Drilldown Row */}
-      <div className="flex gap-6 h-[calc(100vh-140px)]">
-        {/* Games Sidebar - always visible */}
+      <div className="flex gap-6 h-[calc(100vh-140px)] overflow-hidden">
+        {/* Games Sidebar - collapsible */}
         <GamesSidebar 
           selectedGameIds={selectedGameIds}
           onToggleGame={toggleGame}
           onSelectAll={selectAllGames}
           onSelectTodaysGames={selectTodaysGames}
           onClearAll={clearGameSelection}
-          selectedPlayer={selectedPlayer}
-          gamePlayers={selectedPlayer ? rows : undefined}
+          selectedPlayer={null}
+          gamePlayers={undefined}
           onPlayerSelect={handleSidebarPlayerSelect}
           hideNoOdds={hideNoOdds}
           idsWithOdds={idsWithOdds}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
         />
 
-        {/* Table or Player Drill-down */}
-        <div className="w-[80%] min-w-0 h-full">
-          {selectedPlayer ? (
-            <PlayerDrilldown 
-              profile={selectedPlayer} 
-              allPlayerProfiles={selectedPlayerAllProfiles}
-              onBack={handleBackToTable} 
-              onMarketChange={setPreferredMarket}
-            />
-          ) : (
-            <GatedHitRateTable 
+        {/* Hit Rate Table */}
+        <div className="flex-1 min-w-0 h-full overflow-y-auto">
+          <GatedHitRateTable 
               rows={paginatedRows} 
               loading={showLoadingState} 
               error={error?.message}
@@ -491,12 +447,10 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
               sortDirection={sortDirection}
               onSortChange={handleSortChange}
               scrollRef={tableScrollRef as React.RefObject<HTMLDivElement>}
-              initialScrollTop={savedScrollPosition}
               hideNoOdds={hideNoOdds}
               onHideNoOddsChange={setHideNoOdds}
               onOddsAvailabilityChange={handleOddsAvailabilityChange}
             />
-          )}
         </div>
       </div>
     </div>

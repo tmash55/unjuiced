@@ -26,6 +26,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { getKellyStakeDisplay } from "@/lib/utils/kelly";
+import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
 
 // dnd-kit imports
 import {
@@ -78,6 +79,10 @@ interface OpportunitiesTableProps {
   onHideEdge?: (params: HideEdgeParams) => void;
   onUnhideEdge?: (edgeKey: string) => void;
   isHidden?: (edgeKey: string) => boolean;
+  /**
+   * Callback when a player name is clicked (for opening hit rate modal)
+   */
+  onPlayerClick?: (params: { odds_player_id: string; player_name: string; market: string; event_id: string; line: number; odds?: { over?: { price: number; line: number; book?: string; mobileLink?: string | null }; under?: { price: number; line: number; book?: string; mobileLink?: string | null } } }) => void;
   /**
    * Comparison mode for dynamic column headers
    * - "book" with comparisonLabel = show book name (e.g., "FanDuel")
@@ -254,6 +259,7 @@ export function OpportunitiesTable({
   onHideEdge,
   onUnhideEdge,
   isHidden,
+  onPlayerClick,
   comparisonMode = "average",
   comparisonLabel,
   excludedBooks = [],
@@ -263,6 +269,9 @@ export function OpportunitiesTable({
   columnOrder: propColumnOrder,
   onColumnOrderChange,
 }: OpportunitiesTableProps) {
+  // Prefetch player data on hover for faster modal opens
+  const prefetchPlayer = usePrefetchPlayerByOddsId();
+  
   // Default column order
   const defaultColumnOrder = ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'];
   
@@ -608,16 +617,64 @@ export function OpportunitiesTable({
         );
       
       case 'selection':
+        const isGameProp = opp.player === "game_total" || opp.player === "Game" || !opp.player;
+        const canShowProfile = !isGameProp && opp.sport === "nba" && opp.playerId && onPlayerClick;
+        
         return (
-          <td key="selection" className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td 
+            key="selection" 
+            className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50"
+            onClick={(e) => {
+              // Stop propagation at the cell level if clicking on a player with profile
+              if (canShowProfile && e.target !== e.currentTarget) {
+                e.stopPropagation();
+              }
+            }}
+          >
             <div className="text-sm md:text-base font-medium text-neutral-900 dark:text-neutral-100">
-              {opp.player === "game_total" || opp.player === "Game" || !opp.player 
-                ? "Game" 
-                : opp.player}
-              {opp.position && (
-                <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
-                  ({opp.position})
-                </span>
+              {canShowProfile ? (
+                <Tooltip content="View Profile">
+                  <button
+                    onMouseEnter={() => opp.playerId && prefetchPlayer(opp.playerId)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPlayerClick?.({
+                        odds_player_id: opp.playerId!,
+                        player_name: opp.player,
+                        market: opp.market,
+                        event_id: opp.eventId,
+                        line: opp.line, // Pass the specific line from edge finder
+                        odds: {
+                          [opp.side]: {
+                            price: parseInt(opp.bestPrice?.replace('+', '') || '0', 10), // American odds as integer
+                            line: opp.line,
+                            book: opp.bestBook,
+                            mobileLink: opp.bestLink,
+                          }
+                        } as any,
+                      });
+                    }}
+                    className="text-left text-blue-500/80 dark:text-blue-400/70 hover:text-blue-600 dark:hover:text-blue-300 hover:underline transition-colors"
+                    type="button"
+                  >
+                    {opp.player}
+                    {opp.position && (
+                      <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                        ({opp.position})
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
+              ) : (
+                <>
+                  {isGameProp ? "Game" : opp.player}
+                  {opp.position && (
+                    <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                      ({opp.position})
+                    </span>
+                  )}
+                </>
               )}
             </div>
             {opp.awayTeam && opp.homeTeam && (

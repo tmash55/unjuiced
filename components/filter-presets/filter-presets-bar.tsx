@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Settings, X, Sparkles, Filter, ChevronDown } from "lucide-react";
+import { Plus, Settings, X, Sparkles, Filter, ChevronDown, Pencil } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
-import { parseSports, formatSharpBooks } from "@/lib/types/filter-presets";
+import { parseSports, formatSharpBooks, FilterPreset } from "@/lib/types/filter-presets";
 import { FilterPresetFormModal } from "./filter-preset-form-modal";
 import { FilterPresetsManagerModal } from "./filter-presets-manager-modal";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -184,9 +184,11 @@ const MiniPieChart = ({
 interface FilterPresetsBarProps {
   className?: string;
   onPresetsChange?: () => void;
+  /** Called when hovering over a preset (for prefetching data) */
+  onPresetHover?: (preset: FilterPreset) => void;
 }
 
-export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBarProps) {
+export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: FilterPresetsBarProps) {
   const {
     presets,
     activePresets,
@@ -196,6 +198,7 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManagerModal, setShowManagerModal] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<typeof presets[0] | null>(null);
 
   // Handle preset created/updated
   const handlePresetChange = () => {
@@ -295,36 +298,74 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
                 <Tooltip
                   key={preset.id}
                   content={
-                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md min-w-[200px]">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                        <MiniPieChart books={sharpBooks} weights={weights} size={20} />
-                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{preset.name}</span>
+                    <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg min-w-[220px]">
+                      {/* Header with name */}
+                      <div className="text-center mb-3">
+                        <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{preset.name}</span>
                       </div>
-                      <div className="flex flex-col gap-1.5">
-                        {sharpBooks.slice(0, 4).map((book, i) => {
+                      
+                      {/* Pie Chart with Book Logos */}
+                      <div className="flex items-center justify-center mb-4">
+                        <MiniPieChart books={sharpBooks} weights={weights} size={72} />
+                      </div>
+
+                      {/* Book logos row */}
+                      <div className="flex items-center justify-center gap-3 mb-3 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                        {sharpBooks.slice(0, 5).map((book, i) => {
                           const logo = getBookLogo(book);
-                          const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
+                          const color = CHART_COLORS[i % CHART_COLORS.length];
                           return (
-                            <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-                              {logo ? (
-                                <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
-                              ) : (
-                                <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
-                              )}
-                              <span className="capitalize flex-1">{book}</span>
-                              <span className="font-semibold" style={{ color: CHART_COLORS[i % CHART_COLORS.length] }}>{weight}%</span>
+                            <div key={book} className="flex flex-col items-center gap-1">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                                {logo ? (
+                                  <img src={logo} alt={book} className="h-5 w-5 object-contain" />
+                                ) : (
+                                  <span className="text-[10px] font-medium text-neutral-500 uppercase">{book.slice(0, 2)}</span>
+                                )}
+                              </div>
+                              {/* Color indicator dot */}
+                              <div 
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: color }}
+                              />
                             </div>
                           );
                         })}
-                        {sharpBooks.length > 4 && (
-                          <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
+                        {sharpBooks.length > 5 && (
+                          <span className="text-[10px] text-neutral-400 font-medium">+{sharpBooks.length - 5}</span>
                         )}
                       </div>
+
+                      {/* Sports list */}
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium">Sports:</span>
+                        <div className="flex items-center gap-1.5">
+                          {sports.map((sport) => (
+                            <div key={sport} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800">
+                              <SportIcon sport={sport} className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
+                              <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-300 uppercase">{sport}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Edit button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPreset(preset);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit Model
+                      </button>
                     </div>
                   }
                 >
                   <div
                     className="group flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors flex-shrink-0"
+                    onMouseEnter={() => onPresetHover?.(preset)}
                   >
                     {/* Sport Icon (multi-sport aware) */}
                     <div className="text-neutral-500 dark:text-neutral-300">
@@ -395,46 +436,82 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
                 <Tooltip
                   key={preset.id}
                   content={
-                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md min-w-[200px]">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                        {sharpBooks.length > 0 ? (
-                          <MiniPieChart books={sharpBooks} weights={weights} size={20} />
-                        ) : (
-                          <div className="text-emerald-600 dark:text-emerald-400">
-                            {renderSportsIcon(sports, 16)}
-                          </div>
-                        )}
-                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{preset.name}</span>
+                    <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg min-w-[220px]">
+                      {/* Header with name */}
+                      <div className="text-center mb-3">
+                        <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{preset.name}</span>
                       </div>
+                      
                       {sharpBooks.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
-                          {sharpBooks.slice(0, 4).map((book, i) => {
-                            const logo = getBookLogo(book);
-                            const weight = Object.keys(weights).length > 0 ? (weights[book] || 0) : Math.round(100 / sharpBooks.length);
-                            return (
-                              <div key={book} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-                                {logo ? (
-                                  <img src={logo} alt={book} className="h-4 w-4 object-contain rounded-sm" />
-                                ) : (
-                                  <span className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
-                                )}
-                                <span className="capitalize flex-1">{book}</span>
-                                <span className="font-semibold" style={{ color: CHART_COLORS[i % CHART_COLORS.length] }}>{weight}%</span>
-                              </div>
-                            );
-                          })}
-                          {sharpBooks.length > 4 && (
-                            <span className="text-[11px] text-neutral-400">+{sharpBooks.length - 4} more</span>
-                          )}
-                        </div>
+                        <>
+                          {/* Pie Chart with Book Logos */}
+                          <div className="flex items-center justify-center mb-4">
+                            <MiniPieChart books={sharpBooks} weights={weights} size={72} />
+                          </div>
+
+                          {/* Book logos row */}
+                          <div className="flex items-center justify-center gap-3 mb-3 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                            {sharpBooks.slice(0, 5).map((book, i) => {
+                              const logo = getBookLogo(book);
+                              const color = CHART_COLORS[i % CHART_COLORS.length];
+                              return (
+                                <div key={book} className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                                    {logo ? (
+                                      <img src={logo} alt={book} className="h-5 w-5 object-contain" />
+                                    ) : (
+                                      <span className="text-[10px] font-medium text-neutral-500 uppercase">{book.slice(0, 2)}</span>
+                                    )}
+                                  </div>
+                                  {/* Color indicator dot */}
+                                  <div 
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                </div>
+                              );
+                            })}
+                            {sharpBooks.length > 5 && (
+                              <span className="text-[10px] text-neutral-400 font-medium">+{sharpBooks.length - 5}</span>
+                            )}
+                          </div>
+                        </>
                       ) : (
-                        <span className="text-xs text-neutral-500">No sharp books set</span>
+                        <div className="flex items-center justify-center mb-3 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                          <span className="text-xs text-neutral-500">No sharp books configured</span>
+                        </div>
                       )}
+
+                      {/* Sports list */}
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium">Sports:</span>
+                        <div className="flex items-center gap-1.5">
+                          {sports.map((sport) => (
+                            <div key={sport} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800">
+                              <SportIcon sport={sport} className="h-3 w-3 text-neutral-600 dark:text-neutral-300" />
+                              <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-300 uppercase">{sport}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Edit button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPreset(preset);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit Model
+                      </button>
                     </div>
                   }
                 >
                   <button
                     onClick={() => togglePreset(preset.id, true)}
+                    onMouseEnter={() => onPresetHover?.(preset)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-800 dark:hover:text-neutral-100 transition-all flex-shrink-0"
                   >
                   {renderSportsIcon(sports, 14)}
@@ -504,6 +581,12 @@ export function FilterPresetsBar({ className, onPresetsChange }: FilterPresetsBa
       <FilterPresetFormModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
+        onSuccess={handlePresetChange}
+      />
+      <FilterPresetFormModal
+        open={!!editingPreset}
+        onOpenChange={(open) => !open && setEditingPreset(null)}
+        preset={editingPreset || undefined}
         onSuccess={handlePresetChange}
       />
       <FilterPresetsManagerModal

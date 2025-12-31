@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
 import { motion } from 'framer-motion'
-import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown } from 'lucide-react'
+import { PlayerQuickViewModal } from '@/components/player-quick-view-modal'
 
 import {
   DndContext,
@@ -42,6 +43,8 @@ import { useIsPro } from '@/hooks/use-entitlements'
 import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 import Lock from '@/icons/lock'
+import { usePlayerInjuries, hasInjuryStatus, getInjuryIconColorClass, isGLeagueAssignment } from '@/hooks/use-player-injuries'
+import { usePrefetchPlayerByOddsId } from '@/hooks/use-prefetch-player'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -103,25 +106,32 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
           onClick={onClick}
           className={cn(
             'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium rounded-md',
-            isHighlighted && 'sportsbook-cell--highlighted',
-            // Premium animation: subtle background glow that holds for 6 seconds
-            (priceChanged || lineChanged) && (isPositiveChange ? 'animate-odds-flash-positive' : 'animate-odds-flash-negative')
+            isHighlighted && 'sportsbook-cell--highlighted'
           )}
         >
           <div className="text-center">
             {isMoneyline ? (
               // Moneylines: Show only the odds, no line/team label
                 <div className="text-sm font-semibold leading-tight">
-                  <span
-                    className={cn(
-                      // Animated text color that fades with the background
-                      priceChanged && (isPositiveChange 
-                        ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
-                        : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                  <span className="inline-flex items-center gap-0.5">
+                    <span
+                      className={cn(
+                        // Animated text color that fades back to normal
+                        priceChanged && (isPositiveChange 
+                          ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
+                          : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                        )
+                      )}
+                    >
+                      {formatOdds(odds.price)}
+                    </span>
+                    {priceChanged && (
+                      isPositiveChange ? (
+                        <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
                       )
                     )}
-                  >
-                    {formatOdds(odds.price)}
                   </span>
                   {odds.limit_max && (
                     <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal mt-0.5 leading-none">
@@ -135,19 +145,28 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                 <div>
                   <span className={cn(
                     'opacity-75 px-0.5 rounded',
-                    lineChanged && 'animate-odds-flash-line'
+                    lineChanged && 'text-blue-600 dark:text-blue-400 animate-odds-text-line'
                   )}>{formatLine(odds.line, side)}</span>
-                  <span
-                    className={cn(
-                      'ml-1 font-semibold',
-                      // Animated text color that syncs with background
-                      priceChanged && (isPositiveChange 
-                        ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
-                        : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                  <span className="inline-flex items-center gap-0.5 ml-1">
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        // Animated text color that fades back to normal
+                        priceChanged && (isPositiveChange 
+                          ? 'text-green-600 dark:text-green-400 animate-odds-text-positive' 
+                          : 'text-red-600 dark:text-red-400 animate-odds-text-negative'
+                        )
+                      )}
+                    >
+                      {formatOdds(odds.price)}
+                    </span>
+                    {priceChanged && (
+                      isPositiveChange ? (
+                        <TrendingUp className="w-2.5 h-2.5 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
+                      ) : (
+                        <TrendingDown className="w-2.5 h-2.5 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
                       )
                     )}
-                  >
-                    {formatOdds(odds.price)}
                   </span>
                 </div>
                 {odds.limit_max && (
@@ -1081,9 +1100,24 @@ export function OddsTable({
   const { user } = useAuth()
   // Quick client hint from metadata (may be stale); normalized check
   const [showProGate, setShowProGate] = useState(false)
+  
+  // Player profile modal state
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    odds_player_id: string;
+    player_name: string;
+    market: string;
+    event_id?: string;
+    odds?: {
+      over?: { price: number; line: number; book?: string; mobileLink?: string | null };
+      under?: { price: number; line: number; book?: string; mobileLink?: string | null };
+    };
+  } | null>(null)
 
   // VC-Grade: Use centralized, cached Pro status
   const { isPro, isLoading: isLoadingPro } = useIsPro()
+  
+  // Prefetch player data on hover for faster modal loading
+  const prefetchPlayer = usePrefetchPlayerByOddsId()
   
   // Debug logging for Pro status (development only)
   useEffect(() => {
@@ -1110,6 +1144,31 @@ export function OddsTable({
     () => allActiveSportsbooks.map((book) => book.id),
     [allActiveSportsbooks]
   )
+
+  // Extract player IDs for injury lookup (NBA player props only)
+  const playerIds = useMemo(() => {
+    const isNBASport = sport === 'nba' || sport === 'wnba';
+    if (!isNBASport || type !== 'player' || !data || data.length === 0) {
+      return [];
+    }
+    
+    // Extract unique player IDs (odds_player_id) from the data
+    const ids = new Set<string>();
+    data.forEach((item) => {
+      // The entity.id should contain the odds_player_id UUID
+      if (item.entity?.id && item.entity.type === 'player') {
+        ids.add(item.entity.id);
+      }
+    });
+    
+    return Array.from(ids);
+  }, [data, sport, type]);
+
+  // Fetch injury data for NBA players using odds_player_id
+  const { data: injuryData } = usePlayerInjuries({
+    playerIds,
+    enabled: playerIds.length > 0,
+  });
 
   // Detect changes for visual feedback (works for both live and pregame)
   useEffect(() => {
@@ -1785,17 +1844,88 @@ export function OddsTable({
           const playerTeam = item.entity?.team; // Team abbreviation (e.g., "JAX")
           const showLogos = hasTeamLogos(sport);
           
+          // For NBA/WNBA player props, make player name clickable
+          const isNBASport = sport === 'nba' || sport === 'wnba';
+          const canShowProfile = isNBASport && type === 'player' && item.entity?.id && item.entity?.name;
+          
           return (
             <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[200px]">
               <ExpandButton disabled={!preferences.includeAlternates} />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {item.entity?.name || 'Unknown'}
-                  {item.entity?.details && (
-                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-normal ml-1">
-                      ({formatPosition(item.entity.details)})
+                <div className="flex items-center gap-1.5">
+                  {canShowProfile ? (
+                    <Tooltip content="View Profile">
+                      <button
+                        onMouseEnter={() => prefetchPlayer(item.entity.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPlayer({
+                            odds_player_id: item.entity.id!,
+                            player_name: item.entity.name!,
+                            market: typeof market === 'string' ? market : 'player_points',
+                            event_id: item.event?.id,
+                            odds: {
+                              over: item.odds.best?.over ? {
+                                price: item.odds.best.over.price,
+                                line: item.odds.best.over.line,
+                                book: item.odds.best.over.book,
+                                mobileLink: item.odds.best.over.mobileLink,
+                              } : undefined,
+                              under: item.odds.best?.under ? {
+                                price: item.odds.best.under.price,
+                                line: item.odds.best.under.line,
+                                book: item.odds.best.under.book,
+                                mobileLink: item.odds.best.under.mobileLink,
+                              } : undefined,
+                            },
+                          });
+                        }}
+                        className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary hover:underline transition-colors text-left"
+                      >
+                        {item.entity?.name || 'Unknown'}
+                        {item.entity?.details && (
+                          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                            ({formatPosition(item.entity.details)})
+                          </span>
+                        )}
+                      </button>
+                    </Tooltip>
+                  ) : (
+                    <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                      {item.entity?.name || 'Unknown'}
+                      {item.entity?.details && (
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                          ({formatPosition(item.entity.details)})
+                        </span>
+                      )}
                     </span>
                   )}
+                  {/* Injury Icon (NBA only) */}
+                  {item.entity?.id && injuryData && (() => {
+                    // Look up by odds_player_id (entity.id)
+                    const playerInjury = injuryData.get(item.entity.id);
+                    if (!playerInjury || !hasInjuryStatus(playerInjury.injuryStatus)) {
+                      return null;
+                    }
+                    
+                    const isGLeague = isGLeagueAssignment(playerInjury.injuryNotes);
+                    const tooltipContent = isGLeague
+                      ? `G League${playerInjury.injuryNotes ? ` - ${playerInjury.injuryNotes}` : ""}`
+                      : `${playerInjury.injuryStatus?.charAt(0).toUpperCase()}${playerInjury.injuryStatus?.slice(1)}${playerInjury.injuryNotes ? ` - ${playerInjury.injuryNotes}` : ""}`;
+                    
+                    return (
+                      <Tooltip content={tooltipContent} side="top">
+                        {isGLeague ? (
+                          <ArrowDown className="h-3.5 w-3.5 shrink-0 cursor-help text-blue-500" />
+                        ) : (
+                          <HeartPulse className={cn(
+                            "h-3.5 w-3.5 shrink-0 cursor-help",
+                            getInjuryIconColorClass(playerInjury.injuryStatus)
+                          )} />
+                        )}
+                      </Tooltip>
+                    );
+                  })()}
                 </div>
                 {playerTeam && (
                   <div className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
@@ -2899,6 +3029,19 @@ export function OddsTable({
         isOpen={showProGate} 
         onClose={() => setShowProGate(false)}
         feature="Deep Linking"
+      />
+      
+      {/* Player Profile Quick View Modal */}
+      <PlayerQuickViewModal
+        open={!!selectedPlayer}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPlayer(null);
+        }}
+        odds_player_id={selectedPlayer?.odds_player_id}
+        player_name={selectedPlayer?.player_name}
+        initial_market={selectedPlayer?.market}
+        event_id={selectedPlayer?.event_id}
+        odds={selectedPlayer?.odds}
       />
     </TooltipProvider>
   )

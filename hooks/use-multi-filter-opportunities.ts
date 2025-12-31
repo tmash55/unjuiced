@@ -67,9 +67,24 @@ interface UseMultiFilterResult {
   isFetching: boolean;
   error: Error | null;
   
+  /** Timestamp of last successful data fetch (for freshness indicator) */
+  dataUpdatedAt: number | null;
+  /** Whether data is stale and being refreshed in background */
+  isStale: boolean;
+  /** Progressive loading: true when initial batch loaded but full batch still loading */
+  isLoadingMore: boolean;
+  /** Progressive loading: percentage of full data loaded (0-100) */
+  loadProgress: number;
+  
   // Actions
   refetch: () => Promise<void>;
+  /** Prefetch data for a preset (call on hover for faster activation) */
+  prefetchPreset: (preset: FilterPreset) => Promise<void>;
 }
+
+// Progressive loading configuration
+const INITIAL_BATCH_SIZE = 50; // Show first 50 results fast
+const FULL_BATCH_SIZE = 500; // Then load all in background
 
 /**
  * Build filter configurations from active presets
@@ -314,10 +329,12 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
 
 /**
  * Fetch opportunities for a single filter
+ * Supports AbortController for request cancellation (billion-dollar UX)
  */
 async function fetchFilterOpportunities(
   config: FilterConfig,
-  isPro: boolean
+  isPro: boolean,
+  signal?: AbortSignal
 ): Promise<{
   opportunities: Opportunity[];
   totalScanned: number;
@@ -328,7 +345,10 @@ async function fetchFilterOpportunities(
   const params = buildQueryParams(config.filters, isPro);
   const url = `/api/v2/opportunities?${params.toString()}`;
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, { 
+    cache: "no-store",
+    signal, // Support request cancellation
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch opportunities: ${response.statusText}`);
@@ -527,46 +547,44 @@ export function useMultiFilterOpportunities({
 
   const effectiveLimit = limit ?? (isPro ? 200 : 50);
   const isCustomMode = activePresets.length > 0;
+  
+  // PROGRESSIVE LOADING: Use smaller batch for initial fast load
+  const useProgressiveLoading = effectiveLimit > INITIAL_BATCH_SIZE && isPro;
+  const initialLimit = useProgressiveLoading ? INITIAL_BATCH_SIZE : effectiveLimit;
+  const fullLimit = useProgressiveLoading ? Math.min(effectiveLimit, FULL_BATCH_SIZE) : effectiveLimit;
 
-  // Build filter configs from active presets
-  // For preset mode, this returns broad filters (all sports, all markets)
-  const filterConfigs = useMemo(
-    () => buildFilterConfigs(prefs, activePresets, isPro, effectiveLimit),
-    // HYBRID: For preset mode, only rebuild when comparison mode changes
-    // (not when sports/markets/odds change - those are client-side)
-    [
-      // Always depend on these
-      activePresets,
-      isPro,
-      effectiveLimit,
-      // For preset mode, only depend on comparison mode
-      prefs.comparisonMode,
-      prefs.comparisonBook,
-      // Market lines are server-side filtered
-      prefs.marketLines,
-    ]
+  // Build filter configs - one for initial fast load, one for full load
+  const initialFilterConfigs = useMemo(
+    () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit),
+    [activePresets, isPro, initialLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
   );
+  
+  const fullFilterConfigs = useMemo(
+    () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit),
+    [activePresets, isPro, fullLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
+  );
+  
+  // For backwards compatibility, expose the full configs
+  const filterConfigs = fullFilterConfigs;
 
-  // HYBRID: Query key designed to minimize refetches
-  // - Preset mode: Only changes on comparison mode change
-  // - Custom mode: Changes on any preset change
-  const queryKey = useMemo(() => {
+  // Build query keys for both initial and full queries
+  const buildQueryKey = useCallback((phase: "initial" | "full") => {
+    const configs = phase === "initial" ? initialFilterConfigs : fullFilterConfigs;
     if (isCustomMode) {
-      // Custom mode: Include full filter configs (server-side filtering)
       return [
         "multi-filter-opportunities",
+        phase,
         "custom",
-        filterConfigs.map(c => JSON.stringify({
+        configs.map(c => JSON.stringify({
           ...c.filters,
           id: c.metadata.filterId,
         })),
         isPro,
       ];
     } else {
-      // Preset mode: Comparison mode and odds range affect server call
-      // Sports and markets are filtered client-side
       return [
         "multi-filter-opportunities",
+        phase,
         "preset",
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
@@ -576,45 +594,134 @@ export function useMultiFilterOpportunities({
         isPro,
       ];
     }
-  }, [isCustomMode, filterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, prefs.minOdds, prefs.maxOdds, isPro]);
+  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, prefs.minOdds, prefs.maxOdds, isPro]);
 
+  const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
+  const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);
+
+  // PROGRESSIVE LOADING: Phase 1 - Fast initial batch
   const {
-    data,
-    isLoading,
-    isFetching,
-    error,
-    refetch: queryRefetch,
+    data: initialData,
+    isLoading: isLoadingInitial,
+    isFetching: isFetchingInitial,
+    error: initialError,
+    dataUpdatedAt: initialDataUpdatedAt,
+    isStale: isStaleInitial,
   } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      // Fetch all filters in parallel
+    queryKey: initialQueryKey,
+    queryFn: async ({ signal }) => {
       const results = await Promise.all(
-        filterConfigs.map(config => fetchFilterOpportunities(config, isPro))
+        initialFilterConfigs.map(config => fetchFilterOpportunities(config, isPro, signal))
       );
-
-      // Merge opportunities (best edge wins for duplicates)
       const merged = mergeOpportunities(results);
-
-      // Calculate totals
-      const totalScanned = results.reduce((sum, r) => sum + r.totalScanned, 0);
-      const totalAfterFilters = merged.length;
-      const timingMs = Math.max(...results.map(r => r.timingMs));
-
       return {
         opportunities: merged,
-        totalScanned,
-        totalAfterFilters,
-        timingMs,
+        totalScanned: results.reduce((sum, r) => sum + r.totalScanned, 0),
+        totalAfterFilters: merged.length,
+        timingMs: Math.max(...results.map(r => r.timingMs)),
       };
     },
-    staleTime: 30_000, // 30s as requested
-    gcTime: 5 * 60_000,
+    staleTime: isCustomMode ? 45_000 : 30_000,
+    gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,
   });
+
+  // PROGRESSIVE LOADING: Phase 2 - Full batch in background
+  // Only starts AFTER initial batch is loaded
+  const {
+    data: fullData,
+    isLoading: isLoadingFull,
+    isFetching: isFetchingFull,
+    error: fullError,
+    refetch: fullRefetch,
+    dataUpdatedAt: fullDataUpdatedAt,
+    isStale: isStaleFull,
+  } = useQuery({
+    queryKey: fullQueryKey,
+    queryFn: async ({ signal }) => {
+      const results = await Promise.all(
+        fullFilterConfigs.map(config => fetchFilterOpportunities(config, isPro, signal))
+      );
+      const merged = mergeOpportunities(results);
+      return {
+        opportunities: merged,
+        totalScanned: results.reduce((sum, r) => sum + r.totalScanned, 0),
+        totalAfterFilters: merged.length,
+        timingMs: Math.max(...results.map(r => r.timingMs)),
+      };
+    },
+    staleTime: isCustomMode ? 45_000 : 30_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    placeholderData: (prev) => prev,
+    retry: 3,
+    // Only fetch full batch after initial is done (or if not using progressive loading)
+    enabled: enabled && (!useProgressiveLoading || !!initialData),
+  });
+
+  // Combine data: Use full data if available, otherwise initial
+  const data = fullData || initialData;
+  const isLoading = isLoadingInitial;
+  const isFetching = isFetchingInitial || isFetchingFull;
+  const error = fullError || initialError;
+  const dataUpdatedAt = fullDataUpdatedAt || initialDataUpdatedAt;
+  const isStale = useProgressiveLoading ? isStaleFull : isStaleInitial;
+  
+  // Progressive loading state
+  const isLoadingMore = useProgressiveLoading && !!initialData && isLoadingFull;
+  const loadProgress = useProgressiveLoading 
+    ? (fullData ? 100 : initialData ? Math.round((INITIAL_BATCH_SIZE / fullLimit) * 100) : 0)
+    : 100;
+
+  // Refetch function that refetches both queries
+  const queryRefetch = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: initialQueryKey }),
+      queryClient.invalidateQueries({ queryKey: fullQueryKey }),
+    ]);
+  }, [queryClient, initialQueryKey, fullQueryKey]);
+
+  // OPTIMIZATION: Prefetch function for presets on hover
+  const prefetchPreset = useCallback(async (preset: FilterPreset) => {
+    // Build configs for this preset
+    const presetConfigs = buildFilterConfigs(prefs, [preset], isPro, effectiveLimit);
+    const presetQueryKey = [
+      "multi-filter-opportunities",
+      "custom",
+      presetConfigs.map(c => JSON.stringify({
+        ...c.filters,
+        id: c.metadata.filterId,
+      })),
+      isPro,
+    ];
+
+    // Check if data is already cached and fresh
+    const cachedData = queryClient.getQueryData(presetQueryKey);
+    if (cachedData) return; // Already cached
+
+    // Prefetch in background
+    await queryClient.prefetchQuery({
+      queryKey: presetQueryKey,
+      queryFn: async () => {
+        const results = await Promise.all(
+          presetConfigs.map(config => fetchFilterOpportunities(config, isPro))
+        );
+        const merged = mergeOpportunities(results);
+        return {
+          opportunities: merged,
+          totalScanned: results.reduce((sum, r) => sum + r.totalScanned, 0),
+          totalAfterFilters: merged.length,
+          timingMs: Math.max(...results.map(r => r.timingMs)),
+        };
+      },
+      staleTime: 45_000, // Same as custom mode
+    });
+  }, [prefs, isPro, effectiveLimit, queryClient]);
 
   // HYBRID: Apply client-side filters for instant response
   // This includes sports, markets, odds, search, book exclusions
@@ -642,7 +749,12 @@ export function useMultiFilterOpportunities({
     isLoading,
     isFetching,
     error: error as Error | null,
+    dataUpdatedAt: dataUpdatedAt || null,
+    isStale,
+    isLoadingMore,
+    loadProgress,
     refetch,
+    prefetchPreset,
   };
 }
 

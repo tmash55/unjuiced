@@ -60,7 +60,6 @@ export function BoxScoreTable({
 }: BoxScoreTableProps) {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Only fetch if we don't have prefetched data
   const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
@@ -156,20 +155,20 @@ export function BoxScoreTable({
       pf: acc.pf + (g.fouls || 0),
       tov: acc.tov + (g.tov || 0),
       pts: acc.pts + g.pts,
-    }), { minutes: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, reb: 0, ast: 0, blk: 0, stl: 0, pf: 0, tov: 0, pts: 0 });
+      oreb: acc.oreb + (g.oreb || 0),
+      dreb: acc.dreb + (g.dreb || 0),
+      plusMinus: acc.plusMinus + (g.plusMinus || 0),
+    }), { minutes: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, reb: 0, ast: 0, blk: 0, stl: 0, pf: 0, tov: 0, pts: 0, oreb: 0, dreb: 0, plusMinus: 0 });
 
     const n = games.length;
     return {
       minutes: (sum.minutes / n).toFixed(1),
       fgm: (sum.fgm / n).toFixed(1),
       fga: (sum.fga / n).toFixed(1),
-      fgPct: sum.fga > 0 ? ((sum.fgm / sum.fga) * 100).toFixed(1) : "0.0",
       fg3m: (sum.fg3m / n).toFixed(1),
       fg3a: (sum.fg3a / n).toFixed(1),
-      fg3Pct: sum.fg3a > 0 ? ((sum.fg3m / sum.fg3a) * 100).toFixed(1) : "0.0",
       ftm: (sum.ftm / n).toFixed(1),
       fta: (sum.fta / n).toFixed(1),
-      ftPct: sum.fta > 0 ? ((sum.ftm / sum.fta) * 100).toFixed(1) : "0.0",
       reb: (sum.reb / n).toFixed(1),
       ast: (sum.ast / n).toFixed(1),
       blk: (sum.blk / n).toFixed(1),
@@ -177,6 +176,9 @@ export function BoxScoreTable({
       pf: (sum.pf / n).toFixed(1),
       tov: (sum.tov / n).toFixed(1),
       pts: (sum.pts / n).toFixed(1),
+      oreb: (sum.oreb / n).toFixed(1),
+      dreb: (sum.dreb / n).toFixed(1),
+      plusMinus: (sum.plusMinus / n).toFixed(1),
     };
   }, [games]);
 
@@ -245,18 +247,6 @@ export function BoxScoreTable({
             </div>
           </div>
           
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className={cn(
-              "text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors border",
-              showAdvanced 
-                ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"
-                : "bg-neutral-100 dark:bg-neutral-700/50 border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-500"
-            )}
-          >
-            {showAdvanced ? "Basic View" : "Full Stats"}
-          </button>
         </div>
       </div>
 
@@ -288,26 +278,22 @@ export function BoxScoreTable({
                     MIN <SortIcon field="minutes" />
                   </div>
                 </th>
-                {/* FG and FG% */}
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("pts")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    PTS <SortIcon field="pts" />
+                  </div>
+                </th>
                 <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
                   FG
                 </th>
                 <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                  FG%
-                </th>
-                {/* 3PT and 3P% */}
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
                   3PT
                 </th>
                 <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                  3P%
-                </th>
-                {/* FT and FT% */}
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
                   FT
-                </th>
-                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                  FT%
                 </th>
                 <th 
                   className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
@@ -325,13 +311,8 @@ export function BoxScoreTable({
                     AST <SortIcon field="ast" />
                   </div>
                 </th>
-                <th 
-                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
-                  onClick={() => handleSort("blk")}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    BLK <SortIcon field="blk" />
-                  </div>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  TO
                 </th>
                 <th 
                   className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
@@ -341,22 +322,29 @@ export function BoxScoreTable({
                     STL <SortIcon field="stl" />
                   </div>
                 </th>
-                {showAdvanced && (
-                  <>
-                    <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                      PF
-                    </th>
-                    <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
-                      TO
-                    </th>
-                  </>
-                )}
                 <th 
                   className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
-                  onClick={() => handleSort("pts")}
+                  onClick={() => handleSort("blk")}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    PTS <SortIcon field="pts" />
+                    BLK <SortIcon field="blk" />
+                  </div>
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  OREB
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  DREB
+                </th>
+                <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                  PF
+                </th>
+                <th 
+                  className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                  onClick={() => handleSort("plusMinus")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    +/- <SortIcon field="plusMinus" />
                   </div>
                 </th>
               </tr>
@@ -365,9 +353,6 @@ export function BoxScoreTable({
               {sortedGames.map((game, idx) => {
                 const marketStat = getMarketStat(game, market);
                 const isOverLine = currentLine != null && marketStat > currentLine;
-                const fgPct = game.fga > 0 ? ((game.fgm / game.fga) * 100).toFixed(1) : "0.0";
-                const fg3Pct = game.fg3a > 0 ? ((game.fg3m / game.fg3a) * 100).toFixed(1) : "0.0";
-                const ftPct = game.fta > 0 ? ((game.ftm / game.fta) * 100).toFixed(1) : "0.0";
                 
                 return (
                   <tr 
@@ -419,14 +404,19 @@ export function BoxScoreTable({
                       {game.minutes?.toFixed(0) ?? "—"}
                     </td>
 
+                    {/* Points */}
+                    <td className={cn(
+                      "px-2 py-2 text-center font-bold",
+                      market === "player_points" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-900 dark:text-white"
+                    )}>
+                      {game.pts}
+                    </td>
+
                     {/* FG */}
                     <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
                       {game.fgm}-{game.fga}
-                    </td>
-
-                    {/* FG% */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                      {fgPct}
                     </td>
 
                     {/* 3PT */}
@@ -434,19 +424,9 @@ export function BoxScoreTable({
                       {game.fg3m}-{game.fg3a}
                     </td>
 
-                    {/* 3P% */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                      {fg3Pct}
-                    </td>
-
                     {/* FT */}
                     <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
                       {game.ftm}-{game.fta}
-                    </td>
-
-                    {/* FT% */}
-                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                      {ftPct}
                     </td>
 
                     {/* Rebounds */}
@@ -469,14 +449,9 @@ export function BoxScoreTable({
                       {game.ast}
                     </td>
 
-                    {/* Blocks */}
-                    <td className={cn(
-                      "px-2 py-2 text-center",
-                      market === "player_blocks" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
-                        : "text-neutral-600 dark:text-neutral-300"
-                    )}>
-                      {game.blk}
+                    {/* Turnovers */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.tov ?? 0}
                     </td>
 
                     {/* Steals */}
@@ -489,28 +464,39 @@ export function BoxScoreTable({
                       {game.stl}
                     </td>
 
-                    {showAdvanced && (
-                      <>
-                        {/* PF */}
-                        <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                          {game.fouls ?? 0}
-                        </td>
-
-                        {/* TO */}
-                        <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
-                          {game.tov ?? 0}
-                        </td>
-                      </>
-                    )}
-
-                    {/* Points */}
+                    {/* Blocks */}
                     <td className={cn(
-                      "px-2 py-2 text-center font-bold",
-                      market === "player_points" && isOverLine 
-                        ? "text-emerald-600 dark:text-emerald-400" 
-                        : "text-neutral-900 dark:text-white"
+                      "px-2 py-2 text-center",
+                      market === "player_blocks" && isOverLine 
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium" 
+                        : "text-neutral-600 dark:text-neutral-300"
                     )}>
-                      {game.pts}
+                      {game.blk}
+                    </td>
+
+                    {/* Offensive Rebounds */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.oreb ?? 0}
+                    </td>
+
+                    {/* Defensive Rebounds */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.dreb ?? 0}
+                    </td>
+
+                    {/* Personal Fouls */}
+                    <td className="px-2 py-2 text-center text-neutral-600 dark:text-neutral-300">
+                      {game.fouls ?? 0}
+                    </td>
+
+                    {/* Plus/Minus */}
+                    <td className={cn(
+                      "px-2 py-2 text-center font-medium",
+                      (game.plusMinus ?? 0) > 0 ? "text-emerald-600 dark:text-emerald-400" :
+                      (game.plusMinus ?? 0) < 0 ? "text-red-500 dark:text-red-400" :
+                      "text-neutral-600 dark:text-neutral-300"
+                    )}>
+                      {game.plusMinus != null ? (game.plusMinus > 0 ? `+${game.plusMinus}` : game.plusMinus) : "—"}
                     </td>
                   </tr>
                 );
@@ -532,23 +518,17 @@ export function BoxScoreTable({
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
                     {averages.minutes}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                    {averages.fgm}-{averages.fga}
+                  <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">
+                    {averages.pts}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                    {averages.fgPct}
+                    {averages.fgm}-{averages.fga}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
                     {averages.fg3m}-{averages.fg3a}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                    {averages.fg3Pct}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
                     {averages.ftm}-{averages.fta}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                    {averages.ftPct}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
                     {averages.reb}
@@ -557,23 +537,30 @@ export function BoxScoreTable({
                     {averages.ast}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                    {averages.blk}
+                    {averages.tov}
                   </td>
                   <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
                     {averages.stl}
                   </td>
-                  {showAdvanced && (
-                    <>
-                      <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                        {averages.pf}
-                      </td>
-                      <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
-                        {averages.tov}
-                      </td>
-                    </>
-                  )}
-                  <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">
-                    {averages.pts}
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.blk}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.oreb ?? "—"}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.dreb ?? "—"}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">
+                    {averages.pf}
+                  </td>
+                  <td className={cn(
+                    "px-2 py-2.5 text-center font-medium",
+                    parseFloat(averages.plusMinus ?? "0") > 0 ? "text-emerald-600 dark:text-emerald-400" :
+                    parseFloat(averages.plusMinus ?? "0") < 0 ? "text-red-500 dark:text-red-400" :
+                    "text-neutral-700 dark:text-neutral-200"
+                  )}>
+                    {averages.plusMinus != null ? (parseFloat(averages.plusMinus) > 0 ? `+${averages.plusMinus}` : averages.plusMinus) : "—"}
                   </td>
                 </tr>
               </tfoot>

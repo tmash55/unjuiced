@@ -20,6 +20,7 @@ import { InputSearch } from '@/components/icons/input-search'
 import { ToolHeading } from '@/components/common/tool-heading'
 import { ToolSubheading } from '@/components/common/tool-subheading'
 import { FiltersBar, FiltersBarSection, FiltersBarDivider } from '@/components/common/filters-bar'
+import { Tooltip } from '@/components/tooltip'
 
 /**
  * Sport-specific Odds Page
@@ -442,6 +443,43 @@ function SportOddsContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [market])
 
+  // Handler functions (defined before useEffect that uses them)
+  const handleMarketChange = useCallback((newMarket: string) => {
+    setMarketState(newMarket)
+    const next = `/odds/${sport}?type=${type}&market=${newMarket}&scope=${scope}`
+    router.replace(next)
+  }, [sport, type, scope, router])
+
+  const handleTypeChange = useCallback((newType: string) => {
+    const defaultMarket = getDefaultMarket(sport, newType as 'game' | 'player')
+    setMarketState(defaultMarket)
+    // Reset filters when switching between game and player props
+    setGroupFilter('all')
+    setPeriodFilter('all')
+    const next = `/odds/${sport}?type=${newType}&market=${defaultMarket}&scope=${scope}`
+    router.replace(next)
+  }, [sport, scope, router])
+
+  const handleSportChange = useCallback((newSport: string) => {
+    // Reset filters when changing sports
+    setGroupFilter('all')
+    setPeriodFilter('all')
+    // Navigate to the new sport page
+    router.push(`/odds/${newSport}?type=${type}&market=${getDefaultMarket(newSport, type as 'game' | 'player')}&scope=${scope}`)
+  }, [type, scope, router])
+
+  const handleScopeChange = useCallback((newScope: 'pregame' | 'live') => {
+    const next = `/odds/${sport}?type=${type}&market=${marketState}&scope=${newScope}`
+    router.replace(next)
+  }, [sport, type, marketState, router])
+
+  // Auto-switch to game props if on NCAAB player props (since NCAAB has no player props)
+  useEffect(() => {
+    if (sport === 'ncaab' && type === 'player') {
+      handleTypeChange('game')
+    }
+  }, [sport, type, handleTypeChange])
+
   // Define game keys for filtering (matches getAvailableMarkets)
   const gameKeysSet = useMemo(() => new Set([
     // Generic game markets
@@ -510,23 +548,57 @@ function SportOddsContent({
     const allMarkets = getMarketsForSport(resolveSportKey(sport))
     const marketsByKey = new Map(allMarkets.map(m => [m.apiKey, m]))
     
-    // Helper to get period label
-    const getPeriodGroup = (period: string | undefined): string => {
+    // Helper to get period label based on sport
+    const getPeriodGroup = (period: string | undefined, sportKey: string): string => {
       if (!period || period === 'full') return 'Full Game'
+      
+      // Hockey periods
+      if (sportKey === 'nhl') {
+        if (period === 'p1') return '1st Period'
+        if (period === 'p2') return '2nd Period'
+        if (period === 'p3') return '3rd Period'
+        if (period === 'overtime' || period === 'ot') return 'Overtime'
+        if (period === 'shootout') return 'Shootout'
+      }
+      
+      // Basketball quarters and halves
+      if (sportKey === 'nba' || sportKey === 'ncaab' || sportKey === 'wnba') {
+        if (period === '1q') return '1st Quarter'
+        if (period === '2q') return '2nd Quarter'
+        if (period === '3q') return '3rd Quarter'
+        if (period === '4q') return '4th Quarter'
       if (period === '1h') return '1st Half'
       if (period === '2h') return '2nd Half'
+        if (period === 'both_halves') return 'Both Halves'
+      }
+      
+      // Football quarters and halves
+      if (sportKey === 'nfl' || sportKey === 'ncaaf') {
       if (period === '1q') return '1st Quarter'
       if (period === '2q') return '2nd Quarter'
       if (period === '3q') return '3rd Quarter'
       if (period === '4q') return '4th Quarter'
+        if (period === '1h') return '1st Half'
+        if (period === '2h') return '2nd Half'
       if (period === 'both_halves') return 'Both Halves'
+      }
+      
+      // Baseball innings
+      if (sportKey === 'mlb') {
+        if (period.match(/^[1-9]$/)) return `${period}th Inning`
+        if (period === '1') return '1st Inning'
+        if (period === '2') return '2nd Inning'
+        if (period === '3') return '3rd Inning'
+        if (period === 'first_5') return 'First 5 Innings'
+      }
+      
       return 'Other'
     }
     
     // Map available markets with group information
     return availableMarkets.map((m) => {
       const marketDetail = marketsByKey.get(m.key)
-      const periodGroup = marketDetail?.period ? getPeriodGroup(marketDetail.period) : 'Full Game'
+      const periodGroup = marketDetail?.period ? getPeriodGroup(marketDetail.period, sport) : 'Full Game'
       
       return {
         value: m.key,
@@ -588,48 +660,44 @@ function SportOddsContent({
     )
   }
 
-  const handleMarketChange = (newMarket: string) => {
-    setMarketState(newMarket)
-    const next = `/odds/${sport}?type=${type}&market=${newMarket}&scope=${scope}`
-    router.replace(next)
-  }
-
-  const handleTypeChange = (newType: string) => {
-    const defaultMarket = getDefaultMarket(sport, newType as 'game' | 'player')
-    setMarketState(defaultMarket)
-    // Reset filters when switching between game and player props
-    setGroupFilter('all')
-    setPeriodFilter('all')
-    const next = `/odds/${sport}?type=${newType}&market=${defaultMarket}&scope=${scope}`
-    router.replace(next)
-  }
-
-  const handleSportChange = (newSport: string) => {
-    // Reset filters when changing sports
-    setGroupFilter('all')
-    setPeriodFilter('all')
-    // Navigate to the new sport page
-    router.push(`/odds/${newSport}?type=${type}&market=${getDefaultMarket(newSport, type as 'game' | 'player')}&scope=${scope}`)
-  }
-
-  const handleScopeChange = (newScope: 'pregame' | 'live') => {
-    const next = `/odds/${sport}?type=${type}&market=${marketState}&scope=${newScope}`
-    router.replace(next)
-  }
-
   return (
     <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
-      {/* Header with sport and navigation */}
-      <div className="mb-8">
+      {/* Compact Header */}
+      <div className="mb-6">
         <ToolHeading>
           <span className="flex items-center gap-2">
             {sport.toUpperCase()} Odds
-            {/* Live Status Indicator - Mobile only (green dot after "Odds") */}
+            {/* Connection Status Indicator - Mobile only */}
             {shouldUseLiveUpdates && (
-              <span className={cn(
-                "md:hidden inline-flex h-2 w-2 rounded-full",
-                sseConnected ? "bg-green-500" : sseReconnecting ? "bg-amber-500 animate-pulse" : "bg-neutral-400"
-              )} />
+              <Tooltip
+                content={
+                  sseConnected 
+                    ? "Live updates active" 
+                    : sseReconnecting 
+                    ? "Reconnecting..." 
+                    : "No connection"
+                }
+                side="bottom"
+              >
+                <span className="md:hidden inline-flex cursor-help">
+                  <svg 
+                    className={cn(
+                      "h-4 w-4",
+                      sseConnected 
+                        ? "text-green-500" 
+                        : sseReconnecting 
+                        ? "text-amber-500 animate-pulse" 
+                        : "text-neutral-400"
+                    )}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                    strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+                  </svg>
+                </span>
+              </Tooltip>
             )}
           </span>
         </ToolHeading>
@@ -638,59 +706,10 @@ function SportOddsContent({
         </ToolSubheading>
       </div>
 
-      {/* Controls Section - Pregame/Live Toggle (Desktop only) */}
-      <div className="mb-6 hidden md:flex items-center justify-between gap-3">
-        {/* Left side: Toggle + Text */}
-        <div className="flex items-center gap-3">
-          {/* Pregame/Live Toggle */}
-          <div className="mode-toggle">
-            <button
-              type="button"
-              onClick={() => handleScopeChange('pregame')}
-              className={cn(scope === 'pregame' && 'active')}
-            >
-              Pre-Game
-            </button>
-            <button
-              type="button"
-              onClick={() => handleScopeChange('live')}
-              className={cn(scope === 'live' && 'active')}
-            >
-              Live
-            </button>
-          </div>
-
-          {/* Info Text */}
-          <div className="text-sm text-neutral-600 dark:text-neutral-400">
-            {scope === 'pregame' ? 'Showing upcoming games' : 'Showing live in-progress games'}
-          </div>
-        </div>
-
-        {/* Right side: Live Status Indicator */}
-        {shouldUseLiveUpdates && (
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium",
-            sseConnected
-              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
-              : sseReconnecting
-              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300"
-              : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400"
-          )}>
-            <span className={cn(
-              "inline-flex h-2 w-2 rounded-full",
-              sseConnected ? "bg-green-500" : sseReconnecting ? "bg-amber-500 animate-pulse" : "bg-neutral-400"
-            )} />
-            <span>
-              {sseConnected ? "Live" : sseReconnecting ? "Reconnecting..." : "Offline"}
-            </span>
-          </div>
-        )}
-      </div>
-
       {/* Filter Bar */}
       <div className="mb-8">
          {/* Sticky Filter Bar - positioned below navbar */}
-         <div className="sticky top-14 z-40 mt-6 mb-6">
+         <div className="sticky top-14 z-40">
           <FiltersBar useDots={true}>
           {/* Mobile Layout (< md) - Stacked */}
           <div className="block md:hidden space-y-3 w-full">
@@ -745,17 +764,24 @@ function SportOddsContent({
                 >
                   Game
                 </button>
+                <Tooltip
+                  content="Coming soon"
+                  disabled={sport !== 'ncaab'}
+                  side="bottom"
+                >
                 <button
                   type="button"
-                  onClick={() => handleTypeChange('player')}
+                    disabled={sport === 'ncaab'}
+                    onClick={() => sport !== 'ncaab' && handleTypeChange('player')}
                   className={cn(type === 'player' && 'active')}
                 >
                   Player
                 </button>
+                </Tooltip>
               </div>
             </div>
 
-            {/* Row 3: Market + Filters */}
+            {/* Row 3: Market */}
             <div className="flex items-stretch gap-3">
               {/* Market Type Selector */}
               <div className="flex-1 min-w-0">
@@ -771,19 +797,11 @@ function SportOddsContent({
                   }}
                 />
               </div>
-
-              {/* Settings */}
-              <div className="flex items-center">
-                <OddsFilters 
-                isPro={true}
-                  liveUpdatesEnabled={liveUpdatesEnabled}
-                  onLiveUpdatesChange={setLiveUpdatesEnabled}
-                />
-              </div>
             </div>
 
-            {/* Row 4: Search */}
-            <div className="relative">
+            {/* Row 4: Search + Filters */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
               <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
               <Input
                 type="text"
@@ -791,6 +809,14 @@ function SportOddsContent({
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10"
+                />
+              </div>
+              
+              {/* Filters Button */}
+              <OddsFilters 
+                isPro={true}
+                liveUpdatesEnabled={liveUpdatesEnabled}
+                onLiveUpdatesChange={setLiveUpdatesEnabled}
               />
             </div>
           </div>
@@ -798,18 +824,6 @@ function SportOddsContent({
           {/* Desktop Layout (>= md) - Horizontal */}
           <div className="hidden md:flex items-center gap-3 w-full">
             <FiltersBarSection align="left">
-              {/* League Selector */}
-              <Combobox
-                selected={selectedLeague}
-                setSelected={(opt) => opt && handleSportChange(opt.value)}
-                options={leagueOptions}
-                caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
-                buttonProps={{
-                  className: "h-9 w-[140px] md:w-[160px] lg:w-[180px]",
-                  textWrapperClassName: "text-sm font-medium",
-                }}
-              />
-
               {/* Game/Player Toggle */}
               <div className="mode-toggle">
                 <button
@@ -819,14 +833,33 @@ function SportOddsContent({
                 >
                   Game
                 </button>
+                <Tooltip
+                  content="Coming soon"
+                  disabled={sport !== 'ncaab'}
+                  side="bottom"
+                >
                 <button
                   type="button"
-                  onClick={() => handleTypeChange('player')}
+                    disabled={sport === 'ncaab'}
+                    onClick={() => sport !== 'ncaab' && handleTypeChange('player')}
                   className={cn(type === 'player' && 'active')}
                 >
                   Player
                 </button>
+                </Tooltip>
               </div>
+
+              {/* League Selector */}
+              <Combobox
+                selected={selectedLeague}
+                setSelected={(opt) => opt && handleSportChange(opt.value)}
+                options={leagueOptions}
+                caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
+                buttonProps={{
+                  className: "h-9 w-[100px] md:w-[110px] lg:w-[120px]",
+                  textWrapperClassName: "text-sm font-medium",
+                }}
+              />
 
               {/* Market Type Selector */}
               <Combobox
@@ -836,11 +869,31 @@ function SportOddsContent({
                 searchPlaceholder="Search markets..."
                 caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
                 buttonProps={{
-                  className: "h-9 w-[180px] md:w-[240px] lg:w-[300px] xl:w-[380px]",
+                  className: "h-9 w-[160px] md:w-[200px] lg:w-[240px] xl:w-[280px]",
                   textWrapperClassName: "text-sm font-medium",
                 }}
               />
 
+              {/* Pregame/Live Toggle */}
+              <div className="mode-toggle">
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('pregame')}
+                  className={cn(scope === 'pregame' && 'active')}
+                >
+                  Pre-Game
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('live')}
+                  className={cn(scope === 'live' && 'active')}
+                >
+                  Live
+                </button>
+              </div>
+            </FiltersBarSection>
+
+            <FiltersBarSection align="right">
               {/* Search Input */}
               <div className="relative min-w-0">
                 <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
@@ -852,15 +905,56 @@ function SportOddsContent({
                   className="w-[140px] md:w-[200px] lg:w-64 flex-shrink pl-10"
                 />
               </div>
-            </FiltersBarSection>
 
-            <FiltersBarSection align="right">
               {/* Filters Button */}
               <OddsFilters 
                 isPro={true}
                 liveUpdatesEnabled={liveUpdatesEnabled}
                 onLiveUpdatesChange={setLiveUpdatesEnabled}
               />
+
+              {/* Connection Status Indicator */}
+              {shouldUseLiveUpdates && (
+                <Tooltip
+                  content={
+                    sseConnected 
+                      ? "Live updates active" 
+                      : sseReconnecting 
+                      ? "Reconnecting to live updates..." 
+                      : "No connection - Updates paused"
+                  }
+                  side="bottom"
+                >
+                  <div 
+                    className={cn(
+                      "flex items-center justify-center p-2 rounded-md border cursor-help shrink-0 transition-colors",
+                      sseConnected
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                        : sseReconnecting
+                        ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                        : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
+                    )}
+                  >
+                    {/* Connection Icon */}
+                    <svg 
+                      className={cn(
+                        "h-4 w-4",
+                        sseConnected 
+                          ? "text-green-600 dark:text-green-400" 
+                          : sseReconnecting 
+                          ? "text-amber-600 dark:text-amber-400 animate-pulse" 
+                          : "text-neutral-400 dark:text-neutral-500"
+                      )}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+                    </svg>
+                  </div>
+                </Tooltip>
+              )}
             </FiltersBarSection>
           </div>
         </FiltersBar>

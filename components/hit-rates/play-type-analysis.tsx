@@ -187,11 +187,6 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
                                   <Zap className="h-3 w-3 text-violet-500 shrink-0" />
                                 </Tooltip>
                               )}
-                              {isFreeThrows && (
-                                <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
-                                  FT
-                                </span>
-                              )}
                             </div>
                           </td>
 

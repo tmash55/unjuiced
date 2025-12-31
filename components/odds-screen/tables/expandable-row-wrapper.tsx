@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef, createContext, useContext } from "react";
+import React, { useState, useCallback, useRef, createContext, useContext, useEffect } from "react";
 import { ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -53,8 +53,8 @@ export function ExpandButton({ hide = false, disabled = false }: { hide?: boolea
 interface AlternateLine {
   ln: number;
   books: Record<string, {
-    over?: { price: number; u?: string };
-    under?: { price: number; u?: string };
+    over?: { price: number; u?: string; m?: string };
+    under?: { price: number; u?: string; m?: string };
   }>;
   best?: {
     over?: { bk: string; price: number };
@@ -220,6 +220,70 @@ export function ExpandableRowWrapper({
     
     setIsExpanded(prev => !prev);
   }, [isExpanded, fetchAlternates, includeAlternates]);
+
+  /**
+   * Real-time refresh: Poll alternates every 30 seconds while expanded
+   * This keeps alternate lines in sync with main row odds
+   */
+  useEffect(() => {
+    if (!isExpanded || !includeAlternates) return;
+
+    const REFRESH_INTERVAL = 10 * 1000; // 10 seconds
+
+    const refreshAlternates = async () => {
+      // Bypass cache for real-time updates
+      const cacheKey = `${sport}:${sid}`;
+      alternatesCache.delete(cacheKey);
+      
+      try {
+        let url: string;
+        
+        if (eventId && market && playerKey) {
+          const query = new URLSearchParams({ 
+            sport, 
+            eventId, 
+            market, 
+            player: playerKey,
+            ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
+          });
+          url = `/api/v2/props/alternates?${query.toString()}`;
+        } else {
+          const query = new URLSearchParams({ sport, sid });
+          url = `/api/props/alternates?${query.toString()}`;
+        }
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) return;
+        
+        const result = await response.json();
+        const alternatesData = result.alternates || [];
+        
+        // Update cache
+        alternatesCache.set(cacheKey, {
+          data: { ...result, alternates: alternatesData },
+          timestamp: Date.now(),
+        });
+        
+        setAlternates(alternatesData);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Alternates] 🔄 Refreshed ${alternatesData.length} alternates for ${sid}`);
+        }
+      } catch (err) {
+        // Silently fail on refresh errors - don't disrupt the UI
+        if (process.env.NODE_ENV === 'development') {
+          console.warn("[Alternates] Refresh error:", err);
+        }
+      }
+    };
+
+    const intervalId = setInterval(refreshAlternates, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isExpanded, includeAlternates, sport, sid, eventId, market, playerKey, primaryLine]);
 
   // If alternates are disabled, just render the children without expand functionality
   if (!includeAlternates) {

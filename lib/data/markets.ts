@@ -7,8 +7,8 @@ export interface SportMarket {
     alwaysFetchAlternate?: boolean; // Indicates if we should always fetch both standard and alternate markets
     // Optional metadata for grouping/filtering in UI
     group?: string; // e.g., 'Passing', 'Receiving', 'Rushing', 'Kicking', 'Defense', 'Scoring', 'Combo'
-    period?: 'full' | '1q' | '2q' | '3q' | '4q' | '1h' | '2h' | 'both_halves';
-    periodLabel?: string; // e.g., '1Q', '1H', 'Both Halves'
+    period?: 'full' | '1q' | '2q' | '3q' | '4q' | '1h' | '2h' | 'both_halves' | 'p1' | 'p2' | 'p3';
+    periodLabel?: string; // e.g., '1Q', '1H', 'Both Halves', 'P1', 'P2', 'P3'
   }
   
   export interface SportMarkets {
@@ -254,13 +254,7 @@ export interface SportMarket {
     { value: "1st_half_home_team_total_touchdowns", label: "Home Team TDs (1H)", apiKey: "1st_half_home_team_total_touchdowns", group: "Touchdowns", period: '1h' },
     { value: "1st_half_away_team_total_touchdowns", label: "Away Team TDs (1H)", apiKey: "1st_half_away_team_total_touchdowns", group: "Touchdowns", period: '1h' },
     
-    // Field Goals & Kicking
-    { value: "total_field_goals_made", label: "Total Field Goals Made", apiKey: "total_field_goals_made", group: "Field Goals", period: 'full' },
-    { value: "1st_half_total_field_goals_made", label: "Total FGs Made (1H)", apiKey: "1st_half_total_field_goals_made", group: "Field Goals", period: '1h' },
-    { value: "2nd_half_total_field_goals_made", label: "Total FGs Made (2H)", apiKey: "2nd_half_total_field_goals_made", group: "Field Goals", period: '2h' },
-    { value: "total_field_goal_yards", label: "Total FG Yards", apiKey: "total_field_goal_yards", group: "Field Goals", period: 'full' },
-    { value: "longest_field_goal_made_yards", label: "Longest FG Yards", apiKey: "longest_field_goal_made_yards", group: "Field Goals", period: 'full' },
-    { value: "shortest_field_goal_made_yards", label: "Shortest FG Yards", apiKey: "shortest_field_goal_made_yards", group: "Field Goals", period: 'full' },
+   
     
     // Special Plays
     { value: "safety", label: "Safety", apiKey: "safety", group: "Special", period: 'full' },
@@ -273,50 +267,71 @@ export interface SportMarket {
     { value: "largest_lead", label: "Largest Lead", apiKey: "largest_lead", group: "Other", period: 'full' },
     { value: "first_score_yards", label: "First Score Yards", apiKey: "first_score_yards", group: "Other", period: 'full' },
   
-    // Player props
-    // Passing
+    // Player props - Most Popular Markets First
+    // Top Scoring Markets
+    { value: "player_touchdowns", label: "Anytime TD", apiKey: "player_touchdowns", group: "Scoring", period: 'full' },
+    { value: "first_td", label: "1st TD", apiKey: "first_td", group: "Scoring", period: 'full' },
+    { value: "last_td", label: "Last TD", apiKey: "last_td", group: "Scoring", period: 'full' },
+    
+    // Top Passing Markets
     { value: "passing_yards", label: "Passing Yards", apiKey: "passing_yards", group: "Passing", period: 'full', hasAlternates: true },
     { value: "passing_tds", label: "Passing Touchdowns", apiKey: "passing_tds", group: "Passing", period: 'full', hasAlternates: true },
-    { value: "pass_attempts", label: "Pass Attempts", apiKey: "pass_attempts", group: "Passing", period: 'full', hasAlternates: true },
     { value: "pass_completions", label: "Pass Completions", apiKey: "pass_completions", group: "Passing", period: 'full', hasAlternates: true },
+    { value: "pass_attempts", label: "Pass Attempts", apiKey: "pass_attempts", group: "Passing", period: 'full', hasAlternates: true },
     { value: "pass_interceptions", label: "Interceptions Thrown", apiKey: "pass_interceptions", group: "Passing", period: 'full', hasAlternates: true },
     { value: "longest_pass", label: "Longest Pass Completion", apiKey: "longest_pass", group: "Passing", period: 'full' },
-    { value: "1q_passing_yards", label: "Passing Yards (1Q)", apiKey: "1q_passing_yards", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_passing_yards_alternate", alwaysFetchAlternate: true },
-    { value: "1st_quarter_passing_completions", label: "Pass Completions (1Q)", apiKey: "1st_quarter_passing_completions", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1st_quarter_passing_completions_alternate", alwaysFetchAlternate: true },
-    { value: "1q_pass_attempts", label: "Pass Attempts (1Q)", apiKey: "1q_pass_attempts", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_pass_attempts_alternate", alwaysFetchAlternate: true },
-    { value: "1h_passing_yards", label: "Passing Yards (1H)", apiKey: "1h_passing_yards", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1h_passing_yards_alternate", alwaysFetchAlternate: true },
-    { value: "1st_half_player_passing_touchdowns", label: "Passing TDs (1H)", apiKey: "1st_half_player_passing_touchdowns", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1st_half_player_passing_touchdowns_alternate", alwaysFetchAlternate: true },
-  
-    // Receiving
+    
+    // Top Receiving Markets
     { value: "receiving_yards", label: "Receiving Yards", apiKey: "receiving_yards", group: "Receiving", period: 'full', hasAlternates: true },
     { value: "receptions", label: "Receptions", apiKey: "receptions", group: "Receiving", period: 'full', hasAlternates: true },
     { value: "longest_reception", label: "Longest Reception", apiKey: "longest_reception", group: "Receiving", period: 'full' },
-    { value: "1q_receiving_yards", label: "Receiving Yards (1Q)", apiKey: "1q_receiving_yards", group: "Receiving", period: '1q', hasAlternates: true, alternateKey: "1q_receiving_yards_alternate", alwaysFetchAlternate: true },
-    { value: "1st_half_player_receiving_yards", label: "Receiving Yards (1H)", apiKey: "1st_half_player_receiving_yards", group: "Receiving", period: '1h', hasAlternates: true, alternateKey: "1st_half_player_receiving_yards_alternate", alwaysFetchAlternate: true },
-  
-    // Rushing
+    
+    // Top Rushing Markets
     { value: "rushing_yards", label: "Rushing Yards", apiKey: "rushing_yards", group: "Rushing", period: 'full', hasAlternates: true },
     { value: "rush_attempts", label: "Rush Attempts", apiKey: "rush_attempts", group: "Rushing", period: 'full', hasAlternates: true },
     { value: "longest_rush", label: "Longest Rush", apiKey: "longest_rush", group: "Rushing", period: 'full' },
-    { value: "1q_rushing_yards", label: "Rushing Yards (1Q)", apiKey: "1q_rushing_yards", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rushing_yards_alternate", alwaysFetchAlternate: true },
-    { value: "1q_rush_attempts", label: "Rush Attempts (1Q)", apiKey: "1q_rush_attempts", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rush_attempts_alternate", alwaysFetchAlternate: true },
-    { value: "1h_rushing_yards", label: "Rushing Yards (1H)", apiKey: "1h_rushing_yards", group: "Rushing", period: '1h', hasAlternates: true, alternateKey: "1h_rushing_yards_alternate", alwaysFetchAlternate: true },
-  
-    // Combo
+    
+    // Combo Markets
     { value: "pass_rush_yards", label: "Pass + Rush Yards", apiKey: "pass_rush_yards", group: "Combo", period: 'full', hasAlternates: true, alternateKey: "pass_rush_yards_alternate", alwaysFetchAlternate: true },
     { value: "rush_rec_yards", label: "Rush + Reception Yards", apiKey: "rush_rec_yards", group: "Combo", period: 'full', hasAlternates: true, alternateKey: "rush_rec_yards_alternate", alwaysFetchAlternate: true },
+    
+    // Quarter Markets - Passing
+    { value: "1q_passing_yards", label: "Passing Yards (1Q)", apiKey: "1q_passing_yards", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_passing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_quarter_passing_completions", label: "Pass Completions (1Q)", apiKey: "1st_quarter_passing_completions", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1st_quarter_passing_completions_alternate", alwaysFetchAlternate: true },
+    { value: "1q_pass_attempts", label: "Pass Attempts (1Q)", apiKey: "1q_pass_attempts", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_pass_attempts_alternate", alwaysFetchAlternate: true },
     { value: "1st_quarter_player_passing_+_rushing_yards", label: "Pass + Rush Yards (1Q)", apiKey: "1st_quarter_player_passing_+_rushing_yards", group: "Combo", period: '1q', hasAlternates: true, alternateKey: "1st_quarter_player_passing_+_rushing_yards_alternate", alwaysFetchAlternate: true },
-  
-    // Scoring
-    { value: "player_touchdowns", label: "Player Touchdowns", apiKey: "player_touchdowns", group: "Scoring", period: 'full' },
+     // Field Goals & Kicking
+     { value: "total_field_goals_made", label: "Total Field Goals Made", apiKey: "total_field_goals_made", group: "Field Goals", period: 'full' },
+     { value: "1st_half_total_field_goals_made", label: "Total FGs Made (1H)", apiKey: "1st_half_total_field_goals_made", group: "Field Goals", period: '1h' },
+     { value: "2nd_half_total_field_goals_made", label: "Total FGs Made (2H)", apiKey: "2nd_half_total_field_goals_made", group: "Field Goals", period: '2h' },
+     { value: "total_field_goal_yards", label: "Total FG Yards", apiKey: "total_field_goal_yards", group: "Field Goals", period: 'full' },
+     { value: "longest_field_goal_made_yards", label: "Longest FG Yards", apiKey: "longest_field_goal_made_yards", group: "Field Goals", period: 'full' },
+     { value: "shortest_field_goal_made_yards", label: "Shortest FG Yards", apiKey: "shortest_field_goal_made_yards", group: "Field Goals", period: 'full' },
+    
+    // Quarter Markets - Receiving
+    { value: "1q_receiving_yards", label: "Receiving Yards (1Q)", apiKey: "1q_receiving_yards", group: "Receiving", period: '1q', hasAlternates: true, alternateKey: "1q_receiving_yards_alternate", alwaysFetchAlternate: true },
+    
+    // Quarter Markets - Rushing
+    { value: "1q_rushing_yards", label: "Rushing Yards (1Q)", apiKey: "1q_rushing_yards", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rushing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1q_rush_attempts", label: "Rush Attempts (1Q)", apiKey: "1q_rush_attempts", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rush_attempts_alternate", alwaysFetchAlternate: true },
+    
+    // Half Markets - Passing
+    { value: "1h_passing_yards", label: "Passing Yards (1H)", apiKey: "1h_passing_yards", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1h_passing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_half_player_passing_touchdowns", label: "Passing TDs (1H)", apiKey: "1st_half_player_passing_touchdowns", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1st_half_player_passing_touchdowns_alternate", alwaysFetchAlternate: true },
+    
+    // Half Markets - Receiving
+    { value: "1st_half_player_receiving_yards", label: "Receiving Yards (1H)", apiKey: "1st_half_player_receiving_yards", group: "Receiving", period: '1h', hasAlternates: true, alternateKey: "1st_half_player_receiving_yards_alternate", alwaysFetchAlternate: true },
+    
+    // Half Markets - Rushing
+    { value: "1h_rushing_yards", label: "Rushing Yards (1H)", apiKey: "1h_rushing_yards", group: "Rushing", period: '1h', hasAlternates: true, alternateKey: "1h_rushing_yards_alternate", alwaysFetchAlternate: true },
+    
+    // Additional Scoring Markets
     { value: "1q_player_touchdowns", label: "Player Touchdowns (1Q)", apiKey: "1q_player_touchdowns", group: "Scoring", period: '1q' },
     { value: "1h_player_touchdowns", label: "Player Touchdowns (1H)", apiKey: "1h_player_touchdowns", group: "Scoring", period: '1h' },
     { value: "2h_player_touchdowns", label: "Player Touchdowns (2H)", apiKey: "2h_player_touchdowns", group: "Scoring", period: '2h' },
+    { value: "2nd_half_first_touchdown_scorer", label: "First TD Scorer (2H)", apiKey: "2nd_half_first_touchdown_scorer", group: "Scoring", period: '2h' },
     { value: "3q_player_touchdowns", label: "Player Touchdowns (3Q)", apiKey: "3q_player_touchdowns", group: "Scoring", period: '3q' },
     { value: "both_halves_player_touchdowns", label: "Player TDs (Both Halves)", apiKey: "both_halves_player_touchdowns", group: "Scoring", period: 'both_halves' },
-    { value: "first_td", label: "First TD Scorer", apiKey: "first_td", group: "Scoring", period: 'full' },
-    { value: "last_td", label: "Last TD Scorer", apiKey: "last_td", group: "Scoring", period: 'full' },
-    { value: "2nd_half_first_touchdown_scorer", label: "First TD Scorer (2H)", apiKey: "2nd_half_first_touchdown_scorer", group: "Scoring", period: '2h' },
   
     // Defense
     { value: "player_defensive_interceptions", label: "Defensive Interceptions", apiKey: "player_defensive_interceptions", group: "Defense", period: 'full' },
@@ -324,7 +339,7 @@ export interface SportMarket {
     { value: "player_tackles_and_assists", label: "Tackles + Assists", apiKey: "player_tackles_and_assists", group: "Defense", period: 'full' },
     { value: "1st_quarter_player_interceptions_thrown", label: "Interceptions Thrown (1Q)", apiKey: "1st_quarter_player_interceptions_thrown", group: "Passing", period: '1q' },
   
-    // Kicking
+    // Kicking (Moved to bottom as least popular)
     { value: "player_field_goals_made", label: "Field Goals Made", apiKey: "player_field_goals_made", group: "Kicking", period: 'full' },
     { value: "player_extra_points_made", label: "Extra Points Made", apiKey: "player_extra_points_made", group: "Kicking", period: 'full' },
     { value: "player_kicking_points", label: "Kicking Points", apiKey: "player_kicking_points", group: "Kicking", period: 'full' },
@@ -494,30 +509,30 @@ export interface SportMarket {
       { value: "Home Team Total Goals Reg Time", label: "Home Team Total Goals (Reg)", apiKey: "home_total_goals_reg", group: "Game", period: 'full' },
 
       // Period game markets
-      { value: "1st Period Moneyline", label: "1st Period Moneyline", apiKey: "p1_moneyline", group: "1st Period" },
-      { value: "1st Period Moneyline 3-Way", label: "1st Period Moneyline (3-Way)", apiKey: "p1_moneyline_3way", group: "1st Period" },
-      { value: "1st Period Total Goals", label: "1st Period Total Goals", apiKey: "p1_total_goals", group: "1st Period" },
-      { value: "1st Period Total Goals Odd/Even", label: "1st Period Total Goals Odd/Even", apiKey: "p1_total_goals_odd_even", group: "1st Period" },
-      { value: "1st Period Puck Line", label: "1st Period Puck Line", apiKey: "p1_puck_line", group: "1st Period" },
-      { value: "1st 10 Minutes Total Goals", label: "1st 10 Minutes Total Goals", apiKey: "p1_10m_total_goals", group: "1st Period" },
-      { value: "1st 5 Minutes Total Goals", label: "1st 5 Minutes Total Goals", apiKey: "p1_5m_total_goals", group: "1st Period" },
-      { value: "1st Period Both Teams To Score", label: "1st Period Both Teams To Score", apiKey: "p1_btts", group: "1st Period" },
-      { value: "1st Period First Team To Score 3-Way", label: "1st Period First Team To Score (3-Way)", apiKey: "p1_first_team_to_score_3way", group: "1st Period" },
-      { value: "1st Period Home Team Total Goals", label: "1st Period Home Team Total Goals", apiKey: "p1_home_total_goals", group: "1st Period" },
-      { value: "1st Period Away Team Total Goals", label: "1st Period Away Team Total Goals", apiKey: "p1_away_total_goals", group: "1st Period" },
-      { value: "2nd Period Moneyline", label: "2nd Period Moneyline", apiKey: "p2_moneyline", group: "2nd Period" },
-      { value: "2nd Period Moneyline 3-Way", label: "2nd Period Moneyline (3-Way)", apiKey: "p2_moneyline_3way", group: "2nd Period" },
-      { value: "2nd Period Puck Line", label: "2nd Period Puck Line", apiKey: "p2_puck_line", group: "2nd Period" },
-      { value: "2nd Period Total Goals", label: "2nd Period Total Goals", apiKey: "p2_total_goals", group: "2nd Period" },
-      { value: "2nd Period Total Goals Odd/Even", label: "2nd Period Total Goals Odd/Even", apiKey: "p2_total_goals_odd_even", group: "2nd Period" },
-      { value: "2nd Period Both Teams To Score", label: "2nd Period Both Teams To Score", apiKey: "p2_btts", group: "2nd Period" },
-      { value: "2nd Period 1st 10 Minutes Total Goals", label: "2nd Period First 10 Minutes Total Goals", apiKey: "p2_10m_total_goals", group: "2nd Period" },
-      { value: "2nd Period 1st 5 Minutes Total Goals", label: "2nd Period First 5 Minutes Total Goals", apiKey: "p2_5m_total_goals", group: "2nd Period" },
-      { value: "3rd Period Moneyline", label: "3rd Period Moneyline", apiKey: "p3_moneyline", group: "3rd Period" },
-      { value: "3rd Period Moneyline 3-Way", label: "3rd Period Moneyline (3-Way)", apiKey: "p3_moneyline_3way", group: "3rd Period" },
-      { value: "3rd Period Puck Line", label: "3rd Period Puck Line", apiKey: "p3_puck_line", group: "3rd Period" },
-      { value: "3rd Period Total Goals", label: "3rd Period Total Goals", apiKey: "p3_total_goals", group: "3rd Period" },
-      { value: "3rd Period Total Goals Odd/Even", label: "3rd Period Total Goals Odd/Even", apiKey: "p3_total_goals_odd_even", group: "3rd Period" },
+      { value: "1st Period Moneyline", label: "1st Period Moneyline", apiKey: "p1_moneyline", group: "1st Period", period: 'p1' },
+      { value: "1st Period Moneyline 3-Way", label: "1st Period Moneyline (3-Way)", apiKey: "p1_moneyline_3way", group: "1st Period", period: 'p1' },
+      { value: "1st Period Total Goals", label: "1st Period Total Goals", apiKey: "p1_total_goals", group: "1st Period", period: 'p1' },
+      { value: "1st Period Total Goals Odd/Even", label: "1st Period Total Goals Odd/Even", apiKey: "p1_total_goals_odd_even", group: "1st Period", period: 'p1' },
+      { value: "1st Period Puck Line", label: "1st Period Puck Line", apiKey: "p1_puck_line", group: "1st Period", period: 'p1' },
+      { value: "1st 10 Minutes Total Goals", label: "1st 10 Minutes Total Goals", apiKey: "p1_10m_total_goals", group: "1st Period", period: 'p1' },
+      { value: "1st 5 Minutes Total Goals", label: "1st 5 Minutes Total Goals", apiKey: "p1_5m_total_goals", group: "1st Period", period: 'p1' },
+      { value: "1st Period Both Teams To Score", label: "1st Period Both Teams To Score", apiKey: "p1_btts", group: "1st Period", period: 'p1' },
+      { value: "1st Period First Team To Score 3-Way", label: "1st Period First Team To Score (3-Way)", apiKey: "p1_first_team_to_score_3way", group: "1st Period", period: 'p1' },
+      { value: "1st Period Home Team Total Goals", label: "1st Period Home Team Total Goals", apiKey: "p1_home_total_goals", group: "1st Period", period: 'p1' },
+      { value: "1st Period Away Team Total Goals", label: "1st Period Away Team Total Goals", apiKey: "p1_away_total_goals", group: "1st Period", period: 'p1' },
+      { value: "2nd Period Moneyline", label: "2nd Period Moneyline", apiKey: "p2_moneyline", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period Moneyline 3-Way", label: "2nd Period Moneyline (3-Way)", apiKey: "p2_moneyline_3way", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period Puck Line", label: "2nd Period Puck Line", apiKey: "p2_puck_line", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period Total Goals", label: "2nd Period Total Goals", apiKey: "p2_total_goals", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period Total Goals Odd/Even", label: "2nd Period Total Goals Odd/Even", apiKey: "p2_total_goals_odd_even", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period Both Teams To Score", label: "2nd Period Both Teams To Score", apiKey: "p2_btts", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period 1st 10 Minutes Total Goals", label: "2nd Period First 10 Minutes Total Goals", apiKey: "p2_10m_total_goals", group: "2nd Period", period: 'p2' },
+      { value: "2nd Period 1st 5 Minutes Total Goals", label: "2nd Period First 5 Minutes Total Goals", apiKey: "p2_5m_total_goals", group: "2nd Period", period: 'p2' },
+      { value: "3rd Period Moneyline", label: "3rd Period Moneyline", apiKey: "p3_moneyline", group: "3rd Period", period: 'p3' },
+      { value: "3rd Period Moneyline 3-Way", label: "3rd Period Moneyline (3-Way)", apiKey: "p3_moneyline_3way", group: "3rd Period", period: 'p3' },
+      { value: "3rd Period Puck Line", label: "3rd Period Puck Line", apiKey: "p3_puck_line", group: "3rd Period", period: 'p3' },
+      { value: "3rd Period Total Goals", label: "3rd Period Total Goals", apiKey: "p3_total_goals", group: "3rd Period", period: 'p3' },
+      { value: "3rd Period Total Goals Odd/Even", label: "3rd Period Total Goals Odd/Even", apiKey: "p3_total_goals_odd_even", group: "3rd Period", period: 'p3' },
 
       // Races
       { value: "Race To 2 Goals 3-Way Reg Time", label: "Race To 2 Goals (3-Way, Reg)", apiKey: "race_to_2_goals_3way_reg", group: "Races", period: 'full' },
@@ -525,7 +540,8 @@ export interface SportMarket {
       { value: "Race To 4 Goals 3-Way Reg Time", label: "Race To 4 Goals (3-Way, Reg)", apiKey: "race_to_4_goals_3way_reg", group: "Races", period: 'full' },
       { value: "Race To 5 Goals 3-Way Reg Time", label: "Race To 5 Goals (3-Way, Reg)", apiKey: "race_to_5_goals_3way_reg", group: "Races", period: 'full' },
       
-      // Player props - Full Game
+      // Player props - Full Game (Most Popular Markets First)
+      // Top Scoring Markets
       {
         value: "Goals",
         label: "Goals",
@@ -534,6 +550,20 @@ export interface SportMarket {
         alternateKey: "player_goals_alternate",
         alwaysFetchAlternate: true,
         group: "Skater",
+        period: 'full',
+      },
+      {
+        value: "First_Goal_Scorer",
+        label: "1st Goal",
+        apiKey: "player_first_goal",
+        group: "Scoring",
+        period: 'full',
+      },
+      {
+        value: "Last_Goal_Scorer",
+        label: "Last Goal",
+        apiKey: "player_last_goal",
+        group: "Scoring",
         period: 'full',
       },
       {
@@ -602,48 +632,25 @@ export interface SportMarket {
       },
       { value: "Shutout", label: "Shutout", apiKey: "player_shutout", group: "Goalie", period: 'full' },
 
-      // Scoring props
-      {
-        value: "First_Goal_Scorer",
-        label: "First Goal",
-        apiKey: "player_goal_scorer_first",
-        group: "Scoring",
-        period: 'full',
-      },
-      {
-        value: "Last_Goal_Scorer",
-        label: "Last Goal",
-        apiKey: "player_goal_scorer_last",
-        group: "Scoring",
-        period: 'full',
-      },
-      {
-        value: "Anytime_Goal_Scorer",
-        label: "Anytime Goal",
-        apiKey: "player_goal_scorer_anytime",
-        group: "Scoring",
-        period: 'full',
-      },
-
       // 1st Period player props
-      { value: "1st Period Player Goals", label: "Goals - 1st Period", apiKey: "p1_player_goals", group: "Skater" },
-      { value: "1st Period Player Assists", label: "Assists - 1st Period", apiKey: "p1_player_assists", group: "Skater" },
-      { value: "1st Period Player Shots On Goal", label: "Shots on Goal - 1st Period", apiKey: "p1_player_shots_on_goal", group: "Skater" },
-      { value: "1st Period Player Saves", label: "Saves - 1st Period", apiKey: "p1_player_total_saves", group: "Goalie" },
+      { value: "1st Period Player Goals", label: "Goals - 1st Period", apiKey: "1st_period_player_goals", group: "Skater", period: 'p1' },
+      { value: "1st Period Player Assists", label: "Assists - 1st Period", apiKey: "1st_period_player_assists", group: "Skater", period: 'p1' },
+      { value: "1st Period Player Shots On Goal", label: "Shots on Goal - 1st Period", apiKey: "1st_period_player_shots_on_goal", group: "Skater", period: 'p1' },
+      { value: "1st Period Player Saves", label: "Saves - 1st Period", apiKey: "1st_period_player_saves", group: "Goalie", period: 'p1' },
       
       // 2nd Period player props
-      { value: "2nd Period Player Goals", label: "Goals - 2nd Period", apiKey: "p2_player_goals", group: "Skater" },
-      { value: "2nd Period Player Assists", label: "Assists - 2nd Period", apiKey: "p2_player_assists", group: "Skater" },
-      { value: "2nd Period Player Points", label: "Points - 2nd Period", apiKey: "p2_player_points", group: "Skater" },
-      { value: "2nd Period Player Shots On Goal", label: "Shots on Goal - 2nd Period", apiKey: "p2_player_shots_on_goal", group: "Skater" },
-      { value: "2nd Period Player Saves", label: "Saves - 2nd Period", apiKey: "p2_player_total_saves", group: "Goalie" },
+      { value: "2nd Period Player Goals", label: "Goals - 2nd Period", apiKey: "2nd_period_player_goals", group: "Skater", period: 'p2' },
+      { value: "2nd Period Player Assists", label: "Assists - 2nd Period", apiKey: "2nd_period_player_assists", group: "Skater", period: 'p2' },
+      { value: "2nd Period Player Points", label: "Points - 2nd Period", apiKey: "2nd_period_player_points", group: "Skater", period: 'p2' },
+      { value: "2nd Period Player Shots On Goal", label: "Shots on Goal - 2nd Period", apiKey: "2nd_period_player_shots_on_goal", group: "Skater", period: 'p2' },
+      { value: "2nd Period Player Saves", label: "Saves - 2nd Period", apiKey: "2nd_period_player_saves", group: "Goalie", period: 'p2' },
       
       // 3rd Period player props
-      { value: "3rd Period Player Goals", label: "Goals - 3rd Period", apiKey: "p3_player_goals", group: "Skater" },
-      { value: "3rd Period Player Assists", label: "Assists - 3rd Period", apiKey: "p3_player_assists", group: "Skater" },
-      { value: "3rd Period Player Points", label: "Points - 3rd Period", apiKey: "p3_player_points", group: "Skater" },
-      { value: "3rd Period Player Shots On Goal", label: "Shots on Goal - 3rd Period", apiKey: "p3_player_shots_on_goal", group: "Skater" },
-      { value: "3rd Period Player Saves", label: "Saves - 3rd Period", apiKey: "p3_player_total_saves", group: "Goalie" },
+      { value: "3rd Period Player Goals", label: "Goals - 3rd Period", apiKey: "3rd_period_player_goals", group: "Skater", period: 'p3' },
+      { value: "3rd Period Player Assists", label: "Assists - 3rd Period", apiKey: "3rd_period_player_assists", group: "Skater", period: 'p3' },
+      { value: "3rd Period Player Points", label: "Points - 3rd Period", apiKey: "3rd_period_player_points", group: "Skater", period: 'p3' },
+      { value: "3rd Period Player Shots On Goal", label: "Shots on Goal - 3rd Period", apiKey: "3rd_period_player_shots_on_goal", group: "Skater", period: 'p3' },
+      { value: "3rd Period Player Saves", label: "Saves - 3rd Period", apiKey: "3rd_period_player_saves", group: "Goalie", period: 'p3' },
     ],
   };
   
@@ -808,15 +815,14 @@ export interface SportMarket {
     ],
     nhl: [
       'goals', // Set as default (player_goals)
-      'points',
+      'first goal',
+      'last goal',
       'assists',
+      'points',
       'shots on goal',
       'power play points',
       'blocked shots',
-      'total saves',
-      'anytime goal',
-      'first goal',
-      'last goal'
+      'total saves'
     ]
   };
   
@@ -1107,9 +1113,8 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_power_play_points': 'Power Play Points',
       'player_total_saves': 'Total Saves',
       'player_hits': 'Hits',
-      'player_goal_scorer_first': 'First Goal',
-      'player_goal_scorer_last': 'Last Goal',
-      'player_goal_scorer_anytime': 'Anytime Goal',
+      'player_first_goal': 'First Goal',
+      'player_last_goal': 'Last Goal',
       
       // Baseball - Batter
       'batter_home_runs': 'Home Runs',
@@ -1201,7 +1206,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       case 'ncaaf':
         return 'anytime touchdown scorer';
       case 'nhl':
-        return 'anytime goal';
+        return 'goals';
       default:
         return markets[0];
     }
