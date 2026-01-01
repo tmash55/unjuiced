@@ -50,6 +50,8 @@ interface MobileEdgeFinderProps {
   onRefresh?: () => void;
   onPlayerClick?: (opp: Opportunity) => void;
   onHideEdge?: (opp: Opportunity) => void;
+  onUnhideEdge?: (edgeKey: string) => void;
+  isHidden?: (edgeKey: string) => boolean;
   bankroll?: number;
   kellyPercent?: number;
   isPro?: boolean;
@@ -60,9 +62,9 @@ interface MobileEdgeFinderProps {
   dataUpdatedAt?: number;
   // Preset prefetching
   onPresetHover?: (preset: FilterPreset) => void;
-  // Filter prefs
-  prefs?: BestOddsPrefs;
-  onPrefsChange?: (prefs: BestOddsPrefs) => void;
+  // Filter prefs (columnOrder is optional for mobile since it's only used in desktop table)
+  prefs?: Omit<BestOddsPrefs, 'columnOrder'> & { columnOrder?: string[] };
+  onPrefsChange?: (prefs: Omit<BestOddsPrefs, 'columnOrder'> & { columnOrder?: string[] }) => void;
   availableLeagues?: string[];
   availableMarkets?: string[];
   availableSportsbooks?: string[];
@@ -76,6 +78,8 @@ export function MobileEdgeFinder({
   onRefresh,
   onPlayerClick,
   onHideEdge,
+  onUnhideEdge,
+  isHidden,
   bankroll = 0,
   kellyPercent = 25,
   isPro = false,
@@ -392,6 +396,8 @@ export function MobileEdgeFinder({
                 onBetClick={handleBetClick}
                 onPlayerClick={onPlayerClick ? () => onPlayerClick(opp) : undefined}
                 onHide={onHideEdge ? () => onHideEdge(opp) : undefined}
+                onUnhide={onUnhideEdge ? () => onUnhideEdge(opp.id) : undefined}
+                isHidden={isHidden?.(opp.id) ?? false}
                 isExpanded={expandedCardId === opp.id}
                 onToggleExpand={() => handleCardExpand(opp.id)}
                 bankroll={bankroll}
@@ -441,8 +447,8 @@ export function MobileEdgeFinder({
       {/* Filters (reuses BestOddsFilters with Sheet component) */}
       {prefs && onPrefsChange && (
         <BestOddsFilters
-          prefs={prefs}
-          onPrefsChange={onPrefsChange}
+          prefs={{ ...prefs, columnOrder: prefs.columnOrder ?? [] }}
+          onPrefsChange={(newPrefs) => onPrefsChange({ ...newPrefs, columnOrder: newPrefs.columnOrder ?? [] })}
           availableLeagues={availableLeagues}
           availableMarkets={availableMarkets}
           availableSportsbooks={availableSportsbooks}
@@ -453,7 +459,7 @@ export function MobileEdgeFinder({
             allBooks: opp.allBooks?.map(book => ({
               book: book.book,
               price: book.decimal,
-              link: book.link,
+              link: book.link ?? "",
             })) || [],
           }))}
         />

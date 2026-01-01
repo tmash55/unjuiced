@@ -301,10 +301,10 @@ export function MobileModelsSheet({
                         : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                     )}
                   >
-                    {/* Main Row */}
-                    <button
+                    {/* Main Row - using div to avoid nested button issue */}
+                    <div
                       onClick={() => onTogglePreset(preset)}
-                      className="w-full flex items-center gap-3 p-4 text-left"
+                      className="w-full flex items-center gap-3 p-4 text-left cursor-pointer active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"
                     >
                       {/* Pie Chart */}
                       <div className="flex-shrink-0">
@@ -360,6 +360,7 @@ export function MobileModelsSheet({
 
                       {/* Expand Button */}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setExpandedPresetId(expanded ? null : preset.id);
@@ -368,7 +369,7 @@ export function MobileModelsSheet({
                       >
                         <MoreHorizontal className="w-4 h-4 text-neutral-400" />
                       </button>
-                    </button>
+                    </div>
 
                     {/* Expanded Actions */}
                     <AnimatePresence>
