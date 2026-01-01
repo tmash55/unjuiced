@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Settings, X, Sparkles, Filter, ChevronDown, Pencil } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Plus, Settings, X, Sparkles, Filter, ChevronDown, Pencil, ArrowLeftRight } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,9 @@ import { FilterPresetsManagerModal } from "./filter-presets-manager-modal";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+
+// localStorage key for last active presets
+const LAST_ACTIVE_PRESETS_KEY = "edge-finder-last-active-presets";
 
 // CSS for static gradient border in custom mode
 const customModeStyles = `
@@ -199,6 +202,19 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [editingPreset, setEditingPreset] = useState<typeof presets[0] | null>(null);
+  const [lastActivePresetIds, setLastActivePresetIds] = useState<string[]>([]);
+
+  // Load last active presets from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LAST_ACTIVE_PRESETS_KEY);
+      if (stored) {
+        setLastActivePresetIds(JSON.parse(stored));
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
 
   // Handle preset created/updated
   const handlePresetChange = () => {
@@ -207,6 +223,33 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
 
   // Check if we're in custom mode (any active presets)
   const isCustomMode = activePresets.length > 0;
+
+  // Exit custom mode - save current presets and deactivate all
+  const handleExitCustomMode = useCallback(async () => {
+    // Save current active preset IDs to localStorage
+    const currentIds = activePresets.map(p => p.id);
+    setLastActivePresetIds(currentIds);
+    try {
+      localStorage.setItem(LAST_ACTIVE_PRESETS_KEY, JSON.stringify(currentIds));
+    } catch {
+      // Ignore localStorage errors
+    }
+    // Deactivate all presets
+    await Promise.all(activePresets.map(p => togglePreset(p.id, false)));
+  }, [activePresets, togglePreset]);
+
+  // Switch back to custom mode - reactivate last active presets
+  const handleSwitchToCustom = useCallback(async () => {
+    // Find presets that still exist and reactivate them
+    const validIds = lastActivePresetIds.filter(id => presets.some(p => p.id === id));
+    if (validIds.length > 0) {
+      await Promise.all(validIds.map(id => togglePreset(id, true)));
+    }
+  }, [lastActivePresetIds, presets, togglePreset]);
+
+  // Check if we have saved presets to switch back to
+  const hasSavedPresets = lastActivePresetIds.length > 0 && 
+    lastActivePresetIds.some(id => presets.some(p => p.id === id));
 
   // New user / no presets state
   if (!isLoading && presets.length === 0) {
@@ -560,21 +603,29 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
           </Tooltip>
         </div>
 
-        {/* Exit Custom Mode */}
-        {isCustomMode && (
-          <>
-            <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700" />
-            <Tooltip content="Exit custom mode">
-              <button
-                onClick={() => activePresets.forEach(p => togglePreset(p.id, false))}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              >
-                <span>Exit</span>
-                <Logout className="w-3.5 h-3.5" />
-              </button>
-            </Tooltip>
-          </>
-        )}
+        {/* Mode Toggle - Exit or Switch */}
+        <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700" />
+        {isCustomMode ? (
+          <Tooltip content="Switch to default preset mode">
+            <button
+              onClick={handleExitCustomMode}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>Default</span>
+            </button>
+          </Tooltip>
+        ) : hasSavedPresets ? (
+          <Tooltip content="Switch back to custom models">
+            <button
+              onClick={handleSwitchToCustom}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>Custom</span>
+            </button>
+          </Tooltip>
+        ) : null}
       </div>
 
       {/* Modals */}

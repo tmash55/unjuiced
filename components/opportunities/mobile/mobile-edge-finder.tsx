@@ -9,8 +9,8 @@ import {
   ChevronUp,
   RefreshCw,
   X,
-  Filter,
-  Sparkles
+  Sparkles,
+  Filter
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileEdgeCard } from "./mobile-edge-card";
@@ -19,6 +19,8 @@ import { Opportunity } from "@/lib/types/opportunities";
 import { motion, AnimatePresence } from "framer-motion";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import type { FilterPreset } from "@/lib/types/filter-presets";
+import type { BestOddsPrefs } from "@/lib/best-odds-schema";
+import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
 
 // Sport filter options
 const SPORT_OPTIONS = [
@@ -47,6 +49,7 @@ interface MobileEdgeFinderProps {
   error?: Error | null;
   onRefresh?: () => void;
   onPlayerClick?: (opp: Opportunity) => void;
+  onHideEdge?: (opp: Opportunity) => void;
   bankroll?: number;
   kellyPercent?: number;
   isPro?: boolean;
@@ -57,6 +60,12 @@ interface MobileEdgeFinderProps {
   dataUpdatedAt?: number;
   // Preset prefetching
   onPresetHover?: (preset: FilterPreset) => void;
+  // Filter prefs
+  prefs?: BestOddsPrefs;
+  onPrefsChange?: (prefs: BestOddsPrefs) => void;
+  availableLeagues?: string[];
+  availableMarkets?: string[];
+  availableSportsbooks?: string[];
 }
 
 export function MobileEdgeFinder({
@@ -66,6 +75,7 @@ export function MobileEdgeFinder({
   error,
   onRefresh,
   onPlayerClick,
+  onHideEdge,
   bankroll = 0,
   kellyPercent = 25,
   isPro = false,
@@ -73,6 +83,11 @@ export function MobileEdgeFinder({
   isCustomMode = false,
   dataUpdatedAt,
   onPresetHover,
+  prefs,
+  onPrefsChange,
+  availableLeagues = [],
+  availableMarkets = [],
+  availableSportsbooks = [],
 }: MobileEdgeFinderProps) {
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -263,7 +278,7 @@ export function MobileEdgeFinder({
             )}
           </div>
           
-          {/* Filter Toggle */}
+          {/* Quick Filter Toggle (Sport & Sort) */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
@@ -350,9 +365,9 @@ export function MobileEdgeFinder({
       <div style={{ height: showFilters ? "350px" : "240px" }} className="transition-all duration-200" />
       
       {/* Edge Cards */}
-      <div className="pb-20">
+      <div className="pt-3 pb-24 bg-neutral-100/50 dark:bg-neutral-950">
         {visibleOpportunities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4">
+          <div className="flex flex-col items-center justify-center py-20 px-4 mx-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800">
             <Filter className="w-12 h-12 text-neutral-300 dark:text-neutral-700 mb-4" />
             <p className="text-neutral-500 text-center font-medium">
               No edges match your filters
@@ -376,6 +391,7 @@ export function MobileEdgeFinder({
                 opportunity={opp}
                 onBetClick={handleBetClick}
                 onPlayerClick={onPlayerClick ? () => onPlayerClick(opp) : undefined}
+                onHide={onHideEdge ? () => onHideEdge(opp) : undefined}
                 isExpanded={expandedCardId === opp.id}
                 onToggleExpand={() => handleCardExpand(opp.id)}
                 bankroll={bankroll}
@@ -389,11 +405,13 @@ export function MobileEdgeFinder({
                 type="button"
                 onClick={handleLoadMore}
                 className={cn(
-                  "w-full py-4 text-sm font-medium",
+                  "mx-3 w-[calc(100%-1.5rem)] py-3 text-sm font-semibold",
                   "text-brand",
                   "bg-white dark:bg-neutral-900",
-                  "border-t border-neutral-200 dark:border-neutral-800",
-                  "active:bg-neutral-50 dark:active:bg-neutral-800"
+                  "border border-neutral-200/80 dark:border-neutral-800",
+                  "rounded-xl",
+                  "active:bg-neutral-50 dark:active:bg-neutral-800",
+                  "transition-colors"
                 )}
               >
                 Load more ({filteredOpportunities.length - visibleCount} remaining)
@@ -418,6 +436,27 @@ export function MobileEdgeFinder({
             Upgrade to Pro for All Edges
           </a>
         </div>
+      )}
+      
+      {/* Filters (reuses BestOddsFilters with Sheet component) */}
+      {prefs && onPrefsChange && (
+        <BestOddsFilters
+          prefs={prefs}
+          onPrefsChange={onPrefsChange}
+          availableLeagues={availableLeagues}
+          availableMarkets={availableMarkets}
+          availableSportsbooks={availableSportsbooks}
+          customPresetActive={isCustomMode}
+          deals={opportunities.map(opp => ({
+            bestBook: opp.bestBook,
+            bestPrice: opp.bestDecimal,
+            allBooks: opp.allBooks?.map(book => ({
+              book: book.book,
+              price: book.decimal,
+              link: book.link,
+            })) || [],
+          }))}
+        />
       )}
     </div>
   );

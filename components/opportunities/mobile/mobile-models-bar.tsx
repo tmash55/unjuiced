@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Sparkles, 
   Filter, 
@@ -9,7 +9,8 @@ import {
   Check, 
   Settings,
   X,
-  Zap
+  Zap,
+  ArrowLeftRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
@@ -19,6 +20,9 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { motion, AnimatePresence } from "framer-motion";
 import { FilterPresetFormModal } from "@/components/filter-presets/filter-preset-form-modal";
 import { MobileModelsSheet } from "./mobile-models-sheet";
+
+// localStorage key for last active presets
+const LAST_ACTIVE_PRESETS_KEY = "edge-finder-last-active-presets";
 
 // Get sportsbook logo
 const getBookLogo = (bookId: string) => {
@@ -63,6 +67,19 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showManagerSheet, setShowManagerSheet] = useState(false);
   const [editingPreset, setEditingPreset] = useState<FilterPreset | null>(null);
+  const [lastActivePresetIds, setLastActivePresetIds] = useState<string[]>([]);
+
+  // Load last active presets from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LAST_ACTIVE_PRESETS_KEY);
+      if (stored) {
+        setLastActivePresetIds(JSON.parse(stored));
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
 
   const isCustomMode = activePresets.length > 0;
 
@@ -79,6 +96,32 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
     setShowCreateModal(false);
     setEditingPreset(null);
   };
+
+  // Exit custom mode - save current presets and deactivate all
+  const handleExitCustomMode = useCallback(async () => {
+    const currentIds = activePresets.map(p => p.id);
+    setLastActivePresetIds(currentIds);
+    try {
+      localStorage.setItem(LAST_ACTIVE_PRESETS_KEY, JSON.stringify(currentIds));
+    } catch {
+      // Ignore localStorage errors
+    }
+    await Promise.all(activePresets.map(p => togglePreset(p.id, false)));
+    onPresetsChange?.();
+  }, [activePresets, togglePreset, onPresetsChange]);
+
+  // Switch back to custom mode
+  const handleSwitchToCustom = useCallback(async () => {
+    const validIds = lastActivePresetIds.filter(id => presets.some(p => p.id === id));
+    if (validIds.length > 0) {
+      await Promise.all(validIds.map(id => togglePreset(id, true)));
+      onPresetsChange?.();
+    }
+  }, [lastActivePresetIds, presets, togglePreset, onPresetsChange]);
+
+  // Check if we have saved presets to switch back to
+  const hasSavedPresets = lastActivePresetIds.length > 0 && 
+    lastActivePresetIds.some(id => presets.some(p => p.id === id));
 
   // Loading state
   if (isLoading) {
@@ -131,9 +174,9 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
   return (
     <>
       <div className="px-4 py-3 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-        {/* Main Row: Mode Toggle + Active Models */}
+        {/* Main Row: Mode Toggle + Swap + Active Models */}
         <div className="flex items-center gap-2">
-          {/* Mode Badge */}
+          {/* Mode Badge - tap to open manager */}
           <button
             onClick={() => setShowManagerSheet(true)}
             className={cn(
@@ -152,6 +195,25 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
             <span>{isCustomMode ? "Custom" : "Preset"}</span>
             <ChevronRight className="w-4 h-4 opacity-50" />
           </button>
+
+          {/* Quick Swap Button */}
+          {isCustomMode ? (
+            <button
+              onClick={handleExitCustomMode}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 active:scale-[0.98] transition-transform"
+              title="Switch to default"
+            >
+              <ArrowLeftRight className="w-4 h-4 text-neutral-500" />
+            </button>
+          ) : hasSavedPresets ? (
+            <button
+              onClick={handleSwitchToCustom}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 active:scale-[0.98] transition-transform"
+              title="Switch to custom"
+            >
+              <ArrowLeftRight className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+            </button>
+          ) : null}
 
           {/* Active Models - Horizontal Scroll */}
           <div className="flex-1 overflow-x-auto scrollbar-hide">

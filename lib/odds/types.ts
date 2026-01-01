@@ -24,11 +24,16 @@ export const SSE_MARKETS = {
   player_turnovers: "Turnovers",
   
   // Player Props - Combos
-  player_pra: "PTS+REB+AST",
+  player_pra: "PRA",
+  player_points_rebounds_assists: "PRA",
   player_pr: "PTS+REB",
+  player_points_rebounds: "P+R",
   player_pa: "PTS+AST",
+  player_points_assists: "P+A",
   player_ra: "REB+AST",
+  player_rebounds_assists: "R+A",
   player_bs: "BLK+STL",
+  player_blocks_steals: "B+S",
   
   // Player Props - Special
   player_double_double: "Double Double",

@@ -298,6 +298,7 @@ export default function EdgeFinderPage() {
               });
             }
           }}
+          onHideEdge={(opp) => hideEdge(opp.id)}
           bankroll={evPrefs.bankroll}
           kellyPercent={evPrefs.kellyPercent || 25}
           isPro={effectiveIsPro}
@@ -305,6 +306,14 @@ export default function EdgeFinderPage() {
           isCustomMode={isCustomMode}
           dataUpdatedAt={dataUpdatedAt ?? undefined}
           onPresetHover={prefetchPreset}
+          prefs={{
+            ...prefs,
+            columnOrder: prefs.columnOrder ?? ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+          }}
+          onPrefsChange={handlePrefsChange}
+          availableLeagues={AVAILABLE_LEAGUES}
+          availableMarkets={AVAILABLE_MARKETS}
+          availableSportsbooks={availableSportsbooks}
         />
         
         {/* Player Quick View Modal */}

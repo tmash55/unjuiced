@@ -14,7 +14,7 @@ import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, Trash2 } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, Trash2, Info } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
@@ -881,7 +881,22 @@ export function BestOddsFilters({
                   <div className="flex items-center gap-2">
                     <Label className="text-sm font-semibold">Markets</Label>
                   </div>
-                  <div className="space-y-4">
+                  
+                  {/* Custom Mode Warning */}
+                  {customPresetActive && (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                          Custom Mode Active
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                          Market filters are controlled by your active custom model. Switch to default preset to adjust markets.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={cn("space-y-4", customPresetActive && "opacity-50 pointer-events-none")}>
                     {Object.entries(groupedMarkets).map(([sportType, markets]) => (
                       <div key={sportType}>
                         <div className="flex items-center justify-between mb-2">
