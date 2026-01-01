@@ -162,10 +162,10 @@ export function MobileEdgeCard({
           {/* Right: Edge Badge + Hide/Unhide */}
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
-              "px-1.5 py-0.5 rounded-full",
+              "px-2 py-1 rounded-full flex items-center justify-center",
               getEdgeBgColor(opp.edgePct)
             )}>
-              <span className={cn("text-[10px] font-bold tabular-nums", getEdgeColor(opp.edgePct))}>
+              <span className={cn("text-[10px] font-bold tabular-nums leading-none", getEdgeColor(opp.edgePct))}>
                 +{opp.edgePct !== null ? opp.edgePct.toFixed(1) : "—"}%
               </span>
             </div>
