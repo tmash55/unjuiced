@@ -68,14 +68,6 @@ const largeLinks = [
     graphic: null,
     color: "#00b4d8",
   },
-  {
-    title: "Ladder Builder",
-    description: "Build and track custom multi-line prop ladders — stack alternate lines, compare odds, and visualize potential payouts across every rung",
-    href: "/ladders",
-    comingSoon: false,
-    graphic: null,
-    color: "#f97316",
-  },
 ];
 
 export function ProductContent({ domain }: { domain: string }) {

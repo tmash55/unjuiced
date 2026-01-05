@@ -609,27 +609,27 @@ export function BestOddsFilters({
           )}
         </button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-950 p-0">
         <div className="flex h-full flex-col">
-          <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
-            <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
+          <SheetHeader className="border-b border-neutral-200 px-4 sm:px-6 py-3 sm:py-4 dark:border-neutral-800">
+            <SheetTitle className="text-base sm:text-lg font-semibold">Filters</SheetTitle>
           </SheetHeader>
 
           {/* Mobile-only: View Options Section */}
-          <div className="sm:hidden border-b border-neutral-200 dark:border-neutral-800 px-6 py-4 space-y-4">
+          <div className="sm:hidden border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-3">
             {!customPresetActive && (
               <div>
-                <Label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 block">
+                <Label className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block uppercase tracking-wider">
                   Compare vs
                 </Label>
                 <Combobox
                   selected={selectedComparisonOption}
                   setSelected={handleComparisonSelect}
                   options={comparisonOptions}
-                  caret={<ChevronDown className="h-4 w-4 opacity-50" />}
+                  caret={<ChevronDown className="h-3.5 w-3.5 opacity-50" />}
                   buttonProps={{
                     className: cn(
-                      "h-10 w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 text-neutral-700 dark:text-neutral-200",
+                      "h-9 w-full rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 text-neutral-700 dark:text-neutral-200",
                       locked && "opacity-50 cursor-not-allowed"
                     ),
                     textWrapperClassName: "text-sm font-medium",
@@ -640,13 +640,13 @@ export function BestOddsFilters({
             )}
 
             {customPresetActive && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-700 dark:bg-neutral-600">
-                  <Filter className="w-4 h-4 text-white" />
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-neutral-700 dark:bg-neutral-700">
+                  <Filter className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wider">Custom Mode</p>
-                  <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                  <p className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider">Custom Mode</p>
+                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
                     {activePresetName || "Custom Filter"}
                   </p>
                 </div>
@@ -654,7 +654,7 @@ export function BestOddsFilters({
             )}
 
             <div>
-              <Label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2 block">
+              <Label className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block uppercase tracking-wider">
                 Search
               </Label>
               <Input
@@ -666,13 +666,8 @@ export function BestOddsFilters({
                   setLocalSearchQuery(e.target.value);
                 }}
                 disabled={locked}
-                className="w-full h-10 text-sm"
+                className="w-full h-9 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
               />
-              {locked && (
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                  Pro only
-                </p>
-              )}
             </div>
           </div>
 
@@ -695,43 +690,43 @@ export function BestOddsFilters({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
             <Tabs defaultValue="books" className="w-full">
-              <TabsList className="filter-tabs grid w-full grid-cols-3">
-                <TabsTrigger value="books" className="flex items-center justify-center gap-2">
-                  <Building2 className="h-4 w-4" />
+              <TabsList className="filter-tabs grid w-full grid-cols-3 h-10 sm:h-11 p-1 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
+                <TabsTrigger value="books" className="flex items-center justify-center gap-1.5 text-xs sm:text-sm rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 data-[state=active]:shadow-sm">
+                  <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Sportsbooks</span>
                 </TabsTrigger>
-                <TabsTrigger value="leagues" className="flex items-center justify-center gap-2">
-                  <Target className="h-4 w-4" />
-                  <span className="hidden sm:inline">Leagues & Markets</span>
+                <TabsTrigger value="leagues" className="flex items-center justify-center gap-1.5 text-xs sm:text-sm rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 data-[state=active]:shadow-sm">
+                  <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Leagues</span>
                 </TabsTrigger>
-                <TabsTrigger value="odds" className="flex items-center justify-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="hidden sm:inline">Edge & Odds</span>
+                <TabsTrigger value="odds" className="flex items-center justify-center gap-1.5 text-xs sm:text-sm rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 data-[state=active]:shadow-sm">
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Settings</span>
                 </TabsTrigger>
               </TabsList>
 
               {/* Sportsbooks Tab */}
               <TabsContent value="books" className="filter-section">
-                <div className="filter-section-header flex items-center justify-between">
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Choose sportsbooks to include in results</p>
-                  <div className="flex gap-2">
+                <div className="filter-section-header flex items-center justify-between py-3 sm:py-4">
+                  <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">Select books to include</p>
+                  <div className="flex gap-1.5 sm:gap-2">
                     <button
                       onClick={() => !locked && setLocalBooks([])}
                       disabled={locked}
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-semibold text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                       title={locked ? "Pro only" : ""}
                     >
-                      Select All
+                      All
                     </button>
                     <button
                       onClick={() => !locked && setLocalBooks(allSportsbooks.map(sb => sb.id))}
                       disabled={locked}
-                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                       title={locked ? "Pro only" : ""}
                     >
-                      Clear
+                      None
                     </button>
                   </div>
                 </div>
@@ -1106,13 +1101,13 @@ export function BestOddsFilters({
               </TabsContent>
 
               {/* Edge & Odds Tab */}
-              <TabsContent value="odds" className="mt-6 space-y-6">
+              <TabsContent value="odds" className="mt-4 sm:mt-6 space-y-4 sm:space-y-6">
                 {/* College Player Props Toggle */}
-                <div className={`flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50 ${locked ? 'opacity-60' : ''}`}>
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-medium">Hide College Player Props</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Hide NCAAF and NCAAB player prop markets (for restricted states)
+                <div className={`flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4 dark:border-neutral-800 dark:bg-neutral-900 ${locked ? 'opacity-60' : ''}`}>
+                  <div className="space-y-0.5 flex-1 mr-3">
+                    <div className="text-sm font-semibold">Hide College Props</div>
+                    <div className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400">
+                      For restricted states
                     </div>
                   </div>
                   <Switch 
@@ -1127,12 +1122,12 @@ export function BestOddsFilters({
                   <>
                     <Separator />
                     
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                        <div className="space-y-0.5">
-                          <div className="text-sm font-medium">Show Hidden Edges</div>
-                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                            Display {hiddenCount} hidden edge{hiddenCount !== 1 ? 's' : ''} with dimmed styling
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                        <div className="space-y-0.5 flex-1 mr-3">
+                          <div className="text-sm font-semibold">Show Hidden ({hiddenCount})</div>
+                          <div className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400">
+                            Display with dimmed styling
                           </div>
                         </div>
                         <Switch 
@@ -1143,9 +1138,9 @@ export function BestOddsFilters({
 
                       <button
                         onClick={() => setIsClearDialogOpen(true)}
-                        className="w-full h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                        className="w-full h-9 sm:h-10 rounded-xl border border-red-200 bg-red-50 px-3 text-xs sm:text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/40"
                       >
-                        Clear All Hidden Edges ({hiddenCount})
+                        Clear Hidden Edges
                       </button>
 
                       <Dialog open={isClearDialogOpen} onOpenChange={setIsClearDialogOpen}>
@@ -1197,24 +1192,23 @@ export function BestOddsFilters({
 
                 <Separator />
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Min Edge %</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Min Edge %</Label>
                   <Input
                     type="number"
                     value={localMinImprovement}
                     onChange={(e) => !locked && setLocalMinImprovement(Number(e.target.value))}
-                    className="h-10"
+                    className="h-9 sm:h-10 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
                     min="0"
                     step="0.1"
                     disabled={locked}
                     title={locked ? "Pro only" : ""}
                   />
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Only show deals with at least this % edge</p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Min Odds</Label>
+                <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Min Odds</Label>
                     <Input
                       type="number"
                       value={localMinOdds ?? ''}
@@ -1223,17 +1217,16 @@ export function BestOddsFilters({
                         const val = e.target.value.trim();
                         setLocalMinOdds(val === '' ? undefined : Number(val));
                       }}
-                      placeholder="No minimum"
-                      className="h-10"
+                      placeholder="-∞"
+                      className="h-9 sm:h-10 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
                       min="-1000"
                       step="5"
                       disabled={locked}
                       title={locked ? "Pro only" : ""}
                     />
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Filter out odds below this value</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Max Odds</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">Max Odds</Label>
                     <Input
                       type="number"
                       value={localMaxOdds ?? ''}
@@ -1242,14 +1235,13 @@ export function BestOddsFilters({
                         const val = e.target.value.trim();
                         setLocalMaxOdds(val === '' ? undefined : Number(val));
                       }}
-                      placeholder="No maximum"
-                      className="h-10"
+                      placeholder="+∞"
+                      className="h-9 sm:h-10 text-sm bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
                       min="-1000"
                       step="5"
                       disabled={locked}
                       title={locked ? "Pro only" : ""}
                     />
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Filter out odds above this value</p>
                   </div>
                 </div>
 
@@ -1327,30 +1319,30 @@ export function BestOddsFilters({
           </div>
 
           {/* Footer with Reset, Cancel, Apply */}
-          <div className="filter-footer">
-            <div className="flex items-center justify-between gap-3">
+          <div className="filter-footer px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
               <button
                 onClick={reset}
                 disabled={locked}
-                className="h-10 rounded-lg border border-transparent px-4 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                className="h-9 sm:h-10 rounded-xl border border-transparent px-3 sm:px-4 text-xs sm:text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                 title={locked ? "Pro only" : ""}
               >
-                Reset All
+                Reset
               </button>
               <div className="flex gap-2">
                 <button
                   onClick={() => setOpen(false)}
-                  className="h-10 rounded-lg border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
+                  className="h-9 sm:h-10 rounded-xl border border-neutral-200 bg-white px-4 sm:px-5 text-xs sm:text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
-                  {locked ? 'Close' : 'Cancel'}
+                  Cancel
                 </button>
                 <button
                   onClick={apply}
                   disabled={locked}
-                  className={`apply-btn h-10 rounded-lg border border-brand bg-brand px-5 text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand ${hasUnsavedChanges ? 'active' : ''}`}
+                  className={`apply-btn h-9 sm:h-10 rounded-xl border border-brand bg-brand px-4 sm:px-5 text-xs sm:text-sm font-semibold text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand ${hasUnsavedChanges ? 'active' : ''}`}
                   title={locked ? "Pro only" : ""}
                 >
-                  Apply Filters
+                  Apply
                 </button>
               </div>
             </div>

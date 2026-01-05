@@ -14,7 +14,9 @@ import { PlayTypeAnalysis } from "@/components/hit-rates/play-type-analysis";
 import { ShootingZones } from "@/components/hit-rates/shooting-zones";
 import { PlayerCorrelations } from "@/components/hit-rates/player-correlations";
 import { LoadingState } from "@/components/common/loading-state";
-import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, BarChart3, Users, Target, Zap, Lock } from "lucide-react";
+import { ExternalLink, X, AlertCircle, Pencil, Check, ChevronDown, RotateCcw, BarChart3, Users, Target, Zap, Lock, Sparkles } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -128,6 +130,11 @@ export function PlayerQuickViewModal({
   event_id,
 }: PlayerQuickViewModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Check if user has Hit Rate access for advanced tabs (hit_rate or pro plan)
+  const { user } = useAuth();
+  const { hasAccess: hasAdvancedAccess } = useHasHitRateAccess();
+  const isAuthenticated = !!user;
 
   // Data fetching - skip lookup if nba_player_id is provided directly
   const needsLookup = !directNbaPlayerId && !!(odds_player_id || player_name);
@@ -893,36 +900,33 @@ export function PlayerQuickViewModal({
             <div className="shrink-0 px-4 sm:px-5 py-2 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-50/50 dark:bg-neutral-800/30">
               <div className="flex items-center gap-1 overflow-x-auto">
                 {[
-                  { id: "gamelog" as const, label: "Game Log", icon: BarChart3, locked: false },
-                  { id: "matchup" as const, label: "Matchup", icon: Target, locked: true },
-                  { id: "playstyle" as const, label: "Play Style", icon: Zap, locked: true },
-                  { id: "correlation" as const, label: "Correlation", icon: Users, locked: true },
+                  { id: "gamelog" as const, label: "Game Log", icon: BarChart3, proOnly: false },
+                  { id: "matchup" as const, label: "Matchup", icon: Target, proOnly: true },
+                  { id: "playstyle" as const, label: "Play Style", icon: Zap, proOnly: true },
+                  { id: "correlation" as const, label: "Correlation", icon: Users, proOnly: true },
                 ].map((tab) => {
                   const isActive = activeTab === tab.id;
                   const Icon = tab.icon;
                   return (
-                    <Tooltip
+                    <button
                       key={tab.id}
-                      content={tab.locked ? "Pro feature - Coming soon" : tab.label}
-                      side="bottom"
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        "relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap",
+                        isActive
+                          ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+                          : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/50 dark:hover:bg-neutral-800/50"
+                      )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab(tab.id)}
-                        className={cn(
-                          "relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap",
-                          isActive
-                            ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
-                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/50 dark:hover:bg-neutral-800/50"
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{tab.label}</span>
-                        {tab.locked && !isActive && (
-                          <Lock className="h-3 w-3 text-neutral-400 dark:text-neutral-500" />
-                        )}
-                      </button>
-                    </Tooltip>
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                      {tab.proOnly && !hasAdvancedAccess && (
+                        <span className="ml-1 px-1.5 py-0.5 text-[9px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded">
+                          PRO
+                        </span>
+                      )}
+                    </button>
                   );
                 })}
               </div>
@@ -1032,23 +1036,51 @@ export function PlayerQuickViewModal({
                   MATCHUP TAB - Defense vs Position Analysis
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "matchup" && (
-                <div className="space-y-6">
-                  {/* Defensive Analysis Matrix */}
-                  <DefensiveAnalysis
-                    playerId={profilePlayerId ?? 0}
-                    opponentTeamId={profileOpponentTeamId}
-                    opponentTeamAbbr={profileOpponentTeamAbbr}
-                    position={profilePosition}
-                  />
+                <div className="relative">
+                  {/* Pro gate overlay */}
+                  {!hasAdvancedAccess && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                      <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+                          <Sparkles className="w-7 h-7 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">
+                            Matchup Analysis
+                          </h3>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            See how this player performs against the opposing defense with detailed positional matchup data.
+                          </p>
+                        </div>
+                        <Link
+                          href="/pricing"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
+                        >
+                          <Lock className="w-4 h-4" />
+                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                   
-                  {/* Position vs Team Game Log */}
-                  <PositionVsTeam
-                    position={profilePosition}
-                    opponentTeamId={profileOpponentTeamId}
-                    opponentTeamAbbr={profileOpponentTeamAbbr}
-                    market={currentMarket}
-                    currentLine={activeLine}
-                  />
+                  <div className={cn("space-y-6", !hasAdvancedAccess && "pointer-events-none select-none")}>
+                    {/* Defensive Analysis Matrix */}
+                    <DefensiveAnalysis
+                      playerId={profilePlayerId ?? 0}
+                      opponentTeamId={profileOpponentTeamId}
+                      opponentTeamAbbr={profileOpponentTeamAbbr}
+                      position={profilePosition}
+                    />
+                    
+                    {/* Position vs Team Game Log */}
+                    <PositionVsTeam
+                      position={profilePosition}
+                      opponentTeamId={profileOpponentTeamId}
+                      opponentTeamAbbr={profileOpponentTeamAbbr}
+                      market={currentMarket}
+                      currentLine={activeLine}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1056,19 +1088,47 @@ export function PlayerQuickViewModal({
                   PLAY STYLE TAB - Play Type & Shooting Analysis
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "playstyle" && (
-                <div className="space-y-6">
-                  <PlayTypeAnalysis
-                    playerId={profilePlayerId ?? null}
-                    opponentTeamId={profileOpponentTeamId}
-                    opponentTeamAbbr={profileOpponentTeamAbbr}
-                    playerName={profilePlayerName}
-                  />
-                  <ShootingZones
-                    playerId={profilePlayerId}
-                    opponentTeamId={profileOpponentTeamId}
-                    playerName={profilePlayerName}
-                    opponentTeamAbbr={profileOpponentTeamAbbr}
-                  />
+                <div className="relative">
+                  {/* Pro gate overlay */}
+                  {!hasAdvancedAccess && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                      <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+                          <Sparkles className="w-7 h-7 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">
+                            Play Style Analysis
+                          </h3>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            Explore play type breakdowns and shooting zone charts to understand how this player scores.
+                          </p>
+                        </div>
+                        <Link
+                          href="/pricing"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
+                        >
+                          <Lock className="w-4 h-4" />
+                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className={cn("space-y-6", !hasAdvancedAccess && "pointer-events-none select-none")}>
+                    <PlayTypeAnalysis
+                      playerId={profilePlayerId ?? null}
+                      opponentTeamId={profileOpponentTeamId}
+                      opponentTeamAbbr={profileOpponentTeamAbbr}
+                      playerName={profilePlayerName}
+                    />
+                    <ShootingZones
+                      playerId={profilePlayerId}
+                      opponentTeamId={profileOpponentTeamId}
+                      playerName={profilePlayerName}
+                      opponentTeamAbbr={profileOpponentTeamAbbr}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1076,13 +1136,43 @@ export function PlayerQuickViewModal({
                   CORRELATION TAB - Teammate Correlations
                   ═══════════════════════════════════════════════════════════════════ */}
               {activeTab === "correlation" && (
-                <PlayerCorrelations
-                  playerId={profilePlayerId ?? null}
-                  market={currentMarket}
-                  line={activeLine}
-                  gameId={profile?.gameId}
-                  playerName={profilePlayerName}
-                />
+                <div className="relative">
+                  {/* Pro gate overlay */}
+                  {!hasAdvancedAccess && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                      <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+                          <Sparkles className="w-7 h-7 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">
+                            Player Correlations
+                          </h3>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            Discover which teammates boost or hurt this player&apos;s performance for smarter parlays.
+                          </p>
+                        </div>
+                        <Link
+                          href="/pricing"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
+                        >
+                          <Lock className="w-4 h-4" />
+                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className={cn(!hasAdvancedAccess && "pointer-events-none select-none")}>
+                    <PlayerCorrelations
+                      playerId={profilePlayerId ?? null}
+                      market={currentMarket}
+                      line={activeLine}
+                      gameId={profile?.gameId}
+                      playerName={profilePlayerName}
+                    />
+                  </div>
+                </div>
               )}
             </div>
 

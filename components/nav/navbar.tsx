@@ -328,7 +328,6 @@ function MobileNav({ domain }: { domain: string }) {
         { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
         { title: "Edge Finder", href: "/edge-finder" },
         { title: "Odds Screen", href: "/odds/nfl" },
-        { title: "Ladder Builder", href: "/ladders" },
       ],
     },
     {

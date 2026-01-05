@@ -4,7 +4,6 @@ import React, { useState, useMemo, useCallback } from "react";
 import { 
   Loader2, 
   Search, 
-  SlidersHorizontal, 
   ChevronDown, 
   ChevronUp,
   RefreshCw,
@@ -97,7 +96,6 @@ export function MobileEdgeFinder({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState("all");
   const [sortOption, setSortOption] = useState("edge_desc");
-  const [showFilters, setShowFilters] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   
@@ -282,91 +280,54 @@ export function MobileEdgeFinder({
             )}
           </div>
           
-          {/* Quick Filter Toggle (Sport & Sort) */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={cn(
-              "p-2.5 rounded-xl transition-colors",
-              showFilters 
-                ? "bg-brand text-white" 
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-            )}
-          >
-            <SlidersHorizontal className="w-5 h-5" />
-          </button>
+          {/* Filter Button - Opens BestOddsFilters Sheet */}
+          {prefs && onPrefsChange && (
+            <BestOddsFilters
+              prefs={{ ...prefs, columnOrder: prefs.columnOrder ?? [] }}
+              onPrefsChange={(newPrefs) => onPrefsChange({ ...newPrefs, columnOrder: newPrefs.columnOrder ?? [] })}
+              availableLeagues={availableLeagues}
+              availableMarkets={availableMarkets}
+              availableSportsbooks={availableSportsbooks}
+              customPresetActive={isCustomMode}
+              deals={opportunities.map(opp => ({
+                bestBook: opp.bestBook,
+                bestPrice: opp.bestDecimal,
+                allBooks: opp.allBooks?.map(book => ({
+                  book: book.book,
+                  price: book.decimal,
+                  link: book.link ?? "",
+                })) || [],
+              }))}
+            />
+          )}
         </div>
         
-        {/* Expandable Filters */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-neutral-200 dark:border-neutral-800"
-            >
-              <div className="px-4 py-3 space-y-3">
-                {/* Sport Pills */}
-                <div>
-                  <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 block">
-                    Sport
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {SPORT_OPTIONS.map(sport => (
-                      <button
-                        key={sport.value}
-                        onClick={() => setSelectedSport(sport.value)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
-                          selectedSport === sport.value
-                            ? "bg-brand text-white"
-                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                        )}
-                      >
-                        {sport.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Sort */}
-                <div>
-                  <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 block">
-                    Sort By
-                  </span>
-                  <select
-                    value={sortOption}
-                    onChange={(e) => setSortOption(e.target.value)}
-                    className={cn(
-                      "w-full px-3 py-2.5 rounded-xl text-sm font-medium",
-                      "bg-neutral-100 dark:bg-neutral-800",
-                      "border-0 focus:ring-0 focus:outline-none",
-                      "text-neutral-900 dark:text-white"
-                    )}
-                  >
-                    {SORT_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {/* Results Count */}
-        <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-900/50 border-t border-neutral-200/50 dark:border-neutral-800/50">
+        {/* Quick Sort & Results Count */}
+        <div className="flex items-center justify-between px-4 py-2 bg-neutral-50 dark:bg-neutral-900/50 border-t border-neutral-200/50 dark:border-neutral-800/50">
           <span className="text-xs font-medium text-neutral-500">
             {filteredOpportunities.length} edges found
           </span>
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value)}
+            className={cn(
+              "px-2 py-1 rounded-lg text-xs font-medium",
+              "bg-neutral-100 dark:bg-neutral-800",
+              "border-0 focus:ring-0 focus:outline-none",
+              "text-neutral-700 dark:text-neutral-300"
+            )}
+          >
+            {SORT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       
-      {/* Spacer for fixed header - accounts for title + models bar + search + optional filters */}
-      <div style={{ height: showFilters ? "350px" : "240px" }} className="transition-all duration-200" />
+      {/* Spacer for fixed header */}
+      <div style={{ height: "220px" }} />
       
       {/* Edge Cards */}
       <div className="pt-3 pb-24 bg-neutral-100/50 dark:bg-neutral-950">
@@ -442,27 +403,6 @@ export function MobileEdgeFinder({
             Upgrade to Pro for All Edges
           </a>
         </div>
-      )}
-      
-      {/* Filters (reuses BestOddsFilters with Sheet component) */}
-      {prefs && onPrefsChange && (
-        <BestOddsFilters
-          prefs={{ ...prefs, columnOrder: prefs.columnOrder ?? [] }}
-          onPrefsChange={(newPrefs) => onPrefsChange({ ...newPrefs, columnOrder: newPrefs.columnOrder ?? [] })}
-          availableLeagues={availableLeagues}
-          availableMarkets={availableMarkets}
-          availableSportsbooks={availableSportsbooks}
-          customPresetActive={isCustomMode}
-          deals={opportunities.map(opp => ({
-            bestBook: opp.bestBook,
-            bestPrice: opp.bestDecimal,
-            allBooks: opp.allBooks?.map(book => ({
-              book: book.book,
-              price: book.decimal,
-              link: book.link ?? "",
-            })) || [],
-          }))}
-        />
       )}
     </div>
   );

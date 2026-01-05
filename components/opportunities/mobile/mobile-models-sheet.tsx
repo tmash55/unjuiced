@@ -537,14 +537,13 @@ export function MobileModelsSheet({
             <button
               onClick={() => onOpenChange(false)}
               className={cn(
-                "w-full flex items-center justify-center gap-2 py-4 rounded-2xl",
-                "bg-gradient-to-r from-purple-600 to-pink-600",
-                "text-white font-bold text-base",
-                "shadow-xl shadow-purple-500/25",
+                "w-full flex items-center justify-center gap-2 py-3.5 rounded-xl",
+                "bg-neutral-900 dark:bg-white",
+                "text-white dark:text-neutral-900 font-semibold text-sm",
                 "active:scale-[0.98] transition-transform"
               )}
             >
-              <Zap className="w-5 h-5" />
+              <Check className="w-4 h-4" />
               <span>Apply {activePresets.length} Model{activePresets.length > 1 ? "s" : ""}</span>
             </button>
           </div>
