@@ -82,7 +82,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[] | null>(null); // null = not initialized yet
   
   // Advanced filter state (shared between table and sidebar)
-  const [hideNoOdds, setHideNoOdds] = useState(false);
+  const [hideNoOdds, setHideNoOdds] = useState(true); // Default ON - only show players with odds
   const [idsWithOdds, setIdsWithOdds] = useState<Set<string>>(new Set());
   
   // Glossary modal state
