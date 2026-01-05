@@ -623,7 +623,7 @@ export function GamesSidebar({
                           {selectedPlayer && gamePlayers.length > 0 && (
                             <div className="flex items-center justify-center mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50">
                               <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mr-1">
-                                {gamePlayers.length} players
+                                {gamePlayers.length} player{gamePlayers.length !== 1 ? 's' : ''}
                               </span>
                               {isExpanded ? (
                                 <ChevronUp className="h-3 w-3 text-neutral-400" />
@@ -637,31 +637,8 @@ export function GamesSidebar({
 
                         {/* Inline player list - integrated with game card, grouped by team */}
                         {selectedPlayer && isExpanded && gamePlayers.length > 0 && (() => {
-                          // Filter players based on hideNoOdds setting
-                          let filteredPlayers = gamePlayers;
-                          if (hideNoOdds && idsWithOdds && idsWithOdds.size > 0) {
-                            filteredPlayers = gamePlayers.filter(player => 
-                              player.oddsSelectionId && idsWithOdds.has(player.oddsSelectionId)
-                            );
-                          }
-                          
-                          // If no players left after filtering, show message
-                          if (filteredPlayers.length === 0) {
-                            return (
-                              <div className={cn(
-                                "overflow-hidden rounded-b-lg -mt-1 border-x border-b px-3 py-4 text-center",
-                                isCurrentPlayerGame
-                                  ? "border-brand/40 bg-brand/5"
-                                  : isNbaCup
-                                    ? "border-amber-500/30 bg-amber-500/5"
-                                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800"
-                              )}>
-                                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                  No players with odds available
-                                </p>
-                              </div>
-                            );
-                          }
+                          // Don't filter players in the sidebar - show all players
+                          const filteredPlayers = gamePlayers;
                           
                           // Group players by team and sort by seasonAvg (proxy for minutes/importance)
                           const playersByTeam = filteredPlayers.reduce((acc, player) => {

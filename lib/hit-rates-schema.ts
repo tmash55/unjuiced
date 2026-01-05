@@ -28,6 +28,8 @@ export interface RawHitRateProfile {
   last_20_pct: number | null;
   season_pct: number | null;
   h2h_pct: number | null;
+  h2h_avg: number | null;
+  h2h_games: number | null;
   last_5_avg: number | null;
   last_10_avg: number | null;
   last_20_avg: number | null;
@@ -85,6 +87,8 @@ export interface HitRateProfile {
   last20Pct: number | null;
   seasonPct: number | null;
   h2hPct: number | null; // Head-to-head percentage vs this opponent
+  h2hAvg: number | null; // Average stat value vs this opponent
+  h2hGames: number | null; // Number of games vs this opponent (sample size)
   last5Avg: number | null;
   last10Avg: number | null;
   last20Avg: number | null;

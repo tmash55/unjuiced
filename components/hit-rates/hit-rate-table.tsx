@@ -405,7 +405,7 @@ export function HitRateTable({
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [maxMatchupRank, setMaxMatchupRank] = useState<number>(0); // 0 = all
   // Support both controlled and uncontrolled hideNoOdds
-  const [hideNoOddsInternal, setHideNoOddsInternal] = useState(false);
+  const [hideNoOddsInternal, setHideNoOddsInternal] = useState(true);
   const hideNoOdds = hideNoOddsControlled ?? hideNoOddsInternal;
   const setHideNoOdds = onHideNoOddsChange ?? setHideNoOddsInternal;
   const filterPopupRef = useRef<HTMLDivElement>(null);
@@ -445,7 +445,7 @@ export function HitRateTable({
     setSelectedPositions(new Set());
     setMaxMatchupRank(0);
     setHideNoOdds(false);
-  }, []);
+  }, [setHideNoOdds]);
 
   // Restore scroll position when returning from drilldown
   useEffect(() => {
@@ -470,7 +470,8 @@ export function HitRateTable({
   }, [onMarketsChange]);
 
   const deselectAllMarkets = useCallback(() => {
-    onMarketsChange([]);
+    // Default back to points when deselecting all
+    onMarketsChange(["player_points"]);
   }, [onMarketsChange]);
 
   const handleSort = useCallback((field: SortField) => {
@@ -562,8 +563,12 @@ export function HitRateTable({
     
     const idsWithOdds = new Set<string>();
     for (const row of rows) {
-      if (row.oddsSelectionId && getOdds(row.oddsSelectionId)) {
-        idsWithOdds.add(row.oddsSelectionId);
+      if (row.oddsSelectionId) {
+        const odds = getOdds(row.oddsSelectionId);
+        // Only count as having odds if there are actual betting lines
+        if (odds && (odds.bestOver || odds.bestUnder)) {
+          idsWithOdds.add(row.oddsSelectionId);
+        }
       }
     }
     
@@ -1043,8 +1048,11 @@ export function HitRateTable({
           {sortedRows.map((row, idx) => {
             const odds = getOdds(row.oddsSelectionId);
             
-            // Apply hideNoOdds filter - skip rows without odds
-            if (hideNoOdds && !odds) return null;
+            // Apply hideNoOdds filter - skip rows without actual betting odds
+            // Check for bestOver or bestUnder since the API returns an object even when no odds exist
+            // Don't apply filter while odds are still loading
+            const hasActualOdds = odds && (odds.bestOver || odds.bestUnder);
+            if (hideNoOdds && !oddsLoading && !hasActualOdds) return null;
             
             const opponent = row.opponentTeamAbbr ?? row.opponentTeamName ?? "Opponent";
             const matchup = row.teamAbbr ? `${row.teamAbbr} vs ${opponent}` : opponent;

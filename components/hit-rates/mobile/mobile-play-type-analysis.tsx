@@ -150,11 +150,6 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
                           {playType.player_percentile && playType.player_percentile >= 80 && (
                             <Zap className="h-3 w-3 text-violet-500 shrink-0" />
                           )}
-                          {isFreeThrows && (
-                            <span className="text-[8px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold shrink-0">
-                              FT
-                            </span>
-                          )}
                         </div>
                         
                         {/* Points */}

@@ -242,6 +242,8 @@ export async function GET(request: Request) {
       last_20_pct: row.last_20_pct,
       season_pct: row.season_pct,
       h2h_pct: row.h2h_pct,
+      h2h_avg: row.h2h_avg,
+      h2h_games: row.h2h_games,
       hit_streak: row.hit_streak,
       
       // Averages

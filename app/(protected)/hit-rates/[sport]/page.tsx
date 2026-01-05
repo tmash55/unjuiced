@@ -33,9 +33,9 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-const INITIAL_PAGE_SIZE = 200; // Reduced for faster initial paint (1 game worth of props)
-const BACKGROUND_PAGE_SIZE = 2000; // Load more in background
-const FULL_DATA_SIZE = 10000; // Load all when in drilldown or filtering
+const INITIAL_PAGE_SIZE = 50; // Fast initial paint - just visible rows
+const BACKGROUND_PAGE_SIZE = 500; // Reduced - enough for most filtering without overload
+const FULL_DATA_SIZE = 3000; // Full dataset for sorting/filtering accuracy (only on user interaction)
 
 // Table display pagination - limit visible rows for performance
 const TABLE_PAGE_SIZE = 100; // Show 100 rows at a time
@@ -218,14 +218,15 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Check if specific games are selected (not "all games")
   const hasGameFilter = selectedGameIds.length > 0;
   
-  // Check if markets are filtered (not all selected)
-  const hasMarketFilter = selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length;
+  // Check if user has changed sort from default (need more data for accurate sorting)
+  const isDefaultSort = sortField === "l10Pct" && sortDirection === "desc";
+  const hasSortChanged = !isDefaultSort;
 
   // Determine how much data to fetch:
-  // - User interaction (drilldown, search, filter): Full data immediately
-  // - Background loaded: Use background data
+  // - Drilldown, search, game filter, or custom sort: Need more data for complete/accurate view
+  // - Background loaded: Use background data  
   // - Initial load: Just 50 rows for snappy UX
-  const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasMarketFilter;
+  const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasSortChanged;
 
   // Calculate limit based on state
   const currentLimit = needsFullData 
@@ -270,17 +271,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Total available count from API
   const totalCount = count ?? 0;
-  const hasMoreData = rows.length < totalCount && !hasLoadedBackground;
-  
-  // Load more handler for API data (background loading)
-  const handleLoadMoreData = useCallback(() => {
-    setHasLoadedBackground(true);
-  }, []);
-
-  // Show more handler for table pagination (UI only)
-  const handleShowMoreRows = useCallback(() => {
-    setVisibleRowCount(prev => prev + TABLE_LOAD_MORE);
-  }, []);
+  const hasMoreApiData = rows.length < totalCount && !hasLoadedBackground;
 
   // Player drill-down handler for TABLE clicks - always use exact profile clicked
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
@@ -377,7 +368,20 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     filteredRows.slice(0, visibleRowCount),
     [filteredRows, visibleRowCount]
   );
-  const hasMoreRows = filteredRows.length > visibleRowCount;
+  // Show "Load More" if there are more client rows OR more API data available
+  const hasMoreRows = filteredRows.length > visibleRowCount || hasMoreApiData;
+  
+  // Load more handler - fetches more from API if needed
+  const handleLoadMore = useCallback(() => {
+    // If we have more client-side rows to show, show them first
+    if (filteredRows.length > visibleRowCount) {
+      setVisibleRowCount(prev => prev + TABLE_LOAD_MORE);
+    } 
+    // Otherwise, trigger API fetch for more data
+    else if (hasMoreApiData) {
+      setHasLoadedBackground(true);
+    }
+  }, [filteredRows.length, visibleRowCount, hasMoreApiData]);
 
   // Mobile filtered rows - apply started games filter to match desktop behavior
   // Mobile does its own market/game filtering internally, but we pre-filter started games
@@ -480,7 +484,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
               error={error?.message}
               onRowClick={handleTableRowClick}
               hasMore={hasMoreRows}
-              onLoadMore={handleShowMoreRows}
+              onLoadMore={handleLoadMore}
               isLoadingMore={isFetching && rows.length > 0}
               totalCount={filteredRows.length}
               selectedMarkets={selectedMarkets}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { usePositionVsTeam, PositionVsTeamPlayer } from "@/hooks/use-position-vs-team";
 import { formatMarketLabel } from "@/lib/data/markets";
@@ -53,6 +53,11 @@ export function PositionVsTeam({
   const [showFilters, setShowFilters] = useState(false);
   const [gameLimit, setGameLimit] = useState(50);
   const [minMinutes, setMinMinutes] = useState(0);
+  
+  // Sync selectedPosition with position prop when it changes (e.g., when selecting a different player from sidebar)
+  useEffect(() => {
+    setSelectedPosition(position);
+  }, [position]);
   
   const { 
     players, 

@@ -616,8 +616,8 @@ export function MobileHeader({
   const selectAllGames = () => onGamesChange([]);
   const selectAllMarkets = () => onMarketsChange(marketOptions.map(m => m.value));
   const deselectAllMarkets = () => {
-    // Keep at least one market selected
-    onMarketsChange([marketOptions[0]?.value].filter(Boolean));
+    // Default back to points when deselecting all
+    onMarketsChange(["player_points"]);
   };
   
   const gamesLabel = selectedGameIds.length === 0 
