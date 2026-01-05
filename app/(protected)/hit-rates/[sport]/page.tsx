@@ -33,8 +33,8 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-const INITIAL_PAGE_SIZE = 50; // Fast initial paint - just visible rows
-const BACKGROUND_PAGE_SIZE = 500; // Reduced - enough for most filtering without overload
+const INITIAL_PAGE_SIZE = 500; // Good balance of data vs load time
+const BACKGROUND_PAGE_SIZE = 500; // Same as initial - no progressive loading needed
 const FULL_DATA_SIZE = 3000; // Full dataset for sorting/filtering accuracy (only on user interaction)
 
 // Table display pagination - limit visible rows for performance
@@ -245,16 +245,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     search: debouncedSearch || undefined,
   });
   
-  // Background fetch: After initial 50 load, automatically load more data
-  useEffect(() => {
-    if (!isLoading && rows.length > 0 && !hasLoadedBackground && !needsFullData) {
-      // Initial load completed, trigger background fetch after a short delay
-      const timer = setTimeout(() => {
-        setHasLoadedBackground(true);
-      }, 100); // Small delay to let UI render first
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, rows.length, hasLoadedBackground, needsFullData]);
+  // Background loading is now on-demand only (via Load More button or sort changes)
+  // This prevents duplicate API calls on initial page load
 
   // Reset background loading state when filters change
   useEffect(() => {
@@ -434,6 +426,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         selectedGameIds={effectiveMobileGameIds}
         onGameIdsChange={setMobileSelectedGameIds}
         startedGameIds={startedGameIds}
+        hideNoOdds={hideNoOdds}
+        onHideNoOddsChange={setHideNoOdds}
       />
     );
   }
