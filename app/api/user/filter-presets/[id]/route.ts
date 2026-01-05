@@ -66,6 +66,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body: FilterPresetUpdate = await request.json();
 
+    // Validate notes length if provided
+    if (body.notes !== undefined && body.notes !== null && body.notes.length > 500) {
+      return NextResponse.json(
+        { error: "Notes cannot exceed 500 characters" },
+        { status: 400 }
+      );
+    }
+
     // Build update object with only provided fields
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -83,7 +91,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (body.min_odds !== undefined) updateData.min_odds = body.min_odds;
     if (body.max_odds !== undefined) updateData.max_odds = body.max_odds;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
+    if (body.is_favorite !== undefined) updateData.is_favorite = body.is_favorite;
     if (body.sort_order !== undefined) updateData.sort_order = body.sort_order;
+    if (body.notes !== undefined) updateData.notes = body.notes;
 
     const { data: preset, error } = await supabase
       .from("user_filter_presets")

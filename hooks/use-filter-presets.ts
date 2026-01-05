@@ -41,6 +41,7 @@ export function useFilterPresets() {
 
   const presets = data?.presets || [];
   const activePresets = presets.filter((p) => p.is_active);
+  const favoritePresets = presets.filter((p) => p.is_favorite);
 
   // Create a new preset (with optimistic update for faster UX)
   const createMutation = useMutation({
@@ -79,7 +80,9 @@ export function useFilterPresets() {
           max_odds: newPreset.max_odds,
           is_active: false,
           is_default: newPreset.is_default || false,
+          is_favorite: newPreset.is_favorite || false,
           sort_order: previousData.presets.length,
+          notes: newPreset.notes || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -180,6 +183,45 @@ export function useFilterPresets() {
     },
   });
 
+  // Toggle a preset's favorite state (optimistic update)
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ id, is_favorite }: { id: string; is_favorite: boolean }) => {
+      const res = await fetch(`/api/user/filter-presets/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_favorite }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to toggle favorite");
+      }
+      return res.json();
+    },
+    // Optimistic update
+    onMutate: async ({ id, is_favorite }) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY });
+      const previousData = queryClient.getQueryData<FilterPresetsResponse>(QUERY_KEY);
+      
+      if (previousData) {
+        queryClient.setQueryData<FilterPresetsResponse>(QUERY_KEY, {
+          ...previousData,
+          presets: previousData.presets.map((p) =>
+            p.id === id ? { ...p, is_favorite } : p
+          ),
+        });
+      }
+      
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(QUERY_KEY, context.previousData);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+
   // Helper functions
   const createPreset = (preset: FilterPresetCreate) => createMutation.mutateAsync(preset);
   const updatePreset = (id: string, updates: FilterPresetUpdate) => 
@@ -188,6 +230,8 @@ export function useFilterPresets() {
   // Return a promise so callers can await batch toggles (manager modal save)
   const togglePreset = (id: string, is_active: boolean) =>
     toggleMutation.mutateAsync({ id, is_active });
+  const toggleFavorite = (id: string, is_favorite: boolean) =>
+    toggleFavoriteMutation.mutateAsync({ id, is_favorite });
 
   // Get presets grouped by sport (multi-sport presets go under "multi")
   const presetsBySport = presets.reduce((acc, preset) => {
@@ -204,9 +248,11 @@ export function useFilterPresets() {
     // Data
     presets,
     activePresets,
+    favoritePresets,
     presetsBySport,
     count: presets.length,
     activeCount: activePresets.length,
+    favoriteCount: favoritePresets.length,
     
     // State
     isLoading,
@@ -218,6 +264,7 @@ export function useFilterPresets() {
     updatePreset,
     deletePreset,
     togglePreset,
+    toggleFavorite,
     refetch,
     
     // Mutation states
@@ -225,6 +272,7 @@ export function useFilterPresets() {
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isToggling: toggleMutation.isPending,
+    isTogglingFavorite: toggleFavoriteMutation.isPending,
   };
 }
 

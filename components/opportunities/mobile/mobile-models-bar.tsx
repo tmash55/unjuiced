@@ -7,7 +7,6 @@ import {
   Plus, 
   ChevronRight, 
   Check, 
-  Settings,
   X,
   Zap,
   ArrowLeftRight
@@ -180,7 +179,7 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
           <button
             onClick={() => setShowManagerSheet(true)}
             className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all",
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0",
               "active:scale-[0.98]",
               isCustomMode
                 ? "bg-gradient-to-r from-pink-100 via-purple-100 to-blue-100 dark:from-pink-900/30 dark:via-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300"
@@ -188,12 +187,12 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
             )}
           >
             {isCustomMode ? (
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
             ) : (
-              <Filter className="w-4 h-4" />
+              <Filter className="w-3.5 h-3.5" />
             )}
             <span>{isCustomMode ? "Custom" : "Preset"}</span>
-            <ChevronRight className="w-4 h-4 opacity-50" />
+            <ChevronRight className="w-3 h-3 opacity-50" />
           </button>
 
           {/* Quick Swap Button */}
@@ -289,18 +288,6 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
                 })
               )}
               
-              {/* Manage/Add Button */}
-              <button
-                onClick={() => setShowManagerSheet(true)}
-                className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-xl",
-                  "bg-neutral-100 dark:bg-neutral-800",
-                  "border border-neutral-200 dark:border-neutral-700",
-                  "active:scale-[0.98] transition-transform"
-                )}
-              >
-                <Settings className="w-4 h-4 text-neutral-500" />
-              </button>
             </div>
           </div>
         </div>

@@ -26,7 +26,9 @@ export interface FilterPreset {
   // Metadata
   is_active: boolean;
   is_default: boolean;
+  is_favorite: boolean;
   sort_order: number;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,11 +46,18 @@ export interface FilterPresetCreate {
   min_odds: number;
   max_odds: number;
   is_default?: boolean;
+  is_favorite?: boolean;
+  notes?: string | null;
 }
+
+// Maximum character length for notes field
+export const NOTES_MAX_LENGTH = 500;
 
 export interface FilterPresetUpdate extends Partial<FilterPresetCreate> {
   is_active?: boolean;
+  is_favorite?: boolean;
   sort_order?: number;
+  notes?: string | null;
 }
 
 // For the API response

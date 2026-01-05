@@ -22,6 +22,7 @@ export async function GET() {
       .from("user_filter_presets")
       .select("*")
       .eq("user_id", user.id)
+      .order("is_favorite", { ascending: false }) // Favorites first
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -84,6 +85,14 @@ export async function POST(request: NextRequest) {
       ? existingPresets[0].sort_order + 1 
       : 0;
 
+    // Validate notes length if provided
+    if (body.notes && body.notes.length > 500) {
+      return NextResponse.json(
+        { error: "Notes cannot exceed 500 characters" },
+        { status: 400 }
+      );
+    }
+
     // Create the preset
     const { data: preset, error } = await supabase
       .from("user_filter_presets")
@@ -101,6 +110,8 @@ export async function POST(request: NextRequest) {
         min_odds: body.min_odds ?? -500,
         max_odds: body.max_odds ?? 300,
         is_active: true, // New presets are active by default
+        is_favorite: body.is_favorite ?? false,
+        notes: body.notes || null,
         sort_order: nextSortOrder,
       })
       .select()
