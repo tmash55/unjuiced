@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { X, Calculator, ExternalLink, AlertCircle, Copy, Check, Loader2 } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { X, Calculator, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sportsbooks, getSportsbookById } from "@/lib/data/sportsbooks";
 import type { ArbRow } from "@/lib/arb-schema";
@@ -112,14 +112,6 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
   const [loadingOver, setLoadingOver] = useState(false);
   const [loadingUnder, setLoadingUnder] = useState(false);
   
-  // Copy success states
-  const [copiedOver, setCopiedOver] = useState(false);
-  const [copiedUnder, setCopiedUnder] = useState(false);
-  
-  // Long press detection refs
-  const overPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const underPressTimer = useRef<NodeJS.Timeout | null>(null);
-  
   // Reset amounts when modal opens or row changes
   useEffect(() => {
     if (isOpen && row) {
@@ -130,11 +122,9 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
       );
       setOverAmount(sizes.over.toFixed(2));
       setUnderAmount(sizes.under.toFixed(2));
-      // Reset loading/copy states
+      // Reset loading states
       setLoadingOver(false);
       setLoadingUnder(false);
-      setCopiedOver(false);
-      setCopiedUnder(false);
     }
   }, [isOpen, row, defaultTotal]);
 
@@ -198,41 +188,6 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
       // Reset loading after a moment
       setTimeout(() => setLoading(false), 1000);
     }, 150);
-  };
-
-  // Copy stake to clipboard
-  const copyStake = useCallback(async (amount: string, side: 'over' | 'under') => {
-    try {
-      await navigator.clipboard.writeText(`$${parseFloat(amount).toFixed(2)}`);
-      if (side === 'over') {
-        setCopiedOver(true);
-        setTimeout(() => setCopiedOver(false), 2000);
-      } else {
-        setCopiedUnder(true);
-        setTimeout(() => setCopiedUnder(false), 2000);
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  }, []);
-
-  // Long press handlers for copy
-  const handlePressStart = (side: 'over' | 'under') => {
-    const timer = setTimeout(() => {
-      copyStake(side === 'over' ? overAmount : underAmount, side);
-    }, 500); // 500ms long press
-    if (side === 'over') {
-      overPressTimer.current = timer;
-    } else {
-      underPressTimer.current = timer;
-    }
-  };
-
-  const handlePressEnd = (side: 'over' | 'under') => {
-    const timer = side === 'over' ? overPressTimer.current : underPressTimer.current;
-    if (timer) {
-      clearTimeout(timer);
-    }
   };
 
   // Get side labels
@@ -361,13 +316,13 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
           </div>
         </div>
 
-        {/* Bet Cards - Two Columns */}
+        {/* Bet Cards - Two Columns with aligned rows */}
         <div className={cn("px-4 pb-4", isStale && "opacity-50")}>
-          <div className="flex gap-0">
+          <div className="grid grid-cols-[1fr_1px_1fr] gap-0">
             {/* Bet A - Over Side */}
-            <div className="flex-1 p-3">
-              {/* Book Logo & Name */}
-              <div className="flex items-center gap-2 mb-2">
+            <div className="p-3 flex flex-col">
+              {/* Book Logo & Name - Fixed height */}
+              <div className="flex items-center gap-2 h-7 mb-2">
                 {overLogo ? (
                   <img src={overLogo} alt={row.o?.bk || ''} className={cn("h-6 w-6 object-contain rounded", isStale && "grayscale")} />
                 ) : (
@@ -376,48 +331,22 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{overBookName}</span>
               </div>
               
-              {/* Side Label */}
-              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">{getSideLabel("over")}</div>
+              {/* Side Label - Fixed height */}
+              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 h-8 line-clamp-2">{getSideLabel("over")}</div>
               
-              {/* Odds */}
+              {/* Odds - Fixed height */}
               <div className={cn(
-                "font-bold text-xl mb-2 tabular-nums",
+                "font-bold text-2xl h-8 tabular-nums",
                 isStale ? "text-neutral-400 dark:text-neutral-500" : "text-emerald-600 dark:text-emerald-400"
               )}>{formatOdds(overOdds)}</div>
               
               {/* Stake Label */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">
-                  Stake at {overBookName.split(' ')[0]}
-                </span>
-                {/* Copy button */}
-                <button
-                  onClick={() => copyStake(overAmount, 'over')}
-                  className={cn(
-                    "p-0.5 rounded transition-colors",
-                    copiedOver 
-                      ? "text-emerald-500" 
-                      : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                  )}
-                  title="Copy stake"
-                >
-                  {copiedOver ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
+              <div className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium mt-3 mb-1">
+                Stake at {overBookName.split(' ')[0]}
               </div>
               
               {/* Input */}
-              <div 
-                className="relative mb-3"
-                onTouchStart={() => handlePressStart('over')}
-                onTouchEnd={() => handlePressEnd('over')}
-                onMouseDown={() => handlePressStart('over')}
-                onMouseUp={() => handlePressEnd('over')}
-                onMouseLeave={() => handlePressEnd('over')}
-              >
+              <div className="relative mb-3">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-sm font-medium">$</span>
                 <input
                   type="text"
@@ -455,7 +384,7 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 {loadingOver ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    <span className="truncate">Opening {overBookName.split(' ')[0]}...</span>
+                    <span className="truncate">Opening...</span>
                   </>
                 ) : (
                   <>
@@ -466,12 +395,12 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
             </div>
 
             {/* Divider */}
-            <div className="w-px bg-neutral-200 dark:bg-neutral-700/50 my-2" />
+            <div className="bg-neutral-200 dark:bg-neutral-700/50 my-2" />
 
             {/* Bet B - Under Side */}
-            <div className="flex-1 p-3">
-              {/* Book Logo & Name */}
-              <div className="flex items-center gap-2 mb-2">
+            <div className="p-3 flex flex-col">
+              {/* Book Logo & Name - Fixed height */}
+              <div className="flex items-center gap-2 h-7 mb-2">
                 {underLogo ? (
                   <img src={underLogo} alt={row.u?.bk || ''} className={cn("h-6 w-6 object-contain rounded", isStale && "grayscale")} />
                 ) : (
@@ -480,48 +409,22 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{underBookName}</span>
               </div>
               
-              {/* Side Label */}
-              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">{getSideLabel("under")}</div>
+              {/* Side Label - Fixed height */}
+              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 h-8 line-clamp-2">{getSideLabel("under")}</div>
               
-              {/* Odds */}
+              {/* Odds - Fixed height */}
               <div className={cn(
-                "font-bold text-xl mb-2 tabular-nums",
+                "font-bold text-2xl h-8 tabular-nums",
                 isStale ? "text-neutral-400 dark:text-neutral-500" : "text-rose-600 dark:text-rose-400"
               )}>{formatOdds(underOdds)}</div>
               
               {/* Stake Label */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">
-                  Stake at {underBookName.split(' ')[0]}
-                </span>
-                {/* Copy button */}
-                <button
-                  onClick={() => copyStake(underAmount, 'under')}
-                  className={cn(
-                    "p-0.5 rounded transition-colors",
-                    copiedUnder 
-                      ? "text-emerald-500" 
-                      : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                  )}
-                  title="Copy stake"
-                >
-                  {copiedUnder ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
+              <div className="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium mt-3 mb-1">
+                Stake at {underBookName.split(' ')[0]}
               </div>
               
               {/* Input */}
-              <div 
-                className="relative mb-3"
-                onTouchStart={() => handlePressStart('under')}
-                onTouchEnd={() => handlePressEnd('under')}
-                onMouseDown={() => handlePressStart('under')}
-                onMouseUp={() => handlePressEnd('under')}
-                onMouseLeave={() => handlePressEnd('under')}
-              >
+              <div className="relative mb-3">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-sm font-medium">$</span>
                 <input
                   type="text"
@@ -559,7 +462,7 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
                 {loadingUnder ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    <span className="truncate">Opening {underBookName.split(' ')[0]}...</span>
+                    <span className="truncate">Opening...</span>
                   </>
                 ) : (
                   <>
@@ -609,15 +512,6 @@ export function BetCalculatorModal({ row, currentRow, isOpen, onClose, defaultTo
           </div>
         </div>
 
-        {/* Copy Success Toast */}
-        {(copiedOver || copiedUnder) && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div className="flex items-center gap-1.5">
-              <Check className="w-3 h-3 text-emerald-400 dark:text-emerald-600" />
-              Stake copied!
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
