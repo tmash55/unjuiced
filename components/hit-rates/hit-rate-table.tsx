@@ -567,7 +567,7 @@ export function HitRateTable({
         const odds = getOdds(row.oddsSelectionId);
         // Only count as having odds if there are actual betting lines
         if (odds && (odds.bestOver || odds.bestUnder)) {
-          idsWithOdds.add(row.oddsSelectionId);
+        idsWithOdds.add(row.oddsSelectionId);
         }
       }
     }

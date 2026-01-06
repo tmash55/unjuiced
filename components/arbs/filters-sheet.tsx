@@ -11,10 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { getAllSports, getAllLeagues, getLeaguesBySport } from "@/lib/data/sports";
 import { useArbitragePreferences } from "@/context/preferences-context";
-import { Filter, Building2, Percent, Trophy } from "lucide-react";
+import { Filter, Building2, Percent, Trophy, User, Gamepad2 } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import Lock from "@/icons/lock";
 import { ButtonLink } from "@/components/button-link";
+import type { MarketType } from "@/lib/arb-filters";
 
 export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { children?: React.ReactNode; pro?: boolean; isLoggedIn?: boolean }) {
   const { filters, updateFilters } = useArbitragePreferences();
@@ -26,9 +27,11 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
   const [localBooks, setLocalBooks] = useState<string[]>(filters.selectedBooks || []);
   const [localSports, setLocalSports] = useState<string[]>(filters.selectedSports || []);
   const [localLeagues, setLocalLeagues] = useState<string[]>(filters.selectedLeagues || []);
+  const [localMarketTypes, setLocalMarketTypes] = useState<MarketType[]>(filters.selectedMarketTypes || ['player', 'game']);
   const [minArb, setMinArb] = useState<number>(filters.minArb ?? 0);
   const [maxArb, setMaxArb] = useState<number>(filters.maxArb ?? 20);
   const [totalBetAmount, setTotalBetAmount] = useState<number>(filters.totalBetAmount ?? 200);
+  const [minLiquidity, setMinLiquidity] = useState<number>(filters.minLiquidity ?? 50);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Keep local UI state in sync when preferences load or change
@@ -36,9 +39,11 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
     setLocalBooks(filters.selectedBooks || []);
     setLocalSports(filters.selectedSports || []);
     setLocalLeagues(filters.selectedLeagues || []);
+    setLocalMarketTypes(filters.selectedMarketTypes || ['player', 'game']);
     setMinArb(filters.minArb ?? 0);
     setMaxArb(filters.maxArb ?? 20);
     setTotalBetAmount(filters.totalBetAmount ?? 200);
+    setMinLiquidity(filters.minLiquidity ?? 50);
     setHasUnsavedChanges(false);
   }, [filters]);
 
@@ -51,12 +56,15 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
       localSports.some(id => !(filters.selectedSports || []).includes(id)) ||
       localLeagues.length !== (filters.selectedLeagues || []).length ||
       localLeagues.some(id => !(filters.selectedLeagues || []).includes(id)) ||
+      localMarketTypes.length !== (filters.selectedMarketTypes || ['player', 'game']).length ||
+      localMarketTypes.some(id => !(filters.selectedMarketTypes || ['player', 'game']).includes(id)) ||
       minArb !== (filters.minArb ?? 0) ||
       maxArb !== (filters.maxArb ?? 20) ||
-      totalBetAmount !== (filters.totalBetAmount ?? 200);
+      totalBetAmount !== (filters.totalBetAmount ?? 200) ||
+      minLiquidity !== (filters.minLiquidity ?? 50);
     
     setHasUnsavedChanges(changed);
-  }, [localBooks, localSports, localLeagues, minArb, maxArb, totalBetAmount, filters]);
+  }, [localBooks, localSports, localLeagues, localMarketTypes, minArb, maxArb, totalBetAmount, minLiquidity, filters]);
 
   const toggleBook = (id: string) => {
     setLocalBooks(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
@@ -70,14 +78,20 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
     setLocalLeagues(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
   };
 
+  const toggleMarketType = (type: MarketType) => {
+    setLocalMarketTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+  };
+
   const apply = async () => {
     await updateFilters({ 
       selectedBooks: localBooks, 
       selectedSports: localSports,
       selectedLeagues: localLeagues,
+      selectedMarketTypes: localMarketTypes,
       minArb, 
       maxArb, 
-      totalBetAmount
+      totalBetAmount,
+      minLiquidity
     });
     setOpen(false);
   };
@@ -86,19 +100,24 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
     const defaultBooks = allBooks.map(b => b.id);
     const defaultSports = allSports.map(s => s.id);
     const defaultLeagues = allLeagues.map(l => l.id);
+    const defaultMarketTypes: MarketType[] = ['player', 'game'];
     setLocalBooks(defaultBooks);
     setLocalSports(defaultSports);
     setLocalLeagues(defaultLeagues);
+    setLocalMarketTypes(defaultMarketTypes);
     setMinArb(0);
     setMaxArb(20);
     setTotalBetAmount(200);
+    setMinLiquidity(50);
     await updateFilters({ 
       selectedBooks: defaultBooks, 
       selectedSports: defaultSports,
       selectedLeagues: defaultLeagues,
+      selectedMarketTypes: defaultMarketTypes,
       minArb: 0, 
       maxArb: 20, 
-      totalBetAmount: 200
+      totalBetAmount: 200,
+      minLiquidity: 50
     });
   };
 
@@ -142,18 +161,22 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <Tabs defaultValue="books" className="w-full">
-              <TabsList className="filter-tabs grid w-full grid-cols-3">
+              <TabsList className="filter-tabs grid w-full grid-cols-4">
                 <TabsTrigger value="books" className="flex items-center justify-center gap-2">
                   <Building2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sportsbooks</span>
+                  <span className="hidden sm:inline">Books</span>
                 </TabsTrigger>
                 <TabsTrigger value="sports" className="flex items-center justify-center gap-2">
                   <Trophy className="h-4 w-4" />
                   <span className="hidden sm:inline">Sports</span>
                 </TabsTrigger>
+                <TabsTrigger value="markets" className="flex items-center justify-center gap-2">
+                  <Gamepad2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Markets</span>
+                </TabsTrigger>
                 <TabsTrigger value="roi" className="flex items-center justify-center gap-2">
                   <Percent className="h-4 w-4" />
-                  <span className="hidden sm:inline">ROI & Amount</span>
+                  <span className="hidden sm:inline">ROI</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -318,6 +341,96 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                 </div>
               </TabsContent>
 
+              <TabsContent value="markets" className="filter-section">
+                <div className="filter-section-header flex items-center justify-between">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Filter by market type</p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => pro && setLocalMarketTypes(['player', 'game'])} 
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
+                    >
+                      Select All
+                    </button>
+                    <button 
+                      onClick={() => pro && setLocalMarketTypes([])} 
+                      disabled={!pro}
+                      className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                      title={!pro ? "Pro only" : ""}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Player Props */}
+                  <label
+                    className={`filter-card flex items-center gap-4 rounded-lg border p-4 ${
+                      !pro ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-sm'
+                    } ${
+                      localMarketTypes.includes('player')
+                        ? 'active' 
+                        : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
+                    }`}
+                    title={!pro ? "Pro only" : ""}
+                  >
+                    <Checkbox 
+                      checked={localMarketTypes.includes('player')} 
+                      onCheckedChange={() => toggleMarketType('player')} 
+                      disabled={!pro} 
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                        <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium leading-none">Player Props</span>
+                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                          Points, assists, rebounds, touchdowns, etc.
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Game Props */}
+                  <label
+                    className={`filter-card flex items-center gap-4 rounded-lg border p-4 ${
+                      !pro ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-sm'
+                    } ${
+                      localMarketTypes.includes('game')
+                        ? 'active' 
+                        : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
+                    }`}
+                    title={!pro ? "Pro only" : ""}
+                  >
+                    <Checkbox 
+                      checked={localMarketTypes.includes('game')} 
+                      onCheckedChange={() => toggleMarketType('game')} 
+                      disabled={!pro} 
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                        <Gamepad2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium leading-none">Game Props</span>
+                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                          Moneyline, spreads, totals, team props
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                  <p className="text-xs text-blue-900 dark:text-blue-100">
+                    <strong>Tip:</strong> Filter to only see player prop or game prop arbitrage opportunities.
+                  </p>
+                </div>
+              </TabsContent>
+
               <TabsContent value="roi" className="mt-6 space-y-6">
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -351,17 +464,31 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                   </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Total Bet Amount ($)</Label>
-                  <Input 
-                    type="number" 
-                    value={totalBetAmount} 
-                    onChange={(e) => pro && setTotalBetAmount(Number(e.target.value))}
-                    disabled={!pro}
-                    className="h-10"
-                    title={!pro ? "Pro only" : ""}
-                  />
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Default total stake for equal-profit splits</p>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Total Bet Amount ($)</Label>
+                    <Input 
+                      type="number" 
+                      value={totalBetAmount} 
+                      onChange={(e) => pro && setTotalBetAmount(Number(e.target.value))}
+                      disabled={!pro}
+                      className="h-10"
+                      title={!pro ? "Pro only" : ""}
+                    />
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Default total stake for equal-profit splits</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Min Liquidity ($)</Label>
+                    <Input 
+                      type="number" 
+                      value={minLiquidity} 
+                      onChange={(e) => pro && setMinLiquidity(Number(e.target.value))}
+                      disabled={!pro}
+                      className="h-10"
+                      title={!pro ? "Pro only" : ""}
+                    />
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide arbs where max bet is below this amount</p>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>

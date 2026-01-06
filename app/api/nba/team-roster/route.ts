@@ -92,10 +92,10 @@ export async function GET(req: NextRequest) {
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const { data, error } = await supabase.rpc("get_team_roster", {
-        p_team_id: teamId,
-        p_season: season,
-      });
-      
+      p_team_id: teamId,
+      p_season: season,
+    });
+
       if (!error) {
         rpcResult = data;
         break;

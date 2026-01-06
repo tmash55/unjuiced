@@ -30,22 +30,26 @@ interface PreferencesContextType {
     selectedBooks?: string[];
     selectedSports?: string[];
     selectedLeagues?: string[];
+    selectedMarketTypes?: ('player' | 'game')[];
     minArb?: number;
     maxArb?: number;
     totalBetAmount?: number;
     searchQuery?: string;
     roundBets?: boolean;
+    minLiquidity?: number;
   }) => Promise<void>;
   
   getArbitrageFilters: () => {
     selectedBooks: string[];
     selectedSports: string[];
     selectedLeagues: string[];
+    selectedMarketTypes: ('player' | 'game')[];
     minArb: number;
     maxArb: number;
     totalBetAmount: number;
     searchQuery: string;
     roundBets: boolean;
+    minLiquidity: number;
   };
   
   updateEvFilters: (filters: {
@@ -153,11 +157,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedBooks?: string[];
     selectedSports?: string[];
     selectedLeagues?: string[];
+    selectedMarketTypes?: ('player' | 'game')[];
     minArb?: number;
     maxArb?: number;
     totalBetAmount?: number;
     searchQuery?: string;
     roundBets?: boolean;
+    minLiquidity?: number;
   }>({});
   
   // Keep track of pending updates to avoid race conditions
@@ -441,11 +447,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedBooks?: string[];
     selectedSports?: string[];
     selectedLeagues?: string[];
+    selectedMarketTypes?: ('player' | 'game')[];
     minArb?: number;
     maxArb?: number;
     searchQuery?: string;
     totalBetAmount?: number;
     roundBets?: boolean;
+    minLiquidity?: number;
   }) => {
     // For anonymous users, update guest state instead of database
     if (!user) {
@@ -465,6 +473,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (filters.selectedLeagues !== undefined) {
       updates.arbitrage_selected_leagues = filters.selectedLeagues;
     }
+    if (filters.selectedMarketTypes !== undefined) {
+      (updates as any).arbitrage_selected_market_types = filters.selectedMarketTypes;
+    }
     if (filters.minArb !== undefined) {
       updates.arbitrage_min_arb = filters.minArb;
     }
@@ -479,6 +490,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.roundBets !== undefined) {
       (updates as any).arbitrage_round_bets = filters.roundBets;
+    }
+    if (filters.minLiquidity !== undefined) {
+      updates.arbitrage_min_liquidity = filters.minLiquidity;
     }
     
     await updatePreferences(updates);
@@ -579,6 +593,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     // Get all sports and leagues for defaults (matching vendor API format)
     const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey'];
     const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'];
+    const allMarketTypes: ('player' | 'game')[] = ['player', 'game'];
     
     // If logged-out user, use guest state with defaults
     if (!user) {
@@ -586,11 +601,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         selectedBooks: guestArb.selectedBooks ?? activeSportsbooks,
         selectedSports: guestArb.selectedSports ?? allSportsIds,
         selectedLeagues: guestArb.selectedLeagues ?? allLeaguesIds,
+        selectedMarketTypes: guestArb.selectedMarketTypes ?? allMarketTypes,
         minArb: guestArb.minArb ?? 0,
         maxArb: guestArb.maxArb ?? 20,
         totalBetAmount: guestArb.totalBetAmount ?? 200,
         searchQuery: guestArb.searchQuery ?? "",
         roundBets: guestArb.roundBets ?? false,
+        minLiquidity: guestArb.minLiquidity ?? 50,
       };
     }
     
@@ -600,11 +617,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         selectedBooks: activeSportsbooks,
         selectedSports: allSportsIds,
         selectedLeagues: allLeaguesIds,
+        selectedMarketTypes: allMarketTypes,
         minArb: 0,
         maxArb: 20,
         totalBetAmount: 200,
         searchQuery: "",
         roundBets: false,
+        minLiquidity: 50,
       };
     }
     
@@ -621,11 +640,13 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       // Otherwise use the value from DB (empty array = nothing selected, or specific items)
       selectedSports: preferences.arbitrage_selected_sports ?? allSportsIds,
       selectedLeagues: preferences.arbitrage_selected_leagues ?? allLeaguesIds,
+      selectedMarketTypes: (preferences as any).arbitrage_selected_market_types ?? allMarketTypes,
       minArb: preferences.arbitrage_min_arb ?? 0,
       maxArb: preferences.arbitrage_max_arb ?? 20,
       totalBetAmount: (typeof preferences.arbitrage_total_bet_amount === 'number' ? preferences.arbitrage_total_bet_amount : Number(preferences.arbitrage_total_bet_amount)) ?? 200,
       searchQuery: preferences.arbitrage_search_query || "",
       roundBets: (preferences as any).arbitrage_round_bets ?? false,
+      minLiquidity: (typeof preferences.arbitrage_min_liquidity === 'number' ? preferences.arbitrage_min_liquidity : Number(preferences.arbitrage_min_liquidity)) ?? 50,
     };
   }, [preferences, activeSportsbooks, user, guestArb]);
 

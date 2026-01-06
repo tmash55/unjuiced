@@ -224,7 +224,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Determine how much data to fetch:
   // - Drilldown, search, game filter, or custom sort: Need more data for complete/accurate view
-  // - Background loaded: Use background data  
+  // - Background loaded: Use background data
   // - Initial load: Just 50 rows for snappy UX
   const needsFullData = isInDrilldown || debouncedSearch || hasGameFilter || hasSortChanged;
 

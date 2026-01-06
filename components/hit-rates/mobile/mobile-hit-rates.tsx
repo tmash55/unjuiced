@@ -316,17 +316,17 @@ export function MobileHitRates({
               if (hideNoOdds && !oddsLoading && !hasActualOdds) return null;
               
               return (
-                <PlayerCard
-                  key={`${row.id}-${row.market}`}
-                  profile={row}
+              <PlayerCard
+                key={`${row.id}-${row.market}`}
+                profile={row}
                   odds={odds}
-                  onCardClick={() => onPlayerClick(row)}
-                  onAddToSlip={() => {
-                    // TODO: Implement add to slip
-                  }}
-                  isFirst={idx === 0}
-                  isBlurred={blurAfterIndex !== undefined && idx >= blurAfterIndex}
-                />
+                onCardClick={() => onPlayerClick(row)}
+                onAddToSlip={() => {
+                  // TODO: Implement add to slip
+                }}
+                isFirst={idx === 0}
+                isBlurred={blurAfterIndex !== undefined && idx >= blurAfterIndex}
+              />
               );
             })}
             
