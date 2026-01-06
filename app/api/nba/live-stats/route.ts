@@ -23,15 +23,17 @@ export async function GET(req: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Get target date (specified or latest)
+    // Get target date - use Eastern Time for "today" since NBA games are scheduled in ET
     let targetDate = dateFilter;
     if (!targetDate) {
-      const { data: latestGame } = await supabase
-        .from('nba_games')
-        .select('game_date')
-        .order('game_date', { ascending: false })
-        .limit(1);
-      targetDate = latestGame?.[0]?.game_date || new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const etFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      targetDate = etFormatter.format(now); // Format: YYYY-MM-DD
     }
 
     // Build query
@@ -145,9 +147,9 @@ export async function GET(req: NextRequest) {
     // Re-rank after filtering
     leaderboard = leaderboard.map((p, i) => ({ ...p, rank: i + 1 }));
 
-    // Get game summary
+    // Get game summary from nba_games_hr (the actively updated table)
     const { data: games } = await supabase
-      .from('nba_games')
+      .from('nba_games_hr')
       .select('game_status')
       .eq('game_date', targetDate);
 

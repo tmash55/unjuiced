@@ -94,6 +94,35 @@ export async function GET(req: NextRequest) {
     });
     let rows: Row[] = rowsParsed.filter(Boolean) as Row[];
     
+    // Enrich rows with player position from player metadata hash
+    // This is useful for DvP (Defense vs Position) analysis
+    const playerEnts = [...new Set(rows.map((r: any) => r?.ent).filter(Boolean))];
+    const playerMetaMap = new Map<string, { position?: string }>();
+    
+    if (playerEnts.length > 0) {
+      const playerMetaPromises = playerEnts.map(async (ent) => {
+        const playerKey = `props:${sport}:player:${ent}`;
+        const card = (await (redis as any).hgetall(playerKey)) as Record<string, string> | null;
+        return { ent, position: card?.position || null };
+      });
+      
+      const playerMetaResults = await Promise.all(playerMetaPromises);
+      playerMetaResults.forEach(({ ent, position }) => {
+        if (position) {
+          playerMetaMap.set(ent, { position });
+        }
+      });
+      
+      // Add position to each row
+      rows = rows.map((row: any) => {
+        const meta = playerMetaMap.get(row?.ent);
+        return {
+          ...row,
+          position: meta?.position || row.position || null,
+        };
+      });
+    }
+    
     if (process.env.NODE_ENV === 'development') {
       const nullCount = rowsParsed.filter(r => r === null).length;
       console.log(`[/api/props/table] Parsed ${rows.length} valid rows, ${nullCount} nulls`);
