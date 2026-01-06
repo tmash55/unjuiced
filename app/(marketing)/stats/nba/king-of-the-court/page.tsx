@@ -5,7 +5,6 @@ import { useTodaysGames, useLiveLeaderboard, useNBAProps } from '@/hooks/use-nba
 import { TodaysGames } from '@/components/nba/todays-games';
 import { LiveLeaderboard } from '@/components/nba/live-leaderboard';
 import { PRAProps } from '@/components/nba/pra-props';
-import { HistoricalBrowser } from '@/components/nba/historical-browser';
 import { AdvancedStatsPanel } from '@/components/nba/advanced-stats-panel';
 import { FiltersBar, FiltersBarSection } from '@/components/common/filters-bar';
 import { Activity, Calendar, TrendingUp, BarChart3, Trophy, Award, Flame, ChevronUp, Filter } from 'lucide-react';
@@ -14,7 +13,7 @@ import { InputSearch } from '@/components/icons/input-search';
 import { Tooltip } from '@/components/tooltip';
 import { cn } from '@/lib/utils';
 
-type MainTab = 'games' | 'leaderboard' | 'props' | 'historical' | 'advanced';
+type MainTab = 'games' | 'leaderboard' | 'props' | 'advanced';
 
 export default function KingOfTheCourtPage() {
   const [activeTab, setActiveTab] = useState<MainTab>('games'); // Default to games tab
@@ -94,12 +93,6 @@ export default function KingOfTheCourtPage() {
                 icon={<TrendingUp className="h-4 w-4" />}
                 label="Odds"
                 fullLabel="PRA Odds"
-              />
-              <TabButton
-                isActive={activeTab === 'historical'}
-                onClick={() => setActiveTab('historical')}
-                icon={<Calendar className="h-4 w-4" />}
-                label="Historical"
               />
               <TabButton
                 isActive={activeTab === 'advanced'}
@@ -260,13 +253,6 @@ export default function KingOfTheCourtPage() {
                   No props available
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Historical Tab */}
-          {activeTab === 'historical' && (
-            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6">
-              <HistoricalBrowser />
             </div>
           )}
 

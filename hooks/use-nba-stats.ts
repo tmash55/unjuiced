@@ -25,8 +25,14 @@ export function useTodaysGames(enabled: boolean = true) {
       }
       const data = await response.json();
       
+      // Get primary date (today) from API response
+      const primaryDate = data.primaryDate || new Date().toISOString().split('T')[0];
+      
+      // Filter to only today's games (API returns both today and tomorrow)
+      const todaysGames = (data.games || []).filter((game: any) => game.game_date === primaryDate);
+      
       // Transform flat API response to nested NBAGame format
-      const games = (data.games || []).map((game: any) => {
+      const games = todaysGames.map((game: any) => {
         const gameStatus = game.game_status || '';
         const isLive = gameStatus.toLowerCase().includes('q') || 
                        gameStatus.toLowerCase().includes('half') ||
@@ -66,7 +72,7 @@ export function useTodaysGames(enabled: boolean = true) {
       const scheduled = games.length - live - final;
       
       return {
-        date: data.primaryDate || new Date().toISOString().split('T')[0],
+        date: primaryDate,
         games,
         summary: {
           total: games.length,
@@ -192,6 +198,7 @@ function transformPropsData(data: any, market: string) {
       sid,
       player: row.player || row.ent || 'Unknown',
       team: row.team || '',
+      position: row.position || null, // Player position for DvP analysis
       market: row.mkt || market,
       line: row.ln || 0,
       event: matchup,

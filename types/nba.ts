@@ -92,6 +92,7 @@ export interface NBAProp {
   sid: string;
   player: string;
   team: string;
+  position: string | null; // Player position (PG, SG, SF, PF, C) for DvP analysis
   market: string;
   line: number;
   event: string;
