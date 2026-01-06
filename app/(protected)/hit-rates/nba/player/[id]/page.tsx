@@ -28,7 +28,7 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
 
   // Fetch all profiles for this player (all markets)
   const { rows: playerProfiles, isLoading, error } = useHitRateTable({
-    player_id: playerId,
+    playerId: playerId,
     enabled: !isNaN(playerId),
     limit: 100, // Get all markets
   });

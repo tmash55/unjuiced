@@ -19,6 +19,8 @@ import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { MobileArbsView } from "@/components/arbs/mobile";
 
 export default function ArbsPage() {
   // VC-Grade: Use centralized, cached Pro status
@@ -101,6 +103,9 @@ export default function ArbsPage() {
   }, [searchLocal]);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  
+  // Mobile detection
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const bestRoi = useMemo(() => rows.length ? Math.max(...rows.map(r => (r.roi_bps || 0) / 100)).toFixed(2) : "0.00", [rows]);
   const [previewBestRoi, setPreviewBestRoi] = useState<string>("0.00");
   const [freshFound, setFreshFound] = useState(false);
@@ -117,20 +122,13 @@ export default function ArbsPage() {
     return () => clearTimeout(t);
   }, [bestRoi]);
 
-  // Preferences-based sportsbook filtering (client-side hide only)
+  // Get preferences for roundBets setting (filtering now handled by useArbsView via matchesArbRow)
   const { filters: arbFilters } = useArbitragePreferences();
   const roundBets = (arbFilters as any)?.roundBets ?? false;
-  const allowed = new Set((arbFilters?.selectedBooks || []).map((s: string) => s.toLowerCase()));
-  const norm = (s?: string) => (s || "").toLowerCase();
-  const filteredPairs = rows.map((r, i) => ({ r, id: ids[i] }))
-    .filter(({ r }) => {
-      if (!arbFilters?.selectedBooks?.length) return true;
-      const overOk = !r?.o?.bk || allowed.has(norm(r.o.bk));
-      const underOk = !r?.u?.bk || allowed.has(norm(r.u.bk));
-      return overOk && underOk;
-    });
-  const fRows = filteredPairs.map(p => p.r);
-  const fIds = filteredPairs.map(p => p.id);
+  
+  // Rows are already filtered by useArbsView (sportsbooks, ROI, liquidity, etc.)
+  const fRows = rows;
+  const fIds = ids;
 
   // Show loading state while checking plan
   if (planLoading) {
@@ -138,6 +136,32 @@ export default function ArbsPage() {
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
         <LoadingState type="account" />
       </div>
+    );
+  }
+
+  // Mobile View
+  if (isMobile) {
+    return (
+      <MobileArbsView
+        rows={fRows}
+        changes={changes}
+        added={added}
+        totalBetAmount={prefs.totalBetAmount}
+        roundBets={roundBets}
+        isPro={pro}
+        isLoggedIn={loggedIn}
+        counts={pro ? counts : previewCounts}
+        mode={mode}
+        onModeChange={setMode}
+        loading={loading || prefsLoading}
+        onRefresh={async () => {
+          try { setRefreshing(true); await refresh(); } finally { setRefreshing(false); }
+        }}
+        refreshing={refreshing}
+        connected={connected}
+        autoEnabled={auto}
+        onToggleAuto={setAuto}
+      />
     );
   }
 

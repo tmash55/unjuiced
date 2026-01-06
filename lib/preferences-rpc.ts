@@ -46,10 +46,12 @@ export interface UserPreferences {
   arbitrage_selected_books?: string[];
   arbitrage_selected_sports?: string[];
   arbitrage_selected_leagues?: string[];
+  arbitrage_selected_market_types?: string[];
   arbitrage_min_arb?: number;
   arbitrage_max_arb?: number;
   arbitrage_total_bet_amount?: number;
   arbitrage_search_query?: string;
+  arbitrage_min_liquidity?: number;
   
   ev_selected_books?: string[];
   ev_min_odds?: number;
@@ -151,10 +153,12 @@ export class PreferencesRPC {
       // Return undefined only if column doesn't exist (NULL in DB), otherwise return the array (even if empty)
       arbitrage_selected_sports: data?.arbitrage_selected_sports !== null ? data?.arbitrage_selected_sports : undefined,
       arbitrage_selected_leagues: data?.arbitrage_selected_leagues !== null ? data?.arbitrage_selected_leagues : undefined,
+      arbitrage_selected_market_types: data?.arbitrage_selected_market_types !== null ? data?.arbitrage_selected_market_types : undefined,
       arbitrage_min_arb: data?.arbitrage_min_arb ?? 0,
       arbitrage_max_arb: data?.arbitrage_max_arb ?? 20,
       arbitrage_total_bet_amount: typeof data?.arbitrage_total_bet_amount === 'number' ? data!.arbitrage_total_bet_amount : (data?.arbitrage_total_bet_amount ? Number(data?.arbitrage_total_bet_amount) : undefined),
       arbitrage_search_query: data?.arbitrage_search_query || "",
+      arbitrage_min_liquidity: typeof data?.arbitrage_min_liquidity === 'number' ? data.arbitrage_min_liquidity : (data?.arbitrage_min_liquidity ? Number(data?.arbitrage_min_liquidity) : 50),
       
       ev_selected_books: data?.ev_selected_books || [],
       ev_min_odds: data?.ev_min_odds ?? -200,

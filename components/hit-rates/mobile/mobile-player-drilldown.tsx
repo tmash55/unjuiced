@@ -3432,7 +3432,8 @@ export function MobilePlayerDrilldown({
   const chartGames = useMemo(() => {
     if (!boxScoreGames) return [];
     
-    // Create a map of game_id to teammates_out from profile.gameLogs
+    // Build a lookup of player_id -> avg from profile.gameLogs (which has avg data)
+    const playerAvgMap = new Map<number, number | null>();
     const gameLogs = profile.gameLogs as Array<{ 
       game_id?: string; 
       teammates_out?: Array<{ 
@@ -3442,11 +3443,38 @@ export function MobilePlayerDrilldown({
       }> 
     }> | null;
     
-    const teammatesOutMap = new Map<string, Array<{ player_id: number; name: string; avg: number | null }>>();
     if (gameLogs) {
       for (const log of gameLogs) {
+        if (log.teammates_out) {
+          for (const t of log.teammates_out) {
+            if (t.player_id && t.avg !== undefined) {
+              playerAvgMap.set(t.player_id, t.avg);
+            }
+          }
+        }
+      }
+    }
+    
+    // Create a map of game_id to teammates_out
+    // Prefer gamesWithInjuries (full history) over profile.gameLogs (recent games only)
+    const teammatesOutMap = new Map<string, Array<{ player_id: number; name: string; avg: number | null }>>();
+    
+    if (gamesWithInjuries && gamesWithInjuries.length > 0) {
+      // Use full injury context data for ALL games
+      for (const game of gamesWithInjuries) {
+        if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
+          const normalizedId = String(game.game_id).replace(/^0+/, "");
+          teammatesOutMap.set(normalizedId, game.teammates_out.map(t => ({
+            player_id: t.player_id,
+            name: t.name,
+            avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from profile.gameLogs if available
+          })));
+        }
+      }
+    } else if (gameLogs) {
+      // Fallback to profile.gameLogs if injury data not yet loaded
+      for (const log of gameLogs) {
         if (log.game_id && log.teammates_out) {
-          // Normalize game ID by removing leading zeros
           const normalizedId = log.game_id.replace(/^0+/, "");
           teammatesOutMap.set(normalizedId, log.teammates_out);
         }
@@ -3472,7 +3500,7 @@ export function MobilePlayerDrilldown({
         teammates_out: teammatesOut, // Add teammates out for dialog
       };
     });
-  }, [boxScoreGames, profile.market, profile.gameLogs]);
+  }, [boxScoreGames, profile.market, gamesWithInjuries, profile.gameLogs]);
   
   // Filter games based on quick filters AND injury filters
   const filteredChartGames = useMemo(() => {

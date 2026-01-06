@@ -709,6 +709,44 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return map;
   }, [gamesWithInjuries, profile.gameLogs]);
 
+  // Transform gamesWithInjuries into the format expected by GameLogChart
+  // This provides teammates_out data for ALL games, not just recent ones from profile.gameLogs
+  const profileGameLogsForChart = useMemo(() => {
+    // Build a lookup of player_id -> avg from profile.gameLogs (which has avg data)
+    const playerAvgMap = new Map<number, number | null>();
+    const gameLogs = profile.gameLogs as Array<{ 
+      game_id?: string; 
+      teammates_out?: Array<{ player_id: number; name: string; avg: number | null }> 
+    }> | null;
+    
+    if (gameLogs) {
+      for (const log of gameLogs) {
+        if (log.teammates_out) {
+          for (const t of log.teammates_out) {
+            if (t.player_id && t.avg !== undefined) {
+              playerAvgMap.set(t.player_id, t.avg);
+            }
+          }
+        }
+      }
+    }
+    
+    // Prefer the full injury context data if available
+    if (gamesWithInjuries && gamesWithInjuries.length > 0) {
+      return gamesWithInjuries.map(game => ({
+        game_id: game.game_id,
+        date: game.game_date,
+        teammates_out: game.teammates_out?.map(t => ({
+          player_id: t.player_id,
+          name: t.name,
+          avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from profile.gameLogs if available
+        })) || [],
+      }));
+    }
+    // Fallback to profile.gameLogs if injury data not yet loaded
+    return gameLogs;
+  }, [gamesWithInjuries, profile.gameLogs]);
+
   // Helper function to apply quick filters
   const applyQuickFilters = (games: typeof boxScoreGames) => {
     if (quickFilters.size === 0) return games;
@@ -1308,9 +1346,9 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                           "text-[11px] font-bold tabular-nums",
                           isSelected 
                             ? getPctColor(stat.value)
-                            : stat.value !== null && stat.value >= 70 
+                            : stat.value != null && stat.value >= 70 
                               ? "text-emerald-600/70 dark:text-emerald-400/70" 
-                              : stat.value !== null && stat.value >= 50 
+                              : stat.value != null && stat.value >= 50 
                                 ? "text-amber-600/70 dark:text-amber-400/70" 
                                 : "text-red-500/70 dark:text-red-400/70"
                         )}>
@@ -1492,7 +1530,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             games={filteredGames}
               line={customLine ?? profile.line}
             market={profile.market}
-            profileGameLogs={profile.gameLogs as any}
+            profileGameLogs={profileGameLogsForChart as any}
               onLineChange={setCustomLine}
               quickFilters={quickFilters}
               onQuickFilterToggle={toggleQuickFilter}

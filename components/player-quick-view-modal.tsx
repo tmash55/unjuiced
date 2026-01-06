@@ -151,7 +151,7 @@ export function PlayerQuickViewModal({
   // Fetch profiles and box scores in PARALLEL (not sequential)
   // Only fetch when we have a player ID
   const { rows: profiles, isLoading: isLoadingProfiles } = useHitRateTable({
-    player_id: nba_player_id,
+    playerId: nba_player_id,
     enabled: open && !!nba_player_id,
     limit: 20, // Reduced from 50 - we only need current markets
   });

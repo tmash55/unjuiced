@@ -17,7 +17,7 @@ const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(15000).optional(),
   offset: z.coerce.number().min(0).optional(),
   search: z.string().optional(),
-  player_id: z.coerce.number().optional(), // nba_player_id for single player lookup
+  playerId: z.coerce.number().int().positive().optional(), // Filter by specific player
 });
 
 const DEFAULT_LIMIT = 200;
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
-    player_id: url.searchParams.get("player_id") ?? undefined,
+    playerId: url.searchParams.get("playerId") ?? undefined,
   });
 
   if (!query.success) {
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { date, market, minHitRate, limit, offset, search, player_id } = query.data;
+  const { date, market, minHitRate, limit, offset, search, playerId } = query.data;
   
   const supabase = createServerSupabaseClient();
 
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   let totalCount = 0;
   const requestedLimit = limit ?? DEFAULT_LIMIT;
   // Don't use fast load when looking up a specific player (they might play tomorrow)
-  const isFastLoad = requestedLimit <= FAST_LOAD_THRESHOLD && !search && !player_id;
+  const isFastLoad = requestedLimit <= FAST_LOAD_THRESHOLD && !search && !playerId;
 
   if (date) {
     // Specific date requested - single call
@@ -75,12 +75,12 @@ export async function GET(request: Request) {
       p_market: market || null,
       p_min_hit_rate: minHitRate || null,
       p_search: search || null,
-      p_player_id: player_id || null,
+      p_player_id: playerId || null,
       p_limit: requestedLimit,
       p_offset: offset ?? 0,
     });
 
-  if (error) {
+    if (error) {
       console.error("[Hit Rates API] RPC error:", error.message);
     return NextResponse.json(
       { error: "Failed to load hit rates", details: error.message },
@@ -99,14 +99,14 @@ export async function GET(request: Request) {
     
     while (retries >= 0) {
       const result = await supabase.rpc("get_hit_rate_profiles", {
-      p_dates: [todayET],
-      p_market: market || null,
-      p_min_hit_rate: minHitRate || null,
-      p_search: null,
-      p_player_id: player_id || null,
-      p_limit: requestedLimit,
-      p_offset: 0,
-    });
+        p_dates: [todayET],
+        p_market: market || null,
+        p_min_hit_rate: minHitRate || null,
+        p_search: null,
+        p_player_id: playerId || null,
+        p_limit: requestedLimit,
+        p_offset: 0,
+      });
       
       data = result.data;
       error = result.error;
@@ -144,7 +144,7 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
-        p_player_id: player_id || null,
+        p_player_id: playerId || null,
         p_limit: queryLimit,
         p_offset: 0,
       }),
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
         p_market: market || null,
         p_min_hit_rate: minHitRate || null,
         p_search: search || null,
-        p_player_id: player_id || null,
+        p_player_id: playerId || null,
         p_limit: queryLimit,
         p_offset: 0,
       }),
@@ -243,6 +243,8 @@ export async function GET(request: Request) {
       last_20_pct: row.last_20_pct,
       season_pct: row.season_pct,
       h2h_pct: row.h2h_pct,
+      h2h_avg: row.h2h_avg,
+      h2h_games: row.h2h_games,
       hit_streak: row.hit_streak,
       
       // Averages

@@ -11,7 +11,7 @@ export interface UseHitRateTableOptions {
   limit?: number;
   offset?: number;
   search?: string; // Player name search (server-side)
-  player_id?: number; // nba_player_id for single player lookup
+  playerId?: number; // Filter by specific player ID (nba_player_id)
   enabled?: boolean;
 }
 
@@ -21,6 +21,19 @@ interface HitRateTableResult {
   meta: HitRateResponse["meta"];
 }
 
+// Timeout wrapper for fetch - prevents hanging on slow/failed requests
+const fetchWithTimeout = async (url: string, timeoutMs: number = 15000): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<HitRateTableResult> {
   const searchParams = new URLSearchParams();
   if (params.date) searchParams.set("date", params.date);
@@ -29,11 +42,13 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
   if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
   if (params.search?.trim()) searchParams.set("search", params.search.trim());
-  if (typeof params.player_id === "number") searchParams.set("player_id", String(params.player_id));
+  if (typeof params.playerId === "number") searchParams.set("playerId", String(params.playerId));
 
   const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-  // Allow browser/CDN caching for performance - API sets appropriate Cache-Control headers
-  const res = await fetch(url);
+  
+  // Use timeout to prevent hanging on slow/failed requests
+  // 15s timeout for initial load, browser cache will speed up subsequent loads
+  const res = await fetchWithTimeout(url, 15000);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -72,6 +87,8 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     last20Pct: profile.last_20_pct,
     seasonPct: profile.season_pct,
     h2hPct: profile.h2h_pct,
+    h2hAvg: profile.h2h_avg,
+    h2hGames: profile.h2h_games,
     last5Avg: profile.last_5_avg,
     last10Avg: profile.last_10_avg,
     last20Avg: profile.last_20_avg,
@@ -104,11 +121,11 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
 }
 
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
-  const { date, market, minHitRate, limit, offset, search, player_id, enabled = true } = options;
+  const { date, market, minHitRate, limit, offset, search, playerId, enabled = true } = options;
 
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, player_id }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, player_id }),
+    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId }],
+    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer

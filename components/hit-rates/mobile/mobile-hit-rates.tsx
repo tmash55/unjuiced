@@ -69,6 +69,9 @@ interface MobileHitRatesProps {
   bottomContent?: React.ReactNode;
   // Upgrade banner to show in header (for free users)
   upgradeBanner?: React.ReactNode;
+  // Hide players without odds
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (hide: boolean) => void;
 }
 
 export function MobileHitRates({
@@ -91,6 +94,8 @@ export function MobileHitRates({
   hideLoadMore = false,
   bottomContent,
   upgradeBanner,
+  hideNoOdds = true,
+  onHideNoOddsChange,
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)
   // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
@@ -144,6 +149,8 @@ export function MobileHitRates({
         return !startedGameIds.has(normalizeId(r.gameId));
       });
     }
+    
+    // Note: hideNoOdds filter is applied in render since odds are fetched separately
     
     // Sort - parse field and direction from sortField (e.g., "l10Pct_desc")
     const sortOption = SORT_OPTIONS.find(o => o.value === sortField);
@@ -203,7 +210,7 @@ export function MobileHitRates({
   const hasMore = !hideLoadMore && filteredRows.length > visibleCount;
 
   // Fetch odds for visible rows
-  const { getOdds } = useHitRateOdds({
+  const { getOdds, isLoading: oddsLoading } = useHitRateOdds({
     rows: visibleRows.map((r) => ({ 
       oddsSelectionId: r.oddsSelectionId, 
       line: r.line 
@@ -267,6 +274,8 @@ export function MobileHitRates({
           onCollapsedChange={setIsHeaderCollapsed}
           upgradeBanner={upgradeBanner}
           onGlossaryClick={() => setShowGlossary(true)}
+          hideNoOdds={hideNoOdds}
+          onHideNoOddsChange={onHideNoOddsChange}
         />
       </div>
       
@@ -297,11 +306,20 @@ export function MobileHitRates({
           </div>
         ) : (
           <>
-            {visibleRows.map((row, idx) => (
+            {visibleRows.map((row, idx) => {
+              const odds = getOdds?.(row.oddsSelectionId);
+              
+              // Apply hideNoOdds filter - skip rows without actual betting odds
+              // Check for bestOver or bestUnder since the API returns an object even when no odds exist
+              // Don't apply filter while odds are still loading
+              const hasActualOdds = odds && (odds.bestOver || odds.bestUnder);
+              if (hideNoOdds && !oddsLoading && !hasActualOdds) return null;
+              
+              return (
               <PlayerCard
                 key={`${row.id}-${row.market}`}
                 profile={row}
-                odds={getOdds?.(row.oddsSelectionId)}
+                  odds={odds}
                 onCardClick={() => onPlayerClick(row)}
                 onAddToSlip={() => {
                   // TODO: Implement add to slip
@@ -309,7 +327,8 @@ export function MobileHitRates({
                 isFirst={idx === 0}
                 isBlurred={blurAfterIndex !== undefined && idx >= blurAfterIndex}
               />
-            ))}
+              );
+            })}
             
             {/* Bottom Content (e.g. upgrade CTA) */}
             {bottomContent}

@@ -86,6 +86,9 @@ interface MobileHeaderProps {
   upgradeBanner?: React.ReactNode;
   // Glossary callback
   onGlossaryClick?: () => void;
+  // Hide players without odds
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (hide: boolean) => void;
 }
 
 // Helper to get team logo URL
@@ -544,6 +547,8 @@ export function MobileHeader({
   onCollapsedChange,
   upgradeBanner,
   onGlossaryClick,
+  hideNoOdds = true,
+  onHideNoOddsChange,
 }: MobileHeaderProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -616,8 +621,8 @@ export function MobileHeader({
   const selectAllGames = () => onGamesChange([]);
   const selectAllMarkets = () => onMarketsChange(marketOptions.map(m => m.value));
   const deselectAllMarkets = () => {
-    // Keep at least one market selected
-    onMarketsChange([marketOptions[0]?.value].filter(Boolean));
+    // Default back to points when deselecting all
+    onMarketsChange(["player_points"]);
   };
   
   const gamesLabel = selectedGameIds.length === 0 
@@ -1108,8 +1113,45 @@ export function MobileHeader({
       <DropdownPanel
         isOpen={openDropdown === "sort"}
         onClose={closeDropdown}
-        title="Sort By"
+        title="Sort & Filters"
       >
+        {/* Hide Players Without Odds Toggle */}
+        {onHideNoOddsChange && (
+          <div className="mb-4 mt-2">
+            <CategoryHeader 
+              label="Filters" 
+              icon={Target}
+            />
+            <label className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl cursor-pointer">
+              <div>
+                <div className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  Hide Players Without Odds
+                </div>
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  Only show props with betting lines
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hideNoOdds}
+                onClick={() => onHideNoOddsChange(!hideNoOdds)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                  hideNoOdds ? "bg-brand" : "bg-neutral-200 dark:bg-neutral-700"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
+                    hideNoOdds ? "translate-x-[22px]" : "translate-x-0.5"
+                  )}
+                />
+              </button>
+            </label>
+          </div>
+        )}
+
         {Object.entries(SORT_CATEGORIES).map(([key, category]) => {
           const categoryOptions = sortOptionsByCategory[key] || [];
           

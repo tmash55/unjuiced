@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useEffect, useRef, useCallback } from "react";
+import { useMemo, useEffect, useRef, useCallback, useState } from "react";
 
 /**
  * New Stable Key System for Hit Rate Odds
@@ -42,8 +42,9 @@ interface OddsResponse {
 }
 
 // Batch size for progressive loading
-const INITIAL_BATCH_SIZE = 50;
+const INITIAL_BATCH_SIZE = 25; // Reduced - only load odds for visible rows first
 const BACKGROUND_BATCH_SIZE = 100;
+const STARTUP_DELAY_MS = 150; // Let profiles render before fetching odds
 
 async function fetchHitRateOdds(selections: OddsRequest[]): Promise<OddsResponse> {
   if (!selections.length) {
@@ -87,6 +88,16 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
   const queryClient = useQueryClient();
   const backgroundFetchRef = useRef<boolean>(false);
   const allOddsRef = useRef<Record<string, LineOdds>>({});
+  
+  // Delay odds loading to let profiles render first (better perceived performance)
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => {
+    if (enabled && rows.length > 0) {
+      const timer = setTimeout(() => setIsReady(true), STARTUP_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+    setIsReady(false);
+  }, [enabled, rows.length]);
 
   // Build unique selections from rows
   const allSelections = useMemo(() => {
@@ -126,11 +137,11 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
     return ["hit-rate-odds-initial", sortedKeys.join(",")];
   }, [initialSelections]);
 
-  // Fetch initial batch immediately
+  // Fetch initial batch after startup delay (let profiles render first)
   const initialQuery = useQuery<OddsResponse>({
     queryKey: initialQueryKey,
     queryFn: () => fetchHitRateOdds(initialSelections),
-    enabled: enabled && initialSelections.length > 0,
+    enabled: isReady && initialSelections.length > 0,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,

@@ -85,17 +85,43 @@ export async function GET(req: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Call the RPC function
-    const { data: rpcResult, error } = await supabase.rpc("get_team_roster", {
+    // Call the RPC function with retry logic for transient errors (520, 503, timeout)
+    let rpcResult: RpcResponse | null = null;
+    let lastError: any = null;
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const { data, error } = await supabase.rpc("get_team_roster", {
       p_team_id: teamId,
       p_season: season,
     });
 
-    if (error) {
-      console.error("[Team Roster] RPC error:", error);
+      if (!error) {
+        rpcResult = data;
+        break;
+      }
+      
+      lastError = error;
+      const errorMsg = error.message?.toLowerCase() || "";
+      const isTransient = errorMsg.includes("520") || 
+                          errorMsg.includes("503") || 
+                          errorMsg.includes("timeout") ||
+                          errorMsg.includes("cloudflare");
+      
+      if (isTransient && attempt < maxRetries) {
+        console.warn(`[Team Roster] Transient error, retrying (${attempt + 1}/${maxRetries}):`, error.message?.slice(0, 100));
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // Exponential backoff
+        continue;
+      }
+      
+      break;
+    }
+
+    if (lastError && !rpcResult) {
+      console.error("[Team Roster] RPC error after retries:", lastError.message?.slice(0, 200));
       return NextResponse.json(
-        { error: "Failed to fetch team roster", details: error.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        { error: "Failed to fetch team roster", details: "Server temporarily unavailable" },
+        { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "5" } }
       );
     }
 

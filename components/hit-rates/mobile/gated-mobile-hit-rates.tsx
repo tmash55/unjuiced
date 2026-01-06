@@ -33,6 +33,9 @@ interface GatedMobileHitRatesProps {
   selectedGameIds: string[];
   onGameIdsChange: (gameIds: string[]) => void;
   startedGameIds?: Set<string>;
+  // Hide players without odds
+  hideNoOdds?: boolean;
+  onHideNoOddsChange?: (hide: boolean) => void;
 }
 
 // Header upgrade banner - under sport tabs
@@ -107,6 +110,8 @@ export function GatedMobileHitRates({
   selectedGameIds,
   onGameIdsChange,
   startedGameIds,
+  hideNoOdds = true,
+  onHideNoOddsChange,
 }: GatedMobileHitRatesProps) {
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
 
@@ -128,6 +133,8 @@ export function GatedMobileHitRates({
         selectedGameIds={selectedGameIds}
         onGameIdsChange={onGameIdsChange}
         startedGameIds={startedGameIds}
+        hideNoOdds={hideNoOdds}
+        onHideNoOddsChange={onHideNoOddsChange}
       />
     );
   }
@@ -150,6 +157,8 @@ export function GatedMobileHitRates({
       selectedGameIds={selectedGameIds}
       onGameIdsChange={onGameIdsChange}
       startedGameIds={startedGameIds}
+      hideNoOdds={hideNoOdds}
+      onHideNoOddsChange={onHideNoOddsChange}
       blurAfterIndex={FREE_USER_VISIBLE_ROWS}
       maxRows={TOTAL_PREVIEW_ROWS}
       hideLoadMore={true}

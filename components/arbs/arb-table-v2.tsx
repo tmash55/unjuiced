@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink, AlertTriangle, Lock } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle, Lock, Pin } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -28,6 +28,7 @@ interface ArbRowWithId extends ArbRow {
   _isNew?: boolean;
   _hasChange?: boolean;
   _isTeaser?: boolean;
+  _isPinned?: boolean;
 }
 
 const columnHelper = createColumnHelper<ArbRowWithId>();
@@ -35,6 +36,7 @@ const columnHelper = createColumnHelper<ArbRowWithId>();
 export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, roundBets = false, isPro = true }: ArbTableProps) {
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
   const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
+  const [pinnedRowId, setPinnedRowId] = useState<string | null>(null);
 
   const setCustomWagersBoth = React.useCallback((updater: (prev: Record<string, { over: string; under: string }>) => Record<string, { over: string; under: string }>) => {
     setCustomWagers(prev => {
@@ -370,7 +372,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                   }}
                   onBlur={(e) => commitOver(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    e.target.select();
+                    setPinnedRowId(id);
+                  }}
                   className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
                 />
               </div>
@@ -400,7 +405,10 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                   }}
                   onBlur={(e) => commitUnder(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  onFocus={(e) => e.target.select()}
+                  onFocus={(e) => {
+                    e.target.select();
+                    setPinnedRowId(id);
+                  }}
                   className="h-6 w-20 text-xs font-medium bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/60 rounded px-2 text-right focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-600"
                 />
               </div>
@@ -415,19 +423,36 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     );
   }
 
-  // Prepare data with IDs and flags
+  // Prepare data with IDs and flags, keeping pinned row at top
   const data = useMemo<ArbRowWithId[]>(() => {
-    return rows.map((r, i) => {
+    const mapped = rows.map((r, i) => {
       const id = ids[i];
+      const isPinned = id === pinnedRowId;
       return {
         ...r,
         _id: id,
         _isNew: added?.has(id),
         _hasChange: changes.has(id) && Object.keys(changes.get(id) || {}).length > 0,
         _isTeaser: (r as any)._isTeaser || false,
+        _isPinned: isPinned,
       };
     });
-  }, [rows, ids, added, changes]);
+    
+    // If there's a pinned row, move it to the top
+    if (pinnedRowId) {
+      const pinnedIndex = mapped.findIndex(row => row._id === pinnedRowId);
+      if (pinnedIndex === -1) {
+        // Pinned row no longer exists, clear pin
+        setPinnedRowId(null);
+        return mapped;
+      }
+      // Move pinned row to front
+      const [pinned] = mapped.splice(pinnedIndex, 1);
+      return [pinned, ...mapped];
+    }
+    
+    return mapped;
+  }, [rows, ids, added, changes, pinnedRowId]);
 
   // Define columns
   const columns = useMemo(() => [
@@ -440,18 +465,35 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       cell: (info) => {
         const roiPct = info.getValue().toFixed(2);
         const roiValue = parseFloat(roiPct);
+        const isPinned = (info.row.original as ArbRowWithId)._isPinned;
+        const rowId = (info.row.original as ArbRowWithId)._id;
         
         // High-tier opportunities (>5% ROI) get extra glow
         const isHighTier = roiValue >= 5;
         
         return (
-          <span className={cn(
-            "roi-badge up",
-            isHighTier && "shadow-[0_0_12px_rgba(132,204,22,0.4)] ring-1 ring-[var(--accent-strong)]/20"
-          )}>
-            <span className="caret"></span>
-            +{roiPct}%
-          </span>
+          <div className="flex items-center gap-2">
+            {isPinned && (
+              <Tooltip content="Click to unpin this row">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPinnedRowId(null);
+                  }}
+                  className="p-1 rounded-md bg-brand/20 hover:bg-brand/30 transition-colors"
+                >
+                  <Pin className="w-3.5 h-3.5 text-brand" />
+                </button>
+              </Tooltip>
+            )}
+            <span className={cn(
+              "roi-badge up",
+              isHighTier && "shadow-[0_0_12px_rgba(132,204,22,0.4)] ring-1 ring-[var(--accent-strong)]/20"
+            )}>
+              <span className="caret"></span>
+              +{roiPct}%
+            </span>
+          </div>
         );
       },
     }),
@@ -601,8 +643,15 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         {getSideLabel("over", r)}
                       </div>
                     </div>
-                    <div className="market-positive font-bold text-xs sm:text-sm shrink-0 ml-2">
-                      {formatOdds(Number(r.o?.od || 0))}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="market-positive font-bold text-xs sm:text-sm">
+                        {formatOdds(Number(r.o?.od || 0))}
+                      </span>
+                      {r.o?.max != null && (
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          (${r.o.max.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
+                        </span>
+                      )}
                     </div>
                   </button>
                 </Tooltip>
@@ -623,8 +672,15 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         {getSideLabel("under", r)}
                       </div>
                     </div>
-                    <div className="market-negative font-bold text-xs sm:text-sm shrink-0 ml-2">
-                      {formatOdds(Number(r.u?.od || 0))}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="market-negative font-bold text-xs sm:text-sm">
+                        {formatOdds(Number(r.u?.od || 0))}
+                      </span>
+                      {r.u?.max != null && (
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          (${r.u.max.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
+                        </span>
+                      )}
                     </div>
                   </button>
                 </Tooltip>
@@ -735,12 +791,12 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   return (
     <Table
-      {...tableProps}
-      sortableColumns={["roi", "time"]}
-      resourceName={(plural) => plural ? "opportunities" : "opportunity"}
-      className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
-      containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
-      scrollWrapperClassName="max-h-[calc(100vh-180px)] overflow-y-auto"
+        {...tableProps}
+        sortableColumns={["roi", "time"]}
+        resourceName={(plural) => plural ? "opportunities" : "opportunity"}
+        className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
+        containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
+        scrollWrapperClassName="max-h-[calc(100vh-180px)] overflow-y-auto"
       thClassName={(columnId) => cn(
         "bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14",
         columnId === "roi" && "text-center pr-6",
@@ -771,12 +827,14 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
           )}
           rowProps={(row) => {
             const isTeaser = (row.original as ArbRowWithId)._isTeaser;
+            const isPinned = (row.original as ArbRowWithId)._isPinned;
             return {
             className: cn(
                 "group/row transition-all duration-200 ease-out",
                 !isTeaser && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
                 (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10",
-                isTeaser && "relative bg-gradient-to-r from-[var(--tertiary)]/5 to-[var(--tertiary-strong)]/5 border-l-2 border-[var(--tertiary)]"
+                isTeaser && "relative bg-gradient-to-r from-[var(--tertiary)]/5 to-[var(--tertiary-strong)]/5 border-l-2 border-[var(--tertiary)]",
+                isPinned && "sticky top-14 z-[5] bg-brand/5 dark:bg-brand/10 border-l-2 border-brand shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
               ),
               ...(isTeaser && {
                 onClick: (e: React.MouseEvent) => {
