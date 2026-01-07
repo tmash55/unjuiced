@@ -127,9 +127,9 @@ export function BestOddsFilters({
   const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
   const [localSearchQuery, setLocalSearchQuery] = useState<string>(prefs.searchQuery || '');
   
-  // Kelly Criterion local state
-  const [localBankroll, setLocalBankroll] = useState<number>(bankroll);
-  const [localKellyPercent, setLocalKellyPercent] = useState<number>(kellyPercent);
+  // Kelly Criterion local state - use strings for free typing, convert on blur/apply
+  const [localBankrollStr, setLocalBankrollStr] = useState<string>(String(bankroll));
+  const [localKellyPercentStr, setLocalKellyPercentStr] = useState<string>(String(kellyPercent));
 
   const comparisonOptions: ComboboxOption[] = useMemo(() => {
     const baseOptions = [
@@ -219,8 +219,8 @@ export function BestOddsFilters({
 
   // Keep Kelly settings in sync with props
   useEffect(() => {
-    setLocalBankroll(bankroll);
-    setLocalKellyPercent(kellyPercent);
+    setLocalBankrollStr(String(bankroll));
+    setLocalKellyPercentStr(String(kellyPercent));
   }, [bankroll, kellyPercent]);
 
   // Track changes to mark as unsaved
@@ -490,11 +490,14 @@ export function BestOddsFilters({
     onPrefsChange(nextPrefs);
     
     // Save Kelly Criterion settings separately (they're EV-specific prefs)
-    if (onBankrollChange && localBankroll !== bankroll) {
-      onBankrollChange(localBankroll);
+    const parsedBankroll = Math.max(0, Number(localBankrollStr) || 0);
+    const parsedKellyPercent = Math.max(1, Math.min(100, Number(localKellyPercentStr) || 25));
+    
+    if (onBankrollChange && parsedBankroll !== bankroll) {
+      onBankrollChange(parsedBankroll);
     }
-    if (onKellyPercentChange && localKellyPercent !== kellyPercent) {
-      onKellyPercentChange(localKellyPercent);
+    if (onKellyPercentChange && parsedKellyPercent !== kellyPercent) {
+      onKellyPercentChange(parsedKellyPercent);
     }
     
     setOpen(false);
@@ -515,8 +518,8 @@ export function BestOddsFilters({
     setLocalComparisonMode('average');
     setLocalComparisonBook(null);
     // Reset Kelly settings to defaults
-    setLocalBankroll(1000);
-    setLocalKellyPercent(25);
+    setLocalBankrollStr("1000");
+    setLocalKellyPercentStr("25");
     
     onPrefsChange({
       ...prefs,
@@ -1263,18 +1266,23 @@ export function BestOddsFilters({
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Bankroll ($)</Label>
                       <Input
-                        type="number"
-                        value={localBankroll}
+                        type="text"
+                        inputMode="numeric"
+                        value={localBankrollStr}
                         onChange={(e) => {
                           if (locked) return;
-                          const val = Math.max(0, Number(e.target.value));
-                          setLocalBankroll(val);
+                          // Allow only numbers and empty string
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          setLocalBankrollStr(val);
                           setHasUnsavedChanges(true);
+                        }}
+                        onBlur={() => {
+                          // Normalize on blur - ensure valid value
+                          const num = Math.max(0, Number(localBankrollStr) || 0);
+                          setLocalBankrollStr(String(num));
                         }}
                         placeholder="1000"
                         className="h-10"
-                        min="0"
-                        step="100"
                         disabled={locked}
                         title={locked ? "Pro only" : ""}
                       />
@@ -1283,26 +1291,34 @@ export function BestOddsFilters({
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Kelly Fraction (%)</Label>
                       <Input
-                        type="number"
-                        value={localKellyPercent}
+                        type="text"
+                        inputMode="numeric"
+                        value={localKellyPercentStr}
                         onChange={(e) => {
                           if (locked) return;
-                          const val = Math.max(1, Math.min(100, Number(e.target.value)));
-                          setLocalKellyPercent(val);
+                          // Allow only numbers and empty string
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          setLocalKellyPercentStr(val);
                           setHasUnsavedChanges(true);
+                        }}
+                        onBlur={() => {
+                          // Normalize on blur - clamp to 1-100
+                          const num = Number(localKellyPercentStr) || 25;
+                          const clamped = Math.max(1, Math.min(100, num));
+                          setLocalKellyPercentStr(String(clamped));
                         }}
                         placeholder="25"
                         className="h-10"
-                        min="1"
-                        max="100"
-                        step="5"
                         disabled={locked}
                         title={locked ? "Pro only" : ""}
                       />
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {localKellyPercent <= 25 ? 'Quarter Kelly (conservative)' : 
-                         localKellyPercent <= 50 ? 'Half Kelly (moderate)' : 
-                         localKellyPercent <= 75 ? 'Three-quarter Kelly' : 'Full Kelly (aggressive)'}
+                        {(() => {
+                          const val = Number(localKellyPercentStr) || 25;
+                          return val <= 25 ? 'Quarter Kelly (conservative)' : 
+                                 val <= 50 ? 'Half Kelly (moderate)' : 
+                                 val <= 75 ? 'Three-quarter Kelly' : 'Full Kelly (aggressive)';
+                        })()}
                       </p>
                     </div>
                   </div>
