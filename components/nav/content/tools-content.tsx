@@ -68,6 +68,14 @@ const largeLinks = [
     graphic: null,
     color: "#00b4d8",
   },
+  {
+    title: "Positive EV",
+    description: "Data-driven edges with expected ROI on every bet.",
+    href: "/positive-ev",
+    comingSoon: true,
+    graphic: null,
+    color: "#8b5cf6", // violet-500
+  },
 ];
 
 export function ProductContent({ domain }: { domain: string }) {

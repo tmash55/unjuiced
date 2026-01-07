@@ -14,6 +14,7 @@ import { parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { getLeagueName } from "@/lib/data/sports";
 import { 
   ChevronRight,
   ChevronUp, 
@@ -615,7 +616,7 @@ export function OpportunitiesTable({
           <td key="league" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
             <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
               <SportIcon sport={opp.sport} className="h-3.5 w-3.5" />
-              {opp.sport.toUpperCase()}
+              {getLeagueName(opp.sport)}
             </div>
           </td>
         );

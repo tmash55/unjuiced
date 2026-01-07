@@ -9,7 +9,7 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
  * Returns best odds deals across sportsbooks for player props.
  * 
  * Query params:
- * - sport: "all" | "nfl" | "nba" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba" (default: "all")
+ * - sport: "all" | "nfl" | "nba" | "nhl" | "ncaaf" | "ncaab" | "soccer_epl" (default: "all")
  * - leagues: comma-separated list of leagues (e.g., "nba,nfl,ncaaf")
  * - markets: comma-separated list of markets (e.g., "player_points,passing_yards,pra")
  * - books: comma-separated list of sportsbooks (e.g., "draftkings,fanduel,mgm")
@@ -122,8 +122,8 @@ export async function GET(req: NextRequest) {
       const parts = entry.key.split(':');
       const sport = parts[0];
       
-      // Support all sports
-      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'mlb', 'wnba'];
+      // Support all sports (mlb/wnba temporarily removed - no active feeds)
+      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer_epl'];
       if (!validSports.includes(sport)) {
         console.log('[/api/best-odds] Unknown sport prefix:', sport);
         return acc;
@@ -226,7 +226,7 @@ export async function GET(req: NextRequest) {
 
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
-          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'mlb' | 'wnba',  // Use sport from batch key
+          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl',  // Use sport from batch key
           eid: deal.eid || '',
           ent: deal.ent || '',
           mkt: deal.mkt || '',

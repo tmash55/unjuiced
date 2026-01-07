@@ -446,6 +446,22 @@ export function formatMarketName(market: string): string {
     passing_touchdowns: "Pass TDs",
     rushing_touchdowns: "Rush TDs",
     receptions: "Receptions",
+    // Soccer
+    player_goals: "Goals",
+    match_goals: "Match Goals",
+    total_goals: "Total Goals",
+    both_teams_to_score: "BTTS",
+    team_total_goals: "Team Goals",
+    anytime_goalscorer: "Anytime GS",
+    first_goalscorer: "First GS",
+    last_goalscorer: "Last GS",
+    player_shots_on_target: "Shots on Target",
+    player_shots: "Shots",
+    player_tackles: "Tackles",
+    player_fouls_committed: "Fouls",
+    player_yellow_cards: "Yellow Cards",
+    player_to_be_carded: "To Be Carded",
+    player_passes: "Passes",
   };
   
   const result = names[market] || market.replace(/_/g, " ").replace(/player /i, "");

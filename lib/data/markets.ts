@@ -361,17 +361,20 @@ export interface SportMarket {
   ];
 
   // Soccer (EPL) markets
-  // Note: Our data feed currently includes keys like odds:soccer_epl:*:player_goals:*
-  // Keep this list small + correct; we can expand as more EPL market keys appear.
+  // Note: Our data feed includes keys like odds:soccer_epl:*:player_goals:*
   const SOCCER_EPL_MARKETS: SportMarket[] = [
     // Game-level markets
     { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3way", group: "Game", period: "full" },
     { value: "Draw No Bet", label: "Draw No Bet", apiKey: "draw_no_bet", group: "Game", period: "full" },
+    { value: "Match Goals", label: "Match Goals", apiKey: "match_goals", group: "Game", period: "full" },
     { value: "Total Goals", label: "Total Goals", apiKey: "total_goals", group: "Game", period: "full" },
     { value: "Total Goals Odd/Even", label: "Total Goals Odd/Even", apiKey: "total_goals_odd_even", group: "Game", period: "full" },
     { value: "Both Teams To Score", label: "Both Teams To Score", apiKey: "both_teams_to_score", group: "Game", period: "full" },
+    { value: "Team Total Goals", label: "Team Total Goals", apiKey: "team_total_goals", group: "Game", period: "full" },
+    { value: "Win To Nil", label: "Win To Nil", apiKey: "win_to_nil", group: "Game", period: "full" },
+    { value: "Clean Sheet", label: "Clean Sheet", apiKey: "clean_sheet", group: "Game", period: "full" },
 
-    // Player props
+    // Player props - Goals
     {
       value: "Goals",
       label: "Goals",
@@ -382,6 +385,21 @@ export interface SportMarket {
       group: "Player",
       period: "full",
     },
+    { value: "Anytime Goalscorer", label: "Anytime Goalscorer", apiKey: "anytime_goalscorer", group: "Player", period: "full" },
+    { value: "First Goalscorer", label: "First Goalscorer", apiKey: "first_goalscorer", group: "Player", period: "full" },
+    { value: "Last Goalscorer", label: "Last Goalscorer", apiKey: "last_goalscorer", group: "Player", period: "full" },
+    
+    // Player props - Shots
+    { value: "Shots On Target", label: "Shots On Target", apiKey: "player_shots_on_target", group: "Player", period: "full" },
+    { value: "Shots", label: "Shots", apiKey: "player_shots", group: "Player", period: "full" },
+    
+    // Player props - Other
+    { value: "Assists", label: "Assists", apiKey: "player_assists", group: "Player", period: "full" },
+    { value: "Tackles", label: "Tackles", apiKey: "player_tackles", group: "Player", period: "full" },
+    { value: "Fouls Committed", label: "Fouls Committed", apiKey: "player_fouls_committed", group: "Player", period: "full" },
+    { value: "Yellow Cards", label: "Yellow Cards", apiKey: "player_yellow_cards", group: "Player", period: "full" },
+    { value: "To Be Carded", label: "To Be Carded", apiKey: "player_to_be_carded", group: "Player", period: "full" },
+    { value: "Passes", label: "Passes", apiKey: "player_passes", group: "Player", period: "full" },
   ];
   
   export const SPORT_MARKETS: SportMarkets = {
@@ -837,11 +855,26 @@ export interface SportMarket {
       'power play points',
       'blocked shots',
       'total saves'
+    ],
+    soccer_epl: [
+      'goals', // Set as default (player_goals)
+      'anytime goalscorer',
+      'first goalscorer',
+      'last goalscorer',
+      'shots on target',
+      'shots',
+      'assists',
+      'tackles',
+      'fouls committed',
+      'yellow cards',
+      'to be carded',
+      'passes'
     ]
   };
   
   // Export supported sports array
-  export const SUPPORTED_SPORTS = ['mlb', 'nba', 'wnba', 'ncaab', 'nfl', 'ncaaf', 'nhl'] as const;
+  // NOTE: mlb and wnba temporarily removed - no active odds feeds
+  export const SUPPORTED_SPORTS = ['nba', 'ncaab', 'nfl', 'ncaaf', 'nhl', 'soccer_epl'] as const;
   
 // Canonical mapping for market display names → internal API keys
 // Maps backend market names to frontend API keys for consistent routing
@@ -1157,6 +1190,24 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'pitcher_walks': 'Walks Allowed',
       'pitcher_earned_runs': 'Earned Runs',
       'pitcher_outs': 'Outs Recorded',
+      
+      // Soccer (EPL)
+      'match_goals': 'Match Goals',
+      'total_goals': 'Total Goals',
+      'both_teams_to_score': 'Both Teams To Score',
+      'team_total_goals': 'Team Total Goals',
+      'win_to_nil': 'Win To Nil',
+      'clean_sheet': 'Clean Sheet',
+      'anytime_goalscorer': 'Anytime Goalscorer',
+      'first_goalscorer': 'First Goalscorer',
+      'last_goalscorer': 'Last Goalscorer',
+      'player_shots_on_target': 'Shots on Target',
+      'player_shots': 'Shots',
+      'player_tackles': 'Tackles',
+      'player_fouls_committed': 'Fouls Committed',
+      'player_yellow_cards': 'Yellow Cards',
+      'player_to_be_carded': 'To Be Carded',
+      'player_passes': 'Passes',
     };
     
     // Check if this is a known API key

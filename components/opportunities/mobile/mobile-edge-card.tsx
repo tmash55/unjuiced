@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabel } from "@/lib/data/markets";
+import { getLeagueName } from "@/lib/data/sports";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Helper to get sportsbook logo
@@ -147,7 +148,7 @@ export function MobileEdgeCard({
           <div className="flex items-center gap-1.5 min-w-0 flex-1 text-[9px]">
             <span className="text-xs shrink-0">{getSportEmoji(opp.sport)}</span>
             <span className="font-bold text-neutral-600 dark:text-neutral-300 uppercase shrink-0">
-              {opp.sport}
+              {getLeagueName(opp.sport)}
             </span>
             <span className="text-neutral-300 dark:text-neutral-600">•</span>
             <span className="text-neutral-500 dark:text-neutral-400 truncate">
