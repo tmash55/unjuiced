@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
       const parts = entry.key.split(':');
       const sport = parts[0];
       
-      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'mlb', 'wnba'];
+      // Support all active sports (mlb/wnba temporarily removed - no active feeds)
+      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer_epl'];
       if (!validSports.includes(sport)) {
         return acc;
       }
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
 
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
-          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'mlb' | 'wnba',
+          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl',
           eid: deal.eid || '',
           ent: deal.ent || '',
           mkt: deal.mkt || '',

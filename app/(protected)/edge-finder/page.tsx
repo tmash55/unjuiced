@@ -16,6 +16,8 @@ import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
+import { Zap, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Native imports
 import { useMultiFilterOpportunities } from "@/hooks/use-multi-filter-opportunities";
@@ -148,6 +150,9 @@ export default function EdgeFinderPage() {
 
   // Result limit (default 200 for Pro, 50 for free)
   const [limit, setLimit] = useState(200);
+
+  // Profit boost % (for sportsbook promotions like "30% profit boost")
+  const [boostPercent, setBoostPercent] = useState(0);
 
   // Player quick view modal state
   const [selectedPlayer, setSelectedPlayer] = useState<{
@@ -325,6 +330,7 @@ export default function EdgeFinderPage() {
           availableLeagues={AVAILABLE_LEAGUES}
           availableMarkets={AVAILABLE_MARKETS}
           availableSportsbooks={availableSportsbooks}
+          boostPercent={boostPercent}
         />
         
         {/* Player Quick View Modal */}
@@ -408,6 +414,85 @@ export default function EdgeFinderPage() {
                 disabled={locked}
             />
           </div>
+
+          {/* Profit Boost Selector */}
+          <div className="relative group">
+            <div className="flex items-center gap-1">
+              <button
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                  boostPercent > 0
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                )}
+                onClick={() => {
+                  // Toggle dropdown by focusing the select
+                  const select = document.getElementById('boost-select') as HTMLSelectElement;
+                  if (select) select.click();
+                }}
+              >
+                <Zap className={cn("w-4 h-4", boostPercent > 0 && "text-amber-500")} />
+                <span>{boostPercent > 0 ? `+${boostPercent}% Boost` : "Boost"}</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </button>
+              {boostPercent > 0 && (
+                <button
+                  onClick={() => setBoostPercent(0)}
+                  className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  title="Clear boost"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            
+            {/* Dropdown */}
+            <div className="absolute top-full left-0 mt-1 opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50">
+              <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 p-2 min-w-[180px]">
+                <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-2 py-1 mb-1">
+                  Profit Boost %
+                </p>
+                {/* Preset options */}
+                <div className="space-y-0.5 mb-2">
+                  {[0, 10, 20, 25, 30, 50, 100].map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => setBoostPercent(pct)}
+                      className={cn(
+                        "w-full px-2 py-1.5 rounded text-left text-sm transition-colors",
+                        boostPercent === pct
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                      )}
+                    >
+                      {pct === 0 ? "No Boost" : `+${pct}%`}
+                    </button>
+                  ))}
+                </div>
+                {/* Custom input */}
+                <div className="border-t border-neutral-200 dark:border-neutral-700 pt-2">
+                  <label className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-2">
+                    Custom %
+                  </label>
+                  <div className="flex items-center gap-1 px-2 mt-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={200}
+                      placeholder="0"
+                      value={boostPercent || ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setBoostPercent(Math.min(200, Math.max(0, val)));
+                      }}
+                      className="w-20 h-8 text-sm"
+                    />
+                    <span className="text-sm text-neutral-500">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           </FiltersBarSection>
 
           <FiltersBarSection align="right">
@@ -481,6 +566,7 @@ export default function EdgeFinderPage() {
         isCustomMode={isCustomMode}
         bankroll={evPrefs.bankroll}
         kellyPercent={evPrefs.kellyPercent || 25}
+        boostPercent={boostPercent}
       />
 
       {/* Load more button */}

@@ -120,6 +120,12 @@ interface OpportunitiesTableProps {
    */
   columnOrder?: string[];
   /**
+   * Profit boost percentage (from sportsbook promotions).
+   * When set, boosts the displayed edge % by this amount.
+   * E.g., boostPercent=30 means a 10% edge displays as 13% (10% * 1.3)
+   */
+  boostPercent?: number;
+  /**
    * Callback when column order changes (for saving to preferences).
    */
   onColumnOrderChange?: (newOrder: string[]) => void;
@@ -269,6 +275,7 @@ export function OpportunitiesTable({
   kellyPercent = 25, // Default to quarter Kelly
   columnOrder: propColumnOrder,
   onColumnOrderChange,
+  boostPercent = 0,
 }: OpportunitiesTableProps) {
   // Prefetch player data on hover for faster modal opens
   const prefetchPlayer = usePrefetchPlayerByOddsId();
@@ -574,6 +581,11 @@ export function OpportunitiesTable({
     
     switch (colId) {
       case 'edge':
+        // Apply boost to edge percentage
+        const baseEdge = opp.edgePct ?? 0;
+        const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
+        const displayEdge = boostedEdge;
+        
         return (
           <td key="edge" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
             <div className="flex items-center justify-center gap-2">
@@ -600,12 +612,16 @@ export function OpportunitiesTable({
               </button>
               <span className={cn(
                 "inline-flex items-center gap-0.5 px-2 py-1 rounded-md text-sm font-bold",
-                (opp.edgePct ?? 0) >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                (opp.edgePct ?? 0) >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                // Use boosted edge for styling thresholds
+                displayEdge >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                displayEdge >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                // Amber glow when boosted
+                boostPercent > 0 && "ring-1 ring-amber-400/50"
               )}>
+                {boostPercent > 0 && <span className="text-[8px] text-amber-500 mr-0.5">⚡</span>}
                 <span className="text-[10px]">▲</span>
-                +{(opp.edgePct ?? 0).toFixed(1)}%
+                +{displayEdge.toFixed(1)}%
               </span>
             </div>
           </td>

@@ -93,6 +93,7 @@ interface MobileEdgeCardProps {
   onToggleExpand?: () => void;
   bankroll?: number;
   kellyPercent?: number;
+  boostPercent?: number;
 }
 
 export function MobileEdgeCard({
@@ -106,8 +107,13 @@ export function MobileEdgeCard({
   onToggleExpand,
   bankroll = 0,
   kellyPercent = 25,
+  boostPercent = 0,
 }: MobileEdgeCardProps) {
   const opp = opportunity;
+  
+  // Apply boost to edge percentage
+  const baseEdge = opp.edgePct ?? 0;
+  const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
   
   // Calculate recommended stake
   const kellyFraction = opp.kellyFraction ?? 0;
@@ -164,10 +170,13 @@ export function MobileEdgeCard({
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
               "px-2 py-1 rounded-full flex items-center justify-center",
-              getEdgeBgColor(opp.edgePct)
+              getEdgeBgColor(boostedEdge),
+              // Amber ring when boosted
+              boostPercent > 0 && "ring-1 ring-amber-400/50"
             )}>
-              <span className={cn("text-[10px] font-bold tabular-nums leading-none", getEdgeColor(opp.edgePct))}>
-                +{opp.edgePct !== null ? opp.edgePct.toFixed(1) : "—"}%
+              <span className={cn("text-[10px] font-bold tabular-nums leading-none", getEdgeColor(boostedEdge))}>
+                {boostPercent > 0 && <span className="text-amber-500 mr-0.5">⚡</span>}
+                +{boostedEdge.toFixed(1)}%
               </span>
             </div>
             {/* Hide/Unhide toggle */}

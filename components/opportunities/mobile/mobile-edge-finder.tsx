@@ -67,6 +67,8 @@ interface MobileEdgeFinderProps {
   availableLeagues?: string[];
   availableMarkets?: string[];
   availableSportsbooks?: string[];
+  // Profit boost percentage
+  boostPercent?: number;
 }
 
 export function MobileEdgeFinder({
@@ -91,6 +93,7 @@ export function MobileEdgeFinder({
   availableLeagues = [],
   availableMarkets = [],
   availableSportsbooks = [],
+  boostPercent = 0,
 }: MobileEdgeFinderProps) {
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -363,6 +366,7 @@ export function MobileEdgeFinder({
                 onToggleExpand={() => handleCardExpand(opp.id)}
                 bankroll={bankroll}
                 kellyPercent={kellyPercent}
+                boostPercent={boostPercent}
               />
             ))}
             
