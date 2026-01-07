@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getLeagueName } from "@/lib/data/sports";
 import { motion, AnimatePresence } from "framer-motion";
+import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -115,10 +116,41 @@ export function MobileEdgeCard({
   const baseEdge = opp.edgePct ?? 0;
   const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
   
-  // Calculate recommended stake
-  const kellyFraction = opp.kellyFraction ?? 0;
-  const adjustedKelly = kellyFraction * (kellyPercent / 100);
-  const recStake = bankroll > 0 ? Math.max(1, Math.round(bankroll * adjustedKelly)) : 0;
+  // Calculate recommended stake with boost
+  const recStake = useMemo(() => {
+    if (bankroll <= 0) return 0;
+    
+    // Get best odds and fair odds from opportunity
+    const bestPriceStr = opp.bestPrice || "";
+    const fairPriceStr = opp.fairAmerican || opp.sharpPrice || "";
+    
+    if (!bestPriceStr || !fairPriceStr) {
+      // Fallback to original kellyFraction if no price data
+      const kellyFraction = opp.kellyFraction ?? 0;
+      const adjustedKelly = kellyFraction * (kellyPercent / 100);
+      return Math.max(1, Math.round(bankroll * adjustedKelly));
+    }
+    
+    const bestOdds = parseInt(bestPriceStr.toString().replace('+', ''), 10);
+    const fairOdds = parseInt(fairPriceStr.toString().replace('+', ''), 10);
+    
+    if (isNaN(bestOdds) || isNaN(fairOdds) || bestOdds === 0 || fairOdds === 0) {
+      // Fallback to original kellyFraction
+      const kellyFraction = opp.kellyFraction ?? 0;
+      const adjustedKelly = kellyFraction * (kellyPercent / 100);
+      return Math.max(1, Math.round(bankroll * adjustedKelly));
+    }
+    
+    const { stake } = getKellyStakeDisplay({
+      bankroll,
+      bestOdds,
+      fairOdds,
+      kellyPercent,
+      boostPercent,
+    });
+    
+    return stake > 0 ? Math.max(1, Math.round(stake)) : 0;
+  }, [bankroll, kellyPercent, boostPercent, opp.bestPrice, opp.fairAmerican, opp.sharpPrice, opp.kellyFraction]);
   
   // Get best book info
   const bestBookInfo = getSportsbookById(opp.bestBook);
@@ -285,9 +317,15 @@ export function MobileEdgeCard({
           {/* Right: Rec Stake + Bet Button */}
           <div className="flex items-center gap-2">
             {recStake > 0 && (
-              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-0.5">
+                {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
                 <span className="text-[9px] uppercase">Rec </span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${recStake}</span>
+                <span className={cn(
+                  "font-bold tabular-nums",
+                  boostPercent > 0 
+                    ? "text-amber-600 dark:text-amber-400" 
+                    : "text-emerald-600 dark:text-emerald-400"
+                )}>${recStake}</span>
               </span>
             )}
             

@@ -869,15 +869,24 @@ export function OpportunitiesTable({
                 bestOdds,
                 fairOdds,
                 kellyPercent: kellyPercent || 25,
+                boostPercent: boostPercent || 0,
               });
               
               if (stake <= 0) {
                 return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
+              const tooltipContent = boostPercent > 0
+                ? `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display} • +${boostPercent}% boosted`
+                : `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display}`;
+              
               return (
-                <Tooltip content={`Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display}`}>
-                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                <Tooltip content={tooltipContent}>
+                  <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${
+                    boostPercent > 0
+                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 ring-1 ring-amber-400/30'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                  }`}>
                     <DollarSign className="w-3.5 h-3.5" />
                     <span className="font-semibold text-sm">{display.replace('$', '')}</span>
                   </div>

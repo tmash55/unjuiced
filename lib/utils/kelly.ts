@@ -30,12 +30,33 @@ export function decimalToImpliedProb(decimalOdds: number): number {
 }
 
 /**
+ * Apply profit boost to decimal odds
+ * 
+ * A profit boost increases the profit portion of the odds:
+ * - Decimal 2.50 (+150) with 30% boost:
+ *   - Profit = 2.50 - 1 = 1.50
+ *   - Boosted profit = 1.50 * 1.30 = 1.95
+ *   - Boosted decimal = 1 + 1.95 = 2.95 (effective +195)
+ * 
+ * @param decimalOdds - Original decimal odds
+ * @param boostPercent - Boost percentage (e.g., 30 for 30% boost)
+ * @returns Boosted decimal odds
+ */
+export function applyBoostToDecimalOdds(decimalOdds: number, boostPercent: number): number {
+  if (boostPercent <= 0) return decimalOdds;
+  const profit = decimalOdds - 1;
+  const boostedProfit = profit * (1 + boostPercent / 100);
+  return 1 + boostedProfit;
+}
+
+/**
  * Calculate Kelly Criterion stake
  * 
  * @param params.bankroll - User's total bankroll
  * @param params.bestOdds - Best available odds (American format, e.g., +2152)
  * @param params.fairOdds - Fair/true odds (American format, e.g., +772)
  * @param params.fraction - Kelly fraction (0.25 = quarter Kelly, default)
+ * @param params.boostPercent - Optional profit boost percentage
  * @returns Recommended stake amount (always >= 0)
  */
 export function calculateKellyStake({
@@ -43,11 +64,13 @@ export function calculateKellyStake({
   bestOdds,
   fairOdds,
   fraction = 0.25,
+  boostPercent = 0,
 }: {
   bankroll: number;
   bestOdds: number;
   fairOdds: number;
   fraction?: number;
+  boostPercent?: number;
 }): number {
   if (!bankroll || bankroll <= 0) return 0;
   if (!bestOdds || !fairOdds) return 0;
@@ -56,11 +79,16 @@ export function calculateKellyStake({
   const decimalOdds = americanToDecimal(bestOdds);
   const fairDecimal = americanToDecimal(fairOdds);
   
+  // Apply boost to effective odds if active
+  const effectiveDecimalOdds = boostPercent > 0 
+    ? applyBoostToDecimalOdds(decimalOdds, boostPercent)
+    : decimalOdds;
+  
   // Calculate true probability from fair odds
   const p = decimalToImpliedProb(fairDecimal);
   
-  // Calculate Kelly components
-  const b = decimalOdds - 1; // Net odds received on a 1:1 bet
+  // Calculate Kelly components with boosted odds
+  const b = effectiveDecimalOdds - 1; // Net odds received (with boost)
   const q = 1 - p; // Probability of losing
   
   // Kelly formula: f = (b * p - q) / b
@@ -105,37 +133,48 @@ export function formatStake(stake: number): string {
 
 /**
  * Calculate and format Kelly stake as a single convenience function
+ * 
+ * @param params.boostPercent - Optional profit boost percentage (e.g., 30 for 30% boost)
+ *                              When active, adjusts the effective odds before Kelly calculation
  */
 export function getKellyStakeDisplay({
   bankroll,
   bestOdds,
   fairOdds,
   kellyPercent = 25, // Default to quarter Kelly (25%)
+  boostPercent = 0,  // Optional profit boost
 }: {
   bankroll: number;
   bestOdds: number;
   fairOdds: number;
   kellyPercent?: number;
-}): { stake: number; display: string; kellyPct: number } {
+  boostPercent?: number;
+}): { stake: number; display: string; kellyPct: number; boostedStake?: number; boostedDisplay?: string } {
   // Convert kelly percent to fraction (25 -> 0.25)
   // Default to 25% if invalid or zero
   const fraction = kellyPercent > 0 ? kellyPercent / 100 : 0.25;
   
-  const stake = calculateKellyStake({
-    bankroll,
-    bestOdds,
-    fairOdds,
-    fraction,
-  });
-  
-  // Calculate the kelly % for the bet (before fraction)
+  // Convert American odds to decimal
   const decimalOdds = americanToDecimal(bestOdds);
   const fairDecimal = americanToDecimal(fairOdds);
+  
+  // Apply boost to effective odds if active
+  const effectiveDecimalOdds = boostPercent > 0 
+    ? applyBoostToDecimalOdds(decimalOdds, boostPercent)
+    : decimalOdds;
+  
+  // Calculate true probability from fair odds
   const p = decimalToImpliedProb(fairDecimal);
-  const b = decimalOdds - 1;
   const q = 1 - p;
+  
+  // Calculate Kelly with boosted odds
+  const b = effectiveDecimalOdds - 1; // Net odds received (with boost)
   const fullKelly = (b * p - q) / b;
   const kellyPct = Math.max(0, fullKelly * 100);
+  
+  // Apply fractional Kelly
+  const fractionalKelly = Math.max(0, fullKelly * fraction);
+  const stake = bankroll * fractionalKelly;
   
   return {
     stake,

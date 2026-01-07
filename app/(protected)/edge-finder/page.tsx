@@ -331,6 +331,7 @@ export default function EdgeFinderPage() {
           availableMarkets={AVAILABLE_MARKETS}
           availableSportsbooks={availableSportsbooks}
           boostPercent={boostPercent}
+          onBoostChange={setBoostPercent}
         />
         
         {/* Player Quick View Modal */}
