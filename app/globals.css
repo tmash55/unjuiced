@@ -913,15 +913,15 @@ code .line::before {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   color: #111827;
-  border-radius: 8px;
-  padding: 4px 8px;
-  transition: all 0.2s ease;
+  border-radius: 6px;
+  padding: 2px 6px;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
   min-width: fit-content;
-  min-height: 36px;
+  min-height: 28px;
 }
 
 .sportsbook-cell:hover {
@@ -945,10 +945,10 @@ code .line::before {
 
 /* Compact variant */
 .sportsbook-cell--sm {
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  border-radius: 8px;
-  min-height: 32px; /* Consistent height for compact */
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  border-radius: 6px;
+  min-height: 26px; /* Consistent height for compact */
 }
 
 /* Highlighted (best odds) variant - overrides base styles */

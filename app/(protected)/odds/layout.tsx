@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
-import React from 'react'
+import React, { Suspense } from 'react'
+import { OddsLayoutClient } from './odds-layout-client'
+
 export const metadata: Metadata = {
   title: 'Odds Screen | OddSmash',
   description: 'Unified odds screen for player props and game lines across all sports. Compare odds, find value, and customize your view.',
@@ -13,12 +15,14 @@ interface OddsLayoutProps {
  * Odds Section Layout
  * 
  * Provides consistent layout and styling for all odds-related pages.
- * Ensures full-height layout for the odds screen interface.
+ * The OddsLayoutClient handles the navigation that persists across sport changes.
  */
 export default function OddsLayout({ children }: OddsLayoutProps) {
   return (
-    <div>
-      {children}
-    </div>
+    <Suspense fallback={<div className="min-h-screen">{children}</div>}>
+      <OddsLayoutClient>
+        {children}
+      </OddsLayoutClient>
+    </Suspense>
   )
 }

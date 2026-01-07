@@ -852,9 +852,9 @@ const renderAlternateRow = (
           return (
             <td
               key="average-line"
-              className={`px-3 py-3 text-xs border-r ${borderColor} ${rowBg} text-center`}
+              className={`px-2 py-2 text-xs border-r ${borderColor} ${rowBg} text-center`}
             >
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {/* Over Average */}
                 {(() => {
                   const overBooks = Object.entries(row.books).map(([bookId, bookData]) => ({ bookId, odds: bookData?.over }))
@@ -1801,7 +1801,7 @@ export function OddsTable({
             const isMoneyline = item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))
             
             return (
-              <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[200px]">
+              <div className="flex items-center gap-1.5 min-w-[120px] sm:min-w-[160px]">
                 <ExpandButton hide={true} />
                 <div className="flex-1 min-w-0">
                   {/* Two-line display with team logos: Away on top, Home on bottom */}
@@ -1858,7 +1858,7 @@ export function OddsTable({
           const canShowProfile = isNBASport && type === 'player' && item.entity?.id && item.entity?.name;
           
           return (
-            <div className="flex items-center gap-2 min-w-[140px] sm:min-w-[200px]">
+            <div className="flex items-center gap-1.5 min-w-[120px] sm:min-w-[160px]">
               <ExpandButton disabled={!preferences.includeAlternates} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -2176,31 +2176,32 @@ export function OddsTable({
                   isDragging && "z-50"
                 )}
               >
-                <button
-                  onClick={() => {
-                    if (book.links.desktop) {
-                        window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
-                    }
-                  }}
-                  className="flex flex-col items-center space-y-1 min-w-[96px] sm:min-w-[120px] hover:opacity-80 transition-opacity"
-                  title={`Visit ${book.name}`}
-                >
-                  <img src={book.image.light} alt={book.name} className="book-logo" />
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">{book.name}</span>
-                </button>
+                <Tooltip content={book.name}>
+                  <button
+                    onClick={() => {
+                      if (book.links.desktop) {
+                          window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                    className="flex items-center justify-center min-w-[56px] sm:min-w-[72px] hover:opacity-80 transition-opacity py-1"
+                    title={`Visit ${book.name}`}
+                  >
+                    <img src={book.image.light} alt={book.name} className="book-logo h-6 w-auto" />
+                  </button>
+                </Tooltip>
                 {/* Drag Handle */}
                 <div
                   {...attributes}
                   {...listeners}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <GripVertical className="w-4 h-4 text-neutral-400" />
+                  <GripVertical className="w-3 h-3 text-neutral-400" />
                 </div>
               </div>
             )
           },
-          size: isSmallScreen ? 100 : 140,
+          size: isSmallScreen ? 72 : 96,
           cell: (info) => {
             const item = info.row.original
             const n = item.odds.normalized
@@ -2217,7 +2218,7 @@ export function OddsTable({
             )
 
             if (!bookData) return (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {renderPlaceholder()}
                 {renderPlaceholder()}
               </div>
@@ -2239,7 +2240,7 @@ export function OddsTable({
             const sd = secondData || bookData.under
 
             return (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {fd ? (
                   ((odds) => {
                     const isBestOdds = (() => {
