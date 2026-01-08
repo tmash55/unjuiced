@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
 import { motion } from 'framer-motion'
-import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown, ChevronsUpDown } from 'lucide-react'
 import { PlayerQuickViewModal } from '@/components/player-quick-view-modal'
 
 import {
@@ -29,6 +29,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { OddsScreenItem, TableInteractionHandlers, OddsPrice } from '@/components/odds-screen/types/odds-screen-types'
 import { getSportsbookById, getAllActiveSportsbooks, type SportsbookMeta } from '@/lib/data/sportsbooks'
 import { getStandardAbbreviation } from '@/lib/data/team-mappings'
+import { SINGLE_LINE_MARKETS } from '@/lib/data/markets'
 import { useOddsPreferences } from '@/context/preferences-context'
 import { Loader2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider } from '@/components/tooltip'
@@ -1096,6 +1097,58 @@ export function OddsTable({
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
+  
+  // Line selector state - persisted per market in localStorage
+  const marketStr = typeof market === 'string' ? market : ''
+  const isSingleLineMarket = SINGLE_LINE_MARKETS.has(marketStr)
+  
+  // Get localStorage key for this market's selected line
+  const lineStorageKey = `odds-line-${sport}-${marketStr}`
+  
+  // Initialize selected line from localStorage or default to null (auto-detect primary)
+  const [selectedLine, setSelectedLine] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const stored = localStorage.getItem(lineStorageKey)
+    return stored ? parseFloat(stored) : null
+  })
+  
+  // Persist selected line to localStorage
+  useEffect(() => {
+    if (selectedLine !== null && typeof window !== 'undefined') {
+      localStorage.setItem(lineStorageKey, selectedLine.toString())
+    }
+  }, [selectedLine, lineStorageKey])
+  
+  // Reset selected line when market changes
+  useEffect(() => {
+    setSelectedLine(null)
+  }, [market])
+  
+  // Extract available lines from data
+  const availableLines = useMemo(() => {
+    if (!data || data.length === 0) return []
+    const linesSet = new Set<number>()
+    data.forEach((item) => {
+      // Check best line
+      if (item.odds?.best?.over?.line !== undefined) linesSet.add(item.odds.best.over.line)
+      if (item.odds?.best?.under?.line !== undefined) linesSet.add(item.odds.best.under.line)
+      // Also check individual book lines for more options
+      if (item.odds?.books) {
+        Object.values(item.odds.books).forEach((bookData: any) => {
+          if (bookData?.over?.line !== undefined) linesSet.add(bookData.over.line)
+          if (bookData?.under?.line !== undefined) linesSet.add(bookData.under.line)
+        })
+      }
+    })
+    return Array.from(linesSet).sort((a, b) => a - b)
+  }, [data])
+  
+  // Determine the effective line to use (selected or primary)
+  const effectiveLine = useMemo(() => {
+    if (selectedLine !== null) return selectedLine
+    // Default to most common primary line (usually first/lowest for props)
+    return availableLines.length > 0 ? availableLines[0] : null
+  }, [selectedLine, availableLines])
   const allActiveSportsbooks = useMemo(() => getAllActiveSportsbooks(), [])
   const { user } = useAuth()
   // Quick client hint from metadata (may be stale); normalized check
@@ -1289,8 +1342,10 @@ export function OddsTable({
   
   // Ensure columnOrder always has all required columns (don't remove them when hiding)
   // IMPORTANT: Visibility is controlled by showBestLine/showAverageLine separately
+  // NOTE: 'event' column removed - date/time is already shown in game row headers
+  // NOTE: 'line' column is only shown for single-line markets
   React.useEffect(() => {
-    const requiredColumns = ['entity', 'event', 'best-line', 'average-line']
+    const requiredColumns = ['entity', 'best-line', 'average-line']
     const missingColumns = requiredColumns.filter(col => !columnOrder.includes(col))
     
     if (missingColumns.length > 0) {
@@ -1320,6 +1375,12 @@ export function OddsTable({
   const filteredColumnOrder = useMemo(() => {
     let columns = columnOrder
     
+    // Remove event column - date/time is already shown in game row headers
+    columns = columns.filter(col => col !== 'event')
+    
+    // Remove any existing 'line' column (we'll add it conditionally below)
+    columns = columns.filter(col => col !== 'line')
+    
     // Remove best-line column if user has it disabled
     if (!preferences?.showBestLine) {
       columns = columns.filter(col => col !== 'best-line')
@@ -1330,8 +1391,20 @@ export function OddsTable({
       columns = columns.filter(col => col !== 'average-line')
     }
     
+    // Add 'line' column after 'entity' for single-line markets only
+    if (isSingleLineMarket) {
+      const entityIndex = columns.indexOf('entity')
+      if (entityIndex !== -1) {
+        columns = [
+          ...columns.slice(0, entityIndex + 1),
+          'line',
+          ...columns.slice(entityIndex + 1)
+        ]
+      }
+    }
+    
     return columns
-  }, [columnOrder, preferences?.showBestLine, preferences?.showAverageLine])
+  }, [columnOrder, preferences?.showBestLine, preferences?.showAverageLine, isSingleLineMarket])
   const [sportsbookOrder, setSportsbookOrder] = useState<string[]>(preferences.sportsbookOrder)
 
   // Sort and group data by date
@@ -1396,7 +1469,15 @@ export function OddsTable({
             const bEvent = b.event?.id || ''
             if (aEvent < bEvent) return sortDirection === 'asc' ? -1 : 1
             if (aEvent > bEvent) return sortDirection === 'asc' ? 1 : -1
-            // Tertiary sort by player name within the same game
+            // Tertiary sort by team within the same game (away team first, then home team)
+            const aTeam = a.entity?.team || ''
+            const bTeam = b.entity?.team || ''
+            const awayTeam = a.event?.awayTeam || ''
+            // Sort so away team players come first
+            const aIsAway = aTeam === awayTeam ? 0 : 1
+            const bIsAway = bTeam === awayTeam ? 0 : 1
+            if (aIsAway !== bIsAway) return aIsAway - bIsAway
+            // Quaternary sort by player name within the same team
             const aName = a.entity?.name || ''
             const bName = b.entity?.name || ''
             return aName.localeCompare(bName)
@@ -1505,11 +1586,13 @@ export function OddsTable({
     const groups: Array<
       | { type: 'separator'; date: string; dateLabel: string } 
       | { type: 'game-header'; eventId: string; awayTeam: string; homeTeam: string; awayName?: string; homeName?: string; startTime: string; isExpanded: boolean } 
+      | { type: 'team-header'; eventId: string; team: string; teamName?: string; isAway: boolean }
       | { type: 'item'; item: OddsTableItem; index: number }
     > = []
     
     let currentDate = ''
     let currentEventId = ''
+    let currentTeam = ''
 
     sortedData.forEach((item, index) => {
       const itemDate = item.event?.startTime ? new Date(item.event.startTime).toDateString() : 'No Date'
@@ -1519,6 +1602,7 @@ export function OddsTable({
       if (itemDate !== currentDate) {
         currentDate = itemDate
         currentEventId = '' // Reset game grouping for new date
+        currentTeam = ''
         
         const date = item.event?.startTime ? new Date(item.event.startTime) : new Date()
         const today = new Date()
@@ -1546,26 +1630,44 @@ export function OddsTable({
       }
       
       const eventId = item.event?.id || ''
+      const playerTeam = item.entity?.team || ''
+      const awayTeam = item.event?.awayTeam || ''
+      const homeTeam = item.event?.homeTeam || ''
       
       // Only add game header for PLAYER PROPS (not game markets like ML/Spread/Totals)
       if (isPlayerProp) {
         if (eventId && eventId !== currentEventId) {
           currentEventId = eventId
+          currentTeam = '' // Reset team tracking for new game
           const isExpanded = expandedGames.has(eventId)
           groups.push({
             type: 'game-header',
             eventId,
-            awayTeam: item.event?.awayTeam || '',
-            homeTeam: item.event?.homeTeam || '',
+            awayTeam,
+            homeTeam,
             awayName: item.event?.awayName,
             homeName: item.event?.homeName,
             startTime: item.event?.startTime || '',
             isExpanded
           })
         }
+        
+        // Add team header if team changed (and game is expanded)
+        if (expandedGames.has(eventId) && playerTeam && playerTeam !== currentTeam) {
+          currentTeam = playerTeam
+          const isAway = playerTeam === awayTeam
+          groups.push({
+            type: 'team-header',
+            eventId,
+            team: playerTeam,
+            teamName: isAway ? item.event?.awayName : item.event?.homeName,
+            isAway
+          })
+        }
       } else {
         // For game props, reset currentEventId so we don't track it
         currentEventId = ''
+        currentTeam = ''
       }
       
       // For player props, only show if game is expanded
@@ -1958,6 +2060,72 @@ export function OddsTable({
           )
         }
       }),
+      'line': columnHelper.display({
+        id: 'line',
+        header: () => {
+          // For single-line markets (Yes/No), just show static label
+          if (isSingleLineMarket) {
+            return (
+              <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase">
+                Line
+              </span>
+            )
+          }
+          
+          // For markets with alternates, show dropdown
+          return (
+            <div className="relative">
+              <select
+                value={effectiveLine ?? ''}
+                onChange={(e) => setSelectedLine(parseFloat(e.target.value))}
+                className="appearance-none bg-transparent text-[10px] font-medium text-neutral-600 dark:text-neutral-300 uppercase cursor-pointer pr-3 hover:text-primary transition-colors border-none focus:outline-none focus:ring-0"
+                style={{ WebkitAppearance: 'none' }}
+              >
+                {availableLines.map((line) => (
+                  <option key={line} value={line} className="bg-white dark:bg-neutral-800">
+                    {line === 0.5 ? 'Yes' : `o${line}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronsUpDown className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-neutral-400 pointer-events-none" />
+            </div>
+          )
+        },
+        size: 24,
+        cell: (info) => {
+          const item = info.row.original
+          const line = item.odds?.best?.over?.line ?? item.odds?.best?.under?.line
+          
+          // For single-line markets, show "Yes" or the line value
+          if (isSingleLineMarket) {
+            // Show "Yes" for 0.5 lines (binary yes/no markets), otherwise show the line
+            if (line === 0.5 || line === undefined || line === null) {
+              return (
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Yes
+                </span>
+              )
+            }
+            return (
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                o{line}
+              </span>
+            )
+          }
+          
+          // For regular markets, show the line (with o prefix for over)
+          if (line === undefined || line === null) return null
+          
+          // If a specific line is selected and this row doesn't match, show nothing
+          // (the odds cells will handle showing empty)
+          
+          return (
+            <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+              o{line}
+            </span>
+          )
+        }
+      }),
       'event': columnHelper.display({
         id: 'event',
         header: () => {
@@ -2043,7 +2211,7 @@ export function OddsTable({
             </div>
           )
         },
-        size: isSmallScreen ? 96 : 140,
+        size: isSmallScreen ? 80 : 100,
         cell: (info) => {
           const item = info.row.original
             const isMoneyline = item.entity.type === 'game' && (
@@ -2059,18 +2227,21 @@ export function OddsTable({
                !((item.odds?.best?.over?.line ?? 0) === 0 && (item.odds?.best?.under?.line ?? 0) === 0) &&
                !(typeof market === 'string' && /(total|totals)/i.test(market)))
             )
+          // Check if this is a single-line market
+          const marketStr = typeof market === 'string' ? market : ''
+          const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
           return (
-            <div className="space-y-1 text-center">
+            <div className="space-y-0.5 text-center">
               {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
                   {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {!isSingleLine && renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               ) : (
                 <>
                   {renderBestOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                  {renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {!isSingleLine && renderBestOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               )}
             </div>
@@ -2114,7 +2285,7 @@ export function OddsTable({
             </div>
           )
         },
-        size: isSmallScreen ? 96 : 140,
+        size: isSmallScreen ? 72 : 96,
         cell: (info) => {
           const item = info.row.original
           const isMoneyline = item.entity.type === 'game' && (
@@ -2126,18 +2297,21 @@ export function OddsTable({
             item.entity.details === 'Point Spread' ||
             (typeof market === 'string' && /spread/i.test(market))
           )
+          // Check if this is a single-line market
+          const marketStr = typeof market === 'string' ? market : ''
+          const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
           return (
-            <div className="space-y-1 text-center">
+            <div className="space-y-0.5 text-center">
               {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
                   {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {!isSingleLine && renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               ) : (
                 <>
                   {renderAverageOddsButton(item, 'over', effectiveVisibleSportsbooks)}
-                  {renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
+                  {!isSingleLine && renderAverageOddsButton(item, 'under', effectiveVisibleSportsbooks)}
                 </>
               )}
             </div>
@@ -2212,15 +2386,19 @@ export function OddsTable({
                               item.odds.books?.[book.id.toUpperCase()]
 
             const renderPlaceholder = () => (
-              <div className="block w-full text-xs text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md px-2 py-1.5 mx-auto text-center min-w-fit">
+              <div className="block w-full text-xs text-neutral-300 dark:text-neutral-600 px-2 py-1.5 mx-auto text-center">
                 -
               </div>
             )
 
+            // Check if this is a single-line market (only show Yes/over side)
+            const marketStr = typeof market === 'string' ? market : ''
+            const isSingleLineMarket = SINGLE_LINE_MARKETS.has(marketStr)
+
             if (!bookData) return (
               <div className="space-y-0.5">
                 {renderPlaceholder()}
-                {renderPlaceholder()}
+                {!isSingleLineMarket && renderPlaceholder()}
               </div>
             )
 
@@ -2279,43 +2457,26 @@ export function OddsTable({
                         isMoneyline={isMoneyline}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
+                          // Line is now shown in dedicated column - hide from cells
+                          // Exception: spreads/moneyline still need context per team
                           if (isMoneyline) return ''
-                          
-                          // For Yes/No markets (line is 0.5), show Yes/No
-                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
-                          const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
-                          const isYesNoMarket = baseLine === 0.5 && (
-                            marketStr.includes('anytime') ||
-                            marketStr.includes('first_td') ||
-                            marketStr.includes('last_td') ||
-                            marketStr.includes('double_double') ||
-                            marketStr.includes('triple_double') ||
-                            marketStr.includes('shutout') ||
-                            marketStr.includes('hat_trick') ||
-                            marketStr.includes('overtime') ||
-                            marketStr.includes('safety')
-                          )
-                          
-                          if (isYesNoMarket) {
-                            return sd === 'over' ? 'Yes' : 'No'
-                          }
-                          
-                          // For spreads, use the actual line value from the data (already signed correctly)
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
                           }
-                          // Fallback for initial load if line is undefined
                           if (isSpread) {
+                            const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
-                          return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
+                          // For player props - line shown in separate column
+                          return ''
                         }}
                         onClick={onClick}
                       />
                     )
                   })(fd)) : renderPlaceholder()}
 
-                {sd ? (
+                {/* Only show second row (under/No) for non-single-line markets */}
+                {!isSingleLineMarket && (sd ? (
                   ((odds) => {
                     const isBestOdds = (() => {
                       if (!columnHighlighting) return false
@@ -2353,41 +2514,23 @@ export function OddsTable({
                         isMoneyline={isMoneyline}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
+                          // Line is now shown in dedicated column - hide from cells
+                          // Exception: spreads/moneyline still need context per team
                           if (isMoneyline) return ''
-                          
-                          // For Yes/No markets (line is 0.5), show Yes/No
-                          const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
-                          const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
-                          const isYesNoMarket = baseLine === 0.5 && (
-                            marketStr.includes('anytime') ||
-                            marketStr.includes('first_td') ||
-                            marketStr.includes('last_td') ||
-                            marketStr.includes('double_double') ||
-                            marketStr.includes('triple_double') ||
-                            marketStr.includes('shutout') ||
-                            marketStr.includes('hat_trick') ||
-                            marketStr.includes('overtime') ||
-                            marketStr.includes('safety')
-                          )
-                          
-                          if (isYesNoMarket) {
-                            return sd === 'over' ? 'Yes' : 'No'
-                          }
-                          
-                          // For spreads, use the actual line value from the data (already signed correctly)
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
                           }
-                          // Fallback for initial load if line is undefined
                           if (isSpread) {
+                            const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
-                          return sd === 'over' ? `o${baseLine}` : `u${baseLine}`
+                          // For player props - line shown in separate column
+                          return ''
                         }}
                         onClick={onClick}
                       />
                     )
-                  })(sd)) : renderPlaceholder()}
+                  })(sd)) : renderPlaceholder())}
               </div>
             )
           }
@@ -2424,19 +2567,25 @@ export function OddsTable({
     // Guard: return empty string if line is undefined or null
     if (line === undefined || line === null) return ''
     
+    // For single-line markets, don't show "Yes" - just odds (saves horizontal space)
+    const marketStr = typeof market === 'string' ? market : ''
+    if (SINGLE_LINE_MARKETS.has(marketStr)) {
+      return ''
+    }
+    
     // For Yes/No markets (line is 0.5), show Yes/No instead of o0.5/u0.5
     // Common Yes/No markets: anytime_td, first_td, last_td, double_double, etc.
-    const marketStr = (typeof market === 'string' ? market : '').toLowerCase()
+    const marketStrLower = marketStr.toLowerCase()
     const isYesNoMarket = line === 0.5 && (
-      marketStr.includes('anytime') ||
-      marketStr.includes('first_td') ||
-      marketStr.includes('last_td') ||
-      marketStr.includes('double_double') ||
-      marketStr.includes('triple_double') ||
-      marketStr.includes('shutout') ||
-      marketStr.includes('hat_trick') ||
-      marketStr.includes('overtime') ||
-      marketStr.includes('safety')
+      marketStrLower.includes('anytime') ||
+      marketStrLower.includes('first_td') ||
+      marketStrLower.includes('last_td') ||
+      marketStrLower.includes('double_double') ||
+      marketStrLower.includes('triple_double') ||
+      marketStrLower.includes('shutout') ||
+      marketStrLower.includes('hat_trick') ||
+      marketStrLower.includes('overtime') ||
+      marketStrLower.includes('safety')
     )
     
     if (isYesNoMarket) {
@@ -2478,13 +2627,16 @@ export function OddsTable({
       )
     }
 
+    const lineLabel = formatLine(displayOdds.line, side, rowItem)
+    const isMoneylineOrSingleLine = (rowItem.entity.type === 'game' && (rowItem.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline')))) || !lineLabel
+    
     return (
       <div className="avg-line avg-line--sm">
-        {rowItem.entity.type === 'game' && (rowItem.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))) ? (
+        {isMoneylineOrSingleLine ? (
           <span>{formatOdds(displayOdds.price)}</span>
         ) : (
           <>
-            <span className="opacity-75">{formatLine(displayOdds.line, side, rowItem)}</span>
+            <span className="opacity-75">{lineLabel}</span>
             <span className="font-semibold">/{formatOdds(displayOdds.price)}</span>
           </>
         )}
@@ -2602,7 +2754,7 @@ export function OddsTable({
           return null
         })()}
         <span>
-          {label}/{formatOdds(displayOdds.price)}
+          {label ? `${label}/` : ''}{formatOdds(displayOdds.price)}
         </span>
       </div>
     )
@@ -2824,12 +2976,12 @@ export function OddsTable({
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header) => {
                         // Check if this is a sportsbook column (not entity, event, best-line, average-line)
-                        const isBookColumn = !['entity', 'event', 'best-line', 'average-line'].includes(header.column.id)
+                        const isBookColumn = !['entity', 'best-line', 'average-line'].includes(header.column.id)
                         return (
                         <th
                           key={header.id}
                           className={cn(
-                            "bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-2 py-2 sm:px-4 sm:py-3 text-left font-medium text-xs",
+                            "bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-1 sm:px-2 sm:py-1.5 text-left font-medium text-xs",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
                             header.column.id === 'entity' && 'sticky left-0 z-20 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60',
                             isBookColumn && 'books'
@@ -2889,17 +3041,22 @@ export function OddsTable({
                       const awayDisplay = showFullNames && entry.awayName ? entry.awayName : entry.awayTeam
                       const homeDisplay = showFullNames && entry.homeName ? entry.homeName : entry.homeTeam
                       
+                      // Calculate how many main columns we have (entity + best-line + avg-line = up to 3)
+                      const mainColsCount = filteredColumnOrder.length
+                      const matchupColSpan = Math.min(mainColsCount, 3) // Span up to 3 main columns
+                      const remainingColSpan = Math.max(totalColumns - matchupColSpan, 1)
+                      
                       return (
                         <tr key={`game-${entry.eventId}-${idx}`} className="game-header-row cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" onClick={() => toggleGameExpansion(entry.eventId)}>
-                          {/* Sticky left matchup cell */}
+                          {/* Matchup cell - spans multiple columns for breathing room */}
                           <td
-                            className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-4 py-3"
-                            style={{ width: entityColWidth, minWidth: entityColWidth }}
+                            colSpan={matchupColSpan}
+                            className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-3 py-2"
                           >
                             <div className="flex items-center gap-2">
                               {/* Expand/collapse button */}
                               <button
-                                className="flex items-center justify-center w-6 h-6 rounded-md transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                                className="flex items-center justify-center w-5 h-5 rounded transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   toggleGameExpansion(entry.eventId);
@@ -2915,41 +3072,74 @@ export function OddsTable({
                               </button>
                               
                               {showLogos && (
-                                <>
-                                  <img
-                                    src={getTeamLogoUrl(entry.awayTeam)}
-                                    alt={entry.awayTeam}
-                                    className="w-6 h-6 object-contain"
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                </>
+                                <img
+                                  src={getTeamLogoUrl(entry.awayTeam)}
+                                  alt={entry.awayTeam}
+                                  className="w-5 h-5 object-contain"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
                               )}
-                              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                              <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
                                 {awayDisplay} @ {homeDisplay}
                               </span>
                               {showLogos && (
-                                <>
-                                  <img
-                                    src={getTeamLogoUrl(entry.homeTeam)}
-                                    alt={entry.homeTeam}
-                                    className="w-6 h-6 object-contain"
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                </>
+                                <img
+                                  src={getTeamLogoUrl(entry.homeTeam)}
+                                  alt={entry.homeTeam}
+                                  className="w-5 h-5 object-contain"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
                               )}
+                              {/* Time inline with matchup */}
+                              <span className="text-xs text-neutral-500 dark:text-neutral-400 ml-2">
+                                {timeString}
+                              </span>
                             </div>
                           </td>
-                          {/* Fill rest of row with time and styling */}
+                          {/* Fill rest of row */}
                           <td
-                            colSpan={Math.max(totalColumns - 1, 1)}
-                            className="bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400"
+                            colSpan={remainingColSpan}
+                            className="bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700"
+                          />
+                        </tr>
+                      )
+                    }
+
+                    // Render team header row (skinny divider between teams)
+                    if (entry.type === 'team-header') {
+                      const showLogos = ['nfl', 'nba', 'nhl', 'mlb'].includes(sport.toLowerCase())
+                      
+                      return (
+                        <tr key={`team-${entry.eventId}-${entry.team}-${idx}`} className="team-header-row">
+                          {/* Sticky first cell with team info */}
+                          <td
+                            className="sticky left-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 px-3 py-1"
                           >
-                            {timeString}
+                            <div className="flex items-center gap-2">
+                              {showLogos && (
+                                <img
+                                  src={getTeamLogoUrl(entry.team)}
+                                  alt={entry.team}
+                                  className="w-4 h-4 object-contain"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                                {entry.teamName || entry.team}
+                              </span>
+                            </div>
                           </td>
+                          {/* Remaining cells span the rest */}
+                          <td
+                            colSpan={totalColumns - 1}
+                            className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800"
+                          />
                         </tr>
                       )
                     }
@@ -2967,7 +3157,7 @@ export function OddsTable({
                       <td
                         key={cell.id}
                         className={cn(
-                          'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-2 py-1.5 sm:px-4 sm:py-2 text-left text-sm',
+                          'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-0.5 sm:px-2 sm:py-1 text-left text-sm',
                           rowBg,
                           cell.column.id === 'average-line' && 'hidden sm:table-cell',
                           cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`

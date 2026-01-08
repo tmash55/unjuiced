@@ -828,15 +828,15 @@ code .line::before {
   border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
   color: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
   font-weight: 600;
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 5px;
+  padding: 1px 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  transition: all 0.25s ease;
+  gap: 4px;
+  transition: all 0.15s ease;
   width: 100%;
-  min-height: 36px; /* Consistent height with sportsbook cells */
+  min-height: 24px; /* Match sportsbook cells */
 }
 
 .best-line:hover {
@@ -847,12 +847,11 @@ code .line::before {
 
 /* Compact variant for tight cells */
 .best-line--sm {
-  padding: 4px 8px;
-  gap: 4px;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  min-height: 32px; /* Consistent height for compact */
-  min-width: 120px; /* Consistent width across all best line cells */
+  padding: 1px 4px;
+  gap: 3px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  min-height: 22px; /* Match sportsbook-cell--sm */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -865,15 +864,15 @@ code .line::before {
   border: 1px solid #7dd3fc;
   color: #0369a1;
   font-weight: 500;
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 5px;
+  padding: 1px 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  transition: all 0.2s ease;
+  gap: 3px;
+  transition: all 0.15s ease;
   width: 100%;
-  min-height: 36px;
+  min-height: 24px; /* Match sportsbook cells */
 }
 
 .avg-line:hover {
@@ -897,11 +896,10 @@ code .line::before {
 
 /* Compact variant for tight cells */
 .avg-line--sm {
-  padding: 4px 8px;
-  font-size: 0.75rem; /* text-xs */
-  border-radius: 8px;
-  min-height: 32px; /* Consistent height for compact */
-  min-width: 80px; /* Consistent width for average line cells */
+  padding: 1px 4px;
+  font-size: 0.7rem;
+  border-radius: 5px;
+  min-height: 22px; /* Match sportsbook-cell--sm */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -913,15 +911,15 @@ code .line::before {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   color: #111827;
-  border-radius: 6px;
-  padding: 2px 6px;
+  border-radius: 5px;
+  padding: 1px 4px;
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
   min-width: fit-content;
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .sportsbook-cell:hover {
@@ -945,10 +943,10 @@ code .line::before {
 
 /* Compact variant */
 .sportsbook-cell--sm {
-  padding: 2px 6px;
+  padding: 1px 4px;
   font-size: 0.7rem;
-  border-radius: 6px;
-  min-height: 26px; /* Consistent height for compact */
+  border-radius: 5px;
+  min-height: 22px; /* Consistent height for compact */
 }
 
 /* Highlighted (best odds) variant - overrides base styles */
@@ -1017,6 +1015,24 @@ thead .books th {
   color: color-mix(in oklab, var(--text) 85%, var(--primary) 60%);
   border-top: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Team Header Row
+   Skinny divider between teams within a game
+   ───────────────────────────────────────────────────────────────────────────── */
+.team-header-row {
+  font-size: 0.75rem;
+}
+
+:root .team-header-row td {
+  background: #fafafa;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dark .team-header-row td {
+  background: color-mix(in oklab, var(--card) 95%, var(--bg));
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

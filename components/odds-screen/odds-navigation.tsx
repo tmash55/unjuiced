@@ -31,7 +31,7 @@ const MARKET_TABS: Record<string, Array<{ id: string; label: string; apiKey: str
     { id: "ast", label: "AST", apiKey: "player_assists", type: "player" },
     { id: "3pm", label: "3PM", apiKey: "player_threes_made", type: "player" },
     { id: "1st", label: "1st", apiKey: "first_field_goal", type: "player" },
-    { id: "1st_tm", label: "1st Tm", apiKey: "player_first_team_basket", type: "player" },
+    { id: "1st_tm", label: "1st Tm", apiKey: "team_first_basket", type: "player" },
     { id: "dd", label: "DD", apiKey: "player_double_double", type: "player" },
     { id: "td", label: "TD", apiKey: "player_triple_double", type: "player" },
     { id: "pra", label: "PRA", apiKey: "player_points_rebounds_assists", type: "player" },

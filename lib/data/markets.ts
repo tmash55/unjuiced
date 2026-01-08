@@ -9,6 +9,7 @@ export interface SportMarket {
     group?: string; // e.g., 'Passing', 'Receiving', 'Rushing', 'Kicking', 'Defense', 'Scoring', 'Combo'
     period?: 'full' | '1q' | '2q' | '3q' | '4q' | '1h' | '2h' | 'both_halves' | 'p1' | 'p2' | 'p3';
     periodLabel?: string; // e.g., '1Q', '1H', 'Both Halves', 'P1', 'P2', 'P3'
+    singleLine?: boolean; // True for markets with no over/under (e.g., Anytime TD, First Goalscorer, Double Double)
   }
   
   export interface SportMarkets {
@@ -131,6 +132,7 @@ export interface SportMarket {
       apiKey: "player_double_double",
       group: "Combo",
       period: 'full',
+      singleLine: true,
     },
     {
       value: "Triple_Double",
@@ -138,6 +140,7 @@ export interface SportMarket {
       apiKey: "player_triple_double",
       group: "Combo",
       period: 'full',
+      singleLine: true,
     },
     {
       value: "Blocks",
@@ -177,32 +180,36 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "First_Team_Basket",
-      label: "Team First Point",
-      apiKey: "player_first_team_basket",
-      group: "Scoring",
-      period: 'full',
-    },
-    {
       value: "First_Field_Goal",
-      label: "First Point",
+      label: "1st Basket (Game)",
       apiKey: "first_field_goal",
       group: "Scoring",
       period: 'full',
+      singleLine: true,
+    },
+    {
+      value: "Team_First_Basket",
+      label: "1st Basket (Team)",
+      apiKey: "team_first_basket",
+      group: "Scoring",
+      period: 'full',
+      singleLine: true,
     },
     {
       value: "Home_Team_First_Field_Goal",
-      label: "Home Team First Point",
+      label: "Home Team First Basket",
       apiKey: "home_team_first_field_goal",
       group: "Scoring",
       period: 'full',
+      singleLine: true,
     },
     {
       value: "Away_Team_First_Field_Goal",
-      label: "Away Team First Point",
+      label: "Away Team First Basket",
       apiKey: "away_team_first_field_goal",
       group: "Scoring",
       period: 'full',
+      singleLine: true,
     },
     {
       value: "Top_Points_Scorer",
@@ -210,6 +217,7 @@ export interface SportMarket {
       apiKey: "top_points_scorer",
       group: "Scoring",
       period: 'full',
+      singleLine: true,
     },
     {
       value: "Player_Points_Q1",
@@ -283,9 +291,9 @@ export interface SportMarket {
   
     // Player props - Most Popular Markets First
     // Top Scoring Markets
-    { value: "player_touchdowns", label: "Anytime TD", apiKey: "player_touchdowns", group: "Scoring", period: 'full' },
-    { value: "first_td", label: "1st TD", apiKey: "first_td", group: "Scoring", period: 'full' },
-    { value: "last_td", label: "Last TD", apiKey: "last_td", group: "Scoring", period: 'full' },
+    { value: "player_touchdowns", label: "Anytime TD", apiKey: "player_touchdowns", group: "Scoring", period: 'full', singleLine: true },
+    { value: "first_td", label: "1st TD", apiKey: "first_td", group: "Scoring", period: 'full', singleLine: true },
+    { value: "last_td", label: "Last TD", apiKey: "last_td", group: "Scoring", period: 'full', singleLine: true },
     
     // Top Passing Markets
     { value: "passing_yards", label: "Passing Yards", apiKey: "passing_yards", group: "Passing", period: 'full', hasAlternates: true },
@@ -340,12 +348,12 @@ export interface SportMarket {
     { value: "1h_rushing_yards", label: "Rushing Yards (1H)", apiKey: "1h_rushing_yards", group: "Rushing", period: '1h', hasAlternates: true, alternateKey: "1h_rushing_yards_alternate", alwaysFetchAlternate: true },
     
     // Additional Scoring Markets
-    { value: "1q_player_touchdowns", label: "Player Touchdowns (1Q)", apiKey: "1q_player_touchdowns", group: "Scoring", period: '1q' },
-    { value: "1h_player_touchdowns", label: "Player Touchdowns (1H)", apiKey: "1h_player_touchdowns", group: "Scoring", period: '1h' },
-    { value: "2h_player_touchdowns", label: "Player Touchdowns (2H)", apiKey: "2h_player_touchdowns", group: "Scoring", period: '2h' },
-    { value: "2nd_half_first_touchdown_scorer", label: "First TD Scorer (2H)", apiKey: "2nd_half_first_touchdown_scorer", group: "Scoring", period: '2h' },
-    { value: "3q_player_touchdowns", label: "Player Touchdowns (3Q)", apiKey: "3q_player_touchdowns", group: "Scoring", period: '3q' },
-    { value: "both_halves_player_touchdowns", label: "Player TDs (Both Halves)", apiKey: "both_halves_player_touchdowns", group: "Scoring", period: 'both_halves' },
+    { value: "1q_player_touchdowns", label: "Player Touchdowns (1Q)", apiKey: "1q_player_touchdowns", group: "Scoring", period: '1q', singleLine: true },
+    { value: "1h_player_touchdowns", label: "Player Touchdowns (1H)", apiKey: "1h_player_touchdowns", group: "Scoring", period: '1h', singleLine: true },
+    { value: "2h_player_touchdowns", label: "Player Touchdowns (2H)", apiKey: "2h_player_touchdowns", group: "Scoring", period: '2h', singleLine: true },
+    { value: "2nd_half_first_touchdown_scorer", label: "First TD Scorer (2H)", apiKey: "2nd_half_first_touchdown_scorer", group: "Scoring", period: '2h', singleLine: true },
+    { value: "3q_player_touchdowns", label: "Player Touchdowns (3Q)", apiKey: "3q_player_touchdowns", group: "Scoring", period: '3q', singleLine: true },
+    { value: "both_halves_player_touchdowns", label: "Player TDs (Both Halves)", apiKey: "both_halves_player_touchdowns", group: "Scoring", period: 'both_halves', singleLine: true },
   
     // Defense
     { value: "player_defensive_interceptions", label: "Defensive Interceptions", apiKey: "player_defensive_interceptions", group: "Defense", period: 'full' },
@@ -385,9 +393,9 @@ export interface SportMarket {
       group: "Player",
       period: "full",
     },
-    { value: "Anytime Goalscorer", label: "Anytime Goalscorer", apiKey: "anytime_goalscorer", group: "Player", period: "full" },
-    { value: "First Goalscorer", label: "First Goalscorer", apiKey: "first_goalscorer", group: "Player", period: "full" },
-    { value: "Last Goalscorer", label: "Last Goalscorer", apiKey: "last_goalscorer", group: "Player", period: "full" },
+    { value: "Anytime Goalscorer", label: "Anytime Goalscorer", apiKey: "anytime_goalscorer", group: "Player", period: "full", singleLine: true },
+    { value: "First Goalscorer", label: "First Goalscorer", apiKey: "first_goalscorer", group: "Player", period: "full", singleLine: true },
+    { value: "Last Goalscorer", label: "Last Goalscorer", apiKey: "last_goalscorer", group: "Player", period: "full", singleLine: true },
     
     // Player props - Shots
     { value: "Shots On Target", label: "Shots On Target", apiKey: "player_shots_on_target", group: "Player", period: "full" },
@@ -476,6 +484,7 @@ export interface SportMarket {
         label: "1st Home Run",
         apiKey: "batter_first_home_run",
         group: "Batter",
+        singleLine: true,
       },
   
       // Pitcher Props
@@ -583,6 +592,7 @@ export interface SportMarket {
         alwaysFetchAlternate: true,
         group: "Skater",
         period: 'full',
+        singleLine: true,
       },
       {
         value: "First_Goal_Scorer",
@@ -590,6 +600,7 @@ export interface SportMarket {
         apiKey: "player_first_goal",
         group: "Scoring",
         period: 'full',
+        singleLine: true,
       },
       {
         value: "Last_Goal_Scorer",
@@ -597,6 +608,7 @@ export interface SportMarket {
         apiKey: "player_last_goal",
         group: "Scoring",
         period: 'full',
+        singleLine: true,
       },
       {
         value: "Assists",
@@ -662,7 +674,7 @@ export interface SportMarket {
         group: "Goalie",
         period: 'full',
       },
-      { value: "Shutout", label: "Shutout", apiKey: "player_shutout", group: "Goalie", period: 'full' },
+      { value: "Shutout", label: "Shutout", apiKey: "player_shutout", group: "Goalie", period: 'full', singleLine: true },
 
       // 1st Period player props
       { value: "1st Period Player Goals", label: "Goals - 1st Period", apiKey: "1st_period_player_goals", group: "Skater", period: 'p1' },
@@ -910,6 +922,8 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'first-basket': 'first_field_goal',
   'First Field Goal': 'first_field_goal',
   'first-field-goal': 'first_field_goal',
+  'Team First Basket': 'team_first_basket',
+  'team-first-basket': 'team_first_basket',
   'Home Team First Field Goal': 'home_team_first_field_goal',
   'home-team-first-field-goal': 'home_team_first_field_goal',
   'Home Team First Basket': 'home_team_first_field_goal',
@@ -1293,10 +1307,51 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   ): string {
     const market = getMarketsForSport(sport).find((m) => m.value === marketValue);
     if (!market) return "player_points";
-  
+
     if (useAlternate && market.hasAlternates && market.alternateKey) {
       return market.alternateKey;
     }
-  
+
     return market.apiKey;
   }
+
+  // Helper function to check if a market is single-line (no over/under)
+  export function isSingleLineMarket(sport: string, marketApiKey: string): boolean {
+    const markets = getMarketsForSport(sport);
+    const market = markets.find((m) => m.apiKey === marketApiKey);
+    return market?.singleLine === true;
+  }
+  
+  // List of API keys that are known single-line markets (for quick lookup without sport context)
+  export const SINGLE_LINE_MARKETS = new Set([
+    // Basketball
+    'player_double_double',
+    'player_triple_double',
+    'first_field_goal',
+    'team_first_basket',
+    'home_team_first_field_goal',
+    'away_team_first_field_goal',
+    'top_points_scorer',
+    // Hockey
+    'player_goals',
+    // Football
+    'player_touchdowns',
+    'first_td',
+    'last_td',
+    '1q_player_touchdowns',
+    '1h_player_touchdowns',
+    '2h_player_touchdowns',
+    '2nd_half_first_touchdown_scorer',
+    '3q_player_touchdowns',
+    'both_halves_player_touchdowns',
+    // Soccer
+    'anytime_goalscorer',
+    'first_goalscorer',
+    'last_goalscorer',
+    // Hockey
+    'player_first_goal',
+    'player_last_goal',
+    'player_shutout',
+    // Baseball
+    'batter_first_home_run',
+  ]);
