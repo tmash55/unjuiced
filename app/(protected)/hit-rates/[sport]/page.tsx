@@ -223,9 +223,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const hasSortChanged = !isDefaultSort;
 
   // Determine how much data to fetch:
-  // - Search, game filter, or custom sort: Need more data for complete/accurate view
+  // - Drilldown, search, game filter, or custom sort: Need more data for complete/accurate view
   // - Background loaded: Use background data
-  // - Initial load: Start with initial page size for snappy UX
+  // - Initial load: Just 50 rows for snappy UX
   const needsFullData = debouncedSearch || hasGameFilter || hasSortChanged;
 
   // Calculate limit based on state
@@ -454,4 +454,3 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     </div>
   );
 }
-

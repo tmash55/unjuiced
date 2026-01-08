@@ -152,4 +152,3 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
     [rows, count, meta, availableDates, queryResult.isLoading, queryResult.isFetching, queryResult.error, queryResult.refetch]
   );
 }
-

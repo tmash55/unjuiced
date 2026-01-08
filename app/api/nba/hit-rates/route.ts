@@ -80,7 +80,7 @@ export async function GET(request: Request) {
       p_offset: offset ?? 0,
     });
 
-    if (error) {
+  if (error) {
       console.error("[Hit Rates API] RPC error:", error.message);
     return NextResponse.json(
       { error: "Failed to load hit rates", details: error.message },
