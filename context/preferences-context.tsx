@@ -69,6 +69,7 @@ interface PreferencesContextType {
     columnHighlighting?: boolean;
     showBestLine?: boolean;
     showAverageLine?: boolean;
+    tableView?: 'compact' | 'relaxed';
   }) => Promise<void>;
   
   // Getters for common data
@@ -91,6 +92,7 @@ interface PreferencesContextType {
     columnHighlighting: boolean;
     showBestLine: boolean;
     showAverageLine: boolean;
+    tableView: 'compact' | 'relaxed';
   };
   
   updateLadderFilters: (filters: {
@@ -154,6 +156,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     columnHighlighting?: boolean;
     showBestLine?: boolean;
     showAverageLine?: boolean;
+    tableView?: 'compact' | 'relaxed';
   }>({});
   // Guest (unsigned) runtime-only overrides for arbitrage filters
   const [guestArb, setGuestArb] = useState<{
@@ -552,6 +555,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     columnHighlighting?: boolean;
     showBestLine?: boolean;
     showAverageLine?: boolean;
+    tableView?: 'compact' | 'relaxed';
   }) => {
     // If no signed-in user, update guest runtime preferences so changes persist until refresh
     if (!user) {
@@ -564,6 +568,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         ...(filters.columnHighlighting !== undefined ? { columnHighlighting: filters.columnHighlighting } : {}),
         ...(filters.showBestLine !== undefined ? { showBestLine: filters.showBestLine } : {}),
         ...(filters.showAverageLine !== undefined ? { showAverageLine: filters.showAverageLine } : {}),
+        ...(filters.tableView !== undefined ? { tableView: filters.tableView } : {}),
       }));
       return;
     }
@@ -589,6 +594,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.showAverageLine !== undefined) {
       updates.odds_show_average_line = filters.showAverageLine;
+    }
+    if (filters.tableView !== undefined) {
+      updates.odds_table_view = filters.tableView;
     }
 
     await updatePreferences(updates);
@@ -700,6 +708,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         columnHighlighting: guestOdds.columnHighlighting ?? true,
         showBestLine: guestOdds.showBestLine ?? true,
         showAverageLine: guestOdds.showAverageLine ?? true,
+        tableView: guestOdds.tableView ?? 'compact',
       };
     }
 
@@ -711,6 +720,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       columnHighlighting: (preferences.odds_column_highlighting ?? true),
       showBestLine: (preferences.odds_show_best_line ?? true),
       showAverageLine: (preferences.odds_show_average_line ?? true),
+      tableView: (preferences.odds_table_view ?? 'compact') as 'compact' | 'relaxed',
     };
   }, [preferences, activeSportsbooks, guestOdds]);
 

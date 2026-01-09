@@ -847,11 +847,24 @@ code .line::before {
 
 /* Compact variant for tight cells */
 .best-line--sm {
-  padding: 1px 4px;
-  gap: 3px;
-  border-radius: 5px;
-  font-size: 0.7rem;
-  min-height: 22px; /* Match sportsbook-cell--sm */
+  padding: 1px 3px;
+  gap: 1px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  min-height: 18px;
+  white-space: nowrap;
+}
+
+/* Ultra-compact variant for single-line markets */
+.best-line--single-line {
+  padding: 2px 4px;
+  gap: 2px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -864,8 +877,8 @@ code .line::before {
   border: 1px solid #7dd3fc;
   color: #0369a1;
   font-weight: 500;
-  border-radius: 5px;
-  padding: 1px 4px;
+  border-radius: 4px;
+  padding: 1px 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -896,10 +909,22 @@ code .line::before {
 
 /* Compact variant for tight cells */
 .avg-line--sm {
-  padding: 1px 4px;
-  font-size: 0.7rem;
-  border-radius: 5px;
-  min-height: 22px; /* Match sportsbook-cell--sm */
+  padding: 1px 3px;
+  font-size: 0.65rem;
+  border-radius: 3px;
+  min-height: 18px;
+  white-space: nowrap;
+}
+
+/* Ultra-compact variant for single-line markets */
+.avg-line--single-line {
+  padding: 2px 4px;
+  font-size: 0.68rem;
+  border-radius: 4px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -943,10 +968,21 @@ code .line::before {
 
 /* Compact variant */
 .sportsbook-cell--sm {
-  padding: 1px 4px;
-  font-size: 0.7rem;
-  border-radius: 5px;
-  min-height: 22px; /* Consistent height for compact */
+  padding: 1px 3px;
+  font-size: 0.65rem;
+  border-radius: 4px;
+  min-height: 20px; /* Consistent height for compact */
+}
+
+/* Ultra-compact variant for single-line markets */
+.sportsbook-cell--single-line {
+  padding: 2px 4px;
+  font-size: 0.68rem;
+  border-radius: 4px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Highlighted (best odds) variant - overrides base styles */
@@ -970,6 +1006,65 @@ code .line::before {
 
 .dark .sportsbook-cell--highlighted:hover {
   background: color-mix(in oklab, var(--accent) 30%, var(--card)) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELAXED VIEW VARIANTS
+   Normal cell sizes matching production - comfortable for casual users
+   These use --relaxed suffix to distinguish from compact (power user) view
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Relaxed sportsbook cell - matches production base styles */
+.sportsbook-cell--relaxed {
+  padding: 1px 4px;
+  border-radius: 5px;
+  min-height: 24px;
+}
+
+/* Relaxed single-line variant */
+.sportsbook-cell--relaxed-single-line {
+  padding: 1px 4px;
+  border-radius: 5px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Relaxed best line cell - matches production */
+.best-line--relaxed {
+  padding: 1px 4px;
+  gap: 4px;
+  border-radius: 5px;
+  min-height: 24px;
+}
+
+/* Relaxed single-line best line */
+.best-line--relaxed-single-line {
+  padding: 1px 4px;
+  gap: 4px;
+  border-radius: 5px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Relaxed average line cell - matches production */
+.avg-line--relaxed {
+  padding: 1px 4px;
+  border-radius: 5px;
+  min-height: 24px;
+}
+
+/* Relaxed single-line average line */
+.avg-line--relaxed-single-line {
+  padding: 1px 4px;
+  border-radius: 5px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1033,6 +1128,30 @@ thead .books th {
 .dark .team-header-row td {
   background: color-mix(in oklab, var(--card) 95%, var(--bg));
   border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Game Highlight Animation
+   Used when jumping to a game via the game selector
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes game-highlight-pulse {
+  0% {
+    background-color: rgba(var(--brand-rgb, 59, 130, 246), 0.15);
+  }
+  50% {
+    background-color: rgba(var(--brand-rgb, 59, 130, 246), 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.game-highlight {
+  animation: game-highlight-pulse 2s ease-out;
+}
+
+.game-highlight td {
+  animation: game-highlight-pulse 2s ease-out;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1192,11 +1311,13 @@ thead .books th {
 /* ─────────────────────────────────────────────────────────────────────────────
    Table Header Gradient
    Subtle gradient for table headers (odds screen and arbitrage)
+   Note: Tables have their own scroll container (overflow-auto), so the header
+   sticks relative to that container at top: 0.
    ───────────────────────────────────────────────────────────────────────────── */
 .table-header-gradient {
   position: sticky;
-  top: 0;
-  z-index: 20;
+  top: 0; /* Stick to top of scroll container */
+  z-index: 15; /* Below navigation dropdowns (z-20) but above table content */
 }
 
 /* Light mode */

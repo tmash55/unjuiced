@@ -6,6 +6,8 @@ import { OddsNavigation } from "@/components/odds-screen/odds-navigation";
 import { getDefaultMarket } from "@/lib/data/markets";
 import { ToolHeading } from "@/components/common/tool-heading";
 import { ToolSubheading } from "@/components/common/tool-subheading";
+import { OddsUtilityProvider, useOddsUtilityOptional } from "./odds-utility-context";
+import { useOddsPreferences } from "@/context/preferences-context";
 
 interface OddsLayoutClientProps {
   children: React.ReactNode;
@@ -22,13 +24,14 @@ const SPORT_NAMES: Record<string, string> = {
 };
 
 /**
- * Client-side odds layout that persists navigation across sport changes.
- * This prevents the navigation from re-mounting when switching sports.
+ * Inner layout component that uses the utility context
  */
-export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
+function OddsLayoutInner({ children }: OddsLayoutClientProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const utility = useOddsUtilityOptional();
+  const { preferences, updatePreferences } = useOddsPreferences();
   
   // Extract sport from pathname (e.g., /odds/nba -> nba)
   const sport = useMemo(() => {
@@ -39,7 +42,7 @@ export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
   // Get type and market from search params
   const type = searchParams.get("type") || "game";
   const market = searchParams.get("market") || getDefaultMarket(sport);
-  const scope = searchParams.get("scope") || "pregame";
+  const scope = (searchParams.get("scope") || "pregame") as "pregame" | "live";
   
   // Track if we're transitioning to show loading state
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -65,6 +68,16 @@ export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
     }
   }, [sport, type, scope, router]);
   
+  const handleScopeChange = useCallback((newScope: "pregame" | "live") => {
+    if (newScope === scope) return;
+    setIsTransitioning(true);
+    router.replace(`/odds/${sport}?type=${type}&market=${market}&scope=${newScope}`, { scroll: false });
+  }, [sport, type, market, scope, router]);
+  
+  const handleTableViewChange = useCallback((newView: 'compact' | 'relaxed') => {
+    updatePreferences({ tableView: newView });
+  }, [updatePreferences]);
+  
   // Only show navigation on sport-specific pages (not /odds main page)
   const showNavigation = pathname.startsWith("/odds/") && pathname !== "/odds";
   const sportName = SPORT_NAMES[sport] || sport.toUpperCase();
@@ -74,7 +87,7 @@ export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
       {showNavigation && (
         <>
           {/* Header - persists but updates with sport */}
-          <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+          <div className="px-4 sm:px-6 pt-6 pb-4">
             <ToolHeading>{sportName} Odds</ToolHeading>
             <ToolSubheading>
               Compare real-time odds across top sportsbooks and find the best value for {sportName} games and player props.
@@ -82,13 +95,26 @@ export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
           </div>
           
           {/* Navigation Tabs - sticky below header */}
-          <div className="sticky top-14 z-50 bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="sticky top-14 z-20 bg-white dark:bg-neutral-950">
             <OddsNavigation
               sport={sport}
               market={market}
               type={type as "game" | "player"}
+              scope={scope}
               onSportChange={handleSportChange}
               onMarketChange={handleMarketChange}
+              onScopeChange={handleScopeChange}
+              // Utility controls from context
+              searchQuery={utility?.searchQuery}
+              onSearchChange={utility?.setSearchQuery}
+              onFiltersClick={utility?.openFilters}
+              connectionStatus={utility?.connectionStatus}
+              // View toggle
+              tableView={preferences.tableView}
+              onTableViewChange={handleTableViewChange}
+              // Game selector
+              games={utility?.games}
+              onGameSelect={utility?.onGameSelect}
             />
           </div>
         </>
@@ -102,3 +128,14 @@ export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
   );
 }
 
+/**
+ * Client-side odds layout that persists navigation across sport changes.
+ * This prevents the navigation from re-mounting when switching sports.
+ */
+export function OddsLayoutClient({ children }: OddsLayoutClientProps) {
+  return (
+    <OddsUtilityProvider>
+      <OddsLayoutInner>{children}</OddsLayoutInner>
+    </OddsUtilityProvider>
+  );
+}

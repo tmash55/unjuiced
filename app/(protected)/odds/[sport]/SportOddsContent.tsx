@@ -161,8 +161,8 @@ function SportOddsContent({
       'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
     ])
     if (t === 'game') {
-      const game = all.find((m) => gameKeys.has(m.apiKey))
-      return game?.apiKey || 'total'
+      // Default to moneyline for all sports
+      return 'moneyline'
     }
     // For player props, find first non-game market, preferring passing markets for NFL
     const playerMarkets = all.filter((m) => !gameKeys.has(m.apiKey))

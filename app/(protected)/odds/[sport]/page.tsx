@@ -7,18 +7,14 @@ import { OddsTable, type OddsTableItem } from '@/components/odds-screen/tables/o
 import { OddsFilters } from '@/components/odds-screen/filters'
 import { getMarketsForSport, type SportMarket } from '@/lib/data/markets'
 import { useOddsPreferences } from '@/context/preferences-context'
-import { LoadingState } from '@/components/common/loading-state'
+import { OddsTableSkeleton } from '@/components/odds-screen/tables/odds-table-skeleton'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useEntitlements } from '@/hooks/use-entitlements'
 import { ConnectionErrorDialog } from '@/components/common/connection-error-dialog'
 import { cn } from '@/lib/utils'
-import { Combobox } from '@/components/ui/combobox'
-import { ChevronsUpDown } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { InputSearch } from '@/components/icons/input-search'
-import { FiltersBar, FiltersBarSection, FiltersBarDivider } from '@/components/common/filters-bar'
-import { Tooltip } from '@/components/tooltip'
+import { useOddsUtility } from '../odds-utility-context'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 /**
  * Sport-specific Odds Page
@@ -46,11 +42,21 @@ function SportOddsContent({
   const [marketState, setMarketState] = useState<string>(market)
   const [groupFilter, setGroupFilter] = useState<string>('all')
   const [periodFilter, setPeriodFilter] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState<string>('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('')
   const [isSearching, setIsSearching] = useState<boolean>(false)
   const [userPlan, setUserPlan] = useState<string | null>(null)
   const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState<boolean>(true) // Pro users default to live
+  
+  // Use shared utility context for search, filters, connection status, and games
+  const { 
+    searchQuery, 
+    setSearchQuery,
+    filtersOpen,
+    setFiltersOpen,
+    setConnectionStatus,
+    setGames,
+    setGameSelectHandler,
+  } = useOddsUtility()
   
   const { user } = useAuth()
   const isPro = userPlan === 'pro' || userPlan === 'admin'
@@ -201,16 +207,15 @@ function SportOddsContent({
       'race_to_2_goals_3way_reg', 'race_to_3_goals_3way_reg', 'race_to_4_goals_3way_reg', 'race_to_5_goals_3way_reg',
     ])
     if (t === 'game') {
-      const game = all.find((m) => gameKeys.has(m.apiKey))
-      return game?.apiKey || 'total'
+      // Default to moneyline for all sports
+      return 'moneyline'
     }
-    // For player props, find first non-game market, preferring sport-specific defaults
+    // For player props, use sport-specific defaults
     const playerMarkets = all.filter((m) => !gameKeys.has(m.apiKey))
     if (sportKey === 'nfl' || sportKey === 'ncaaf') {
-      // Prefer passing yards or passing TDs for football
-      const passingYards = playerMarkets.find((m) => m.apiKey === 'passing_yards')
-      const passingTds = playerMarkets.find((m) => m.apiKey === 'passing_tds')
-      return passingYards?.apiKey || passingTds?.apiKey || playerMarkets[0]?.apiKey || 'passing_tds'
+      // Prefer Anytime TD for football
+      const anytimeTd = playerMarkets.find((m) => m.apiKey === 'player_touchdowns')
+      return anytimeTd?.apiKey || playerMarkets[0]?.apiKey || 'player_touchdowns'
     }
     if (sportKey === 'nhl') {
       // Prefer player goals for hockey
@@ -427,6 +432,88 @@ function SportOddsContent({
       setShowConnectionError(true)
     }
   }, [sseFailed, isPro, liveUpdatesEnabled])
+  
+  // Sync connection status with navigation context
+  useEffect(() => {
+    setConnectionStatus({
+      connected: sseConnected,
+      reconnecting: sseReconnecting,
+      show: shouldUseLiveUpdates,
+    })
+  }, [sseConnected, sseReconnecting, shouldUseLiveUpdates, setConnectionStatus])
+
+  // Extract unique games from data and sync to context
+  useEffect(() => {
+    if (!data.length) {
+      setGames([])
+      return
+    }
+    
+    const gamesMap = new Map<string, {
+      id: string;
+      homeTeam: string;
+      awayTeam: string;
+      homeAbbr?: string;
+      awayAbbr?: string;
+      startTime?: string;
+      isLive?: boolean;
+    }>()
+    
+    data.forEach((item) => {
+      if (item.event?.id && !gamesMap.has(item.event.id)) {
+        gamesMap.set(item.event.id, {
+          id: item.event.id,
+          homeTeam: item.event.homeName || item.event.homeTeam || '',
+          awayTeam: item.event.awayName || item.event.awayTeam || '',
+          homeAbbr: item.event.homeTeam,
+          awayAbbr: item.event.awayTeam,
+          startTime: item.event.startTime,
+          isLive: scope === 'live',
+        })
+      }
+    })
+    
+    setGames(Array.from(gamesMap.values()))
+  }, [data, scope, setGames])
+
+  // Handle game selection - scroll within table container to game header
+  const handleGameSelect = useCallback((gameId: string) => {
+    // Find the game header element
+    const gameHeader = document.querySelector(`[data-game-id="${gameId}"]`) as HTMLElement
+    if (!gameHeader) return
+    
+    // Find the table's scroll container (the div with overflow-auto)
+    const scrollContainer = gameHeader.closest('.overflow-auto') as HTMLElement
+    if (scrollContainer) {
+      // Calculate position relative to scroll container using bounding rects
+      const containerRect = scrollContainer.getBoundingClientRect()
+      const headerRect = gameHeader.getBoundingClientRect()
+      
+      // Current scroll position + element position relative to container - small offset for sticky header
+      const stickyHeaderHeight = 44 // Account for sticky table header
+      const targetScrollTop = scrollContainer.scrollTop + (headerRect.top - containerRect.top) - stickyHeaderHeight
+      
+      // Scroll within the container only
+      scrollContainer.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
+      })
+    } else {
+      // Fallback: if no scroll container found, use scrollIntoView
+      gameHeader.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    
+    // Add highlight effect
+    gameHeader.classList.add('game-highlight')
+    setTimeout(() => {
+      gameHeader.classList.remove('game-highlight')
+    }, 2000)
+  }, [])
+
+  // Set the game select handler in context
+  useEffect(() => {
+    setGameSelectHandler(() => handleGameSelect)
+  }, [handleGameSelect, setGameSelectHandler])
 
   useEffect(() => {
     setLoading(isLoading)
@@ -442,15 +529,6 @@ function SportOddsContent({
   }, [market])
 
   // Handler functions (defined before useEffect that uses them)
-  const handleMarketChange = useCallback((newMarket: string) => {
-    setMarketState(newMarket)
-    // Show loading state immediately for smooth transition
-    setData([])
-    setLoading(true)
-    const next = `/odds/${sport}?type=${type}&market=${newMarket}&scope=${scope}`
-    router.replace(next, { scroll: false })
-  }, [sport, type, scope, router])
-
   const handleTypeChange = useCallback((newType: string) => {
     const defaultMarket = getDefaultMarket(sport, newType as 'game' | 'player')
     setMarketState(defaultMarket)
@@ -463,14 +541,6 @@ function SportOddsContent({
     const next = `/odds/${sport}?type=${newType}&market=${defaultMarket}&scope=${scope}`
     router.replace(next, { scroll: false })
   }, [sport, scope, router])
-
-  const handleScopeChange = useCallback((newScope: 'pregame' | 'live') => {
-    // Show loading state immediately
-    setData([])
-    setLoading(true)
-    const next = `/odds/${sport}?type=${type}&market=${marketState}&scope=${newScope}`
-    router.replace(next, { scroll: false })
-  }, [sport, type, marketState, router])
 
   // Auto-switch to game props if on NCAAB player props (since NCAAB has no player props)
   useEffect(() => {
@@ -525,110 +595,23 @@ function SportOddsContent({
   const gameGroups = useMemo(() => Array.from(new Set(allGameMarkets.map((m) => m.group).filter(Boolean))) as string[], [allGameMarkets])
   const gamePeriods = useMemo(() => Array.from(new Set(allGameMarkets.map((m) => m.period || 'full'))), [allGameMarkets])
 
-  // Combobox options for League and Market (shared by mobile/desktop)
-  const leagueOptions = useMemo(() => {
-    const sports = [
-      { value: 'nfl', label: 'NFL', disabled: false },
-      { value: 'ncaaf', label: 'NCAAF', disabled: false },
-      { value: 'nba', label: 'NBA', disabled: false },
-      { value: 'ncaab', label: 'NCAAB', disabled: false },
-      { value: 'nhl', label: 'NHL', disabled: false },
-      { value: 'mlb', label: 'MLB (Off Season)', disabled: true },
-    ]
-    return sports
-  }, [])
-
-  const selectedLeague = useMemo(() => (
-    leagueOptions.find((o) => o.value === sport) || null
-  ), [leagueOptions, sport])
-
-  const marketOptions = useMemo(() => {
-    // First, get the full SportMarket objects for each available market
-    const allMarkets = getMarketsForSport(resolveSportKey(sport))
-    const marketsByKey = new Map(allMarkets.map(m => [m.apiKey, m]))
-    
-    // Helper to get period label based on sport
-    const getPeriodGroup = (period: string | undefined, sportKey: string): string => {
-      if (!period || period === 'full') return 'Full Game'
-      
-      // Hockey periods
-      if (sportKey === 'nhl') {
-        if (period === 'p1') return '1st Period'
-        if (period === 'p2') return '2nd Period'
-        if (period === 'p3') return '3rd Period'
-        if (period === 'overtime' || period === 'ot') return 'Overtime'
-        if (period === 'shootout') return 'Shootout'
-      }
-      
-      // Basketball quarters and halves
-      if (sportKey === 'nba' || sportKey === 'ncaab' || sportKey === 'wnba') {
-        if (period === '1q') return '1st Quarter'
-        if (period === '2q') return '2nd Quarter'
-        if (period === '3q') return '3rd Quarter'
-        if (period === '4q') return '4th Quarter'
-      if (period === '1h') return '1st Half'
-      if (period === '2h') return '2nd Half'
-        if (period === 'both_halves') return 'Both Halves'
-      }
-      
-      // Football quarters and halves
-      if (sportKey === 'nfl' || sportKey === 'ncaaf') {
-      if (period === '1q') return '1st Quarter'
-      if (period === '2q') return '2nd Quarter'
-      if (period === '3q') return '3rd Quarter'
-      if (period === '4q') return '4th Quarter'
-        if (period === '1h') return '1st Half'
-        if (period === '2h') return '2nd Half'
-      if (period === 'both_halves') return 'Both Halves'
-      }
-      
-      // Baseball innings
-      if (sportKey === 'mlb') {
-        if (period.match(/^[1-9]$/)) return `${period}th Inning`
-        if (period === '1') return '1st Inning'
-        if (period === '2') return '2nd Inning'
-        if (period === '3') return '3rd Inning'
-        if (period === 'first_5') return 'First 5 Innings'
-      }
-      
-      return 'Other'
-    }
-    
-    // Map available markets with group information
-    return availableMarkets.map((m) => {
-      const marketDetail = marketsByKey.get(m.key)
-      const periodGroup = marketDetail?.period ? getPeriodGroup(marketDetail.period, sport) : 'Full Game'
-      
-      return {
-        value: m.key,
-        label: m.label,
-        disabled: !m.available,
-        disabledTooltip: !m.available ? 'Not available for this sport/period' : undefined,
-        group: periodGroup,
-      }
-    })
-  }, [availableMarkets, sport])
-
-  const selectedMarket = useMemo(() => (
-    marketOptions.find((o) => o.value === marketState) || null
-  ), [marketOptions, marketState])
-
   if (loading) {
     return (
-      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
-        <div className="mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
-            {sport.toUpperCase()} Odds
-          </h1>
-        </div>
-        <LoadingState />
+      <div className="w-full px-4 sm:px-6 py-4">
+        <OddsTableSkeleton 
+          rows={10}
+          sportsbookCount={8}
+          showBestLine={true}
+          showAverageLine={true}
+          showLineColumn={false}
+        />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
+      <div className="w-full px-4 sm:px-6 py-8">
         <div className="mb-8">
           <h1 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {sport.toUpperCase()} Odds
@@ -660,111 +643,27 @@ function SportOddsContent({
   }
 
   return (
-    <div className="w-full px-4 pt-4 pb-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-16 3xl:px-20">
-      {/* Secondary Controls Bar */}
-      <div className="mb-6">
-        <FiltersBar useDots={true}>
-          {/* Unified Layout - Works for both mobile and desktop */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full">
-            <FiltersBarSection align="left" className="flex-wrap">
-              {/* Pregame/Live Toggle */}
-              <div className="mode-toggle">
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('pregame')}
-                  className={cn(scope === 'pregame' && 'active')}
-                >
-                  Pre-Game
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('live')}
-                  className={cn(scope === 'live' && 'active')}
-                >
-                  Live
-                </button>
-              </div>
-
-              {/* Advanced Market Selector (for markets not in quick tabs) */}
-              <Combobox
-                selected={selectedMarket}
-                setSelected={(opt) => opt && handleMarketChange(opt.value)}
-                options={marketOptions}
-                searchPlaceholder="Search all markets..."
-                caret={<ChevronsUpDown className="h-4 w-4 text-neutral-400" />}
-                buttonProps={{
-                  className: "h-9 w-[140px] sm:w-[180px] md:w-[220px]",
-                  textWrapperClassName: "text-xs sm:text-sm font-medium",
-                }}
-              />
-            </FiltersBarSection>
-
-            <FiltersBarSection align="right">
-              {/* Search Input */}
-              <div className="relative min-w-0">
-                <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
-                <Input
-                  type="text"
-                  placeholder={type === 'player' ? "Search players..." : "Search teams..."}
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="w-[140px] md:w-[200px] lg:w-64 flex-shrink pl-10"
-                />
-              </div>
-
-              {/* Filters Button */}
-              <OddsFilters 
-                isPro={true}
-                liveUpdatesEnabled={liveUpdatesEnabled}
-                onLiveUpdatesChange={setLiveUpdatesEnabled}
-              />
-
-              {/* Connection Status Indicator */}
-              {shouldUseLiveUpdates && (
-                <Tooltip
-                  content={
-                    sseConnected 
-                      ? "Live updates active" 
-                      : sseReconnecting 
-                      ? "Reconnecting to live updates..." 
-                      : "No connection - Updates paused"
-                  }
-                  side="bottom"
-                >
-                  <div 
-                    className={cn(
-                      "flex items-center justify-center p-2 rounded-md border cursor-help shrink-0 transition-colors",
-                      sseConnected
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                        : sseReconnecting
-                        ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
-                        : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
-                    )}
-                  >
-                    {/* Connection Icon */}
-                    <svg 
-                      className={cn(
-                        "h-4 w-4",
-                        sseConnected 
-                          ? "text-green-600 dark:text-green-400" 
-                          : sseReconnecting 
-                          ? "text-amber-600 dark:text-amber-400 animate-pulse" 
-                          : "text-neutral-400 dark:text-neutral-500"
-                      )}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
-                    </svg>
-                  </div>
-                </Tooltip>
-              )}
-            </FiltersBarSection>
+    <div className="w-full px-4 sm:px-6 pt-4 pb-8">
+      {/* Filters Sheet - triggered from navigation */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent 
+          side="right" 
+          className="w-full sm:max-w-md p-0 bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-800"
+        >
+          <SheetHeader className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/80">
+            <SheetTitle className="text-lg font-semibold text-neutral-900 dark:text-white">Filters & Settings</SheetTitle>
+          </SheetHeader>
+          <div className="px-6 py-6 overflow-y-auto flex-1">
+            <OddsFilters 
+              isPro={true}
+              liveUpdatesEnabled={liveUpdatesEnabled}
+              onLiveUpdatesChange={setLiveUpdatesEnabled}
+              embedded={true}
+              onClose={() => setFiltersOpen(false)}
+            />
           </div>
-        </FiltersBar>
-      </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Search Results Indicator */}
       {debouncedSearchQuery.trim() && (

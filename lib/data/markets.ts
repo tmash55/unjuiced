@@ -23,7 +23,7 @@ export interface SportMarket {
     { value: "Spread", label: "Point Spread", apiKey: "spread", group: "Game", period: 'full' },
     { value: "Total", label: "Total Points", apiKey: "total", group: "Game", period: 'full' },
     { value: "Total Points Odd/Even", label: "Total Points Odd/Even", apiKey: "total_points_odd_even", group: "Game", period: 'full' },
-    { value: "Overtime", label: "Overtime?", apiKey: "overtime", group: "Game", period: 'full' },
+    { value: "Overtime", label: "Overtime?", apiKey: "overtime", group: "Game", period: 'full', singleLine: true },
     
     // Half markets
     { value: "1st Half Moneyline", label: "1st Half Moneyline", apiKey: "1h_moneyline", group: "Halves", period: '1h' },
@@ -222,9 +222,9 @@ export interface SportMarket {
     {
       value: "Player_Points_Q1",
       label: "Points - 1st Quarter",
-      apiKey: "1q_player_points",
+      apiKey: "1st_quarter_player_points",
       hasAlternates: true,
-      alternateKey: "1q_player_points_alternate",
+      alternateKey: "1st_quarter_player_points_alternate",
       alwaysFetchAlternate: true,
       group: "Scoring",
       period: '1q',
@@ -232,9 +232,9 @@ export interface SportMarket {
     {
       value: "Player_Assists_Q1",
       label: "Assists - 1st Quarter",
-      apiKey: "player_assists_q1",
+      apiKey: "1st_quarter_player_assists",
       hasAlternates: true,
-      alternateKey: "player_assists_q1_alternate",
+      alternateKey: "1st_quarter_player_assists_alternate",
       alwaysFetchAlternate: true,
       group: "Scoring",
       period: '1q',
@@ -242,12 +242,40 @@ export interface SportMarket {
     {
       value: "Player_Rebounds_Q1",
       label: "Rebounds - 1st Quarter",
-      apiKey: "player_rebounds_q1",
+      apiKey: "1st_quarter_player_rebounds",
       hasAlternates: true,
-      alternateKey: "player_rebounds_q1_alternate",
+      alternateKey: "1st_quarter_player_rebounds_alternate",
       alwaysFetchAlternate: true,
       group: "Scoring",
       period: '1q',
+    },
+    // 1st 3 Minutes Player Props (single-line markets - no over/under)
+    {
+      value: "Player_Points_3Min",
+      label: "Points - 1st 3 Minutes",
+      apiKey: "1st_3_minutes_player_points",
+      hasAlternates: false,
+      group: "Scoring",
+      period: '1q',
+      singleLine: true,
+    },
+    {
+      value: "Player_Assists_3Min",
+      label: "Assists - 1st 3 Minutes",
+      apiKey: "1st_3_minutes_player_assists",
+      hasAlternates: false,
+      group: "Scoring",
+      period: '1q',
+      singleLine: true,
+    },
+    {
+      value: "Player_Rebounds_3Min",
+      label: "Rebounds - 1st 3 Minutes",
+      apiKey: "1st_3_minutes_player_rebounds",
+      hasAlternates: false,
+      group: "Scoring",
+      period: '1q',
+      singleLine: true,
     },
   ];
   
@@ -282,7 +310,7 @@ export interface SportMarket {
     { value: "safety", label: "Safety", apiKey: "safety", group: "Special", period: 'full' },
     { value: "home_safety", label: "Home Team Safety", apiKey: "home_safety", group: "Special", period: 'full' },
     { value: "away_safety", label: "Away Team Safety", apiKey: "away_safety", group: "Special", period: 'full' },
-    { value: "overtime", label: "Overtime", apiKey: "overtime", group: "Special", period: 'full' },
+    { value: "overtime", label: "Overtime", apiKey: "overtime", group: "Special", period: 'full', singleLine: true },
     
     // Other
     { value: "total_punts", label: "Total Punts", apiKey: "total_punts", group: "Other", period: 'full' },
@@ -319,6 +347,7 @@ export interface SportMarket {
     
     // Quarter Markets - Passing
     { value: "1q_passing_yards", label: "Passing Yards (1Q)", apiKey: "1q_passing_yards", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_passing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_quarter_player_passing_yards", label: "Passing Yards (1Q)", apiKey: "1st_quarter_player_passing_yards", group: "Passing", period: '1q', hasAlternates: true },
     { value: "1st_quarter_passing_completions", label: "Pass Completions (1Q)", apiKey: "1st_quarter_passing_completions", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1st_quarter_passing_completions_alternate", alwaysFetchAlternate: true },
     { value: "1q_pass_attempts", label: "Pass Attempts (1Q)", apiKey: "1q_pass_attempts", group: "Passing", period: '1q', hasAlternates: true, alternateKey: "1q_pass_attempts_alternate", alwaysFetchAlternate: true },
     { value: "1st_quarter_player_passing_+_rushing_yards", label: "Pass + Rush Yards (1Q)", apiKey: "1st_quarter_player_passing_+_rushing_yards", group: "Combo", period: '1q', hasAlternates: true, alternateKey: "1st_quarter_player_passing_+_rushing_yards_alternate", alwaysFetchAlternate: true },
@@ -332,13 +361,18 @@ export interface SportMarket {
     
     // Quarter Markets - Receiving
     { value: "1q_receiving_yards", label: "Receiving Yards (1Q)", apiKey: "1q_receiving_yards", group: "Receiving", period: '1q', hasAlternates: true, alternateKey: "1q_receiving_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_quarter_player_receiving_yards", label: "Receiving Yards (1Q)", apiKey: "1st_quarter_player_receiving_yards", group: "Receiving", period: '1q', hasAlternates: true },
+    { value: "1st_quarter_player_receptions", label: "Receptions (1Q)", apiKey: "1st_quarter_player_receptions", group: "Receiving", period: '1q', hasAlternates: true },
     
     // Quarter Markets - Rushing
     { value: "1q_rushing_yards", label: "Rushing Yards (1Q)", apiKey: "1q_rushing_yards", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rushing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_quarter_player_rushing_yards", label: "Rushing Yards (1Q)", apiKey: "1st_quarter_player_rushing_yards", group: "Rushing", period: '1q', hasAlternates: true },
     { value: "1q_rush_attempts", label: "Rush Attempts (1Q)", apiKey: "1q_rush_attempts", group: "Rushing", period: '1q', hasAlternates: true, alternateKey: "1q_rush_attempts_alternate", alwaysFetchAlternate: true },
+    { value: "1st_quarter_player_rushing_attempts", label: "Rush Attempts (1Q)", apiKey: "1st_quarter_player_rushing_attempts", group: "Rushing", period: '1q', hasAlternates: true },
     
     // Half Markets - Passing
     { value: "1h_passing_yards", label: "Passing Yards (1H)", apiKey: "1h_passing_yards", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1h_passing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_half_player_passing_yards", label: "Passing Yards (1H)", apiKey: "1st_half_player_passing_yards", group: "Passing", period: '1h', hasAlternates: true },
     { value: "1st_half_player_passing_touchdowns", label: "Passing TDs (1H)", apiKey: "1st_half_player_passing_touchdowns", group: "Passing", period: '1h', hasAlternates: true, alternateKey: "1st_half_player_passing_touchdowns_alternate", alwaysFetchAlternate: true },
     
     // Half Markets - Receiving
@@ -346,11 +380,15 @@ export interface SportMarket {
     
     // Half Markets - Rushing
     { value: "1h_rushing_yards", label: "Rushing Yards (1H)", apiKey: "1h_rushing_yards", group: "Rushing", period: '1h', hasAlternates: true, alternateKey: "1h_rushing_yards_alternate", alwaysFetchAlternate: true },
+    { value: "1st_half_player_rushing_yards", label: "Rushing Yards (1H)", apiKey: "1st_half_player_rushing_yards", group: "Rushing", period: '1h', hasAlternates: true },
     
     // Additional Scoring Markets
     { value: "1q_player_touchdowns", label: "Player Touchdowns (1Q)", apiKey: "1q_player_touchdowns", group: "Scoring", period: '1q', singleLine: true },
+    { value: "1st_quarter_player_touchdowns", label: "Player Touchdowns (1Q)", apiKey: "1st_quarter_player_touchdowns", group: "Scoring", period: '1q', singleLine: true },
     { value: "1h_player_touchdowns", label: "Player Touchdowns (1H)", apiKey: "1h_player_touchdowns", group: "Scoring", period: '1h', singleLine: true },
+    { value: "1st_half_player_touchdowns", label: "Player Touchdowns (1H)", apiKey: "1st_half_player_touchdowns", group: "Scoring", period: '1h', singleLine: true },
     { value: "2h_player_touchdowns", label: "Player Touchdowns (2H)", apiKey: "2h_player_touchdowns", group: "Scoring", period: '2h', singleLine: true },
+    { value: "2nd_half_player_touchdowns", label: "Player Touchdowns (2H)", apiKey: "2nd_half_player_touchdowns", group: "Scoring", period: '2h', singleLine: true },
     { value: "2nd_half_first_touchdown_scorer", label: "First TD Scorer (2H)", apiKey: "2nd_half_first_touchdown_scorer", group: "Scoring", period: '2h', singleLine: true },
     { value: "3q_player_touchdowns", label: "Player Touchdowns (3Q)", apiKey: "3q_player_touchdowns", group: "Scoring", period: '3q', singleLine: true },
     { value: "both_halves_player_touchdowns", label: "Player TDs (Both Halves)", apiKey: "both_halves_player_touchdowns", group: "Scoring", period: 'both_halves', singleLine: true },
@@ -358,11 +396,14 @@ export interface SportMarket {
     // Defense
     { value: "player_defensive_interceptions", label: "Defensive Interceptions", apiKey: "player_defensive_interceptions", group: "Defense", period: 'full' },
     { value: "player_sacks", label: "Sacks", apiKey: "player_sacks", group: "Defense", period: 'full' },
+    { value: "player_tackles", label: "Tackles", apiKey: "player_tackles", group: "Defense", period: 'full' },
     { value: "player_tackles_and_assists", label: "Tackles + Assists", apiKey: "player_tackles_and_assists", group: "Defense", period: 'full' },
     { value: "1st_quarter_player_interceptions_thrown", label: "Interceptions Thrown (1Q)", apiKey: "1st_quarter_player_interceptions_thrown", group: "Passing", period: '1q' },
   
     // Kicking (Moved to bottom as least popular)
+    { value: "player_field_goals", label: "Field Goals", apiKey: "player_field_goals", group: "Kicking", period: 'full' },
     { value: "player_field_goals_made", label: "Field Goals Made", apiKey: "player_field_goals_made", group: "Kicking", period: 'full' },
+    { value: "player_extra_points", label: "Extra Points", apiKey: "player_extra_points", group: "Kicking", period: 'full' },
     { value: "player_extra_points_made", label: "Extra Points Made", apiKey: "player_extra_points_made", group: "Kicking", period: 'full' },
     { value: "player_kicking_points", label: "Kicking Points", apiKey: "player_kicking_points", group: "Kicking", period: 'full' },
     { value: "1st_half_player_field_goals_made", label: "Field Goals Made (1H)", apiKey: "1st_half_player_field_goals_made", group: "Kicking", period: '1h' }
@@ -651,6 +692,13 @@ export interface SportMarket {
         period: 'full',
       },
       {
+        value: "PP_Points",
+        label: "PP Points",
+        apiKey: "player_pp_points",
+        group: "Skater",
+        period: 'full',
+      },
+      {
         value: "Blocked_Shots",
         label: "Blocked Shots",
         apiKey: "player_blocked_shots",
@@ -679,6 +727,7 @@ export interface SportMarket {
       // 1st Period player props
       { value: "1st Period Player Goals", label: "Goals - 1st Period", apiKey: "1st_period_player_goals", group: "Skater", period: 'p1' },
       { value: "1st Period Player Assists", label: "Assists - 1st Period", apiKey: "1st_period_player_assists", group: "Skater", period: 'p1' },
+      { value: "1st Period Player Points", label: "Points - 1st Period", apiKey: "1st_period_player_points", group: "Skater", period: 'p1' },
       { value: "1st Period Player Shots On Goal", label: "Shots on Goal - 1st Period", apiKey: "1st_period_player_shots_on_goal", group: "Skater", period: 'p1' },
       { value: "1st Period Player Saves", label: "Saves - 1st Period", apiKey: "1st_period_player_saves", group: "Goalie", period: 'p1' },
       
@@ -936,8 +985,15 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'player-triple-double': 'player_triple_double',
   'Top Points Scorer': 'top_points_scorer',
   'top-points-scorer': 'top_points_scorer',
-  '1st Quarter Player Points': '1q_player_points',
-  '1st-quarter-player-points': '1q_player_points',
+  '1st Quarter Player Points': '1st_quarter_player_points',
+  '1st-quarter-player-points': '1st_quarter_player_points',
+  '1st Quarter Player Assists': '1st_quarter_player_assists',
+  '1st-quarter-player-assists': '1st_quarter_player_assists',
+  '1st Quarter Player Rebounds': '1st_quarter_player_rebounds',
+  '1st-quarter-player-rebounds': '1st_quarter_player_rebounds',
+  '1st 3 Minutes Player Points': '1st_3_minutes_player_points',
+  '1st 3 Minutes Player Assists': '1st_3_minutes_player_assists',
+  '1st 3 Minutes Player Rebounds': '1st_3_minutes_player_rebounds',
   
   // Basketball game markets
   'Moneyline': 'moneyline',
@@ -1277,26 +1333,26 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   }
   
   // Helper function to get default market for a sport
-  export function getDefaultMarket(sport: string): string {
-    const markets = SUPPORTED_MARKETS[sport] || [];
-    if (!markets.length) return '';
-    
-    // Sport-specific defaults
-    switch (sport) {
-      case 'mlb':
-        return 'home runs';
-      case 'nba':
-      case 'wnba':
-      case 'ncaab':
-        return 'points';
-      case 'nfl':
-      case 'ncaaf':
-        return 'anytime touchdown scorer';
-      case 'nhl':
-        return 'goals';
-      default:
-        return markets[0];
+  // Returns the most popular player market for each sport
+  export function getDefaultMarket(sport: string, type?: 'game' | 'player'): string {
+    // If type is specified and it's game, return moneyline
+    if (type === 'game') {
+      return 'moneyline';
     }
+    
+    // Default player markets by sport
+    const defaultPlayerMarkets: Record<string, string> = {
+      'nfl': 'player_touchdowns', // Anytime TD
+      'ncaaf': 'player_touchdowns', // Anytime TD
+      'nba': 'player_points',
+      'ncaab': 'player_points',
+      'nhl': 'player_goals',
+      'mlb': 'player_hits',
+      'soccer_epl': 'player_goals',
+    };
+    
+    // Return sport-specific default or fallback to moneyline
+    return defaultPlayerMarkets[sport.toLowerCase()] || 'moneyline';
   }
   
   // Helper function to get API key for a market
@@ -1332,6 +1388,12 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     'home_team_first_field_goal',
     'away_team_first_field_goal',
     'top_points_scorer',
+    // Basketball - 1st 3 Minutes (single-line)
+    '1st_3_minutes_player_points',
+    '1st_3_minutes_player_assists',
+    '1st_3_minutes_player_rebounds',
+    // Game markets (all sports)
+    'overtime',
     // Hockey
     'player_goals',
     // Football
@@ -1339,8 +1401,11 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     'first_td',
     'last_td',
     '1q_player_touchdowns',
+    '1st_quarter_player_touchdowns',
     '1h_player_touchdowns',
+    '1st_half_player_touchdowns',
     '2h_player_touchdowns',
+    '2nd_half_player_touchdowns',
     '2nd_half_first_touchdown_scorer',
     '3q_player_touchdowns',
     'both_halves_player_touchdowns',

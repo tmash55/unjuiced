@@ -66,6 +66,8 @@ export interface UserPreferences {
   odds_sportsbook_order?: string[];
   odds_column_highlighting?: boolean;
   odds_show_best_line?: boolean;
+  odds_table_view?: 'compact' | 'relaxed';
+  odds_view_onboarding_completed?: boolean;
   
   edge_finder_column_order?: string[];
   odds_show_average_line?: boolean;

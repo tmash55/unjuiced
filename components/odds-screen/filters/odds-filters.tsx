@@ -21,9 +21,11 @@ interface OddsFiltersProps {
   isPro?: boolean
   liveUpdatesEnabled?: boolean
   onLiveUpdatesChange?: (enabled: boolean) => void
+  embedded?: boolean
+  onClose?: () => void
 }
 
-export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled = false, onLiveUpdatesChange }: OddsFiltersProps) {
+export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled = false, onLiveUpdatesChange, embedded = false, onClose }: OddsFiltersProps) {
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
   const [open, setOpen] = useState(false)
   const [selectedBooks, setSelectedBooks] = useState<string[]>([])
@@ -174,28 +176,26 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
     setOpen(newOpen)
   }
 
-  return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "filters-btn flex items-center gap-2 h-9 px-3 sm:px-4 rounded-lg text-sm font-medium transition-all",
-            className
-          )}
-          title="Filters & Settings"
-        >
-          <Filter className="h-4 w-4" />
-          <span className="hidden sm:inline">Filters</span>
-        </button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
-        <div className="flex h-full flex-col">
-          <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
-            <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
-          </SheetHeader>
+  const handleClose = () => {
+    setLocalLiveUpdatesEnabled(liveUpdatesEnabled)
+    if (embedded && onClose) {
+      onClose()
+    } else {
+      setOpen(false)
+    }
+  }
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+  const handleApply = async () => {
+    await apply()
+    if (embedded && onClose) {
+      onClose()
+    }
+  }
+
+  // Filter content (shared between embedded and sheet modes)
+  const filterContent = (
+    <div className={cn("flex flex-col", embedded ? "h-full" : "flex-1")}>
+      <div className={cn("flex-1 overflow-y-auto", embedded ? "" : "px-6 py-6")}>
             <Tabs defaultValue="books" className="w-full">
               <TabsList className="filter-tabs grid w-full grid-cols-2">
                 <TabsTrigger value="books" className="flex items-center justify-center gap-2">
@@ -330,7 +330,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
             </Tabs>
           </div>
 
-          <div className="filter-footer">
+          <div className={cn("filter-footer", embedded && "border-t border-neutral-200 dark:border-neutral-800 mt-4 pt-4")}>
             <div className="flex items-center justify-between gap-3">
               <button 
                 onClick={reset}
@@ -340,17 +340,13 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
               </button>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => {
-                    // Reset local SSE state when canceling
-                    setLocalLiveUpdatesEnabled(liveUpdatesEnabled)
-                    setOpen(false)
-                  }}
+                  onClick={handleClose}
                   className="h-10 rounded-lg border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
                 >
                   Cancel
                 </button>
                 <button 
-                  onClick={apply}
+                  onClick={handleApply}
                   disabled={!hasUnsavedChanges}
                   className={cn(
                     "apply-btn h-10 rounded-lg border px-5 text-sm font-medium",
@@ -365,6 +361,40 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
               </div>
             </div>
           </div>
+        </div>
+  )
+
+  // If embedded, just return the content
+  if (embedded) {
+    return filterContent
+  }
+
+  // Otherwise, wrap in Sheet
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "group flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-sm font-medium transition-all",
+            "text-neutral-500 dark:text-neutral-400",
+            "hover:text-neutral-700 dark:hover:text-neutral-200",
+            "hover:bg-neutral-100 dark:hover:bg-neutral-800",
+            "border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700",
+            className
+          )}
+          title="Filters & Settings"
+        >
+          <Filter className="h-4 w-4" />
+          <span className="hidden sm:max-w-0 sm:overflow-hidden sm:group-hover:max-w-[60px] sm:transition-all sm:duration-200 sm:inline-block">Filters</span>
+        </button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0">
+        <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
+          <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
+        </SheetHeader>
+        <div className="px-6 py-6">
+          {filterContent}
         </div>
       </SheetContent>
     </Sheet>

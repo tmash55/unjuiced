@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
 import { motion } from 'framer-motion'
 import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown, ChevronsUpDown } from 'lucide-react'
+import { Star } from '@/components/star'
+import Chart from '@/icons/chart'
 import { PlayerQuickViewModal } from '@/components/player-quick-view-modal'
 
 import {
@@ -63,6 +65,14 @@ interface AlternateRowData {
   }
 }
 
+// Helper to get the appropriate CSS class based on view mode and single-line status
+const getCellClass = (isSingleLine: boolean, isRelaxedView: boolean, base: 'sportsbook-cell' | 'best-line' | 'avg-line') => {
+  if (isRelaxedView) {
+    return isSingleLine ? `${base}--relaxed-single-line` : `${base}--relaxed`
+  }
+  return isSingleLine ? `${base}--single-line` : `${base}--sm`
+}
+
 // Memoized sportsbook odds cell button to minimize re-renders on live updates
 const OddsCellButton = React.memo(function OddsCellButton(props: {
   itemId: string
@@ -76,18 +86,23 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
   isPositiveChange: boolean
   isNegativeChange: boolean
   isMoneyline: boolean
+  isSingleLine?: boolean
+  isRelaxedView?: boolean
   onClick: (e: React.MouseEvent) => void
   // Pass in formatters to avoid referencing outer scope (keeps memo stable)
   formatOdds: (price: number) => string
   formatLine: (line: number, side: 'over' | 'under') => string
 }) {
-  const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isPositiveChange, isNegativeChange, isMoneyline, onClick, formatOdds, formatLine } = props
+  const { sportsbookName, side, odds, isHighlighted, priceChanged, lineChanged, isPositiveChange, isNegativeChange, isMoneyline, isSingleLine, isRelaxedView, onClick, formatOdds, formatLine } = props
   
   // If locked, show lock icon instead of odds
   if (odds.locked) {
     return (
       <Tooltip content={`${sportsbookName} - Line currently locked`}>
-        <div className="sportsbook-cell sportsbook-cell--sm block w-full mx-auto rounded-md">
+        <div className={cn(
+          'sportsbook-cell block w-full mx-auto rounded-md',
+          getCellClass(!!isSingleLine, !!isRelaxedView, 'sportsbook-cell')
+        )}>
           <div className="flex items-center justify-center h-full py-2">
             <Lock className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
           </div>
@@ -106,7 +121,8 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
         <button
           onClick={onClick}
           className={cn(
-            'sportsbook-cell sportsbook-cell--sm block w-full mx-auto cursor-pointer font-medium rounded-md',
+            'sportsbook-cell block w-full mx-auto cursor-pointer font-medium rounded-md',
+            getCellClass(!!isSingleLine, !!isRelaxedView, 'sportsbook-cell'),
             isHighlighted && 'sportsbook-cell--highlighted'
           )}
         >
@@ -133,22 +149,22 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                         <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
                       )
                     )}
+                    {odds.limit_max && (
+                      <span className="ml-0.5 text-[8px] font-normal text-amber-600/70 dark:text-amber-400/60">
+                        ↑{odds.limit_max >= 1000 ? `${Math.round(odds.limit_max / 1000)}k` : `$${odds.limit_max}`}
+                      </span>
+                    )}
                   </span>
-                  {odds.limit_max && (
-                    <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal mt-0.5 leading-none">
-                      ${odds.limit_max}
-                    </div>
-                  )}
                 </div>
             ) : (
               // Other markets: Show line and odds
-              <div className="text-xs font-medium leading-tight">
-                <div>
+              <div className="text-xs font-medium leading-tight whitespace-nowrap">
+                <div className="inline-flex items-center">
                   <span className={cn(
-                    'opacity-75 px-0.5 rounded',
+                    'opacity-75',
                     lineChanged && 'text-blue-600 dark:text-blue-400 animate-odds-text-line'
                   )}>{formatLine(odds.line, side)}</span>
-                  <span className="inline-flex items-center gap-0.5 ml-1">
+                  <span className="inline-flex items-center gap-0.5 ml-0.5">
                     <span
                       className={cn(
                         'font-semibold',
@@ -163,18 +179,18 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                     </span>
                     {priceChanged && (
                       isPositiveChange ? (
-                        <TrendingUp className="w-2.5 h-2.5 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
+                        <TrendingUp className="w-2 h-2 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
                       ) : (
-                        <TrendingDown className="w-2.5 h-2.5 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
+                        <TrendingDown className="w-2 h-2 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
                       )
+                    )}
+                    {odds.limit_max && (
+                      <span className="ml-0.5 text-[7px] font-normal text-amber-600/70 dark:text-amber-400/60">
+                        ↑{odds.limit_max >= 1000 ? `${Math.round(odds.limit_max / 1000)}k` : `$${odds.limit_max}`}
+                      </span>
                     )}
                   </span>
                 </div>
-                {odds.limit_max && (
-                  <div className="text-[9px] text-neutral-400 dark:text-neutral-500 font-normal mt-0.5 leading-none">
-                    ${odds.limit_max}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -749,9 +765,9 @@ const renderAlternateRow = (
           return (
             <td
               key="best-line"
-              className={`px-3 py-3 text-xs text-blue-600 dark:text-blue-300 border-r ${borderColor} ${rowBg}`}
+              className={`px-1.5 py-1.5 text-xs text-blue-600 dark:text-blue-300 border-r ${borderColor} ${rowBg}`}
             >
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-1">
                   {row.best.over ? (() => {
                     const ids = (row.best.over.book || '')
@@ -853,9 +869,9 @@ const renderAlternateRow = (
           return (
             <td
               key="average-line"
-              className={`px-2 py-2 text-xs border-r ${borderColor} ${rowBg} text-center`}
+              className={`px-1 py-1.5 text-xs border-r ${borderColor} ${rowBg} text-center`}
             >
-              <div className="space-y-0.5">
+              <div className="space-y-0">
                 {/* Over Average */}
                 {(() => {
                   const overBooks = Object.entries(row.books).map(([bookId, bookData]) => ({ bookId, odds: bookData?.over }))
@@ -984,6 +1000,7 @@ export interface OddsTableProps extends Partial<TableInteractionHandlers> {
   columnHighlighting?: boolean // Whether to highlight best odds with green background
   searchQuery?: string // Optional search query to filter players/teams
   height?: string // Optional max height for scroll container (e.g., '82vh')
+  tableView?: 'compact' | 'relaxed' // View mode for cell sizing
 }
 
 type SortField = 'entity' | 'event' | 'bestOver' | 'bestUnder' | 'startTime'
@@ -1092,11 +1109,16 @@ export function OddsTable({
   className = '',
   columnHighlighting = true,
   searchQuery = '',
-  height = '90vh'
+  height = '90vh',
+  tableView: tableViewProp
 }: OddsTableProps) {
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
+  
+  // Use prop if provided, otherwise use from preferences
+  const tableView = tableViewProp ?? preferences.tableView ?? 'compact'
+  const isRelaxedView = tableView === 'relaxed'
   
   // Line selector state - persisted per market in localStorage
   const marketStr = typeof market === 'string' ? market : ''
@@ -1895,7 +1917,8 @@ export function OddsTable({
             </div>
           )
         },
-        size: isSmallScreen ? 110 : 160,
+        // Entity/Player column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 160 : 220) : (isSmallScreen ? 110 : 160),
         cell: (info) => {
           const item = info.row.original
           if (item.entity.type === 'game') {
@@ -1903,7 +1926,10 @@ export function OddsTable({
             const isMoneyline = item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))
             
             return (
-              <div className="flex items-center gap-1.5 min-w-[120px] sm:min-w-[160px]">
+              <div className={cn(
+                "flex items-center gap-1.5",
+                isRelaxedView ? "min-w-[160px] sm:min-w-[220px]" : "min-w-[120px] sm:min-w-[160px]"
+              )}>
                 <ExpandButton hide={true} />
                 <div className="flex-1 min-w-0">
                   {/* Two-line display with team logos: Away on top, Home on bottom */}
@@ -2066,7 +2092,7 @@ export function OddsTable({
           // For single-line markets (Yes/No), just show static label
           if (isSingleLineMarket) {
             return (
-              <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase">
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Line
               </span>
             )
@@ -2091,15 +2117,17 @@ export function OddsTable({
             </div>
           )
         },
-        size: 24,
+        size: 28,
+        minSize: 28,
+        maxSize: 36,
         cell: (info) => {
           const item = info.row.original
           const line = item.odds?.best?.over?.line ?? item.odds?.best?.under?.line
           
-          // For single-line markets, show "Yes" or the line value
+          // For single-line markets, show "Yes" for binary markets (0 or 0.5 lines)
           if (isSingleLineMarket) {
-            // Show "Yes" for 0.5 lines (binary yes/no markets), otherwise show the line
-            if (line === 0.5 || line === undefined || line === null) {
+            // Show "Yes" for 0 or 0.5 lines (binary yes/no markets like First Basket, Triple Double)
+            if (line === 0 || line === 0.5 || line === undefined || line === null) {
               return (
                 <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
                   Yes
@@ -2115,9 +2143,6 @@ export function OddsTable({
           
           // For regular markets, show the line (with o prefix for over)
           if (line === undefined || line === null) return null
-          
-          // If a specific line is selected and this row doesn't match, show nothing
-          // (the odds cells will handle showing empty)
           
           return (
             <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
@@ -2188,30 +2213,36 @@ export function OddsTable({
           }
 
           return (
-            <div
-              ref={setNodeRef}
-              style={style}
-              className={cn(
-                "relative group/header flex items-center justify-between",
-                isDragging && "z-50"
-              )}
-            >
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Best Line
-              </span>
-              {/* Drag Handle */}
+            <Tooltip content="Best available odds across all your selected sportsbooks. Click to place bet.">
               <div
-                {...attributes}
-                {...listeners}
-                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
-                onClick={(e) => e.stopPropagation()}
+                ref={setNodeRef}
+                style={style}
+                className={cn(
+                  "relative group/header flex items-center justify-between",
+                  isDragging && "z-50"
+                )}
               >
-                <GripVertical className="w-4 h-4 text-neutral-400" />
+                <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                  Best
+                </span>
+                {/* Drag Handle */}
+                <div
+                  {...attributes}
+                  {...listeners}
+                  className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GripVertical className="w-4 h-4 text-neutral-400" />
+                </div>
               </div>
-            </div>
+            </Tooltip>
           )
         },
-        size: isSmallScreen ? 80 : 100,
+        // Best line column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 90 : 115) : (isSmallScreen ? 56 : 64),
+        minSize: isRelaxedView ? 90 : 56,
+        maxSize: isRelaxedView ? 140 : 72,
         cell: (info) => {
           const item = info.row.original
             const isMoneyline = item.entity.type === 'game' && (
@@ -2231,7 +2262,7 @@ export function OddsTable({
           const marketStr = typeof market === 'string' ? market : ''
           const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
           return (
-            <div className="space-y-0.5 text-center">
+            <div className={isSingleLine ? "flex justify-center" : "flex flex-col items-center"}>
               {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
@@ -2262,30 +2293,36 @@ export function OddsTable({
           }
 
           return (
-            <div
-              ref={setNodeRef}
-              style={style}
-              className={cn(
-                "relative group/header flex items-center justify-between",
-                isDragging && "z-50"
-              )}
-            >
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Avg Line
-              </span>
-              {/* Drag Handle */}
+            <Tooltip content="Average odds across all sportsbooks offering this line. Use to gauge market consensus.">
               <div
-                {...attributes}
-                {...listeners}
-                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
-                onClick={(e) => e.stopPropagation()}
+                ref={setNodeRef}
+                style={style}
+                className={cn(
+                  "relative group/header flex items-center justify-between",
+                  isDragging && "z-50"
+                )}
               >
-                <GripVertical className="w-4 h-4 text-neutral-400" />
+                <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-1">
+                  <Chart className="text-blue-500" />
+                  Avg
+                </span>
+                {/* Drag Handle */}
+                <div
+                  {...attributes}
+                  {...listeners}
+                  className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ml-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GripVertical className="w-4 h-4 text-neutral-400" />
+                </div>
               </div>
-            </div>
+            </Tooltip>
           )
         },
-        size: isSmallScreen ? 72 : 96,
+        // Average line column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 85 : 110) : (isSmallScreen ? 48 : 56),
+        minSize: isRelaxedView ? 85 : 48,
+        maxSize: isRelaxedView ? 130 : 64,
         cell: (info) => {
           const item = info.row.original
           const isMoneyline = item.entity.type === 'game' && (
@@ -2301,7 +2338,7 @@ export function OddsTable({
           const marketStr = typeof market === 'string' ? market : ''
           const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
           return (
-            <div className="space-y-0.5 text-center">
+            <div className={isSingleLine ? "flex justify-center" : "flex flex-col items-center"}>
               {/* Team markets (moneyline & spread): Away (top over), Home (bottom under). Totals unchanged */}
               {isMoneyline || isSpread ? (
                 <>
@@ -2357,10 +2394,27 @@ export function OddsTable({
                           window.open(book.links.desktop, '_blank', 'noopener,noreferrer')
                       }
                     }}
-                    className="flex items-center justify-center min-w-[56px] sm:min-w-[72px] hover:opacity-80 transition-opacity py-1"
+                    className={cn(
+                      "flex items-center justify-center hover:opacity-80 transition-opacity",
+                      isRelaxedView 
+                        ? "flex-col gap-0.5 min-w-[80px] sm:min-w-[100px] py-1.5"
+                        : "min-w-[56px] sm:min-w-[72px] py-1"
+                    )}
                     title={`Visit ${book.name}`}
                   >
-                    <img src={book.image.light} alt={book.name} className="book-logo h-6 w-auto" />
+                    <img 
+                      src={book.image.light} 
+                      alt={book.name} 
+                      className={cn(
+                        "book-logo w-auto",
+                        isRelaxedView ? "h-7" : "h-6"
+                      )} 
+                    />
+                    {isRelaxedView && (
+                      <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[90px]">
+                        {book.name}
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
                 {/* Drag Handle */}
@@ -2375,7 +2429,14 @@ export function OddsTable({
               </div>
             )
           },
-          size: isSmallScreen ? 72 : 96,
+          // Column widths - wider for relaxed view
+          size: isRelaxedView
+            ? (isSmallScreen ? 90 : 110)
+            : (isSingleLineMarket 
+                ? (isSmallScreen ? 56 : 72) 
+                : (isSmallScreen ? 72 : 96)),
+          minSize: isRelaxedView ? 80 : (isSingleLineMarket ? 48 : 64),
+          maxSize: isRelaxedView ? 140 : (isSingleLineMarket ? 80 : 120),
           cell: (info) => {
             const item = info.row.original
             const n = item.odds.normalized
@@ -2396,7 +2457,7 @@ export function OddsTable({
             const isSingleLineMarket = SINGLE_LINE_MARKETS.has(marketStr)
 
             if (!bookData) return (
-              <div className="space-y-0.5">
+              <div className={isSingleLineMarket ? "flex justify-center" : "space-y-0.5"}>
                 {renderPlaceholder()}
                 {!isSingleLineMarket && renderPlaceholder()}
               </div>
@@ -2418,7 +2479,7 @@ export function OddsTable({
             const sd = secondData || bookData.under
 
             return (
-              <div className="space-y-0.5">
+              <div className={isSingleLineMarket ? "flex justify-center" : "space-y-0.5"}>
                 {fd ? (
                   ((odds) => {
                     const isBestOdds = (() => {
@@ -2455,10 +2516,10 @@ export function OddsTable({
                         isPositiveChange={isPositiveChange}
                         isNegativeChange={isNegativeChange}
                         isMoneyline={isMoneyline}
+                        isSingleLine={isSingleLineMarket}
+                        isRelaxedView={isRelaxedView}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
-                          // Line is now shown in dedicated column - hide from cells
-                          // Exception: spreads/moneyline still need context per team
                           if (isMoneyline) return ''
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
@@ -2467,7 +2528,12 @@ export function OddsTable({
                             const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
-                          // For player props - line shown in separate column
+                          // For single-line markets (first basket, double double, etc.), line shown in dedicated column
+                          if (isSingleLineMarket) return ''
+                          // For regular player props (points, rebounds, etc.), show line in cell
+                          if (ln !== undefined && ln !== null) {
+                            return sd === 'over' ? `o${ln}` : `u${ln}`
+                          }
                           return ''
                         }}
                         onClick={onClick}
@@ -2512,10 +2578,10 @@ export function OddsTable({
                         isPositiveChange={isPositiveChange}
                         isNegativeChange={isNegativeChange}
                         isMoneyline={isMoneyline}
+                        isSingleLine={isSingleLineMarket}
+                        isRelaxedView={isRelaxedView}
                         formatOdds={(p) => (p > 0 ? `+${p}` : `${p}`)}
                         formatLine={(ln, sd) => {
-                          // Line is now shown in dedicated column - hide from cells
-                          // Exception: spreads/moneyline still need context per team
                           if (isMoneyline) return ''
                           if (isSpread && ln !== undefined && ln !== null) {
                             return ln > 0 ? `+${ln}` : `${ln}`
@@ -2524,7 +2590,12 @@ export function OddsTable({
                             const baseLine = ln ?? item.odds.best?.over?.line ?? item.odds.best?.under?.line ?? 0
                             return baseLine > 0 ? `+${baseLine}` : `${baseLine}`
                           }
-                          // For player props - line shown in separate column
+                          // For single-line markets (first basket, double double, etc.), line shown in dedicated column
+                          if (isSingleLineMarket) return ''
+                          // For regular player props (points, rebounds, etc.), show line in cell
+                          if (ln !== undefined && ln !== null) {
+                            return sd === 'over' ? `o${ln}` : `u${ln}`
+                          }
                           return ''
                         }}
                         onClick={onClick}
@@ -2619,9 +2690,12 @@ export function OddsTable({
     // Use user's average if available, otherwise fall back to global average
     const displayOdds = userAverage || globalAverage
     
+    const marketStr = typeof market === 'string' ? market : ''
+    const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
+    
     if (!displayOdds) {
       return (
-        <div className="avg-line avg-line--sm text-neutral-400 dark:text-neutral-500">
+        <div className={cn('avg-line text-neutral-400 dark:text-neutral-500', getCellClass(isSingleLine, isRelaxedView, 'avg-line'))}>
           -
         </div>
       )
@@ -2631,7 +2705,7 @@ export function OddsTable({
     const isMoneylineOrSingleLine = (rowItem.entity.type === 'game' && (rowItem.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline')))) || !lineLabel
     
     return (
-      <div className="avg-line avg-line--sm">
+      <div className={cn('avg-line', getCellClass(isSingleLine, isRelaxedView, 'avg-line'))}>
         {isMoneylineOrSingleLine ? (
           <span>{formatOdds(displayOdds.price)}</span>
         ) : (
@@ -2646,6 +2720,9 @@ export function OddsTable({
 
   const renderBestOddsButton = (rowItem: OddsTableItem, side: 'over' | 'under', visibleSportsbooks: string[]) => {
     const { userBest, hasGlobalBetter, globalBest } = calculateUserBestOdds(rowItem, side, visibleSportsbooks)
+    
+    const marketStr = typeof market === 'string' ? market : ''
+    const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
     
     // Use user's best if available, otherwise fall back to global best
     const displayOdds = userBest || globalBest
@@ -2742,7 +2819,7 @@ export function OddsTable({
       : formatLine(displayOdds.line, side, rowItem)
 
     const chip = (
-      <div className="best-line best-line--sm">
+      <div className={cn('best-line', getCellClass(isSingleLine, isRelaxedView, 'best-line'))}>
         {(() => {
           if (showInlineLogos && logoElements.length > 0) return logoElements[0]
           if (firstBookId) {
@@ -2974,9 +3051,15 @@ export function OddsTable({
                 <thead className="table-header-gradient backdrop-blur supports-[backdrop-filter]:backdrop-blur">
                   {tableProps.table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => {
-                        // Check if this is a sportsbook column (not entity, event, best-line, average-line)
-                        const isBookColumn = !['entity', 'best-line', 'average-line'].includes(header.column.id)
+                      {headerGroup.headers.map((header, headerIdx) => {
+                        // Check if this is a sportsbook column (not entity, event, best-line, average-line, line)
+                        const metaColumns = ['entity', 'line', 'best-line', 'average-line']
+                        const isMetaColumn = metaColumns.includes(header.column.id)
+                        const isBookColumn = !isMetaColumn
+                        // Check if this is the last meta column before books (for stronger border)
+                        const nextHeader = headerGroup.headers[headerIdx + 1]
+                        const isLastMetaColumn = isMetaColumn && nextHeader && !metaColumns.includes(nextHeader.column.id)
+                        
                         return (
                         <th
                           key={header.id}
@@ -2984,7 +3067,12 @@ export function OddsTable({
                             "bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-1 sm:px-2 sm:py-1.5 text-left font-medium text-xs",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
                             header.column.id === 'entity' && 'sticky left-0 z-20 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60',
-                            isBookColumn && 'books'
+                            header.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
+                            header.column.id === 'best-line' && 'px-0.5 sm:px-1 text-center',
+                            header.column.id === 'average-line' && 'px-0.5 sm:px-1 text-center',
+                            isBookColumn && 'books',
+                            // Stronger border between meta columns and book columns
+                            isLastMetaColumn && 'border-r-2 border-r-neutral-300 dark:border-r-neutral-700'
                           )}
                           style={{
                             minWidth: header.column.columnDef.minSize,
@@ -3047,7 +3135,7 @@ export function OddsTable({
                       const remainingColSpan = Math.max(totalColumns - matchupColSpan, 1)
                       
                       return (
-                        <tr key={`game-${entry.eventId}-${idx}`} className="game-header-row cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" onClick={() => toggleGameExpansion(entry.eventId)}>
+                        <tr key={`game-${entry.eventId}-${idx}`} data-game-id={entry.eventId} className="game-header-row cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" onClick={() => toggleGameExpansion(entry.eventId)}>
                           {/* Matchup cell - spans multiple columns for breathing room */}
                           <td
                             colSpan={matchupColSpan}
@@ -3153,24 +3241,40 @@ export function OddsTable({
                     // Sticky column needs solid background that matches the zebra pattern
                     const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-[#f0f9ff] dark:bg-[#17202B]'
 
-                    const cells = row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className={cn(
-                          'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-0.5 sm:px-2 sm:py-1 text-left text-sm',
-                          rowBg,
-                          cell.column.id === 'average-line' && 'hidden sm:table-cell',
-                          cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`
-                        )}
-                        style={{
-                          minWidth: cell.column.columnDef.minSize,
-                          maxWidth: cell.column.columnDef.maxSize,
-                          width: cell.column.columnDef.size || 'auto',
-                        }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))
+                    const visibleCells = row.getVisibleCells()
+                    const metaColumns = ['entity', 'line', 'best-line', 'average-line']
+                    const cells = visibleCells.map((cell, cellIdx) => {
+                      const isMetaColumn = metaColumns.includes(cell.column.id)
+                      const isBookColumn = !isMetaColumn
+                      const nextCell = visibleCells[cellIdx + 1]
+                      const isLastMetaColumn = isMetaColumn && nextCell && !metaColumns.includes(nextCell.column.id)
+                      
+                      return (
+                        <td
+                          key={cell.id}
+                          className={cn(
+                            'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-0.5 sm:px-2 sm:py-1 text-sm',
+                            // Center sportsbook columns for single-line markets, otherwise left-align
+                            isBookColumn && isSingleLineMarket ? 'text-center' : 'text-left',
+                            rowBg,
+                            cell.column.id === 'average-line' && 'hidden sm:table-cell',
+                            cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`,
+                            cell.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
+                            cell.column.id === 'best-line' && 'px-0.5 sm:px-1',
+                            cell.column.id === 'average-line' && 'px-0.5 sm:px-1',
+                            // Stronger border between meta columns and book columns
+                            isLastMetaColumn && 'border-r-2 border-r-neutral-300 dark:border-r-neutral-700'
+                          )}
+                          style={{
+                            minWidth: cell.column.columnDef.minSize,
+                            maxWidth: cell.column.columnDef.maxSize,
+                            width: cell.column.columnDef.size || 'auto',
+                          }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      )
+                    })
 
                     if (isMoneyline) {
                       return (
