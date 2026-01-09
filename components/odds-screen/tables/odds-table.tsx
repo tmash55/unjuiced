@@ -2610,7 +2610,7 @@ export function OddsTable({
     })
 
     return cols
-  }, [orderedSportsbooks, effectiveVisibleSportsbooks, changedPriceCells, changedLineCells, isSmallScreen])
+  }, [orderedSportsbooks, effectiveVisibleSportsbooks, changedPriceCells, changedLineCells, isSmallScreen, isRelaxedView, tableView])
 
   const tableProps = useTable({
     data: sortedData,

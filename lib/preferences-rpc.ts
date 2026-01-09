@@ -174,6 +174,10 @@ export class PreferencesRPC {
       odds_column_order: data?.odds_column_order || ['entity', 'event', 'best-line'],
       odds_sportsbook_order: data?.odds_sportsbook_order || [],
       odds_column_highlighting: data?.odds_column_highlighting ?? true,
+      odds_show_best_line: data?.odds_show_best_line ?? true,
+      odds_show_average_line: data?.odds_show_average_line ?? true,
+      odds_table_view: data?.odds_table_view || 'compact',
+      odds_view_onboarding_completed: data?.odds_view_onboarding_completed ?? false,
       
       edge_finder_column_order: data?.edge_finder_column_order || [
         'edge', 'league', 'time', 'selection', 'line', 'market', 
