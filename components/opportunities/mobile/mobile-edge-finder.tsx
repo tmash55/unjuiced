@@ -83,6 +83,9 @@ interface MobileEdgeFinderProps {
   // Profit boost percentage
   boostPercent?: number;
   onBoostChange?: (boost: number) => void;
+  // Kelly settings handlers
+  onBankrollChange?: (value: number) => void;
+  onKellyPercentChange?: (value: number) => void;
 }
 
 export function MobileEdgeFinder({
@@ -109,6 +112,8 @@ export function MobileEdgeFinder({
   availableSportsbooks = [],
   boostPercent = 0,
   onBoostChange,
+  onBankrollChange,
+  onKellyPercentChange,
 }: MobileEdgeFinderProps) {
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -283,6 +288,10 @@ export function MobileEdgeFinder({
                     link: book.link ?? "",
                   })) || [],
                 }))}
+                bankroll={bankroll}
+                kellyPercent={kellyPercent}
+                onBankrollChange={onBankrollChange}
+                onKellyPercentChange={onKellyPercentChange}
               />
             )}
           </div>

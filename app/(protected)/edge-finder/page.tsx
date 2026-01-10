@@ -332,6 +332,8 @@ export default function EdgeFinderPage() {
           availableSportsbooks={availableSportsbooks}
           boostPercent={boostPercent}
           onBoostChange={setBoostPercent}
+          onBankrollChange={handleBankrollChange}
+          onKellyPercentChange={handleKellyPercentChange}
         />
         
         {/* Player Quick View Modal */}
