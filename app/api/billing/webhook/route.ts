@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { syncSubscriptionToBrevo, isKnownPriceId } from '@/libs/brevo'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-08-16' as any,
@@ -151,6 +152,68 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn('[webhook] Failed to update profiles.stripe_customer_id', e)
         }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // BREVO SYNC - Update contact lifecycle based on subscription status
+        // ═══════════════════════════════════════════════════════════════════
+        const priceId = typeof (sub as any)?.items?.data?.[0]?.price?.id === 'string' 
+          ? (sub as any).items.data[0].price.id 
+          : undefined
+        
+        // Only sync to Brevo for known production price IDs
+        if (isKnownPriceId(priceId)) {
+          try {
+            // Get customer email for Brevo sync
+            let customerEmail: string | undefined
+            
+            // First try to get email from our profile
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('id', user_id)
+              .maybeSingle()
+            
+            customerEmail = profileData?.email || undefined
+            
+            // Fallback: fetch from Stripe customer
+            if (!customerEmail && sub.customer) {
+              try {
+                const customer = await stripe.customers.retrieve(String(sub.customer))
+                if (customer && !customer.deleted && 'email' in customer) {
+                  customerEmail = customer.email || undefined
+                }
+              } catch (e) {
+                console.warn('[webhook] Failed to fetch customer email from Stripe:', (e as any)?.message)
+              }
+            }
+            
+            if (customerEmail) {
+              const brevoSuccess = await syncSubscriptionToBrevo({
+                email: customerEmail,
+                priceId,
+                status: normalizedStatus,
+                cancelAtPeriodEnd: cancel_at_period_end,
+                currentPeriodEnd: cpeEpoch,
+                trialEnd: (sub as any)?.trial_end ?? undefined,
+                stripeCustomerId: String(sub.customer),
+              })
+              
+              if (brevoSuccess) {
+                console.log('[webhook] Brevo sync successful for subscription', sub.id)
+              } else {
+                console.warn('[webhook] Brevo sync failed for subscription', sub.id)
+              }
+            } else {
+              console.warn('[webhook] No email found for Brevo sync, subscription:', sub.id)
+            }
+          } catch (e) {
+            // Don't fail the webhook for Brevo errors
+            console.error('[webhook] Brevo sync error:', (e as any)?.message)
+          }
+        } else {
+          console.log('[webhook] Skipping Brevo sync for test/unknown price ID:', priceId)
+        }
+        
         break
       }
       case 'checkout.session.completed': {
@@ -182,6 +245,8 @@ export async function POST(req: NextRequest) {
               const current_period_end = new Date(Number(cpeRaw) * 1000).toISOString()
               const cancel_at_period_end = !!(s as any).cancel_at_period_end
               const canceled_at = (s as any).canceled_at ? new Date(Number((s as any).canceled_at) * 1000).toISOString() : null
+              const priceId = typeof s.items.data[0]?.price?.id === 'string' ? s.items.data[0].price.id : ''
+              
               await getServiceClient()
                 .schema('billing')
                 .from('subscriptions')
@@ -189,7 +254,7 @@ export async function POST(req: NextRequest) {
                   user_id: subUserId,
                   stripe_customer_id: String(s.customer),
                   stripe_subscription_id: s.id,
-                  price_id: typeof s.items.data[0]?.price?.id === 'string' ? s.items.data[0].price.id : '',
+                  price_id: priceId,
                   status: normalizedStatus,
                   current_period_start,
                   current_period_end,
@@ -198,6 +263,53 @@ export async function POST(req: NextRequest) {
                   updated_at: new Date().toISOString(),
                 }, { onConflict: 'stripe_subscription_id' })
               console.log('[webhook] Upserted subscription from checkout.session for user', subUserId)
+              
+              // ═══════════════════════════════════════════════════════════════════
+              // BREVO SYNC - Update contact lifecycle from checkout completion
+              // ═══════════════════════════════════════════════════════════════════
+              if (isKnownPriceId(priceId)) {
+                try {
+                  // Get customer email - prefer session.customer_email, fallback to Stripe customer
+                  let customerEmail = session.customer_email || undefined
+                  
+                  if (!customerEmail) {
+                    // Try profile
+                    const { data: profileData } = await getServiceClient()
+                      .from('profiles')
+                      .select('email')
+                      .eq('id', subUserId)
+                      .maybeSingle()
+                    customerEmail = profileData?.email || undefined
+                  }
+                  
+                  if (!customerEmail && s.customer) {
+                    const customer = await stripe.customers.retrieve(String(s.customer))
+                    if (customer && !customer.deleted && 'email' in customer) {
+                      customerEmail = customer.email || undefined
+                    }
+                  }
+                  
+                  if (customerEmail) {
+                    const brevoSuccess = await syncSubscriptionToBrevo({
+                      email: customerEmail,
+                      priceId,
+                      status: normalizedStatus,
+                      cancelAtPeriodEnd: cancel_at_period_end,
+                      currentPeriodEnd: cpeRaw,
+                      trialEnd: (s as any)?.trial_end ?? undefined,
+                      stripeCustomerId: String(s.customer),
+                    })
+                    
+                    if (brevoSuccess) {
+                      console.log('[webhook] Brevo sync successful from checkout.session')
+                    } else {
+                      console.warn('[webhook] Brevo sync failed from checkout.session')
+                    }
+                  }
+                } catch (e) {
+                  console.error('[webhook] Brevo sync error from checkout.session:', (e as any)?.message)
+                }
+              }
             }
           }
         } catch (e) {

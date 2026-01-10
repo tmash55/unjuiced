@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
+import { syncNewSignupToBrevo } from '@/libs/brevo'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -122,6 +123,34 @@ export async function GET(request: NextRequest) {
         }
       } catch (e) {
         console.warn('⚠️ Could not ensure Stripe customer on auth callback:', (e as any)?.message)
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // BREVO SYNC - Track new sign ups as leads in Brevo
+      // ═══════════════════════════════════════════════════════════════════
+      if (isNewUser && data.user.email) {
+        console.log('📧 Syncing new user to Brevo as lead:', data.user.id)
+        
+        // Use waitUntil to sync without blocking the response
+        waitUntil(
+          syncNewSignupToBrevo({
+            email: data.user.email,
+            firstName: data.user.user_metadata?.full_name?.split(' ')[0] || 
+                      data.user.user_metadata?.name?.split(' ')[0] || undefined,
+            lastName: data.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || 
+                     data.user.user_metadata?.name?.split(' ').slice(1).join(' ') || undefined,
+            newsletterOptIn: true, // Default to true - users can unsubscribe later
+            source: 'app_signup',
+          }).then((success) => {
+            if (success) {
+              console.log('✅ Brevo lead sync successful for user', data.user.id)
+            } else {
+              console.warn('⚠️ Brevo lead sync failed for user', data.user.id)
+            }
+          }).catch((err) => {
+            console.error('❌ Brevo lead sync error:', err)
+          })
+        )
       }
       
       console.log('✨ Redirecting to:', next)
