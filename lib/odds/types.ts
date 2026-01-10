@@ -195,6 +195,7 @@ export interface SSESelection {
   main: boolean;
   locked: boolean;
   link: string;
+  mobile_link?: string | null;  // Deep link for mobile apps (e.g., fanduelsportsbook://...)
   sgp: string | null;
   limits: { max: number } | null;  // Betting limits (max wager) when available
   raw_market: string;

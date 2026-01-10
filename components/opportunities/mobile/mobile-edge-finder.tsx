@@ -189,8 +189,11 @@ export function MobileEdgeFinder({
   }, []);
   
   const handleBetClick = useCallback((opp: Opportunity) => {
-    if (opp.bestLink) {
-      window.open(opp.bestLink, "_blank");
+    // On mobile, prefer the deep link (mobile_link) if available
+    // This opens the sportsbook app directly instead of the website
+    const link = opp.bestMobileLink || opp.bestLink;
+    if (link) {
+      window.open(link, "_blank");
     }
   }, []);
   

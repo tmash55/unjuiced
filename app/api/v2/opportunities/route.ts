@@ -148,6 +148,7 @@ interface Opportunity {
   best_price: string;              // Signed American odds (e.g. "+158", "-110")
   best_decimal: number;
   best_link: string | null;
+  best_mobile_link: string | null; // Deep link for mobile apps
 
   // Sharp reference
   sharp_price: string | null;         // Signed American odds (e.g. "+108", "-143")
@@ -206,6 +207,7 @@ interface Opportunity {
       price: number;
       decimal: number;
       link: string | null;
+      mobile_link: string | null;     // Deep link for mobile apps
       sgp: string | null;
       limits: { max: number } | null;
     }[];
@@ -217,6 +219,7 @@ interface Opportunity {
     price: number;
     decimal: number;
     link: string | null;
+    mobile_link: string | null;       // Deep link for mobile apps
     sgp: string | null;
     limits: { max: number } | null;  // Betting limits when available (e.g., Pinnacle)
   }[];
@@ -519,12 +522,12 @@ interface SelectionPair {
   marketDisplay: string;   // Human-readable market (e.g., "Player Points" instead of "player_points")
   line: number;
   over: {
-    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
-    best: { book: string; price: number; decimal: number; link: string | null } | null;
+    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
   under: {
-    books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
-    best: { book: string; price: number; decimal: number; link: string | null } | null;
+    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
 }
 
@@ -802,6 +805,7 @@ async function fetchSportOpportunities(
               price: overPrice,
               decimal: overSel.price_decimal,
               link: overSel.link || null,
+              mobile_link: overSel.mobile_link || null,
               sgp: overSel.sgp || null,
               limits: overSel.limits || null,
             });
@@ -811,6 +815,7 @@ async function fetchSportOpportunities(
                 price: overPrice,
                 decimal: overSel.price_decimal,
                 link: overSel.link || null,
+                mobile_link: overSel.mobile_link || null,
               };
             }
             // Populate metadata from selection
@@ -832,6 +837,7 @@ async function fetchSportOpportunities(
               price: underPrice,
               decimal: underSel.price_decimal,
               link: underSel.link || null,
+              mobile_link: underSel.mobile_link || null,
               sgp: underSel.sgp || null,
               limits: underSel.limits || null,
             });
@@ -841,6 +847,7 @@ async function fetchSportOpportunities(
                 price: underPrice,
                 decimal: underSel.price_decimal,
                 link: underSel.link || null,
+                mobile_link: underSel.mobile_link || null,
               };
             }
             // Populate metadata from selection
@@ -885,6 +892,7 @@ async function fetchSportOpportunities(
           best_price: formatAmericanOdds(sideData.best.price),
           best_decimal: sideData.best.decimal,
           best_link: sideData.best.link,
+          best_mobile_link: sideData.best.mobile_link,
           sharp_price: null,
           sharp_decimal: null,
           sharp_books: [],
@@ -936,8 +944,8 @@ async function fetchSportOpportunities(
  * Calculate edge and EV metrics for an opportunity
  */
 interface SideData {
-  books: { book: string; price: number; decimal: number; link: string | null; sgp: string | null; limits: { max: number } | null }[];
-  best: { book: string; price: number; decimal: number; link: string | null } | null;
+  books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+  best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
 }
 
 /**

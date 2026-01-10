@@ -26,6 +26,7 @@ export interface BookOdds {
   priceFormatted: string;  // "+159" or "-110"
   decimal: number;
   link: string | null;
+  mobileLink: string | null;  // Deep link for mobile apps (e.g., fanduelsportsbook://...)
   sgp: string | null;      // SGP eligibility token
   limits: BookLimits | null;  // Betting limits when available
 }
@@ -90,6 +91,7 @@ export interface Opportunity {
   bestPrice: string;       // "+159"
   bestDecimal: number;
   bestLink: string | null;
+  bestMobileLink: string | null;  // Deep link for mobile apps
   nBooks: number;
   allBooks: BookOdds[];
 
@@ -254,6 +256,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
     bestPrice: raw.best_price as string,
     bestDecimal: raw.best_decimal as number,
     bestLink: raw.best_link as string | null,
+    bestMobileLink: raw.best_mobile_link as string | null,
     nBooks: raw.n_books as number,
     allBooks: ((raw.all_books as Array<Record<string, unknown>>) || []).map((b) => ({
       book: b.book as string,
@@ -261,6 +264,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
       priceFormatted: formatAmericanOdds(b.price as number),
       decimal: b.decimal as number,
       link: b.link as string | null,
+      mobileLink: b.mobile_link as string | null,
       sgp: b.sgp as string | null,
       limits: b.limits as { max: number } | null,
     })),
@@ -320,6 +324,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
             priceFormatted: formatAmericanOdds(b.price as number),
             decimal: b.decimal as number,
             link: b.link as string | null,
+            mobileLink: b.mobile_link as string | null,
             sgp: b.sgp as string | null,
             limits: (b.limits as { max: number } | null) ?? null,
           })),

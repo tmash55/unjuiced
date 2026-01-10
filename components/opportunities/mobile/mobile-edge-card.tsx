@@ -416,7 +416,9 @@ export function MobileEdgeCard({
                       key={`${book.book}-${idx}`}
                       type="button"
                       onClick={() => {
-                        if (book.link) window.open(book.link, "_blank");
+                        // On mobile, prefer the deep link (mobileLink) to open the app directly
+                        const link = book.mobileLink || book.link;
+                        if (link) window.open(link, "_blank");
                       }}
                       className={cn(
                         "flex items-center justify-between px-1.5 py-1 rounded-md",
