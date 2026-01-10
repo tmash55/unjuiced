@@ -100,6 +100,26 @@ export const SignUpEmail = () => {
               console.warn('[Dub] Failed to track lead:', leadError);
             }
             
+            // Sync to Brevo as a lead
+            try {
+              const fullName = signUpData.user.user_metadata?.full_name || signUpData.user.user_metadata?.name || '';
+              const nameParts = fullName.split(' ');
+              const brevoResponse = await fetch('/api/track/brevo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: data.email,
+                  firstName: nameParts[0] || undefined,
+                  lastName: nameParts.slice(1).join(' ') || undefined,
+                  source: 'app_signup',
+                }),
+              });
+              const brevoResult = await brevoResponse.json();
+              console.log('[Brevo] Lead sync result:', brevoResult);
+            } catch (brevoError) {
+              console.warn('[Brevo] Failed to sync lead:', brevoError);
+            }
+            
             // User is automatically signed in - redirect to plans page
             toast.success("Account created! 🎉", {
               description: "Choose your plan to get started.",
