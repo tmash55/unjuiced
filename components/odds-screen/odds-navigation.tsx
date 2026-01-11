@@ -54,15 +54,16 @@ interface MarketTab {
 }
 
 // Tier 1: Always visible core markets
+// NOTE: apiKeys standardized to match Redis data feed format
 const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
   nba: [
     { id: "pts", label: "PTS", apiKey: "player_points", type: "player" },
     { id: "reb", label: "REB", apiKey: "player_rebounds", type: "player" },
     { id: "ast", label: "AST", apiKey: "player_assists", type: "player" },
-    { id: "pra", label: "PRA", apiKey: "player_points_rebounds_assists", type: "player" },
-    { id: "pr", label: "P+R", apiKey: "player_points_rebounds", type: "player" },
-    { id: "pa", label: "P+A", apiKey: "player_points_assists", type: "player" },
-    { id: "ra", label: "R+A", apiKey: "player_rebounds_assists", type: "player" },
+    { id: "pra", label: "PRA", apiKey: "player_pra", type: "player" },
+    { id: "pr", label: "P+R", apiKey: "player_pr", type: "player" },
+    { id: "pa", label: "P+A", apiKey: "player_pa", type: "player" },
+    { id: "ra", label: "R+A", apiKey: "player_ra", type: "player" },
     { id: "3pm", label: "3PM", apiKey: "player_threes_made", type: "player" },
     { id: "dd", label: "DD", apiKey: "player_double_double", type: "player" },
     { id: "1st", label: "1st Basket", apiKey: "first_field_goal", type: "player" },
@@ -94,6 +95,7 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
 };
 
 // Tier 2: Secondary markets in "More" dropdown
+// NOTE: apiKeys standardized to match Redis data feed format
 const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
   nba: [
     { id: "td", label: "Triple Double", apiKey: "player_triple_double", type: "player" },
@@ -101,7 +103,8 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "stl", label: "Steals", apiKey: "player_steals", type: "player" },
     { id: "blk", label: "Blocks", apiKey: "player_blocks", type: "player" },
     { id: "to", label: "Turnovers", apiKey: "player_turnovers", type: "player" },
-    { id: "blk_stl", label: "Blocks + Steals", apiKey: "player_blocks_steals", type: "player" },
+    { id: "blk_stl", label: "Blocks + Steals", apiKey: "player_bs", type: "player" },
+    { id: "fgm", label: "Field Goals Made", apiKey: "player_fgm", type: "player" },
     { id: "1q_pts", label: "1Q Points", apiKey: "1st_quarter_player_points", type: "player" },
     { id: "1q_ast", label: "1Q Assists", apiKey: "1st_quarter_player_assists", type: "player" },
     { id: "1q_reb", label: "1Q Rebounds", apiKey: "1st_quarter_player_rebounds", type: "player" },
@@ -164,14 +167,16 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
 };
 
 // Tier 1: Primary game markets (always visible when in Game mode)
+// NOTE: apiKeys standardized to match Redis data feed format
 const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
   nba: [
-    { id: "ml", label: "ML", apiKey: "moneyline", type: "game" },
-    { id: "spread", label: "Spread", apiKey: "spread", type: "game" },
-    { id: "total", label: "Total", apiKey: "total", type: "game" },
-    { id: "1h_ml", label: "1H ML", apiKey: "1h_moneyline", type: "game" },
-    { id: "1h_spread", label: "1H Spread", apiKey: "1h_spread", type: "game" },
-    { id: "1h_total", label: "1H Total", apiKey: "1h_total", type: "game" },
+    { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "game_spread", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_points", type: "game" },
+    { id: "team_total", label: "Team Total", apiKey: "team_total", type: "game" },
+    { id: "1h_ml", label: "1H ML", apiKey: "game_1h_moneyline", type: "game" },
+    { id: "1h_spread", label: "1H Spread", apiKey: "1st_half_point_spread", type: "game" },
+    { id: "1h_total", label: "1H Total", apiKey: "1st_half_total_points", type: "game" },
   ],
   nfl: [
     { id: "ml", label: "ML", apiKey: "moneyline", type: "game" },
@@ -213,13 +218,24 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
 };
 
 // Tier 2: Secondary game markets (in "More" dropdown)
+// NOTE: apiKeys standardized to match Redis data feed format
 const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
   nba: [
-    { id: "1q_spread", label: "1Q Spread", apiKey: "1q_spread", type: "game" },
-    { id: "1q_total", label: "1Q Total", apiKey: "1q_total", type: "game" },
-    { id: "2q_spread", label: "2Q Spread", apiKey: "2q_spread", type: "game" },
-    { id: "3q_spread", label: "3Q Spread", apiKey: "3q_spread", type: "game" },
-    { id: "4q_spread", label: "4Q Spread", apiKey: "4q_spread", type: "game" },
+    { id: "1q_ml", label: "1Q ML", apiKey: "game_1q_moneyline", type: "game" },
+    { id: "1q_spread", label: "1Q Spread", apiKey: "1st_quarter_point_spread", type: "game" },
+    { id: "1q_total", label: "1Q Total", apiKey: "1st_quarter_total_points", type: "game" },
+    { id: "2q_ml", label: "2Q ML", apiKey: "2nd_quarter_moneyline", type: "game" },
+    { id: "2q_spread", label: "2Q Spread", apiKey: "2nd_quarter_point_spread", type: "game" },
+    { id: "2q_total", label: "2Q Total", apiKey: "2nd_quarter_total_points", type: "game" },
+    { id: "3q_ml", label: "3Q ML", apiKey: "3rd_quarter_moneyline", type: "game" },
+    { id: "3q_spread", label: "3Q Spread", apiKey: "3rd_quarter_point_spread", type: "game" },
+    { id: "3q_total", label: "3Q Total", apiKey: "3rd_quarter_total_points", type: "game" },
+    { id: "4q_ml", label: "4Q ML", apiKey: "4th_quarter_moneyline", type: "game" },
+    { id: "4q_spread", label: "4Q Spread", apiKey: "4th_quarter_point_spread", type: "game" },
+    { id: "4q_total", label: "4Q Total", apiKey: "4th_quarter_total_points", type: "game" },
+    { id: "2h_ml", label: "2H ML", apiKey: "2nd_half_moneyline", type: "game" },
+    { id: "2h_spread", label: "2H Spread", apiKey: "2nd_half_point_spread", type: "game" },
+    { id: "2h_total", label: "2H Total", apiKey: "2nd_half_total_points", type: "game" },
     { id: "overtime", label: "Overtime?", apiKey: "overtime", type: "game" },
   ],
   nfl: [
@@ -261,8 +277,9 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
 };
 
 // Default game market for each sport (used when switching to Game mode)
+// NOTE: NBA uses standardized Redis keys
 const DEFAULT_GAME_MARKET: Record<string, string> = {
-  nba: "moneyline",
+  nba: "game_moneyline",
   nfl: "moneyline",
   nhl: "moneyline",
   ncaab: "moneyline",

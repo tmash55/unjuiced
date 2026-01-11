@@ -101,29 +101,99 @@ async function discoverMarkets(sport: string): Promise<{
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const sport = searchParams.get("sport")?.trim().toLowerCase() || "";
+    const sportParam = searchParams.get("sport")?.trim().toLowerCase() || "";
+    const sportsParam = searchParams.get("sports")?.trim().toLowerCase() || "";
 
-    // Validate sport
-    if (!sport || !VALID_SPORTS.has(sport)) {
+    const startTime = performance.now();
+
+    // Support fetching multiple sports at once (comma-separated)
+    // e.g., /api/v2/props/markets?sports=nba,nfl,nhl
+    if (sportsParam) {
+      const requestedSports = sportsParam.split(",").filter(s => VALID_SPORTS.has(s));
+      
+      if (requestedSports.length === 0) {
+        return NextResponse.json(
+          { error: "invalid_sports", valid: Array.from(VALID_SPORTS) },
+          { status: 400, headers: { "Cache-Control": "no-store" } }
+        );
+      }
+
+      // Fetch all sports in parallel
+      const results = await Promise.all(
+        requestedSports.map(async (sport) => {
+          const { markets } = await discoverMarkets(sport);
+          return { sport, markets };
+        })
+      );
+
+      // Aggregate markets across all sports
+      const marketMap = new Map<string, { key: string; display: string; totalEvents: number; sports: string[] }>();
+
+      for (const { sport, markets } of results) {
+        for (const market of markets) {
+          const existing = marketMap.get(market.key);
+          if (existing) {
+            existing.totalEvents += market.eventCount;
+            if (!existing.sports.includes(sport)) {
+              existing.sports.push(sport);
+            }
+          } else {
+            marketMap.set(market.key, {
+              key: market.key,
+              display: market.display,
+              totalEvents: market.eventCount,
+              sports: [sport],
+            });
+          }
+        }
+      }
+
+      // Convert to array and sort by total events
+      const aggregatedMarkets = Array.from(marketMap.values())
+        .sort((a, b) => b.totalEvents - a.totalEvents);
+
+      const duration = performance.now() - startTime;
+
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[v2/props/markets] ${requestedSports.join(",")}: ${aggregatedMarkets.length} markets in ${duration.toFixed(0)}ms`);
+      }
+
+      return NextResponse.json(
+        {
+          sports: requestedSports,
+          markets: aggregatedMarkets,
+          count: aggregatedMarkets.length,
+          meta: {
+            duration_ms: Math.round(duration),
+          },
+        },
+        {
+          headers: {
+            "Cache-Control": "public, max-age=120, s-maxage=120", // Cache for 2 minutes
+          },
+        }
+      );
+    }
+
+    // Single sport mode (backwards compatible)
+    if (!sportParam || !VALID_SPORTS.has(sportParam)) {
       return NextResponse.json(
         { error: "invalid_sport", valid: Array.from(VALID_SPORTS) },
         { status: 400, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    const startTime = performance.now();
-
-    const { markets } = await discoverMarkets(sport);
+    const { markets } = await discoverMarkets(sportParam);
 
     const duration = performance.now() - startTime;
 
     if (process.env.NODE_ENV === "development") {
-      console.log(`[v2/props/markets] ${sport}: ${markets.length} markets in ${duration.toFixed(0)}ms`);
+      console.log(`[v2/props/markets] ${sportParam}: ${markets.length} markets in ${duration.toFixed(0)}ms`);
     }
 
     return NextResponse.json(
       {
-        sport,
+        sport: sportParam,
         markets,
         count: markets.length,
         meta: {

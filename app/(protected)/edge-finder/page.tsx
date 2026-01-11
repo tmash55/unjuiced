@@ -38,6 +38,7 @@ import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
+import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
@@ -55,49 +56,6 @@ function formatTimeAgo(timestamp: number): string {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
 }
-
-// Available markets (subset of common player props)
-const AVAILABLE_MARKETS = [
-  "player_points",
-  "player_rebounds", 
-  "player_assists",
-  "pra",
-  "player_threes",
-  "player_steals",
-  "player_blocks",
-  "player_turnovers",
-  "player_double_double",
-  "player_triple_double",
-  "passing_yards",
-  "passing_touchdowns",
-  "passing_completions",
-  "passing_attempts",
-  "passing_interceptions",
-  "rushing_yards",
-  "rushing_attempts",
-  "rushing_touchdowns",
-  "receiving_yards",
-  "receptions",
-  "receiving_touchdowns",
-  "player_touchdowns",
-  "player_anytime_td",
-  "player_shots_on_goal",
-  "player_goals",
-  "player_assists_hockey",
-  "player_points_hockey",
-  "player_saves",
-  "player_blocked_shots",
-  "batter_hits",
-  "batter_total_bases",
-  "batter_rbis",
-  "batter_runs_scored",
-  "batter_home_runs",
-  "batter_stolen_bases",
-  "pitcher_strikeouts",
-  "pitcher_hits_allowed",
-  "pitcher_walks",
-  "pitcher_outs",
-];
 
 /**
  * Map preset back to comparison mode
@@ -134,6 +92,16 @@ export default function EdgeFinderPage() {
   
   // Get active filter presets
   const { activePresets, isLoading: presetsLoading } = useFilterPresets();
+  
+  // Dynamically fetch available markets from the API
+  // This ensures we always show markets that actually exist in the data feed
+  const { data: marketsData } = useAvailableMarkets(AVAILABLE_LEAGUES);
+  const availableMarkets = useMemo(() => {
+    // Use dynamic markets if available, otherwise fall back to static list
+    return marketsData?.markets && marketsData.markets.length > 0 
+      ? marketsData.markets 
+      : FALLBACK_MARKETS;
+  }, [marketsData?.markets]);
   
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
@@ -328,7 +296,7 @@ export default function EdgeFinderPage() {
             columnOrder: newPrefs.columnOrder ?? [] 
           })}
           availableLeagues={AVAILABLE_LEAGUES}
-          availableMarkets={AVAILABLE_MARKETS}
+          availableMarkets={availableMarkets}
           availableSportsbooks={availableSportsbooks}
           boostPercent={boostPercent}
           onBoostChange={setBoostPercent}
@@ -507,7 +475,7 @@ export default function EdgeFinderPage() {
               }}
               onPrefsChange={handlePrefsChange}
               availableLeagues={AVAILABLE_LEAGUES}
-              availableMarkets={AVAILABLE_MARKETS}
+              availableMarkets={availableMarkets}
               availableSportsbooks={availableSportsbooks}
               deals={filteredOpportunities.map((opp) => ({
                 bestBook: opp.bestBook,

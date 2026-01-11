@@ -795,9 +795,11 @@ async function fetchSportOpportunities(
           if (EXCLUDED_BOOKS.has(book.toLowerCase())) continue;
           
           // Check "over" side (also check "yes" for yes/no markets like double double)
+          // Also check "ml" for single-line markets like first basket, anytime TD, etc.
           const overKey = `${playerRaw}|over|${lineStr}`;
           const yesKey = `${playerRaw}|yes|${lineStr}`;
-          const overSel = (selections[overKey] || selections[yesKey]) as SSESelection | undefined;
+          const mlKey = `${playerRaw}|ml|${lineStr}`;
+          const overSel = (selections[overKey] || selections[yesKey] || selections[mlKey]) as SSESelection | undefined;
           if (overSel && !overSel.locked) {
             const overPrice = parseInt(String(overSel.price), 10);
             pair.over.books.push({

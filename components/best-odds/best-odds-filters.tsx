@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { getAllSports, getAllLeagues } from "@/lib/data/sports";
-import { formatMarketLabel } from "@/lib/data/markets";
+import { formatMarketLabel, SPORT_MARKETS } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, Trash2, Info } from "lucide-react";
@@ -281,7 +281,7 @@ export function BestOddsFilters({
     return marketLineOptions[normalized] || null;
   };
 
-  // Group markets by sport type
+  // Group markets by sport type using SPORT_MARKETS data for accurate categorization
   const groupedMarkets = useMemo(() => {
     const groups: Record<string, string[]> = {
       Basketball: [],
@@ -291,65 +291,99 @@ export function BestOddsFilters({
       Baseball: [],
     };
 
+    // Build lookup maps from SPORT_MARKETS for accurate categorization
+    const basketballMarkets = new Set<string>();
+    const footballMarkets = new Set<string>();
+    const hockeyMarkets = new Set<string>();
+    const baseballMarkets = new Set<string>();
+    const soccerMarkets = new Set<string>();
+
+    // Basketball markets (NBA, NCAAB, WNBA)
+    ['basketball_nba', 'basketball_ncaab', 'basketball_wnba'].forEach(key => {
+      (SPORT_MARKETS[key] || []).forEach(m => basketballMarkets.add(m.apiKey));
+    });
+    
+    // Football markets (NFL, NCAAF)
+    ['football_nfl', 'football_ncaaf'].forEach(key => {
+      (SPORT_MARKETS[key] || []).forEach(m => footballMarkets.add(m.apiKey));
+    });
+    
+    // Hockey markets (NHL)
+    (SPORT_MARKETS['icehockey_nhl'] || []).forEach(m => hockeyMarkets.add(m.apiKey));
+    
+    // Baseball markets (MLB)
+    (SPORT_MARKETS['baseball_mlb'] || []).forEach(m => baseballMarkets.add(m.apiKey));
+    
+    // Soccer markets (EPL)
+    (SPORT_MARKETS['soccer_epl'] || []).forEach(m => soccerMarkets.add(m.apiKey));
+
     const leagueSelected = (leagueId: string) => {
-      // In this UI, an empty selection array means "all selected"
       if (localLeagues.length === 0) return availableLeagues.includes(leagueId);
       return localLeagues.includes(leagueId);
     };
 
     const soccerInScope = leagueSelected('soccer_epl');
+    const hockeyInScope = leagueSelected('nhl');
 
     availableMarkets.forEach(market => {
       const m = market.toLowerCase();
-      const isHockeyPeriodMarket = m.startsWith('p1_') || m.startsWith('p2_') || m.startsWith('p3_');
-
-      // Soccer markets (place before Hockey so shared "goals" markets don't get bucketed as Hockey)
-      if (
-        soccerInScope &&
-        !isHockeyPeriodMarket &&
-        (m === 'player_goals' ||
-          m === 'total_goals' ||
-          m === 'total_goals_odd_even' ||
-          m === 'moneyline_3way' ||
-          m === 'draw_no_bet' ||
-          m === 'both_teams_to_score' ||
-          m.includes('corner') ||
-          m.includes('card'))
-      ) {
+      
+      // Check SPORT_MARKETS first for accurate categorization
+      if (soccerMarkets.has(m) && soccerInScope) {
         groups.Soccer.push(market);
-      }
-      // Check for explicit sport markers first (highest priority)
-      else if (m.includes('hockey')) {
+      } else if (hockeyMarkets.has(m)) {
         groups.Hockey.push(market);
-      }
-      // Hockey-specific markets (check before basketball to avoid "block" overlap)
-      // "shot" catches "Blocked Shots" before basketball's "block" check
-      else if (m.includes('goal') || m.includes('save') || m.includes('shot') ||
-               m.includes('power_play') || m.includes('puck')) {
-        groups.Hockey.push(market);
-      }
-      // Baseball markets (check before football to catch pitcher/batter stats)
-      else if (m.includes('hit') || m.includes('rbi') || m.includes('strikeout') ||
-               m.includes('base') || m.includes('home_run') || m.includes('walk') ||
-               m.includes('out') || m.includes('pitch') || m.includes('batter') ||
-               m.includes('pitcher') || m.includes('earned')) {
+      } else if (baseballMarkets.has(m)) {
         groups.Baseball.push(market);
-      }
-      // Basketball markets
-      else if (m.includes('point') || m.includes('rebound') || m.includes('assist') ||
-               m.includes('three') || m.includes('block') || m.includes('steal') ||
-               m.includes('pra') || m.includes('double') || m.includes('turnover')) {
+      } else if (basketballMarkets.has(m)) {
         groups.Basketball.push(market);
-      }
-      // Football markets
-      else if (m.includes('pass') || m.includes('rush') || m.includes('reception') ||
-               m.includes('receiving') || m.includes('touchdown') || m.includes('yard') ||
-               m.includes('sack') || m.includes('interception')) {
+      } else if (footballMarkets.has(m)) {
         groups.Football.push(market);
       }
-      // Default to Football
+      // Fallback: Use keyword matching for markets not in SPORT_MARKETS
       else {
-        groups.Football.push(market);
+        const isHockeyPeriodMarket = m.startsWith('p1_') || m.startsWith('p2_') || m.startsWith('p3_') || 
+                                      m.startsWith('1st_period') || m.startsWith('2nd_period') || m.startsWith('3rd_period');
+        
+        // Hockey-specific keywords (period markets, puck, saves)
+        if (isHockeyPeriodMarket || m.includes('puck') || m.includes('power_play')) {
+          groups.Hockey.push(market);
+        }
+        // Baseball-specific keywords
+        else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || 
+                 m.includes('strikeout') || m.includes('home_run') || m.includes('earned_run')) {
+          groups.Baseball.push(market);
+        }
+        // Basketball-specific keywords
+        else if (m.includes('basket') || m.includes('pra') || m.includes('player_pr') || 
+                 m.includes('player_pa') || m.includes('player_ra') || m.includes('player_bs') ||
+                 m.includes('double_double') || m.includes('triple_double') || m.includes('fgm')) {
+          groups.Basketball.push(market);
+        }
+        // Football-specific keywords
+        else if (m.includes('touchdown') || m.includes('passing') || m.includes('rushing') || 
+                 m.includes('receiving') || m.includes('sack') || m.includes('field_goal')) {
+          groups.Football.push(market);
+        }
+        // Shared keywords - use context
+        else if (m.includes('goal') || m.includes('save') || m.includes('shot')) {
+          // These are typically hockey unless soccer is in scope and no hockey period prefix
+          if (soccerInScope && !hockeyInScope) {
+            groups.Soccer.push(market);
+          } else {
+            groups.Hockey.push(market);
+          }
+        }
+        else if (m.includes('point') || m.includes('rebound') || m.includes('assist') || 
+                 m.includes('block') || m.includes('steal') || m.includes('turnover')) {
+          groups.Basketball.push(market);
+        }
+        // Default to the first available group
+        else {
+          if (groups.Basketball.length >= 0) groups.Basketball.push(market);
+          else if (groups.Football.length >= 0) groups.Football.push(market);
+          else groups.Hockey.push(market);
+        }
       }
     });
 

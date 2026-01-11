@@ -32,6 +32,8 @@ import {
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { SPORT_MARKETS, type SportMarket } from "@/lib/data/markets";
+import { useAvailableMarkets } from "@/hooks/use-available-markets";
+import { getMarketDisplay } from "@/lib/odds/types";
 
 interface FilterPresetFormModalProps {
   open: boolean;
@@ -81,6 +83,48 @@ function getSportMarketKey(sport: string): string {
     'nhl': 'icehockey_nhl',
   };
   return mapping[sport] || sport;
+}
+
+// Infer market group from apiKey for dynamically discovered markets
+function inferMarketGroup(apiKey: string): string {
+  const key = apiKey.toLowerCase();
+  
+  // Football
+  if (key.includes('passing') || key.includes('pass_')) return 'Passing';
+  if (key.includes('rushing') || key.includes('rush_')) return 'Rushing';
+  if (key.includes('receiving') || key.includes('reception')) return 'Receiving';
+  if (key.includes('touchdown') || key.includes('_td')) return 'Scoring';
+  if (key.includes('field_goal') || key.includes('kicking')) return 'Kicking';
+  if (key.includes('sack') || key.includes('tackle') || key.includes('interception') || key.includes('defense')) return 'Defense';
+  
+  // Basketball
+  if (key.includes('point') && !key.includes('power_play')) return 'Scoring';
+  if (key.includes('rebound')) return 'Scoring';
+  if (key.includes('assist') && !key.includes('hockey')) return 'Scoring';
+  if (key.includes('three') || key.includes('3pt')) return 'Scoring';
+  if (key.includes('block') || key.includes('steal') || key.includes('turnover')) return 'Defense';
+  if (key.includes('double_double') || key.includes('triple_double') || key.includes('pra') || key.includes('combo')) return 'Combo';
+  
+  // Hockey
+  if (key.includes('goal') && !key.includes('field_goal')) return 'Skater';
+  if (key.includes('save') || key.includes('shutout')) return 'Goalie';
+  if (key.includes('shot') && key.includes('hockey')) return 'Skater';
+  if (key.includes('power_play') || key.includes('pp_')) return 'Skater';
+  
+  // Baseball
+  if (key.includes('batter_') || key.includes('hit') || key.includes('home_run') || key.includes('rbi')) return 'Batter';
+  if (key.includes('pitcher_') || key.includes('strikeout') || key.includes('earned_run')) return 'Pitcher';
+  
+  // Soccer
+  if (key.includes('goalscorer')) return 'Player';
+  
+  // Game-level markets
+  if (key.includes('spread') || key.includes('moneyline') || key.includes('total') || key.includes('h2h')) return 'Game';
+  if (key.includes('1h_') || key.includes('2h_') || key.includes('half')) return 'Halves';
+  if (key.includes('1q_') || key.includes('2q_') || key.includes('3q_') || key.includes('4q_') || key.includes('quarter')) return 'Quarters';
+  if (key.includes('p1_') || key.includes('p2_') || key.includes('p3_') || key.includes('period')) return '1st Period';
+  
+  return 'Other';
 }
 
 // Categorize markets into game lines and player props
@@ -231,12 +275,42 @@ export function FilterPresetFormModal({
   const [maxOdds, setMaxOdds] = useState(500);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch dynamic markets from API to merge with static definitions
+  // This ensures users see all available markets, not just the hardcoded ones
+  const { data: dynamicMarketsData } = useAvailableMarkets(selectedSports);
+
   // Helper to get all market IDs for a sport
+  // Merges static SPORT_MARKETS with dynamically discovered markets
   const getMarketData = useCallback((sportId: string) => {
     const marketKey = getSportMarketKey(sportId);
-    const markets = SPORT_MARKETS[marketKey] || [];
-    return categorizeMarkets(markets);
-  }, []);
+    const staticMarkets = SPORT_MARKETS[marketKey] || [];
+    
+    // Get dynamic markets for this sport
+    const dynamicMarkets: SportMarket[] = [];
+    if (dynamicMarketsData?.aggregatedMarkets) {
+      for (const market of dynamicMarketsData.aggregatedMarkets) {
+        // Only include markets that are available for this sport
+        if (market.sports.includes(sportId)) {
+          // Check if this market is already in static markets
+          const alreadyExists = staticMarkets.some(m => m.apiKey === market.key);
+          if (!alreadyExists) {
+            // Add dynamic market with inferred properties
+            dynamicMarkets.push({
+              value: market.key,
+              label: market.display || getMarketDisplay(market.key),
+              apiKey: market.key,
+              group: inferMarketGroup(market.key),
+              period: 'full',
+            });
+          }
+        }
+      }
+    }
+    
+    // Merge static and dynamic markets
+    const allMarkets = [...staticMarkets, ...dynamicMarkets];
+    return categorizeMarkets(allMarkets);
+  }, [dynamicMarketsData?.aggregatedMarkets]);
 
   // Build markets payload (only include when there is a custom selection)
   const buildSelectedMarketsPayload = useCallback((): string[] | null => {

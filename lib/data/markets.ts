@@ -16,38 +16,75 @@ export interface SportMarket {
     [key: string]: SportMarket[];
   }
   
-  // Common market definitions for reuse
+  // =============================================================================
+  // BASKETBALL MARKETS (NBA, NCAAB, WNBA)
+  // Keys are standardized to match Redis data feed format
+  // =============================================================================
   const BASKETBALL_MARKETS: SportMarket[] = [
-    // Game-level markets
-    { value: "Moneyline", label: "Moneyline", apiKey: "moneyline", group: "Game", period: 'full' },
-    { value: "Spread", label: "Point Spread", apiKey: "spread", group: "Game", period: 'full' },
-    { value: "Total", label: "Total Points", apiKey: "total", group: "Game", period: 'full' },
-    { value: "Total Points Odd/Even", label: "Total Points Odd/Even", apiKey: "total_points_odd_even", group: "Game", period: 'full' },
-    { value: "Overtime", label: "Overtime?", apiKey: "overtime", group: "Game", period: 'full', singleLine: true },
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - Full Game
+    // -------------------------------------------------------------------------
+    { value: "game_moneyline", label: "Moneyline", apiKey: "game_moneyline", group: "Game", period: 'full' },
+    { value: "game_spread", label: "Point Spread", apiKey: "game_spread", group: "Game", period: 'full' },
+    { value: "total_points", label: "Total Points", apiKey: "total_points", group: "Game", period: 'full' },
+    { value: "team_total", label: "Team Total", apiKey: "team_total", group: "Game", period: 'full' },
+    { value: "total_points_odd_even", label: "Total Points Odd/Even", apiKey: "total_points_odd_even", group: "Game", period: 'full' },
+    { value: "overtime", label: "Overtime?", apiKey: "overtime", group: "Game", period: 'full', singleLine: true },
     
-    // Half markets
-    { value: "1st Half Moneyline", label: "1st Half Moneyline", apiKey: "1h_moneyline", group: "Halves", period: '1h' },
-    { value: "1st Half Spread", label: "1st Half Point Spread", apiKey: "1h_spread", group: "Halves", period: '1h' },
-    { value: "1st Half Total", label: "1st Half Total Points", apiKey: "1h_total", group: "Halves", period: '1h' },
-    { value: "2nd Half Total", label: "2nd Half Total Points", apiKey: "2h_total", group: "Halves", period: '2h' },
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 1st Half
+    // -------------------------------------------------------------------------
+    { value: "game_1h_moneyline", label: "1st Half Moneyline", apiKey: "game_1h_moneyline", group: "1st Half", period: '1h' },
+    { value: "1st_half_point_spread", label: "1st Half Spread", apiKey: "1st_half_point_spread", group: "1st Half", period: '1h' },
+    { value: "1st_half_total_points", label: "1st Half Total", apiKey: "1st_half_total_points", group: "1st Half", period: '1h' },
+    { value: "1st_half_moneyline_3_way", label: "1st Half ML 3-Way", apiKey: "1st_half_moneyline_3_way", group: "1st Half", period: '1h' },
+    { value: "1st_half_home_team_total_points", label: "1st Half Home Total", apiKey: "1st_half_home_team_total_points", group: "1st Half", period: '1h' },
+    { value: "1st_half_away_team_total_points", label: "1st Half Away Total", apiKey: "1st_half_away_team_total_points", group: "1st Half", period: '1h' },
     
-    // Quarter markets
-    { value: "1st Quarter Moneyline", label: "1st Quarter Moneyline", apiKey: "1q_moneyline", group: "Quarters", period: '1q' },
-    { value: "1st Quarter Spread", label: "1st Quarter Point Spread", apiKey: "1q_spread", group: "Quarters", period: '1q' },
-    { value: "1st Quarter Total", label: "1st Quarter Total Points", apiKey: "1q_total", group: "Quarters", period: '1q' },
-    { value: "2nd Quarter Moneyline", label: "2nd Quarter Moneyline", apiKey: "2q_moneyline", group: "Quarters", period: '2q' },
-    { value: "2nd Quarter Spread", label: "2nd Quarter Point Spread", apiKey: "2q_spread", group: "Quarters", period: '2q' },
-    { value: "2nd Quarter Total", label: "2nd Quarter Total Points", apiKey: "2q_total", group: "Quarters", period: '2q' },
-    { value: "3rd Quarter Moneyline", label: "3rd Quarter Moneyline", apiKey: "3q_moneyline", group: "Quarters", period: '3q' },
-    { value: "3rd Quarter Spread", label: "3rd Quarter Point Spread", apiKey: "3q_spread", group: "Quarters", period: '3q' },
-    { value: "3rd Quarter Total", label: "3rd Quarter Total Points", apiKey: "3q_total", group: "Quarters", period: '3q' },
-    { value: "4th Quarter Moneyline", label: "4th Quarter Moneyline", apiKey: "4q_moneyline", group: "Quarters", period: '4q' },
-    { value: "4th Quarter Spread", label: "4th Quarter Point Spread", apiKey: "4q_spread", group: "Quarters", period: '4q' },
-    { value: "4th Quarter Total", label: "4th Quarter Total Points", apiKey: "4q_total", group: "Quarters", period: '4q' },
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 2nd Half
+    // -------------------------------------------------------------------------
+    { value: "2nd_half_moneyline", label: "2nd Half Moneyline", apiKey: "2nd_half_moneyline", group: "2nd Half", period: '2h' },
+    { value: "2nd_half_point_spread", label: "2nd Half Spread", apiKey: "2nd_half_point_spread", group: "2nd Half", period: '2h' },
+    { value: "2nd_half_total_points", label: "2nd Half Total", apiKey: "2nd_half_total_points", group: "2nd Half", period: '2h' },
     
-    // Player props
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 1st Quarter
+    // -------------------------------------------------------------------------
+    { value: "game_1q_moneyline", label: "1st Quarter Moneyline", apiKey: "game_1q_moneyline", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_point_spread", label: "1st Quarter Spread", apiKey: "1st_quarter_point_spread", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_total_points", label: "1st Quarter Total", apiKey: "1st_quarter_total_points", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_moneyline_3_way", label: "1st Quarter ML 3-Way", apiKey: "1st_quarter_moneyline_3_way", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_last_team_to_score", label: "1st Quarter Last Team to Score", apiKey: "1st_quarter_last_team_to_score", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_home_team_total_points", label: "1st Quarter Home Total", apiKey: "1st_quarter_home_team_total_points", group: "1st Quarter", period: '1q' },
+    { value: "1st_quarter_away_team_total_points", label: "1st Quarter Away Total", apiKey: "1st_quarter_away_team_total_points", group: "1st Quarter", period: '1q' },
+    
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 2nd Quarter
+    // -------------------------------------------------------------------------
+    { value: "2nd_quarter_moneyline", label: "2nd Quarter Moneyline", apiKey: "2nd_quarter_moneyline", group: "2nd Quarter", period: '2q' },
+    { value: "2nd_quarter_point_spread", label: "2nd Quarter Spread", apiKey: "2nd_quarter_point_spread", group: "2nd Quarter", period: '2q' },
+    { value: "2nd_quarter_total_points", label: "2nd Quarter Total", apiKey: "2nd_quarter_total_points", group: "2nd Quarter", period: '2q' },
+    
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 3rd Quarter
+    // -------------------------------------------------------------------------
+    { value: "3rd_quarter_moneyline", label: "3rd Quarter Moneyline", apiKey: "3rd_quarter_moneyline", group: "3rd Quarter", period: '3q' },
+    { value: "3rd_quarter_point_spread", label: "3rd Quarter Spread", apiKey: "3rd_quarter_point_spread", group: "3rd Quarter", period: '3q' },
+    { value: "3rd_quarter_total_points", label: "3rd Quarter Total", apiKey: "3rd_quarter_total_points", group: "3rd Quarter", period: '3q' },
+    
+    // -------------------------------------------------------------------------
+    // GAME MARKETS - 4th Quarter
+    // -------------------------------------------------------------------------
+    { value: "4th_quarter_moneyline", label: "4th Quarter Moneyline", apiKey: "4th_quarter_moneyline", group: "4th Quarter", period: '4q' },
+    { value: "4th_quarter_point_spread", label: "4th Quarter Spread", apiKey: "4th_quarter_point_spread", group: "4th Quarter", period: '4q' },
+    { value: "4th_quarter_total_points", label: "4th Quarter Total", apiKey: "4th_quarter_total_points", group: "4th Quarter", period: '4q' },
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - Core Stats (Over/Under)
+    // -------------------------------------------------------------------------
     {
-      value: "Points",
+      value: "player_points",
       label: "Points",
       apiKey: "player_points",
       hasAlternates: true,
@@ -57,7 +94,7 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "Rebounds",
+      value: "player_rebounds",
       label: "Rebounds",
       apiKey: "player_rebounds",
       hasAlternates: true,
@@ -67,7 +104,7 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "Assists",
+      value: "player_assists",
       label: "Assists",
       apiKey: "player_assists",
       hasAlternates: true,
@@ -77,8 +114,8 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "Threes",
-      label: "Threes",
+      value: "player_threes_made",
+      label: "3-Pointers",
       apiKey: "player_threes_made",
       hasAlternates: true,
       alternateKey: "player_threes_made_alternate",
@@ -87,47 +124,61 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "PRA",
+      value: "player_fgm",
+      label: "Field Goals Made",
+      apiKey: "player_fgm",
+      hasAlternates: true,
+      alternateKey: "player_fgm_alternate",
+      alwaysFetchAlternate: true,
+      group: "Scoring",
+      period: 'full',
+    },
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - Combo Stats (Over/Under)
+    // -------------------------------------------------------------------------
+    {
+      value: "player_pra",
       label: "Pts+Reb+Ast",
-      apiKey: "player_points_rebounds_assists",
+      apiKey: "player_pra",
       hasAlternates: true,
-      alternateKey: "player_points_rebounds_assists_alternate",
+      alternateKey: "player_pra_alternate",
       alwaysFetchAlternate: true,
       group: "Combo",
       period: 'full',
     },
     {
-      value: "Points_Rebounds",
+      value: "player_pr",
       label: "Pts+Reb",
-      apiKey: "player_points_rebounds",
+      apiKey: "player_pr",
       hasAlternates: true,
-      alternateKey: "player_points_rebounds_alternate",
+      alternateKey: "player_pr_alternate",
       alwaysFetchAlternate: true,
       group: "Combo",
       period: 'full',
     },
     {
-      value: "Points_Assists",
+      value: "player_pa",
       label: "Pts+Ast",
-      apiKey: "player_points_assists",
+      apiKey: "player_pa",
       hasAlternates: true,
-      alternateKey: "player_points_assists_alternate",
+      alternateKey: "player_pa_alternate",
       alwaysFetchAlternate: true,
       group: "Combo",
       period: 'full',
     },
     {
-      value: "Rebounds_Assists",
+      value: "player_ra",
       label: "Reb+Ast",
-      apiKey: "player_rebounds_assists",
+      apiKey: "player_ra",
       hasAlternates: true,
-      alternateKey: "player_rebounds_assists_alternate",
+      alternateKey: "player_ra_alternate",
       alwaysFetchAlternate: true,
       group: "Combo",
       period: 'full',
     },
     {
-      value: "Double_Double",
+      value: "player_double_double",
       label: "Double Double",
       apiKey: "player_double_double",
       group: "Combo",
@@ -135,15 +186,19 @@ export interface SportMarket {
       singleLine: true,
     },
     {
-      value: "Triple_Double",
+      value: "player_triple_double",
       label: "Triple Double",
       apiKey: "player_triple_double",
       group: "Combo",
       period: 'full',
       singleLine: true,
     },
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - Defense (Over/Under)
+    // -------------------------------------------------------------------------
     {
-      value: "Blocks",
+      value: "player_blocks",
       label: "Blocks",
       apiKey: "player_blocks",
       hasAlternates: true,
@@ -153,7 +208,7 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "Steals",
+      value: "player_steals",
       label: "Steals",
       apiKey: "player_steals",
       hasAlternates: true,
@@ -163,14 +218,14 @@ export interface SportMarket {
       period: 'full',
     },
     {
-      value: "Blocks_steals",
+      value: "player_bs",
       label: "Blocks+Steals",
-      apiKey: "player_blocks_steals",
+      apiKey: "player_bs",
       group: "Defense",
       period: 'full',
     },
     {
-      value: "Turnovers",
+      value: "player_turnovers",
       label: "Turnovers",
       apiKey: "player_turnovers",
       hasAlternates: true,
@@ -179,101 +234,109 @@ export interface SportMarket {
       group: "Defense",
       period: 'full',
     },
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - First Basket / Scoring (Single Line)
+    // -------------------------------------------------------------------------
     {
-      value: "First_Field_Goal",
+      value: "first_field_goal",
       label: "1st Basket (Game)",
       apiKey: "first_field_goal",
-      group: "Scoring",
+      group: "First Basket",
       period: 'full',
       singleLine: true,
     },
     {
-      value: "Team_First_Basket",
+      value: "team_first_basket",
       label: "1st Basket (Team)",
       apiKey: "team_first_basket",
-      group: "Scoring",
+      group: "First Basket",
       period: 'full',
       singleLine: true,
     },
     {
-      value: "Home_Team_First_Field_Goal",
+      value: "home_team_first_field_goal",
       label: "Home Team First Basket",
       apiKey: "home_team_first_field_goal",
-      group: "Scoring",
+      group: "First Basket",
       period: 'full',
       singleLine: true,
     },
     {
-      value: "Away_Team_First_Field_Goal",
+      value: "away_team_first_field_goal",
       label: "Away Team First Basket",
       apiKey: "away_team_first_field_goal",
-      group: "Scoring",
+      group: "First Basket",
       period: 'full',
       singleLine: true,
     },
     {
-      value: "Top_Points_Scorer",
+      value: "top_points_scorer",
       label: "Top Points Scorer",
       apiKey: "top_points_scorer",
       group: "Scoring",
       period: 'full',
       singleLine: true,
     },
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - 1st Quarter (Over/Under)
+    // -------------------------------------------------------------------------
     {
-      value: "Player_Points_Q1",
-      label: "Points - 1st Quarter",
+      value: "1st_quarter_player_points",
+      label: "Points (1Q)",
       apiKey: "1st_quarter_player_points",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_points_alternate",
       alwaysFetchAlternate: true,
-      group: "Scoring",
+      group: "1st Quarter",
       period: '1q',
     },
     {
-      value: "Player_Assists_Q1",
-      label: "Assists - 1st Quarter",
+      value: "1st_quarter_player_assists",
+      label: "Assists (1Q)",
       apiKey: "1st_quarter_player_assists",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_assists_alternate",
       alwaysFetchAlternate: true,
-      group: "Scoring",
+      group: "1st Quarter",
       period: '1q',
     },
     {
-      value: "Player_Rebounds_Q1",
-      label: "Rebounds - 1st Quarter",
+      value: "1st_quarter_player_rebounds",
+      label: "Rebounds (1Q)",
       apiKey: "1st_quarter_player_rebounds",
       hasAlternates: true,
       alternateKey: "1st_quarter_player_rebounds_alternate",
       alwaysFetchAlternate: true,
-      group: "Scoring",
+      group: "1st Quarter",
       period: '1q',
     },
-    // 1st 3 Minutes Player Props (single-line markets - no over/under)
+    
+    // -------------------------------------------------------------------------
+    // PLAYER PROPS - 1st 3 Minutes (Single Line - Yes/No)
+    // -------------------------------------------------------------------------
     {
-      value: "Player_Points_3Min",
-      label: "Points - 1st 3 Minutes",
+      value: "1st_3_minutes_player_points",
+      label: "Points (1st 3 Min)",
       apiKey: "1st_3_minutes_player_points",
-      hasAlternates: false,
-      group: "Scoring",
+      group: "1st 3 Minutes",
       period: '1q',
       singleLine: true,
     },
     {
-      value: "Player_Assists_3Min",
-      label: "Assists - 1st 3 Minutes",
+      value: "1st_3_minutes_player_assists",
+      label: "Assists (1st 3 Min)",
       apiKey: "1st_3_minutes_player_assists",
-      hasAlternates: false,
-      group: "Scoring",
+      group: "1st 3 Minutes",
       period: '1q',
       singleLine: true,
     },
     {
-      value: "Player_Rebounds_3Min",
-      label: "Rebounds - 1st 3 Minutes",
+      value: "1st_3_minutes_player_rebounds",
+      label: "Rebounds (1st 3 Min)",
       apiKey: "1st_3_minutes_player_rebounds",
-      hasAlternates: false,
-      group: "Scoring",
+      group: "1st 3 Minutes",
       period: '1q',
       singleLine: true,
     },
@@ -939,34 +1002,58 @@ export interface SportMarket {
   
 // Canonical mapping for market display names → internal API keys
 // Maps backend market names to frontend API keys for consistent routing
+// Keys are standardized to match Redis data feed format
 export const MARKET_NAME_MAP: Record<string, string> = {
-  // Basketball player markets
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Player Props (Core)
+  // -------------------------------------------------------------------------
   'Player Points': 'player_points',
   'player-points': 'player_points',
   'Player Rebounds': 'player_rebounds',
   'player-rebounds': 'player_rebounds',
   'Player Assists': 'player_assists',
   'player-assists': 'player_assists',
-  'Player Points + Rebounds + Assists': 'player_points_rebounds_assists',
-  'player-points-rebounds-assists': 'player_points_rebounds_assists',
-  'Player Points + Rebounds': 'player_points_rebounds',
-  'player-points-rebounds': 'player_points_rebounds',
-  'Player Points + Assists': 'player_points_assists',
-  'player-points-assists': 'player_points_assists',
-  'Player Rebounds + Assists': 'player_rebounds_assists',
-  'player-rebounds-assists': 'player_rebounds_assists',
   'Player Threes': 'player_threes_made',
   'Player Three Pointers': 'player_threes_made',
   'Player 3-Point Field Goals': 'player_threes_made',
   'Player Threes Made': 'player_threes_made',
   'player-threes-made': 'player_threes_made',
+  'Player FGM': 'player_fgm',
+  'Player Field Goals Made': 'player_fgm',
+  'player-fgm': 'player_fgm',
   'Player Blocks': 'player_blocks',
   'player-blocks': 'player_blocks',
   'Player Steals': 'player_steals',
   'player-steals': 'player_steals',
-  'Player Blocks + Steals': 'player_blocks_steals',
   'Player Turnovers': 'player_turnovers',
   'player-turnovers': 'player_turnovers',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Player Props (Combos) - Using Redis keys
+  // -------------------------------------------------------------------------
+  'Player Points + Rebounds + Assists': 'player_pra',
+  'player-points-rebounds-assists': 'player_pra',
+  'PRA': 'player_pra',
+  'Player Points + Rebounds': 'player_pr',
+  'player-points-rebounds': 'player_pr',
+  'PR': 'player_pr',
+  'Player Points + Assists': 'player_pa',
+  'player-points-assists': 'player_pa',
+  'PA': 'player_pa',
+  'Player Rebounds + Assists': 'player_ra',
+  'player-rebounds-assists': 'player_ra',
+  'RA': 'player_ra',
+  'Player Blocks + Steals': 'player_bs',
+  'player-blocks-steals': 'player_bs',
+  'BS': 'player_bs',
+  'Player Double-Double': 'player_double_double',
+  'player-double-double': 'player_double_double',
+  'Player Triple-Double': 'player_triple_double',
+  'player-triple-double': 'player_triple_double',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - First Basket Markets
+  // -------------------------------------------------------------------------
   'First Basket': 'first_field_goal',
   'first-basket': 'first_field_goal',
   'First Field Goal': 'first_field_goal',
@@ -979,65 +1066,105 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'Away Team First Field Goal': 'away_team_first_field_goal',
   'away-team-first-field-goal': 'away_team_first_field_goal',
   'Away Team First Basket': 'away_team_first_field_goal',
-  'Player Double-Double': 'player_double_double',
-  'player-double-double': 'player_double_double',
-  'Player Triple-Double': 'player_triple_double',
-  'player-triple-double': 'player_triple_double',
   'Top Points Scorer': 'top_points_scorer',
   'top-points-scorer': 'top_points_scorer',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - 1st Quarter Player Props
+  // -------------------------------------------------------------------------
   '1st Quarter Player Points': '1st_quarter_player_points',
   '1st-quarter-player-points': '1st_quarter_player_points',
   '1st Quarter Player Assists': '1st_quarter_player_assists',
   '1st-quarter-player-assists': '1st_quarter_player_assists',
   '1st Quarter Player Rebounds': '1st_quarter_player_rebounds',
   '1st-quarter-player-rebounds': '1st_quarter_player_rebounds',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - 1st 3 Minutes Player Props (Single Line)
+  // -------------------------------------------------------------------------
   '1st 3 Minutes Player Points': '1st_3_minutes_player_points',
   '1st 3 Minutes Player Assists': '1st_3_minutes_player_assists',
   '1st 3 Minutes Player Rebounds': '1st_3_minutes_player_rebounds',
   
-  // Basketball game markets
-  'Moneyline': 'moneyline',
-  'moneyline': 'moneyline',
-  'Point Spread': 'spread',
-  'point-spread': 'spread',
-  'Total Points': 'total',
-  'total-points': 'total',
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Game Markets (Full Game) - Using Redis keys
+  // -------------------------------------------------------------------------
+  'Moneyline': 'game_moneyline',
+  'moneyline': 'game_moneyline',
+  'game_moneyline': 'game_moneyline',
+  'Point Spread': 'game_spread',
+  'point-spread': 'game_spread',
+  'game_spread': 'game_spread',
+  'Total Points': 'total_points',
+  'total-points': 'total_points',
+  'total_points': 'total_points',
+  'Team Total': 'team_total',
+  'team_total': 'team_total',
   'Total Points Odd/Even': 'total_points_odd_even',
   'total-points-odd-even': 'total_points_odd_even',
   'Overtime?': 'overtime',
   'overtime': 'overtime',
-  '1st Half Moneyline': '1h_moneyline',
-  '1st-half-moneyline': '1h_moneyline',
-  '1st Half Point Spread': '1h_spread',
-  '1st-half-point-spread': '1h_spread',
-  '1st Half Total Points': '1h_total',
-  '1st-half-total-points': '1h_total',
-  '2nd Half Total Points': '2h_total',
-  '2nd-half-total-points': '2h_total',
-  '1st Quarter Moneyline': '1q_moneyline',
-  '1st-quarter-moneyline': '1q_moneyline',
-  '1st Quarter Point Spread': '1q_spread',
-  '1st-quarter-point-spread': '1q_spread',
-  '1st Quarter Total Points': '1q_total',
-  '1st-quarter-total-points': '1q_total',
-  '2nd Quarter Moneyline': '2q_moneyline',
-  '2nd-quarter-moneyline': '2q_moneyline',
-  '2nd Quarter Point Spread': '2q_spread',
-  '2nd-quarter-point-spread': '2q_spread',
-  '2nd Quarter Total Points': '2q_total',
-  '2nd-quarter-total-points': '2q_total',
-  '3rd Quarter Moneyline': '3q_moneyline',
-  '3rd-quarter-moneyline': '3q_moneyline',
-  '3rd Quarter Point Spread': '3q_spread',
-  '3rd-quarter-point-spread': '3q_spread',
-  '3rd Quarter Total Points': '3q_total',
-  '3rd-quarter-total-points': '3q_total',
-  '4th Quarter Moneyline': '4q_moneyline',
-  '4th-quarter-moneyline': '4q_moneyline',
-  '4th Quarter Point Spread': '4q_spread',
-  '4th-quarter-point-spread': '4q_spread',
-  '4th Quarter Total Points': '4q_total',
-  '4th-quarter-total-points': '4q_total',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Game Markets (1st Half) - Using Redis keys
+  // -------------------------------------------------------------------------
+  '1st Half Moneyline': 'game_1h_moneyline',
+  '1st-half-moneyline': 'game_1h_moneyline',
+  'game_1h_moneyline': 'game_1h_moneyline',
+  '1st Half Point Spread': '1st_half_point_spread',
+  '1st-half-point-spread': '1st_half_point_spread',
+  '1st Half Total Points': '1st_half_total_points',
+  '1st-half-total-points': '1st_half_total_points',
+  '1st Half ML 3-Way': '1st_half_moneyline_3_way',
+  '1st Half Home Total': '1st_half_home_team_total_points',
+  '1st Half Away Total': '1st_half_away_team_total_points',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Game Markets (2nd Half) - Using Redis keys
+  // -------------------------------------------------------------------------
+  '2nd Half Moneyline': '2nd_half_moneyline',
+  '2nd-half-moneyline': '2nd_half_moneyline',
+  '2nd Half Point Spread': '2nd_half_point_spread',
+  '2nd-half-point-spread': '2nd_half_point_spread',
+  '2nd Half Total Points': '2nd_half_total_points',
+  '2nd-half-total-points': '2nd_half_total_points',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Game Markets (1st Quarter) - Using Redis keys
+  // -------------------------------------------------------------------------
+  '1st Quarter Moneyline': 'game_1q_moneyline',
+  '1st-quarter-moneyline': 'game_1q_moneyline',
+  'game_1q_moneyline': 'game_1q_moneyline',
+  '1st Quarter Point Spread': '1st_quarter_point_spread',
+  '1st-quarter-point-spread': '1st_quarter_point_spread',
+  '1st Quarter Total Points': '1st_quarter_total_points',
+  '1st-quarter-total-points': '1st_quarter_total_points',
+  '1st Quarter ML 3-Way': '1st_quarter_moneyline_3_way',
+  '1st Quarter Last Team to Score': '1st_quarter_last_team_to_score',
+  '1st Quarter Home Total': '1st_quarter_home_team_total_points',
+  '1st Quarter Away Total': '1st_quarter_away_team_total_points',
+  
+  // -------------------------------------------------------------------------
+  // BASKETBALL - Game Markets (2nd-4th Quarter) - Using Redis keys
+  // -------------------------------------------------------------------------
+  '2nd Quarter Moneyline': '2nd_quarter_moneyline',
+  '2nd-quarter-moneyline': '2nd_quarter_moneyline',
+  '2nd Quarter Point Spread': '2nd_quarter_point_spread',
+  '2nd-quarter-point-spread': '2nd_quarter_point_spread',
+  '2nd Quarter Total Points': '2nd_quarter_total_points',
+  '2nd-quarter-total-points': '2nd_quarter_total_points',
+  '3rd Quarter Moneyline': '3rd_quarter_moneyline',
+  '3rd-quarter-moneyline': '3rd_quarter_moneyline',
+  '3rd Quarter Point Spread': '3rd_quarter_point_spread',
+  '3rd-quarter-point-spread': '3rd_quarter_point_spread',
+  '3rd Quarter Total Points': '3rd_quarter_total_points',
+  '3rd-quarter-total-points': '3rd_quarter_total_points',
+  '4th Quarter Moneyline': '4th_quarter_moneyline',
+  '4th-quarter-moneyline': '4th_quarter_moneyline',
+  '4th Quarter Point Spread': '4th_quarter_point_spread',
+  '4th-quarter-point-spread': '4th_quarter_point_spread',
+  '4th Quarter Total Points': '4th_quarter_total_points',
+  '4th-quarter-total-points': '4th_quarter_total_points',
   
   // Hockey player markets
   'Player Goals': 'player_goals',
@@ -1127,21 +1254,36 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   // Helper function to get short market labels (PTS, REB, AST, etc.)
   export function formatMarketLabelShort(market: string): string {
     const shortLabels: Record<string, string> = {
-      // Basketball
+      // Basketball - Core
       'player_points': 'PTS',
       'player_rebounds': 'REB',
       'player_assists': 'AST',
       'player_threes_made': '3PM',
+      'player_fgm': 'FGM',
+      'player_steals': 'STL',
+      'player_blocks': 'BLK',
+      'player_turnovers': 'TO',
+      
+      // Basketball - Combos (standardized Redis keys)
+      'player_pra': 'PRA',
+      'player_pr': 'P+R',
+      'player_pa': 'P+A',
+      'player_ra': 'R+A',
+      'player_bs': 'B+S',
+      'player_double_double': 'DD',
+      'player_triple_double': 'TD',
+      // Legacy combo keys (for backwards compatibility)
       'player_points_rebounds_assists': 'PRA',
       'player_points_rebounds': 'P+R',
       'player_points_assists': 'P+A',
       'player_rebounds_assists': 'R+A',
-      'player_steals': 'STL',
-      'player_blocks': 'BLK',
       'player_blocks_steals': 'B+S',
-      'player_turnovers': 'TO',
-      'player_double_double': 'DD',
-      'player_triple_double': 'TD',
+      
+      // Basketball - Game Markets
+      'game_moneyline': 'ML',
+      'game_spread': 'SPR',
+      'total_points': 'TOT',
+      'team_total': 'TT',
       
       // Hockey
       'player_goals': 'G',
@@ -1173,22 +1315,81 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   export function formatMarketLabel(market: string): string {
     // First, check if this is an API key and map it to a display name
     const apiKeyMappings: Record<string, string> = {
-      // Basketball
+      // Basketball - Core Player Props
       'player_points': 'Points',
       'player_rebounds': 'Rebounds',
       'player_assists': 'Assists',
-      'player_points_rebounds_assists': 'PRA',
-      'player_points_rebounds': 'PR',
-      'player_points_assists': 'PA',
-      'player_rebounds_assists': 'RA',
-      'player_threes_made': "3's Made",
-      'player_threes': "3's Made",
+      'player_threes_made': "3-Pointers",
+      'player_threes': "3-Pointers",
+      'player_fgm': 'Field Goals Made',
       'player_blocks': 'Blocks',
       'player_steals': 'Steals',
-      'player_blocks_steals': 'Blk+Stl',
       'player_turnovers': 'Turnovers',
+      
+      // Basketball - Combos (standardized Redis keys)
+      'player_pra': 'Pts+Reb+Ast',
+      'player_pr': 'Pts+Reb',
+      'player_pa': 'Pts+Ast',
+      'player_ra': 'Reb+Ast',
+      'player_bs': 'Blk+Stl',
       'player_double_double': 'Double Double',
       'player_triple_double': 'Triple Double',
+      // Legacy combo keys (for backwards compatibility)
+      'player_points_rebounds_assists': 'Pts+Reb+Ast',
+      'player_points_rebounds': 'Pts+Reb',
+      'player_points_assists': 'Pts+Ast',
+      'player_rebounds_assists': 'Reb+Ast',
+      'player_blocks_steals': 'Blk+Stl',
+      
+      // Basketball - First Basket
+      'first_field_goal': '1st Basket (Game)',
+      'team_first_basket': '1st Basket (Team)',
+      'home_team_first_field_goal': 'Home Team 1st Basket',
+      'away_team_first_field_goal': 'Away Team 1st Basket',
+      'top_points_scorer': 'Top Points Scorer',
+      
+      // Basketball - Game Markets (standardized Redis keys)
+      'game_moneyline': 'Moneyline',
+      'game_spread': 'Point Spread',
+      'total_points': 'Total Points',
+      'team_total': 'Team Total',
+      'total_points_odd_even': 'Total Odd/Even',
+      'overtime': 'Overtime?',
+      'game_1h_moneyline': '1H Moneyline',
+      '1st_half_point_spread': '1H Spread',
+      '1st_half_total_points': '1H Total',
+      '1st_half_moneyline_3_way': '1H ML 3-Way',
+      '1st_half_home_team_total_points': '1H Home Total',
+      '1st_half_away_team_total_points': '1H Away Total',
+      '2nd_half_moneyline': '2H Moneyline',
+      '2nd_half_point_spread': '2H Spread',
+      '2nd_half_total_points': '2H Total',
+      'game_1q_moneyline': '1Q Moneyline',
+      '1st_quarter_point_spread': '1Q Spread',
+      '1st_quarter_total_points': '1Q Total',
+      '1st_quarter_moneyline_3_way': '1Q ML 3-Way',
+      '1st_quarter_last_team_to_score': '1Q Last Team to Score',
+      '1st_quarter_home_team_total_points': '1Q Home Total',
+      '1st_quarter_away_team_total_points': '1Q Away Total',
+      '2nd_quarter_moneyline': '2Q Moneyline',
+      '2nd_quarter_point_spread': '2Q Spread',
+      '2nd_quarter_total_points': '2Q Total',
+      '3rd_quarter_moneyline': '3Q Moneyline',
+      '3rd_quarter_point_spread': '3Q Spread',
+      '3rd_quarter_total_points': '3Q Total',
+      '4th_quarter_moneyline': '4Q Moneyline',
+      '4th_quarter_point_spread': '4Q Spread',
+      '4th_quarter_total_points': '4Q Total',
+      
+      // Basketball - 1st Quarter Player Props
+      '1st_quarter_player_points': 'Points (1Q)',
+      '1st_quarter_player_assists': 'Assists (1Q)',
+      '1st_quarter_player_rebounds': 'Rebounds (1Q)',
+      
+      // Basketball - 1st 3 Minutes Player Props
+      '1st_3_minutes_player_points': 'Points (1st 3 Min)',
+      '1st_3_minutes_player_assists': 'Assists (1st 3 Min)',
+      '1st_3_minutes_player_rebounds': 'Rebounds (1st 3 Min)',
       
       // Football - Passing
       'passing_yards': 'Passing Yards',
@@ -1335,9 +1536,9 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   // Helper function to get default market for a sport
   // Returns the most popular player market for each sport
   export function getDefaultMarket(sport: string, type?: 'game' | 'player'): string {
-    // If type is specified and it's game, return moneyline
+    // If type is specified and it's game, return moneyline (using Redis key)
     if (type === 'game') {
-      return 'moneyline';
+      return 'game_moneyline';
     }
     
     // Default player markets by sport
@@ -1347,12 +1548,12 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'nba': 'player_points',
       'ncaab': 'player_points',
       'nhl': 'player_goals',
-      'mlb': 'player_hits',
+      'mlb': 'batter_hits',
       'soccer_epl': 'player_goals',
     };
     
-    // Return sport-specific default or fallback to moneyline
-    return defaultPlayerMarkets[sport.toLowerCase()] || 'moneyline';
+    // Return sport-specific default or fallback to game_moneyline
+    return defaultPlayerMarkets[sport.toLowerCase()] || 'game_moneyline';
   }
   
   // Helper function to get API key for a market
