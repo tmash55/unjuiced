@@ -120,31 +120,96 @@ export const FALLBACK_MARKETS = [
   "overtime",
   
   // -------------------------------------------------------------------------
-  // Football (NFL, NCAAF)
+  // Football (NFL, NCAAF) - Standardized Redis keys
   // -------------------------------------------------------------------------
-  "passing_yards",
-  "passing_tds",
-  "rushing_yards",
-  "rushing_tds",
-  "receiving_yards",
-  "receptions",
-  "player_touchdowns",  // Anytime TD
-  "first_td",           // 1st TD Scorer
-  "last_td",            // Last TD Scorer
-  "pass_rush_yards",    // Pass + Rush combo
-  "rush_rec_yards",     // Rush + Rec combo
+  // Core player props
+  "player_passing_yards",
+  "player_passing_tds",
+  "player_passing_completions",
+  "player_passing_attempts",
+  "player_rushing_yards",
+  "player_rushing_attempts",
+  "player_receiving_yards",
+  "player_receptions",
+  "player_interceptions_thrown",
   
+  // TD markets (single-line)
+  "player_touchdowns",        // Anytime TD
+  "player_first_td",          // 1st TD Scorer
+  "player_last_td",           // Last TD Scorer
+  "home_team_first_touchdown_scorer",
+  "away_team_first_touchdown_scorer",
+  "2nd_half_first_touchdown_scorer",
+  
+  // Combo markets
+  "player_passing__rushing_yards",  // Note: double underscore!
+  "player_rush_rec_yards",
+  
+  // Defense
+  "player_tackles",
+  "player_sacks",
+  "player_tackles_assists",
+  
+  // Kicking
+  "player_field_goals",
+  "player_extra_points",
+  "player_kicking_points",
+  
+  // Game markets
+  "game_moneyline",
+  "game_spread",
+  "total_points",
+  "game_total_touchdowns",
+  "first_team_to_score",
+  "overtime",
+  
+  // Period props
+  "1st_half_player_passing_yards",
+  "1st_half_player_rushing_yards",
+  "1st_half_player_touchdowns",
+  "1st_quarter_player_passing_yards",
+  "1st_quarter_player_rushing_yards",
+"1st_quarter_player_receiving_yards",
+
   // -------------------------------------------------------------------------
-  // Hockey (NHL)
+  // Hockey (NHL) - Standardized Redis keys
   // -------------------------------------------------------------------------
+  // Core skater props
   "player_goals",
   "player_assists",
   "player_points",
   "player_shots_on_goal",
-  "player_total_saves",
   "player_blocked_shots",
+  "player_hits",
+  "player_plus_minus",
+  "player_pp_points",
+  
+  // Goalscorer markets (single-line)
   "player_first_goal",
   "player_last_goal",
+  "home_team_first_goalscorer",
+  "away_team_first_goalscorer",
+  "second_goalscorer",
+  "third_goalscorer",
+  
+  // Goalie props
+  "player_saves",
+  "player_goals_against",
+  "player_shutout",
+  
+  // Period props
+  "1st_period_player_goals",
+  "1st_period_player_assists",
+  "1st_period_player_points",
+  "1st_period_player_shots_on_goal",
+  "1st_period_player_saves",
+  
+  // Game markets
+  "game_moneyline",
+  "game_spread",
+  "game_total_goals",
+  "first_team_to_score",
+  "both_teams_to_score",
   
   // -------------------------------------------------------------------------
   // Baseball (MLB)
