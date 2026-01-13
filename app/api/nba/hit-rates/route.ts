@@ -4,6 +4,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
+// Valid sort fields for hit rates
+const VALID_SORT_FIELDS = [
+  "line", "l5Avg", "l10Avg", "seasonAvg", "streak", 
+  "l5Pct", "l10Pct", "l20Pct", "seasonPct", "h2hPct", "matchupRank"
+] as const;
+
 const QuerySchema = z.object({
   date: z
     .string()
@@ -18,6 +24,8 @@ const QuerySchema = z.object({
   offset: z.coerce.number().min(0).optional(),
   search: z.string().optional(),
   playerId: z.coerce.number().int().positive().optional(), // Filter by specific player
+  sort: z.enum(VALID_SORT_FIELDS).optional(), // Sort field
+  sortDir: z.enum(["asc", "desc"]).optional(), // Sort direction
 });
 
 const DEFAULT_LIMIT = 200;
@@ -43,7 +51,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { date, market, minHitRate, limit, offset, search, playerId } = query.data;
+  const { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir } = query.data;
   
   const supabase = createServerSupabaseClient();
 
@@ -192,17 +200,91 @@ export async function GET(request: Request) {
     totalCount = todayCount + tomorrowCount;
   }
 
-  // Apply limit to combined data
-  const limitedData = allData.slice(0, requestedLimit);
+  // Sort data if sort field is specified (before limiting!)
+  // This ensures we get the true top N by the desired sort, not just a re-sorted subset
+  if (sort) {
+    const sortMultiplier = sortDir === "asc" ? 1 : -1;
+    
+    // Map frontend field names to database field names
+    const fieldMap: Record<string, string> = {
+      "line": "line",
+      "l5Avg": "last_5_avg",
+      "l10Avg": "last_10_avg",
+      "seasonAvg": "season_avg",
+      "streak": "hit_streak",
+      "l5Pct": "last_5_pct",
+      "l10Pct": "last_10_pct",
+      "l20Pct": "last_20_pct",
+      "seasonPct": "season_pct",
+      "h2hPct": "h2h_pct",
+      "matchupRank": "matchup_rank", // Note: This won't be available yet, we'll handle it below
+    };
+    
+    const dbField = fieldMap[sort];
+    
+    if (dbField && dbField !== "matchup_rank") {
+      // Sort by database field
+      allData.sort((a: any, b: any) => {
+        const aVal = a[dbField] ?? (sortDir === "asc" ? Infinity : -Infinity);
+        const bVal = b[dbField] ?? (sortDir === "asc" ? Infinity : -Infinity);
+        return (aVal - bVal) * sortMultiplier;
+      });
+    }
+    // Note: matchupRank sorting is handled after matchup data is fetched (see below)
+  }
 
   // Get unique dates from the response for meta
   const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
   const primaryDate = availableDates[0] || todayET;
 
-  // Create matchup lookup map - SKIP for fast loads to reduce latency
+  // Create matchup lookup map
+  // IMPORTANT: When sorting by matchupRank, we need to fetch matchups for ALL data BEFORE limiting
+  // Otherwise, we'd only sort the subset and miss the true top matchups
   const matchupMap = new Map<string, any>();
+  const isSortingByMatchup = sort === "matchupRank";
+  const dataForMatchups = isSortingByMatchup ? allData : []; // Will be populated after slicing if not sorting by matchup
   
-  if (!isFastLoad && limitedData.length > 0) {
+  // Fetch matchups before slicing when sorting by matchup
+  if (!isFastLoad && isSortingByMatchup && allData.length > 0) {
+    // Limit to first 1000 for matchup fetch to avoid timeout (covers most use cases)
+    const matchupFetchLimit = Math.min(allData.length, 1000);
+    const dataSubset = allData.slice(0, matchupFetchLimit);
+    
+    const playerIds = dataSubset.map((r: any) => r.player_id);
+    const markets = dataSubset.map((r: any) => r.market);
+    const opponentIds = dataSubset.map((r: any) => r.opponent_team_id);
+
+    const { data: matchups, error: matchupError } = await supabase.rpc("get_matchup_ranks_batch", {
+      p_player_ids: playerIds,
+      p_markets: markets,
+      p_opponent_team_ids: opponentIds,
+    });
+
+    if (matchupError) {
+      console.error("[Hit Rates API] Matchup RPC error:", matchupError.message);
+    } else if (matchups && Array.isArray(matchups)) {
+      for (const m of matchups) {
+        matchupMap.set(`${m.player_id}-${m.market}`, m);
+      }
+    }
+    
+    // Now sort by matchup rank
+    const sortMultiplier = sortDir === "asc" ? 1 : -1;
+    allData.sort((a: any, b: any) => {
+      const aMatchup = matchupMap.get(`${a.player_id}-${a.market}`);
+      const bMatchup = matchupMap.get(`${b.player_id}-${b.market}`);
+      // Lower rank number = better matchup, so default to high number if no matchup
+      const aVal = aMatchup?.matchup_rank ?? (sortDir === "asc" ? Infinity : 31);
+      const bVal = bMatchup?.matchup_rank ?? (sortDir === "asc" ? Infinity : 31);
+      return (aVal - bVal) * sortMultiplier;
+    });
+  }
+  
+  // Apply limit to combined (and now sorted) data
+  const limitedData = allData.slice(0, requestedLimit);
+  
+  // Fetch matchups for limited data if we didn't already (non-matchup sorts)
+  if (!isFastLoad && !isSortingByMatchup && limitedData.length > 0) {
     const playerIds = limitedData.map((r: any) => r.player_id);
     const markets = limitedData.map((r: any) => r.market);
     const opponentIds = limitedData.map((r: any) => r.opponent_team_id);

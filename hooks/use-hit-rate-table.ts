@@ -4,6 +4,9 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { HitRateProfile, HitRateResponse, RawHitRateProfile } from "@/lib/hit-rates-schema";
 
+// Valid sort fields
+export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
+
 export interface UseHitRateTableOptions {
   date?: string;
   market?: string;
@@ -12,6 +15,8 @@ export interface UseHitRateTableOptions {
   offset?: number;
   search?: string; // Player name search (server-side)
   playerId?: number; // Filter by specific player ID (nba_player_id)
+  sort?: HitRateSortField; // Sort field for server-side sorting
+  sortDir?: "asc" | "desc"; // Sort direction
   enabled?: boolean;
 }
 
@@ -43,6 +48,8 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
   if (params.search?.trim()) searchParams.set("search", params.search.trim());
   if (typeof params.playerId === "number") searchParams.set("playerId", String(params.playerId));
+  if (params.sort) searchParams.set("sort", params.sort);
+  if (params.sortDir) searchParams.set("sortDir", params.sortDir);
 
   const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   
@@ -121,11 +128,11 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
 }
 
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
-  const { date, market, minHitRate, limit, offset, search, playerId, enabled = true } = options;
+  const { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir, enabled = true } = options;
 
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId }),
+    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir }],
+    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId, sort, sortDir }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer

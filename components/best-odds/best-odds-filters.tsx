@@ -14,13 +14,14 @@ import { getAllSports, getAllLeagues } from "@/lib/data/sports";
 import { formatMarketLabel, SPORT_MARKETS } from "@/lib/data/markets";
 import { normalizeSportsbookName } from "@/lib/best-odds-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { Filter, Building2, Target, TrendingUp, ChevronDown, Lock, RefreshCw, Trash2, Info } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, ChevronDown, ChevronRight, Lock, RefreshCw, Trash2, Info, Search, Check } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { ButtonLink } from "@/components/button-link";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface BestOddsFiltersProps {
   prefs: BestOddsPrefs;
@@ -122,6 +123,8 @@ export function BestOddsFilters({
   const [localMinOdds, setLocalMinOdds] = useState<number | undefined>(prefs.minOdds);
   const [localHideCollegePlayerProps, setLocalHideCollegePlayerProps] = useState<boolean>(prefs.hideCollegePlayerProps ?? false);
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
+  const [expandedSportSections, setExpandedSportSections] = useState<Set<string>>(new Set(['Basketball', 'Football'])); // Default open
+  const [marketSearchQuery, setMarketSearchQuery] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [localComparisonMode, setLocalComparisonMode] = useState<BestOddsPrefs['comparisonMode']>(prefs.comparisonMode ?? 'average');
   const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
@@ -908,232 +911,349 @@ export function BestOddsFilters({
 
                 <Separator className="my-6" />
 
-                {/* Markets Selection */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                {/* Markets Selection - Modern Accordion Design */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Markets</Label>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {allMarketsSelected ? 'All' : localMarkets.length} selected
+                    </span>
+                  </div>
+                  
+                  {/* Market Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Search markets..."
+                      value={marketSearchQuery}
+                      onChange={(e) => setMarketSearchQuery(e.target.value)}
+                      className="w-full rounded-lg border border-neutral-200 bg-white py-2.5 pl-10 pr-4 text-sm placeholder:text-neutral-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-brand"
+                    />
+                    {marketSearchQuery && (
+                      <button
+                        onClick={() => setMarketSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                   
                   {/* Custom Mode Warning */}
                   {customPresetActive && (
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-800/60">
                       <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
                           Custom Mode Active
                         </p>
                         <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                          Market filters are controlled by your active custom model. Switch to default preset to adjust markets.
+                          Market filters are controlled by your active custom model.
                         </p>
                       </div>
                     </div>
                   )}
-                  <div className={cn("space-y-4", customPresetActive && "opacity-50 pointer-events-none")}>
-                    {Object.entries(groupedMarkets).map(([sportType, markets]) => (
-                      <div key={sportType}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 capitalize">
-                            {sportType}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                if (locked) return;
-                                // If localMarkets is empty, select all means add all these markets
-                                // Otherwise, add these markets to the existing selection
-                                setLocalMarkets(prev => {
-                                  if (prev.length === 0) {
-                                    // Currently showing all, so select just these markets
-                                    return [...markets];
-                                  } else {
-                                    // Add these markets to existing selection
-                                    const newSelected = new Set(prev);
-                                    markets.forEach(m => newSelected.add(m));
-                                    return Array.from(newSelected);
-                                  }
-                                });
-                              }}
-                              disabled={locked}
-                              className="h-6 rounded-md border border-transparent px-2 text-[10px] font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                              title={locked ? "Pro only" : ""}
-                            >
-                              Select All
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (locked) return;
-                                // Remove these markets from selection (deselect them)
-                                setLocalMarkets(prev => prev.filter(m => !markets.includes(m)));
-                              }}
-                              disabled={locked}
-                              className="h-6 rounded-md border border-transparent px-2 text-[10px] font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                              title={locked ? "Pro only" : ""}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        </div>
-                        <div className="filter-grid">
-                          {markets.map(market => {
-                            const checked = allMarketsSelected || localMarkets.includes(market);
-                            const hasLines = hasLineOptions(market);
-                            const isExpanded = expandedMarkets.has(market);
-                            const lineOptions = hasLines ? getLineOptions(market) : null;
-                            const marketKey = market.toLowerCase().replace(/_/g, '');
-                            const selectedLinesForMarket = localMarketLines[marketKey] || [];
-                            
-                            return (
-                              <div key={market} className="space-y-2">
-                                <div className="flex items-center gap-2">
-                              <label
-                                    className={`filter-card flex-1 flex items-center gap-3 rounded-lg border p-3 ${
-                                      locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-sm'
-                                    } ${
-                                  checked
-                                    ? 'active'
-                                    : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
-                                }`}
-                                    title={locked ? "Pro only" : ""}
-                              >
-                                <Checkbox checked={checked} onCheckedChange={() => toggleMarket(market)} disabled={locked} />
-                                <span className="text-sm leading-none">{formatMarketLabel(market)}</span>
-                              </label>
-                                  {hasLines && (
-                                    <button
-                                      onClick={() => {
-                                        if (locked) return;
-                                        const newExpanded = new Set(expandedMarkets);
-                                        if (isExpanded) {
-                                          newExpanded.delete(market);
-                                        } else {
-                                          newExpanded.add(market);
-                                        }
-                                        setExpandedMarkets(newExpanded);
-                                      }}
-                                      disabled={locked}
-                                      className="flex h-[52px] w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                      title={locked ? "Pro only" : "Filter by line"}
-                                    >
-                                      <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                    </button>
-                                  )}
+                  
+                  {/* Sport Accordions */}
+                  <div className={cn("space-y-2", customPresetActive && "opacity-50 pointer-events-none")}>
+                    {Object.entries(groupedMarkets).map(([sportType, markets]) => {
+                      // Filter markets by search query
+                      const filteredMarkets = marketSearchQuery 
+                        ? markets.filter(m => formatMarketLabel(m).toLowerCase().includes(marketSearchQuery.toLowerCase()))
+                        : markets;
+                      
+                      if (filteredMarkets.length === 0) return null;
+                      
+                      const isExpanded = expandedSportSections.has(sportType);
+                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || localMarkets.includes(m)).length;
+                      const allSelected = selectedCount === filteredMarkets.length;
+                      
+                      // Sport icon mapping
+                      const sportIconMap: Record<string, string> = {
+                        'Basketball': 'basketball',
+                        'Football': 'football',
+                        'Hockey': 'icehockey',
+                        'Baseball': 'baseball',
+                        'Soccer': 'soccer',
+                      };
+                      
+                      return (
+                        <div 
+                          key={sportType}
+                          className="rounded-xl border border-neutral-200 bg-white overflow-hidden dark:border-neutral-800 dark:bg-neutral-900/50"
+                        >
+                          {/* Accordion Header */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSportSections);
+                              if (isExpanded) {
+                                newExpanded.delete(sportType);
+                              } else {
+                                newExpanded.add(sportType);
+                              }
+                              setExpandedSportSections(newExpanded);
+                            }}
+                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                                <SportIcon sport={sportIconMap[sportType] || 'football'} className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-sm font-semibold text-neutral-900 dark:text-white">
+                                  {sportType}
                                 </div>
-                                
-                                {hasLines && isExpanded && lineOptions && (
-                                  <div className="space-y-3 rounded-lg border border-neutral-200/60 bg-gradient-to-br from-neutral-50 to-neutral-50/30 p-4 shadow-sm dark:border-neutral-700/60 dark:from-neutral-800/50 dark:to-neutral-800/30">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-300">
-                                        Filter by Line
-                                      </span>
+                                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                                  {filteredMarkets.length} market{filteredMarkets.length !== 1 ? 's' : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {/* Selection Badge */}
+                              <div className={cn(
+                                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                                allSelected 
+                                  ? "bg-brand/10 text-brand dark:bg-brand/20" 
+                                  : selectedCount > 0 
+                                    ? "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400"
+                                    : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500"
+                              )}>
+                                {allSelected ? (
+                                  <>
+                                    <Check className="h-3 w-3" />
+                                    All
+                                  </>
+                                ) : (
+                                  `${selectedCount}/${filteredMarkets.length}`
+                                )}
+                              </div>
+                              <motion.div
+                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <ChevronDown className="h-4 w-4 text-neutral-400" />
+                              </motion.div>
+                            </div>
+                          </button>
+                          
+                          {/* Accordion Content */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                className="overflow-hidden"
+                              >
+                                <div className="border-t border-neutral-100 dark:border-neutral-800">
+                                  {/* Quick Actions */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-50/50 dark:bg-neutral-800/30">
+                                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                      Quick actions
+                                    </span>
+                                    <div className="flex gap-2">
                                       <button
                                         onClick={(e) => {
-                                          if (locked) return;
                                           e.stopPropagation();
-                                          const newMarketLines = { ...localMarketLines };
-                                          delete newMarketLines[marketKey];
-                                          setLocalMarketLines(newMarketLines);
+                                          if (locked) return;
+                                          setLocalMarkets(prev => {
+                                            if (prev.length === 0) {
+                                              return [...filteredMarkets];
+                                            } else {
+                                              const newSelected = new Set(prev);
+                                              filteredMarkets.forEach(m => newSelected.add(m));
+                                              return Array.from(newSelected);
+                                            }
+                                          });
                                         }}
                                         disabled={locked}
-                                        className="text-xs font-medium text-neutral-500 transition-colors hover:text-brand dark:text-neutral-400 dark:hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
-                                        title={locked ? "Pro only" : ""}
+                                        className="rounded-md px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                       >
-                                        Reset
+                                        Select All
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (locked) return;
+                                          setLocalMarkets(prev => prev.filter(m => !filteredMarkets.includes(m)));
+                                        }}
+                                        disabled={locked}
+                                        className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Clear
                                       </button>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
-                                      {lineOptions.lines.map((line, idx) => {
-                                        // If market is not selected, disable all line buttons
-                                        const isMarketSelected = checked;
-                                        const lineChecked = isMarketSelected && (selectedLinesForMarket.length === 0 || selectedLinesForMarket.includes(line));
-                                        const isLineDisabled = locked || !isMarketSelected;
+                                  </div>
+                                  
+                                  {/* Markets Grid */}
+                                  <div className="p-3 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-200 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {filteredMarkets.map(market => {
+                                        const checked = allMarketsSelected || localMarkets.includes(market);
+                                        const hasLines = hasLineOptions(market);
+                                        const isMarketExpanded = expandedMarkets.has(market);
+                                        const lineOptions = hasLines ? getLineOptions(market) : null;
+                                        const marketKey = market.toLowerCase().replace(/_/g, '');
+                                        const selectedLinesForMarket = localMarketLines[marketKey] || [];
                                         
                                         return (
-                                          <button
-                                            key={line}
-                                            disabled={isLineDisabled}
-                                            onClick={() => {
-                                              if (locked) return;
-                                              // If market is not selected, select it first
-                                              if (!isMarketSelected) {
-                                                toggleMarket(market);
-                                              }
-                                              
-                                              const newMarketLines = { ...localMarketLines };
-                                              const currentLines = newMarketLines[marketKey] || [];
-                                              
-                                              if (currentLines.length === 0) {
-                                                // If all were selected (empty array), start with all lines except this one
-                                                newMarketLines[marketKey] = lineOptions.lines.filter(l => l !== line);
-                                              } else if (currentLines.includes(line)) {
-                                                // Remove this line
-                                                newMarketLines[marketKey] = currentLines.filter(l => l !== line);
-                                                
-                                                // If no lines are selected, deselect the entire market
-                                                if (newMarketLines[marketKey].length === 0) {
-                                                  delete newMarketLines[marketKey];
-                                                  // Deselect the market itself
-                                                  toggleMarket(market);
-                                                }
-                                              } else {
-                                                // Add this line
-                                                newMarketLines[marketKey] = [...currentLines, line];
-                                                // If all lines are now selected, set to empty array
-                                                if (newMarketLines[marketKey].length === lineOptions.lines.length) {
-                                                  delete newMarketLines[marketKey];
-                                                }
-                                              }
-                                              
-                                              setLocalMarketLines(newMarketLines);
-                                            }}
-                                            className={`group relative flex flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 transition-all ${
-                                              isLineDisabled
-                                                ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 opacity-50 dark:border-neutral-700 dark:bg-neutral-900'
-                                                : lineChecked
-                                                ? 'border-brand bg-brand shadow-sm shadow-brand/20'
-                                                : 'border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-neutral-500'
-                                            }`}
-                                            title={locked ? "Pro only" : ""}
-                                          >
-                                            <div className={`flex h-4 w-4 items-center justify-center rounded border-2 transition-colors ${
-                                              lineChecked 
-                                                ? 'border-white bg-white' 
-                                                : 'border-neutral-300 dark:border-neutral-500'
-                                            }`}>
-                                              {lineChecked && (
-                                                <svg className="h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                </svg>
+                                          <div key={market} className="space-y-2">
+                                            <div className="flex items-center gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleMarket(market)}
+                                                disabled={locked}
+                                                className={cn(
+                                                  "flex-1 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all",
+                                                  locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                                                  checked
+                                                    ? "border-brand/30 bg-brand/5 dark:border-brand/40 dark:bg-brand/10"
+                                                    : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:border-neutral-600"
+                                                )}
+                                              >
+                                                <div className={cn(
+                                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors",
+                                                  checked 
+                                                    ? "border-brand bg-brand" 
+                                                    : "border-neutral-300 dark:border-neutral-600"
+                                                )}>
+                                                  {checked && (
+                                                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+                                                  )}
+                                                </div>
+                                                <span className={cn(
+                                                  "text-sm font-medium truncate",
+                                                  checked 
+                                                    ? "text-neutral-900 dark:text-white" 
+                                                    : "text-neutral-600 dark:text-neutral-400"
+                                                )}>
+                                                  {formatMarketLabel(market)}
+                                                </span>
+                                              </button>
+                                              {hasLines && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    if (locked) return;
+                                                    const newExpanded = new Set(expandedMarkets);
+                                                    if (isMarketExpanded) {
+                                                      newExpanded.delete(market);
+                                                    } else {
+                                                      newExpanded.add(market);
+                                                    }
+                                                    setExpandedMarkets(newExpanded);
+                                                  }}
+                                                  disabled={locked}
+                                                  className={cn(
+                                                    "flex h-10 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                                                    isMarketExpanded
+                                                      ? "border-brand/30 bg-brand/5 text-brand dark:border-brand/40 dark:bg-brand/10"
+                                                      : "border-neutral-200 bg-white text-neutral-400 hover:text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:text-neutral-300",
+                                                    locked && "cursor-not-allowed opacity-50"
+                                                  )}
+                                                  title="Filter by line"
+                                                >
+                                                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isMarketExpanded && "rotate-180")} />
+                                                </button>
                                               )}
                                             </div>
-                                            <span className={`text-xs font-semibold transition-colors ${
-                                              lineChecked 
-                                                ? 'text-white' 
-                                                : 'text-neutral-700 dark:text-neutral-300'
-                                            }`}>
-                                              {lineOptions.labels[idx]}
-                                            </span>
-                                          </button>
+                                            
+                                            {/* Line Options */}
+                                            <AnimatePresence>
+                                              {hasLines && isMarketExpanded && lineOptions && (
+                                                <motion.div
+                                                  initial={{ height: 0, opacity: 0 }}
+                                                  animate={{ height: "auto", opacity: 1 }}
+                                                  exit={{ height: 0, opacity: 0 }}
+                                                  transition={{ duration: 0.15 }}
+                                                  className="overflow-hidden"
+                                                >
+                                                  <div className="rounded-lg border border-neutral-100 bg-neutral-50/50 p-3 dark:border-neutral-800 dark:bg-neutral-800/30">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                                                        Lines
+                                                      </span>
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          const newMarketLines = { ...localMarketLines };
+                                                          delete newMarketLines[marketKey];
+                                                          setLocalMarketLines(newMarketLines);
+                                                        }}
+                                                        disabled={locked}
+                                                        className="text-[10px] font-medium text-neutral-400 hover:text-brand transition-colors"
+                                                      >
+                                                        Reset
+                                                      </button>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                      {lineOptions.lines.map((line, idx) => {
+                                                        const isMarketSelected = checked;
+                                                        const lineChecked = isMarketSelected && (selectedLinesForMarket.length === 0 || selectedLinesForMarket.includes(line));
+                                                        const isLineDisabled = locked || !isMarketSelected;
+                                                        
+                                                        return (
+                                                          <button
+                                                            key={line}
+                                                            disabled={isLineDisabled}
+                                                            onClick={() => {
+                                                              if (locked) return;
+                                                              if (!isMarketSelected) {
+                                                                toggleMarket(market);
+                                                              }
+                                                              const newMarketLines = { ...localMarketLines };
+                                                              const currentLines = newMarketLines[marketKey] || [];
+                                                              if (currentLines.length === 0) {
+                                                                newMarketLines[marketKey] = lineOptions.lines.filter(l => l !== line);
+                                                              } else if (currentLines.includes(line)) {
+                                                                newMarketLines[marketKey] = currentLines.filter(l => l !== line);
+                                                                if (newMarketLines[marketKey].length === 0) {
+                                                                  delete newMarketLines[marketKey];
+                                                                  toggleMarket(market);
+                                                                }
+                                                              } else {
+                                                                newMarketLines[marketKey] = [...currentLines, line];
+                                                                if (newMarketLines[marketKey].length === lineOptions.lines.length) {
+                                                                  delete newMarketLines[marketKey];
+                                                                }
+                                                              }
+                                                              setLocalMarketLines(newMarketLines);
+                                                            }}
+                                                            className={cn(
+                                                              "rounded-md px-2 py-1 text-xs font-medium transition-all",
+                                                              isLineDisabled && "cursor-not-allowed opacity-40",
+                                                              lineChecked
+                                                                ? "bg-brand text-white shadow-sm"
+                                                                : "bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+                                                            )}
+                                                          >
+                                                            {lineOptions.labels[idx]}
+                                                          </button>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </div>
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
+                                          </div>
                                         );
                                       })}
                                     </div>
-                                    <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                                      All lines selected by default. Deselecting all lines will remove this market from results.
-                                    </p>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                </div>
-
-                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-                  <p className="text-xs text-blue-900 dark:text-blue-100">
-                    <strong>Tip:</strong> All leagues and markets are selected by default. Uncheck specific ones to narrow your results. Some markets have line filters you can expand.
-                  </p>
                 </div>
               </TabsContent>
 

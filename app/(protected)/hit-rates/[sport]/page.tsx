@@ -242,6 +242,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     date: dateToFetch,
     limit: currentLimit,
     search: debouncedSearch || undefined,
+    // Pass sort to API for server-side sorting (ensures we get true top N by sort field)
+    sort: sortField || undefined,
+    sortDir: sortDirection,
   });
   
   // Background loading is now on-demand only (via Load More button or sort changes)
