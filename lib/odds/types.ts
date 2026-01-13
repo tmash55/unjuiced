@@ -39,6 +39,12 @@ export const SSE_MARKETS = {
   player_double_double: "Double Double",
   player_fantasy: "Fantasy Points",
   
+  // First Basket Markets (NBA)
+  first_field_goal: "First Basket",
+  team_first_basket: "First Basket (Team)",
+  home_team_first_field_goal: "First Basket (Home)",
+  away_team_first_field_goal: "First Basket (Away)",
+  
   // Game Markets
   game_spread: "Point Spread",
   game_total: "Game Total",
@@ -47,6 +53,37 @@ export const SSE_MARKETS = {
 } as const;
 
 export type SSEMarketKey = keyof typeof SSE_MARKETS;
+
+/**
+ * Normalize raw market display names to consistent labels.
+ * This handles cases where different sportsbooks send different names for the same market.
+ */
+const RAW_MARKET_ALIASES: Record<string, string> = {
+  // First Basket variations - all should display as "First Basket"
+  "First Field Goal": "First Basket",
+  "First Basket": "First Basket",
+  "First Basket Scorer": "First Basket",
+  "1st Basket": "First Basket",
+  "1st Field Goal": "First Basket",
+  "Team First Basket": "First Basket (Team)",
+  "Team First Field Goal": "First Basket (Team)",
+  "Home Team First Basket": "First Basket (Home)",
+  "Home Team First Field Goal": "First Basket (Home)",
+  "Away Team First Basket": "First Basket (Away)", 
+  "Away Team First Field Goal": "First Basket (Away)",
+  // 1Q Points variations
+  "1st Quarter Points": "1Q Points",
+  "1Q Points": "1Q Points",
+  "First Quarter Points": "1Q Points",
+};
+
+/**
+ * Normalize a raw market name to a consistent display name.
+ * Used when setting marketDisplay from SSE data.
+ */
+export function normalizeRawMarket(rawMarket: string): string {
+  return RAW_MARKET_ALIASES[rawMarket] || rawMarket;
+}
 
 /**
  * Get display name for a market key

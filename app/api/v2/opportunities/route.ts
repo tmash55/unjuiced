@@ -5,6 +5,7 @@ import { Redis } from "@upstash/redis";
 import { 
   normalizePlayerName, 
   getMarketDisplay,
+  normalizeRawMarket,
   SSESelection,
   SSEBookSelections,
 } from "@/lib/odds/types";
@@ -825,7 +826,7 @@ async function fetchSportOpportunities(
             if (overSel.player_id && !pair.playerId) pair.playerId = overSel.player_id;
             if (overSel.team && !pair.team) pair.team = overSel.team;
             if (overSel.position && !pair.position) pair.position = formatPosition(overSel.position);
-            if (overSel.raw_market && !pair.marketDisplay) pair.marketDisplay = overSel.raw_market;
+            if (overSel.raw_market && !pair.marketDisplay) pair.marketDisplay = normalizeRawMarket(overSel.raw_market);
           }
 
           // Check "under" side (also check "no" for yes/no markets)
@@ -857,7 +858,7 @@ async function fetchSportOpportunities(
             if (underSel.player_id && !pair.playerId) pair.playerId = underSel.player_id;
             if (underSel.team && !pair.team) pair.team = underSel.team;
             if (underSel.position && !pair.position) pair.position = formatPosition(underSel.position);
-            if (underSel.raw_market && !pair.marketDisplay) pair.marketDisplay = underSel.raw_market;
+            if (underSel.raw_market && !pair.marketDisplay) pair.marketDisplay = normalizeRawMarket(underSel.raw_market);
           }
         }
       }
