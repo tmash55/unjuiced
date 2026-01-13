@@ -64,16 +64,31 @@ export function Combobox<TMeta = any>({
 
   const [query, setQuery] = useState("")
   const [alignRight, setAlignRight] = useState(false)
+  const [flipUp, setFlipUp] = useState(false)
+  const [maxDropdownHeight, setMaxDropdownHeight] = useState(400)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Calculate dropdown alignment when opening
+  // Calculate dropdown alignment and direction when opening
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
       // If trigger is more than 60% to the right of viewport, align dropdown to right
       setAlignRight(rect.left > window.innerWidth * 0.6)
+      
+      // Calculate available space below and above
+      const spaceBelow = window.innerHeight - rect.bottom - 16 // 16px padding
+      const spaceAbove = rect.top - 16
+      
+      // If less than 200px below but more space above, flip up
+      if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+        setFlipUp(true)
+        setMaxDropdownHeight(Math.min(spaceAbove - 8, 400))
+      } else {
+        setFlipUp(false)
+        setMaxDropdownHeight(Math.min(spaceBelow - 8, 400))
+      }
     }
   }, [isOpen])
 
@@ -153,7 +168,9 @@ export function Combobox<TMeta = any>({
         <div
           ref={menuRef}
           className={cn(
-            "absolute top-full z-[60] mt-2 max-h-[calc(100vh-120px)] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            "absolute z-[60] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            // Position above or below based on available space
+            flipUp ? "bottom-full mb-2" : "top-full mt-2",
             // Position from left or right based on available space
             alignRight ? "right-0" : "left-0",
             matchTriggerWidth ? "w-[var(--trigger-w)]" : "min-w-[200px] max-w-[min(calc(100vw-2rem),420px)]",
@@ -163,6 +180,7 @@ export function Combobox<TMeta = any>({
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
             "--trigger-w": `${triggerRef.current?.offsetWidth || 420}px`,
+            maxHeight: `${maxDropdownHeight}px`,
           }}
         >
           {/* Search */}
@@ -183,7 +201,7 @@ export function Combobox<TMeta = any>({
           </div>
 
           {/* Options */}
-          <div className="flex max-h-[calc(100vh-200px)] flex-col gap-1 overflow-y-auto px-2 pb-2">
+          <div className="flex flex-col gap-1 overflow-y-auto px-2 pb-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent" style={{ maxHeight: `${maxDropdownHeight - 60}px` }}>
             {filtered && filtered.length > 0 ? (
               <>
                 {/* Render ungrouped options first */}

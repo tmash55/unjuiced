@@ -1338,23 +1338,19 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   'Moneyline 3-Way': 'moneyline_3_way',
   'Puck Line': 'game_spread',
   'Total Goals': 'game_total_goals',
-  'Both Teams To Score': 'both_teams_to_score',
-  'First Team To Score': 'first_team_to_score',
-  'Total Goals': 'total_goals',
-  'Total Goals Reg Time': 'total_goals_reg',
+  'Total Goals Reg Time': 'total_goals_reg_time',
   'Total Goals Odd/Even': 'total_goals_odd_even',
-  'Puck Line': 'puck_line',
-  'Puck Line Reg Time': 'puck_line_reg',
+  'Puck Line Reg Time': 'puck_line_reg_time',
   'Draw No Bet': 'draw_no_bet',
   'Both Teams To Score': 'both_teams_to_score',
   'Both Teams To Score 2 Goals': 'both_teams_to_score_2',
   'First Team To Score': 'first_team_to_score',
   'First Team To Score 3-Way': 'first_team_to_score_3way',
-  'last-team-to-score-3-way': 'last_team_to_score_3way',
-  'Away Team Total Goals': 'away_total_goals',
-  'Away Team Total Goals Reg Time': 'away_total_goals_reg',
-  'Home Team Total Goals': 'home_total_goals',
-  'Home Team Total Goals Reg Time': 'home_total_goals_reg',
+  'Last Team To Score 3-Way': 'last_team_to_score_3way',
+  'Away Team Total Goals': 'away_team_total_goals',
+  'Away Team Total Goals Reg Time': 'away_team_total_goals_reg_time',
+  'Home Team Total Goals': 'home_team_total_goals',
+  'Home Team Total Goals Reg Time': 'home_team_total_goals_reg_time',
 
   // Period game markets
   '1st Period Moneyline': 'p1_moneyline',
@@ -1602,12 +1598,11 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_tackles': 'Tackles',
       'player_sacks': 'Sacks',
       'player_tackles_assists': 'Tackles + Assists',
-      'player_assists': 'Assists',
+      'player_defensive_interceptions': 'Defensive INTs',
       
       // Kicking
       'player_field_goals': 'Field Goals',
       'player_extra_points': 'Extra Points',
-      'player_kicking_points': 'Kicking Points',
       '1st_half_player_field_goals_made': '1H Field Goals',
       
       // Period Player Props
@@ -1659,8 +1654,6 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       '2nd_half_total_field_goals_made': '2H Total FGs',
       '1st_half_first_team_to_score': '1H First to Score',
       '1st_half_last_team_to_score': '1H Last to Score',
-      '1st_quarter_first_team_to_score': '1Q First to Score',
-      '1st_quarter_last_team_to_score': '1Q Last to Score',
       'total_field_goals_made': 'Total FGs',
       'total_field_goal_yards': 'Total FG Yards',
       'longest_field_goal_made_yards': 'Longest FG',
@@ -1682,12 +1675,10 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'last_td': 'Last TD Scorer',
       'player_anytime_td': 'Anytime TD',
       'player_tackles_and_assists': 'Tackles + Assists',
-      'player_defensive_interceptions': 'Defensive Interceptions',
       
-      // Football - Kicking
+      // Football - Kicking (legacy keys)
       'player_field_goals_made': 'Field Goals Made',
       'player_extra_points_made': 'Extra Points Made',
-      'player_kicking_points': 'Kicking Points',
       
       // -------------------------------------------------------------------------
       // HOCKEY (Standardized Redis keys)
@@ -1784,7 +1775,6 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'last_goalscorer': 'Last Goalscorer',
       'player_shots_on_target': 'Shots on Target',
       'player_shots': 'Shots',
-      'player_tackles': 'Tackles',
       'player_fouls_committed': 'Fouls Committed',
       'player_yellow_cards': 'Yellow Cards',
       'player_to_be_carded': 'To Be Carded',
