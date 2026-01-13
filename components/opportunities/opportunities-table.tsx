@@ -25,9 +25,13 @@ import {
   EyeOff,
   DollarSign,
   GripVertical,
+  Loader2,
 } from "lucide-react";
+import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 import { getKellyStakeDisplay } from "@/lib/utils/kelly";
 import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
+import { useFavorites } from "@/hooks/use-favorites";
 
 // dnd-kit imports
 import {
@@ -279,6 +283,103 @@ export function OpportunitiesTable({
 }: OpportunitiesTableProps) {
   // Prefetch player data on hover for faster modal opens
   const prefetchPlayer = usePrefetchPlayerByOddsId();
+  
+  // Track which rows are currently being toggled (for loading state)
+  const [togglingRows, setTogglingRows] = useState<Set<string>>(new Set());
+  
+  // Favorites hook for betslip functionality
+  const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  
+  // Helper to convert opportunity to favorite params
+  // Only includes fields that exist in the user_favorites database table
+  const oppToFavoriteParams = (opp: Opportunity) => {
+    // Convert allBooks to books_snapshot format
+    // Schema: { book_id: { price, u?, m?, sgp? } }
+    const booksSnapshot: Record<string, { price: number; u?: string | null; m?: string | null; sgp?: string | null }> = {};
+    for (const book of opp.allBooks || []) {
+      booksSnapshot[book.book] = {
+        price: book.price,
+        u: book.link ?? null,
+        m: book.mobileLink ?? null,
+        sgp: book.sgp ?? null,
+      };
+    }
+    
+    const isPlayerProp = opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam;
+    
+    // Parse best price to number
+    let bestPrice: number | null = null;
+    if (typeof opp.bestPrice === 'string') {
+      bestPrice = parseInt(opp.bestPrice.replace('+', ''), 10);
+    } else if (typeof opp.bestPrice === 'number') {
+      bestPrice = opp.bestPrice;
+    } else if (opp.bestDecimal) {
+      // Convert decimal to American if needed
+      bestPrice = opp.bestDecimal > 2 
+        ? Math.round((opp.bestDecimal - 1) * 100) 
+        : Math.round(-100 / (opp.bestDecimal - 1));
+    }
+    
+    // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
+    // This allows fetching current odds from Redis later
+    const playerKey = opp.player?.toLowerCase().replace(/\s+/g, '_') || 'game';
+    const oddsKey = `${opp.sport}:${opp.eventId}:${opp.market}:${playerKey}|${opp.side}|${opp.line ?? 0}`;
+    
+    return {
+      type: (isPlayerProp ? 'player' : 'game') as 'player' | 'game',
+      sport: opp.sport,
+      event_id: opp.eventId,
+      game_date: opp.gameStart ? new Date(opp.gameStart).toISOString().split('T')[0] : null,
+      home_team: opp.homeTeam || null,
+      away_team: opp.awayTeam || null,
+      start_time: opp.gameStart || null,
+      player_id: opp.playerId || null,
+      player_name: opp.player || null,
+      player_team: opp.team || null,
+      player_position: opp.position || null,
+      market: opp.market,
+      line: opp.line ?? null,
+      side: opp.side,
+      odds_key: oddsKey,
+      odds_selection_id: opp.id, // The composite ID from the opportunity
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: bestPrice,
+      best_book_at_save: opp.bestBook || null,
+      source: 'edge_finder',
+    };
+  };
+  
+  // Handle toggling a favorite
+  const handleToggleFavorite = async (opp: Opportunity) => {
+    if (!isLoggedIn) return;
+    
+    const key = opp.id;
+    setTogglingRows(prev => new Set(prev).add(key));
+    
+    try {
+      await toggleFavorite(oppToFavoriteParams(opp));
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    } finally {
+      setTogglingRows(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+  
+  // Check if an opportunity is favorited
+  const isOppFavorited = (opp: Opportunity) => {
+    return isFavorited({
+      event_id: opp.eventId,
+      type: (opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam) ? 'player' : 'game',
+      player_id: opp.playerId || null,
+      market: opp.market,
+      line: opp.line ?? null,
+      side: opp.side,
+    });
+  };
   
   // Default column order
   const defaultColumnOrder = ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'];
@@ -995,6 +1096,44 @@ export function OpportunitiesTable({
                 </>
               )}
               
+              {/* Add to Betslip Button */}
+              {!isLoggedIn ? (
+                <Tooltip content="Sign in to save to betslip" side="left">
+                  <button
+                    type="button"
+                    disabled
+                    className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                  >
+                    <Heart className="w-4 h-4 text-neutral-400" />
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip content={isOppFavorited(opp) ? "Remove from betslip" : "Add to betslip"} side="left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(opp);
+                    }}
+                    disabled={togglingRows.has(opp.id)}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      isOppFavorited(opp)
+                        ? "bg-red-500/10 hover:bg-red-500/20"
+                        : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                    )}
+                  >
+                    {togglingRows.has(opp.id) ? (
+                      <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                    ) : isOppFavorited(opp) ? (
+                      <HeartFill className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+              
               {onHideEdge && onUnhideEdge && (
                 <Tooltip content={isHidden?.(opp.id) ? "Unhide this edge" : "Hide this edge"}>
                   <button
@@ -1271,6 +1410,7 @@ export function OpportunitiesTable({
       <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <div className="flex justify-center gap-2">
           <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
         </div>
       </td>

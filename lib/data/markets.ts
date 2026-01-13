@@ -1398,6 +1398,23 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_blocks': 'BLK',
       'player_turnovers': 'TO',
       
+      // Basketball - 1st Quarter Player Props
+      '1st_quarter_player_points': '1Q PTS',
+      '1st_quarter_player_rebounds': '1Q REB',
+      '1st_quarter_player_assists': '1Q AST',
+      '1st_quarter_player_threes_made': '1Q 3PM',
+      
+      // Basketball - 1st Half Player Props
+      '1st_half_player_points': '1H PTS',
+      '1st_half_player_rebounds': '1H REB',
+      '1st_half_player_assists': '1H AST',
+      '1st_half_player_threes_made': '1H 3PM',
+      
+      // Basketball - 1st 3 Minutes
+      '1st_3_minutes_player_points': '1st3 PTS',
+      '1st_3_minutes_player_rebounds': '1st3 REB',
+      '1st_3_minutes_player_assists': '1st3 AST',
+      
       // Basketball - Combos (standardized Redis keys)
       'player_pra': 'PRA',
       'player_pr': 'P+R',
@@ -1418,9 +1435,13 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'game_spread': 'SPR',
       'total_points': 'TOT',
       'team_total': 'TT',
+      '1st_quarter_total_points': '1Q TOT',
+      '1st_quarter_point_spread': '1Q SPR',
+      '1st_half_total_points': '1H TOT',
+      '1st_half_point_spread': '1H SPR',
       
       // Hockey (standardized Redis keys)
-      'player_goals': 'G',
+      'player_goals': 'Goals',
       'player_shots_on_goal': 'SOG',
       'player_pp_points': 'PPP',
       'player_saves': 'SV',
@@ -1453,6 +1474,19 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_kicking_points': 'KP',
       'player_passing__rushing_yards': 'P+R',  // Combo (note double underscore!)
       'player_rush_rec_yards': 'R+R',
+      
+      // Football - 1st Quarter
+      '1st_quarter_player_passing_yards': '1Q PASS',
+      '1st_quarter_player_rushing_yards': '1Q RUSH',
+      '1st_quarter_player_receiving_yards': '1Q REC',
+      '1st_quarter_player_touchdowns': '1Q TD',
+      
+      // Football - 1st Half
+      '1st_half_player_passing_yards': '1H PASS',
+      '1st_half_player_rushing_yards': '1H RUSH',
+      '1st_half_player_receiving_yards': '1H REC',
+      '1st_half_player_touchdowns': '1H TD',
+      
       // Legacy keys (backwards compatibility)
       'passing_yards': 'PASS',
       'rushing_yards': 'RUSH',
@@ -1465,6 +1499,13 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'batter_total_bases': 'TB',
       'batter_rbis': 'RBI',
       'pitcher_strikeouts': 'K',
+      
+      // First Basket / First Scorer
+      'first_basket': '1st 🏀',
+      'first_field_goal': '1st 🏀',
+      'team_first_basket': '1st 🏀',
+      'first_td': '1st TD',
+      'first_touchdown_scorer': '1st TD',
     };
     
     return shortLabels[market] || formatMarketLabel(market).split(' ')[0];

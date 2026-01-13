@@ -2,13 +2,16 @@
 
 import React, { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap } from "lucide-react";
+import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
 import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { formatMarketLabel } from "@/lib/data/markets";
 import { getLeagueName } from "@/lib/data/sports";
+import { formatMarketLabel } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
+import { useFavorites } from "@/hooks/use-favorites";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -112,6 +115,87 @@ export function MobileEdgeCard({
 }: MobileEdgeCardProps) {
   const opp = opportunity;
   
+  // Favorites state
+  const [isToggling, setIsToggling] = useState(false);
+  const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  
+  // Check if this opportunity is favorited
+  const isFav = isFavorited({
+    event_id: opp.eventId,
+    type: opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam ? 'player' : 'game',
+    player_id: opp.playerId || null,
+    market: opp.market,
+    line: opp.line ?? null,
+    side: opp.side,
+  });
+  
+  // Handle toggle favorite
+  // Only includes fields that exist in the user_favorites database table
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLoggedIn || isToggling) return;
+    
+    setIsToggling(true);
+    try {
+      // Convert allBooks to books_snapshot format
+      // Schema: { book_id: { price, u?, m?, sgp? } }
+      const booksSnapshot: Record<string, { price: number; u?: string | null; m?: string | null; sgp?: string | null }> = {};
+      for (const book of opp.allBooks || []) {
+        booksSnapshot[book.book] = {
+          price: book.price,
+          u: book.link ?? null,
+          m: book.mobileLink ?? null,
+          sgp: book.sgp ?? null,
+        };
+      }
+      
+      const isPlayerProp = opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam;
+      
+      // Parse best price to number
+      let bestPrice: number | null = null;
+      if (typeof opp.bestPrice === 'string') {
+        bestPrice = parseInt(opp.bestPrice.replace('+', ''), 10);
+      } else if (typeof opp.bestPrice === 'number') {
+        bestPrice = opp.bestPrice;
+      } else if (opp.bestDecimal) {
+        bestPrice = opp.bestDecimal > 2 
+          ? Math.round((opp.bestDecimal - 1) * 100) 
+          : Math.round(-100 / (opp.bestDecimal - 1));
+      }
+      
+      // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
+      const playerKey = opp.player?.toLowerCase().replace(/\s+/g, '_') || 'game';
+      const oddsKey = `${opp.sport}:${opp.eventId}:${opp.market}:${playerKey}|${opp.side}|${opp.line ?? 0}`;
+      
+      await toggleFavorite({
+        type: isPlayerProp ? 'player' : 'game',
+        sport: opp.sport,
+        event_id: opp.eventId,
+        game_date: opp.gameStart ? new Date(opp.gameStart).toISOString().split('T')[0] : null,
+        home_team: opp.homeTeam || null,
+        away_team: opp.awayTeam || null,
+        start_time: opp.gameStart || null,
+        player_id: opp.playerId || null,
+        player_name: opp.player || null,
+        player_team: opp.team || null,
+        player_position: opp.position || null,
+        market: opp.market,
+        line: opp.line ?? null,
+        side: opp.side,
+        odds_key: oddsKey,
+        odds_selection_id: opp.id,
+        books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+        best_price_at_save: bestPrice,
+        best_book_at_save: opp.bestBook || null,
+        source: 'edge_finder_mobile',
+      });
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+  
   // Apply boost to edge percentage
   const baseEdge = opp.edgePct ?? 0;
   const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
@@ -198,7 +282,7 @@ export function MobileEdgeCard({
             </span>
           </div>
           
-          {/* Right: Edge Badge + Hide/Unhide */}
+          {/* Right: Edge Badge + Favorite + Hide/Unhide */}
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
               "px-2 py-1 rounded-full flex items-center justify-center",
@@ -211,6 +295,30 @@ export function MobileEdgeCard({
                 +{boostedEdge.toFixed(1)}%
               </span>
             </div>
+            
+            {/* Add to Betslip Button */}
+            <button
+              type="button"
+              onClick={handleToggleFavorite}
+              disabled={!isLoggedIn || isToggling}
+              className={cn(
+                "p-1.5 rounded-lg transition-all",
+                !isLoggedIn && "opacity-50 cursor-not-allowed",
+                isFav 
+                  ? "bg-red-500/10 hover:bg-red-500/20" 
+                  : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              )}
+              title={!isLoggedIn ? "Sign in to save to betslip" : isFav ? "Remove from betslip" : "Add to betslip"}
+            >
+              {isToggling ? (
+                <HeartFill className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+              ) : isFav ? (
+                <HeartFill className="w-3.5 h-3.5 text-red-500" />
+              ) : (
+                <Heart className="w-3.5 h-3.5 text-neutral-400 hover:text-red-400" />
+              )}
+            </button>
+            
             {/* Hide/Unhide toggle */}
             {isHidden && onUnhide ? (
               <button

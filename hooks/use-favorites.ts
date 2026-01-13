@@ -8,6 +8,21 @@ import { useAuth } from "@/components/auth/auth-provider";
 // TYPES
 // ============================================================================
 
+/**
+ * Snapshot of a single book's odds for a saved bet.
+ * Uses short keys to minimize storage: u=url/link, m=mobile link, sgp=SGP token
+ */
+export interface BookSnapshot {
+  price: number;           // American odds as number
+  u?: string | null;       // Desktop bet link (short key for storage)
+  m?: string | null;       // Mobile deep link (short key for storage)
+  sgp?: string | null;     // SGP token for same-game parlay API calls
+}
+
+/**
+ * Database schema for user_favorites table.
+ * Only includes fields that actually exist in the database.
+ */
 export interface Favorite {
   id: string;
   user_id: string;
@@ -38,13 +53,9 @@ export interface Favorite {
   odds_key: string | null;
   odds_selection_id: string | null;
   
-  // Books snapshot
-  books_snapshot: Record<string, {
-    price: number;
-    u?: string;
-    m?: string;
-    sgp?: string | null;
-  }> | null;
+  // Books snapshot - all sportsbooks' odds at time of save
+  // Format: { book_id: { price, u?, m?, sgp? } }
+  books_snapshot: Record<string, BookSnapshot> | null;
   
   best_price_at_save: number | null;
   best_book_at_save: string | null;
@@ -59,6 +70,10 @@ export interface Favorite {
   created_at: string;
 }
 
+/**
+ * Parameters for adding a favorite.
+ * Only includes fields that exist in the database table.
+ */
 export interface AddFavoriteParams {
   // Type
   type: "player" | "game";
@@ -86,8 +101,8 @@ export interface AddFavoriteParams {
   odds_key?: string | null;
   odds_selection_id?: string | null;
   
-  // Books snapshot
-  books_snapshot?: Record<string, any> | null;
+  // Books snapshot - all sportsbooks' odds including SGP tokens
+  books_snapshot?: Record<string, BookSnapshot> | null;
   best_price_at_save?: number | null;
   best_book_at_save?: string | null;
   

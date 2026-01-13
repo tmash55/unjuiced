@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown, EyeOff, Eye } from "lucide-react";
+import { Heart } from "@/components/icons/heart";
+import { HeartFill } from "@/components/icons/heart-fill";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -13,6 +15,7 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { motion, AnimatePresence } from "motion/react";
 import { ButtonLink } from "@/components/button-link";
 import LockIcon from "@/icons/lock";
+import { useFavorites } from "@/hooks/use-favorites";
 
 const TABLE_SCROLL_KEY = 'edgeFinder_tableScrollTop';
 
@@ -129,6 +132,95 @@ export function BestOddsTable({
   const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRestoredRef = useRef(false);
+  
+  // Track which rows are currently being toggled (for loading state)
+  const [togglingRows, setTogglingRows] = useState<Set<string>>(new Set());
+  
+  // Favorites hook for betslip functionality
+  const { toggleFavorite, isFavorited, isLoggedIn } = useFavorites();
+  
+  // Helper to convert deal to favorite params
+  // Only includes fields that exist in the user_favorites database table
+  const dealToFavoriteParams = (deal: BestOddsDeal) => {
+    // Convert allBooks to books_snapshot format
+    // Schema: { book_id: { price, u?, m?, sgp? } }
+    const booksSnapshot: Record<string, { price: number; u?: string | null; m?: string | null; sgp?: string | null }> = {};
+    for (const book of deal.allBooks || []) {
+      booksSnapshot[book.book] = {
+        price: book.price,
+        u: book.link ?? null,
+        m: book.mobileLink ?? null,
+        sgp: (book as any).sgp ?? null,
+      };
+    }
+    
+    // Handle both camelCase and snake_case field names
+    const playerName = deal.playerName || (deal as any).player_name;
+    const homeTeam = deal.homeTeam || (deal as any).home_team;
+    const awayTeam = deal.awayTeam || (deal as any).away_team;
+    const startTime = deal.startTime || (deal as any).game_start;
+    const side = deal.side === 'o' ? 'over' : deal.side === 'u' ? 'under' : deal.side;
+    
+    // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
+    const playerKey = playerName?.toLowerCase().replace(/\s+/g, '_') || 'game';
+    const oddsKey = `${deal.sport}:${deal.eid}:${deal.mkt}:${playerKey}|${side}|${deal.ln ?? 0}`;
+    
+    return {
+      type: (deal.ent === 'game' ? 'game' : 'player') as 'player' | 'game',
+      sport: deal.sport,
+      event_id: deal.eid,
+      game_date: startTime ? new Date(startTime).toISOString().split('T')[0] : null,
+      home_team: homeTeam || null,
+      away_team: awayTeam || null,
+      start_time: startTime || null,
+      player_id: (deal as any).player_id || (deal as any).playerId || null,
+      player_name: playerName || null,
+      player_team: deal.team || null,
+      player_position: deal.position || null,
+      market: deal.mkt,
+      line: deal.ln ?? null,
+      side,
+      odds_key: oddsKey,
+      odds_selection_id: deal.key, // The deal's unique key
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: deal.bestPrice,
+      best_book_at_save: deal.bestBook || null,
+      source: 'edge_finder',
+    };
+  };
+  
+  // Handle toggling a favorite
+  const handleToggleFavorite = async (deal: BestOddsDeal) => {
+    if (!isLoggedIn) return;
+    
+    const key = deal.key;
+    setTogglingRows(prev => new Set(prev).add(key));
+    
+    try {
+      await toggleFavorite(dealToFavoriteParams(deal));
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    } finally {
+      setTogglingRows(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+  
+  // Check if a deal is favorited
+  const isDealFavorited = (deal: BestOddsDeal) => {
+    const playerName = deal.playerName || (deal as any).player_name;
+    return isFavorited({
+      event_id: deal.eid,
+      type: deal.ent === 'game' ? 'game' : 'player',
+      player_id: (deal as any).player_id || (deal as any).playerId || null,
+      market: deal.mkt,
+      line: deal.ln ?? null,
+      side: deal.side === 'o' ? 'over' : deal.side === 'u' ? 'under' : deal.side,
+    });
+  };
 
   // Restore scroll position on mount (for mobile UX)
   useEffect(() => {
@@ -902,6 +994,44 @@ export function BestOddsTable({
                             </div>
                           )}
                         </>
+                      )}
+                      
+                      {/* Add to Betslip Button */}
+                      {!isLoggedIn ? (
+                        <Tooltip content="Sign in to save to betslip" side="left">
+                          <button
+                            type="button"
+                            disabled
+                            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                          >
+                            <Heart className="w-4 h-4 text-neutral-400" />
+                          </button>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip content={isDealFavorited(deal) ? "Remove from betslip" : "Add to betslip"} side="left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFavorite(deal);
+                            }}
+                            disabled={togglingRows.has(deal.key)}
+                            className={cn(
+                              "p-2 rounded-lg transition-all",
+                              isDealFavorited(deal)
+                                ? "bg-red-500/10 hover:bg-red-500/20"
+                                : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            )}
+                          >
+                            {togglingRows.has(deal.key) ? (
+                              <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                            ) : isDealFavorited(deal) ? (
+                              <HeartFill className="w-4 h-4 text-red-500" />
+                            ) : (
+                              <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                            )}
+                          </button>
+                        </Tooltip>
                       )}
                       
                       {/* Hide/Unhide Button */}
