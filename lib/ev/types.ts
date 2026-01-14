@@ -51,9 +51,10 @@ export interface MultiDevigResult {
  * - pinnacle: Pinnacle only (most common sharp reference)
  * - pinnacle_circa: Blend of Pinnacle and Circa
  * - hardrock_thescore: Blend of Hard Rock and theScore
+ * - market_average: Average of all available sharp books (most robust consensus)
  * - custom: User-defined blend of books with weights
  */
-export type SharpPreset = "pinnacle" | "pinnacle_circa" | "hardrock_thescore" | "custom";
+export type SharpPreset = "pinnacle" | "pinnacle_circa" | "hardrock_thescore" | "market_average" | "custom";
 
 /**
  * Configuration for a sharp reference preset
@@ -61,6 +62,7 @@ export type SharpPreset = "pinnacle" | "pinnacle_circa" | "hardrock_thescore" | 
 export interface SharpPresetConfig {
   id: SharpPreset;
   name: string;
+  label: string;  // Alias for name, for UI consistency
   description: string;
   books: {
     bookId: string;
@@ -189,8 +191,11 @@ export interface PositiveEVOpportunity {
   // EV calculations
   evCalculations: MultiEVCalculation;
   
-  // All books for comparison
+  // All books for comparison (current side)
   allBooks: BookOffer[];
+  
+  // Opposite side books for full market view
+  oppositeBooks?: BookOffer[];
   
   // Timestamps
   createdAt: string;
@@ -214,7 +219,13 @@ export interface PositiveEVRequest {
   books?: string[];                    // Filter to user's sportsbooks
   limit?: number;                      // Max results (default: 100)
   includeAllMethods?: boolean;         // Include all 4 methods in response
+  minBooksPerSide?: number;            // Minimum books required on BOTH sides (width filter)
 }
+
+/**
+ * Mode filter for live/pregame/all events
+ */
+export type EVMode = "pregame" | "live" | "all";
 
 /**
  * Response from the +EV API
@@ -227,6 +238,7 @@ export interface PositiveEVResponse {
     sharpPreset: SharpPreset;
     devigMethods: DevigMethod[];
     minEV: number;
+    mode: EVMode;
     timestamp: string;
   };
 }

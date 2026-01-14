@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink, AlertTriangle, Lock, Pin } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle, Lock, Pin, TrendingUp } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -783,8 +783,14 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
 
   if (!rows?.length) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-neutral-200 bg-white py-12 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-        No arbitrage opportunities found.
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-200/80 dark:border-neutral-800/50 bg-white dark:bg-neutral-900 py-16 shadow-sm">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
+          <TrendingUp className="w-7 h-7 text-neutral-400 dark:text-neutral-500" />
+        </div>
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">No opportunities found</h3>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm text-center">
+          No arbitrage opportunities match your current filters. Try adjusting your sportsbooks or ROI settings.
+        </p>
       </div>
     );
   }
@@ -794,11 +800,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         {...tableProps}
         sortableColumns={["roi", "time"]}
         resourceName={(plural) => plural ? "opportunities" : "opportunity"}
-        className="[&_th]:border-b [&_th]:border-neutral-200 [&_th]:dark:border-neutral-800 [&_td]:border-b [&_td]:border-neutral-200/50 [&_td]:dark:border-neutral-800/50 [&_thead]:table-header-gradient [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
-        containerClassName="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
+        className={cn(
+          // Global table styles
+          "[&_td]:border-b [&_td]:border-neutral-100 [&_td]:dark:border-neutral-800/50",
+          // Header row gradient - applied to tr, individual th cells transparent
+          "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10",
+          "[&_thead_tr]:bg-gradient-to-r [&_thead_tr]:from-neutral-50 [&_thead_tr]:via-neutral-50 [&_thead_tr]:to-neutral-100/50",
+          "dark:[&_thead_tr]:from-neutral-900 dark:[&_thead_tr]:via-neutral-900 dark:[&_thead_tr]:to-neutral-800/50",
+          "[&_th]:border-b [&_th]:border-neutral-100 [&_th]:dark:border-neutral-800/50"
+        )}
+        containerClassName="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/50 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden"
         scrollWrapperClassName="max-h-[calc(100vh-180px)] overflow-y-auto"
       thClassName={(columnId) => cn(
-        "bg-neutral-50 dark:bg-neutral-900 font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider backdrop-blur-sm h-14",
+        // Individual cell styles - background transparent to show row gradient
+        "!bg-transparent font-semibold text-[11px] text-neutral-600 dark:text-neutral-400 uppercase tracking-wider h-12",
         columnId === "roi" && "text-center pr-6",
         columnId === "league" && "pl-6",
         columnId === "game" && "pr-6",
@@ -808,15 +823,19 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         columnId === "profit" && "text-right pl-6",
       )}
           tdClassName={(columnId, row) => cn(
-            // Zebra striping
-            row.index % 2 === 0 ? "table-row-even" : "table-row-odd",
-            (row.original as ArbRowWithId)._isNew && "bg-emerald-50/30 dark:bg-emerald-950/20",
+            // Premium zebra striping
+            row.index % 2 === 0 
+              ? "bg-white dark:bg-neutral-900" 
+              : "bg-neutral-50/50 dark:bg-neutral-800/20",
+            // Highlight new rows
+            (row.original as ArbRowWithId)._isNew && "!bg-emerald-50/40 dark:!bg-emerald-950/30",
             // Blur teaser rows but NOT the ROI/Profit columns (to show FOMO)
             (row.original as ArbRowWithId)._isTeaser && columnId !== "roi" && columnId !== "profit" && columnId !== "market" && "blur-sm select-none pointer-events-none",
             // Market column needs to be relative for unlock button positioning
             (row.original as ArbRowWithId)._isTeaser && columnId === "market" && "relative",
             // Add slight backdrop blur behind ROI and Profit for teaser rows
             (row.original as ArbRowWithId)._isTeaser && (columnId === "roi" || columnId === "profit") && "relative backdrop-blur-[2px]",
+            "py-3",
             columnId === "roi" && "text-center pr-6",
             columnId === "league" && "pl-6",
             columnId === "game" && "pr-6",
@@ -831,10 +850,11 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             return {
             className: cn(
                 "group/row transition-all duration-200 ease-out",
-                !isTeaser && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] hover:[background:color-mix(in_oklab,var(--primary)_4%,var(--card))]",
-                (row.original as ArbRowWithId)._isNew && "bg-emerald-50/20 dark:bg-emerald-950/10",
+                // Premium hover effect matching Positive EV
+                !isTeaser && "cursor-pointer hover:bg-gradient-to-r hover:from-emerald-50/80 hover:to-emerald-50/20 dark:hover:from-emerald-950/40 dark:hover:to-emerald-950/10",
+                (row.original as ArbRowWithId)._isNew && "!bg-emerald-50/30 dark:!bg-emerald-950/20",
                 isTeaser && "relative bg-gradient-to-r from-[var(--tertiary)]/5 to-[var(--tertiary-strong)]/5 border-l-2 border-[var(--tertiary)]",
-                isPinned && "sticky top-14 z-[5] bg-brand/5 dark:bg-brand/10 border-l-2 border-brand shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
+                isPinned && "sticky top-14 z-[5] !bg-gradient-to-r !from-brand/10 !to-brand/5 dark:!from-brand/20 dark:!to-brand/10 border-l-2 border-brand shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
               ),
               ...(isTeaser && {
                 onClick: (e: React.MouseEvent) => {

@@ -747,7 +747,7 @@ const renderAlternateRow = (
           return (
             <td
               key="entity"
-              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-10 ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
+              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-[5] ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
             >
               Alt Line {row.lineLabel}
             </td>
@@ -2991,7 +2991,7 @@ export function OddsTable({
   // Loading state
   if (loading) {
     return (
-      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden ${className}`}>
+      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800/50 rounded-2xl shadow-sm overflow-hidden ${className}`}>
         <OddsTableSkeleton 
           rows={8}
           sportsbookCount={Math.min(orderedSportsbooks.length || 6, 8)}
@@ -3005,12 +3005,13 @@ export function OddsTable({
   // Error state
   if (error) {
     return (
-      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden ${className}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="text-red-600 dark:text-red-400 font-medium mb-2">Error Loading Data</div>
-            <div className="text-neutral-500 dark:text-neutral-400 text-sm">{error}</div>
+      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800/50 rounded-2xl shadow-sm overflow-hidden ${className}`}>
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/30 dark:to-red-900/10 flex items-center justify-center mb-4">
+            <span className="text-2xl">⚠️</span>
           </div>
+          <div className="text-red-600 dark:text-red-400 font-semibold mb-1">Error Loading Data</div>
+          <div className="text-neutral-500 dark:text-neutral-400 text-sm">{error}</div>
         </div>
       </div>
     )
@@ -3019,13 +3020,14 @@ export function OddsTable({
   // Empty state
   if (!groupedData || groupedData.length === 0) {
     return (
-      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden ${className}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="text-neutral-900 dark:text-neutral-100 font-medium mb-2">No Data Available</div>
-            <div className="text-neutral-500 dark:text-neutral-400 text-sm">
-              No odds data found for {sport.toUpperCase()} {type} {market} ({scope})
-            </div>
+      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800/50 rounded-2xl shadow-sm overflow-hidden ${className}`}>
+        <div className="flex flex-col items-center justify-center h-64 py-12">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-4 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
+            <span className="text-2xl">📊</span>
+          </div>
+          <div className="text-neutral-900 dark:text-neutral-100 font-semibold mb-1">No Data Available</div>
+          <div className="text-neutral-500 dark:text-neutral-400 text-sm max-w-sm text-center">
+            No odds data found for {sport.toUpperCase()} {type} {market} ({scope})
           </div>
         </div>
       </div>
@@ -3034,7 +3036,7 @@ export function OddsTable({
 
   return (
     <TooltipProvider>
-      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden ${className}`}>
+      <div className={`bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800/50 rounded-2xl shadow-sm overflow-hidden ${className}`}>
         <div ref={containerRef} className="overflow-auto" style={{ maxHeight: height }}>
           {/* Single DndContext for all columns */}
         <DndContext
@@ -3048,7 +3050,7 @@ export function OddsTable({
                 >
               {/* Custom Table with ExpandableRowWrapper */}
               <table className="w-full border-separate border-spacing-0">
-                <thead className="table-header-gradient backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+                <thead className="sticky top-0 z-30 bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
                   {tableProps.table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header, headerIdx) => {
@@ -3064,15 +3066,15 @@ export function OddsTable({
                         <th
                           key={header.id}
                           className={cn(
-                            "bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-1 sm:px-2 sm:py-1.5 text-left font-medium text-xs",
+                            "bg-transparent border-b border-r border-neutral-100 dark:border-neutral-800/50 px-1 py-2 sm:px-2 sm:py-2.5 text-left font-semibold text-[11px] text-neutral-600 dark:text-neutral-400 uppercase tracking-wider",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
-                            header.column.id === 'entity' && 'sticky left-0 z-20 bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60',
+                            header.column.id === 'entity' && 'sticky left-0 z-40 !bg-gradient-to-r !from-neutral-50 !to-neutral-50 dark:!from-neutral-900 dark:!to-neutral-900',
                             header.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
                             header.column.id === 'best-line' && 'px-0.5 sm:px-1 text-center',
                             header.column.id === 'average-line' && 'px-0.5 sm:px-1 text-center',
                             isBookColumn && 'books',
                             // Stronger border between meta columns and book columns
-                            isLastMetaColumn && 'border-r-2 border-r-neutral-300 dark:border-r-neutral-700'
+                            isLastMetaColumn && 'border-r-2 border-r-neutral-200 dark:border-r-neutral-700'
                           )}
                           style={{
                             minWidth: header.column.columnDef.minSize,
@@ -3101,7 +3103,7 @@ export function OddsTable({
                         <tr key={`date-${entry.date}-${idx}`}>
                           {/* Sticky left date cell so date stays visible while horizontally scrolling */}
                           <td
-                            className="date-row sticky left-0 z-10"
+                            className="date-row sticky left-0 z-[15]"
                             style={{ width: entityColWidth, minWidth: entityColWidth }}
                           >
                             {entry.dateLabel}
@@ -3135,16 +3137,16 @@ export function OddsTable({
                       const remainingColSpan = Math.max(totalColumns - matchupColSpan, 1)
                       
                       return (
-                        <tr key={`game-${entry.eventId}-${idx}`} data-game-id={entry.eventId} className="game-header-row cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" onClick={() => toggleGameExpansion(entry.eventId)}>
+                        <tr key={`game-${entry.eventId}-${idx}`} data-game-id={entry.eventId} className="game-header-row cursor-pointer hover:bg-gradient-to-r hover:from-neutral-200/80 hover:to-neutral-100/50 dark:hover:from-neutral-700/80 dark:hover:to-neutral-800/50 transition-all duration-200" onClick={() => toggleGameExpansion(entry.eventId)}>
                           {/* Matchup cell - spans multiple columns for breathing room */}
                           <td
                             colSpan={matchupColSpan}
-                            className="sticky left-0 z-10 bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700 px-3 py-2"
+                            className="sticky left-0 z-20 bg-gradient-to-r from-neutral-100 to-neutral-100/80 dark:from-neutral-800 dark:to-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 px-3 py-2.5"
                           >
                             <div className="flex items-center gap-2">
                               {/* Expand/collapse button */}
                               <button
-                                className="flex items-center justify-center w-5 h-5 rounded transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                                className="flex items-center justify-center w-6 h-6 rounded-lg transition-all hover:bg-neutral-200 dark:hover:bg-neutral-700 bg-white/50 dark:bg-neutral-900/50"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   toggleGameExpansion(entry.eventId);
@@ -3183,7 +3185,7 @@ export function OddsTable({
                                 />
                               )}
                               {/* Time inline with matchup */}
-                              <span className="text-xs text-neutral-500 dark:text-neutral-400 ml-2">
+                              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 ml-2 px-2 py-0.5 bg-white/60 dark:bg-neutral-900/60 rounded">
                                 {timeString}
                               </span>
                             </div>
@@ -3191,7 +3193,7 @@ export function OddsTable({
                           {/* Fill rest of row */}
                           <td
                             colSpan={remainingColSpan}
-                            className="bg-neutral-100 dark:bg-neutral-800 border-b-2 border-neutral-300 dark:border-neutral-700"
+                            className="bg-gradient-to-r from-neutral-100/80 to-neutral-100 dark:from-neutral-800/80 dark:to-neutral-800 border-b border-neutral-200 dark:border-neutral-700"
                           />
                         </tr>
                       )
@@ -3205,7 +3207,7 @@ export function OddsTable({
                         <tr key={`team-${entry.eventId}-${entry.team}-${idx}`} className="team-header-row">
                           {/* Sticky first cell with team info */}
                           <td
-                            className="sticky left-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 px-3 py-1"
+                            className="sticky left-0 z-[15] bg-neutral-50/80 dark:bg-neutral-900/80 border-b border-neutral-100 dark:border-neutral-800/50 px-3 py-1.5"
                           >
                             <div className="flex items-center gap-2">
                               {showLogos && (
@@ -3218,7 +3220,7 @@ export function OddsTable({
                                   }}
                                 />
                               )}
-                              <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                              <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 whitespace-nowrap uppercase tracking-wide">
                                 {entry.teamName || entry.team}
                               </span>
                             </div>
@@ -3226,7 +3228,7 @@ export function OddsTable({
                           {/* Remaining cells span the rest */}
                           <td
                             colSpan={totalColumns - 1}
-                            className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800"
+                            className="bg-neutral-50/80 dark:bg-neutral-900/80 border-b border-neutral-100 dark:border-neutral-800/50"
                           />
                         </tr>
                       )
@@ -3237,9 +3239,10 @@ export function OddsTable({
                     if (!row) return null
                     const item = row.original
                     const isMoneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
-                    const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'
+                    // Premium zebra striping
+                    const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50/50 dark:bg-neutral-800/20'
                     // Sticky column needs solid background that matches the zebra pattern
-                    const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-[#f0f9ff] dark:bg-[#17202B]'
+                    const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50 dark:bg-neutral-800/40'
 
                     const visibleCells = row.getVisibleCells()
                     const metaColumns = ['entity', 'line', 'best-line', 'average-line']
@@ -3253,7 +3256,7 @@ export function OddsTable({
                         <td
                           key={cell.id}
                           className={cn(
-                            'border-b border-r border-neutral-200/30 dark:border-neutral-800/30 px-1 py-0.5 sm:px-2 sm:py-1 text-sm',
+                            'border-b border-r border-neutral-100 dark:border-neutral-800/50 px-1 py-1 sm:px-2 sm:py-1.5 text-sm',
                             // Center sportsbook columns for single-line markets, otherwise left-align
                             isBookColumn && isSingleLineMarket ? 'text-center' : 'text-left',
                             rowBg,
@@ -3263,7 +3266,7 @@ export function OddsTable({
                             cell.column.id === 'best-line' && 'px-0.5 sm:px-1',
                             cell.column.id === 'average-line' && 'px-0.5 sm:px-1',
                             // Stronger border between meta columns and book columns
-                            isLastMetaColumn && 'border-r-2 border-r-neutral-300 dark:border-r-neutral-700'
+                            isLastMetaColumn && 'border-r-2 border-r-neutral-200 dark:border-r-neutral-700'
                           )}
                           style={{
                             minWidth: cell.column.columnDef.minSize,
@@ -3278,7 +3281,7 @@ export function OddsTable({
 
                     if (isMoneyline) {
                       return (
-                        <tr key={row.id} className={cn('group relative transition-colors', rowBg, 'hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]')}>
+                        <tr key={row.id} className={cn('group relative transition-all duration-200', rowBg, 'hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-blue-50/20 dark:hover:from-blue-950/30 dark:hover:to-blue-950/10')}>
                           {cells}
                         </tr>
                       )

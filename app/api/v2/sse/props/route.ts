@@ -12,7 +12,6 @@ const SPORT_CHANNELS: Record<string, string> = {
   ncaab: "odds_updates:ncaab",
   ufc: "odds_updates:ufc",
   soccer_epl: "odds_updates:soccer_epl",
-  // Fallback for other sports
   mlb: "odds_updates:mlb",
   wnba: "odds_updates:wnba",
 };
@@ -21,20 +20,73 @@ const VALID_SPORTS = new Set(Object.keys(SPORT_CHANNELS));
 
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
-  const sport = (sp.get("sport") || "").trim().toLowerCase();
   
-  if (!sport || !VALID_SPORTS.has(sport)) {
-    return new Response(JSON.stringify({ error: "invalid_sport", valid: Array.from(VALID_SPORTS) }), { status: 400 });
+  // Support both single sport (legacy) and multiple sports (new)
+  const singleSport = (sp.get("sport") || "").trim().toLowerCase();
+  const multipleSports = (sp.get("sports") || "").trim().toLowerCase();
+  
+  let usePattern = false;
+  let channel: string;
+  let subscribedSports: string[] = [];
+  
+  if (singleSport) {
+    // Legacy mode: single sport using SUBSCRIBE
+    if (!VALID_SPORTS.has(singleSport)) {
+      return new Response(JSON.stringify({ error: "invalid_sport", valid: Array.from(VALID_SPORTS) }), { status: 400 });
+    }
+    channel = SPORT_CHANNELS[singleSport] || `odds_updates:${singleSport}`;
+    subscribedSports = [singleSport];
+  } else if (multipleSports) {
+    // New mode: multiple sports
+    if (multipleSports === "all" || multipleSports === "*") {
+      // Subscribe to all sports using pattern
+      usePattern = true;
+      channel = "odds_updates:*";
+      subscribedSports = Array.from(VALID_SPORTS);
+    } else {
+      // Parse comma-separated list
+      const sportsList = multipleSports.split(",").map(s => s.trim()).filter(Boolean);
+      
+      // Validate all sports
+      const invalidSports = sportsList.filter(s => !VALID_SPORTS.has(s));
+      if (invalidSports.length > 0) {
+        return new Response(JSON.stringify({ 
+          error: "invalid_sports", 
+          invalid: invalidSports,
+          valid: Array.from(VALID_SPORTS) 
+        }), { status: 400 });
+      }
+      
+      if (sportsList.length === 0) {
+        return new Response(JSON.stringify({ error: "no_sports_provided" }), { status: 400 });
+      }
+      
+      if (sportsList.length === 1) {
+        // Single sport, use direct subscription
+        channel = SPORT_CHANNELS[sportsList[0]] || `odds_updates:${sportsList[0]}`;
+        subscribedSports = sportsList;
+      } else {
+        // Multiple sports - use pattern subscription to get all, client filters
+        // This is more efficient than opening multiple connections
+        usePattern = true;
+        channel = "odds_updates:*";
+        subscribedSports = sportsList;
+      }
+    }
+  } else {
+    return new Response(JSON.stringify({ 
+      error: "missing_sport_param", 
+      usage: "Use ?sport=nba for single sport or ?sports=nba,nfl for multiple" 
+    }), { status: 400 });
   }
 
   const url = process.env.UPSTASH_REDIS_REST_URL!;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
   
-  // V2: Subscribe to odds_updates channel for the sport
-  // Payload format: { type: "update", keys: [...], count: N, timestamp: "..." }
-  const channel = SPORT_CHANNELS[sport] || `odds_updates:${sport}`;
-
-  const upstream = await fetch(`${url}/subscribe/${encodeURIComponent(channel)}`, {
+  // Use PSUBSCRIBE for pattern matching, SUBSCRIBE for direct channel
+  const subscribeEndpoint = usePattern ? "psubscribe" : "subscribe";
+  
+  const upstream = await fetch(`${url}/${subscribeEndpoint}/${encodeURIComponent(channel)}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -53,9 +105,14 @@ export async function GET(req: NextRequest) {
     const reader = upstream.body!.getReader();
     const enc = new TextEncoder();
 
-    // Send hello event
+    // Send hello event with subscription info
     try { 
-      await writer.write(enc.encode(`event: hello\ndata: {"channel":"${channel}","version":"v2"}\n\n`)); 
+      await writer.write(enc.encode(`event: hello\ndata: ${JSON.stringify({
+        channel,
+        version: "v2",
+        mode: usePattern ? "pattern" : "direct",
+        sports: subscribedSports,
+      })}\n\n`)); 
     } catch { void 0; }
 
     const safeWrite = async (chunk: Uint8Array) => {
@@ -100,4 +157,3 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-

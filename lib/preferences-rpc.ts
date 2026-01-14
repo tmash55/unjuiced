@@ -94,6 +94,17 @@ export interface UserPreferences {
   // Model templates preference
   hide_model_templates?: boolean;
   
+  // Positive EV Tool preferences
+  positive_ev_selected_books?: string[];
+  positive_ev_selected_sports?: string[];
+  positive_ev_selected_markets?: string[];
+  positive_ev_sharp_preset?: string;
+  positive_ev_devig_methods?: string[];
+  positive_ev_min_ev?: number;
+  positive_ev_max_ev?: number;
+  positive_ev_mode?: 'pregame' | 'live' | 'all';
+  positive_ev_min_books_per_side?: number;
+  
   created_at?: string;
   updated_at?: string;
 }
@@ -200,6 +211,17 @@ export class PreferencesRPC {
       best_odds_comparison_mode: data?.best_odds_comparison_mode ?? 'average',
       best_odds_comparison_book: data?.best_odds_comparison_book ?? null,
       best_odds_show_hidden: data?.best_odds_show_hidden ?? false,
+      
+      // Positive EV Tool preferences
+      positive_ev_selected_books: data?.positive_ev_selected_books || [],
+      positive_ev_selected_sports: data?.positive_ev_selected_sports !== null ? data?.positive_ev_selected_sports : undefined,
+      positive_ev_selected_markets: data?.positive_ev_selected_markets || [],
+      positive_ev_sharp_preset: data?.positive_ev_sharp_preset,
+      positive_ev_devig_methods: data?.positive_ev_devig_methods,
+      positive_ev_min_ev: data?.positive_ev_min_ev,
+      positive_ev_max_ev: data?.positive_ev_max_ev,
+      positive_ev_mode: data?.positive_ev_mode,
+      positive_ev_min_books_per_side: data?.positive_ev_min_books_per_side ?? 2,
       
       created_at: data?.created_at,
       updated_at: data?.updated_at,

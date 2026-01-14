@@ -1,4 +1,6 @@
-export const runtime = "edge";
+// Use Node.js runtime for longer timeouts and better performance
+export const runtime = "nodejs";
+export const maxDuration = 60; // Allow up to 60 seconds
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
@@ -24,6 +26,7 @@ import {
   type PositiveEVResponse,
   type BookOffer,
   type MultiDevigResult,
+  type EVMode,
 } from "@/lib/ev";
 import {
   SHARP_PRESETS,
@@ -37,9 +40,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// Configuration
-const SCAN_COUNT = 1000;
-const MGET_CHUNK_SIZE = 500;
+// Configuration - optimized for speed
+const SCAN_COUNT = 2000;      // Larger scan batches
+const MGET_CHUNK_SIZE = 1000; // Larger mget batches
 
 // Supported sports
 const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "soccer_epl"]);
@@ -144,6 +147,7 @@ interface SelectionPair {
  *   maxEV       - Maximum EV% to show (default: 20)
  *   books       - Filter to specific sportsbooks (optional)
  *   limit       - Max results (default: 100)
+ *   mode        - Filter mode: "pregame" (default), "live", or "all"
  */
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
@@ -169,27 +173,44 @@ export async function GET(req: NextRequest) {
     const maxEV = parseFloat(params.get("maxEV") || String(EV_THRESHOLDS.maximum));
     const booksFilter = params.get("books")?.toLowerCase().split(",").filter(Boolean) || null;
     const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
+    const minBooksPerSide = parseInt(params.get("minBooksPerSide") || "2");
+    
+    // Parse mode parameter (pregame, live, or all)
+    const modeParam = params.get("mode")?.toLowerCase();
+    const mode: EVMode = modeParam === "live" ? "live" : modeParam === "all" ? "all" : "pregame";
 
     // Validate sharp preset
     if (!SHARP_PRESETS[sharpPreset]) {
       return NextResponse.json({ error: `Invalid sharpPreset: ${sharpPreset}` }, { status: 400 });
     }
 
-    // Fetch opportunities for all sports
-    const allOpportunities: PositiveEVOpportunity[] = [];
+    // Fetch opportunities for all sports IN PARALLEL (much faster!)
+    console.log(`[positive-ev] Fetching ${sports.length} sports in parallel...`);
     
-    for (const sport of sports) {
-      const sportOpps = await fetchPositiveEVOpportunities(
-        sport,
-        markets,
-        sharpPreset,
-        devigMethods,
-        minEV,
-        maxEV,
-        booksFilter
-      );
-      allOpportunities.push(...sportOpps);
-    }
+    const sportPromises = sports.map(async (sport) => {
+      try {
+        const startTime = Date.now();
+        const sportOpps = await fetchPositiveEVOpportunities(
+          sport,
+          markets,
+          sharpPreset,
+          devigMethods,
+          minEV,
+          maxEV,
+          booksFilter,
+          mode,
+          minBooksPerSide
+        );
+        console.log(`[positive-ev] ✅ ${sport}: ${sportOpps.length} opps in ${Date.now() - startTime}ms`);
+        return sportOpps;
+      } catch (error) {
+        console.error(`[positive-ev] ❌ ${sport} failed:`, error instanceof Error ? error.message : error);
+        return []; // Return empty array on error, don't fail entire request
+      }
+    });
+    
+    const sportResults = await Promise.all(sportPromises);
+    const allOpportunities = sportResults.flat();
 
     // Sort by worst-case EV (conservative) descending
     allOpportunities.sort((a, b) => b.evCalculations.evWorst - a.evCalculations.evWorst);
@@ -205,13 +226,23 @@ export async function GET(req: NextRequest) {
         sharpPreset,
         devigMethods,
         minEV,
+        minBooksPerSide,
+        mode,
         timestamp: new Date().toISOString(),
       },
     };
 
+    // Log response size for debugging
+    const responseSize = JSON.stringify(response).length;
+    console.log(`[positive-ev] Response size: ${(responseSize / 1024).toFixed(2)} KB`);
+    if (responseSize > 500000) { // 500KB warning
+      console.warn(`[positive-ev] ⚠️  Large response (${(responseSize / 1024 / 1024).toFixed(2)} MB)`);
+    }
+
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20",
+        "Cache-Control": "no-store, must-revalidate", // Disable caching due to large response size
+        "Content-Type": "application/json",
       },
     });
   } catch (error) {
@@ -233,7 +264,9 @@ async function fetchPositiveEVOpportunities(
   devigMethods: DevigMethod[],
   minEV: number,
   maxEV: number,
-  booksFilter: string[] | null
+  booksFilter: string[] | null,
+  mode: EVMode,
+  minBooksPerSide: number
 ): Promise<PositiveEVOpportunity[]> {
   const opportunities: PositiveEVOpportunity[] = [];
   const pairMap = new Map<string, SelectionPair>();
@@ -290,29 +323,70 @@ async function fetchPositiveEVOpportunities(
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
     const eventsRaw = await redis.mget<(Record<string, unknown> | null)[]>(...eventKeys);
 
-    // Build event map
+    // Build event map with robust filtering
     const now = new Date();
-    const eventMap = new Map<string, { home_team: string; away_team: string; start_time: string }>();
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+    const eventMap = new Map<string, { home_team: string; away_team: string; start_time: string; isLive: boolean }>();
+    const pregameEventIds = new Set<string>();
     const liveEventIds = new Set<string>();
+    const excludedEventIds = new Set<string>(); // Track events to exclude completely
 
     eventIds.forEach((id, i) => {
       const event = eventsRaw[i];
-      if (!event) return;
-
-      const startTime = (event.commence_time as string) || (event.start_time as string) || "";
-      if (startTime) {
-        const gameStart = new Date(startTime);
-        if (!isNaN(gameStart.getTime()) && gameStart <= now) {
-          liveEventIds.add(id);
-          return;
-        }
+      if (!event) {
+        // No event data - exclude
+        excludedEventIds.add(id);
+        return;
       }
 
+      const startTime = (event.commence_time as string) || (event.start_time as string) || "";
+      const isLiveFlag = event.is_live === true;
       const homeTeam = (event.home_team as string) || "";
       const awayTeam = (event.away_team as string) || "";
-      if (!homeTeam || !awayTeam) return;
+      
+      // Skip events without valid team data
+      if (!homeTeam || !awayTeam) {
+        excludedEventIds.add(id);
+        return;
+      }
 
-      eventMap.set(id, { home_team: homeTeam, away_team: awayTeam, start_time: startTime });
+      // Robust time validation
+      if (!startTime) {
+        // No start time - exclude (likely stale data / TBD issue)
+        excludedEventIds.add(id);
+        return;
+      }
+
+      const gameStart = new Date(startTime);
+      if (isNaN(gameStart.getTime())) {
+        // Invalid date - exclude
+        excludedEventIds.add(id);
+        return;
+      }
+
+      // Check if game started more than 6 hours ago (definitely finished)
+      const msSinceStart = now.getTime() - gameStart.getTime();
+      if (msSinceStart > SIX_HOURS_MS) {
+        // Game is likely over - exclude
+        excludedEventIds.add(id);
+        return;
+      }
+
+      // Determine if live or pregame
+      const isLive = isLiveFlag || gameStart <= now;
+      
+      if (isLive) {
+        liveEventIds.add(id);
+      } else {
+        pregameEventIds.add(id);
+      }
+
+      eventMap.set(id, { 
+        home_team: homeTeam, 
+        away_team: awayTeam, 
+        start_time: startTime,
+        isLive 
+      });
     });
 
     // Step 5: Build selection pairs
@@ -330,9 +404,21 @@ async function fetchPositiveEVOpportunities(
 
     for (const [groupKey, marketKeys] of keysByEventMarket) {
       const [eventId, market] = groupKey.split(":");
-      if (liveEventIds.has(eventId)) continue;
+      
+      // Skip excluded events (no data, invalid time, or finished games)
+      if (excludedEventIds.has(eventId)) continue;
+      
+      // Apply mode filter
+      if (mode === "pregame" && liveEventIds.has(eventId)) continue; // Skip live in pregame mode
+      if (mode === "live" && pregameEventIds.has(eventId)) continue; // Skip pregame in live mode
+      // mode === "all" shows both
 
-      const event = eventMap.get(eventId) || null;
+      const eventData = eventMap.get(eventId);
+      const event = eventData ? { 
+        home_team: eventData.home_team, 
+        away_team: eventData.away_team, 
+        start_time: eventData.start_time 
+      } : null;
 
       // Build book selections
       const bookSelections: Record<string, SSEBookSelections> = {};
@@ -449,8 +535,8 @@ async function fetchPositiveEVOpportunities(
 
     // Step 6: Calculate +EV for each pair
     for (const pair of pairMap.values()) {
-      // Need both sides for proper de-vigging
-      if (pair.over.books.length < 1 || pair.under.books.length < 1) continue;
+      // Need minimum books on both sides for proper de-vigging (width filter)
+      if (pair.over.books.length < minBooksPerSide || pair.under.books.length < minBooksPerSide) continue;
 
       // Get sharp reference odds
       const sharpOver = getSharpOddsForPreset(pair.over.books, sharpPreset);
@@ -475,6 +561,8 @@ async function fetchPositiveEVOpportunities(
 
       for (const side of sides) {
         const sideData = pair[side];
+        const oppositeSide = side === "over" ? "under" : "over";
+        const oppositeData = pair[oppositeSide];
 
         // Filter by user's books if specified
         let booksToCheck = sideData.books;
@@ -493,7 +581,9 @@ async function fetchPositiveEVOpportunities(
           if (evCalculations.evWorst < minEV) continue;
           if (evCalculations.evWorst > maxEV) continue; // Filter outliers
 
-          // Create opportunity
+          // Create LEAN opportunity (optimized for response size)
+          // Only include what's needed for the table display
+          // Full book details can be fetched on-demand when row is expanded
           const opp: PositiveEVOpportunity = {
             id: `${pair.eventId}:${pair.market}:${pair.player}:${pair.line}:${side}:${bookOffer.bookId}`,
             sport: pair.sport,
@@ -510,11 +600,33 @@ async function fetchPositiveEVOpportunities(
             line: pair.line,
             side,
             sharpPreset,
-            sharpReference,
-            devigResults,
-            book: bookOffer,
+            sharpReference: {
+              ...sharpReference,
+              blendedFrom: undefined, // Don't need this in list view
+            },
+            devigResults: {
+              // Only include the primary method result to reduce size
+              [devigMethods[0]]: devigResults[devigMethods[0]],
+            } as MultiDevigResult,
+            book: {
+              bookId: bookOffer.bookId,
+              price: bookOffer.price,
+              priceDecimal: bookOffer.priceDecimal,
+              link: bookOffer.link,
+              // Don't include mobileLink in list - fetch on expand
+            } as BookOffer,
             evCalculations,
-            allBooks: sideData.books,
+            // Include all books for expanded row display (lean format)
+            allBooks: sideData.books.map(b => ({
+              bookId: b.bookId,
+              price: b.price,
+              priceDecimal: b.priceDecimal,
+            })) as BookOffer[],
+            oppositeBooks: oppositeData.books.map(b => ({
+              bookId: b.bookId,
+              price: b.price,
+              priceDecimal: b.priceDecimal,
+            })) as BookOffer[],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
@@ -544,6 +656,27 @@ function getSharpOddsForPreset(
   if (preset === "custom") {
     // Custom preset - would need user-defined weights
     return null;
+  }
+
+  // Market Average: Use ALL available books for this market
+  if (preset === "market_average") {
+    if (books.length === 0) return null;
+    
+    // Equal weight for all books
+    const blendInputs = books.map((b) => ({
+      bookId: b.bookId,
+      odds: b.price,
+      weight: 1.0,
+    }));
+    
+    const blendedOdds = blendSharpOdds(blendInputs);
+    if (blendedOdds === 0) return null;
+    
+    return {
+      price: blendedOdds,
+      source: `Market Avg (${books.length} books)`,
+      blendedFrom: books.map((b) => b.bookId),
+    };
   }
 
   const presetBooks = presetConfig.books;

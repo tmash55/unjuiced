@@ -460,10 +460,11 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="edge"
             id="edge"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('edge')}
           >
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-1 h-1 rounded-full bg-amber-500" />
               <span>Edge %</span>
               <Tooltip content="Edge vs market average or sharp reference. Calculated using decimal odds.">
                 <svg
@@ -489,7 +490,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="league"
             id="league"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             League
           </SortableColumnHeader>
@@ -499,7 +500,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="time"
             id="time"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('time')}
           >
             <div className="flex items-center gap-1">
@@ -515,7 +516,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="selection"
             id="selection"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Selection
           </SortableColumnHeader>
@@ -525,7 +526,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="line"
             id="line"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Line
           </SortableColumnHeader>
@@ -535,7 +536,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="market"
             id="market"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Market
           </SortableColumnHeader>
@@ -545,7 +546,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="best-book"
             id="best-book"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Best Book
           </SortableColumnHeader>
@@ -555,9 +556,9 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="reference"
             id="reference"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1.5">
               <span>{referenceColumnLabel}</span>
               <Tooltip content={referenceColumnTooltip}>
                 <svg
@@ -580,10 +581,10 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="fair"
             id="fair"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('fair')}
           >
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1.5">
               <span>Fair</span>
               <Tooltip content="Devigged fair odds (no-vig true probability). Calculated from both sides of the market when available.">
                 <svg
@@ -609,10 +610,10 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="stake"
             id="stake"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('stake')}
           >
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1.5">
               <span>Stake</span>
               <Tooltip content={`Recommended bet size based on Kelly Criterion (${kellyPercent || 25}% Kelly). Uses your bankroll of $${bankroll.toLocaleString()}.`}>
                 <svg
@@ -638,10 +639,10 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="filter"
             id="filter"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('filter')}
           >
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1.5">
               <span>Filter</span>
               {sortField === 'filter' && (
                 sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
@@ -654,7 +655,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="action"
             id="action"
-            className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800"
+            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Action
           </SortableColumnHeader>
@@ -696,10 +697,10 @@ export function OpportunitiesTable({
                   toggleRow(opp.id);
                 }}
                 className={cn(
-                  "flex items-center justify-center w-6 h-6 rounded-md transition-all shrink-0",
-                  "hover:bg-neutral-100 dark:hover:bg-neutral-800",
-                  "text-neutral-500 dark:text-neutral-400",
-                  isExpanded && "bg-neutral-100 dark:bg-neutral-800"
+                  "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0",
+                  "hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 hover:scale-110",
+                  "text-neutral-400 dark:text-neutral-500",
+                  isExpanded && "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rotate-90"
                 )}
                 aria-label={isExpanded ? "Collapse" : "Expand"}
               >
@@ -716,7 +717,7 @@ export function OpportunitiesTable({
                 // Use boosted edge for styling thresholds
                 displayEdge >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
                 displayEdge >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
                 // Amber glow when boosted
                 boostPercent > 0 && "ring-1 ring-amber-400/50"
               )}>
@@ -787,7 +788,7 @@ export function OpportunitiesTable({
                         } as any,
                       });
                     }}
-                    className="text-left text-blue-500/80 dark:text-blue-400/70 hover:text-blue-600 dark:hover:text-blue-300 hover:underline transition-colors"
+                    className="text-left text-amber-500/80 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-300 hover:underline transition-colors"
                     type="button"
                   >
                     {opp.player}
@@ -1419,29 +1420,29 @@ export function OpportunitiesTable({
 
   if (isLoading) {
     return (
-      <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800">
+      <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
             {filteredColumnOrder.map(colId => (
               <col key={colId} style={{ width: columnWidths[colId] || 100 }} />
             ))}
           </colgroup>
-          <thead className="bg-neutral-50 dark:bg-neutral-900 sticky top-0 z-[5]">
-            <tr>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Edge %</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">League</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Time</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Selection</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Line</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Market</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-left border-b border-r border-neutral-200 dark:border-neutral-800">Best Book</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">{referenceColumnLabel}</th>
+          <thead className="sticky top-0 z-[5]">
+            <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-amber-50/30 dark:from-neutral-900 dark:via-neutral-900 dark:to-amber-950/20">
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Edge %</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Time</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Selection</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Line</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Market</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Best Book</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">{referenceColumnLabel}</th>
               {comparisonMode !== "next_best" && (
-                <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Fair</th>
+                <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Fair</th>
               )}
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Stake</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-r border-neutral-200 dark:border-neutral-800">Filter</th>
-              <th className="font-medium text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wider h-14 p-2 text-center border-b border-neutral-200 dark:border-neutral-800">Action</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Stake</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Filter</th>
+              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -1501,7 +1502,7 @@ export function OpportunitiesTable({
     >
       <div
         ref={tableRef}
-        className="overflow-auto max-h-[calc(100vh-300px)] rounded-xl border border-neutral-200 dark:border-neutral-800"
+        className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
       >
         <table className="min-w-full text-sm table-fixed">
         {/* Dynamic column widths based on column order */}
@@ -1510,9 +1511,9 @@ export function OpportunitiesTable({
             <col key={colId} style={{ width: columnWidths[colId] || 100 }} />
           ))}
         </colgroup>
-        <thead className="bg-neutral-50 dark:bg-neutral-900 sticky top-0 z-[5]">
+        <thead className="sticky top-0 z-[5]">
           <SortableContext items={filteredColumnOrder} strategy={horizontalListSortingStrategy}>
-          <tr>
+          <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-amber-50/30 dark:from-neutral-900 dark:via-neutral-900 dark:to-amber-950/20">
             {filteredColumnOrder.map(colId => renderColumnHeader(colId))}
           </tr>
           </SortableContext>
@@ -1595,9 +1596,13 @@ export function OpportunitiesTable({
                 <tr
                   onClick={() => toggleRow(opp.id)}
                   className={cn(
-                    "group/row transition-colors cursor-pointer hover:!bg-neutral-100 dark:hover:!bg-neutral-800/50",
-                    index % 2 === 0 ? "table-row-even" : "table-row-odd",
-                    isHiddenRow && "opacity-40 bg-neutral-100/50 dark:bg-neutral-800/30"
+                    "group/row transition-all duration-200 cursor-pointer",
+                    "hover:bg-gradient-to-r hover:from-amber-50/80 hover:to-amber-50/20 dark:hover:from-amber-950/40 dark:hover:to-amber-950/10",
+                    index % 2 === 0 
+                      ? "bg-white dark:bg-neutral-900" 
+                      : "bg-neutral-100/70 dark:bg-neutral-800/40",
+                    isExpanded && "!bg-gradient-to-r !from-amber-50 !to-amber-50/30 dark:!from-amber-950/50 dark:!to-amber-950/20",
+                    isHiddenRow && "opacity-40"
                   )}
                 >
                   {filteredColumnOrder.map(colId => 
@@ -1621,11 +1626,9 @@ export function OpportunitiesTable({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className={cn(
-                        index % 2 === 0 ? "table-row-even" : "table-row-odd"
-                      )}
+                      className="bg-gradient-to-r from-amber-50/50 to-neutral-50/50 dark:from-amber-950/30 dark:to-neutral-900/50"
                     >
-                      <td colSpan={filteredColumnOrder.length} className="px-4 py-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                      <td colSpan={filteredColumnOrder.length} className="px-4 py-4 border-b border-amber-200/30 dark:border-amber-800/30">
                         <div className="flex items-center justify-center gap-3 flex-wrap">
                           {sortedBooks.map((book) => {
                             const bookLogo = getBookLogo(book.book);
@@ -1648,8 +1651,8 @@ export function OpportunitiesTable({
                                     "flex items-center gap-2.5 px-4 py-3 rounded-lg border transition-all",
                                     hasLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
                                     isBest
-                                      ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 shadow-sm"
-                                      : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md"
+                                      ? "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 shadow-sm ring-1 ring-amber-400/30"
+                                      : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md"
                                   )}
                                 >
                                   {bookLogo && (
@@ -1663,7 +1666,7 @@ export function OpportunitiesTable({
                                     <span className={cn(
                                       "text-base font-bold",
                                       isBest
-                                        ? "text-emerald-600 dark:text-emerald-400"
+                                        ? "text-amber-600 dark:text-amber-400"
                                         : "text-neutral-900 dark:text-neutral-100"
                                     )}>
                                       {book.priceFormatted}

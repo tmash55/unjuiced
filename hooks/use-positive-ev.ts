@@ -14,6 +14,7 @@ import type {
   PositiveEVResponse,
   SharpPreset,
   DevigMethod,
+  EVMode,
 } from "@/lib/ev/types";
 import {
   DEFAULT_DEVIG_METHODS,
@@ -52,6 +53,12 @@ export interface PositiveEVFilters {
   
   /** Search term for filtering */
   search?: string;
+  
+  /** Mode filter: pregame, live, or all */
+  mode?: EVMode;
+  
+  /** Minimum books required on BOTH sides (width filter, default: 2) */
+  minBooksPerSide?: number;
 }
 
 export interface UsePositiveEVOptions {
@@ -109,6 +116,8 @@ const DEFAULT_FILTERS: PositiveEVFilters = {
   books: null,
   limit: POSITIVE_EV_DEFAULTS.limit,
   search: "",
+  mode: "pregame",
+  minBooksPerSide: 2,
 };
 
 // =============================================================================
@@ -150,6 +159,16 @@ function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearch
   // Books filter
   if (filters.books && filters.books.length > 0) {
     params.set("books", filters.books.join(","));
+  }
+  
+  // Mode filter (pregame, live, or all)
+  if (filters.mode) {
+    params.set("mode", filters.mode);
+  }
+  
+  // Minimum books per side (width filter)
+  if (filters.minBooksPerSide !== undefined) {
+    params.set("minBooksPerSide", String(filters.minBooksPerSide));
   }
   
   // Limit (pro users get more)
@@ -249,18 +268,23 @@ export function usePositiveEV({
   
   // Query key
   const queryKey = useMemo(
-    () => [
-      "positive-ev",
-      filters.sports.join(","),
-      filters.markets?.join(",") || "all",
-      filters.sharpPreset,
-      filters.devigMethods?.join(",") || "default",
-      filters.minEV,
-      filters.maxEV,
-      filters.books?.join(",") || "all",
-      filters.limit,
-      isPro,
-    ],
+    () => {
+      const key = [
+        "positive-ev",
+        filters.sports.join(","),
+        filters.markets?.join(",") || "all",
+        filters.sharpPreset,
+        filters.devigMethods?.join(",") || "default",
+        filters.minEV,
+        filters.maxEV,
+        filters.books?.join(",") || "all",
+        filters.limit,
+        filters.mode || "pregame",
+        isPro,
+      ];
+      console.log('[usePositiveEV] Query key changed:', key);
+      return key;
+    },
     [filters, isPro]
   );
   
@@ -274,7 +298,10 @@ export function usePositiveEV({
     dataUpdatedAt,
   } = useQuery({
     queryKey,
-    queryFn: () => fetchPositiveEV(filters, isPro),
+    queryFn: () => {
+      console.log('[usePositiveEV] Fetching with filters:', filters);
+      return fetchPositiveEV(filters, isPro);
+    },
     staleTime: 30_000, // Fresh for 30 seconds
     gcTime: 5 * 60_000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
@@ -333,10 +360,12 @@ export function usePositiveEV({
 export function useHighEVOpportunities({
   sports = ["nba"],
   sharpPreset = "pinnacle",
+  mode = "pregame" as EVMode,
   isPro,
 }: {
   sports?: string[];
   sharpPreset?: SharpPreset;
+  mode?: EVMode;
   isPro: boolean;
 }) {
   return usePositiveEV({
@@ -344,6 +373,7 @@ export function useHighEVOpportunities({
       sports,
       sharpPreset,
       minEV: 3, // 3%+ EV
+      mode,
     },
     isPro,
   });
@@ -355,10 +385,12 @@ export function useHighEVOpportunities({
 export function useAllPositiveEV({
   sports = ["nba"],
   sharpPreset = "pinnacle",
+  mode = "pregame" as EVMode,
   isPro,
 }: {
   sports?: string[];
   sharpPreset?: SharpPreset;
+  mode?: EVMode;
   isPro: boolean;
 }) {
   return usePositiveEV({
@@ -366,6 +398,7 @@ export function useAllPositiveEV({
       sports,
       sharpPreset,
       minEV: 0.1, // Anything positive
+      mode,
     },
     isPro,
   });
@@ -378,17 +411,19 @@ export function usePositiveEVComparison({
   sports = ["nba"],
   presets = ["pinnacle", "pinnacle_circa", "hardrock_thescore"] as SharpPreset[],
   minEV = 0,
+  mode = "pregame" as EVMode,
   isPro,
 }: {
   sports?: string[];
   presets?: SharpPreset[];
   minEV?: number;
+  mode?: EVMode;
   isPro: boolean;
 }) {
   // Fetch data for each preset in parallel
   const results = presets.map((preset) =>
     usePositiveEV({
-      filters: { sports, sharpPreset: preset, minEV },
+      filters: { sports, sharpPreset: preset, minEV, mode },
       isPro,
     })
   );

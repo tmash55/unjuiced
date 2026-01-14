@@ -31,9 +31,28 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
   const isReconnectingRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
 
+  // Store callbacks in refs to avoid stale closures
+  // This ensures event handlers always call the latest callback version
+  const onMessageRef = useRef(onMessage);
+  const onErrorRef = useRef(onError);
+  const onConnectionChangeRef = useRef(onConnectionChange);
+
+  // Keep refs updated with latest callbacks
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
+    onConnectionChangeRef.current = onConnectionChange;
+  }, [onConnectionChange]);
+
   const updateConnectionState = (connected: boolean) => {
     setIsConnected(connected);
-    onConnectionChange?.(connected);
+    onConnectionChangeRef.current?.(connected);
   };
 
   const connect = () => {
@@ -85,7 +104,8 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
           
           const data = JSON.parse(json);
           setLastMessage(data);
-          onMessage?.(data);
+          // Use ref to always call latest callback (avoids stale closure)
+          onMessageRef.current?.(data);
         } catch (error) {
           // Only log parse errors in development
           if (process.env.NODE_ENV === 'development') {
@@ -105,7 +125,8 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
         }
         
         updateConnectionState(false);
-        onError?.(error);
+        // Use ref to always call latest callback (avoids stale closure)
+        onErrorRef.current?.(error);
 
         // Close the connection
         eventSource.close();

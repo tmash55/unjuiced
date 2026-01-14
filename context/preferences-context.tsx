@@ -138,6 +138,29 @@ interface PreferencesContextType {
     comparisonBook: string | null;
     showHidden: boolean;
   };
+  
+  // Positive EV Tool
+  updatePositiveEvFilters: (filters: {
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedMarkets?: string[];
+    sharpPreset?: string;
+    devigMethods?: string[];
+    minEv?: number;
+    maxEv?: number;
+    mode?: 'pregame' | 'live' | 'all';
+  }) => Promise<void>;
+  
+  getPositiveEvFilters: () => {
+    selectedBooks: string[];
+    selectedSports: string[];
+    selectedMarkets: string[];
+    sharpPreset: string;
+    devigMethods: string[];
+    minEv: number;
+    maxEv: number | undefined;
+    mode: 'pregame' | 'live' | 'all';
+  };
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
@@ -914,6 +937,89 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
   }, [user, updatePreferences]);
   
+  // ==========================================
+  // Positive EV Tool Filters
+  // ==========================================
+  const getPositiveEvFilters = useCallback(() => {
+    if (!preferences) {
+      return {
+        selectedBooks: [],
+        selectedSports: ['nba', 'nfl'],
+        selectedMarkets: [],
+        sharpPreset: 'pinnacle',
+        devigMethods: ['power', 'multiplicative'],
+        minEv: 2,
+        maxEv: undefined,
+        mode: 'pregame' as const,
+      };
+    }
+    
+    return {
+      selectedBooks: preferences.positive_ev_selected_books ?? [],
+      selectedSports: preferences.positive_ev_selected_sports ?? ['nba', 'nfl'],
+      selectedMarkets: preferences.positive_ev_selected_markets ?? [],
+      sharpPreset: preferences.positive_ev_sharp_preset ?? 'pinnacle',
+      devigMethods: preferences.positive_ev_devig_methods ?? ['power', 'multiplicative'],
+      minEv: preferences.positive_ev_min_ev ?? 2,
+      maxEv: preferences.positive_ev_max_ev ?? undefined,
+      mode: (preferences.positive_ev_mode as 'pregame' | 'live' | 'all') ?? 'pregame',
+    };
+  }, [preferences]);
+  
+  const updatePositiveEvFilters = useCallback(async (filters: {
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedMarkets?: string[];
+    sharpPreset?: string;
+    devigMethods?: string[];
+    minEv?: number;
+    maxEv?: number;
+    mode?: 'pregame' | 'live' | 'all';
+    minBooksPerSide?: number;
+  }) => {
+    if (!user) {
+      if (DEV_LOGGING) console.log('⚠️ PreferencesContext: Cannot update positive EV filters - no user');
+      return;
+    }
+    
+    const updates: UserPreferencesUpdate = {};
+    
+    if (filters.selectedBooks !== undefined) {
+      updates.positive_ev_selected_books = filters.selectedBooks;
+    }
+    if (filters.selectedSports !== undefined) {
+      updates.positive_ev_selected_sports = filters.selectedSports;
+    }
+    if (filters.selectedMarkets !== undefined) {
+      updates.positive_ev_selected_markets = filters.selectedMarkets;
+    }
+    if (filters.sharpPreset !== undefined) {
+      updates.positive_ev_sharp_preset = filters.sharpPreset;
+    }
+    if (filters.devigMethods !== undefined) {
+      updates.positive_ev_devig_methods = filters.devigMethods;
+    }
+    if (filters.minEv !== undefined) {
+      updates.positive_ev_min_ev = filters.minEv;
+    }
+    if ('maxEv' in filters) {
+      updates.positive_ev_max_ev = filters.maxEv === undefined ? (null as any) : filters.maxEv;
+    }
+    if (filters.mode !== undefined) {
+      updates.positive_ev_mode = filters.mode;
+    }
+    if (filters.minBooksPerSide !== undefined) {
+      updates.positive_ev_min_books_per_side = filters.minBooksPerSide;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      if (DEV_LOGGING) {
+        console.log('[PositiveEV] Updating filters', updates);
+      }
+      await updatePreferences(updates, true);
+    }
+  }, [user, updatePreferences]);
+  
   const value: PreferencesContextType = {
     preferences,
     isLoading,
@@ -933,6 +1039,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     getLadderFilters,
     updateBestOddsFilters,
     getBestOddsFilters,
+    updatePositiveEvFilters,
+    getPositiveEvFilters,
   };
 
   return (
@@ -1012,6 +1120,53 @@ export function useBestOddsPreferences() {
   return {
     filters,
     updateFilters: updateBestOddsFilters,
+    isLoading,
+  };
+}
+
+export function usePositiveEvPreferences() {
+  const { getPositiveEvFilters, updatePositiveEvFilters, isLoading, preferences } = usePreferences();
+  
+  // Extract the specific values we care about to ensure proper memoization
+  const dbSharpPreset = preferences?.positive_ev_sharp_preset;
+  const dbSelectedSports = preferences?.positive_ev_selected_sports;
+  const dbDevigMethods = preferences?.positive_ev_devig_methods;
+  const dbMinEv = preferences?.positive_ev_min_ev;
+  const dbMaxEv = preferences?.positive_ev_max_ev;
+  const dbMode = preferences?.positive_ev_mode;
+  const dbSelectedBooks = preferences?.positive_ev_selected_books;
+  const dbSelectedMarkets = preferences?.positive_ev_selected_markets;
+  const dbMinBooksPerSide = preferences?.positive_ev_min_books_per_side;
+  
+  // Compute filters from preferences (or defaults if not loaded)
+  const filters = useMemo(() => {
+    const f = {
+      selectedBooks: dbSelectedBooks ?? [],
+      selectedSports: dbSelectedSports ?? ['nba', 'nfl'],
+      selectedMarkets: dbSelectedMarkets ?? [],
+      sharpPreset: dbSharpPreset ?? 'pinnacle',
+      devigMethods: dbDevigMethods ?? ['power', 'multiplicative'],
+      minEv: typeof dbMinEv === 'string' ? Number(dbMinEv) : (dbMinEv ?? 2),
+      maxEv: dbMaxEv ?? undefined,
+      mode: (dbMode as 'pregame' | 'live' | 'all') ?? 'pregame',
+      minBooksPerSide: typeof dbMinBooksPerSide === 'string' ? Number(dbMinBooksPerSide) : (dbMinBooksPerSide ?? 2),
+    };
+    
+    console.log('[usePositiveEvPreferences] Computed:', {
+      isLoading,
+      hasPrefs: !!preferences,
+      rawSports: dbSelectedSports,
+      rawPreset: dbSharpPreset,
+      computedSports: f.selectedSports,
+      computedPreset: f.sharpPreset
+    });
+    
+    return f;
+  }, [isLoading, preferences, dbSharpPreset, dbSelectedSports, dbDevigMethods, dbMinEv, dbMaxEv, dbMode, dbSelectedBooks, dbSelectedMarkets, dbMinBooksPerSide]);
+  
+  return {
+    filters,
+    updateFilters: updatePositiveEvFilters,
     isLoading,
   };
 }

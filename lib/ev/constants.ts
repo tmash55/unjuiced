@@ -83,12 +83,14 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
   pinnacle: {
     id: "pinnacle",
     name: "Pinnacle",
+    label: "Pinnacle",
     description: "Uses Pinnacle as the sole sharp reference. Most common and reliable baseline.",
     books: [{ bookId: "pinnacle", weight: 1.0 }],
   },
   pinnacle_circa: {
     id: "pinnacle_circa",
     name: "Pinnacle + Circa",
+    label: "Pinnacle + Circa",
     description: "Blends Pinnacle and Circa odds (50/50). Good for US markets.",
     books: [
       { bookId: "pinnacle", weight: 0.5 },
@@ -98,15 +100,24 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
   hardrock_thescore: {
     id: "hardrock_thescore",
     name: "Hard Rock + theScore",
+    label: "Hard Rock + theScore",
     description: "Alternative sharp blend using Hard Rock and theScore.",
     books: [
       { bookId: "hardrock", weight: 0.5 },
       { bookId: "thescore", weight: 0.5 },
     ],
   },
+  market_average: {
+    id: "market_average",
+    name: "Market Average",
+    label: "Market Average",
+    description: "Averages implied probabilities across ALL books for each market. Uses market consensus as true probability.",
+    books: [], // Market average uses all available books dynamically
+  },
   custom: {
     id: "custom",
     name: "Custom",
+    label: "Custom",
     description: "User-defined blend of sharp books with custom weights.",
     books: [], // Filled in by user
   },
@@ -122,6 +133,7 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
 export const DEVIG_METHODS: Record<DevigMethod, {
   id: DevigMethod;
   name: string;
+  label: string;  // Alias for name, for UI consistency
   description: string;
   tier: "primary" | "secondary";
   complexity: "simple" | "moderate" | "complex";
@@ -129,6 +141,7 @@ export const DEVIG_METHODS: Record<DevigMethod, {
   power: {
     id: "power",
     name: "Power",
+    label: "Power",
     description: "Finds exponent k where p_over^k + p_under^k = 1. Handles favorite/longshot bias well.",
     tier: "primary",
     complexity: "moderate",
@@ -136,6 +149,7 @@ export const DEVIG_METHODS: Record<DevigMethod, {
   multiplicative: {
     id: "multiplicative",
     name: "Multiplicative",
+    label: "Multiplicative",
     description: "Rescales implied probabilities proportionally to sum to 1. Simple and stable baseline.",
     tier: "primary",
     complexity: "simple",
@@ -143,6 +157,7 @@ export const DEVIG_METHODS: Record<DevigMethod, {
   additive: {
     id: "additive",
     name: "Additive",
+    label: "Additive",
     description: "Subtracts equal margin from each side. Works best for balanced markets.",
     tier: "secondary",
     complexity: "simple",
@@ -150,6 +165,7 @@ export const DEVIG_METHODS: Record<DevigMethod, {
   probit: {
     id: "probit",
     name: "Probit",
+    label: "Probit",
     description: "Uses normal quantile transformation for statistically smoother correction.",
     tier: "secondary",
     complexity: "complex",

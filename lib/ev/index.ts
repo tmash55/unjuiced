@@ -39,6 +39,7 @@ export type {
   PositiveEVRequest,
   PositiveEVResponse,
   PositiveEVModel,
+  EVMode,
 } from "./types";
 
 // Constants
