@@ -547,9 +547,9 @@ function SlipCard({
       "hover:border-neutral-300 dark:hover:border-neutral-600"
     )}>
       {/* Card Header */}
-      <button
+      <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-3 p-3"
+        className="w-full flex items-center gap-3 p-3 cursor-pointer"
       >
         <div className={cn("w-3 h-3 rounded-full shrink-0", colorClass)} />
         <div className="flex-1 min-w-0 text-left">
@@ -591,7 +591,7 @@ function SlipCard({
         )}
         
         {/* Menu Button */}
-        <div className="relative">
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -638,7 +638,7 @@ function SlipCard({
             </>
           )}
         </div>
-      </button>
+      </div>
       
       {/* Expanded Content */}
       <AnimatePresence>
@@ -1044,12 +1044,10 @@ export function FavoritesModal() {
                       {count}
                     </span>
                   )}
-                  {activeTab === "plays" && (
-                    <motion.div
-                      layoutId="activeTabIndicator"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand"
-                    />
-                  )}
+                  <div className={cn(
+                    "absolute bottom-0 left-0 right-0 h-0.5 bg-brand transition-opacity duration-200",
+                    activeTab === "plays" ? "opacity-100" : "opacity-0"
+                  )} />
                 </button>
                 <button
                   onClick={() => setActiveTab("slips")}
@@ -1072,12 +1070,10 @@ export function FavoritesModal() {
                       {betslips.length}
                     </span>
                   )}
-                  {activeTab === "slips" && (
-                    <motion.div
-                      layoutId="activeTabIndicator"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand"
-                    />
-                  )}
+                  <div className={cn(
+                    "absolute bottom-0 left-0 right-0 h-0.5 bg-brand transition-opacity duration-200",
+                    activeTab === "slips" ? "opacity-100" : "opacity-0"
+                  )} />
                 </button>
               </div>
               
