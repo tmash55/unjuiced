@@ -149,6 +149,7 @@ interface PreferencesContextType {
     minEv?: number;
     maxEv?: number;
     mode?: 'pregame' | 'live' | 'all';
+    minBooksPerSide?: number;
   }) => Promise<void>;
   
   getPositiveEvFilters: () => {

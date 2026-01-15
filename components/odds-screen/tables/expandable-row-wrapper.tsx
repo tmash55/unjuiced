@@ -23,7 +23,7 @@ export function ExpandButton({ hide = false, disabled = false }: { hide?: boolea
   const context = useExpandContext();
   
   // Hide if explicitly hidden, disabled (alternates not enabled), or no context
-  if (!context || hide || disabled) return <div className="w-6 h-6 shrink-0" />;
+  if (!context || hide || disabled) return <div className="w-7 h-6 shrink-0" />;
   
   const { isExpanded, handleToggle } = context;
   
@@ -31,21 +31,24 @@ export function ExpandButton({ hide = false, disabled = false }: { hide?: boolea
     <button
       onClick={handleToggle}
       className={cn(
-        "flex items-center justify-center w-6 h-6 rounded-md transition-all shrink-0",
-        "hover:bg-neutral-100 dark:hover:bg-neutral-800",
-        "text-neutral-500 dark:text-neutral-400",
-        isExpanded && "bg-neutral-100 dark:bg-neutral-800"
+        "flex items-center justify-center gap-0.5 px-1.5 h-6 rounded-md transition-all shrink-0",
+        "border border-transparent",
+        !isExpanded && "hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-950/50 dark:hover:border-blue-800",
+        !isExpanded && "text-blue-600 dark:text-blue-400",
+        isExpanded && "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/50 dark:border-blue-700 dark:text-blue-300"
       )}
       aria-label={isExpanded ? "Collapse alternates" : "Expand alternates"}
       aria-expanded={isExpanded}
+      title="View alternate lines"
     >
       <motion.div
         initial={false}
         animate={{ rotate: isExpanded ? 90 : 0 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
       >
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className="w-3.5 h-3.5" />
       </motion.div>
+      <span className="text-[10px] font-semibold uppercase tracking-wide">Alt</span>
     </button>
   );
 }

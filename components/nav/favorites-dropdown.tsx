@@ -127,7 +127,7 @@ function FavoriteItem({
         <span className="text-[11px] font-bold text-white tracking-tight">
           {initials}
         </span>
-      </div>
+        </div>
       
       {/* Player + Bet Info */}
       <div className="flex-1 min-w-0">
@@ -158,13 +158,13 @@ function FavoriteItem({
       <div className="flex items-center gap-1.5 shrink-0">
         {bookLogo && (
           <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center">
-            <Image
-              src={bookLogo}
+          <Image
+            src={bookLogo}
               alt={favorite.best_book_at_save || ""}
               width={18}
               height={18}
               className="w-[18px] h-[18px] object-contain"
-            />
+          />
           </div>
         )}
         {favorite.best_price_at_save && (
@@ -293,19 +293,19 @@ export function FavoritesDropdown() {
         
         {/* Count Badge */}
         <AnimatePresence>
-          {hasItems && (
+        {hasItems && (
             <motion.span
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
               className={cn(
-                "absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center",
+            "absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center",
                 "rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm"
               )}
             >
-              {count > 99 ? "99+" : count}
+            {count > 99 ? "99+" : count}
             </motion.span>
-          )}
+        )}
         </AnimatePresence>
       </button>
       
@@ -343,12 +343,12 @@ export function FavoritesDropdown() {
                   <div>
                     <span className="text-sm font-semibold text-neutral-900 dark:text-white">
                       My Picks
-                    </span>
-                    {hasItems && (
+                  </span>
+                  {hasItems && (
                       <span className="ml-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-500">
                         {count} {count === 1 ? 'selection' : 'selections'}
-                      </span>
-                    )}
+                    </span>
+                  )}
                   </div>
                 </div>
                 {hasItems && (
@@ -378,23 +378,23 @@ export function FavoritesDropdown() {
                     ))}
                   </AnimatePresence>
                 )}
-                
-                {/* Show more indicator */}
-                {count > 8 && (
+                    
+                    {/* Show more indicator */}
+                    {count > 8 && (
                   <div className="px-4 py-3 text-center border-t border-neutral-100 dark:border-white/5">
                     <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
                       +{count - 8} more picks
-                    </span>
-                  </div>
+                        </span>
+                      </div>
                 )}
               </div>
               
               {/* Footer */}
               <div className="border-t border-neutral-100 dark:border-white/5 p-3">
-                <Link
-                  href="/favorites"
-                  onClick={() => setIsOpen(false)}
-                  className={cn(
+                  <Link
+                    href="/favorites"
+                    onClick={() => setIsOpen(false)}
+                    className={cn(
                     "flex items-center justify-center gap-2 w-full py-3 rounded-lg",
                     "text-sm font-semibold transition-all duration-150",
                     "bg-gradient-to-r from-neutral-900 to-neutral-800 text-white",
@@ -402,12 +402,12 @@ export function FavoritesDropdown() {
                     "dark:from-white dark:to-neutral-100 dark:text-neutral-900",
                     "dark:hover:from-neutral-100 dark:hover:to-neutral-200",
                     "shadow-sm"
-                  )}
-                >
-                  View All Picks
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-              </div>
+                    )}
+                  >
+                    View All Picks
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
             </motion.div>
           </>
         )}

@@ -126,11 +126,11 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
             isHighlighted && 'sportsbook-cell--highlighted'
           )}
         >
-          <div className="text-center">
+          <div className="text-center relative">
             {isMoneyline ? (
               // Moneylines: Show only the odds, no line/team label
                 <div className="text-sm font-semibold leading-tight">
-                  <span className="inline-flex items-center gap-0.5">
+                  <span className="inline-flex items-center">
                     <span
                       className={cn(
                         // Animated text color that fades back to normal
@@ -142,19 +142,22 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                     >
                       {formatOdds(odds.price)}
                     </span>
-                    {priceChanged && (
-                      isPositiveChange ? (
-                        <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
-                      )
-                    )}
                     {odds.limit_max && (
                       <span className="ml-0.5 text-[8px] font-normal text-amber-600/70 dark:text-amber-400/60">
                         ↑{odds.limit_max >= 1000 ? `${Math.round(odds.limit_max / 1000)}k` : `$${odds.limit_max}`}
                       </span>
                     )}
                   </span>
+                  {/* Arrow indicator - absolute positioned to avoid layout shift */}
+                  {priceChanged && (
+                    <span className="absolute -right-0.5 top-1/2 -translate-y-1/2">
+                      {isPositiveChange ? (
+                        <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
+                      )}
+                    </span>
+                  )}
                 </div>
             ) : (
               // Other markets: Show line and odds
@@ -164,7 +167,7 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                     'opacity-75',
                     lineChanged && 'text-blue-600 dark:text-blue-400 animate-odds-text-line'
                   )}>{formatLine(odds.line, side)}</span>
-                  <span className="inline-flex items-center gap-0.5 ml-0.5">
+                  <span className="inline-flex items-center ml-0.5">
                     <span
                       className={cn(
                         'font-semibold',
@@ -177,13 +180,6 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                     >
                       {formatOdds(odds.price)}
                     </span>
-                    {priceChanged && (
-                      isPositiveChange ? (
-                        <TrendingUp className="w-2 h-2 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
-                      ) : (
-                        <TrendingDown className="w-2 h-2 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
-                      )
-                    )}
                     {odds.limit_max && (
                       <span className="ml-0.5 text-[7px] font-normal text-amber-600/70 dark:text-amber-400/60">
                         ↑{odds.limit_max >= 1000 ? `${Math.round(odds.limit_max / 1000)}k` : `$${odds.limit_max}`}
@@ -191,6 +187,16 @@ const OddsCellButton = React.memo(function OddsCellButton(props: {
                     )}
                   </span>
                 </div>
+                {/* Arrow indicator - absolute positioned to avoid layout shift */}
+                {priceChanged && (
+                  <span className="absolute -right-0.5 top-1/2 -translate-y-1/2">
+                    {isPositiveChange ? (
+                      <TrendingUp className="w-2.5 h-2.5 text-green-600 dark:text-green-400 animate-odds-arrow-fade" />
+                    ) : (
+                      <TrendingDown className="w-2.5 h-2.5 text-red-600 dark:text-red-400 animate-odds-arrow-fade" />
+                    )}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -747,7 +753,7 @@ const renderAlternateRow = (
           return (
             <td
               key="entity"
-              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-[5] ${rowBg} backdrop-blur supports-[backdrop-filter]:bg-neutral-50/60 dark:supports-[backdrop-filter]:bg-neutral-900/60`}
+              className={`px-4 py-3 text-xs text-blue-700 dark:text-blue-300 border-r ${borderColor} sticky left-0 z-[5] ${rowBg}`}
             >
               Alt Line {row.lineLabel}
             </td>
@@ -3141,7 +3147,7 @@ export function OddsTable({
                           {/* Matchup cell - spans multiple columns for breathing room */}
                           <td
                             colSpan={matchupColSpan}
-                            className="sticky left-0 z-20 bg-gradient-to-r from-neutral-100 to-neutral-100/80 dark:from-neutral-800 dark:to-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 px-3 py-2.5"
+                            className="sticky left-0 z-20 bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-3 py-2.5"
                           >
                             <div className="flex items-center gap-2">
                               {/* Expand/collapse button */}
@@ -3207,7 +3213,7 @@ export function OddsTable({
                         <tr key={`team-${entry.eventId}-${entry.team}-${idx}`} className="team-header-row">
                           {/* Sticky first cell with team info */}
                           <td
-                            className="sticky left-0 z-[15] bg-neutral-50/80 dark:bg-neutral-900/80 border-b border-neutral-100 dark:border-neutral-800/50 px-3 py-1.5"
+                            className="sticky left-0 z-[15] bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800/50 px-3 py-1.5"
                           >
                             <div className="flex items-center gap-2">
                               {showLogos && (
@@ -3240,9 +3246,9 @@ export function OddsTable({
                     const item = row.original
                     const isMoneyline = item.entity.type === 'game' && item.entity.details === 'Moneyline'
                     // Premium zebra striping
-                    const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50/50 dark:bg-neutral-800/20'
-                    // Sticky column needs solid background that matches the zebra pattern
-                    const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50 dark:bg-neutral-800/40'
+                    const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50/50 dark:bg-neutral-800/30'
+                    // Sticky column needs SOLID opaque background (no transparency!) so content doesn't show through on scroll
+                    const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50 dark:bg-neutral-800'
 
                     const visibleCells = row.getVisibleCells()
                     const metaColumns = ['entity', 'line', 'best-line', 'average-line']

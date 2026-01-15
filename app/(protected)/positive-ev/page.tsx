@@ -28,6 +28,7 @@ import {
   Percent,
   Loader2,
   Pin,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -39,6 +40,7 @@ import type { PositiveEVOpportunity, SharpPreset, DevigMethod, EVMode } from "@/
 import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
 import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
+import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
@@ -161,6 +163,28 @@ function getBookName(bookId?: string) {
 }
 
 /**
+ * Calculate boosted EV percentage
+ * Applies profit boost to odds, then recalculates EV
+ */
+function calculateBoostedEV(
+  baseEV: number, 
+  decimalOdds: number, 
+  fairProb: number, 
+  boostPercent: number
+): number {
+  if (boostPercent <= 0) return baseEV;
+  
+  // Apply boost to decimal odds
+  const boostedOdds = applyBoostToDecimalOdds(decimalOdds, boostPercent);
+  
+  // Recalculate EV with boosted odds
+  // EV% = (fairProb × boostedOdds - 1) × 100
+  const boostedEV = (fairProb * boostedOdds - 1) * 100;
+  
+  return boostedEV;
+}
+
+/**
  * Get fallback URL for book
  */
 function getBookFallbackUrl(bookId?: string): string | undefined {
@@ -219,6 +243,7 @@ export default function PositiveEVPage() {
   const [limit, setLimit] = useState(100);
   const [showMethodInfo, setShowMethodInfo] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
   
   // Disable auto-refresh if not pro
   useEffect(() => {
@@ -248,18 +273,23 @@ export default function PositiveEVPage() {
     mode?: EVMode;
     minBooksPerSide?: number;
   }) => {
-    // Save directly to preferences (context handles optimistic updates)
-    updateSavedFilters({
-      selectedBooks: filters.selectedBooks,
-      selectedSports: filters.selectedSports,
-      selectedMarkets: filters.selectedMarkets,
-      sharpPreset: filters.sharpPreset,
-      devigMethods: filters.devigMethods,
-      minEv: filters.minEv,
-      maxEv: filters.maxEv,
-      mode: filters.mode,
-      minBooksPerSide: filters.minBooksPerSide,
-    });
+    // Build update object - only include defined values
+    const updates: Parameters<typeof updateSavedFilters>[0] = {};
+    
+    if (filters.selectedBooks !== undefined) updates.selectedBooks = filters.selectedBooks;
+    if (filters.selectedSports !== undefined) updates.selectedSports = filters.selectedSports;
+    if (filters.selectedMarkets !== undefined) updates.selectedMarkets = filters.selectedMarkets;
+    if (filters.sharpPreset !== undefined) updates.sharpPreset = filters.sharpPreset;
+    if (filters.devigMethods !== undefined) updates.devigMethods = filters.devigMethods;
+    if (filters.minEv !== undefined) updates.minEv = filters.minEv;
+    if (filters.maxEv !== undefined) updates.maxEv = filters.maxEv;
+    if (filters.mode !== undefined) updates.mode = filters.mode;
+    // minBooksPerSide is passed separately if the context supports it
+    if (filters.minBooksPerSide !== undefined) {
+      (updates as any).minBooksPerSide = filters.minBooksPerSide;
+    }
+    
+    updateSavedFilters(updates);
   }, [updateSavedFilters]);
 
   // Favorites hook
@@ -310,6 +340,7 @@ export default function PositiveEVPage() {
     isFetching: standardIsFetching,
     error: standardError,
     refetch: standardRefetch,
+    freshRefetch: standardFreshRefetch,
     dataUpdatedAt: standardDataUpdatedAt,
   } = usePositiveEV({
     filters,
@@ -347,6 +378,8 @@ export default function PositiveEVPage() {
   const isFetching = autoRefresh ? false : standardIsFetching;
   const error = autoRefresh ? (streamError ? new Error(streamError) : null) : standardError;
   const refetch = autoRefresh ? streamRefresh : standardRefetch;
+  // Use freshRefetch for manual refresh button (bypasses server cache)
+  const freshRefetch = autoRefresh ? streamRefresh : standardFreshRefetch;
   const dataUpdatedAt = autoRefresh ? streamLastUpdated : standardDataUpdatedAt;
 
   // Toggle sport selection
@@ -635,14 +668,15 @@ export default function PositiveEVPage() {
         </div>
       </div>
 
-      {/* Pregame / Live Tabs */}
-      <div className="mb-6">
-        <div className="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800/50 rounded-lg w-fit">
+      {/* Premium Filter Bar - Unified Design */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        {/* Mode Tabs - Compact pill style */}
+        <div className="flex items-center gap-0.5 p-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200/50 dark:border-neutral-700/50">
           <button
             onClick={() => updateSavedFilters({ mode: "pregame" })}
             disabled={locked}
             className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all",
+              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
               savedFilters.mode === "pregame"
                 ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
                 : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -654,15 +688,15 @@ export default function PositiveEVPage() {
             onClick={() => updateSavedFilters({ mode: "live" })}
             disabled={locked}
             className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
               savedFilters.mode === "live"
                 ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
                 : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
             )}
           >
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
             </span>
             Live
           </button>
@@ -670,7 +704,7 @@ export default function PositiveEVPage() {
             onClick={() => updateSavedFilters({ mode: "all" })}
             disabled={locked}
             className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all",
+              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
               savedFilters.mode === "all"
                 ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
                 : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -679,6 +713,181 @@ export default function PositiveEVPage() {
             All
           </button>
         </div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
+
+        {/* Search - More compact */}
+        <div className="relative">
+          <InputSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
+          <Input
+            placeholder="Search players, teams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 h-8 w-48 text-sm bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/80 dark:border-neutral-700/80"
+            disabled={locked}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
+
+        {/* Devig Selector - Premium style */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Devig</span>
+          <select
+            value={savedFilters.sharpPreset}
+            onChange={(e) => {
+              const newPreset = e.target.value as SharpPreset;
+              console.log('[Devig] Select changed to:', newPreset);
+              updateSavedFilters({ sharpPreset: newPreset }).then(() => {
+                console.log('[Devig] ✅ Saved preset to preferences');
+              }).catch((err) => {
+                console.warn('[Devig] Failed to save preset:', err);
+              });
+            }}
+            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors"
+            disabled={locked}
+          >
+            {Object.entries(SHARP_PRESETS).map(([key, preset]) => (
+              <option key={key} value={key}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Min EV Selector - Premium style */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Min EV</span>
+          <select
+            value={savedFilters.minEv}
+            onChange={(e) => updateSavedFilters({ minEv: Number(e.target.value) })}
+            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors"
+            disabled={locked}
+          >
+            {MIN_EV_OPTIONS.map((val) => (
+              <option key={val} value={val}>
+                {val}%
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Profit Boost Selector */}
+        <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "text-[11px] font-medium uppercase tracking-wide",
+            boostPercent > 0 ? "text-amber-600 dark:text-amber-400" : "text-neutral-500 dark:text-neutral-400"
+          )}>
+            <Zap className={cn("w-3 h-3 inline mr-0.5", boostPercent > 0 && "text-amber-500")} />
+            Boost
+          </span>
+          <select
+            value={boostPercent}
+            onChange={(e) => setBoostPercent(Number(e.target.value))}
+            className={cn(
+              "h-8 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors",
+              boostPercent > 0
+                ? "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                : "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
+            )}
+            disabled={locked}
+          >
+            <option value={0}>None</option>
+            <option value={10}>+10%</option>
+            <option value={15}>+15%</option>
+            <option value={20}>+20%</option>
+            <option value={25}>+25%</option>
+            <option value={30}>+30%</option>
+            <option value={50}>+50%</option>
+            <option value={100}>+100%</option>
+          </select>
+        </div>
+
+        {/* Filters Button */}
+        <PositiveEVFilters
+          selectedBooks={savedFilters.selectedBooks}
+          selectedSports={savedFilters.selectedSports}
+          selectedMarkets={savedFilters.selectedMarkets}
+          sharpPreset={savedFilters.sharpPreset as SharpPreset}
+          devigMethods={savedFilters.devigMethods as DevigMethod[]}
+          minEv={savedFilters.minEv}
+          maxEv={savedFilters.maxEv}
+          mode={savedFilters.mode}
+          minBooksPerSide={savedFilters.minBooksPerSide}
+          onFiltersChange={handleFiltersChange}
+          availableSports={AVAILABLE_SPORTS}
+          availableMarkets={availableMarkets}
+          locked={locked}
+          isLoggedIn={isLoggedIn}
+          isPro={effectiveIsPro}
+          opportunities={data}
+        />
+
+        {/* Spacer to push right-side items */}
+        <div className="flex-1" />
+
+        {/* Auto-Refresh Toggle - Compact */}
+        <button
+          onClick={() => effectiveIsPro && setAutoRefresh(!autoRefresh)}
+          disabled={!effectiveIsPro}
+          className={cn(
+            "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-all",
+            autoRefresh && streamConnected && "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800",
+            autoRefresh && streamIsReconnecting && "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800",
+            autoRefresh && streamHasFailed && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800",
+            !autoRefresh && "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
+            !effectiveIsPro && "opacity-50 cursor-not-allowed"
+          )}
+          title={effectiveIsPro ? (autoRefresh ? "Disable auto refresh" : "Enable auto refresh") : "Pro required"}
+        >
+          <span className={cn(
+            "inline-flex h-1.5 w-1.5 rounded-full",
+            autoRefresh && streamConnected && "bg-emerald-500",
+            autoRefresh && streamIsReconnecting && "bg-amber-500 animate-pulse",
+            autoRefresh && streamHasFailed && "bg-red-500",
+            !autoRefresh && "bg-neutral-400"
+          )} />
+          <span>
+            {autoRefresh 
+              ? (streamConnected 
+                  ? "Auto" 
+                  : streamIsReconnecting 
+                    ? "..." 
+                    : streamHasFailed
+                      ? "Lost"
+                      : "...")
+              : "Auto"}
+          </span>
+        </button>
+
+        {/* Refresh Button - Compact */}
+        <button
+          onClick={() => freshRefetch()}
+          disabled={isFetching || (autoRefresh && streamLoading)}
+          className={cn(
+            "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
+            "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400",
+            "border border-neutral-200/80 dark:border-neutral-700/80",
+            "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-200",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
+          )}
+          title="Refresh data"
+        >
+          <RefreshCw className={cn("w-3.5 h-3.5", (isFetching || (autoRefresh && streamLoading)) && "animate-spin")} />
+        </button>
+
+        {/* Reconnect Button (when connection failed) */}
+        {autoRefresh && streamHasFailed && (
+          <button
+            onClick={streamReconnect}
+            className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-200/50 dark:hover:bg-red-900/50 transition-all"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry
+          </button>
+        )}
       </div>
 
       {/* Method Info Panel */}
@@ -710,183 +919,40 @@ export default function PositiveEVPage() {
         )}
       </AnimatePresence>
 
-      {/* Filters */}
-      <div className="mb-6 relative z-10">
-        <FiltersBar>
-          <FiltersBarSection align="left">
-            {/* Search */}
-            <div className="relative">
-              <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-neutral-500" />
-              <Input
-                placeholder="Search players, teams..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-64"
-                disabled={locked}
-              />
-            </div>
-          </FiltersBarSection>
-
-          <FiltersBarSection align="right">
-            {/* Devig Reference Selector - Using native select for reliability */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-500 dark:text-neutral-400">Devig:</span>
-              <select
-                value={savedFilters.sharpPreset}
-                onChange={(e) => {
-                  const newPreset = e.target.value as SharpPreset;
-                  console.log('[Devig] Select changed to:', newPreset);
-                  // Save to preferences
-                  updateSavedFilters({ sharpPreset: newPreset }).then(() => {
-                    console.log('[Devig] ✅ Saved preset to preferences');
-                  }).catch((err) => {
-                    console.warn('[Devig] Failed to save preset:', err);
-                  });
-                }}
-                className="px-3 py-2 rounded-lg text-sm font-medium bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 cursor-pointer"
-                disabled={locked}
-              >
-                {Object.entries(SHARP_PRESETS).map(([key, preset]) => (
-                  <option key={key} value={key}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Min EV Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-500 dark:text-neutral-400">Min EV:</span>
-              <select
-                value={savedFilters.minEv}
-                onChange={(e) => updateSavedFilters({ minEv: Number(e.target.value) })}
-                className="px-2 py-1.5 rounded-lg text-sm font-medium bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200"
-                disabled={locked}
-              >
-                {MIN_EV_OPTIONS.map((val) => (
-                  <option key={val} value={val}>
-                    {val}%
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Filters Button */}
-            <PositiveEVFilters
-              selectedBooks={savedFilters.selectedBooks}
-              selectedSports={savedFilters.selectedSports}
-              selectedMarkets={savedFilters.selectedMarkets}
-              sharpPreset={savedFilters.sharpPreset as SharpPreset}
-              devigMethods={savedFilters.devigMethods as DevigMethod[]}
-              minEv={savedFilters.minEv}
-              maxEv={savedFilters.maxEv}
-              mode={savedFilters.mode}
-              minBooksPerSide={savedFilters.minBooksPerSide}
-              onFiltersChange={handleFiltersChange}
-              availableSports={AVAILABLE_SPORTS}
-              availableMarkets={availableMarkets}
-              locked={locked}
-              isLoggedIn={isLoggedIn}
-              isPro={effectiveIsPro}
-              opportunities={data}
-            />
-
-            {/* Auto-Refresh Toggle */}
-            <button
-              onClick={() => effectiveIsPro && setAutoRefresh(!autoRefresh)}
-              disabled={!effectiveIsPro}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors",
-                autoRefresh && streamConnected && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300",
-                autoRefresh && streamIsReconnecting && "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300",
-                autoRefresh && streamHasFailed && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300",
-                !autoRefresh && "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400",
-                !effectiveIsPro && "opacity-50 cursor-not-allowed"
-              )}
-              title={effectiveIsPro ? (autoRefresh ? "Disable auto refresh" : "Enable auto refresh") : "Pro required"}
-            >
-              <span className={cn(
-                "inline-flex h-2 w-2 rounded-full",
-                autoRefresh && streamConnected && "bg-green-500",
-                autoRefresh && streamIsReconnecting && "bg-amber-500 animate-pulse",
-                autoRefresh && streamHasFailed && "bg-red-500",
-                !autoRefresh && "bg-neutral-400"
-              )} />
-              <span>
-                {autoRefresh 
-                  ? (streamConnected 
-                      ? "Live" 
-                      : streamIsReconnecting 
-                        ? "Reconnecting..." 
-                        : streamHasFailed
-                          ? "Connection Lost"
-                          : "Connecting...")
-                  : "Auto Refresh"}
-              </span>
-            </button>
-
-            {/* Manual Refresh Button */}
-            <button
-              onClick={() => autoRefresh ? streamRefresh() : refetch()}
-              disabled={isFetching || (autoRefresh && streamLoading)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400",
-                "hover:bg-neutral-200 dark:hover:bg-neutral-700",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}
-            >
-              <RefreshCw className={cn("w-4 h-4", (isFetching || (autoRefresh && streamLoading)) && "animate-spin")} />
-              <span>Refresh</span>
-            </button>
-
-            {/* Reconnect Button (when connection failed) */}
-            {autoRefresh && streamHasFailed && (
-              <button
-                onClick={streamReconnect}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Reconnect</span>
-              </button>
-            )}
-          </FiltersBarSection>
-        </FiltersBar>
-      </div>
 
 
-      {/* Active Filters Pills */}
+      {/* Active Filters Pills - Compact inline style */}
       {activeFilterCount > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">Active filters:</span>
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide mr-1">Filters:</span>
           
           {savedFilters.maxEv && (
             <button
               onClick={() => updateSavedFilters({ maxEv: undefined })}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+              className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
             >
-              Max EV: {savedFilters.maxEv}%
-              <X className="w-3 h-3" />
+              Max {savedFilters.maxEv}%
+              <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
             </button>
           )}
           
           {savedFilters.selectedBooks.length > 0 && (
             <button
               onClick={() => updateSavedFilters({ selectedBooks: [] })}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
             >
-              {savedFilters.selectedBooks.length} Sportsbook{savedFilters.selectedBooks.length > 1 ? "s" : ""}
-              <X className="w-3 h-3" />
+              {savedFilters.selectedBooks.length} Book{savedFilters.selectedBooks.length > 1 ? "s" : ""}
+              <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
             </button>
           )}
           
           {savedFilters.selectedMarkets.length > 0 && (
             <button
               onClick={() => updateSavedFilters({ selectedMarkets: [] })}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+              className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-800/50 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
             >
               {savedFilters.selectedMarkets.length} Market{savedFilters.selectedMarkets.length > 1 ? "s" : ""}
-              <X className="w-3 h-3" />
+              <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
             </button>
           )}
           
@@ -899,13 +965,25 @@ export default function PositiveEVPage() {
             return methodsChanged ? (
               <button
                 onClick={() => updateSavedFilters({ devigMethods: ['power', 'multiplicative'] })}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
               >
-                {currentMethods.length} De-vig method{currentMethods.length > 1 ? "s" : ""}: {currentMethods.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(", ")}
-                <X className="w-3 h-3" />
+                {currentMethods.map(m => m.charAt(0).toUpperCase()).join("+")} Devig
+                <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
               </button>
             ) : null;
           })()}
+
+          {/* Boost pill */}
+          {boostPercent > 0 && (
+            <button
+              onClick={() => setBoostPercent(0)}
+              className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-300/50 dark:border-amber-700/50 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+            >
+              <Zap className="w-3 h-3" />
+              +{boostPercent}% Boost
+              <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
+            </button>
+          )}
           
           <button
             onClick={() => {
@@ -916,9 +994,9 @@ export default function PositiveEVPage() {
                 devigMethods: ['power', 'multiplicative'],
               });
             }}
-            className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 underline"
+            className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ml-1"
           >
-            Clear all
+            Clear
           </button>
         </div>
       )}
@@ -1106,7 +1184,16 @@ export default function PositiveEVPage() {
 
             {/* Data Rows */}
             {!isLoading && filteredOpportunities.map((opp, index) => {
-              const evFormat = formatEVPercent(opp.evCalculations.evDisplay);
+              // Calculate boosted EV if boost is active
+              const baseEV = opp.evCalculations.evDisplay;
+              const decimalOdds = opp.book.priceDecimal || 
+                (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
+              const fairProbability = opp.evCalculations.power?.fairProb || opp.evCalculations.multiplicative?.fairProb || 0;
+              const displayEV = boostPercent > 0 
+                ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent) 
+                : baseEV;
+              
+              const evFormat = formatEVPercent(displayEV);
               const book = getSportsbookById(opp.book.bookId);
               const isExpanded = expandedRows.has(opp.id);
               const showLogos = hasTeamLogos(opp.sport);
@@ -1132,15 +1219,35 @@ export default function PositiveEVPage() {
               const fairProb = opp.evCalculations.power?.fairProb || opp.evCalculations.multiplicative?.fairProb || 0;
               const fairOdds = fairProbToAmerican(fairProb);
               
-              // Get all method EV values for tooltip
+              // Get all method EV values for tooltip (apply boost if active)
               const methodEVs = {
-                power: opp.evCalculations.power?.evPercent,
-                multiplicative: opp.evCalculations.multiplicative?.evPercent,
-                additive: opp.evCalculations.additive?.evPercent,
-                probit: opp.evCalculations.probit?.evPercent,
+                power: opp.evCalculations.power?.evPercent !== undefined 
+                  ? (boostPercent > 0 
+                      ? calculateBoostedEV(opp.evCalculations.power.evPercent, decimalOdds, opp.evCalculations.power.fairProb || 0, boostPercent)
+                      : opp.evCalculations.power.evPercent)
+                  : undefined,
+                multiplicative: opp.evCalculations.multiplicative?.evPercent !== undefined 
+                  ? (boostPercent > 0 
+                      ? calculateBoostedEV(opp.evCalculations.multiplicative.evPercent, decimalOdds, opp.evCalculations.multiplicative.fairProb || 0, boostPercent)
+                      : opp.evCalculations.multiplicative.evPercent)
+                  : undefined,
+                additive: opp.evCalculations.additive?.evPercent !== undefined 
+                  ? (boostPercent > 0 
+                      ? calculateBoostedEV(opp.evCalculations.additive.evPercent, decimalOdds, opp.evCalculations.additive.fairProb || 0, boostPercent)
+                      : opp.evCalculations.additive.evPercent)
+                  : undefined,
+                probit: opp.evCalculations.probit?.evPercent !== undefined 
+                  ? (boostPercent > 0 
+                      ? calculateBoostedEV(opp.evCalculations.probit.evPercent, decimalOdds, opp.evCalculations.probit.fairProb || 0, boostPercent)
+                      : opp.evCalculations.probit.evPercent)
+                  : undefined,
               };
-              const evWorst = opp.evCalculations.evWorst;
-              const evBest = opp.evCalculations.evBest;
+              const evWorst = boostPercent > 0 
+                ? calculateBoostedEV(opp.evCalculations.evWorst, decimalOdds, fairProbability, boostPercent)
+                : opp.evCalculations.evWorst;
+              const evBest = boostPercent > 0 
+                ? calculateBoostedEV(opp.evCalculations.evBest, decimalOdds, fairProbability, boostPercent)
+                : opp.evCalculations.evBest;
               
               // Determine which method gave the worst-case (displayed) EV
               const worstMethod = Object.entries(methodEVs)
@@ -1264,7 +1371,12 @@ export default function PositiveEVPage() {
                         <Tooltip 
                           content={
                             <div className="text-xs space-y-2 min-w-[140px]">
-                              <div className="font-semibold border-b border-neutral-600 pb-1 mb-1">EV by Method</div>
+                              <div className="font-semibold border-b border-neutral-600 pb-1 mb-1">
+                                EV by Method
+                                {boostPercent > 0 && (
+                                  <span className="ml-2 text-amber-400 font-normal">+{boostPercent}% boost</span>
+                                )}
+                              </div>
                               {methodEVs.power !== undefined && (
                                 <div className={cn("flex justify-between", worstMethod === "power" && "font-bold text-emerald-400")}>
                                   <span>Power:</span>
@@ -1295,16 +1407,22 @@ export default function PositiveEVPage() {
                               <div className="text-[10px] text-neutral-500">
                                 Showing worst-case ({worstMethod})
                               </div>
+                              {boostPercent > 0 && (
+                                <div className="text-[10px] text-amber-400 border-t border-neutral-600 pt-1 mt-1">
+                                  ⚡ Base EV: +{opp.evCalculations.evDisplay.toFixed(2)}%
+                                </div>
+                              )}
                             </div>
                           }
                         >
                           <div className={cn(
                             "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold tabular-nums cursor-help",
                             "shadow-sm border",
-                            evFormat.bgClass,
-                            evFormat.color,
-                            "border-emerald-200/50 dark:border-emerald-800/50"
+                            boostPercent > 0 
+                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-700/50 ring-1 ring-amber-400/30"
+                              : cn(evFormat.bgClass, evFormat.color, "border-emerald-200/50 dark:border-emerald-800/50")
                           )}>
+                            {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
                             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
                               <path d="M6 0L12 10H0L6 0Z" />
                             </svg>
@@ -1460,7 +1578,7 @@ export default function PositiveEVPage() {
                           {formatOdds(opp.side === "over" || opp.side === "yes" ? opp.sharpReference.overOdds : opp.sharpReference.underOdds)}
                         </span>
                         <span className="text-[9px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                          {opp.sharpReference.source?.split(" ")[0] || sharpPreset}
+                          {opp.sharpReference.source?.split(" ")[0] || savedFilters.sharpPreset}
                         </span>
                       </div>
                     </td>
@@ -1477,18 +1595,19 @@ export default function PositiveEVPage() {
                       <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                         {(() => {
                           // Get EV% and decimal odds for Kelly calculation
-                          const evCalc = opp.evCalculations;
-                          const evPercent = evCalc.evDisplay || evCalc.evWorst || 0;
-                          const decimalOdds = opp.book.priceDecimal || 
-                            (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
+                          // Use boosted values when boost is active
+                          const effectiveDecimalOdds = boostPercent > 0 
+                            ? applyBoostToDecimalOdds(decimalOdds, boostPercent)
+                            : decimalOdds;
+                          const evPercent = displayEV; // Already boosted if boost is active
                           
-                          if (evPercent <= 0 || decimalOdds <= 1) {
+                          if (evPercent <= 0 || effectiveDecimalOdds <= 1) {
                             return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
                           }
                           
                           // Kelly ≈ EV / (decimal_odds - 1)
                           // EV = p*b - 1, Kelly = EV / (b-1)
-                          const fullKellyPct = (evPercent / 100) / (decimalOdds - 1) * 100;
+                          const fullKellyPct = (evPercent / 100) / (effectiveDecimalOdds - 1) * 100;
                           
                           if (fullKellyPct <= 0 || !isFinite(fullKellyPct)) {
                             return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
@@ -1507,9 +1626,19 @@ export default function PositiveEVPage() {
                             stake < 100 ? `$${Math.round(stake / 5) * 5}` :
                             `$${Math.round(stake / 10) * 10}`;
                           
+                          const tooltipText = boostPercent > 0
+                            ? `Full Kelly: ${fullKellyPct.toFixed(1)}% • ${kellyPercent}% Kelly: ${display} • +${boostPercent}% boosted`
+                            : `Full Kelly: ${fullKellyPct.toFixed(1)}% • ${kellyPercent}% Kelly: ${display}`;
+                          
                           return (
-                            <Tooltip content={`Full Kelly: ${fullKellyPct.toFixed(1)}% • ${kellyPercent}% Kelly: ${display}`}>
-                              <span className="text-sm font-semibold text-amber-600 dark:text-amber-400 tabular-nums cursor-help">
+                            <Tooltip content={tooltipText}>
+                              <span className={cn(
+                                "text-sm font-semibold tabular-nums cursor-help",
+                                boostPercent > 0 
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-amber-600 dark:text-amber-400"
+                              )}>
+                                {boostPercent > 0 && <Zap className="w-3 h-3 inline mr-0.5 -mt-0.5" />}
                                 {display}
                               </span>
                             </Tooltip>

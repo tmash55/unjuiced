@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  Heart,
-  Trash2,
-  Loader2,
+import { 
+  Heart, 
+  Trash2, 
+  Loader2, 
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -201,17 +201,17 @@ function PlayCard({
       {/* Main Row */}
       <div className="flex items-center gap-4 p-4">
         {/* Checkbox */}
-        <button
+      <button
           onClick={onToggle}
-          className={cn(
+        className={cn(
             "shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-            isSelected
-              ? "bg-brand border-brand text-white"
-              : "border-neutral-300 dark:border-neutral-600 hover:border-brand"
-          )}
-        >
+          isSelected
+            ? "bg-brand border-brand text-white"
+            : "border-neutral-300 dark:border-neutral-600 hover:border-brand"
+        )}
+      >
           {isSelected && <Check className="w-4 h-4" />}
-        </button>
+      </button>
 
         {/* Sport Icon */}
         <div className={cn(
@@ -231,34 +231,34 @@ function PlayCard({
         </div>
 
         {/* Player + Bet Info */}
-        <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
               {lastName}
-            </span>
+          </span>
             <span className="text-xs font-medium text-neutral-400 dark:text-neutral-500 uppercase">
               {favorite.player_team || ""}
             </span>
-          </div>
+        </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-sm text-neutral-600 dark:text-neutral-400">
               {marketLabel}
-            </span>
+          </span>
             {hasLine && (
               <span className={cn(
                 "text-sm font-semibold",
                 side === "o" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
               )}>
                 {side}{favorite.line}
-              </span>
-            )}
-          </div>
+            </span>
+          )}
         </div>
+      </div>
 
         {/* Expand Button */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={cn(
+                className={cn(
             "shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-xs",
             "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700",
             "text-neutral-600 dark:text-neutral-400"
@@ -289,7 +289,7 @@ function PlayCard({
               displayPrice && displayPrice >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
             )}>
               {formatOdds(displayPrice)}
-            </span>
+              </span>
             <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
           </a>
         ) : (
@@ -339,28 +339,28 @@ function PlayCard({
               <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-3">
                 <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
                   All Sportsbook Odds
-                </div>
+    </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {sortedBooks.map(([bookId, data], index) => {
                     const logo = getBookLogo(bookId);
                     const link = data.u;
                     const isBest = index === 0;
                     
-                    return (
+  return (
                       <a
                         key={bookId}
                         href={link || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={cn(
+        className={cn(
                           "flex items-center gap-2 px-2.5 py-2 rounded-lg transition-all",
                           "border",
                           isBest
                             ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30"
                             : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300",
                           !link && "cursor-default"
-                        )}
-                      >
+        )}
+      >
                         {logo && (
                           <Image src={logo} alt={bookId} width={16} height={16} className="w-4 h-4 object-contain rounded" />
                         )}
@@ -379,7 +379,7 @@ function PlayCard({
                       </a>
                     );
                   })}
-                </div>
+    </div>
               </div>
             </div>
           </motion.div>
@@ -461,7 +461,7 @@ function ParlayBuilder({
   const displayBook = selectedBook || bestBook?.book;
 
   if (selectedFavorites.length < 2) {
-    return (
+  return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6">
         <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
           <Calculator className="w-7 h-7 text-neutral-400" />
@@ -489,7 +489,7 @@ function ParlayBuilder({
           </div>
           <span className="text-xs text-neutral-500 dark:text-neutral-400">
             {selectedFavorites.length} legs
-          </span>
+              </span>
         </div>
       </div>
 
@@ -535,8 +535,8 @@ function ParlayBuilder({
               </button>
             );
           })}
+          </div>
         </div>
-      </div>
 
       {/* Live Odds Display */}
       <div className="flex-1 p-4">
@@ -633,7 +633,7 @@ function ParlayBuilder({
           <button
             onClick={handleCopy}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-          >
+                  >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copied ? "Copied!" : "Copy"}
           </button>
@@ -726,8 +726,8 @@ function BetslipCard({
             </span>
             <span className="text-xs text-neutral-400 dark:text-neutral-500">
               {items.length} {items.length === 1 ? "leg" : "legs"}
-            </span>
-          </div>
+                    </span>
+                  </div>
           {parlayOdds && (
             <div className="flex items-center gap-1.5 mt-0.5">
               {(() => {
@@ -739,8 +739,8 @@ function BetslipCard({
               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                 {formatOdds(parlayOdds.odds)}
               </span>
-            </div>
-          )}
+                  </div>
+                )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -755,7 +755,7 @@ function BetslipCard({
           </button>
           {isExpanded ? <ChevronUp className="w-4 h-4 text-neutral-400" /> : <ChevronDown className="w-4 h-4 text-neutral-400" />}
         </div>
-      </div>
+              </div>
 
       {/* Expanded Content */}
       <AnimatePresence>
@@ -798,8 +798,8 @@ function BetslipCard({
                         </span>
                         <span className="text-xs text-neutral-500">
                           {formatMarketLabelShort(fav.market)} {side}{fav.line}
-                        </span>
-                      </div>
+                  </span>
+                </div>
                       <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                         {formatOdds(fav.best_price_at_save)}
                       </span>
@@ -896,11 +896,11 @@ function CreateSlipModal({
                 </label>
                 <div className="flex gap-2">
                   {BETSLIP_COLORS.map((c) => (
-                    <button
+              <button
                       key={c.id}
                       type="button"
                       onClick={() => setColor(c.id)}
-                      className={cn(
+                className={cn(
                         "w-8 h-8 rounded-full transition-all",
                         c.class,
                         color === c.id && "ring-2 ring-offset-2 ring-neutral-900 dark:ring-white dark:ring-offset-neutral-900"
@@ -927,10 +927,10 @@ function CreateSlipModal({
                 "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all",
                 "bg-brand text-white hover:bg-brand/90",
                 (!name.trim() || isCreating) && "opacity-50 cursor-not-allowed"
-              )}
-            >
+                )}
+              >
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Create Slip"}
-            </button>
+              </button>
           </div>
         </form>
       </motion.div>
@@ -1004,13 +1004,13 @@ function AddToSlipDropdown({
                       <span className="text-xs text-neutral-400">{slip.items?.length || 0}</span>
                     </button>
                   ))}
-                </div>
-              )}
+            </div>
+          )}
             </motion.div>
           </>
         )}
       </AnimatePresence>
-    </div>
+        </div>
   );
 }
 
@@ -1096,7 +1096,7 @@ function MobileParlaySheet({
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-brand/10">
             <Zap className="w-4 h-4 text-brand" />
-          </div>
+      </div>
           <div className="text-left">
             <div className="text-sm font-semibold text-neutral-900 dark:text-white">
               {selectedFavorites.length} Leg Parlay
@@ -1218,14 +1218,14 @@ function EmptyPlaysState() {
       <p className="text-neutral-500 dark:text-neutral-400 text-center max-w-sm mb-6">
         Save plays from the Edge Finder, Odds Screen, or Cheat Sheets to start building parlays
       </p>
-      <Link
+          <Link
         href="/edge-finder"
         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand/90 transition-colors"
-      >
+          >
         Find Plays
         <ChevronRight className="w-4 h-4" />
-      </Link>
-    </div>
+          </Link>
+        </div>
   );
 }
 
@@ -1423,20 +1423,20 @@ export default function FavoritesPage() {
         ) : activeTab === "plays" ? (
           favorites.length === 0 ? (
             <EmptyPlaysState />
-          ) : (
+        ) : (
             <div className="flex gap-6">
               {/* Left: Plays List */}
               <div className="flex-1 min-w-0">
-                {/* Actions Bar */}
+              {/* Actions Bar */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleSelectAll}
+                <button
+                  onClick={handleSelectAll}
                       className="text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-brand transition-colors"
-                    >
-                      {allSelected ? "Deselect All" : "Select All"}
-                    </button>
-                    {selectedIds.size > 0 && (
+                >
+                  {allSelected ? "Deselect All" : "Select All"}
+                </button>
+                {selectedIds.size > 0 && (
                       <span className="text-xs text-neutral-400">{selectedIds.size} selected</span>
                     )}
                   </div>
@@ -1447,41 +1447,41 @@ export default function FavoritesPage() {
                       onCreateNew={() => setShowCreateModal(true)}
                       selectedCount={selectedIds.size}
                     />
-                  )}
-                </div>
+                )}
+              </div>
 
                 {/* Plays */}
-                <div className="space-y-3">
+              <div className="space-y-3">
                   <AnimatePresence mode="popLayout">
-                    {favorites.map((favorite) => (
+                {favorites.map((favorite) => (
                       <PlayCard
-                        key={favorite.id}
-                        favorite={favorite}
+                    key={favorite.id}
+                    favorite={favorite}
                         isSelected={selectedIds.has(favorite.id)}
                         onToggle={() => handleToggle(favorite.id)}
-                        onRemove={() => handleRemove(favorite.id)}
-                        isRemoving={removingId === favorite.id}
+                    onRemove={() => handleRemove(favorite.id)}
+                    isRemoving={removingId === favorite.id}
                         selectedBook={selectedBook}
-                      />
-                    ))}
+                  />
+                ))}
                   </AnimatePresence>
-                </div>
               </div>
+            </div>
 
               {/* Right: Parlay Builder (Desktop) */}
               <div className="hidden lg:block w-80 shrink-0">
                 <div className="sticky top-28 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
                   <ParlayBuilder
-                    selectedFavorites={selectedFavorites}
+                selectedFavorites={selectedFavorites}
                     allBooks={uniqueBooks}
                     selectedBook={selectedBook}
                     onBookChange={setSelectedBook}
                     onClearSelection={handleClearSelection}
                     onCreateSlip={() => setShowCreateModal(true)}
                     isCreatingSlip={isCreating}
-                  />
-                </div>
-              </div>
+              />
+            </div>
+          </div>
             </div>
           )
         ) : (

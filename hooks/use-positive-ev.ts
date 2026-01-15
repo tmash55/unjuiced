@@ -86,8 +86,11 @@ export interface UsePositiveEVResult {
   /** Error state */
   error: Error | null;
   
-  /** Refetch function */
+  /** Refetch function (may use server cache) */
   refetch: () => Promise<void>;
+  
+  /** Fresh refetch - bypasses server cache (use for manual refresh or SSE updates) */
+  freshRefetch: () => Promise<PositiveEVResponse>;
   
   /** Current filters */
   filters: PositiveEVFilters;
@@ -180,12 +183,23 @@ function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearch
 
 /**
  * Fetch +EV opportunities from the API
+ * 
+ * @param filters - Query filters
+ * @param isPro - Whether user is Pro
+ * @param fresh - If true, bypasses server cache (use for SSE-triggered refreshes)
  */
 async function fetchPositiveEV(
   filters: PositiveEVFilters,
-  isPro: boolean
+  isPro: boolean,
+  fresh: boolean = false
 ): Promise<PositiveEVResponse> {
   const params = buildQueryParams(filters, isPro);
+  
+  // Add fresh parameter to bypass server cache (for SSE updates)
+  if (fresh) {
+    params.set("fresh", "true");
+  }
+  
   const url = `/api/v2/positive-ev?${params.toString()}`;
   
   const response = await fetch(url, { cache: "no-store" });
@@ -317,10 +331,19 @@ export function usePositiveEV({
     return filterOpportunities(data.opportunities, filters);
   }, [data?.opportunities, filters]);
   
-  // Refetch helper
+  // Standard refetch (may use server cache)
   const refetch = useCallback(async () => {
     await queryRefetch();
   }, [queryRefetch]);
+  
+  // Fresh refetch - bypasses server cache (use for manual refresh or SSE-triggered updates)
+  const freshRefetch = useCallback(async () => {
+    console.log('[usePositiveEV] Fresh refetch (bypassing server cache)');
+    // Fetch fresh data and update the query cache
+    const freshData = await fetchPositiveEV(filters, isPro, true);
+    queryClient.setQueryData(queryKey, freshData);
+    return freshData;
+  }, [filters, isPro, queryClient, queryKey]);
   
   // Filter update helper (for use with a filter context)
   const setFilters = useCallback(
@@ -343,6 +366,7 @@ export function usePositiveEV({
     isFetching,
     error: error as Error | null,
     refetch,
+    freshRefetch,
     filters,
     setFilters,
     sharpPresetConfig,

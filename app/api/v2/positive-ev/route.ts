@@ -42,7 +42,70 @@ const redis = new Redis({
 
 // Configuration - optimized for speed
 const SCAN_COUNT = 2000;      // Larger scan batches
-const MGET_CHUNK_SIZE = 1000; // Larger mget batches
+const MGET_CHUNK_SIZE = 500;  // Reduced to prevent connection issues
+
+// Response-level caching (prevents redundant processing)
+// IMPORTANT: Different TTLs for different modes to balance freshness vs speed
+const RESPONSE_CACHE_TTL = {
+  pregame: 15_000, // 15 seconds - pregame odds don't change as fast
+  live: 0,         // NO CACHE for live - every second matters!
+  all: 5_000,      // 5 seconds - compromise when mixing modes
+};
+const responseCache = new Map<string, { data: unknown; timestamp: number; mode: string }>();
+
+/**
+ * Build cache key from request parameters
+ */
+function buildResponseCacheKey(params: URLSearchParams): string {
+  const keys = ['sports', 'sharpPreset', 'devigMethods', 'minEV', 'maxEV', 'books', 'limit', 'mode', 'minBooksPerSide'];
+  return keys.map(k => `${k}:${params.get(k) || ''}`).join('|');
+}
+
+/**
+ * Get cache TTL based on mode
+ */
+function getCacheTTL(mode: string): number {
+  return RESPONSE_CACHE_TTL[mode as keyof typeof RESPONSE_CACHE_TTL] ?? RESPONSE_CACHE_TTL.pregame;
+}
+
+/**
+ * Check response cache
+ */
+function getFromResponseCache(key: string, mode: string): unknown | null {
+  const ttl = getCacheTTL(mode);
+  
+  // Live mode = NO CACHING (freshness is critical)
+  if (ttl === 0) {
+    return null;
+  }
+  
+  const entry = responseCache.get(key);
+  if (entry && Date.now() - entry.timestamp < ttl) {
+    return entry.data;
+  }
+  responseCache.delete(key);
+  return null;
+}
+
+/**
+ * Store in response cache (only for non-live modes)
+ */
+function setInResponseCache(key: string, data: unknown, mode: string): void {
+  const ttl = getCacheTTL(mode);
+  
+  // Don't cache live mode
+  if (ttl === 0) {
+    return;
+  }
+  
+  responseCache.set(key, { data, timestamp: Date.now(), mode });
+  
+  // Clean up old entries (simple LRU-like behavior)
+  if (responseCache.size > 20) {
+    const oldest = responseCache.keys().next().value;
+    if (oldest) responseCache.delete(oldest);
+  }
+}
 
 // Supported sports
 const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "soccer_epl"]);
@@ -154,6 +217,31 @@ export async function GET(req: NextRequest) {
 
   try {
     const params = new URL(req.url).searchParams;
+    
+    // Parse mode first (needed for cache check)
+    const modeParam = params.get("mode")?.toLowerCase();
+    const mode: EVMode = modeParam === "live" ? "live" : modeParam === "all" ? "all" : "pregame";
+    
+    // Cache bypass: ?fresh=true skips cache (use after SSE updates)
+    const bypassCache = params.get("fresh") === "true";
+    
+    // Check response cache first (fast path) - SKIP for live mode or cache bypass!
+    const cacheKey = buildResponseCacheKey(params);
+    if (!bypassCache) {
+      const cachedResponse = getFromResponseCache(cacheKey, mode);
+      if (cachedResponse) {
+        console.log(`[positive-ev] Cache HIT (${mode}, ${Date.now() - startTime}ms)`);
+        return NextResponse.json(cachedResponse, {
+          headers: {
+            "Cache-Control": mode === "live" ? "no-store" : "private, max-age=15",
+            "X-Cache": "HIT",
+            "X-Mode": mode,
+          },
+        });
+      }
+    } else {
+      console.log(`[positive-ev] Cache BYPASS requested (SSE triggered refresh)`);
+    }
 
     // Parse parameters
     const sportsParam = params.get("sports")?.toLowerCase().split(",").filter(Boolean) || ["nba"];
@@ -175,9 +263,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
     const minBooksPerSide = parseInt(params.get("minBooksPerSide") || "2");
     
-    // Parse mode parameter (pregame, live, or all)
-    const modeParam = params.get("mode")?.toLowerCase();
-    const mode: EVMode = modeParam === "live" ? "live" : modeParam === "all" ? "all" : "pregame";
+    // Note: mode is already parsed above for cache check
 
     // Validate sharp preset
     if (!SHARP_PRESETS[sharpPreset]) {
@@ -239,10 +325,17 @@ export async function GET(req: NextRequest) {
       console.warn(`[positive-ev] ⚠️  Large response (${(responseSize / 1024 / 1024).toFixed(2)} MB)`);
     }
 
+    // Store in response cache for quick subsequent requests (skip for live mode)
+    setInResponseCache(cacheKey, response, mode);
+    const cacheStatus = mode === "live" ? "LIVE (no cache)" : "MISS - stored";
+    console.log(`[positive-ev] Cache ${cacheStatus} (${mode}, total time: ${Date.now() - startTime}ms)`);
+
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "no-store, must-revalidate", // Disable caching due to large response size
+        "Cache-Control": mode === "live" ? "no-store" : "private, max-age=15",
         "Content-Type": "application/json",
+        "X-Cache": mode === "live" ? "DISABLED" : "MISS",
+        "X-Mode": mode,
       },
     });
   } catch (error) {

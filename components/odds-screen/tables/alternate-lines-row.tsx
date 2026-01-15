@@ -169,9 +169,10 @@ export function AlternateLinesRow({
                   key={colId} 
                   className={cn(
                     "px-4 py-2.5 text-left sticky left-0 z-[5] border-r border-neutral-100/50 dark:border-neutral-800/30",
+                    // Solid backgrounds for sticky column (no transparency!)
                     index % 2 === 0 
-                      ? "bg-gradient-to-r from-blue-50/60 to-blue-50/40 dark:from-blue-950/40 dark:to-blue-950/30" 
-                      : "bg-white dark:bg-neutral-900/90"
+                      ? "bg-blue-50 dark:bg-slate-800" 
+                      : "bg-white dark:bg-neutral-900"
                   )}
                 >
                   <div className="flex items-center gap-2.5">
