@@ -81,11 +81,11 @@ export function AlternateLinesMatrix({
 
   if (isLoading) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <div className="flex items-center justify-center h-48">
-          <div className="animate-pulse flex flex-col items-center gap-2">
-            <div className="h-6 w-6 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-            <span className="text-sm text-neutral-500">Loading alternate lines...</span>
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 border-2 border-cyan-200 border-t-cyan-500 rounded-full animate-spin" />
+            <span className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Loading alternate lines...</span>
           </div>
         </div>
       </div>
@@ -94,79 +94,88 @@ export function AlternateLinesMatrix({
 
   if (error) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <p className="text-sm text-red-500">Failed to load alternate lines</p>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+        <p className="text-sm text-red-500 font-medium">Failed to load alternate lines</p>
       </div>
     );
   }
 
   if (lines.length === 0) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">No alternate lines available</p>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">No alternate lines available</p>
       </div>
     );
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm", className)}>
-      {/* Compact Header */}
-      <div className="px-4 py-2 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-0.5 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600" />
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-              Alternate Lines
-            </h3>
-            <span className="text-xs text-neutral-400">•</span>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              {lines.length} lines
-            </span>
-          </div>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-cyan-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-cyan-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-cyan-500 to-teal-600 shadow-sm shadow-cyan-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Alternate Lines
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-400 text-xs font-bold">
+                    {lines.length} lines
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                  Hit rates across different lines
+                </p>
+              </div>
+            </div>
           
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
-          >
-            <ChevronDown className={cn(
-              "h-3.5 w-3.5 text-neutral-500 transition-transform",
-              !collapsed && "rotate-180"
-            )} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
+            >
+              <ChevronDown className={cn(
+                "h-4 w-4 text-neutral-500 transition-transform",
+                !collapsed && "rotate-180"
+              )} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Table - Compact */}
+      {/* Table - Premium */}
       {!collapsed && (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px]">
           <table className="min-w-full">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-neutral-100/70 dark:bg-neutral-800/70 border-b border-neutral-200 dark:border-neutral-700">
-                <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+              <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Line
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   L5
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   L10
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   L20
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   SZN
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Odds
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   <Tooltip content="Expected Value calculated using sharp book odds (Pinnacle, Circa)" side="top">
                     <span className="cursor-help">EV</span>
                   </Tooltip>
                 </th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <th className="px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Edge
                 </th>
               </tr>

@@ -420,26 +420,25 @@ export function RosterAndInjuries({
   return (
     <div
       className={cn(
-        "rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden",
+        "rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5",
         className
       )}
     >
       {/* Header - Premium Design */}
       <div className="relative overflow-hidden">
         {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand/5 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-orange-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-orange-900/10" />
         
         {/* Content */}
         <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-1 rounded-full bg-gradient-to-b from-brand to-brand/50" />
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-600 shadow-sm shadow-orange-500/30" />
               <div>
                 <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                   Team Rosters & Injuries
                 </h2>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
                   Filter games by player availability
                 </p>
               </div>

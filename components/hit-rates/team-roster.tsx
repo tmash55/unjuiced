@@ -73,14 +73,22 @@ export function TeamRoster({
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-neutral-500" />
-          <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-            Game Rosters & Injuries
-          </h3>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-purple-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-purple-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-purple-500 to-violet-600 shadow-sm shadow-purple-500/30" />
+            <div>
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                Game Rosters & Injuries
+              </h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                Active roster information
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

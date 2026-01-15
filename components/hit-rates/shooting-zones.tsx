@@ -127,17 +127,26 @@ export function ShootingZones({
     };
   }, [zones]);
 
-  // Get zone fill color for SVG - vibrant colors matching alternate lines matrix
+  // Get zone fill color for SVG - Premium vibrant colors with better contrast
   const getZoneFill = (zoneId: string): string => {
     const zone = getZone(zoneId);
-    if (!zone || zone.defRank === null) return "#2d2d2d"; // Default dark
+    if (!zone || zone.defRank === null) return "url(#neutralGradient)"; // Default gradient
     
-    // Favorable (21-30) - Emerald green (matches emerald-500/400)
-    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.7)"; // #34d399
-    // Tough (1-10) - Red (matches red-500/400)
-    if (zone.defRank <= 10) return "rgba(248, 113, 113, 0.7)"; // #f87171
-    // Neutral (11-20) - Amber/Orange (matches amber-500/400)
-    return "rgba(251, 191, 36, 0.65)"; // #fbbf24
+    // Favorable (21-30) - Vibrant teal/emerald
+    if (zone.defRank >= 21) return "url(#favorableGradient)";
+    // Tough (1-10) - Rich coral/rose
+    if (zone.defRank <= 10) return "url(#toughGradient)";
+    // Neutral (11-20) - Golden amber
+    return "url(#neutralGradient)";
+  };
+  
+  // Get zone glow color for effects
+  const getZoneGlow = (zoneId: string): string => {
+    const zone = getZone(zoneId);
+    if (!zone || zone.defRank === null) return "rgba(251, 191, 36, 0.4)";
+    if (zone.defRank >= 21) return "rgba(16, 185, 129, 0.5)";
+    if (zone.defRank <= 10) return "rgba(244, 63, 94, 0.5)";
+    return "rgba(251, 191, 36, 0.4)";
   };
 
   // Zone component for rendering stats (badge only, no background color)
@@ -181,23 +190,33 @@ export function ShootingZones({
       );
     }
     
+    // Premium badge styling based on defense rank
+    const getBadgeStyle = () => {
+      if (zone.defRank === null) return "from-neutral-800/90 to-neutral-900/90 border-neutral-600/50";
+      if (zone.defRank >= 21) return "from-emerald-900/95 to-emerald-950/95 border-emerald-500/40 shadow-emerald-500/20";
+      if (zone.defRank <= 10) return "from-rose-900/95 to-rose-950/95 border-rose-500/40 shadow-rose-500/20";
+      return "from-amber-900/95 to-amber-950/95 border-amber-500/40 shadow-amber-500/20";
+    };
+    
     return (
       <Tooltip content={tooltipContent} side="top">
         <div className={cn(
-          "flex items-center gap-1.5 rounded-lg px-2 py-1 cursor-help transition-all hover:scale-105 bg-black/60 backdrop-blur-sm border border-white/20 shadow-lg",
+          "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 cursor-help transition-all hover:scale-110 backdrop-blur-md border shadow-lg",
+          "bg-gradient-to-br",
+          getBadgeStyle(),
           zoneClassName
         )}>
           {/* Shot percentage */}
-          <span className="text-[11px] font-bold tabular-nums text-white">
+          <span className="text-[12px] font-black tabular-nums text-white drop-shadow-sm">
             {zone.pct.toFixed(0)}%
           </span>
           {/* Divider */}
-          <span className="text-white/30">|</span>
+          <span className="text-white/20 font-light">|</span>
           {/* Defense rank with color */}
           <span className={cn(
-            "text-[10px] font-bold tabular-nums",
-            zone.defRank !== null && zone.defRank >= 21 ? "text-emerald-400" :
-            zone.defRank !== null && zone.defRank <= 10 ? "text-red-400" : "text-amber-400"
+            "text-[11px] font-black tabular-nums drop-shadow-sm",
+            zone.defRank !== null && zone.defRank >= 21 ? "text-emerald-300" :
+            zone.defRank !== null && zone.defRank <= 10 ? "text-rose-300" : "text-amber-300"
           )}>
             {zone.defRank !== null ? getOrdinal(zone.defRank) : "—"}
           </span>
@@ -211,41 +230,46 @@ export function ShootingZones({
   const displayPlayerName = data?.player?.name || effectivePlayerName;
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm h-full", className)}>
-      {/* Header */}
-      <div className="px-4 py-2 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-0.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-500" />
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-              Shooting Zones
-            </h3>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5 h-full", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-orange-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-orange-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-600 shadow-sm shadow-orange-500/30" />
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                Shooting Zones
+              </h3>
             <Tooltip
               content={
-                <div className="max-w-[240px] p-1">
-                  <p className="text-xs font-semibold text-white mb-1">Shot Distribution & Defense</p>
-                  <p className="text-[11px] text-neutral-300">
+                <div className="max-w-[260px] p-2">
+                  <p className="text-xs font-bold text-white mb-1.5">Shot Distribution & Defense</p>
+                  <p className="text-[11px] text-neutral-300 leading-relaxed">
                     Shows where {displayPlayerName.split(" ").pop()} takes shots and how {displayOpponentAbbr} defends each zone.
                   </p>
-                  <div className="mt-2 space-y-1 text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-emerald-500" />
-                      <span className="text-neutral-300">Favorable (21-30)</span>
+                  <div className="mt-3 space-y-1.5 text-[10px]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-md bg-gradient-to-br from-emerald-400 to-emerald-600" />
+                      <span className="text-emerald-300 font-medium">Favorable</span>
+                      <span className="text-neutral-400">(Opp rank 21-30)</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-amber-500" />
-                      <span className="text-neutral-300">Neutral (11-20)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-md bg-gradient-to-br from-amber-400 to-amber-600" />
+                      <span className="text-amber-300 font-medium">Neutral</span>
+                      <span className="text-neutral-400">(Opp rank 11-20)</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-red-500" />
-                      <span className="text-neutral-300">Tough (1-10)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-md bg-gradient-to-br from-rose-400 to-rose-600" />
+                      <span className="text-rose-300 font-medium">Tough</span>
+                      <span className="text-neutral-400">(Opp rank 1-10)</span>
                     </div>
                   </div>
                 </div>
               }
               side="right"
             >
-              <Info className="h-3 w-3 text-neutral-400 cursor-help" />
+              <Info className="h-3.5 w-3.5 text-neutral-400 hover:text-orange-400 cursor-help transition-colors" />
             </Tooltip>
             <span className="text-xs text-neutral-400">•</span>
             <span className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -254,25 +278,25 @@ export function ShootingZones({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Summary Pills */}
+            {/* Summary Pills - Premium */}
             {!isLoading && summary && (
-              <div className="hidden sm:flex items-center gap-1">
+              <div className="hidden sm:flex items-center gap-1.5">
                 {summary.favorablePct > 0 && (
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span className="text-[9px] font-bold text-emerald-400">{summary.favorablePct}%</span>
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 shadow-sm shadow-emerald-500/10">
+                    <div className="w-2 h-2 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500" />
+                    <span className="text-[10px] font-bold text-emerald-400">{summary.favorablePct}%</span>
                   </div>
                 )}
                 {summary.neutralPct > 0 && (
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span className="text-[9px] font-bold text-amber-400">{summary.neutralPct}%</span>
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/30 shadow-sm shadow-amber-500/10">
+                    <div className="w-2 h-2 rounded-full bg-gradient-to-br from-amber-400 to-amber-500" />
+                    <span className="text-[10px] font-bold text-amber-400">{summary.neutralPct}%</span>
                   </div>
                 )}
                 {summary.toughPct > 0 && (
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/20 border border-red-500/30">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                    <span className="text-[9px] font-bold text-red-400">{summary.toughPct}%</span>
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-rose-500/20 to-rose-600/10 border border-rose-500/30 shadow-sm shadow-rose-500/10">
+                    <div className="w-2 h-2 rounded-full bg-gradient-to-br from-rose-400 to-rose-500" />
+                    <span className="text-[10px] font-bold text-rose-400">{summary.toughPct}%</span>
                   </div>
                 )}
               </div>
@@ -301,14 +325,15 @@ export function ShootingZones({
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
+              className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
             >
               <ChevronDown className={cn(
-                "h-3.5 w-3.5 text-neutral-500 transition-transform",
+                "h-4 w-4 text-neutral-500 transition-transform",
                 !collapsed && "rotate-180"
               )} />
             </button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -316,19 +341,19 @@ export function ShootingZones({
       {!collapsed && (
         <div className="px-2 pt-2 pb-3">
           {isLoading ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-4 w-4 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
-                <span className="text-[10px] text-neutral-400">Loading...</span>
+            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-8 w-8 border-2 border-orange-200/30 border-t-orange-500 rounded-full animate-spin" />
+                <span className="text-xs text-neutral-400 font-medium">Loading zones...</span>
               </div>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-48">
-              <p className="text-xs text-neutral-400">No shot zone data available</p>
+            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+              <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : zones.length === 0 ? (
-            <div className="flex items-center justify-center h-48">
-              <p className="text-xs text-neutral-400">No shot zone data available</p>
+            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+              <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : (
             <div className="relative w-full mx-auto">
@@ -350,13 +375,89 @@ export function ShootingZones({
               <svg 
                 viewBox="0 0 500 340" 
                 className="w-full h-auto"
-                style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))" }}
+                style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.3))" }}
               >
                 {/* ═══════════════════════════════════════════════════════════
-                    LAYER 1: ZONE FILLS (drawn first, from outside to inside)
+                    GRADIENT DEFINITIONS - Premium color schemes
+                    ═══════════════════════════════════════════════════════════ */}
+                <defs>
+                  {/* Favorable (Green) - Vibrant teal/emerald */}
+                  <linearGradient id="favorableGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.85" />
+                    <stop offset="50%" stopColor="#059669" stopOpacity="0.75" />
+                    <stop offset="100%" stopColor="#047857" stopOpacity="0.85" />
+                  </linearGradient>
+                  
+                  {/* Tough (Red) - Rich coral/rose */}
+                  <linearGradient id="toughGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.85" />
+                    <stop offset="50%" stopColor="#e11d48" stopOpacity="0.75" />
+                    <stop offset="100%" stopColor="#be123c" stopOpacity="0.85" />
+                  </linearGradient>
+                  
+                  {/* Neutral (Amber) - Golden amber */}
+                  <linearGradient id="neutralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.85" />
+                    <stop offset="50%" stopColor="#d97706" stopOpacity="0.75" />
+                    <stop offset="100%" stopColor="#b45309" stopOpacity="0.85" />
+                  </linearGradient>
+                  
+                  {/* Court wood texture gradient */}
+                  <linearGradient id="courtFloor" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#1a1a2e" />
+                    <stop offset="50%" stopColor="#16162a" />
+                    <stop offset="100%" stopColor="#1a1a2e" />
+                  </linearGradient>
+                  
+                  {/* Glow filter for zones */}
+                  <filter id="zoneGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                  
+                  {/* Rim glow */}
+                  <filter id="rimGlow" x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                  
+                  {/* Court lines gradient */}
+                  <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#4a5568" stopOpacity="0.8" />
+                    <stop offset="50%" stopColor="#718096" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#4a5568" stopOpacity="0.8" />
+                  </linearGradient>
+                </defs>
+
+                {/* ═══════════════════════════════════════════════════════════
+                    LAYER 0: COURT BACKGROUND
+                    ═══════════════════════════════════════════════════════════ */}
+                <rect x="0" y="0" width="500" height="340" fill="url(#courtFloor)" />
+                
+                {/* Subtle wood grain lines */}
+                {[...Array(20)].map((_, i) => (
+                  <line 
+                    key={i}
+                    x1="0" 
+                    y1={i * 17} 
+                    x2="500" 
+                    y2={i * 17} 
+                    stroke="rgba(255,255,255,0.03)" 
+                    strokeWidth="1"
+                  />
+                ))}
+
+                {/* ═══════════════════════════════════════════════════════════
+                    LAYER 1: ZONE FILLS (with glow effects)
                     ═══════════════════════════════════════════════════════════ */}
 
-                {/* ABOVE THE BREAK 3 - Full background for the arc area */}
+                {/* ABOVE THE BREAK 3 */}
                 <path 
                   d="M 0 139 
                      L 0 340 
@@ -366,17 +467,16 @@ export function ShootingZones({
                      A 238 238 0 0 1 30 139
                      Z" 
                   fill={getZoneFill("aboveBreak3")}
+                  filter="url(#zoneGlow)"
                 />
 
-                {/* LEFT CORNER 3 - From sideline to 3pt line, baseline to arc junction */}
-                <rect x="0" y="5" width="30" height="134" fill={getZoneFill("corner3Left")} />
+                {/* LEFT CORNER 3 */}
+                <rect x="0" y="5" width="30" height="134" fill={getZoneFill("corner3Left")} filter="url(#zoneGlow)" />
 
-                {/* RIGHT CORNER 3 - Mirror of left */}
-                <rect x="470" y="5" width="30" height="134" fill={getZoneFill("corner3Right")} />
+                {/* RIGHT CORNER 3 */}
+                <rect x="470" y="5" width="30" height="134" fill={getZoneFill("corner3Right")} filter="url(#zoneGlow)" />
 
-                {/* MID-RANGE - All areas between paint and 3pt line */}
-                {/* Left side mid-range (baseline to 3pt arc) */}
-                {/* Arc at x=170: y = 48 + sqrt(238² - 80²) ≈ 272 */}
+                {/* MID-RANGE - Left side */}
                 <path 
                   d="M 30 5 
                      L 30 139 
@@ -384,8 +484,9 @@ export function ShootingZones({
                      L 170 5
                      Z" 
                   fill={getZoneFill("midRange")}
+                  filter="url(#zoneGlow)"
                 />
-                {/* Right side mid-range (baseline to 3pt arc) */}
+                {/* MID-RANGE - Right side */}
                 <path 
                   d="M 470 5 
                      L 470 139 
@@ -393,8 +494,9 @@ export function ShootingZones({
                      L 330 5
                      Z" 
                   fill={getZoneFill("midRange")}
+                  filter="url(#zoneGlow)"
                 />
-                {/* Top mid-range (from free throw line to 3pt arc - the elbow area) */}
+                {/* MID-RANGE - Top (elbow area) */}
                 <path 
                   d="M 170 195
                      L 170 272
@@ -402,10 +504,10 @@ export function ShootingZones({
                      L 330 195
                      Z" 
                   fill={getZoneFill("midRange")}
+                  filter="url(#zoneGlow)"
                 />
 
-                {/* PAINT (Non-RA) - Rectangular key area minus restricted */}
-                {/* Paint is just the rectangle from baseline to free throw line */}
+                {/* PAINT (Non-RA) */}
                 <path 
                   d="M 170 5 
                      L 170 195 
@@ -415,63 +517,84 @@ export function ShootingZones({
                      A 40 40 0 0 1 210 5
                      Z" 
                   fill={getZoneFill("paint")}
+                  filter="url(#zoneGlow)"
                 />
 
-                {/* RESTRICTED AREA (Rim) - Semicircle at the basket */}
+                {/* RESTRICTED AREA (Rim) */}
                 <path 
                   d="M 210 5 A 40 40 0 0 0 290 5 Z" 
                   fill={getZoneFill("rim")}
+                  filter="url(#zoneGlow)"
                 />
 
                 {/* ═══════════════════════════════════════════════════════════
-                    LAYER 2: COURT LINES (dark, drawn on top)
+                    LAYER 2: COURT LINES (premium styling)
                     ═══════════════════════════════════════════════════════════ */}
                 
-                {/* Baseline */}
-                <line x1="0" y1="5" x2="500" y2="5" stroke="#222" strokeWidth="3" />
+                {/* Baseline - white glow effect */}
+                <line x1="0" y1="5" x2="500" y2="5" stroke="rgba(255,255,255,0.6)" strokeWidth="4" />
+                <line x1="0" y1="5" x2="500" y2="5" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
 
-                {/* 3-Point Line - corners + arc */}
+                {/* 3-Point Line - glowing white */}
                 <path 
                   d="M 30 5 L 30 139 A 238 238 0 0 0 470 139 L 470 5" 
-                  fill="none" stroke="#222" strokeWidth="3"
+                  fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="4"
+                />
+                <path 
+                  d="M 30 5 L 30 139 A 238 238 0 0 0 470 139 L 470 5" 
+                  fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2"
                 />
 
-                {/* Corner zone borders - creates rectangle separation from above-break-3 */}
-                {/* Left corner bottom */}
-                <line x1="0" y1="139" x2="30" y2="139" stroke="#222" strokeWidth="2" />
-                {/* Right corner bottom */}
-                <line x1="470" y1="139" x2="500" y2="139" stroke="#222" strokeWidth="2" />
-                {/* Sidelines for corners */}
-                <line x1="0" y1="5" x2="0" y2="139" stroke="#222" strokeWidth="2" />
-                <line x1="500" y1="5" x2="500" y2="139" stroke="#222" strokeWidth="2" />
+                {/* Corner zone borders */}
+                <line x1="0" y1="139" x2="30" y2="139" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+                <line x1="470" y1="139" x2="500" y2="139" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+                <line x1="0" y1="5" x2="0" y2="139" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+                <line x1="500" y1="5" x2="500" y2="139" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
 
-                {/* Paint/Key outline */}
-                <rect x="170" y="5" width="160" height="190" fill="none" stroke="#222" strokeWidth="2.5" />
+                {/* Paint/Key outline - glowing */}
+                <rect x="170" y="5" width="160" height="190" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="4" />
+                <rect x="170" y="5" width="160" height="190" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" />
                 
                 {/* Free Throw Circle (bottom half) */}
                 <path 
                   d="M 170 195 A 60 60 0 0 0 330 195" 
-                  fill="none" stroke="#222" strokeWidth="2"
+                  fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2"
                 />
                 {/* Free Throw Circle (top half - dashed) */}
                 <path 
                   d="M 170 195 A 60 60 0 0 1 330 195" 
-                  fill="none" stroke="#333" strokeWidth="1.5" strokeDasharray="8 6"
+                  fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeDasharray="8 6"
                 />
 
                 {/* Restricted Area arc */}
-                <path d="M 210 5 A 40 40 0 0 0 290 5" fill="none" stroke="#222" strokeWidth="2" />
+                <path d="M 210 5 A 40 40 0 0 0 290 5" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
 
                 {/* ═══════════════════════════════════════════════════════════
-                    LAYER 3: BASKET HARDWARE
+                    LAYER 3: PREMIUM BASKET HARDWARE
                     ═══════════════════════════════════════════════════════════ */}
                 
-                {/* Backboard */}
-                <rect x="220" y="8" width="60" height="4" fill="#555" rx="1" />
+                {/* Backboard - glass effect */}
+                <rect x="218" y="6" width="64" height="6" fill="rgba(255,255,255,0.15)" rx="2" />
+                <rect x="220" y="8" width="60" height="4" fill="rgba(255,255,255,0.3)" rx="1" />
+                <rect x="222" y="9" width="56" height="2" fill="rgba(255,255,255,0.1)" rx="0.5" />
                 
-                {/* Rim */}
-                <circle cx="250" cy="20" r="9" fill="none" stroke="#f97316" strokeWidth="3" />
-                <circle cx="250" cy="20" r="2.5" fill="#f97316" />
+                {/* Rim - Orange glow */}
+                <circle cx="250" cy="20" r="12" fill="none" stroke="#f97316" strokeWidth="1" opacity="0.3" filter="url(#rimGlow)" />
+                <circle cx="250" cy="20" r="10" fill="none" stroke="#fb923c" strokeWidth="3.5" filter="url(#rimGlow)" />
+                <circle cx="250" cy="20" r="10" fill="none" stroke="#f97316" strokeWidth="2.5" />
+                
+                {/* Net attachment points */}
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
+                  const rad = (angle * Math.PI) / 180;
+                  const x = 250 + 10 * Math.cos(rad);
+                  const y = 20 + 10 * Math.sin(rad);
+                  return (
+                    <circle key={angle} cx={x} cy={y} r="1" fill="#f97316" opacity="0.8" />
+                  );
+                })}
+                
+                {/* Center dot */}
+                <circle cx="250" cy="20" r="2" fill="#f97316" />
               </svg>
 
               {/* Zone Overlays - 6 zones positioned over their court areas */}
@@ -509,23 +632,26 @@ export function ShootingZones({
             </div>
           )}
 
-          {/* Legend - Clean inline with explanation */}
-          <div className="mt-3 flex items-center justify-center gap-4 text-[9px]">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(52, 211, 153, 0.7)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Favorable <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+          {/* Legend - Premium styling */}
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-sm shadow-emerald-500/30" />
+              <span className="text-[10px] font-semibold text-emerald-400">Favorable</span>
+              <span className="text-[9px] text-emerald-400/60">(21-30)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(251, 191, 36, 0.65)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-amber-400 to-amber-600 shadow-sm shadow-amber-500/30" />
+              <span className="text-[10px] font-semibold text-amber-400">Neutral</span>
+              <span className="text-[9px] text-amber-400/60">(11-20)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(248, 113, 113, 0.7)" }} />
-              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
+              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-rose-400 to-rose-600 shadow-sm shadow-rose-500/30" />
+              <span className="text-[10px] font-semibold text-rose-400">Tough</span>
+              <span className="text-[9px] text-rose-400/60">(1-10)</span>
             </div>
           </div>
-          <p className="mt-1 text-center text-[9px] text-neutral-400 dark:text-neutral-500">
-            {showLabels ? "Shot % | Opp Defensive Rank" : "Hover over zones for details"}
+          <p className="mt-2 text-center text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
+            {showLabels ? "Shot Distribution % | Opponent Defensive Rank" : "Hover over zones for details"}
           </p>
         </div>
       )}

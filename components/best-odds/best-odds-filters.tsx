@@ -133,6 +133,9 @@ export function BestOddsFilters({
   // Kelly Criterion local state - use strings for free typing, convert on blur/apply
   const [localBankrollStr, setLocalBankrollStr] = useState<string>(String(bankroll));
   const [localKellyPercentStr, setLocalKellyPercentStr] = useState<string>(String(kellyPercent));
+  
+  // Min liquidity local state
+  const [localMinLiquidity, setLocalMinLiquidity] = useState<number>(prefs.minLiquidity ?? 0);
 
   const comparisonOptions: ComboboxOption[] = useMemo(() => {
     const baseOptions = [
@@ -204,6 +207,7 @@ export function BestOddsFilters({
     setLocalComparisonMode(prefs.comparisonMode ?? 'average');
     setLocalComparisonBook(prefs.comparisonBook ?? null);
     setLocalSearchQuery(prefs.searchQuery || '');
+    setLocalMinLiquidity(prefs.minLiquidity ?? 0);
     
     // Derive sports from leagues
     let selectedSports: string[];
@@ -350,24 +354,24 @@ export function BestOddsFilters({
         
         // Hockey-specific keywords (period markets, puck, saves)
         if (isHockeyPeriodMarket || m.includes('puck') || m.includes('power_play')) {
-          groups.Hockey.push(market);
-        }
+        groups.Hockey.push(market);
+      }
         // Baseball-specific keywords
         else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || 
                  m.includes('strikeout') || m.includes('home_run') || m.includes('earned_run')) {
-          groups.Baseball.push(market);
-        }
+        groups.Baseball.push(market);
+      }
         // Basketball-specific keywords
         else if (m.includes('basket') || m.includes('pra') || m.includes('player_pr') || 
                  m.includes('player_pa') || m.includes('player_ra') || m.includes('player_bs') ||
                  m.includes('double_double') || m.includes('triple_double') || m.includes('fgm')) {
-          groups.Basketball.push(market);
-        }
+        groups.Basketball.push(market);
+      }
         // Football-specific keywords
         else if (m.includes('touchdown') || m.includes('passing') || m.includes('rushing') || 
                  m.includes('receiving') || m.includes('sack') || m.includes('field_goal')) {
-          groups.Football.push(market);
-        }
+        groups.Football.push(market);
+      }
         // Shared keywords - use context
         else if (m.includes('goal') || m.includes('save') || m.includes('shot')) {
           // These are typically hockey unless soccer is in scope and no hockey period prefix
@@ -382,7 +386,7 @@ export function BestOddsFilters({
           groups.Basketball.push(market);
         }
         // Default to the first available group
-        else {
+      else {
           if (groups.Basketball.length >= 0) groups.Basketball.push(market);
           else if (groups.Football.length >= 0) groups.Football.push(market);
           else groups.Hockey.push(market);
@@ -515,6 +519,7 @@ export function BestOddsFilters({
       hideCollegePlayerProps: localHideCollegePlayerProps,
       comparisonMode: localComparisonMode,
       comparisonBook: localComparisonMode === 'book' ? (localComparisonBook || null) : null,
+      minLiquidity: localMinLiquidity,
     };
 
     if (process.env.NODE_ENV === 'development') {
@@ -557,6 +562,7 @@ export function BestOddsFilters({
     // Reset Kelly settings to defaults
     setLocalBankrollStr("1000");
     setLocalKellyPercentStr("25");
+    setLocalMinLiquidity(0);
     
     onPrefsChange({
       ...prefs,
@@ -571,6 +577,7 @@ export function BestOddsFilters({
       hideCollegePlayerProps: false,
       comparisonMode: 'average',
       comparisonBook: null,
+      minLiquidity: 0,
     });
   };
 
@@ -1005,8 +1012,8 @@ export function BestOddsFilters({
                               </div>
                               <div className="text-left">
                                 <div className="text-sm font-semibold text-neutral-900 dark:text-white">
-                                  {sportType}
-                                </div>
+                            {sportType}
+                          </div>
                                 <div className="text-xs text-neutral-500 dark:text-neutral-400">
                                   {filteredMarkets.length} market{filteredMarkets.length !== 1 ? 's' : ''}
                                 </div>
@@ -1056,53 +1063,53 @@ export function BestOddsFilters({
                                     <span className="text-xs text-neutral-500 dark:text-neutral-400">
                                       Quick actions
                                     </span>
-                                    <div className="flex gap-2">
-                                      <button
+                          <div className="flex gap-2">
+                            <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (locked) return;
-                                          setLocalMarkets(prev => {
-                                            if (prev.length === 0) {
+                                if (locked) return;
+                                setLocalMarkets(prev => {
+                                  if (prev.length === 0) {
                                               return [...filteredMarkets];
-                                            } else {
-                                              const newSelected = new Set(prev);
+                                  } else {
+                                    const newSelected = new Set(prev);
                                               filteredMarkets.forEach(m => newSelected.add(m));
-                                              return Array.from(newSelected);
-                                            }
-                                          });
-                                        }}
-                                        disabled={locked}
+                                    return Array.from(newSelected);
+                                  }
+                                });
+                              }}
+                              disabled={locked}
                                         className="rounded-md px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                      >
-                                        Select All
-                                      </button>
-                                      <button
+                            >
+                              Select All
+                            </button>
+                            <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (locked) return;
+                                if (locked) return;
                                           setLocalMarkets(prev => prev.filter(m => !filteredMarkets.includes(m)));
-                                        }}
-                                        disabled={locked}
+                              }}
+                              disabled={locked}
                                         className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                      >
-                                        Clear
-                                      </button>
-                                    </div>
-                                  </div>
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
                                   
                                   {/* Markets Grid */}
                                   <div className="p-3 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-200 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {filteredMarkets.map(market => {
-                                        const checked = allMarketsSelected || localMarkets.includes(market);
-                                        const hasLines = hasLineOptions(market);
+                            const checked = allMarketsSelected || localMarkets.includes(market);
+                            const hasLines = hasLineOptions(market);
                                         const isMarketExpanded = expandedMarkets.has(market);
-                                        const lineOptions = hasLines ? getLineOptions(market) : null;
-                                        const marketKey = market.toLowerCase().replace(/_/g, '');
-                                        const selectedLinesForMarket = localMarketLines[marketKey] || [];
-                                        
-                                        return (
-                                          <div key={market} className="space-y-2">
+                            const lineOptions = hasLines ? getLineOptions(market) : null;
+                            const marketKey = market.toLowerCase().replace(/_/g, '');
+                            const selectedLinesForMarket = localMarketLines[marketKey] || [];
+                            
+                            return (
+                              <div key={market} className="space-y-2">
                                             <div className="flex items-center gap-1.5">
                                               <button
                                                 type="button"
@@ -1111,7 +1118,7 @@ export function BestOddsFilters({
                                                 className={cn(
                                                   "flex-1 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all",
                                                   locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-                                                  checked
+                                  checked
                                                     ? "border-brand/30 bg-brand/5 dark:border-brand/40 dark:bg-brand/10"
                                                     : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:border-neutral-600"
                                                 )}
@@ -1135,20 +1142,20 @@ export function BestOddsFilters({
                                                   {formatMarketLabel(market)}
                                                 </span>
                                               </button>
-                                              {hasLines && (
-                                                <button
+                                  {hasLines && (
+                                    <button
                                                   type="button"
-                                                  onClick={() => {
-                                                    if (locked) return;
-                                                    const newExpanded = new Set(expandedMarkets);
+                                      onClick={() => {
+                                        if (locked) return;
+                                        const newExpanded = new Set(expandedMarkets);
                                                     if (isMarketExpanded) {
-                                                      newExpanded.delete(market);
-                                                    } else {
-                                                      newExpanded.add(market);
-                                                    }
-                                                    setExpandedMarkets(newExpanded);
-                                                  }}
-                                                  disabled={locked}
+                                          newExpanded.delete(market);
+                                        } else {
+                                          newExpanded.add(market);
+                                        }
+                                        setExpandedMarkets(newExpanded);
+                                      }}
+                                      disabled={locked}
                                                   className={cn(
                                                     "flex h-10 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
                                                     isMarketExpanded
@@ -1157,12 +1164,12 @@ export function BestOddsFilters({
                                                     locked && "cursor-not-allowed opacity-50"
                                                   )}
                                                   title="Filter by line"
-                                                >
+                                    >
                                                   <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isMarketExpanded && "rotate-180")} />
-                                                </button>
-                                              )}
-                                            </div>
-                                            
+                                    </button>
+                                  )}
+                                </div>
+                                
                                             {/* Line Options */}
                                             <AnimatePresence>
                                               {hasLines && isMarketExpanded && lineOptions && (
@@ -1177,80 +1184,80 @@ export function BestOddsFilters({
                                                     <div className="flex items-center justify-between mb-2">
                                                       <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                                                         Lines
-                                                      </span>
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          const newMarketLines = { ...localMarketLines };
-                                                          delete newMarketLines[marketKey];
-                                                          setLocalMarketLines(newMarketLines);
-                                                        }}
-                                                        disabled={locked}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const newMarketLines = { ...localMarketLines };
+                                          delete newMarketLines[marketKey];
+                                          setLocalMarketLines(newMarketLines);
+                                        }}
+                                        disabled={locked}
                                                         className="text-[10px] font-medium text-neutral-400 hover:text-brand transition-colors"
-                                                      >
-                                                        Reset
-                                                      </button>
-                                                    </div>
+                                      >
+                                        Reset
+                                      </button>
+                                    </div>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                      {lineOptions.lines.map((line, idx) => {
-                                                        const isMarketSelected = checked;
-                                                        const lineChecked = isMarketSelected && (selectedLinesForMarket.length === 0 || selectedLinesForMarket.includes(line));
-                                                        const isLineDisabled = locked || !isMarketSelected;
-                                                        
-                                                        return (
-                                                          <button
-                                                            key={line}
-                                                            disabled={isLineDisabled}
-                                                            onClick={() => {
-                                                              if (locked) return;
-                                                              if (!isMarketSelected) {
-                                                                toggleMarket(market);
-                                                              }
-                                                              const newMarketLines = { ...localMarketLines };
-                                                              const currentLines = newMarketLines[marketKey] || [];
-                                                              if (currentLines.length === 0) {
-                                                                newMarketLines[marketKey] = lineOptions.lines.filter(l => l !== line);
-                                                              } else if (currentLines.includes(line)) {
-                                                                newMarketLines[marketKey] = currentLines.filter(l => l !== line);
-                                                                if (newMarketLines[marketKey].length === 0) {
-                                                                  delete newMarketLines[marketKey];
-                                                                  toggleMarket(market);
-                                                                }
-                                                              } else {
-                                                                newMarketLines[marketKey] = [...currentLines, line];
-                                                                if (newMarketLines[marketKey].length === lineOptions.lines.length) {
-                                                                  delete newMarketLines[marketKey];
-                                                                }
-                                                              }
-                                                              setLocalMarketLines(newMarketLines);
-                                                            }}
+                                      {lineOptions.lines.map((line, idx) => {
+                                        const isMarketSelected = checked;
+                                        const lineChecked = isMarketSelected && (selectedLinesForMarket.length === 0 || selectedLinesForMarket.includes(line));
+                                        const isLineDisabled = locked || !isMarketSelected;
+                                        
+                                        return (
+                                          <button
+                                            key={line}
+                                            disabled={isLineDisabled}
+                                            onClick={() => {
+                                              if (locked) return;
+                                              if (!isMarketSelected) {
+                                                toggleMarket(market);
+                                              }
+                                              const newMarketLines = { ...localMarketLines };
+                                              const currentLines = newMarketLines[marketKey] || [];
+                                              if (currentLines.length === 0) {
+                                                newMarketLines[marketKey] = lineOptions.lines.filter(l => l !== line);
+                                              } else if (currentLines.includes(line)) {
+                                                newMarketLines[marketKey] = currentLines.filter(l => l !== line);
+                                                if (newMarketLines[marketKey].length === 0) {
+                                                  delete newMarketLines[marketKey];
+                                                  toggleMarket(market);
+                                                }
+                                              } else {
+                                                newMarketLines[marketKey] = [...currentLines, line];
+                                                if (newMarketLines[marketKey].length === lineOptions.lines.length) {
+                                                  delete newMarketLines[marketKey];
+                                                }
+                                              }
+                                              setLocalMarketLines(newMarketLines);
+                                            }}
                                                             className={cn(
                                                               "rounded-md px-2 py-1 text-xs font-medium transition-all",
                                                               isLineDisabled && "cursor-not-allowed opacity-40",
-                                                              lineChecked
+                                              lineChecked 
                                                                 ? "bg-brand text-white shadow-sm"
                                                                 : "bg-white text-neutral-600 hover:bg-neutral-100 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
                                                             )}
                                                           >
-                                                            {lineOptions.labels[idx]}
-                                                          </button>
-                                                        );
-                                                      })}
-                                                    </div>
-                                                  </div>
-                                                </motion.div>
-                                              )}
-                                            </AnimatePresence>
-                                          </div>
+                                              {lineOptions.labels[idx]}
+                                          </button>
                                         );
                                       })}
                                     </div>
                                   </div>
-                                </div>
+                                                </motion.div>
+                                )}
+                                            </AnimatePresence>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                  </div>
                               </motion.div>
                             )}
                           </AnimatePresence>
-                        </div>
+                </div>
                       );
                     })}
                   </div>
@@ -1480,6 +1487,45 @@ export function BestOddsFilters({
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
                     <p className="text-xs text-emerald-700 dark:text-emerald-300">
                       <strong>Tip:</strong> Quarter Kelly (25%) is recommended for most bettors. It reduces volatility while still capturing most of the long-term growth.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Min Liquidity Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-amber-500" />
+                    <h4 className="text-sm font-semibold">Minimum Liquidity</h4>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Filter out opportunities where the best book&apos;s max stake is below your minimum threshold.
+                    This setting syncs across all tools (Edge Finder, Positive EV, Arbitrage).
+                  </p>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Min Max Stake</Label>
+                    <select
+                      value={localMinLiquidity}
+                      onChange={(e) => {
+                        if (locked) return;
+                        setLocalMinLiquidity(Number(e.target.value));
+                        setHasUnsavedChanges(true);
+                      }}
+                      disabled={locked}
+                      className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-brand transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={locked ? "Pro only" : ""}
+                    >
+                      <option value={0}>No minimum</option>
+                      <option value={25}>$25 minimum</option>
+                      <option value={50}>$50 minimum</option>
+                      <option value={100}>$100 minimum</option>
+                      <option value={250}>$250 minimum</option>
+                      <option value={500}>$500 minimum</option>
+                      <option value={1000}>$1,000 minimum</option>
+                      <option value={2500}>$2,500 minimum</option>
+                      <option value={5000}>$5,000 minimum</option>
+                    </select>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Only shows opportunities where the best book offers at least this max stake
                     </p>
                   </div>
                 </div>

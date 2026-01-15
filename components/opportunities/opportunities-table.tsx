@@ -23,9 +23,9 @@ import {
   TrendingUp,
   Eye,
   EyeOff,
-  DollarSign,
   GripVertical,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
@@ -133,6 +133,22 @@ interface OpportunitiesTableProps {
    * Callback when column order changes (for saving to preferences).
    */
   onColumnOrderChange?: (newOrder: string[]) => void;
+  /**
+   * Whether auto-refresh (SSE streaming) is enabled.
+   */
+  autoRefresh?: boolean;
+  /**
+   * Map of opportunity IDs to change directions (for highlighting updates).
+   */
+  streamChanges?: Map<string, { edge?: "up" | "down"; price?: "up" | "down" }>;
+  /**
+   * Set of opportunity IDs that were just added (for highlighting new rows).
+   */
+  streamAdded?: Set<string>;
+  /**
+   * Set of opportunity IDs that are stale/unavailable.
+   */
+  streamStale?: Set<string>;
 }
 
 type SortField = 'edge' | 'time' | 'fair' | 'stake' | 'filter';
@@ -280,6 +296,11 @@ export function OpportunitiesTable({
   columnOrder: propColumnOrder,
   onColumnOrderChange,
   boostPercent = 0,
+  // Streaming props for real-time updates
+  autoRefresh = false,
+  streamChanges,
+  streamAdded,
+  streamStale,
 }: OpportunitiesTableProps) {
   // Prefetch player data on hover for faster modal opens
   const prefetchPlayer = usePrefetchPlayerByOddsId();
@@ -675,11 +696,12 @@ export function OpportunitiesTable({
       bestBooksWithPrice: { book: string; price: number; decimal: number; link: string | null }[];
       dateStr: string;
       timeStr: string;
+      isToday: boolean;
       isHiddenRow: boolean;
       sortedBooks: { book: string; price: number; decimal: number; link: string | null }[];
     }
   ) => {
-    const { isExpanded, showLogos, bestBooksWithPrice, dateStr, timeStr, isHiddenRow, sortedBooks } = helpers;
+    const { isExpanded, showLogos, bestBooksWithPrice, dateStr, timeStr, isToday, isHiddenRow, sortedBooks } = helpers;
     
     switch (colId) {
       case 'edge':
@@ -689,7 +711,7 @@ export function OpportunitiesTable({
         const displayEdge = boostedEdge;
         
         return (
-          <td key="edge" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="edge" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={(e) => {
@@ -713,16 +735,18 @@ export function OpportunitiesTable({
                 </motion.div>
               </button>
               <span className={cn(
-                "inline-flex items-center gap-0.5 px-2 py-1 rounded-md text-sm font-bold",
+                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold shadow-sm border",
                 // Use boosted edge for styling thresholds
-                displayEdge >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                displayEdge >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                displayEdge >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50" :
+                displayEdge >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200/50 dark:border-green-800/50" :
+                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200/50 dark:border-blue-800/50",
                 // Amber glow when boosted
-                boostPercent > 0 && "ring-1 ring-amber-400/50"
+                boostPercent > 0 && "ring-1 ring-amber-400/30"
               )}>
                 {boostPercent > 0 && <span className="text-[8px] text-amber-500 mr-0.5">⚡</span>}
-                <span className="text-[10px]">▲</span>
+                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M6 0L12 10H0L6 0Z" />
+                </svg>
                 +{displayEdge.toFixed(1)}%
               </span>
             </div>
@@ -731,20 +755,31 @@ export function OpportunitiesTable({
       
       case 'league':
         return (
-          <td key="league" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-              <SportIcon sport={opp.sport} className="h-3.5 w-3.5" />
-              {getLeagueName(opp.sport)}
+          <td key="league" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+            <div className="flex items-center gap-2">
+              <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+              <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
+                {getLeagueName(opp.sport)}
+              </span>
             </div>
           </td>
         );
       
       case 'time':
         return (
-          <td key="time" className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-            <div>
-              <div className="text-sm text-neutral-600 dark:text-neutral-400">{dateStr}</div>
-              {timeStr && <div className="text-xs text-neutral-500 dark:text-neutral-500">{timeStr}</div>}
+          <td key="time" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+            <div className="flex flex-col">
+              <span className={cn(
+                "text-sm font-semibold tracking-tight",
+                isToday ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+              )}>
+                {dateStr}
+              </span>
+              {timeStr && (
+                <span className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums">
+                  {timeStr}
+                </span>
+              )}
             </div>
           </td>
         );
@@ -756,7 +791,7 @@ export function OpportunitiesTable({
         return (
           <td 
             key="selection" 
-            className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50"
+            className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50"
             onClick={(e) => {
               // Stop propagation at the cell level if clicking on a player with profile
               if (canShowProfile && e.target !== e.currentTarget) {
@@ -764,94 +799,93 @@ export function OpportunitiesTable({
               }
             }}
           >
-            <div className="text-sm md:text-base font-medium text-neutral-900 dark:text-neutral-100">
-              {canShowProfile ? (
-                <Tooltip content="View Profile">
-                  <button
-                    onMouseEnter={() => opp.playerId && prefetchPlayer(opp.playerId)}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onPlayerClick?.({
-                        odds_player_id: opp.playerId!,
-                        player_name: opp.player,
-                        market: opp.market,
-                        event_id: opp.eventId,
-                        line: opp.line, // Pass the specific line from edge finder
-                        odds: {
-                          [opp.side]: {
-                            price: parseInt(opp.bestPrice?.replace('+', '') || '0', 10), // American odds as integer
-                            line: opp.line,
-                            book: opp.bestBook,
-                            mobileLink: opp.bestLink,
-                          }
-                        } as any,
-                      });
-                    }}
-                    className="text-left text-amber-500/80 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-300 hover:underline transition-colors"
-                    type="button"
-                  >
-                    {opp.player}
-                    {opp.position && (
-                      <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
-                        ({opp.position})
-                      </span>
-                    )}
-                  </button>
-                </Tooltip>
-              ) : (
-                <>
-                  {isGameProp ? "Game" : opp.player}
-                  {opp.position && (
-                    <span className="text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 font-normal ml-1">
-                      ({opp.position})
-                    </span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                {canShowProfile ? (
+                  <Tooltip content="View Profile">
+                    <button
+                      onMouseEnter={() => opp.playerId && prefetchPlayer(opp.playerId)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onPlayerClick?.({
+                          odds_player_id: opp.playerId!,
+                          player_name: opp.player,
+                          market: opp.market,
+                          event_id: opp.eventId,
+                          line: opp.line, // Pass the specific line from edge finder
+                          odds: {
+                            [opp.side]: {
+                              price: parseInt(opp.bestPrice?.replace('+', '') || '0', 10), // American odds as integer
+                              line: opp.line,
+                              book: opp.bestBook,
+                              mobileLink: opp.bestLink,
+                            }
+                          } as any,
+                        });
+                      }}
+                      className="text-[15px] font-semibold text-amber-500/80 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors"
+                      type="button"
+                    >
+                      {opp.player}
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <span className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight">
+                    {isGameProp ? "Game" : opp.player}
+                  </span>
+                )}
+                {opp.position && (
+                  <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                    {opp.position}
+                  </span>
+                )}
+              </div>
+              {opp.awayTeam && opp.homeTeam && (
+                <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                  {showLogos && (
+                    <img
+                      src={getTeamLogoUrl(opp.awayTeam, opp.sport)}
+                      alt={opp.awayTeam}
+                      className="w-4 h-4 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
                   )}
-                </>
+                  <span className={cn(
+                    "transition-colors",
+                    opp.team === opp.awayTeam && "font-semibold text-neutral-700 dark:text-neutral-200"
+                  )}>
+                    {opp.awayTeam}
+                  </span>
+                  <span className="text-neutral-300 dark:text-neutral-600">@</span>
+                  {showLogos && (
+                    <img
+                      src={getTeamLogoUrl(opp.homeTeam, opp.sport)}
+                      alt={opp.homeTeam}
+                      className="w-4 h-4 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  <span className={cn(
+                    "transition-colors",
+                    opp.team === opp.homeTeam && "font-semibold text-neutral-700 dark:text-neutral-200"
+                  )}>
+                    {opp.homeTeam}
+                  </span>
+                </div>
               )}
             </div>
-            {opp.awayTeam && opp.homeTeam && (
-              <div className="flex items-center gap-1 text-[11px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {showLogos && (
-                  <img
-                    src={getTeamLogoUrl(opp.awayTeam, opp.sport)}
-                    alt={opp.awayTeam}
-                    className="w-4 h-4 object-contain"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                )}
-                <span className={cn(
-                  opp.team === opp.awayTeam && "font-semibold text-neutral-900 dark:text-neutral-100"
-                )}>
-                  {opp.awayTeam}
-                </span>
-                <span className="mx-0.5">@</span>
-                {showLogos && (
-                  <img
-                    src={getTeamLogoUrl(opp.homeTeam, opp.sport)}
-                    alt={opp.homeTeam}
-                    className="w-4 h-4 object-contain"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                )}
-                <span className={cn(
-                  opp.team === opp.homeTeam && "font-semibold text-neutral-900 dark:text-neutral-100"
-                )}>
-                  {opp.homeTeam}
-                </span>
-              </div>
-            )}
           </td>
         );
       
       case 'line':
         return (
-          <td key="line" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-            <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
+          <td key="line" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-700 dark:text-neutral-300 shadow-sm">
               {opp.side === "yes" ? "Yes" : 
                opp.side === "no" ? "No" : 
                `${opp.side === "over" ? "O" : "U"} ${opp.line}`}
@@ -861,28 +895,35 @@ export function OpportunitiesTable({
       
       case 'market':
         return (
-          <td key="market" className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-            <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300 truncate max-w-[130px]">
+          <td key="market" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
               {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketName(opp.market)}
             </span>
           </td>
         );
       
       case 'best-book':
+        // Find limits from the best book(s) - use first book with limits
+        const bestBookLimits = bestBooksWithPrice.find(b => b.limits?.max)?.limits;
         return (
-          <td key="best-book" className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="best-book" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
             <div className="flex items-center justify-center gap-2">
               <div className="flex items-center -space-x-1">
                 {bestBooksWithPrice.slice(0, 3).map((book) => {
                   const bookLogo = getBookLogo(book.book);
+                  const bookName = getBookName(book.book);
+                  const hasLimits = book.limits?.max;
                   return bookLogo ? (
-                    <img 
+                    <Tooltip 
                       key={book.book}
-                      src={bookLogo} 
-                      alt={getBookName(book.book)} 
-                      className="h-6 w-6 object-contain"
-                      title={getBookName(book.book)}
-                    />
+                      content={hasLimits ? `${bookName} • Max: $${book.limits!.max.toLocaleString()}` : bookName}
+                    >
+                      <img 
+                        src={bookLogo} 
+                        alt={bookName} 
+                        className="h-6 w-6 object-contain rounded-md"
+                      />
+                    </Tooltip>
                   ) : null;
                 })}
                 {bestBooksWithPrice.length > 3 && (
@@ -893,10 +934,15 @@ export function OpportunitiesTable({
                   </div>
                 )}
               </div>
-              <div className="flex flex-col items-center leading-tight">
-                <div className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">
+              <div className="flex flex-col items-center">
+                <span className="text-[17px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
                   {opp.bestPrice}
-                </div>
+                </span>
+                {bestBookLimits?.max && (
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                    Max ${bestBookLimits.max >= 1000 ? `${(bestBookLimits.max / 1000).toFixed(0)}k` : bestBookLimits.max}
+                  </span>
+                )}
               </div>
             </div>
           </td>
@@ -904,7 +950,7 @@ export function OpportunitiesTable({
       
       case 'reference':
         return (
-          <td key="reference" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="reference" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {(() => {
               const sharpBooksCount = opp.sharpBooks?.length || 0;
               const shouldShowLogos = 
@@ -913,8 +959,8 @@ export function OpportunitiesTable({
                 (isCustomMode && sharpBooksCount <= 3 && sharpBooksCount > 0);
               
               return (
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
+                <div className="flex flex-col items-center">
+                  <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
                     {opp.sharpPrice || "—"}
                   </span>
                   {shouldShowLogos && opp.sharpBooks && opp.sharpBooks.length > 0 && (
@@ -941,8 +987,8 @@ export function OpportunitiesTable({
       
       case 'fair':
         return (
-          <td key="fair" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
-            <span className="font-bold text-base text-neutral-700 dark:text-neutral-300">
+          <td key="fair" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+            <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
               {opp.fairAmerican || opp.sharpPrice || "—"}
             </span>
           </td>
@@ -950,7 +996,7 @@ export function OpportunitiesTable({
       
       case 'stake':
         return (
-          <td key="stake" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="stake" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {(() => {
               const bestPriceStr = opp.bestPrice || "";
               const fairPriceStr = opp.fairAmerican || opp.sharpPrice || "";
@@ -984,14 +1030,13 @@ export function OpportunitiesTable({
               
               return (
                 <Tooltip content={tooltipContent}>
-                  <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${
-                    boostPercent > 0
-                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 ring-1 ring-amber-400/30'
-                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                  }`}>
-                    <DollarSign className="w-3.5 h-3.5" />
-                    <span className="font-semibold text-sm">{display.replace('$', '')}</span>
-                  </div>
+                  <span className={cn(
+                    "text-sm font-semibold tabular-nums cursor-help",
+                    "text-amber-600 dark:text-amber-400"
+                  )}>
+                    {boostPercent > 0 && <Zap className="w-3 h-3 inline mr-0.5 -mt-0.5" />}
+                    {display}
+                  </span>
                 </Tooltip>
               );
             })()}
@@ -1000,18 +1045,18 @@ export function OpportunitiesTable({
       
       case 'filter':
         return (
-          <td key="filter" className="p-2 text-center border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="filter" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {opp.filterId && opp.filterId !== "default" ? (
               <Tooltip content={opp.filterName || "Custom Filter"}>
-                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--tertiary)]/10 text-[var(--tertiary)] text-xs font-medium">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200/60 dark:border-amber-800/40 text-amber-700 dark:text-amber-400 text-xs font-semibold shadow-sm">
                   <span className="flex -space-x-1">
                     {parseSports(opp.filterIcon || "").slice(0, 2).map((sport, idx) => (
-                      <span key={`${opp.id}-${sport}-${idx}`} className="rounded-full ring-1 ring-white dark:ring-neutral-800">
+                      <span key={`${opp.id}-${sport}-${idx}`} className="rounded-full ring-1 ring-amber-100 dark:ring-amber-900/50">
                         <SportIcon sport={sport} className="w-4 h-4" />
                       </span>
                     ))}
                     {parseSports(opp.filterIcon || "").length > 2 && (
-                      <span className="text-[9px] text-neutral-500 ml-1">
+                      <span className="text-[9px] text-amber-600 dark:text-amber-500 ml-1 font-medium">
                         +{parseSports(opp.filterIcon || "").length - 2}
                       </span>
                     )}
@@ -1033,7 +1078,7 @@ export function OpportunitiesTable({
       
       case 'action':
         return (
-          <td key="action" className="p-2 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
+          <td key="action" className="px-3 py-3 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
             <div className="relative flex items-center justify-center gap-2">
               {bestBooksWithPrice.length > 0 && (
                 <>
@@ -1045,10 +1090,17 @@ export function OpportunitiesTable({
                           e.stopPropagation();
                           openLink(opp.bestBook, opp.bestLink);
                         }}
-                        className="inline-flex items-center justify-center gap-1 h-9 px-4 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all font-medium text-sm"
+                        className={cn(
+                          "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg",
+                          "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
+                          "text-white font-semibold text-xs shadow-sm",
+                          "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
+                          "transition-all duration-200",
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
+                        )}
                       >
                         <span>Bet</span>
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        <ExternalLink className="h-3 w-3" />
                       </button>
                     </Tooltip>
                   ) : (
@@ -1059,10 +1111,17 @@ export function OpportunitiesTable({
                           e.stopPropagation();
                           setOpenBetDropdown(openBetDropdown === opp.id ? null : opp.id);
                         }}
-                        className="inline-flex items-center justify-center gap-1 h-9 px-4 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all font-medium text-sm"
+                        className={cn(
+                          "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg",
+                          "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
+                          "text-white font-semibold text-xs shadow-sm",
+                          "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
+                          "transition-all duration-200",
+                          "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
+                        )}
                       >
                         <span>Bet</span>
-                        <ChevronDown className="h-3.5 w-3.5" />
+                        <ChevronDown className="h-3 w-3" />
                       </button>
                       
                       {openBetDropdown === opp.id && (
@@ -1103,7 +1162,7 @@ export function OpportunitiesTable({
                   <button
                     type="button"
                     disabled
-                    className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                    className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
                   >
                     <Heart className="w-4 h-4 text-neutral-400" />
                   </button>
@@ -1118,7 +1177,8 @@ export function OpportunitiesTable({
                     }}
                     disabled={togglingRows.has(opp.id)}
                     className={cn(
-                      "p-2 rounded-lg transition-all",
+                      "p-1.5 rounded-lg transition-all duration-200",
+                      "hover:scale-110 active:scale-95",
                       isOppFavorited(opp)
                         ? "bg-red-500/10 hover:bg-red-500/20"
                         : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
@@ -1156,12 +1216,12 @@ export function OpportunitiesTable({
                         });
                       }
                     }}
-                    className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-700 dark:hover:text-neutral-300 border border-neutral-300 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:ring-offset-1 transition-all"
+                    className="p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
                   >
                     {isHidden?.(opp.id) ? (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
                     ) : (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
                     )}
                   </button>
                 </Tooltip>
@@ -1342,67 +1402,67 @@ export function OpportunitiesTable({
   // Skeleton row component for reuse
   const SkeletonRow = ({ index }: { index: number }) => (
     <tr className={index % 2 === 0 ? "table-row-even" : "table-row-odd"}>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex items-center justify-center gap-2">
           <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           </div>
         </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-12 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           </div>
         </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="space-y-1">
           <div className="w-12 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           <div className="w-16 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           </div>
         </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="space-y-1.5">
           <div className="w-32 h-4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           <div className="w-24 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           </div>
         </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
         </div>
         </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-20 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
             </div>
           </td>
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
                 <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
                 </div>
       </td>
       {/* Reference */}
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
               </div>
       </td>
       {/* Fair - hidden in next_best mode */}
       {comparisonMode !== "next_best" && (
-        <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
           <div className="flex justify-center">
             <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
           </div>
         </td>
       )}
       {/* Stake */}
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
       </div>
       </td>
       {/* Filter */}
-      <td className="p-2 border-b border-r border-neutral-200/50 dark:border-neutral-800/50">
+      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
         <div className="flex justify-center">
           <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
         </div>
@@ -1591,6 +1651,12 @@ export function OpportunitiesTable({
 
             const isHiddenRow = showHidden && isHidden?.(opp.id);
             
+            // Streaming state for this row
+            const isStale = autoRefresh && streamStale?.has(opp.id);
+            const isNewlyAdded = autoRefresh && streamAdded?.has(opp.id);
+            const hasChange = autoRefresh && streamChanges?.has(opp.id);
+            const change = hasChange ? streamChanges?.get(opp.id) : undefined;
+            
             return (
               <React.Fragment key={opp.id}>
                 <tr
@@ -1602,7 +1668,12 @@ export function OpportunitiesTable({
                       ? "bg-white dark:bg-neutral-900" 
                       : "bg-neutral-100/70 dark:bg-neutral-800/40",
                     isExpanded && "!bg-gradient-to-r !from-amber-50 !to-amber-50/30 dark:!from-amber-950/50 dark:!to-amber-950/20",
-                    isHiddenRow && "opacity-40"
+                    isHiddenRow && "opacity-40",
+                    // Streaming states
+                    isStale && "opacity-40 line-through",
+                    isNewlyAdded && "animate-pulse bg-emerald-50/50 dark:bg-emerald-950/30",
+                    hasChange && change?.edge === "up" && "bg-emerald-50/80 dark:bg-emerald-950/40",
+                    hasChange && change?.edge === "down" && "bg-red-50/80 dark:bg-red-950/40"
                   )}
                 >
                   {filteredColumnOrder.map(colId => 
@@ -1612,82 +1683,298 @@ export function OpportunitiesTable({
                       bestBooksWithPrice,
                       dateStr,
                       timeStr,
+                      isToday,
                       isHiddenRow: isHiddenRow ?? false,
                       sortedBooks,
                     })
                   )}
                 </tr>
 
-                {/* Expanded Row - All Books */}
+                {/* Expanded Row - Premium Odds Comparison */}
                 <AnimatePresence>
-                  {isExpanded && (
-                    <motion.tr
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="bg-gradient-to-r from-amber-50/50 to-neutral-50/50 dark:from-amber-950/30 dark:to-neutral-900/50"
-                    >
-                      <td colSpan={filteredColumnOrder.length} className="px-4 py-4 border-b border-amber-200/30 dark:border-amber-800/30">
-                        <div className="flex items-center justify-center gap-3 flex-wrap">
-                          {sortedBooks.map((book) => {
-                            const bookLogo = getBookLogo(book.book);
-                            const isBest = book.decimal === opp.bestDecimal;
-                            const hasLink = !!book.link || !!getBookFallbackUrl(book.book);
-                            
-                            return (
-                              <Tooltip 
-                                key={`${opp.id}-${book.book}`}
-                                content={
-                                  book.limits?.max 
-                                    ? `${getBookName(book.book)} • Max: $${book.limits.max.toLocaleString()}${hasLink ? ' • Click to place bet' : ''}`
-                                    : hasLink ? `Place bet on ${getBookName(book.book)}` : `${getBookName(book.book)} - No link available`
-                                }
-                              >
-                                <button
-                                  onClick={() => openLink(book.book, book.link)}
-                                  disabled={!hasLink}
-                                  className={cn(
-                                    "flex items-center gap-2.5 px-4 py-3 rounded-lg border transition-all",
-                                    hasLink ? "cursor-pointer" : "cursor-not-allowed opacity-50",
-                                    isBest
-                                      ? "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 shadow-sm ring-1 ring-amber-400/30"
-                                      : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md"
-                                  )}
-                                >
-                                  {bookLogo && (
-                                    <img
-                                      src={bookLogo}
-                                      alt={book.book}
-                                      className="h-6 w-6 object-contain shrink-0"
-                                    />
-                                  )}
-                                  <div className="flex flex-col items-start">
-                                    <span className={cn(
-                                      "text-base font-bold",
-                                      isBest
-                                        ? "text-amber-600 dark:text-amber-400"
-                                        : "text-neutral-900 dark:text-neutral-100"
+                  {isExpanded && (() => {
+                    // Get current side and opposite side data
+                    const isOverSide = opp.side === "over" || opp.side === "yes";
+                    const currentSideBooks = sortedBooks;
+                    const oppositeSideBooks = opp.oppositeSide?.allBooks || [];
+                    
+                    // Get all unique book IDs from both sides
+                    const allBookIds = new Set<string>();
+                    currentSideBooks.forEach(b => allBookIds.add(b.book));
+                    oppositeSideBooks.forEach(b => allBookIds.add(b.book));
+                    
+                    // Create maps for quick lookup
+                    const currentSideMap = new Map(currentSideBooks.map(b => [b.book, b]));
+                    const oppositeSideMap = new Map(oppositeSideBooks.map(b => [b.book, b]));
+                    
+                    // Sort books by best odds on the +edge side
+                    const sortedBookIds = Array.from(allBookIds).sort((a, b) => {
+                      const aBook = currentSideMap.get(a);
+                      const bBook = currentSideMap.get(b);
+                      return (bBook?.decimal || 0) - (aBook?.decimal || 0);
+                    });
+                    
+                    // Determine which row is Over and which is Under
+                    const overMap = isOverSide ? currentSideMap : oppositeSideMap;
+                    const underMap = isOverSide ? oppositeSideMap : currentSideMap;
+                    
+                    // Calculate best and average for each side
+                    const overBooks = Array.from(overMap.values());
+                    const underBooks = Array.from(underMap.values());
+                    const bestOver = overBooks.length > 0 ? Math.max(...overBooks.map(b => b.decimal)) : null;
+                    const bestUnder = underBooks.length > 0 ? Math.max(...underBooks.map(b => b.decimal)) : null;
+                    
+                    // Calculate average using implied probabilities (correct method)
+                    const calcAvgAmerican = (books: typeof overBooks) => {
+                      if (books.length === 0) return null;
+                      const avgDecimal = books.reduce((sum, b) => sum + b.decimal, 0) / books.length;
+                      if (avgDecimal >= 2) {
+                        return `+${Math.round((avgDecimal - 1) * 100)}`;
+                      } else {
+                        return `${Math.round(-100 / (avgDecimal - 1))}`;
+                      }
+                    };
+                    const avgOver = calcAvgAmerican(overBooks);
+                    const avgUnder = calcAvgAmerican(underBooks);
+                    
+                    // Find best book for highlighting
+                    const bestOverBook = overBooks.find(b => b.decimal === bestOver);
+                    const bestUnderBook = underBooks.find(b => b.decimal === bestUnder);
+                    
+                    return (
+                      <motion.tr
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeOut" }}
+                      >
+                        <td colSpan={filteredColumnOrder.length} className="p-0">
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.1 }}
+                            className="bg-gradient-to-b from-neutral-50 to-neutral-100/80 dark:from-neutral-900 dark:to-neutral-950 border-b border-neutral-200 dark:border-neutral-800"
+                          >
+                            {/* Full Width Container */}
+                            <div className="w-full flex flex-col items-center">
+                              {/* Header Row with Gradient Accent */}
+                              <div className="w-full flex items-center gap-3 px-4 py-2.5 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/50 dark:bg-neutral-900/50">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                                    Market Odds Comparison
+                                  </span>
+                                </div>
+                                <div className="flex-1 h-px bg-gradient-to-r from-neutral-200 dark:from-neutral-700 to-transparent" />
+                                <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-500">
+                                  <span>Line: <strong className="text-neutral-700 dark:text-neutral-300">{opp.line}</strong></span>
+                                  <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
+                                  <span>Fair: <strong className="text-amber-600 dark:text-amber-400">{opp.fairAmerican || opp.sharpPrice}</strong></span>
+                                </div>
+                              </div>
+
+                              {/* Odds Table - Centered */}
+                              <div className="flex w-full justify-center">
+                                <div className="flex max-w-full">
+                                  {/* Fixed Left Column - Side Labels */}
+                                  <div className="flex-shrink-0 w-28 border-r border-neutral-200/60 dark:border-neutral-800/60 bg-white/30 dark:bg-black/20">
+                                    {/* Header spacer */}
+                                    <div className="h-12 border-b border-neutral-200/40 dark:border-neutral-800/40" />
+                                    {/* Over Label */}
+                                    <div className={cn(
+                                      "h-11 flex items-center px-4 border-b border-neutral-200/40 dark:border-neutral-800/40",
+                                      isOverSide && "bg-amber-50/50 dark:bg-amber-950/20"
                                     )}>
-                                      {book.priceFormatted}
-                                    </span>
-                                    {book.limits?.max && (
-                                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
-                                        Max ${book.limits.max >= 1000 ? `${(book.limits.max / 1000).toFixed(0)}k` : book.limits.max}
-                                      </span>
-                                    )}
+                                      <div className="flex flex-col">
+                                        <span className={cn(
+                                          "text-sm font-semibold tracking-tight",
+                                          isOverSide ? "text-amber-600 dark:text-amber-400" : "text-neutral-700 dark:text-neutral-300"
+                                        )}>
+                                          Over
+                                        </span>
+                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                      </div>
+                                    </div>
+                                    {/* Under Label */}
+                                    <div className={cn(
+                                      "h-11 flex items-center px-4",
+                                      !isOverSide && "bg-amber-50/50 dark:bg-amber-950/20"
+                                    )}>
+                                      <div className="flex flex-col">
+                                        <span className={cn(
+                                          "text-sm font-semibold tracking-tight",
+                                          !isOverSide ? "text-amber-600 dark:text-amber-400" : "text-neutral-700 dark:text-neutral-300"
+                                        )}>
+                                          Under
+                                        </span>
+                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  {hasLink && (
-                                    <ExternalLink className="h-4 w-4 text-neutral-400 dark:text-neutral-500 ml-1" />
-                                  )}
-                                </button>
-                              </Tooltip>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </motion.tr>
-                  )}
+
+                                  {/* Fixed Best Column */}
+                                  <div className="flex-shrink-0 w-20 border-r border-neutral-200/60 dark:border-neutral-800/60 bg-amber-50/30 dark:bg-amber-950/10">
+                                    <div className="h-12 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40">
+                                      <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">Best</span>
+                                    </div>
+                                    <div className={cn(
+                                      "h-11 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40",
+                                      isOverSide && "bg-amber-100/50 dark:bg-amber-900/20"
+                                    )}>
+                                      {bestOver !== null && bestOverBook && (
+                                        <Tooltip content={`Best odds at ${getBookName(bestOverBook.book)}`}>
+                                          <div className="flex items-center gap-1">
+                                            {getBookLogo(bestOverBook.book) && (
+                                              <img src={getBookLogo(bestOverBook.book)!} alt="" className="w-4 h-4 object-contain opacity-60" />
+                                            )}
+                                            <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                                              {bestOverBook.priceFormatted}
+                                            </span>
+                                          </div>
+                                        </Tooltip>
+                                      )}
+                                    </div>
+                                    <div className={cn(
+                                      "h-11 flex items-center justify-center",
+                                      !isOverSide && "bg-amber-100/50 dark:bg-amber-900/20"
+                                    )}>
+                                      {bestUnder !== null && bestUnderBook && (
+                                        <Tooltip content={`Best odds at ${getBookName(bestUnderBook.book)}`}>
+                                          <div className="flex items-center gap-1">
+                                            {getBookLogo(bestUnderBook.book) && (
+                                              <img src={getBookLogo(bestUnderBook.book)!} alt="" className="w-4 h-4 object-contain opacity-60" />
+                                            )}
+                                            <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                                              {bestUnderBook.priceFormatted}
+                                            </span>
+                                          </div>
+                                        </Tooltip>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Fixed Average Column */}
+                                  <div className="flex-shrink-0 w-16 border-r border-neutral-200/60 dark:border-neutral-800/60">
+                                    <div className="h-12 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40">
+                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Avg</span>
+                                    </div>
+                                    <div className="h-11 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40">
+                                      <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                                        {avgOver || "—"}
+                                      </span>
+                                    </div>
+                                    <div className="h-11 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                                        {avgUnder || "—"}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Scrollable Sportsbooks */}
+                                  <div className="flex-1 overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400 dark:hover:scrollbar-thumb-neutral-600">
+                                    <div className="inline-flex min-w-full">
+                                      {sortedBookIds.map((bookId) => {
+                                        const bookLogo = getBookLogo(bookId);
+                                        const overOffer = overMap.get(bookId);
+                                        const underOffer = underMap.get(bookId);
+                                        const isOverBest = overOffer && overOffer.decimal === bestOver;
+                                        const isUnderBest = underOffer && underOffer.decimal === bestUnder;
+                                        
+                                        return (
+                                          <div 
+                                            key={`${opp.id}-${bookId}`} 
+                                            className={cn(
+                                              "flex-shrink-0 w-[72px] border-r border-neutral-100 dark:border-neutral-800/40 last:border-r-0",
+                                              "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30 transition-colors"
+                                            )}
+                                          >
+                                            {/* Book Logo Header */}
+                                            <div className="h-12 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40 px-2">
+                                              <Tooltip content={getBookName(bookId)}>
+                                                {bookLogo ? (
+                                                  <img
+                                                    src={bookLogo}
+                                                    alt={bookId}
+                                                    className="h-6 w-6 object-contain opacity-90 hover:opacity-100 transition-opacity"
+                                                  />
+                                                ) : (
+                                                  <span className="text-[10px] font-medium text-neutral-500 truncate">
+                                                    {getBookName(bookId)?.slice(0, 6)}
+                                                  </span>
+                                                )}
+                                              </Tooltip>
+                                            </div>
+                                            {/* Over Odds */}
+                                            <div className={cn(
+                                              "h-11 flex flex-col items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40",
+                                              isOverBest && "bg-amber-50 dark:bg-amber-950/30"
+                                            )}>
+                                              {overOffer ? (
+                                                <>
+                                                  <button
+                                                    onClick={() => openLink(bookId, overOffer.link)}
+                                                    className={cn(
+                                                      "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
+                                                      "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",
+                                                      isOverBest
+                                                        ? "text-amber-600 dark:text-amber-400 font-bold"
+                                                        : "text-neutral-700 dark:text-neutral-300"
+                                                    )}
+                                                  >
+                                                    {overOffer.priceFormatted}
+                                                  </button>
+                                                  {overOffer.limits?.max && (
+                                                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                                                      Max ${overOffer.limits.max >= 1000 ? `${(overOffer.limits.max / 1000).toFixed(0)}k` : overOffer.limits.max}
+                                                    </span>
+                                                  )}
+                                                </>
+                                              ) : (
+                                                <span className="text-neutral-300 dark:text-neutral-700">—</span>
+                                              )}
+                                            </div>
+                                            {/* Under Odds */}
+                                            <div className={cn(
+                                              "h-11 flex flex-col items-center justify-center",
+                                              isUnderBest && "bg-amber-50 dark:bg-amber-950/30"
+                                            )}>
+                                              {underOffer ? (
+                                                <>
+                                                  <button
+                                                    onClick={() => openLink(bookId, underOffer.link)}
+                                                    className={cn(
+                                                      "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
+                                                      "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",
+                                                      isUnderBest
+                                                        ? "text-amber-600 dark:text-amber-400 font-bold"
+                                                        : "text-neutral-700 dark:text-neutral-300"
+                                                    )}
+                                                  >
+                                                    {underOffer.priceFormatted}
+                                                  </button>
+                                                  {underOffer.limits?.max && (
+                                                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                                                      Max ${underOffer.limits.max >= 1000 ? `${(underOffer.limits.max / 1000).toFixed(0)}k` : underOffer.limits.max}
+                                                    </span>
+                                                  )}
+                                                </>
+                                              ) : (
+                                                <span className="text-neutral-300 dark:text-neutral-700">—</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })()}
                 </AnimatePresence>
               </React.Fragment>
             );

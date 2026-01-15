@@ -1171,11 +1171,11 @@ export function PlayerCorrelations({
   // Loading state
   if (isLoading) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800", className)}>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <div className="flex items-center justify-center h-32">
-          <div className="animate-pulse flex items-center gap-2">
-            <div className="h-4 w-4 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-            <span className="text-xs text-neutral-500">Loading correlations...</span>
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-6 border-2 border-emerald-200 border-t-emerald-500 rounded-full animate-spin" />
+            <span className="text-sm text-neutral-500 font-medium">Loading correlations...</span>
           </div>
         </div>
       </div>
@@ -1184,10 +1184,10 @@ export function PlayerCorrelations({
 
   if (error || !anchorPerformance || teammateCorrelations.length === 0) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 p-4", className)}>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
           <Users className="h-4 w-4" />
-          <span className="text-xs">No correlation data available</span>
+          <span className="text-sm font-medium">No correlation data available</span>
         </div>
       </div>
     );
@@ -1197,20 +1197,19 @@ export function PlayerCorrelations({
   const anchorLastName = playerName?.split(' ').slice(-1)[0] || "anchor";
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 shadow-sm", className)}>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
       {/* ═══════════════════════════════════════════════════════════════════
           PREMIUM HEADER - Matches other sections with color bar
       ═══════════════════════════════════════════════════════════════════ */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-emerald-500/5 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-emerald-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-emerald-900/10" />
         <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
           {/* Main Header Row */}
           <div className="flex items-start justify-between gap-6">
             {/* LEFT ZONE - Color bar + Context & Target Info */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              {/* Color bar - matches Team Rosters height */}
-              <div className="h-10 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-emerald-600 shrink-0" />
+              {/* Color bar - premium emerald gradient */}
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30 shrink-0" />
               <div className="flex-1 min-w-0">
                 {/* BIG Headline - Focal Point (now first) */}
                 <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -1232,14 +1231,14 @@ export function PlayerCorrelations({
               </div>
             </div>
 
-            {/* RIGHT ZONE - Collapse Button (matching Team Rosters) */}
+            {/* RIGHT ZONE - Collapse Button */}
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
+              className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
             >
               <ChevronDown className={cn(
-                "h-4 w-4 text-neutral-400 transition-transform",
+                "h-4 w-4 text-neutral-500 transition-transform",
                 !collapsed && "rotate-180"
               )} />
             </button>

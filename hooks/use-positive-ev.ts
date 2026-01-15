@@ -316,10 +316,10 @@ export function usePositiveEV({
       console.log('[usePositiveEV] Fetching with filters:', filters);
       return fetchPositiveEV(filters, isPro);
     },
-    staleTime: 30_000, // Fresh for 30 seconds
+    staleTime: 60_000, // Fresh for 60 seconds
     gcTime: 5 * 60_000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
+    refetchOnReconnect: false,
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,

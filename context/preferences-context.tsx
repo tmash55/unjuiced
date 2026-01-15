@@ -534,8 +534,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.minLiquidity !== undefined) {
       updates.arbitrage_min_liquidity = filters.minLiquidity;
+      console.log('[Arbitrage] Setting arbitrage_min_liquidity to:', filters.minLiquidity);
     }
     
+    console.log('[Arbitrage] updateArbitrageFilters - final updates:', updates);
     await updatePreferences(updates);
   }, [user, updatePreferences, setGuestArb]);
 
@@ -961,9 +963,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       selectedMarkets: preferences.positive_ev_selected_markets ?? [],
       sharpPreset: preferences.positive_ev_sharp_preset ?? 'pinnacle',
       devigMethods: preferences.positive_ev_devig_methods ?? ['power', 'multiplicative'],
+      evCase: (preferences.positive_ev_case as 'worst' | 'best') ?? 'worst',
       minEv: preferences.positive_ev_min_ev ?? 2,
       maxEv: preferences.positive_ev_max_ev ?? undefined,
       mode: (preferences.positive_ev_mode as 'pregame' | 'live' | 'all') ?? 'pregame',
+      showHidden: preferences.best_odds_show_hidden ?? false,
     };
   }, [preferences]);
   
@@ -973,8 +977,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedMarkets?: string[];
     sharpPreset?: string;
     devigMethods?: string[];
+    evCase?: 'worst' | 'best';
     minEv?: number;
     maxEv?: number;
+    showHidden?: boolean;
     mode?: 'pregame' | 'live' | 'all';
     minBooksPerSide?: number;
   }) => {
@@ -1000,6 +1006,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (filters.devigMethods !== undefined) {
       updates.positive_ev_devig_methods = filters.devigMethods;
     }
+    if (filters.evCase !== undefined) {
+      updates.positive_ev_case = filters.evCase;
+    }
     if (filters.minEv !== undefined) {
       updates.positive_ev_min_ev = filters.minEv;
     }
@@ -1011,6 +1020,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.minBooksPerSide !== undefined) {
       updates.positive_ev_min_books_per_side = filters.minBooksPerSide;
+    }
+    if (filters.showHidden !== undefined) {
+      updates.best_odds_show_hidden = filters.showHidden;
     }
     
     if (Object.keys(updates).length > 0) {
@@ -1113,31 +1125,59 @@ export function useLadderPreferences() {
 }
 
 export function useBestOddsPreferences() {
-  const { getBestOddsFilters, updateBestOddsFilters, isLoading } = usePreferences();
+  const { getBestOddsFilters, updateBestOddsFilters, updateArbitrageFilters, isLoading, preferences } = usePreferences();
+  
+  // Get minLiquidity from shared arbitrage prefs (syncs across all tools)
+  const dbMinLiquidity = preferences?.arbitrage_min_liquidity;
   
   // Memoize the filters to prevent infinite re-renders
-  const filters = useMemo(() => getBestOddsFilters(), [getBestOddsFilters]);
+  const filters = useMemo(() => {
+    const baseFilters = getBestOddsFilters();
+    return {
+      ...baseFilters,
+      minLiquidity: typeof dbMinLiquidity === 'string' ? Number(dbMinLiquidity) : (dbMinLiquidity ?? 0),
+    };
+  }, [getBestOddsFilters, dbMinLiquidity]);
+  
+  // Wrapper to update minLiquidity through arbitrage filters (shared across tools)
+  const updateFiltersWithLiquidity = useCallback(async (updates: Parameters<typeof updateBestOddsFilters>[0] & { minLiquidity?: number }) => {
+    const { minLiquidity, ...bestOddsUpdates } = updates;
+    
+    // Update best odds-specific filters
+    if (Object.keys(bestOddsUpdates).length > 0) {
+      await updateBestOddsFilters(bestOddsUpdates as Parameters<typeof updateBestOddsFilters>[0]);
+    }
+    
+    // Update shared minLiquidity through arbitrage filters
+    if (minLiquidity !== undefined) {
+      await updateArbitrageFilters({ minLiquidity });
+    }
+  }, [updateBestOddsFilters, updateArbitrageFilters]);
   
   return {
     filters,
-    updateFilters: updateBestOddsFilters,
+    updateFilters: updateFiltersWithLiquidity,
     isLoading,
   };
 }
 
 export function usePositiveEvPreferences() {
-  const { getPositiveEvFilters, updatePositiveEvFilters, isLoading, preferences } = usePreferences();
+  const { getPositiveEvFilters, updatePositiveEvFilters, updateArbitrageFilters, isLoading, preferences } = usePreferences();
   
   // Extract the specific values we care about to ensure proper memoization
   const dbSharpPreset = preferences?.positive_ev_sharp_preset;
   const dbSelectedSports = preferences?.positive_ev_selected_sports;
   const dbDevigMethods = preferences?.positive_ev_devig_methods;
+  const dbEvCase = preferences?.positive_ev_case;
   const dbMinEv = preferences?.positive_ev_min_ev;
   const dbMaxEv = preferences?.positive_ev_max_ev;
   const dbMode = preferences?.positive_ev_mode;
   const dbSelectedBooks = preferences?.positive_ev_selected_books;
   const dbSelectedMarkets = preferences?.positive_ev_selected_markets;
   const dbMinBooksPerSide = preferences?.positive_ev_min_books_per_side;
+  const dbShowHidden = preferences?.best_odds_show_hidden;
+  // Use shared min liquidity from arbitrage prefs (syncs across all tools)
+  const dbMinLiquidity = preferences?.arbitrage_min_liquidity;
   
   // Compute filters from preferences (or defaults if not loaded)
   const filters = useMemo(() => {
@@ -1147,10 +1187,13 @@ export function usePositiveEvPreferences() {
       selectedMarkets: dbSelectedMarkets ?? [],
       sharpPreset: dbSharpPreset ?? 'pinnacle',
       devigMethods: dbDevigMethods ?? ['power', 'multiplicative'],
+      evCase: (dbEvCase as 'worst' | 'best') ?? 'worst',
       minEv: typeof dbMinEv === 'string' ? Number(dbMinEv) : (dbMinEv ?? 2),
       maxEv: dbMaxEv ?? undefined,
       mode: (dbMode as 'pregame' | 'live' | 'all') ?? 'pregame',
       minBooksPerSide: typeof dbMinBooksPerSide === 'string' ? Number(dbMinBooksPerSide) : (dbMinBooksPerSide ?? 2),
+      showHidden: dbShowHidden ?? false,
+      minLiquidity: typeof dbMinLiquidity === 'string' ? Number(dbMinLiquidity) : (dbMinLiquidity ?? 0),
     };
     
     console.log('[usePositiveEvPreferences] Computed:', {
@@ -1163,11 +1206,29 @@ export function usePositiveEvPreferences() {
     });
     
     return f;
-  }, [isLoading, preferences, dbSharpPreset, dbSelectedSports, dbDevigMethods, dbMinEv, dbMaxEv, dbMode, dbSelectedBooks, dbSelectedMarkets, dbMinBooksPerSide]);
+  }, [isLoading, preferences, dbSharpPreset, dbSelectedSports, dbDevigMethods, dbEvCase, dbMinEv, dbMaxEv, dbMode, dbSelectedBooks, dbSelectedMarkets, dbMinBooksPerSide, dbShowHidden, dbMinLiquidity]);
+  
+  // Wrapper to update minLiquidity through arbitrage filters (shared across tools)
+  const updateFiltersWithLiquidity = useCallback(async (updates: Parameters<typeof updatePositiveEvFilters>[0] & { minLiquidity?: number }) => {
+    const { minLiquidity, ...evUpdates } = updates;
+    
+    console.log('[PositiveEV] updateFiltersWithLiquidity called:', { updates, minLiquidity, evUpdates });
+    
+    // Update EV-specific filters
+    if (Object.keys(evUpdates).length > 0) {
+      await updatePositiveEvFilters(evUpdates);
+    }
+    
+    // Update shared minLiquidity through arbitrage filters
+    if (minLiquidity !== undefined) {
+      console.log('[PositiveEV] Updating arbitrage_min_liquidity to:', minLiquidity);
+      await updateArbitrageFilters({ minLiquidity });
+    }
+  }, [updatePositiveEvFilters, updateArbitrageFilters]);
   
   return {
     filters,
-    updateFilters: updatePositiveEvFilters,
+    updateFilters: updateFiltersWithLiquidity,
     isLoading,
   };
 }

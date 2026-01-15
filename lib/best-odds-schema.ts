@@ -97,6 +97,7 @@ export interface BestOddsPrefs {
   comparisonBook: string | null
   showHidden: boolean          // Show hidden edges with dimmed styling
   columnOrder: string[]        // Column order for edge finder table (drag-and-drop customization)
+  minLiquidity: number         // Minimum liquidity (max stake) filter - syncs across tools
 }
 
 /**

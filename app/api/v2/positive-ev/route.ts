@@ -117,15 +117,39 @@ const EXCLUDED_BOOKS = new Set([
   "betmgm", // Use betmgm-michigan instead
 ]);
 
-// Sharp books for reference
-const SHARP_BOOK_IDS = new Set([
-  "pinnacle",
-  "circa",
-  "hardrock",
-  "hard-rock",
-  "thescore",
-  "bookmaker",
-]);
+/**
+ * Get the book IDs that should be excluded based on the current sharp preset
+ * Only exclude books that are actually being used as the sharp reference
+ */
+function getExcludedBooksForPreset(preset: SharpPreset): Set<string> {
+  const excluded = new Set<string>();
+  
+  switch (preset) {
+    case "pinnacle":
+      excluded.add("pinnacle");
+      break;
+    case "pinnacle_circa":
+      excluded.add("pinnacle");
+      excluded.add("circa");
+      break;
+    case "hardrock_thescore":
+      excluded.add("hardrock");
+      excluded.add("hard-rock");
+      excluded.add("thescore");
+      break;
+    case "market_average":
+      // Market average uses ALL books to calculate fair value
+      // Any individual book can still be +EV if better than the average
+      // So we don't exclude any books
+      break;
+    case "custom":
+      // Custom presets would need to be handled based on user config
+      // For now, don't exclude anything
+      break;
+  }
+  
+  return excluded;
+}
 
 /**
  * Normalize book IDs to match canonical sportsbook IDs
@@ -574,6 +598,10 @@ async function fetchPositiveEVOpportunities(
 
           if (overSel && !overSel.locked) {
             const overPrice = parseInt(String(overSel.price), 10);
+            // Debug: Log when limits data is present
+            if (overSel.limits?.max) {
+              console.log(`[positive-ev] Limits found: ${book} - Max $${overSel.limits.max}`);
+            }
             const bookOffer: BookOffer = {
               bookId: book,
               bookName: book,
@@ -582,6 +610,7 @@ async function fetchPositiveEVOpportunities(
               link: overSel.link || null,
               mobileLink: overSel.mobile_link || null,
               sgp: overSel.sgp || null,
+              limits: overSel.limits || null,
               updated: overSel.updated || undefined,
             };
             pair.over.books.push(bookOffer);
@@ -602,6 +631,10 @@ async function fetchPositiveEVOpportunities(
 
           if (underSel && !underSel.locked) {
             const underPrice = parseInt(String(underSel.price), 10);
+            // Debug: Log when limits data is present
+            if (underSel.limits?.max) {
+              console.log(`[positive-ev] Limits found: ${book} - Max $${underSel.limits.max}`);
+            }
             const bookOffer: BookOffer = {
               bookId: book,
               bookName: book,
@@ -610,6 +643,7 @@ async function fetchPositiveEVOpportunities(
               link: underSel.link || null,
               mobileLink: underSel.mobile_link || null,
               sgp: underSel.sgp || null,
+              limits: underSel.limits || null,
               updated: underSel.updated || undefined,
             };
             pair.under.books.push(bookOffer);
@@ -651,81 +685,114 @@ async function fetchPositiveEVOpportunities(
 
       // Check each book for +EV opportunities on both sides
       const sides: ("over" | "under")[] = ["over", "under"];
+      
+      // Get books to exclude based on the current preset
+      // Only the books used as the sharp reference are excluded
+      const excludedBooks = getExcludedBooksForPreset(sharpPreset);
 
       for (const side of sides) {
         const sideData = pair[side];
         const oppositeSide = side === "over" ? "under" : "over";
         const oppositeData = pair[oppositeSide];
 
-        // Filter by user's books if specified
-        let booksToCheck = sideData.books;
+        // Calculate EV for ALL books first (for comparison display)
+        const booksWithEV: Array<{
+          book: typeof sideData.books[0];
+          evCalc: ReturnType<typeof calculateMultiEV>;
+          isExcluded: boolean;
+        }> = [];
+        
+        for (const bookOffer of sideData.books) {
+          const evCalc = calculateMultiEV(devigResults, bookOffer, side);
+          const isExcluded = excludedBooks.has(bookOffer.bookId.toLowerCase());
+          booksWithEV.push({ book: bookOffer, evCalc, isExcluded });
+        }
+        
+        // Sort by EV (highest first)
+        booksWithEV.sort((a, b) => b.evCalc.evWorst - a.evCalc.evWorst);
+
+        // Filter to books that can be bet on (not excluded, passes user filter)
+        let bettableBooks = booksWithEV.filter(b => !b.isExcluded);
         if (booksFilter) {
-          booksToCheck = booksToCheck.filter((b) => booksFilter.includes(b.bookId));
+          bettableBooks = bettableBooks.filter(b => booksFilter.includes(b.book.bookId));
         }
+        
+        // Find the best EV book that meets threshold
+        const bestBook = bettableBooks.find(b => 
+          b.evCalc.evWorst >= minEV && b.evCalc.evWorst <= maxEV
+        );
+        
+        // Skip if no book meets threshold
+        if (!bestBook) continue;
+        
+        // Create allBooks array with EV% for each book
+        const allBooksWithEV: BookOffer[] = booksWithEV.map(b => ({
+          bookId: b.book.bookId,
+          bookName: b.book.bookName,
+          price: b.book.price,
+          priceDecimal: b.book.priceDecimal,
+          link: b.book.link || null,
+          mobileLink: b.book.mobileLink || null,
+          sgp: b.book.sgp || null,
+          limits: b.book.limits || null,
+          evPercent: b.evCalc.evWorst, // EV% for this book
+          isSharpRef: b.isExcluded, // Mark if used as sharp reference
+        }));
+        
+        // Sort allBooks by EV (best first) for display
+        allBooksWithEV.sort((a, b) => (b.evPercent ?? 0) - (a.evPercent ?? 0));
 
-        // Exclude sharp books from +EV opportunities (can't beat yourself)
-        booksToCheck = booksToCheck.filter((b) => !SHARP_BOOK_IDS.has(b.bookId));
+        // Create ONE opportunity per market (deduplicated to best EV)
+        const marketKey = `${pair.eventId}:${pair.market}:${pair.player}:${pair.line}:${side}`;
+        const opp: PositiveEVOpportunity = {
+          id: marketKey,
+          sport: pair.sport,
+          eventId: pair.eventId,
+          market: pair.market,
+          marketDisplay: pair.marketDisplay || getMarketDisplay(pair.market),
+          homeTeam: pair.event?.home_team,
+          awayTeam: pair.event?.away_team,
+          startTime: pair.event?.start_time,
+          playerId: pair.playerId || undefined,
+          playerName: pair.playerDisplay || pair.player,
+          playerTeam: pair.team || undefined,
+          playerPosition: pair.position || undefined,
+          line: pair.line,
+          side,
+          sharpPreset,
+          sharpReference: {
+            ...sharpReference,
+            blendedFrom: undefined,
+          },
+          devigResults: {
+            [devigMethods[0]]: devigResults[devigMethods[0]],
+          } as MultiDevigResult,
+          book: {
+            bookId: bestBook.book.bookId,
+            price: bestBook.book.price,
+            priceDecimal: bestBook.book.priceDecimal,
+            link: bestBook.book.link,
+            limits: bestBook.book.limits || null,
+            evPercent: bestBook.evCalc.evWorst,
+          } as BookOffer,
+          evCalculations: bestBook.evCalc,
+          // All books with their EV% for comparison
+          allBooks: allBooksWithEV,
+          oppositeBooks: oppositeData.books.map(b => ({
+            bookId: b.bookId,
+            bookName: b.bookName,
+            price: b.price,
+            priceDecimal: b.priceDecimal,
+            link: b.link || null,
+            mobileLink: b.mobileLink || null,
+            sgp: b.sgp || null,
+            limits: b.limits || null,
+          })) as BookOffer[],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-        for (const bookOffer of booksToCheck) {
-          // Calculate EV for this book's offer
-          const evCalculations = calculateMultiEV(devigResults, bookOffer, side);
-
-          // Check if it meets threshold
-          if (evCalculations.evWorst < minEV) continue;
-          if (evCalculations.evWorst > maxEV) continue; // Filter outliers
-
-          // Create LEAN opportunity (optimized for response size)
-          // Only include what's needed for the table display
-          // Full book details can be fetched on-demand when row is expanded
-          const opp: PositiveEVOpportunity = {
-            id: `${pair.eventId}:${pair.market}:${pair.player}:${pair.line}:${side}:${bookOffer.bookId}`,
-            sport: pair.sport,
-            eventId: pair.eventId,
-            market: pair.market,
-            marketDisplay: pair.marketDisplay || getMarketDisplay(pair.market),
-            homeTeam: pair.event?.home_team,
-            awayTeam: pair.event?.away_team,
-            startTime: pair.event?.start_time,
-            playerId: pair.playerId || undefined,
-            playerName: pair.playerDisplay || pair.player,
-            playerTeam: pair.team || undefined,
-            playerPosition: pair.position || undefined,
-            line: pair.line,
-            side,
-            sharpPreset,
-            sharpReference: {
-              ...sharpReference,
-              blendedFrom: undefined, // Don't need this in list view
-            },
-            devigResults: {
-              // Only include the primary method result to reduce size
-              [devigMethods[0]]: devigResults[devigMethods[0]],
-            } as MultiDevigResult,
-            book: {
-              bookId: bookOffer.bookId,
-              price: bookOffer.price,
-              priceDecimal: bookOffer.priceDecimal,
-              link: bookOffer.link,
-              // Don't include mobileLink in list - fetch on expand
-            } as BookOffer,
-            evCalculations,
-            // Include all books for expanded row display (lean format)
-            allBooks: sideData.books.map(b => ({
-              bookId: b.bookId,
-              price: b.price,
-              priceDecimal: b.priceDecimal,
-            })) as BookOffer[],
-            oppositeBooks: oppositeData.books.map(b => ({
-              bookId: b.bookId,
-              price: b.price,
-              priceDecimal: b.priceDecimal,
-            })) as BookOffer[],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          opportunities.push(opp);
-        }
+        opportunities.push(opp);
       }
     }
 

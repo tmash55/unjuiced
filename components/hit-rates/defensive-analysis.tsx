@@ -98,53 +98,65 @@ export function DefensiveAnalysis({
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-neutral-500" />
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-              Defensive Analysis
-            </h3>
-            {opponentLogo && (
-              <img
-                src={opponentLogo}
-                alt={opponentTeamAbbr || ""}
-                className="h-5 w-5 object-contain"
-              />
-            )}
-            <span className="text-sm font-semibold text-neutral-900 dark:text-white">
-              {opponentTeamAbbr}
-            </span>
-          </div>
-          
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-neutral-200 dark:bg-neutral-700 p-0.5 rounded-lg">
-            <button
-              type="button"
-              onClick={() => setViewMode("ranks")}
-              className={cn(
-                "px-3 py-1 rounded-md text-xs font-semibold transition-all",
-                viewMode === "ranks"
-                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-600 dark:text-neutral-400"
-              )}
-            >
-              Ranks
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("values")}
-              className={cn(
-                "px-3 py-1 rounded-md text-xs font-semibold transition-all",
-                viewMode === "values"
-                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-600 dark:text-neutral-400"
-              )}
-            >
-              Values
-            </button>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-red-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-red-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-red-500 to-rose-600 shadow-sm shadow-red-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Defensive Analysis
+                  </h3>
+                  {opponentLogo && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-700/50">
+                      <img
+                        src={opponentLogo}
+                        alt={opponentTeamAbbr || ""}
+                        className="h-4 w-4 object-contain"
+                      />
+                      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                        {opponentTeamAbbr}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                  Defense vs all positions
+                </p>
+              </div>
+            </div>
+            
+            {/* View Mode Toggle - Premium */}
+            <div className="flex items-center gap-1 bg-neutral-100/50 dark:bg-neutral-800/30 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setViewMode("ranks")}
+                className={cn(
+                  "px-3.5 py-2 rounded-lg text-xs font-bold transition-all",
+                  viewMode === "ranks"
+                    ? "bg-white dark:bg-neutral-700 text-red-700 dark:text-red-400 shadow-md ring-1 ring-red-200/50 dark:ring-red-700/30"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                Ranks
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("values")}
+                className={cn(
+                  "px-3.5 py-2 rounded-lg text-xs font-bold transition-all",
+                  viewMode === "values"
+                    ? "bg-white dark:bg-neutral-700 text-red-700 dark:text-red-400 shadow-md ring-1 ring-red-200/50 dark:ring-red-700/30"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                Values
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -246,25 +258,25 @@ export function DefensiveAnalysis({
         </table>
       </div>
 
-      {/* Footer with Legend */}
-      <div className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
+      {/* Footer with Legend - Premium */}
+      <div className="px-5 py-3 border-t border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50/80 via-white/60 to-neutral-50/80 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-            Defense vs all positions • Season rankings out of 30 teams
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+            Season rankings out of 30 teams
           </p>
-          {/* Legend */}
-          <div className="flex items-center gap-3 text-[9px]">
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-              <span className="text-neutral-500 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+          {/* Legend - Premium Pills */}
+          <div className="flex items-center gap-2 text-[9px]">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 dark:bg-red-900/20">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="font-medium text-red-700 dark:text-red-400">Tough 1-10</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
-              <span className="text-neutral-500 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="font-medium text-amber-700 dark:text-amber-400">Neutral 11-20</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-              <span className="text-neutral-500 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">Good 21-30</span>
             </div>
           </div>
         </div>

@@ -202,11 +202,11 @@ export function BoxScoreTable({
 
   if (isLoading) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <div className="flex items-center justify-center h-48">
-          <div className="animate-pulse flex flex-col items-center gap-2">
-            <div className="h-6 w-6 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-            <span className="text-sm text-neutral-500">Loading box scores...</span>
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 border-2 border-sky-200 border-t-sky-500 rounded-full animate-spin" />
+            <span className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">Loading box scores...</span>
           </div>
         </div>
       </div>
@@ -215,38 +215,45 @@ export function BoxScoreTable({
 
   if (error) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <p className="text-sm text-red-500">Failed to load box scores</p>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+        <p className="text-sm text-red-500 font-medium">Failed to load box scores</p>
       </div>
     );
   }
 
   if (games.length === 0) {
     return (
-      <div className={cn("rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-800", className)}>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">No box score data available</p>
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">No box score data available</p>
       </div>
     );
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm", className)}>
-      {/* Header - Matches other components */}
-      <div className="px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-600" />
-            <div>
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-                Game Log
-              </h2>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-                {games.length} games this season
-                {seasonSummary && <span className="ml-2">· {seasonSummary.record}</span>}
-              </p>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-sky-500 to-blue-600 shadow-sm shadow-sky-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Game Log
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-bold">
+                    {games.length} games
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                  Full season box scores
+                  {seasonSummary && <span className="ml-2">· {seasonSummary.record}</span>}
+                </p>
+              </div>
             </div>
           </div>
-          
         </div>
       </div>
 
@@ -254,7 +261,7 @@ export function BoxScoreTable({
       <div className="overflow-x-auto">
         <div className="max-h-[400px] overflow-y-auto">
           <table className="min-w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-700">
+            <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
               <tr>
                 <th 
                   className="px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"

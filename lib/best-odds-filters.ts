@@ -21,6 +21,7 @@ export const DEFAULT_BEST_ODDS_PREFS: BestOddsPrefs = {
   comparisonBook: null,
   showHidden: false,
   columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
+  minLiquidity: 0,
 };
 
 /**

@@ -16,7 +16,7 @@ import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
-import { Zap, ChevronDown, X } from "lucide-react";
+import { Zap, ChevronDown, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Native imports
@@ -27,7 +27,7 @@ import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Shared preferences & filters component
 import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-context";
-import { BestOddsFilters } from "@/components/best-odds/best-odds-filters";
+import { UnifiedFilters, type EdgeFinderSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 
 import { useAuth } from "@/components/auth/auth-provider";
@@ -106,6 +106,10 @@ export default function EdgeFinderPage() {
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
   const [refreshing, setRefreshing] = useState(false);
+  
+  // NOTE: Auto-refresh (SSE streaming) is disabled for now
+  // The streaming hook needs more work to match the standard hook's behavior
+  // TODO: Re-enable when streaming is properly aligned with useMultiFilterOpportunities
 
   // Hidden edges management
   const { 
@@ -159,16 +163,17 @@ export default function EdgeFinderPage() {
   }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
   // Use multi-filter hook (handles multiple active presets, parallel fetching, deduplication)
+  // Standard data fetching - disabled when auto-refresh is on
   const {
-    opportunities,
+    opportunities: standardOpportunities,
     activeFilters,
     isCustomMode,
-    isLoading,
-    isFetching,
-    error,
-    refetch,
+    isLoading: standardIsLoading,
+    isFetching: standardIsFetching,
+    error: standardError,
+    refetch: standardRefetch,
     prefetchPreset,
-    dataUpdatedAt,
+    dataUpdatedAt: standardDataUpdatedAt,
     isStale,
     isLoadingMore,
     loadProgress,
@@ -183,7 +188,15 @@ export default function EdgeFinderPage() {
     enabled: !planLoading && !prefsLoading && !presetsLoading,
   });
 
-  // Apply hidden edges filter (must be done client-side due to user-specific state)
+  // Data access - use standard hook directly (auto-refresh disabled for now)
+  const opportunities = standardOpportunities;
+  const isLoading = standardIsLoading;
+  const isFetching = standardIsFetching;
+  const error = standardError;
+  const refetch = standardRefetch;
+  const dataUpdatedAt = standardDataUpdatedAt;
+
+  // Apply hidden edges filter and min liquidity filter (must be done client-side due to user-specific state)
   const filteredOpportunities = useMemo(() => {
     let filtered = opportunities;
 
@@ -192,8 +205,22 @@ export default function EdgeFinderPage() {
       filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
 
+    // Min liquidity filter - filter out opportunities where best book's max stake is below threshold
+    const minLiquidity = prefs.minLiquidity ?? 0;
+    if (minLiquidity > 0) {
+      filtered = filtered.filter((opp) => {
+        // Find the best book's limits from allBooks
+        const bestBookOffer = opp.allBooks?.find(b => b.decimal === opp.bestDecimal);
+        const maxStake = bestBookOffer?.limits?.max;
+        // If limits are unknown (null/undefined), include the opportunity
+        if (maxStake == null) return true;
+        // Otherwise, only include if max stake meets threshold
+        return maxStake >= minLiquidity;
+      });
+    }
+
     return filtered;
-  }, [opportunities, prefs.showHidden, isHidden]);
+  }, [opportunities, prefs.showHidden, prefs.minLiquidity, isHidden]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -201,22 +228,25 @@ export default function EdgeFinderPage() {
     setRefreshing(false);
   };
 
-  // Handler for prefs changes from BestOddsFilters
-  const handlePrefsChange = useCallback((newPrefs: BestOddsPrefs) => {
-    updatePrefs({
-      selectedBooks: newPrefs.selectedBooks,
-      selectedLeagues: newPrefs.selectedLeagues,
-      selectedMarkets: newPrefs.selectedMarkets,
-      marketLines: newPrefs.marketLines, // Market-specific line filters (e.g., touchdowns: [0.5])
-      minImprovement: newPrefs.minImprovement,
-      maxOdds: newPrefs.maxOdds,
-      minOdds: newPrefs.minOdds,
-      hideCollegePlayerProps: newPrefs.hideCollegePlayerProps,
-      comparisonMode: newPrefs.comparisonMode,
-      comparisonBook: newPrefs.comparisonBook,
-      searchQuery: newPrefs.searchQuery,
-      showHidden: newPrefs.showHidden,
-    });
+  // Handler for filters changes from UnifiedFilters
+  const handleFiltersChange = useCallback((filters: FilterChangeEvent) => {
+    const updates: Partial<BestOddsPrefs> = {};
+    
+    // Common filters
+    if (filters.selectedBooks !== undefined) updates.selectedBooks = filters.selectedBooks;
+    if (filters.selectedMarkets !== undefined) updates.selectedMarkets = filters.selectedMarkets;
+    if (filters.minLiquidity !== undefined) updates.minLiquidity = filters.minLiquidity;
+    if (filters.showHidden !== undefined) updates.showHidden = filters.showHidden;
+    
+    // Edge Finder specific filters
+    if (filters.selectedLeagues !== undefined) updates.selectedLeagues = filters.selectedLeagues;
+    if (filters.marketLines !== undefined) updates.marketLines = filters.marketLines;
+    if (filters.minImprovement !== undefined) updates.minImprovement = filters.minImprovement;
+    if (filters.maxOdds !== undefined) updates.maxOdds = filters.maxOdds;
+    if (filters.minOdds !== undefined) updates.minOdds = filters.minOdds;
+    if (filters.hideCollegePlayerProps !== undefined) updates.hideCollegePlayerProps = filters.hideCollegePlayerProps;
+    
+    updatePrefs(updates);
   }, [updatePrefs]);
 
   // Kelly Criterion handlers
@@ -291,10 +321,7 @@ export default function EdgeFinderPage() {
           dataUpdatedAt={dataUpdatedAt ?? undefined}
           onPresetHover={prefetchPreset}
           prefs={prefs}
-          onPrefsChange={(newPrefs) => handlePrefsChange({ 
-            ...newPrefs, 
-            columnOrder: newPrefs.columnOrder ?? [] 
-          })}
+          onPrefsChange={(newPrefs) => updatePrefs(newPrefs)}
           availableLeagues={AVAILABLE_LEAGUES}
           availableMarkets={availableMarkets}
           availableSportsbooks={availableSportsbooks}
@@ -467,34 +494,46 @@ export default function EdgeFinderPage() {
           </FiltersBarSection>
 
           <FiltersBarSection align="right">
-            {/* BestOddsFilters component - handles all advanced filtering */}
-            <BestOddsFilters
-              prefs={{
-                ...prefs,
-                columnOrder: ['edge', 'league', 'time', 'selection', 'line', 'market', 'best-book', 'reference', 'fair', 'stake', 'filter', 'action'],
-              }}
-              onPrefsChange={handlePrefsChange}
+            {/* UnifiedFilters component - handles all advanced filtering */}
+            <UnifiedFilters
+              tool="edge-finder"
+              selectedBooks={prefs.selectedBooks}
+              selectedMarkets={prefs.selectedMarkets}
+              minLiquidity={prefs.minLiquidity ?? 0}
+              showHidden={prefs.showHidden}
+              hiddenCount={hiddenCount}
+              toolSettings={{
+                selectedLeagues: prefs.selectedLeagues,
+                marketLines: prefs.marketLines,
+                minImprovement: prefs.minImprovement,
+                maxOdds: prefs.maxOdds,
+                minOdds: prefs.minOdds,
+                hideCollegePlayerProps: prefs.hideCollegePlayerProps,
+                comparisonMode: prefs.comparisonMode,
+                comparisonBook: prefs.comparisonBook,
+                scope: prefs.scope,
+              } satisfies EdgeFinderSettings}
+              onFiltersChange={handleFiltersChange}
+              onToggleShowHidden={handleToggleShowHidden}
+              onClearAllHidden={clearAllHidden}
               availableLeagues={AVAILABLE_LEAGUES}
               availableMarkets={availableMarkets}
               availableSportsbooks={availableSportsbooks}
-              deals={filteredOpportunities.map((opp) => ({
-                bestBook: opp.bestBook,
-                bestPrice: opp.bestDecimal,
-                allBooks: opp.allBooks.map((b) => ({
-                  book: b.book,
-                  price: b.price,
-                  link: b.link || "",
-                })),
-              }))}
+              sportsbookCounts={(() => {
+                const counts: Record<string, number> = {};
+                filteredOpportunities.forEach((opp) => {
+                  const bestPrice = opp.bestDecimal;
+                  opp.allBooks
+                    .filter(b => b.price === bestPrice)
+                    .forEach(b => {
+                      counts[b.book] = (counts[b.book] || 0) + 1;
+                    });
+                });
+                return counts;
+              })()}
               locked={locked}
               isLoggedIn={isLoggedIn}
               isPro={effectiveIsPro}
-              refreshing={refreshing || isFetching}
-              onRefresh={handleRefresh}
-              hiddenCount={hiddenCount}
-              showHidden={prefs.showHidden}
-              onToggleShowHidden={handleToggleShowHidden}
-              onClearAllHidden={clearAllHidden}
               customPresetActive={isCustomMode}
               activePresetName={activePresets.length > 0 ? activePresets.map(p => p.name).join(", ") : undefined}
               bankroll={evPrefs.bankroll}
@@ -502,6 +541,22 @@ export default function EdgeFinderPage() {
               onBankrollChange={handleBankrollChange}
               onKellyPercentChange={handleKellyPercentChange}
             />
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className={cn(
+                "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
+                "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400",
+                "border border-neutral-200/80 dark:border-neutral-700/80",
+                "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-200",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+              title="Refresh data"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
+            </button>
         </FiltersBarSection>
       </FiltersBar>
       </div>
@@ -538,6 +593,11 @@ export default function EdgeFinderPage() {
         bankroll={evPrefs.bankroll}
         kellyPercent={evPrefs.kellyPercent || 25}
         boostPercent={boostPercent}
+        // Streaming disabled for now - pass empty/false values
+        autoRefresh={false}
+        streamChanges={new Map()}
+        streamAdded={new Set()}
+        streamStale={new Set()}
       />
 
       {/* Load more button */}

@@ -88,6 +88,13 @@ export interface SharpReference {
 // =============================================================================
 
 /**
+ * Betting limits info (max wager)
+ */
+export interface BookLimits {
+  max: number;
+}
+
+/**
  * Odds from a single sportsbook for one side of a market
  */
 export interface BookOffer {
@@ -98,7 +105,10 @@ export interface BookOffer {
   link?: string | null;
   mobileLink?: string | null;
   sgp?: string | null;
+  limits?: BookLimits | null;  // Betting limits when available
   updated?: string;
+  evPercent?: number;      // EV% for this book (calculated, optional)
+  isSharpRef?: boolean;    // True if this book was used as sharp reference
 }
 
 /**
@@ -238,6 +248,7 @@ export interface PositiveEVResponse {
     sharpPreset: SharpPreset;
     devigMethods: DevigMethod[];
     minEV: number;
+    minBooksPerSide?: number;
     mode: EVMode;
     timestamp: string;
   };

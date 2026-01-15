@@ -52,68 +52,71 @@ export function PlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamAbbr, p
   const playTypesCount = data?.play_types?.length || 0;
 
   return (
-    <div className="rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm h-full">
-      {/* Header - Matching Alternate Lines style */}
-      <div className="px-4 py-2 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-800/50 dark:to-transparent">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-0.5 rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500" />
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-              Play Type Analysis
-            </h3>
-            <Tooltip
-              content={
-                <div className="max-w-[280px] p-1">
-                  <p className="text-xs font-semibold text-white mb-1.5">Play Type Matchups</p>
-                  <p className="text-[11px] text-neutral-300 mb-2">
-                    Shows how the player scores by play type and how {opponentTeamAbbr} defends each one.
-                  </p>
-                  <div className="space-y-1 text-[10px] mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-emerald-500" />
-                      <span className="text-neutral-300">21-30 = Favorable (defense struggles)</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-amber-500" />
-                      <span className="text-neutral-300">11-20 = Neutral</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded bg-red-500" />
-                      <span className="text-neutral-300">1-10 = Tough (defense excels)</span>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-neutral-700 text-[10px] text-neutral-400">
-                    <span className="font-semibold text-neutral-300">PPP</span> = Points Per Possession. 
-                    League avg is ~1.0. Above 1.1 is excellent.
-                  </div>
+    <div className="rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5 h-full">
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-violet-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-violet-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-600 shadow-sm shadow-violet-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Play Type Analysis
+                  </h3>
+                  <Tooltip
+                    content={
+                      <div className="max-w-[280px] p-1">
+                        <p className="text-xs font-semibold text-white mb-1.5">Play Type Matchups</p>
+                        <p className="text-[11px] text-neutral-300 mb-2">
+                          Shows how the player scores by play type and how {opponentTeamAbbr} defends each one.
+                        </p>
+                        <div className="space-y-1 text-[10px] mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded bg-emerald-500" />
+                            <span className="text-neutral-300">21-30 = Favorable (defense struggles)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded bg-amber-500" />
+                            <span className="text-neutral-300">11-20 = Neutral</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded bg-red-500" />
+                            <span className="text-neutral-300">1-10 = Tough (defense excels)</span>
+                          </div>
+                        </div>
+                        <div className="pt-2 border-t border-neutral-700 text-[10px] text-neutral-400">
+                          <span className="font-semibold text-neutral-300">PPP</span> = Points Per Possession. 
+                          League avg is ~1.0. Above 1.1 is excellent.
+                        </div>
+                      </div>
+                    }
+                    side="right"
+                  >
+                    <Info className="h-3.5 w-3.5 text-neutral-400 cursor-help" />
+                  </Tooltip>
                 </div>
-              }
-              side="right"
-            >
-              <Info className="h-3 w-3 text-neutral-400 cursor-help" />
-            </Tooltip>
-            <span className="text-xs text-neutral-400">•</span>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              vs {opponentTeamAbbr}
-            </span>
-            {!isLoading && playTypesCount > 0 && (
-              <>
-                <span className="text-xs text-neutral-400">•</span>
-                <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {playTypesCount} types
-                </span>
-              </>
-            )}
-          </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    vs {opponentTeamAbbr}
+                  </span>
+                  {!isLoading && playTypesCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 font-bold">
+                      {playTypesCount} types
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
 
-          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all"
+              className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all"
             >
               <ChevronDown className={cn(
-                "h-3.5 w-3.5 text-neutral-500 transition-transform",
+                "h-4 w-4 text-neutral-500 transition-transform",
                 !collapsed && "rotate-180"
               )} />
             </button>

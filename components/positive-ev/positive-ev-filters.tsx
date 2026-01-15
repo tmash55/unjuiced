@@ -2,12 +2,12 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { formatMarketLabel, SPORT_MARKETS } from "@/lib/data/markets";
-import { Filter, Building2, Target, TrendingUp, Lock, Percent } from "lucide-react";
+import { Filter, Building2, Target, TrendingUp, Lock, Percent, Eye, EyeOff, ChevronDown, ChevronRight, Search, Check } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { ButtonLink } from "@/components/button-link";
 import { cn } from "@/lib/utils";
@@ -21,10 +21,14 @@ interface PositiveEVFiltersProps {
   selectedMarkets: string[];
   sharpPreset: SharpPreset;
   devigMethods: DevigMethod[];
+  evCase: "worst" | "best";
   minEv: number;
   maxEv: number | undefined;
   mode: "pregame" | "live" | "all";
   minBooksPerSide: number;
+  minLiquidity: number;
+  showHidden: boolean;
+  hiddenCount: number;
   
   // Callbacks
   onFiltersChange: (filters: {
@@ -33,10 +37,13 @@ interface PositiveEVFiltersProps {
     selectedMarkets?: string[];
     sharpPreset?: SharpPreset;
     devigMethods?: DevigMethod[];
+    evCase?: "worst" | "best";
     minEv?: number;
     maxEv?: number | undefined;
     mode?: "pregame" | "live" | "all";
     minBooksPerSide?: number;
+    minLiquidity?: number;
+    showHidden?: boolean;
   }) => void;
   
   // Available options
@@ -72,10 +79,14 @@ export function PositiveEVFilters({
   selectedMarkets,
   sharpPreset,
   devigMethods,
+  evCase,
   minEv,
   maxEv,
   mode,
   minBooksPerSide,
+  minLiquidity,
+  showHidden,
+  hiddenCount,
   onFiltersChange,
   availableSports,
   availableMarkets,
@@ -86,6 +97,8 @@ export function PositiveEVFilters({
 }: PositiveEVFiltersProps) {
   const allSportsbooks = useMemo(() => getAllActiveSportsbooks(), []);
   const [open, setOpen] = useState(false);
+  const [expandedSportSections, setExpandedSportSections] = useState<Set<string>>(new Set(['Basketball', 'Football']));
+  const [marketSearchQuery, setMarketSearchQuery] = useState<string>('');
   
   // Local state for uncommitted changes
   const [localBooks, setLocalBooks] = useState<string[]>(selectedBooks);
@@ -93,10 +106,12 @@ export function PositiveEVFilters({
   const [localMarkets, setLocalMarkets] = useState<string[]>(selectedMarkets);
   const [localSharpPreset, setLocalSharpPreset] = useState<SharpPreset>(sharpPreset);
   const [localDevigMethods, setLocalDevigMethods] = useState<DevigMethod[]>(devigMethods);
+  const [localEvCase, setLocalEvCase] = useState<"worst" | "best">(evCase);
   const [localMinEv, setLocalMinEv] = useState(minEv);
   const [localMaxEv, setLocalMaxEv] = useState<number | undefined>(maxEv);
   const [localMode, setLocalMode] = useState(mode);
   const [localMinBooksPerSide, setLocalMinBooksPerSide] = useState(minBooksPerSide);
+  const [localMinLiquidity, setLocalMinLiquidity] = useState(minLiquidity);
   
   // Sync local state with props
   useEffect(() => {
@@ -105,11 +120,13 @@ export function PositiveEVFilters({
     setLocalMarkets(selectedMarkets);
     setLocalSharpPreset(sharpPreset);
     setLocalDevigMethods(devigMethods);
+    setLocalEvCase(evCase);
     setLocalMinEv(minEv);
     setLocalMaxEv(maxEv);
     setLocalMode(mode);
     setLocalMinBooksPerSide(minBooksPerSide);
-  }, [selectedBooks, selectedSports, selectedMarkets, sharpPreset, devigMethods, minEv, maxEv, mode, minBooksPerSide]);
+    setLocalMinLiquidity(minLiquidity);
+  }, [selectedBooks, selectedSports, selectedMarkets, sharpPreset, devigMethods, evCase, minEv, maxEv, mode, minBooksPerSide, minLiquidity]);
   
   // Calculate sportsbook counts from opportunities
   const sportsbookCounts = useMemo(() => {
@@ -218,10 +235,12 @@ export function PositiveEVFilters({
       selectedMarkets: localMarkets,
       sharpPreset: localSharpPreset,
       devigMethods: localDevigMethods,
+      evCase: localEvCase,
       minEv: localMinEv,
       maxEv: localMaxEv,
       mode: localMode,
       minBooksPerSide: localMinBooksPerSide,
+      minLiquidity: localMinLiquidity,
     });
     setOpen(false);
   };
@@ -233,10 +252,12 @@ export function PositiveEVFilters({
     setLocalMarkets([]);
     setLocalSharpPreset("pinnacle");
     setLocalDevigMethods(["power", "multiplicative"]);
+    setLocalEvCase("worst");
     setLocalMinEv(2);
     setLocalMaxEv(undefined);
     setLocalMode("pregame");
     setLocalMinBooksPerSide(2);
+    setLocalMinLiquidity(0);
     
     onFiltersChange({
       selectedBooks: [],
@@ -248,6 +269,7 @@ export function PositiveEVFilters({
       maxEv: undefined,
       mode: "pregame",
       minBooksPerSide: 2,
+      minLiquidity: 0,
     });
   };
   
@@ -269,14 +291,14 @@ export function PositiveEVFilters({
             "flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium transition-colors border",
             "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800",
             "text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700",
-            activeFiltersCount > 0 && "border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+            activeFiltersCount > 0 && "border-brand/40 dark:border-brand/60 bg-brand/5 dark:bg-brand/10 text-brand dark:text-brand"
           )}
           title="Filters"
         >
           <Filter className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Filters</span>
           {activeFiltersCount > 0 && (
-            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
+            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">
               {activeFiltersCount}
             </span>
           )}
@@ -287,16 +309,16 @@ export function PositiveEVFilters({
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-neutral-200 px-4 sm:px-6 py-3 sm:py-4 dark:border-neutral-800">
             <SheetTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-500" />
+              <TrendingUp className="w-5 h-5 text-brand" />
               EV Finder Filters
             </SheetTitle>
           </SheetHeader>
           
           {locked && (
-            <div className="mx-6 mt-4 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 dark:from-emerald-950/30 via-transparent to-transparent p-4">
+            <div className="mx-6 mt-4 rounded-lg border border-brand/20 dark:border-brand/60 bg-gradient-to-br from-brand/5 dark:from-brand/10 via-transparent to-transparent p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <Lock className="h-4 w-4 text-brand" />
                   <div>
                     <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
@@ -340,59 +362,77 @@ export function PositiveEVFilters({
               {/* Sportsbooks Tab */}
               <TabsContent value="books" className="mt-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
                     Select books to show opportunities from
                   </p>
-                  <div className="flex gap-1.5 sm:gap-2">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => !locked && setLocalBooks([])}
                       disabled={locked}
-                      className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-8 rounded-lg px-3 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      All
+                      Select All
                     </button>
                     <button
                       onClick={() => !locked && setLocalBooks(allSportsbooks.map((sb) => sb.id))}
                       disabled={locked}
-                      className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-8 rounded-lg px-3 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      None
+                      Clear All
                     </button>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {allSportsbooks
                     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
                     .map((sb) => {
                       const checked = allBooksSelected || localBooks.includes(sb.id);
                       const count = sportsbookCounts[sb.id] || 0;
                       return (
-                        <label
+                        <button
                           key={sb.id}
+                          type="button"
+                          onClick={() => !locked && toggleBook(sb.id)}
+                          disabled={locked}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg border p-3 transition-colors",
-                            locked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:shadow-sm",
+                            "relative flex items-center gap-3 rounded-xl p-3.5 transition-all duration-200 text-left",
+                            locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                             checked
-                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600"
+                              ? "bg-white dark:bg-neutral-800/60 ring-2 ring-brand shadow-sm shadow-brand/20"
+                              : "bg-white dark:bg-neutral-800/60 ring-1 ring-neutral-200 dark:ring-neutral-700/80 hover:ring-neutral-300 dark:hover:ring-neutral-600"
                           )}
                         >
-                          <Checkbox 
-                            checked={checked} 
-                            onCheckedChange={() => toggleBook(sb.id)} 
-                            disabled={locked} 
-                          />
-                          {sb.image?.light && (
-                            <img src={sb.image.light} alt={sb.name} className="h-6 w-6 object-contain" />
-                          )}
-                          <span className="text-sm leading-none">
-                            {sb.name}
-                            {count > 0 && (
-                              <span className="text-neutral-400 dark:text-neutral-500 ml-1">({count})</span>
+                          {/* Checkmark */}
+                          <div className={cn(
+                            "absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
+                            checked
+                              ? "bg-brand"
+                              : "ring-1 ring-neutral-300 dark:ring-neutral-600 bg-white dark:bg-neutral-800"
+                          )}>
+                            {checked && (
+                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
                             )}
-                          </span>
-                        </label>
+                          </div>
+                          
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden transition-colors bg-neutral-100 dark:bg-neutral-700/50">
+                            {sb.image?.light ? (
+                              <img src={sb.image.light} alt={sb.name} className="h-6 w-6 object-contain" />
+                            ) : (
+                              <Building2 className="h-4 w-4 text-neutral-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 pr-6">
+                            <span className="text-sm font-semibold leading-none block truncate text-neutral-900 dark:text-neutral-100">
+                              {sb.name}
+                            </span>
+                            {count > 0 && (
+                              <span className="text-xs mt-1 block text-neutral-500 dark:text-neutral-400">
+                                {count} opportunities
+                              </span>
+                            )}
+                          </div>
+                        </button>
                       );
                     })}
                 </div>
@@ -400,286 +440,511 @@ export function PositiveEVFilters({
               
               {/* Sports & Markets Tab */}
               <TabsContent value="sports" className="mt-4 space-y-6">
-                {/* Sports Selection */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">Sports</Label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => !locked && setLocalSports(availableSports)}
-                        disabled={locked}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                      >
-                        All
-                      </button>
-                      <button
-                        onClick={() => !locked && setLocalSports([])}
-                        disabled={locked}
-                        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
-                      >
-                        Clear
-                      </button>
-                    </div>
+                {/* Header with global actions */}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Filter by sports and markets
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (locked) return;
+                        setLocalSports(availableSports);
+                        setLocalMarkets([]);
+                      }}
+                      disabled={locked}
+                      className="h-8 rounded-lg px-3 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (locked) return;
+                        setLocalSports([]);
+                        setLocalMarkets(availableMarkets);
+                      }}
+                      disabled={locked}
+                      className="h-8 rounded-lg px-3 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Clear All
+                    </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                </div>
+
+                {/* Sports Selection - Premium Grid */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Sports</Label>
+                  <div className="grid grid-cols-2 gap-3">
                     {availableSports.map((sport) => {
                       const checked = localSports.includes(sport);
                       return (
                         <button
                           key={sport}
-                          onClick={() => toggleSport(sport)}
+                          type="button"
+                          onClick={() => !locked && toggleSport(sport)}
                           disabled={locked}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                            locked && "cursor-not-allowed opacity-60",
+                            "relative flex items-center gap-3 rounded-xl p-3.5 transition-all duration-200 text-left",
+                            locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                             checked
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-600"
+                              ? "bg-white dark:bg-neutral-800/60 ring-2 ring-brand shadow-sm shadow-brand/20"
+                              : "bg-white dark:bg-neutral-800/60 ring-1 ring-neutral-200 dark:ring-neutral-700/80 hover:ring-neutral-300 dark:hover:ring-neutral-600"
                           )}
                         >
-                          <SportIcon sport={sport} className="w-4 h-4" />
-                          <span className="text-sm font-medium">{SPORT_LABELS[sport] || sport.toUpperCase()}</span>
+                          {/* Checkmark */}
+                          <div className={cn(
+                            "absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
+                            checked
+                              ? "bg-brand"
+                              : "ring-1 ring-neutral-300 dark:ring-neutral-600 bg-white dark:bg-neutral-800"
+                          )}>
+                            {checked && (
+                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                            )}
+                          </div>
+                          
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700/50">
+                            <SportIcon sport={sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                          </div>
+                          <span className="text-sm font-semibold leading-none pr-6 text-neutral-900 dark:text-neutral-100">
+                            {SPORT_LABELS[sport] || sport.toUpperCase()}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Markets Selection - Premium Accordion Design */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Markets</Label>
+                    <span className="text-xs font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
+                      {allMarketsSelected ? "All" : localMarkets.length} selected
+                    </span>
+                  </div>
+                  
+                  {/* Market Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Search markets..."
+                      value={marketSearchQuery}
+                      onChange={(e) => setMarketSearchQuery(e.target.value)}
+                      className="w-full rounded-xl border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 bg-white dark:bg-neutral-800/60 py-2.5 pl-10 pr-4 text-sm placeholder:text-neutral-400 focus:ring-2 focus:ring-brand focus:outline-none dark:text-white dark:placeholder:text-neutral-500 transition-shadow"
+                    />
+                    {marketSearchQuery && (
+                      <button
+                        onClick={() => setMarketSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Sport Accordions */}
+                  <div className="space-y-3">
+                    {Object.entries(groupedMarkets).map(([sportType, markets]) => {
+                      // Filter markets by search query
+                      const filteredMarkets = marketSearchQuery 
+                        ? markets.filter(m => (formatMarketLabel(m) || m).toLowerCase().includes(marketSearchQuery.toLowerCase()))
+                        : markets;
+                      
+                      if (filteredMarkets.length === 0) return null;
+                      
+                      const isExpanded = expandedSportSections.has(sportType);
+                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || localMarkets.includes(m)).length;
+                      const allSelected = selectedCount === filteredMarkets.length;
+                      
+                      // Sport icon mapping
+                      const sportIconMap: Record<string, string> = {
+                        'Basketball': 'basketball',
+                        'Football': 'football',
+                        'Hockey': 'icehockey',
+                        'Baseball': 'baseball',
+                        'Soccer': 'soccer',
+                      };
+                      
+                      return (
+                        <div 
+                          key={sportType}
+                          className="rounded-xl ring-1 ring-neutral-200 dark:ring-neutral-800 bg-neutral-50 dark:bg-neutral-800/30 overflow-hidden"
+                        >
+                          {/* Accordion Header */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSportSections);
+                              if (isExpanded) {
+                                newExpanded.delete(sportType);
+                              } else {
+                                newExpanded.add(sportType);
+                              }
+                              setExpandedSportSections(newExpanded);
+                            }}
+                            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white dark:bg-neutral-800 ring-1 ring-neutral-200 dark:ring-neutral-700">
+                                <SportIcon sport={sportIconMap[sportType] || 'football'} className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-sm font-semibold text-neutral-900 dark:text-white">
+                                  {sportType}
+                                </div>
+                                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                                  {filteredMarkets.length} market{filteredMarkets.length !== 1 ? 's' : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {/* Selection Badge */}
+                              <div className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors",
+                                allSelected 
+                                  ? "bg-brand text-white" 
+                                  : selectedCount > 0 
+                                    ? "bg-white dark:bg-neutral-800 text-brand ring-1 ring-brand/30 dark:ring-brand/70"
+                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500"
+                              )}>
+                                {allSelected ? (
+                                  <>
+                                    <Check className="h-3 w-3" />
+                                    All
+                                  </>
+                                ) : (
+                                  `${selectedCount}/${filteredMarkets.length}`
+                                )}
+                              </div>
+                              <motion.div
+                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <ChevronDown className="h-4 w-4 text-neutral-400" />
+                              </motion.div>
+                            </div>
+                          </button>
+                          
+                          {/* Accordion Content */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                className="overflow-hidden"
+                              >
+                                <div className="border-t border-neutral-200/50 dark:border-neutral-700/50">
+                                  {/* Quick Actions */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-white/50 dark:bg-neutral-900/30">
+                                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                      Quick actions
+                                    </span>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (locked) return;
+                                          setLocalMarkets(prev => {
+                                            if (prev.length === 0) {
+                                              return [...filteredMarkets];
+                                            } else {
+                                              const newSelected = new Set(prev);
+                                              filteredMarkets.forEach(m => newSelected.add(m));
+                                              return Array.from(newSelected);
+                                            }
+                                          });
+                                        }}
+                                        disabled={locked}
+                                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Select All
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (locked) return;
+                                          setLocalMarkets(prev => prev.filter(m => !filteredMarkets.includes(m)));
+                                        }}
+                                        disabled={locked}
+                                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Clear
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Markets Grid */}
+                                  <div className="p-3 max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {filteredMarkets.map(market => {
+                                        const checked = allMarketsSelected || localMarkets.includes(market);
+                                        
+                                        return (
+                                          <button
+                                            key={market}
+                                            type="button"
+                                            onClick={() => toggleMarket(market)}
+                                            disabled={locked}
+                                            className={cn(
+                                              "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-all duration-150",
+                                              locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                                              checked
+                                                ? "bg-white dark:bg-neutral-800 ring-2 ring-brand shadow-sm shadow-brand/10"
+                                                : "bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 ring-1 ring-neutral-200 dark:ring-neutral-700"
+                                            )}
+                                          >
+                                            <div className={cn(
+                                              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors",
+                                              checked 
+                                                ? "bg-brand" 
+                                                : "ring-1 ring-neutral-300 dark:ring-neutral-600 bg-white dark:bg-neutral-700"
+                                            )}>
+                                              {checked && (
+                                                <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+                                              )}
+                                            </div>
+                                            <span className="text-xs font-medium leading-tight text-neutral-700 dark:text-neutral-300">
+                                              {formatMarketLabel(market) || market.replace(/_/g, " ")}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </TabsContent>
+              
+              {/* Settings Tab */}
+              <TabsContent value="settings" className="mt-4 space-y-6">
+                {/* De-Vig Methods */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">De-Vig Methods</Label>
+                    <span className="text-xs font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
+                      {localDevigMethods.length} selected
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {Object.entries(DEVIG_METHODS).map(([key, method]) => {
+                      const isSelected = localDevigMethods.includes(key as DevigMethod);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => !locked && toggleDevigMethod(key as DevigMethod)}
+                          disabled={locked}
+                          className={cn(
+                            "group relative flex items-center gap-2.5 p-3 rounded-xl text-left transition-all duration-200",
+                            locked && "cursor-not-allowed opacity-60",
+                            isSelected
+                              ? "bg-white dark:bg-neutral-800/60 ring-2 ring-brand shadow-sm shadow-brand/20"
+                              : "bg-white dark:bg-neutral-800/60 ring-1 ring-neutral-200 dark:ring-neutral-700/80 hover:ring-neutral-300 dark:hover:ring-neutral-600"
+                          )}
+                        >
+                          {/* Checkmark indicator */}
+                          <div className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all",
+                            isSelected
+                              ? "bg-brand"
+                              : "ring-1 ring-neutral-300 dark:ring-neutral-600 bg-white dark:bg-neutral-800"
+                          )}>
+                            {isSelected && (
+                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                            )}
+                          </div>
+                          
+                          <span className="flex-1 font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+                            {method.label}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
                 
-                {/* Markets Selection */}
+                {/* Formula Case */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">Markets</Label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => !locked && setLocalMarkets([])}
-                        disabled={locked}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                      >
-                        All
-                      </button>
-                      <button
-                        onClick={() => !locked && setLocalMarkets(availableMarkets)}
-                        disabled={locked}
-                        className="text-xs text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
-                      >
-                        None
-                      </button>
-                    </div>
-                  </div>
+                  <Label className="text-sm font-semibold">Formula Case</Label>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    {allMarketsSelected ? "All markets selected" : `${localMarkets.length} markets selected`}
+                    When using multiple de-vig methods, which result to display
                   </p>
-                  
-                  {/* Grouped markets */}
-                  {Object.entries(groupedMarkets).map(([group, markets]) => {
-                    if (markets.length === 0) return null;
-                    return (
-                      <div key={group} className="space-y-2">
-                        <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                          {group}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {markets.slice(0, 20).map((market) => {
-                            const selected = allMarketsSelected || localMarkets.includes(market);
-                            return (
-                              <button
-                                key={market}
-                                onClick={() => toggleMarket(market)}
-                                disabled={locked}
-                                className={cn(
-                                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                                  locked && "cursor-not-allowed opacity-60",
-                                  selected
-                                    ? "bg-emerald-500 text-white"
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                                )}
-                              >
-                                {formatMarketLabel(market) || market.replace(/_/g, " ")}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-              
-              {/* Settings Tab */}
-              <TabsContent value="settings" className="mt-4 space-y-6">
-                {/* Sharp Preset */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Sharp Reference</Label>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Which books to use as the "true" probability reference
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(SHARP_PRESETS).map(([key, preset]) => (
+                  <div className="flex gap-2">
+                    {(["worst", "best"] as const).map((caseType) => (
                       <button
-                        key={key}
-                        onClick={() => !locked && setLocalSharpPreset(key as SharpPreset)}
+                        key={caseType}
+                        onClick={() => !locked && setLocalEvCase(caseType)}
                         disabled={locked}
                         className={cn(
-                          "p-3 rounded-lg border text-left transition-all",
+                          "flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                           locked && "cursor-not-allowed opacity-60",
-                          localSharpPreset === key
-                            ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30"
-                            : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600"
+                          localEvCase === caseType
+                            ? "bg-white dark:bg-neutral-800/60 text-neutral-900 dark:text-white ring-2 ring-brand shadow-sm shadow-brand/20"
+                            : "bg-white dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 ring-1 ring-neutral-200 dark:ring-neutral-700/80 hover:ring-neutral-300 dark:hover:ring-neutral-600"
                         )}
                       >
-                        <p className="font-medium text-sm">{preset.label}</p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                          {preset.books.join(", ")}
-                        </p>
+                        {caseType === "worst" ? "Worst Case (Conservative)" : "Best Case (Optimistic)"}
                       </button>
                     ))}
-                  </div>
-                </div>
-                
-                {/* De-Vig Methods */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">De-Vig Methods</Label>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Methods used to calculate fair probabilities. Worst-case EV is shown.
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(DEVIG_METHODS).map(([key, method]) => {
-                      const isSelected = localDevigMethods.includes(key as DevigMethod);
-                      return (
-                        <div
-                          key={key}
-                          role="button"
-                          tabIndex={locked ? -1 : 0}
-                          onClick={() => !locked && toggleDevigMethod(key as DevigMethod)}
-                          onKeyDown={(e) => {
-                            if (!locked && (e.key === 'Enter' || e.key === ' ')) {
-                              e.preventDefault();
-                              toggleDevigMethod(key as DevigMethod);
-                            }
-                          }}
-                          className={cn(
-                            "p-3 rounded-lg border text-left transition-all cursor-pointer",
-                            locked && "cursor-not-allowed opacity-60",
-                            isSelected
-                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600"
-                          )}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Checkbox 
-                              checked={isSelected} 
-                              disabled={locked}
-                              onCheckedChange={() => toggleDevigMethod(key as DevigMethod)}
-                            />
-                            <p className="font-medium text-sm">{method.label}</p>
-                          </div>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 ml-6">
-                            {method.description}
-                          </p>
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
                 
                 {/* EV Thresholds */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Min EV %</Label>
-                    <select
-                      value={localMinEv}
-                      onChange={(e) => !locked && setLocalMinEv(Number(e.target.value))}
-                      disabled={locked}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
-                    >
-                      {MIN_EV_OPTIONS.map((val) => (
-                        <option key={val} value={val}>
-                          {val}%
-                        </option>
-                      ))}
-                    </select>
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">EV Thresholds</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Minimum EV %</label>
+                      <select
+                        value={localMinEv}
+                        onChange={(e) => !locked && setLocalMinEv(Number(e.target.value))}
+                        disabled={locked}
+                        className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
+                      >
+                        {MIN_EV_OPTIONS.map((val) => (
+                          <option key={val} value={val}>
+                            {val}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Maximum EV %</label>
+                      <select
+                        value={localMaxEv || ""}
+                        onChange={(e) => !locked && setLocalMaxEv(e.target.value ? Number(e.target.value) : undefined)}
+                        disabled={locked}
+                        className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
+                      >
+                        <option value="">No limit</option>
+                        {MAX_EV_OPTIONS.map((val) => (
+                          <option key={val} value={val}>
+                            {val}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Max EV %</Label>
-                    <select
-                      value={localMaxEv || ""}
-                      onChange={(e) => !locked && setLocalMaxEv(e.target.value ? Number(e.target.value) : undefined)}
-                      disabled={locked}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
-                    >
-                      <option value="">No limit</option>
-                      {MAX_EV_OPTIONS.map((val) => (
-                        <option key={val} value={val}>
-                          {val}%
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-neutral-500">Filter out high EV outliers</p>
-                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Filter opportunities by expected value percentage range
+                  </p>
                 </div>
                 
                 {/* Min Books Per Side (Width Filter) */}
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Min Books Per Side</Label>
-                  <div className="space-y-2">
-                    <select
-                      value={localMinBooksPerSide}
-                      onChange={(e) => !locked && setLocalMinBooksPerSide(Number(e.target.value))}
-                      disabled={locked}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700"
-                    >
-                      {[1, 2, 3, 4, 5].map((val) => (
-                        <option key={val} value={val}>
-                          {val} book{val > 1 ? "s" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-neutral-500">
-                      Requires at least this many books on BOTH over and under sides. 
-                      Higher values ensure better market liquidity.
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Mode */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Mode</Label>
-                  <div className="flex gap-2">
-                    {(["pregame", "live", "all"] as const).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => !locked && setLocalMode(m)}
-                        disabled={locked}
-                        className={cn(
-                          "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all border",
-                          locked && "cursor-not-allowed opacity-60",
-                          localMode === m
-                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-600"
-                        )}
-                      >
-                        {m === "pregame" ? "Pregame" : m === "live" ? "Live" : "All"}
-                      </button>
+                  <Label className="text-sm font-semibold">Market Width</Label>
+                  <select
+                    value={localMinBooksPerSide}
+                    onChange={(e) => !locked && setLocalMinBooksPerSide(Number(e.target.value))}
+                    disabled={locked}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
+                  >
+                    {[1, 2, 3, 4, 5].map((val) => (
+                      <option key={val} value={val}>
+                        {val} book{val > 1 ? "s" : ""} minimum per side
+                      </option>
                     ))}
-                  </div>
+                  </select>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Higher values ensure better market consensus and liquidity
+                  </p>
+                </div>
+
+                {/* Min Liquidity Filter */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Minimum Liquidity</Label>
+                  <select
+                    value={localMinLiquidity}
+                    onChange={(e) => !locked && setLocalMinLiquidity(Number(e.target.value))}
+                    disabled={locked}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
+                  >
+                    <option value={0}>No minimum</option>
+                    <option value={25}>$25 minimum</option>
+                    <option value={50}>$50 minimum</option>
+                    <option value={100}>$100 minimum</option>
+                    <option value={250}>$250 minimum</option>
+                    <option value={500}>$500 minimum</option>
+                    <option value={1000}>$1,000 minimum</option>
+                    <option value={2500}>$2,500 minimum</option>
+                    <option value={5000}>$5,000 minimum</option>
+                  </select>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Filter out opportunities with max stake below this threshold
+                  </p>
+                </div>
+
+                {/* Show Hidden Opportunities */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Hidden Opportunities</Label>
+                  <button
+                    onClick={() => onFiltersChange({ showHidden: !showHidden })}
+                    className={cn(
+                      "w-full p-4 rounded-xl text-left transition-all duration-200 flex items-center justify-between",
+                      showHidden
+                        ? "bg-white dark:bg-neutral-800/60 ring-2 ring-amber-500 shadow-sm shadow-amber-500/20"
+                        : "bg-white dark:bg-neutral-800/60 ring-1 ring-neutral-200 dark:ring-neutral-700/80 hover:ring-neutral-300 dark:hover:ring-neutral-600"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700/50">
+                        {showHidden ? (
+                          <Eye className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+                        ) : (
+                          <EyeOff className="h-4.5 w-4.5 text-neutral-400 dark:text-neutral-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+                          {showHidden ? "Showing Hidden" : "Hidden Opportunities"}
+                        </p>
+                        <p className="text-xs mt-0.5 text-neutral-500 dark:text-neutral-400">
+                          {hiddenCount > 0 
+                            ? `${hiddenCount} hidden (greyed out when visible)`
+                            : "No hidden opportunities"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide transition-colors",
+                      showHidden
+                        ? "bg-amber-500 text-white"
+                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-700 dark:text-neutral-400"
+                    )}>
+                      {showHidden ? "ON" : "OFF"}
+                    </div>
+                  </button>
                 </div>
               </TabsContent>
             </Tabs>
           </div>
           
           {/* Footer */}
-          <div className="flex items-center gap-3 border-t border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center gap-3 border-t border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4">
             <button
               onClick={reset}
               disabled={locked}
-              className="h-10 flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 text-sm font-medium text-neutral-600 dark:text-neutral-400 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-11 flex-1 rounded-xl ring-1 ring-neutral-200 dark:ring-neutral-700 bg-white dark:bg-neutral-800/60 px-4 text-sm font-medium text-neutral-600 dark:text-neutral-400 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Reset
             </button>
             <button
               onClick={apply}
               disabled={locked}
-              className="h-10 flex-1 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-11 flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 px-4 text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
             >
               Apply Filters
             </button>

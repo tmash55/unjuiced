@@ -100,6 +100,7 @@ export interface UserPreferences {
   positive_ev_selected_markets?: string[];
   positive_ev_sharp_preset?: string;
   positive_ev_devig_methods?: string[];
+  positive_ev_case?: 'worst' | 'best';
   positive_ev_min_ev?: number;
   positive_ev_max_ev?: number;
   positive_ev_mode?: 'pregame' | 'live' | 'all';
@@ -218,6 +219,7 @@ export class PreferencesRPC {
       positive_ev_selected_markets: data?.positive_ev_selected_markets || [],
       positive_ev_sharp_preset: data?.positive_ev_sharp_preset,
       positive_ev_devig_methods: data?.positive_ev_devig_methods,
+      positive_ev_case: data?.positive_ev_case,
       positive_ev_min_ev: data?.positive_ev_min_ev,
       positive_ev_max_ev: data?.positive_ev_max_ev,
       positive_ev_mode: data?.positive_ev_mode,

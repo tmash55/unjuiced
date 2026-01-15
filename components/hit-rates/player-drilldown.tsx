@@ -996,34 +996,34 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   return (
     <div ref={scrollContainerRef} className="h-full overflow-auto pr-3 drilldown-scroll">
       {/* ═══════════════════════════════════════════════════════════════════
-          STICKY PLAYER HEADER - Unified Two-Section Card
+          STICKY PLAYER HEADER - Premium Design
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-40 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-sm">
+      <div className="sticky top-0 z-40 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl">
         <div 
-          className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-sm"
+          className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5"
           style={{ 
             background: profile.primaryColor 
-              ? `linear-gradient(135deg, ${profile.primaryColor}08 0%, transparent 50%)`
+              ? `linear-gradient(135deg, ${profile.primaryColor}15 0%, ${profile.primaryColor}05 40%, transparent 70%)`
               : undefined
           }}
         >
           <div className="flex items-stretch">
             {/* ════════════════════════════════════════════════════════════════
-                LEFT SECTION - Identity Cluster
+                LEFT SECTION - Identity Cluster - Premium
                 ════════════════════════════════════════════════════════════════ */}
-            <div className="flex-1 flex items-center gap-5 p-4 bg-white/50 dark:bg-neutral-900/50">
-              {/* Back Button */}
+            <div className="flex-1 flex items-center gap-5 p-5 bg-gradient-to-r from-white/60 via-white/40 to-transparent dark:from-neutral-900/60 dark:via-neutral-900/40 dark:to-transparent">
+              {/* Back Button - Premium */}
           <button
             type="button"
             onClick={onBack}
-                className="p-2 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors shrink-0"
+                className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-sm"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
 
-          {/* Player Headshot */}
+          {/* Player Headshot - Premium */}
           <div 
-                className="h-[72px] w-[72px] rounded-xl overflow-hidden shadow-lg shrink-0 ring-2 ring-white dark:ring-neutral-800"
+                className="h-20 w-20 rounded-2xl overflow-hidden shadow-xl shrink-0 ring-2 ring-white dark:ring-neutral-700 transition-transform hover:scale-105"
             style={{ 
               background: profile.primaryColor && profile.secondaryColor 
                 ? `linear-gradient(180deg, ${profile.primaryColor} 0%, ${profile.secondaryColor} 100%)`
@@ -1038,11 +1038,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             />
           </div>
 
-              {/* Player Info Stack */}
-              <div className="flex flex-col gap-1">
+              {/* Player Info Stack - Premium */}
+              <div className="flex flex-col gap-1.5">
                 {/* Name + Injury Icon */}
             <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
+                  <h1 className="text-2xl font-bold text-neutral-900 dark:text-white leading-tight tracking-tight">
                 {profile.playerName}
               </h1>
                   {profile.injuryStatus && 
@@ -1090,36 +1090,33 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   })()}
                 </div>
                 
-                {/* Position + Jersey + Team */}
-                <div className="flex items-center gap-2 text-sm">
-                  <Tooltip content={getPositionLabel(profile.position)} side="bottom">
-                    <span className="font-medium text-neutral-600 dark:text-neutral-400 cursor-help">
-                      {profile.position}
-                    </span>
-                  </Tooltip>
-                  <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                  <span className="font-medium text-neutral-600 dark:text-neutral-400">
-                    #{profile.jerseyNumber ?? "—"}
-                  </span>
-                  <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                {/* Position + Jersey + Team - Premium Badges */}
+                <div className="flex items-center gap-2 text-xs">
                   {profile.teamAbbr && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50">
                       <img
                         src={`/team-logos/nba/${profile.teamAbbr.toUpperCase()}.svg`}
                         alt={profile.teamAbbr}
                         className="h-4 w-4 object-contain"
                       />
-                      <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      <span className="font-bold text-neutral-700 dark:text-neutral-300">
                         {profile.teamAbbr}
               </span>
             </div>
                   )}
+                  <Tooltip content={getPositionLabel(profile.position)} side="bottom">
+                    <span className="px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 font-semibold text-neutral-600 dark:text-neutral-400 cursor-help">
+                      {profile.position}
+                    </span>
+                  </Tooltip>
+                  <span className="font-medium text-neutral-400">#{profile.jerseyNumber ?? "—"}</span>
                 </div>
                 
-                {/* Matchup + Game Time */}
-                <div className="flex items-center gap-2 text-sm mt-0.5">
-                  {/* Matchup with logos */}
-                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800">
+                {/* Matchup + Game Time - Premium Badge */}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200/50 dark:border-emerald-700/30">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-400">Next</span>
                     {profile.teamAbbr && (
                       <img
                         src={`/team-logos/nba/${profile.teamAbbr.toUpperCase()}.svg`}
@@ -1127,7 +1124,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                         className="h-4 w-4 object-contain"
                       />
                     )}
-                    <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
                       {profile.homeAway === "H" ? "vs" : "@"}
                     </span>
               {profile.opponentTeamAbbr && (
@@ -1137,22 +1134,22 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   className="h-4 w-4 object-contain"
                 />
               )}
-                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                       {profile.opponentTeamAbbr}
                     </span>
-                  </div>
-                  {/* Game Time */}
-                  <span className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">•</span>
+                    <span className="text-[10px] font-medium text-emerald-600/80 dark:text-emerald-400/80">
                     {profile.gameStatus}
                   </span>
+                  </div>
             </div>
           </div>
         </div>
 
             {/* ════════════════════════════════════════════════════════════════
-                RIGHT SECTION - Two Row Premium Layout
+                RIGHT SECTION - Premium Stats Layout
                 ════════════════════════════════════════════════════════════════ */}
-            <div className="flex flex-col gap-3 pl-6 pr-4 py-3 border-l border-neutral-200 dark:border-neutral-800">
+            <div className="flex flex-col gap-3 pl-6 pr-5 py-4 border-l border-neutral-200/60 dark:border-neutral-800/60 bg-gradient-to-l from-white/40 to-transparent dark:from-neutral-900/40 dark:to-transparent">
               {/* ROW 1: Primary Prop Chip */}
               <div className="flex items-center gap-3">
                 {/* Main Prop Chip - Hero Element */}
@@ -1394,33 +1391,32 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          MAIN CONTENT - BAR CHART (Premium Design)
+          MAIN CONTENT - BAR CHART (Premium Card Design)
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm">
+      <div className="rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
         {/* Header - Premium Design */}
         <div className="relative overflow-hidden">
           {/* Background Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-emerald-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-emerald-900/10" />
           
           {/* Content */}
-          <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="relative px-6 py-5 border-b border-neutral-200/60 dark:border-neutral-700/60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-                  <div className="h-10 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-600" />
+                  <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30" />
                   <div>
-                    <h2 className="text-base font-bold text-neutral-900 dark:text-white tracking-tight">
+                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
               Game Log
             </h2>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
                       Performance history & trends
                     </p>
                   </div>
                 </div>
                 
                 {/* Game Count Filter - Premium Pills */}
-                <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg p-0.5 ml-2">
+                <div className="flex items-center gap-1 bg-neutral-100/50 dark:bg-neutral-800/30 rounded-xl p-1 ml-2">
               {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
                     const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
                 const isDisabled = numericCount > totalGamesAvailable;
@@ -1435,12 +1431,12 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                     onClick={() => !isDisabled && setGameCount(count)}
                     disabled={isDisabled}
                     className={cn(
-                          "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                          "px-3.5 py-2 text-xs font-bold rounded-lg transition-all",
                       gameCount === count
-                            ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-600/50"
+                            ? "bg-white dark:bg-neutral-800 text-emerald-700 dark:text-emerald-400 shadow-md ring-1 ring-emerald-200/50 dark:ring-emerald-700/30"
                         : isDisabled
                           ? "text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
-                              : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+                              : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/50 dark:hover:bg-neutral-800/50"
                     )}
                   >
                     {displayCount}
@@ -1451,14 +1447,14 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           </div>
           
               {/* Chart Stats - Premium Cards */}
-              <div className="flex items-center gap-3">
-                {/* Chart Average */}
-                <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-700/30 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+              <div className="flex items-center gap-2.5">
+                {/* Chart Average - Premium */}
+                <div className="flex flex-col items-center px-4 py-2.5 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
                     Avg
                   </span>
                   <span className={cn(
-                    "text-lg font-bold tabular-nums",
+                    "text-xl font-bold tabular-nums tracking-tight",
                     chartStats.avg !== null && activeLine !== null
                       ? chartStats.avg > activeLine
                         ? "text-emerald-600 dark:text-emerald-400"
@@ -1470,46 +1466,48 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 </div>
 
                 {/* Chart Hit Rate */}
+                {/* Hit Rate - Premium Gradient */}
                 <div className={cn(
-                  "flex flex-col items-center px-4 py-2 rounded-lg ring-1",
-                  chartStats.hitRate !== null
-                    ? chartStats.hitRate >= 70
-                      ? "bg-emerald-50 dark:bg-emerald-900/20 ring-emerald-200/50 dark:ring-emerald-700/50"
-                      : chartStats.hitRate >= 50
-                        ? "bg-amber-50 dark:bg-amber-900/20 ring-amber-200/50 dark:ring-amber-700/50"
-                        : "bg-red-50 dark:bg-red-900/20 ring-red-200/50 dark:ring-red-700/50"
-                    : "bg-neutral-50 dark:bg-neutral-700/30 ring-neutral-200/50 dark:ring-neutral-700/50"
+                  "flex flex-col items-center px-4 py-2.5 rounded-xl ring-1 shadow-sm",
+                  chartStats.hitRate !== null && chartStats.hitRate >= 70 
+                    ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 ring-emerald-200/60 dark:ring-emerald-700/40"
+                    : chartStats.hitRate !== null && chartStats.hitRate >= 50 
+                      ? "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 ring-amber-200/60 dark:ring-amber-700/40"
+                      : chartStats.hitRate !== null
+                        ? "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 ring-red-200/60 dark:ring-red-700/40"
+                        : "bg-white dark:bg-neutral-700/40 ring-neutral-200/60 dark:ring-neutral-600/40"
                 )}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
                     Hit Rate
                   </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className={cn(
-                      "text-lg font-bold tabular-nums",
-                      chartStats.hitRate !== null
-                        ? chartStats.hitRate >= 70
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : chartStats.hitRate >= 50
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-500 dark:text-red-400"
-                        : "text-neutral-900 dark:text-white"
-                    )}>
-                      {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
-                    </span>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
-                      {chartStats.hits}/{chartStats.total}
-                    </span>
-                  </div>
+                  <span className={cn(
+                    "text-xl font-bold tabular-nums tracking-tight",
+                    chartStats.hitRate !== null
+                      ? chartStats.hitRate >= 70
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : chartStats.hitRate >= 50
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-red-500 dark:text-red-400"
+                      : "text-neutral-900 dark:text-white"
+                  )}>
+                    {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                  </span>
                 </div>
 
-                {/* Season Avg */}
-                <div className="flex flex-col items-center px-4 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-700/30 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                {/* Season Avg - Premium */}
+                <div className="flex flex-col items-center px-4 py-2.5 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
                     Season
                   </span>
-                  <span className="text-lg font-bold text-neutral-600 dark:text-neutral-300 tabular-nums">
+                  <span className="text-xl font-bold text-neutral-600 dark:text-neutral-300 tabular-nums tracking-tight">
               {profile.seasonAvg?.toFixed(1) ?? "—"}
             </span>
+                </div>
+
+                {/* Games Count */}
+                <div className="flex flex-col items-center text-xs text-neutral-500">
+                  <span className="font-bold text-neutral-700 dark:text-neutral-300">{chartStats.hits}/{chartStats.total}</span>
+                  <span className="text-[9px]">games</span>
                 </div>
               </div>
             </div>
@@ -1545,11 +1543,10 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           CHART FILTERS - Scrollable mini charts (Premium Design)
           ═══════════════════════════════════════════════════════════════════ */}
       {!boxScoresLoading && boxScoreGames.length > 0 && (
-        <div className="mt-6 rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800 overflow-hidden shadow-sm">
+        <div className="mt-6 rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
           {/* Header */}
           <div className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 via-white to-neutral-100/50 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-purple-500/5 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-violet-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-violet-900/10" />
             <div className="relative px-5 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

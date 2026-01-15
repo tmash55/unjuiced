@@ -169,6 +169,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
   }, [selectedGameIds, allGames]);
   
+  // Player drill-down state
+  const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
   // Track the preferred market for drilldown - persists when switching players
   const [preferredMarket, setPreferredMarket] = useState<string | null>(null);
   

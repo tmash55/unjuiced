@@ -115,29 +115,41 @@ export function PositionVsTeam({
   }
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-800 overflow-hidden", className)}>
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-neutral-500" />
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-              Position vs
-            </h3>
-            {opponentLogo && (
-              <img
-                src={opponentLogo}
-                alt={opponentTeamAbbr || ""}
-                className="h-5 w-5 object-contain"
-              />
-            )}
-            <span className="text-sm font-semibold text-neutral-900 dark:text-white">
-              {opponentTeamAbbr}
-            </span>
-          </div>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+      {/* Header - Premium Design */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-blue-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-blue-900/10" />
+        <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600 shadow-sm shadow-blue-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Position Matchup
+                  </h3>
+                  {opponentLogo && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-700/50">
+                      <span className="text-[10px] font-medium text-neutral-500">vs</span>
+                      <img
+                        src={opponentLogo}
+                        alt={opponentTeamAbbr || ""}
+                        className="h-4 w-4 object-contain"
+                      />
+                      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+                        {opponentTeamAbbr}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                  Historical performance data
+                </p>
+              </div>
+            </div>
           
-          {/* Summary Stats */}
-          <div className="flex items-center gap-4 text-xs">
+            {/* Summary Stats */}
+            <div className="flex items-center gap-4 text-xs">
             <Tooltip content={`Range: ${minStat} - ${maxStat}`} side="top">
               <div className="flex items-center gap-1.5 cursor-help">
                 <span className="text-neutral-500">Avg:</span>
@@ -201,18 +213,18 @@ export function PositionVsTeam({
               className={cn(
                 "flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors active:scale-95",
                 showFilters 
-                  ? "bg-brand text-white" 
-                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                  ? "bg-blue-600 text-white" 
+                  : "bg-neutral-100 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>{selectedPosition}</span>
             </button>
+            </div>
           </div>
-        </div>
         
-        {/* Filter Panel - Now includes Position Selector */}
-        {showFilters && (
+          {/* Filter Panel - Now includes Position Selector */}
+          {showFilters && (
           <div className="mt-3 p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Filters</h4>
@@ -303,6 +315,7 @@ export function PositionVsTeam({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Table */}
@@ -358,16 +371,20 @@ export function PositionVsTeam({
         </table>
       </div>
 
-      {/* Footer with market context */}
-      <div className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
-        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
-          {formatMarketLabel(market || "")} for <span className="font-medium">{position}</span> vs <span className="font-medium">{opponentTeamAbbr}</span> this season
+      {/* Footer - Premium */}
+      <div className="px-5 py-3 border-t border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50/80 via-white/60 to-neutral-50/80 dark:from-neutral-800/50 dark:via-neutral-800/30 dark:to-neutral-800/50">
+        <div className="flex items-center gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+          <span>{formatMarketLabel(market || "")} for</span>
+          <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold">{position}</span>
+          <span>vs</span>
+          <span className="font-bold text-neutral-700 dark:text-neutral-300">{opponentTeamAbbr}</span>
+          <span>this season</span>
           {currentLine !== null && (
-            <span className="ml-2 px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 font-medium">
+            <span className="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-700 font-bold text-neutral-700 dark:text-neutral-300">
               Line: {currentLine}+
             </span>
           )}
-        </p>
+        </div>
       </div>
     </div>
   );
