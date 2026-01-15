@@ -99,9 +99,14 @@ export function MobileHitRates({
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)
   // selectedGameIds and onGameIdsChange now come from props (controlled by parent)
-  const [visibleCount, setVisibleCount] = useState(20);
+  const [visibleCount, setVisibleCount] = useState(50);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+
+  // Reset visible count when filters change (so each filter shows fresh results)
+  React.useEffect(() => {
+    setVisibleCount(50);
+  }, [selectedMarkets, selectedGameIds, sortField, searchQuery, hideNoOdds]);
 
   // Transform games for header with team tricodes for logos and date
   const gameOptions = useMemo(() => 
@@ -200,26 +205,54 @@ export function MobileHitRates({
     return result;
   }, [rows, searchQuery, selectedMarkets, selectedGameIds, sortField, startedGameIds]);
 
-  // Paginated rows (respect maxRows if set)
-  const effectiveLimit = maxRows !== undefined ? Math.min(maxRows, visibleCount) : visibleCount;
-  const visibleRows = useMemo(() => 
-    filteredRows.slice(0, effectiveLimit),
-    [filteredRows, effectiveLimit]
-  );
-
-  const hasMore = !hideLoadMore && filteredRows.length > visibleCount;
-
-  // Fetch odds for visible rows
-  const { getOdds, isLoading: oddsLoading } = useHitRateOdds({
-    rows: visibleRows.map((r) => ({ 
+  // Fetch odds for ALL filtered rows (not just visible ones)
+  // This matches desktop behavior - we need to know which players have odds
+  // before we can properly paginate/display them
+  const { getOdds, isLoading: oddsLoading, isLoadingMore } = useHitRateOdds({
+    rows: filteredRows.map((r) => ({ 
       oddsSelectionId: r.oddsSelectionId, 
       line: r.line 
     })),
-    enabled: visibleRows.length > 0,
+    enabled: filteredRows.length > 0,
   });
 
+  // When hideNoOdds is enabled, filter to only rows with actual odds BEFORE pagination
+  // This ensures we show 50 players WITH odds, not 50 random players
+  const rowsForDisplay = useMemo(() => {
+    if (!hideNoOdds) {
+      return filteredRows;
+    }
+    
+    return filteredRows.filter(row => {
+      const odds = getOdds?.(row.oddsSelectionId);
+      
+      // If we have odds data, check if there are valid lines
+      if (odds) {
+        return odds.bestOver || odds.bestUnder;
+      }
+      
+      // If no odds data yet:
+      // If we are still loading (initial or background), keep the row tentatively
+      // otherwise assume it has no odds
+      if (oddsLoading || isLoadingMore) {
+        return true;
+      }
+      
+      return false;
+    });
+  }, [filteredRows, hideNoOdds, oddsLoading, isLoadingMore, getOdds]);
+
+  // Paginated rows (respect maxRows if set)
+  const effectiveLimit = maxRows !== undefined ? Math.min(maxRows, visibleCount) : visibleCount;
+  const visibleRows = useMemo(() => 
+    rowsForDisplay.slice(0, effectiveLimit),
+    [rowsForDisplay, effectiveLimit]
+  );
+
+  const hasMore = !hideLoadMore && rowsForDisplay.length > visibleCount;
+
   const handleLoadMore = useCallback(() => {
-    setVisibleCount(prev => prev + 20);
+    setVisibleCount(prev => prev + 50);
   }, []);
 
   // Loading state
@@ -309,11 +342,8 @@ export function MobileHitRates({
             {visibleRows.map((row, idx) => {
               const odds = getOdds?.(row.oddsSelectionId);
               
-              // Apply hideNoOdds filter - skip rows without actual betting odds
-              // Check for bestOver or bestUnder since the API returns an object even when no odds exist
-              // Don't apply filter while odds are still loading
-              const hasActualOdds = odds && (odds.bestOver || odds.bestUnder);
-              if (hideNoOdds && !oddsLoading && !hasActualOdds) return null;
+              // Note: hideNoOdds filtering is now done BEFORE pagination in rowsForDisplay
+              // So all rows here should already have odds if hideNoOdds is enabled
               
               return (
               <PlayerCard
@@ -346,7 +376,7 @@ export function MobileHitRates({
                   "active:bg-neutral-50 dark:active:bg-neutral-800"
                 )}
               >
-                Load more ({filteredRows.length - visibleCount} remaining)
+                Load more ({rowsForDisplay.length - visibleCount} remaining)
               </button>
             )}
           </>

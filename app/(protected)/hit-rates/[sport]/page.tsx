@@ -212,21 +212,37 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Debounce mobile search query
+  const [debouncedMobileSearch, setDebouncedMobileSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMobileSearch(mobileSearchQuery);
+    }, FILTER_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [mobileSearchQuery]);
+
   // Pagination state - progressive loading
   const [hasLoadedBackground, setHasLoadedBackground] = useState(false);
 
-  // Check if specific games are selected (not "all games")
-  const hasGameFilter = selectedGameIds.length > 0;
+  // When a player is selected (drilldown mode), we need ALL players for the sidebar
+  // to show complete rosters for each game
+  const isInDrilldown = selectedPlayer !== null;
   
-  // Check if user has changed sort from default (need more data for accurate sorting)
-  const isDefaultSort = sortField === "l10Pct" && sortDirection === "desc";
-  const hasSortChanged = !isDefaultSort;
-
+  // Effective state based on viewport
+  const effectiveSearch = isMobile ? debouncedMobileSearch : debouncedSearch;
+  const effectiveGameIds = isMobile ? (mobileSelectedGameIds ?? []) : selectedGameIds;
+  const effectiveSortChanged = isMobile 
+    ? mobileSortField !== "l10Pct_desc" 
+    : (sortField !== "l10Pct" || sortDirection !== "desc");
+  
+  // Check if specific games are selected (not "all games")
+  const hasGameFilter = effectiveGameIds.length > 0;
+  
   // Determine how much data to fetch:
   // - Drilldown, search, game filter, or custom sort: Need more data for complete/accurate view
   // - Background loaded: Use background data
-  // - Initial load: Just 50 rows for snappy UX
-  const needsFullData = debouncedSearch || hasGameFilter || hasSortChanged;
+  // - Initial load: Just 500 rows for snappy UX
+  const needsFullData = isInDrilldown || effectiveSearch || hasGameFilter || effectiveSortChanged;
 
   // Calculate limit based on state
   const currentLimit = needsFullData 
@@ -235,13 +251,33 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     ? BACKGROUND_PAGE_SIZE 
     : INITIAL_PAGE_SIZE;
 
-  // Use selectedDate for fetching
-  const dateToFetch = selectedDate;
+  // Calculate date to fetch based on effective game IDs
+  const [effectiveDate, setEffectiveDate] = useState<string | undefined>(undefined);
+  
+  useEffect(() => {
+    if (effectiveGameIds.length > 0) {
+      const selectedGames = allGames.filter(g => 
+        effectiveGameIds.includes(String(g.game_id))
+      );
+      const uniqueDates = new Set(selectedGames.map(g => g.game_date));
+      
+      if (uniqueDates.size === 1) {
+        setEffectiveDate(Array.from(uniqueDates)[0]);
+      } else {
+        setEffectiveDate(undefined);
+      }
+    } else {
+      setEffectiveDate(undefined);
+    }
+  }, [effectiveGameIds, allGames]);
+
+  // When in drilldown mode, fetch BOTH days (undefined = today + tomorrow)
+  const dateToFetch = isInDrilldown ? undefined : effectiveDate;
 
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
     date: dateToFetch,
     limit: currentLimit,
-    search: debouncedSearch || undefined,
+    search: effectiveSearch || undefined,
     // Pass sort to API for server-side sorting (ensures we get true top N by sort field)
     sort: sortField || undefined,
     sortDir: sortDirection,
@@ -253,12 +289,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Reset background loading state when filters change
   useEffect(() => {
     setHasLoadedBackground(false);
-  }, [selectedGameIds, debouncedSearch]);
+  }, [selectedGameIds, debouncedSearch, mobileSelectedGameIds, debouncedMobileSearch]);
 
   // Reset visible row count when filters change (for table pagination)
   useEffect(() => {
     setVisibleRowCount(TABLE_PAGE_SIZE);
-  }, [selectedMarkets, selectedGameIds, debouncedSearch]);
+  }, [selectedMarkets, selectedGameIds, debouncedSearch, mobileSelectedMarkets, mobileSelectedGameIds, debouncedMobileSearch]);
   
   // The actual date being displayed (from API response)
   const displayDate = meta?.date;
