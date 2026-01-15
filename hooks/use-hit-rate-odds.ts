@@ -42,7 +42,7 @@ interface OddsResponse {
 }
 
 // Batch size for progressive loading
-const INITIAL_BATCH_SIZE = 25; // Reduced - only load odds for visible rows first
+const INITIAL_BATCH_SIZE = 100; // Increased to ensure filtering works correctly on initial load
 const BACKGROUND_BATCH_SIZE = 100;
 const STARTUP_DELAY_MS = 150; // Let profiles render before fetching odds
 
