@@ -16,8 +16,11 @@ import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
-import { Zap, ChevronDown, X, RefreshCw } from "lucide-react";
+import { Zap, ChevronDown, X, RefreshCw, Sparkles, Plus, Settings, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/tooltip";
+import { FilterPresetFormModal } from "@/components/filter-presets/filter-preset-form-modal";
+import { FilterPresetsManagerModal } from "@/components/filter-presets/filter-presets-manager-modal";
 
 // Native imports
 import { useMultiFilterOpportunities } from "@/hooks/use-multi-filter-opportunities";
@@ -91,7 +94,7 @@ export default function EdgeFinderPage() {
   const { filters: evPrefs, updateFilters: updateEvPrefs } = useEvPreferences();
   
   // Get active filter presets
-  const { activePresets, isLoading: presetsLoading } = useFilterPresets();
+  const { activePresets, isLoading: presetsLoading, togglePreset } = useFilterPresets();
   
   // Dynamically fetch available markets from the API
   // This ensures we always show markets that actually exist in the data feed
@@ -106,6 +109,20 @@ export default function EdgeFinderPage() {
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Preset modal states
+  const [showPresetManager, setShowPresetManager] = useState(false);
+  const [showPresetForm, setShowPresetForm] = useState(false);
+  
+  // Handler to switch to standard preset (deactivates custom models)
+  const handlePresetChange = async (mode: BestOddsPrefs['comparisonMode'], book: string | null = null) => {
+    // Deactivate all custom models
+    if (activePresets.length > 0) {
+      await Promise.all(activePresets.map(p => togglePreset(p.id, false)));
+    }
+    // Update comparison mode
+    updatePrefs({ comparisonMode: mode, comparisonBook: book });
+  };
   
   // NOTE: Auto-refresh (SSE streaming) is disabled for now
   // The streaming hook needs more work to match the standard hook's behavior
@@ -390,13 +407,6 @@ export default function EdgeFinderPage() {
         </div>
       </div>
 
-      {/* Custom Filter Presets */}
-      <FilterPresetsBar 
-        className="mb-6" 
-        onPresetsChange={() => refetch()}
-        onPresetHover={prefetchPreset}
-      />
-
       {/* Filters Bar */}
       <div className="mb-6 relative z-10">
       <FiltersBar>
@@ -494,6 +504,131 @@ export default function EdgeFinderPage() {
           </FiltersBarSection>
 
           <FiltersBarSection align="right">
+            {/* Comparison Mode Dropdown - Standard presets for all users */}
+            <div className="relative">
+              <Tooltip content={isCustomMode ? "Disabled when custom models active" : "Select comparison mode"}>
+                <div className="relative group">
+                  <button
+                    disabled={isCustomMode}
+                    tabIndex={isCustomMode ? -1 : 0}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border",
+                      !isCustomMode
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200/50 dark:border-emerald-700/50"
+                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border-transparent opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <Filter className="w-4 h-4" />
+                    <span>
+                      {prefs.comparisonMode === "average" && "Market Avg"}
+                      {prefs.comparisonMode === "next_best" && "Next Best"}
+                      {prefs.comparisonMode === "book" && (getSportsbookById(prefs.comparisonBook || "")?.name || "Sharp Book")}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {!isCustomMode && (
+                    <div className="absolute top-full right-0 mt-1 opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50">
+                      <div 
+                        className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 p-2 min-w-[200px]"
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                  <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-2 py-1 mb-1">
+                    Comparison Mode
+                  </p>
+                  
+                  {/* Market Average */}
+                  <button
+                    onClick={() => handlePresetChange("average", null)}
+                    className={cn(
+                      "w-full px-2 py-2 rounded text-left text-sm transition-colors flex items-center justify-between",
+                      prefs.comparisonMode === "average" && !isCustomMode
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                    )}
+                  >
+                    <span>Market Average</span>
+                    {prefs.comparisonMode === "average" && !isCustomMode && <span className="text-xs">✓</span>}
+                  </button>
+                  
+                  {/* Next Best */}
+                  <button
+                    onClick={() => handlePresetChange("next_best", null)}
+                    className={cn(
+                      "w-full px-2 py-2 rounded text-left text-sm transition-colors flex items-center justify-between",
+                      prefs.comparisonMode === "next_best" && !isCustomMode
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                    )}
+                  >
+                    <span>Next Best Price</span>
+                    {prefs.comparisonMode === "next_best" && !isCustomMode && <span className="text-xs">✓</span>}
+                  </button>
+                  
+                  {/* Divider */}
+                  <div className="border-t border-neutral-200 dark:border-neutral-700 my-2" />
+                  
+                  <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-2 py-1 mb-1">
+                    Sharp Books
+                  </p>
+                  
+                  {/* Sharp Sportsbooks */}
+                  {["pinnacle", "circa", "draftkings", "fanduel", "bet365"].map((bookId) => {
+                    const book = getSportsbookById(bookId);
+                    if (!book) return null;
+                    
+                    const isActive = prefs.comparisonMode === "book" && prefs.comparisonBook === bookId && !isCustomMode;
+                    
+                    return (
+                      <button
+                        key={bookId}
+                        onClick={() => handlePresetChange("book", bookId)}
+                        className={cn(
+                          "w-full px-2 py-2 rounded text-left text-sm transition-colors flex items-center gap-2",
+                          isActive
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                        )}
+                      >
+                        {book.image?.square && (
+                          <img src={book.image.square} alt={book.name} className="w-4 h-4 object-contain" />
+                        )}
+                        <span className="flex-1">{book.name}</span>
+                        {isActive && <span className="text-xs">✓</span>}
+                      </button>
+                    );
+                  })}
+                    </div>
+                  </div>
+                  )}
+                </div>
+              </Tooltip>
+            </div>
+            
+            {/* Custom Models Button */}
+            {!presetsLoading && (
+              <Tooltip content={isCustomMode ? `Active: ${activePresets.map(p => p.name).join(", ")}` : "Custom Models"}>
+                <button
+                  onClick={() => setShowPresetManager(true)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border",
+                    isCustomMode
+                      ? "bg-gradient-to-r from-pink-50 via-purple-50 to-blue-50 dark:from-pink-900/20 dark:via-purple-900/20 dark:to-blue-900/20 text-purple-700 dark:text-purple-300 border-purple-200/50 dark:border-purple-700/50"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                  )}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Custom</span>
+                  {isCustomMode && activePresets.length > 0 && (
+                    <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-purple-600 dark:bg-purple-500 text-white text-xs font-bold">
+                      {activePresets.length}
+                    </span>
+                  )}
+                </button>
+              </Tooltip>
+            )}
+            
             {/* UnifiedFilters component - handles all advanced filtering */}
             <UnifiedFilters
               tool="edge-finder"
@@ -645,6 +780,21 @@ export default function EdgeFinderPage() {
           }}
         />
       )}
+
+      {/* Preset Manager & Form Modals */}
+      <FilterPresetsManagerModal
+        open={showPresetManager}
+        onOpenChange={setShowPresetManager}
+        onCreateNew={() => {
+          setShowPresetManager(false);
+          setShowPresetForm(true);
+        }}
+      />
+      <FilterPresetFormModal
+        open={showPresetForm}
+        onOpenChange={setShowPresetForm}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

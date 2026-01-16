@@ -824,7 +824,7 @@ export function OpportunitiesTable({
                           } as any,
                         });
                       }}
-                      className="text-[15px] font-semibold text-amber-500/80 dark:text-amber-400/70 hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors"
+                      className="text-[15px] font-semibold text-neutral-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors"
                       type="button"
                     >
                       {opp.player}

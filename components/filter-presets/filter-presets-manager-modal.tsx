@@ -475,21 +475,23 @@ export function FilterPresetsManagerModal({
       }}>
         <DialogContent 
           showCloseButton={false}
-          className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl"
+          className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 shadow-2xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] rounded-2xl"
         >
-          {/* Header with New Model button */}
-          <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-5">
+          {/* Premium Header with gradient accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+          
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 bg-gradient-to-r from-white via-purple-50/20 to-pink-50/20 dark:from-neutral-900 dark:via-purple-950/10 dark:to-pink-950/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20">
-                  <Filter className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/25">
+                  <Sparkles className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-white">
-                    My Models
+                  <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Custom Models
                   </DialogTitle>
                   <DialogDescription className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    Select filters to activate, then save
+                    Create and manage your edge-finding models
                   </DialogDescription>
                 </div>
               </div>
@@ -499,7 +501,7 @@ export function FilterPresetsManagerModal({
                 {/* New Model button */}
                 <button
                   onClick={onCreateNew}
-                  className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02]"
                 >
                   <Plus className="w-4 h-4" />
                   New Model
@@ -508,7 +510,7 @@ export function FilterPresetsManagerModal({
                 {/* Close button */}
                 <button
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center justify-center h-9 w-9 rounded-lg text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors backdrop-blur-sm"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -518,24 +520,73 @@ export function FilterPresetsManagerModal({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
-            {/* Templates Section - Visible when there are templates to add and user hasn't hidden */}
+            {/* Active Models Section - Always visible when there are active models */}
+            {selectedCount > 0 && (
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-purple-50/60 via-pink-50/40 to-rose-50/30 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-rose-950/10">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-md">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <span className="text-sm font-semibold text-neutral-900 dark:text-white">
+                        Active Models ({selectedCount})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setLocalSelection(new Set())}
+                      className="text-xs font-medium px-2.5 py-1 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {presets.filter(p => localSelection.has(p.id)).map((preset) => (
+                      <div
+                        key={preset.id}
+                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-purple-200 dark:border-purple-800 shadow-sm"
+                      >
+                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                          {preset.name}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setLocalSelection(prev => {
+                              const next = new Set(prev);
+                              next.delete(preset.id);
+                              return next;
+                            });
+                          }}
+                          className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/50 text-neutral-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Templates Section - Premium gradient background */}
             {shouldShowTemplates && (
-              <div className="border-b border-neutral-200 dark:border-neutral-800 bg-gradient-to-r from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-                        <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
+                        <Sparkles className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-medium text-neutral-900 dark:text-white">Quick Start Templates</h3>
+                        <h3 className="font-semibold text-neutral-900 dark:text-white">Quick Start Templates</h3>
                         <p className="text-xs text-neutral-500 dark:text-neutral-400">Add pre-built models with one click</p>
                       </div>
                     </div>
                     <Tooltip content="Don't show this section again">
                       <button
                         onClick={handleHideTemplates}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-white/50 dark:hover:bg-neutral-800/50 rounded-lg transition-colors border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                       >
                         <EyeOff className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Hide</span>
@@ -543,7 +594,7 @@ export function FilterPresetsManagerModal({
                     </Tooltip>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {MODEL_TEMPLATES.map((template) => {
                       const alreadyCreated = isTemplateCreated(template.name);
                       const isCreatingThis = creatingTemplateId === template.id;
@@ -558,38 +609,40 @@ export function FilterPresetsManagerModal({
                           className={cn(
                             "flex items-start gap-3 p-4 rounded-xl border text-left transition-all",
                             alreadyCreated
-                              ? "bg-neutral-100 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
-                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md cursor-pointer"
+                              ? "bg-neutral-100/80 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
+                              : "bg-white/90 dark:bg-neutral-800/80 border-neutral-200/80 dark:border-neutral-700/80 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg hover:shadow-amber-500/10 cursor-pointer ring-1 ring-black/[0.02] dark:ring-white/[0.02] hover:ring-amber-500/20 backdrop-blur-sm"
                           )}
                         >
                           {/* Mini pie chart */}
                           <MiniPieChart 
                             books={templateBooks} 
                             weights={templateWeights}
-                            size={40}
+                            size={44}
                           />
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+                              <span className="font-semibold text-sm text-neutral-900 dark:text-white truncate">
                                 {template.name}
                               </span>
                               {alreadyCreated && (
-                                <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                </div>
                               )}
                             </div>
-                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-2">
+                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2 leading-relaxed">
                               {template.description}
                             </p>
                           </div>
                           
                           {/* Add button */}
                           {!alreadyCreated && (
-                            <div className="flex-shrink-0">
+                            <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50">
                               {isCreatingThis ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
                               ) : (
-                                <Copy className="w-4 h-4 text-amber-500" />
+                                <Copy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                               )}
                             </div>
                           )}
@@ -602,20 +655,25 @@ export function FilterPresetsManagerModal({
             )}
             
             {presets.length === 0 ? (
-              /* Empty state */
-              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
-                  <Plus className="w-8 h-8 text-neutral-400" />
+              /* Premium Empty state */
+              <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                <div className="relative mb-6">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 flex items-center justify-center shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03]">
+                    <Sparkles className="w-9 h-9 text-purple-500 dark:text-purple-400" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg flex items-center justify-center">
+                    <Plus className="w-4 h-4 text-white" />
+                  </div>
                 </div>
-                <h3 className="font-semibold text-lg text-neutral-900 dark:text-white mb-2">
+                <h3 className="font-bold text-xl text-neutral-900 dark:text-white mb-2 tracking-tight">
                   Create Your First Model
                 </h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 max-w-sm">
-                  Build custom models to find the best edges using your preferred sharp books and settings.
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 max-w-md leading-relaxed">
+                  Build custom models to find the best edges using your preferred sharp books, weighted blends, and market filters.
                 </p>
                 <button
                   onClick={onCreateNew}
-                  className="h-10 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                  className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02] flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Create Model
@@ -623,23 +681,23 @@ export function FilterPresetsManagerModal({
               </div>
             ) : (
               /* Presets list */
-              <div className="p-6 space-y-8">
+              <div className="p-6 space-y-10">
                 {sortedSports.map((sport) => (
                   <div key={sport}>
                     {/* Sport section header */}
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200/50 dark:from-neutral-800 dark:to-neutral-700/50 text-neutral-600 dark:text-neutral-400 shadow-sm">
                         {sport === 'multi' ? (
-                          renderSportsIcon(['nba', 'nfl'], 16)
+                          renderSportsIcon(['nba', 'nfl'], 18)
                         ) : (
-                          <SportIcon sport={sport} className="w-4 h-4" />
+                          <SportIcon sport={sport} className="w-5 h-5" />
                         )}
                       </div>
-                      <h3 className="font-medium text-neutral-900 dark:text-white">
+                      <h3 className="font-semibold text-lg text-neutral-900 dark:text-white tracking-tight">
                         {getSportGroupLabel(sport)}
                       </h3>
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
-                        {presetsBySport[sport].length}
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200/50 dark:border-neutral-700/50">
+                        {presetsBySport[sport].length} {presetsBySport[sport].length === 1 ? 'model' : 'models'}
                       </span>
                       <div className="flex-1" />
                       <button
@@ -658,7 +716,7 @@ export function FilterPresetsManagerModal({
                             return next;
                           });
                         }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                       >
                         {presetsBySport[sport].every(p => localSelection.has(p.id)) ? "Deselect All" : "Select All"}
                       </button>
@@ -680,16 +738,16 @@ export function FilterPresetsManagerModal({
                             onMouseEnter={() => setHoveredPreset(preset.id)}
                             onMouseLeave={() => setHoveredPreset(null)}
                             className={cn(
-                              "group relative flex flex-col rounded-xl border cursor-pointer transition-all duration-150",
+                              "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
                               isSelected
-                                ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
-                                : "bg-white dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+                                ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
+                                : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md ring-1 ring-black/[0.02] dark:ring-white/[0.02]"
                             )}
                           >
                             {/* Selection indicator */}
                             <div className={cn(
-                              "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl transition-colors",
-                              isSelected ? "bg-emerald-500" : "bg-transparent"
+                              "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
+                              isSelected ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
                             )} />
 
                             {/* Top section with pie chart and info */}
@@ -843,33 +901,38 @@ export function FilterPresetsManagerModal({
             )}
           </div>
 
-          {/* Footer with Apply/Cancel */}
+          {/* Premium Footer with Apply/Cancel */}
           {presets.length > 0 && (
-            <div className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-900/50">
+            <div className="border-t border-neutral-200/80 dark:border-neutral-800/80 px-6 py-4 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-900/80 dark:to-neutral-950/50 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {selectedCount} selected
-                  </span>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                    <div className="w-2 h-2 rounded-full bg-purple-500" />
+                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      {selectedCount} selected
+                    </span>
+                  </div>
                   {pendingChanges.hasChanges && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                      {changeCount} pending
+                    <span className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
+                      {changeCount} unsaved changes
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleCancel}
-                    className="h-9 px-4 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    className="h-10 px-5 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-white dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSave}
-                    disabled={isSaving}
+                    disabled={isSaving || !pendingChanges.hasChanges}
                     className={cn(
-                      "h-9 px-5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center gap-2",
-                      !pendingChanges.hasChanges && "opacity-50 cursor-not-allowed"
+                      "h-10 px-6 rounded-xl text-sm font-semibold text-white transition-all flex items-center gap-2",
+                      pendingChanges.hasChanges
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-[1.02]"
+                        : "bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed"
                     )}
                   >
                     {isSaving ? (
@@ -880,7 +943,7 @@ export function FilterPresetsManagerModal({
                     ) : (
                       <>
                         <Check className="w-4 h-4" />
-                        Apply
+                        Apply Changes
                       </>
                     )}
                   </button>
@@ -898,24 +961,27 @@ export function FilterPresetsManagerModal({
         preset={editingPreset || undefined}
       />
 
-      {/* Delete confirmation */}
+      {/* Premium Delete confirmation */}
       <Dialog open={!!deletingPreset} onOpenChange={(open) => !open && setDeletingPreset(null)}>
-        <DialogContent className="sm:max-w-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-xl">
+        <DialogContent className="sm:max-w-md border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 shadow-2xl rounded-2xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] overflow-hidden">
+          {/* Red accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-red-500 to-rose-600" />
+          
           <div className="p-6">
             {/* Icon */}
             <div className="flex justify-center mb-5">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-100 to-rose-100 dark:from-red-900/40 dark:to-rose-900/40 shadow-lg ring-1 ring-red-200/50 dark:ring-red-800/50">
+                <Trash2 className="h-7 w-7 text-red-600 dark:text-red-400" />
               </div>
             </div>
 
             {/* Content */}
             <div className="text-center">
-              <DialogTitle className="mb-2 text-lg font-semibold text-neutral-900 dark:text-white">
+              <DialogTitle className="mb-2 text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
                 Delete Model?
               </DialogTitle>
-              <DialogDescription className="mb-6 text-sm text-neutral-500 dark:text-neutral-400">
-                &quot;{deletingPreset?.name}&quot; will be permanently removed.
+              <DialogDescription className="mb-6 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">&quot;{deletingPreset?.name}&quot;</span> will be permanently removed. This action cannot be undone.
               </DialogDescription>
             </div>
 
@@ -923,17 +989,17 @@ export function FilterPresetsManagerModal({
             <div className="flex gap-3">
               <button
                 onClick={() => setDeletingPreset(null)}
-                className="flex-1 h-10 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                className="flex-1 h-11 rounded-xl text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 h-10 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/25 transition-all hover:shadow-red-500/40 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? "Deleting..." : "Delete Model"}
               </button>
             </div>
           </div>
