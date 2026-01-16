@@ -1308,51 +1308,58 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 </div>
           </div>
 
-              {/* ROW 2: Hit Rate Strip - Flat, Subordinate - Uses dynamicHitRates for custom line */}
-              <div className="flex items-center gap-0.5">
+              {/* ROW 2: Hit Rate Strip - Premium Pills - Uses dynamicHitRates for custom line */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-neutral-100/50 dark:bg-neutral-800/30">
                 {[
                   { label: "L5", value: dynamicHitRates.l5, count: 5 as const },
                   { label: "L10", value: dynamicHitRates.l10, count: 10 as const },
                   { label: "L20", value: dynamicHitRates.l20, count: 20 as const },
                   { label: "SZN", value: dynamicHitRates.season, count: "season" as const },
                   { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" as const },
-                ].map((stat, idx) => {
+                ].map((stat) => {
                   const isSelected = gameCount === stat.count;
+                  const hitColor = stat.value !== null && stat.value >= 70 
+                    ? "emerald" 
+                    : stat.value !== null && stat.value >= 50 
+                      ? "amber" 
+                      : "red";
                   return (
-                    <React.Fragment key={stat.label}>
-                      {idx > 0 && (
-                        <span className="text-neutral-300 dark:text-neutral-600 px-1">|</span>
+                    <button
+                      key={stat.label}
+                      type="button"
+                      onClick={() => setGameCount(stat.count)}
+                      className={cn(
+                        "relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-xs font-semibold",
+                        isSelected 
+                          ? "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50" 
+                          : "hover:bg-white/50 dark:hover:bg-neutral-800/50"
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setGameCount(stat.count)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2 py-1 rounded-md transition-all cursor-pointer",
-                          isSelected 
-                            ? "bg-brand/10 dark:bg-brand/15" 
-                            : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                        )}
-                      >
-                        <span className={cn(
-                          "text-[11px] font-semibold tabular-nums",
-                          isSelected ? "text-brand" : "text-neutral-400 dark:text-neutral-500"
-                        )}>
-                          {stat.label}
-            </span>
-                        <span className={cn(
-                          "text-[11px] font-bold tabular-nums",
-                          isSelected 
-                            ? getPctColor(stat.value)
-                            : stat.value != null && stat.value >= 70 
-                              ? "text-emerald-600/70 dark:text-emerald-400/70" 
-                              : stat.value != null && stat.value >= 50 
-                                ? "text-amber-600/70 dark:text-amber-400/70" 
-                                : "text-red-500/70 dark:text-red-400/70"
-                        )}>
-                          {stat.value != null ? `${stat.value.toFixed(0)}%` : "—"}
-            </span>
-                      </button>
-                    </React.Fragment>
+                    >
+                      <span className={cn(
+                        "font-bold tabular-nums tracking-tight",
+                        isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-500"
+                      )}>
+                        {stat.label}
+                      </span>
+                      <span className={cn(
+                        "font-bold tabular-nums",
+                        hitColor === "emerald" && "text-emerald-600 dark:text-emerald-400",
+                        hitColor === "amber" && "text-amber-600 dark:text-amber-400",
+                        hitColor === "red" && "text-red-500 dark:text-red-400",
+                        stat.value === null && "text-neutral-400 dark:text-neutral-500"
+                      )}>
+                        {stat.value != null ? `${stat.value.toFixed(0)}%` : "—"}
+                      </span>
+                      {isSelected && (
+                        <div className={cn(
+                          "absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full",
+                          hitColor === "emerald" && "bg-emerald-500",
+                          hitColor === "amber" && "bg-amber-500",
+                          hitColor === "red" && "bg-red-500",
+                          stat.value === null && "bg-neutral-400"
+                        )} />
+                      )}
+                    </button>
                   );
                 })}
               </div>

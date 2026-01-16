@@ -87,6 +87,13 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
     description: "Uses Pinnacle as the sole sharp reference. Most common and reliable baseline.",
     books: [{ bookId: "pinnacle", weight: 1.0 }],
   },
+  circa: {
+    id: "circa",
+    name: "Circa",
+    label: "Circa",
+    description: "Uses Circa as the sole sharp reference. Top US-based sharp book.",
+    books: [{ bookId: "circa", weight: 1.0 }],
+  },
   pinnacle_circa: {
     id: "pinnacle_circa",
     name: "Pinnacle + Circa",

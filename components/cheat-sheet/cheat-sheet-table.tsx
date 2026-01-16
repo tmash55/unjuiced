@@ -12,7 +12,9 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  SlidersHorizontal,
 } from "lucide-react";
+import Chart from "@/icons/chart";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { 
@@ -489,100 +491,121 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand border-t-transparent" />
+      <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
+        <div className="flex items-center justify-center py-20 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+          <div className="text-center">
+            <div className="relative inline-flex">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand/30 border-t-brand" />
+              <Chart className="absolute inset-0 m-auto h-5 w-5 text-brand/60" />
+            </div>
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-4">Loading cheat sheet...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-        <p className="text-lg font-medium">No props match your filters</p>
-        <p className="text-sm mt-1">Try adjusting your filters to see more results</p>
+      <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
+        <div className="flex items-center justify-center py-20 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50 mx-auto">
+              <SlidersHorizontal className="h-8 w-8 text-neutral-400 dark:text-neutral-500" />
+            </div>
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">
+              No props match your filters
+            </h3>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Try adjusting your filters to see more results
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative">
+    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
       {/* Scrollable Table Container */}
       <div className="overflow-auto max-h-[calc(100vh-200px)] min-h-[500px]">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
-          <tr className="bg-neutral-50 dark:bg-neutral-800/80">
-            <th className="h-10 px-4 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[200px] bg-neutral-50 dark:bg-neutral-800/80">
+          <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+            <th className="h-11 px-4 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[200px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <button 
                 onClick={() => handleSort("player")}
-                className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                className="flex items-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 Player <SortIcon field="player" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[100px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <button 
                 onClick={() => handleSort("line")}
-                className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 Prop <SortIcon field="line" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[80px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <button 
                 onClick={() => handleSort("hitRate")}
-                className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 Hit Rate <SortIcon field="hitRate" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[90px] bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[90px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <Tooltip content="Average over selected time window with edge (difference from line)" side="top">
                 <button 
                   onClick={() => handleSort("avgStat")}
-                  className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-help"
+                  className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-help"
                 >
                   {getTimeWindowLabel(timeWindow)} Avg <SortIcon field="avgStat" currentField={sortField} direction={sortDirection} />
                 </button>
               </Tooltip>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[80px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <button 
                 onClick={() => handleSort("dvpRank")}
-                className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 DvP <SortIcon field="dvpRank" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[120px] bg-neutral-50 dark:bg-neutral-800/80">
-              <div className="w-full flex items-center justify-center gap-1">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[120px] bg-neutral-50/95 dark:bg-neutral-800/95">
+              <div className="w-full flex items-center justify-center gap-1.5">
                 <button 
                   onClick={() => handleSort("confidence")}
-                  className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                  className="flex items-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
                 >
                   Confidence <SortIcon field="confidence" currentField={sortField} direction={sortDirection} />
                 </button>
               </div>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[100px] bg-neutral-50/95 dark:bg-neutral-800/95">
               <button 
                 onClick={() => handleSort("odds")}
-                className="w-full flex items-center justify-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 Odds <SortIcon field="odds" currentField={sortField} direction={sortDirection} />
               </button>
             </th>
-            <th className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-16 bg-neutral-50 dark:bg-neutral-800/80">
+            <th className="h-11 px-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 w-16 bg-neutral-50/95 dark:bg-neutral-800/95">
               Action
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/50">
           {sortedRows.map((row, idx) => {
-            const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd';
+            const rowBg = idx % 2 === 0 
+              ? 'bg-white dark:bg-neutral-900' 
+              : 'bg-neutral-50/50 dark:bg-neutral-800/20';
             return (
             <tr 
               key={`${row.playerId}-${row.market}-${row.line}-${idx}`}
-              className={cn(rowBg, "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors cursor-pointer")}
+              className={cn(rowBg, "group hover:bg-brand/5 dark:hover:bg-brand/10 transition-colors cursor-pointer")}
               onClick={() => onRowClick?.(row)}
             >
               {/* Player Column */}

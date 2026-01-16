@@ -49,12 +49,13 @@ export interface MultiDevigResult {
  * Available sharp reference presets
  * 
  * - pinnacle: Pinnacle only (most common sharp reference)
+ * - circa: Circa only (US-based sharp book)
  * - pinnacle_circa: Blend of Pinnacle and Circa
  * - hardrock_thescore: Blend of Hard Rock and theScore
  * - market_average: Average of all available sharp books (most robust consensus)
  * - custom: User-defined blend of books with weights
  */
-export type SharpPreset = "pinnacle" | "pinnacle_circa" | "hardrock_thescore" | "market_average" | "custom";
+export type SharpPreset = "pinnacle" | "circa" | "pinnacle_circa" | "hardrock_thescore" | "market_average" | "custom";
 
 /**
  * Configuration for a sharp reference preset

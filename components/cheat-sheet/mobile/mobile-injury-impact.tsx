@@ -15,7 +15,8 @@ import {
   ArrowRight,
   Calendar,
   SlidersHorizontal,
-  ExternalLink
+  ExternalLink,
+  HeartPulse,
 } from "lucide-react";
 import Link from "next/link";
 import { InjuryImpactRow } from "@/hooks/use-injury-impact";
@@ -793,14 +794,28 @@ export function MobileInjuryImpact({
       {/* Table Area */}
       <div className="flex-1">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand border-t-transparent" />
+          <div className="flex items-center justify-center py-16 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+            <div className="text-center">
+              <div className="relative inline-flex">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-red-500/30 border-t-red-500" />
+                <HeartPulse className="absolute inset-0 m-auto h-5 w-5 text-red-500/60" />
+              </div>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-4">Loading injury impacts...</p>
+            </div>
           </div>
         ) : visibleRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-            <Users className="w-8 h-8 mb-2 opacity-50" />
-            <p className="text-base font-medium">No injury impact opportunities</p>
-            <p className="text-sm mt-1">Try adjusting your filters</p>
+          <div className="flex items-center justify-center py-16 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+            <div className="text-center max-w-sm px-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/30 dark:to-red-950/30 flex items-center justify-center mb-4 shadow-sm border border-red-200/50 dark:border-red-700/30 mx-auto">
+                <HeartPulse className="h-7 w-7 text-red-400 dark:text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white mb-1.5">
+                No injury impact opportunities
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Try adjusting your filters or check back when there are more injuries reported
+              </p>
+            </div>
           </div>
         ) : (
           <>

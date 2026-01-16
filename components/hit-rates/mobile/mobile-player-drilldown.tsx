@@ -1079,9 +1079,15 @@ function HeroBarChart({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // Auto-scroll to the right (newest games) when games change or on mount
+  // This ensures the most recent games are visible first
   useEffect(() => {
-    if (scrollContainerRef.current && displayGames.length > 10) {
-      scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+    if (scrollContainerRef.current && displayGames.length > 0) {
+      // Use requestAnimationFrame to ensure DOM has rendered
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+        }
+      });
     }
   }, [displayGames.length, gameCount]);
   

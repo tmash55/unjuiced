@@ -19,8 +19,9 @@ import {
   Eye,
   EyeOff,
   Lock,
-  ArrowRight
+  ArrowRight,
 } from "lucide-react";
+import Chart from "@/icons/chart";
 import Link from "next/link";
 import { CheatSheetRow, OddsData } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "../cheat-sheet-filters";
@@ -943,13 +944,28 @@ export function MobileCheatSheet({
       {/* Table Area */}
       <div className="flex-1">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand border-t-transparent" />
+          <div className="flex items-center justify-center py-16 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+            <div className="text-center">
+              <div className="relative inline-flex">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand/30 border-t-brand" />
+                <Chart className="absolute inset-0 m-auto h-5 w-5 text-brand/60" />
+              </div>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-4">Loading cheat sheet...</p>
+            </div>
           </div>
         ) : visibleRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-            <p className="text-base font-medium">No props match your filters</p>
-            <p className="text-sm mt-1">Try adjusting your filters</p>
+          <div className="flex items-center justify-center py-16 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+            <div className="text-center max-w-sm px-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-4 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50 mx-auto">
+                <SlidersHorizontal className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
+              </div>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white mb-1.5">
+                No props match your filters
+              </h3>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Try adjusting your filters to see more results
+              </p>
+            </div>
           </div>
         ) : (
           <>

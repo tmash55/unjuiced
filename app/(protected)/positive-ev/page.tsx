@@ -986,6 +986,10 @@ export default function PositiveEVPage() {
           locked={locked}
           isLoggedIn={isLoggedIn}
           isPro={effectiveIsPro}
+          bankroll={evPrefs.bankroll}
+          kellyPercent={evPrefs.kellyPercent}
+          onBankrollChange={(value) => updateEvPrefs({ bankroll: value })}
+          onKellyPercentChange={(value) => updateEvPrefs({ kellyPercent: value })}
         />
 
         {/* Spacer to push right-side items */}

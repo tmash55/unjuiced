@@ -55,37 +55,39 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
   const toughCount = data?.play_types?.filter(pt => pt.opponent_def_rank !== null && pt.opponent_def_rank <= 10).length || 0;
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+    <div className="bg-white dark:bg-neutral-900/80 rounded-2xl border border-neutral-200/60 dark:border-neutral-700/60 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
       {/* Header */}
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full px-4 py-3 flex items-center justify-between"
+        className="w-full px-4 py-3.5 flex items-center justify-between bg-gradient-to-br from-white via-neutral-50/50 to-violet-50/30 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-violet-900/10"
       >
-        <div className="flex items-center gap-2">
-          <div className="h-5 w-0.5 rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-500" />
-          <span className="text-sm font-bold text-neutral-900 dark:text-white">
-            Play Type Analysis
-          </span>
-          <span className="text-xs text-neutral-400">vs {opponentTeamAbbr}</span>
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-violet-500 to-fuchsia-600 shadow-sm shadow-violet-500/30" />
+          <div>
+            <span className="text-sm font-bold text-neutral-900 dark:text-white block">
+              Play Type Analysis
+            </span>
+            <span className="text-[10px] text-neutral-500">vs {opponentTeamAbbr}</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {!isLoading && playTypesCount > 0 && !collapsed && (
             <div className="flex items-center gap-1">
               {favorableCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                <span className="px-2 py-1 rounded-lg text-[9px] font-bold bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900/50 dark:to-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/30">
                   {favorableCount} good
                 </span>
               )}
               {toughCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 dark:bg-red-900/40 text-red-500 dark:text-red-400">
+                <span className="px-2 py-1 rounded-lg text-[9px] font-bold bg-gradient-to-r from-red-100 to-red-50 dark:from-red-900/50 dark:to-red-900/30 text-red-500 dark:text-red-400 border border-red-200/50 dark:border-red-700/30">
                   {toughCount} tough
                 </span>
               )}
             </div>
           )}
           <ChevronDown className={cn(
-            "h-4 w-4 text-neutral-400 transition-transform",
+            "h-4 w-4 text-neutral-500 transition-transform",
             !collapsed && "rotate-180"
           )} />
         </div>
@@ -93,29 +95,29 @@ export function MobilePlayTypeAnalysis({ playerId, opponentTeamId, opponentTeamA
 
       {/* Content */}
       {!collapsed && (
-        <div className="border-t border-neutral-200/60 dark:border-neutral-800/60">
+        <div className="border-t border-neutral-200/60 dark:border-neutral-700/60">
           {isLoading ? (
-            <div className="px-4 py-8 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-4 w-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
-                <span className="text-[10px] text-neutral-400">Loading...</span>
+            <div className="px-4 py-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
+                <span className="text-xs text-neutral-500 font-medium">Loading play types...</span>
               </div>
             </div>
           ) : error || !data?.play_types?.length ? (
-            <div className="px-4 py-8 text-center">
-              <p className="text-xs text-neutral-400">No play type data available</p>
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm text-neutral-500 font-medium">No play type data available</p>
             </div>
           ) : (
             <>
               {/* Table Header */}
-              <div className="grid grid-cols-[1fr_70px_50px_24px] items-center px-4 py-2 bg-neutral-100/80 dark:bg-neutral-800/50 border-b border-neutral-200/60 dark:border-neutral-800/60">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              <div className="grid grid-cols-[1fr_70px_50px_24px] items-center px-4 py-2.5 bg-neutral-100/80 dark:bg-neutral-800/60 backdrop-blur-sm border-b border-neutral-200/60 dark:border-neutral-700/60">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                   Play Type
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-right">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 text-right">
                   Pts
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-center leading-tight">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 text-center leading-tight">
                   Def<br/>Rank
                 </span>
                 <span></span>

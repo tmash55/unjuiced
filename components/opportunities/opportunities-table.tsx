@@ -693,12 +693,12 @@ export function OpportunitiesTable({
     helpers: {
       isExpanded: boolean;
       showLogos: boolean;
-      bestBooksWithPrice: { book: string; price: number; decimal: number; link: string | null }[];
+      bestBooksWithPrice: { book: string; price: number; decimal: number; link: string | null; limits?: { max?: number; min?: number } | null }[];
       dateStr: string;
       timeStr: string;
       isToday: boolean;
       isHiddenRow: boolean;
-      sortedBooks: { book: string; price: number; decimal: number; link: string | null }[];
+      sortedBooks: { book: string; price: number; decimal: number; link: string | null; limits?: { max?: number; min?: number } | null }[];
     }
   ) => {
     const { isExpanded, showLogos, bestBooksWithPrice, dateStr, timeStr, isToday, isHiddenRow, sortedBooks } = helpers;
@@ -912,11 +912,11 @@ export function OpportunitiesTable({
                 {bestBooksWithPrice.slice(0, 3).map((book) => {
                   const bookLogo = getBookLogo(book.book);
                   const bookName = getBookName(book.book);
-                  const hasLimits = book.limits?.max;
+                  const maxLimit = book.limits?.max;
                   return bookLogo ? (
                     <Tooltip 
                       key={book.book}
-                      content={hasLimits ? `${bookName} • Max: $${book.limits!.max.toLocaleString()}` : bookName}
+                      content={maxLimit ? `${bookName} • Max: $${maxLimit.toLocaleString()}` : bookName}
                     >
                       <img 
                         src={bookLogo} 

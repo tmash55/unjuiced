@@ -33,7 +33,9 @@ import {
   Lock,
   BarChart3,
   Pin,
+  HeartPulse,
 } from "lucide-react";
+import Chart from "@/icons/chart";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { CheatSheetFilterState } from "./cheat-sheet-filters";
@@ -375,77 +377,95 @@ export function InjuryImpactTable({
     </button>
   );
 
-  // Early return for loading state - matches cheat sheet table style
+  // Early return for loading state - premium style
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand border-t-transparent" />
+      <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
+        <div className="flex items-center justify-center py-20 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+          <div className="text-center">
+            <div className="relative inline-flex">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-red-500/30 border-t-red-500" />
+              <HeartPulse className="absolute inset-0 m-auto h-5 w-5 text-red-500/60" />
+            </div>
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-4">Loading injury impacts...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative">
+    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
       {/* Scrollable Table Container */}
       <div className="overflow-auto max-h-[calc(100vh-200px)] min-h-[500px]">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-neutral-50 dark:bg-neutral-800/80">
-              <th className="h-10 px-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[160px] bg-neutral-50 dark:bg-neutral-800/80">
+            <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+              <th className="h-11 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[160px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 Player
               </th>
-              <th className="h-10 px-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[150px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[150px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <SortButton field="teammateName">Teammate Out</SortButton>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[95px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[95px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <div className="w-full flex items-center justify-center">Prop</div>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[70px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[70px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <SortButton field="hitRate">Hit %</SortButton>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[100px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[100px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <Tooltip content="Season Avg → Avg When Out (Boost)">
                   <div className="w-full flex items-center justify-center cursor-help">Avg / Boost</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[50px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[50px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <SortButton field="gamesWithTeammateOut">Gms</SortButton>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[85px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[85px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <Tooltip content="Key opportunity stat when teammate is out">
                   <div className="w-full flex items-center justify-center cursor-help">Key Stat</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[95px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[95px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <Tooltip content="Minutes and Usage when teammate is out vs season average">
                   <div className="w-full flex items-center justify-center cursor-help">Min / Usg</div>
                 </Tooltip>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[80px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[80px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <SortButton field="confidenceScore">Grade</SortButton>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 min-w-[75px] bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[75px] bg-neutral-50/95 dark:bg-neutral-800/95">
                 <SortButton field="odds">Odds</SortButton>
               </th>
-              <th className="h-10 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 w-12 bg-neutral-50 dark:bg-neutral-800/80">
+              <th className="h-11 px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-700/80 w-12 bg-neutral-50/95 dark:bg-neutral-800/95">
                 Action
               </th>
             </tr>
           </thead>
-        <tbody>
+        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/50">
           {sortedRows.length === 0 ? (
             <tr>
-              <td colSpan={10} className="py-16 text-center text-neutral-500">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No injury impact opportunities found</p>
-                <p className="text-sm mt-1">Try adjusting your filters or check back later</p>
+              <td colSpan={11} className="py-20 text-center bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+                <div className="max-w-sm mx-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/30 dark:to-red-950/30 flex items-center justify-center mb-5 shadow-sm border border-red-200/50 dark:border-red-700/30 mx-auto">
+                    <HeartPulse className="h-8 w-8 text-red-400 dark:text-red-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">
+                    No injury impact opportunities
+                  </h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    Try adjusting your filters or check back when there are more injuries reported
+                  </p>
+                </div>
               </td>
             </tr>
           ) : (
             sortedRows.map((row, idx) => {
               const key = getRowKey(row);
               const rowState = rowStates.get(key) || initRowState(row);
-              const rowBg = idx % 2 === 0 ? 'table-row-even' : 'table-row-odd';
+              const rowBg = idx % 2 === 0 
+                ? 'bg-white dark:bg-neutral-900' 
+                : 'bg-neutral-50/50 dark:bg-neutral-800/20';
               const liveOdds = row.oddsSelectionId && oddsData ? oddsData[row.oddsSelectionId] || null : null;
               
               const isPinned = pinnedRows.has(key) || rowState.isModified;
@@ -961,7 +981,7 @@ function InjuryImpactRow({
   return (
     <tr className={cn(
       rowBg,
-      "group hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors",
+      "group hover:bg-brand/5 dark:hover:bg-brand/10 transition-colors",
       isPinned && "border-l-2 border-l-brand bg-brand/5 dark:bg-brand/10"
     )}>
       {/* Player Column */}

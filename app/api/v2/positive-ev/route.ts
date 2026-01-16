@@ -851,7 +851,7 @@ function getSharpOddsForPreset(
     return null;
   }
 
-  // Blended preset
+  // Blended preset - REQUIRES ALL BOOKS to be present
   const blendInputs: { bookId: string; odds: number; weight: number }[] = [];
   const blendedFrom: string[] = [];
 
@@ -863,16 +863,14 @@ function getSharpOddsForPreset(
     }
   }
 
-  if (blendInputs.length === 0) return null;
+  // For blended presets, require ALL books to be available
+  // This ensures pinnacle_circa only works when BOTH Pinnacle AND Circa have odds
+  if (blendInputs.length !== presetBooks.length) {
+    return null;
+  }
 
-  // Renormalize weights for available books
-  const totalWeight = blendInputs.reduce((sum, b) => sum + b.weight, 0);
-  const normalizedInputs = blendInputs.map((b) => ({
-    ...b,
-    weight: b.weight / totalWeight,
-  }));
-
-  const blendedOdds = blendSharpOdds(normalizedInputs);
+  // All books are present, so weights are already properly normalized from the preset config
+  const blendedOdds = blendSharpOdds(blendInputs);
   if (blendedOdds === 0) return null;
 
   return {

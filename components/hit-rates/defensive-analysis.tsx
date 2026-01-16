@@ -194,7 +194,7 @@ export function DefensiveAnalysis({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
+          <tbody className="divide-y divide-neutral-100/50 dark:divide-neutral-700/30">
             {ALL_MARKETS.length === 0 && !isFetching ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center">
@@ -204,14 +204,20 @@ export function DefensiveAnalysis({
                 </td>
               </tr>
             ) : (
-              ALL_MARKETS.map((market) => (
+              ALL_MARKETS.map((market, idx) => (
                 <tr 
                   key={market}
-                  className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700/30"
+                  className={cn(
+                    "transition-colors hover:bg-neutral-50/80 dark:hover:bg-neutral-700/20",
+                    idx % 2 === 0 ? "bg-transparent" : "bg-neutral-50/30 dark:bg-neutral-800/20"
+                  )}
                 >
                   {/* Stat Name */}
-                  <td className="px-4 py-2.5 sticky left-0 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700/30">
-                    <span className="text-sm font-medium text-neutral-900 dark:text-white whitespace-nowrap">
+                  <td className={cn(
+                    "px-4 py-2.5 sticky left-0 border-r border-neutral-100 dark:border-neutral-700/30",
+                    idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/50 dark:bg-neutral-800/80"
+                  )}>
+                    <span className="text-sm font-semibold text-neutral-900 dark:text-white whitespace-nowrap">
                       {formatMarketLabel(market)}
                     </span>
                   </td>
@@ -226,7 +232,7 @@ export function DefensiveAnalysis({
                         key={pos}
                         className={cn(
                           "px-3 py-2.5 text-center transition-colors",
-                          getCellBgColor(data?.rank ?? null, isPlayerPos)
+                          isPlayerPos && "bg-brand/5 dark:bg-brand/10"
                         )}
                       >
                         {viewMode === "ranks" ? (

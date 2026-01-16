@@ -251,8 +251,9 @@ export function GamesSidebar({
     if (!gamePlayers) return [];
     const seen = new Map<number, HitRateProfile>();
     for (const player of gamePlayers) {
-      if (!seen.has(player.playerId)) {
-        seen.set(player.playerId, player);
+      const pid = Number(player.playerId);
+      if (!isNaN(pid) && !seen.has(pid)) {
+        seen.set(pid, player);
       }
     }
     return Array.from(seen.values()).sort((a, b) => 
@@ -261,7 +262,8 @@ export function GamesSidebar({
   }, [gamePlayers]);
 
   // Get the game ID for the selected player
-  const selectedPlayerGameId = selectedPlayer?.gameId || null;
+  // Use nullish coalescing to preserve empty strings (though they shouldn't occur)
+  const selectedPlayerGameId = selectedPlayer?.gameId ?? null;
 
   // Auto-expand the selected player's game when entering drilldown and scroll to it
   useEffect(() => {
@@ -314,8 +316,9 @@ export function GamesSidebar({
     const players = getPlayersForGame(gameId);
     const seen = new Map<number, HitRateProfile>();
     for (const player of players) {
-      if (!seen.has(player.playerId)) {
-        seen.set(player.playerId, player);
+      const pid = Number(player.playerId);
+      if (!isNaN(pid) && !seen.has(pid)) {
+        seen.set(pid, player);
       }
     }
     return Array.from(seen.values()).sort((a, b) => {
@@ -326,15 +329,15 @@ export function GamesSidebar({
     });
   };
 
-  // Collapsed state - show just the toggle button
+  // Collapsed state - show just the toggle button - Premium
   if (isCollapsed) {
     return (
-      <div className="shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 h-full flex flex-col items-center py-3 px-2">
+      <div className="shrink-0 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 h-full flex flex-col items-center py-4 px-2 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
         <Tooltip content="Expand Games" side="right">
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-colors border border-neutral-200 dark:border-neutral-700"
+            className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-all duration-200 border border-neutral-200/80 dark:border-neutral-700/80 shadow-sm hover:shadow-md"
           >
             <PanelLeftOpen className="h-5 w-5" />
           </button>
@@ -345,12 +348,12 @@ export function GamesSidebar({
 
   if (isLoading) {
     return (
-      <div className="w-[20%] min-w-[260px] shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 p-4 h-full">
-        <div className="animate-pulse space-y-3">
-          <div className="h-4 w-20 bg-neutral-200 dark:bg-neutral-700 rounded" />
-          <div className="h-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
-          <div className="h-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
-          <div className="h-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
+      <div className="w-[20%] min-w-[260px] shrink-0 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-4 h-full shadow-lg ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+        <div className="animate-pulse space-y-4">
+          <div className="h-5 w-24 bg-neutral-200 dark:bg-neutral-700 rounded-lg" />
+          <div className="h-20 bg-neutral-200 dark:bg-neutral-700 rounded-xl" />
+          <div className="h-20 bg-neutral-200 dark:bg-neutral-700 rounded-xl" />
+          <div className="h-20 bg-neutral-200 dark:bg-neutral-700 rounded-xl" />
         </div>
       </div>
     );
@@ -358,8 +361,8 @@ export function GamesSidebar({
 
   if (error) {
     return (
-      <div className="w-[20%] min-w-[260px] shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 p-4 h-full">
-        <p className="text-sm text-red-500">Failed to load games</p>
+      <div className="w-[20%] min-w-[260px] shrink-0 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-4 h-full shadow-lg ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+        <p className="text-sm font-medium text-red-500">Failed to load games</p>
       </div>
     );
   }
@@ -367,12 +370,12 @@ export function GamesSidebar({
   return (
     <div 
       ref={containerRef}
-      className="w-[20%] min-w-[260px] shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 h-full overflow-y-auto drilldown-scroll"
+      className="w-[20%] min-w-[260px] shrink-0 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-950/50 h-full overflow-y-auto drilldown-scroll shadow-lg ring-1 ring-black/[0.02] dark:ring-white/[0.02]"
     >
-      <div className="p-3">
-        {/* Header with collapse toggle */}
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+      <div className="p-4">
+        {/* Header with collapse toggle - Premium */}
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
             {selectedPlayer ? "Switch Game" : "Upcoming Games"}
           </h3>
           <div className="flex items-center gap-2">
@@ -381,7 +384,7 @@ export function GamesSidebar({
               <button
                 type="button"
                 onClick={onClearAll}
-                className="text-[10px] font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                className="text-[10px] font-semibold text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
               >
                 Clear
               </button>
@@ -391,7 +394,7 @@ export function GamesSidebar({
                 <button
                   type="button"
                   onClick={onToggleCollapse}
-                  className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-colors border border-neutral-200 dark:border-neutral-700"
+                  className="p-1.5 rounded-xl bg-white dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-700 transition-all duration-200 border border-neutral-200/80 dark:border-neutral-700/80 shadow-sm hover:shadow-md"
                 >
                   <PanelLeftClose className="h-4 w-4" />
                 </button>
@@ -400,16 +403,16 @@ export function GamesSidebar({
           </div>
         </div>
 
-        {/* Today's Games Option - only show in table mode */}
+        {/* Today's Games Option - only show in table mode - Premium */}
         {!selectedPlayer && (
           <button
             type="button"
             onClick={handleSelectTodaysGames}
             className={cn(
-              "w-full text-center px-3 py-2 rounded-lg mb-3 transition-all text-sm font-semibold",
+              "w-full text-center px-4 py-2.5 rounded-xl mb-4 transition-all duration-200 text-sm font-bold",
               allTodaysSelected
-                ? "bg-brand/10 border border-brand/30 text-brand"
-                : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                ? "bg-gradient-to-r from-brand/15 to-brand/10 border border-brand/40 text-brand shadow-sm shadow-brand/10"
+                : "bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700 shadow-sm hover:shadow-md"
             )}
           >
             {gamesDates.length > 0 ? getDayLabel(gamesDates[0]) : "Today"}'s Games
@@ -417,8 +420,8 @@ export function GamesSidebar({
           </button>
         )}
 
-        {/* Games List - Grouped by Date */}
-        <div className="space-y-4">
+        {/* Games List - Grouped by Date - Premium */}
+        <div className="space-y-5">
           {gamesDates.map((date) => {
             const dateGames = gamesByDate[date] || [];
             const dayLabel = getDayLabel(date);
@@ -439,59 +442,59 @@ export function GamesSidebar({
             
             return (
               <div key={date}>
-                {/* Date Header */}
-                <div className="mb-2">
+                {/* Date Header - Premium */}
+                <div className="mb-3">
                   <div className="flex items-center gap-2">
                     <span className={cn(
-                      "text-[11px] font-semibold uppercase tracking-wide",
-                      allStarted ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-500 dark:text-neutral-400"
+                      "text-[11px] font-bold uppercase tracking-wider",
+                      allStarted ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-600 dark:text-neutral-400"
                     )}>
                       {dayLabel}
                     </span>
-                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                      ({dateGames.length})
+                    <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                      {dateGames.length}
                     </span>
                     {allStarted && isDateExpanded && (
                       <button
                         type="button"
                         onClick={toggleDateExpanded}
-                        className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors"
+                        className="text-[10px] font-semibold text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors"
                       >
                         Hide
                       </button>
                     )}
-                    <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-700" />
                   </div>
-                  {/* All started - collapsed card */}
+                  {/* All started - collapsed card - Premium */}
                   {allStarted && !isDateExpanded && (
                     <button
                       type="button"
                       onClick={toggleDateExpanded}
-                      className="mt-2 w-full p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all group"
+                      className="mt-3 w-full p-3.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all duration-200 group shadow-sm hover:shadow-md"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-1">
+                        <div className="flex items-center gap-3">
+                          <div className="flex -space-x-1.5">
                             {dateGames.slice(0, 3).map((g, i) => (
                               <img
                                 key={g.game_id}
                                 src={`/team-logos/nba/${g.home_team_tricode}.svg`}
                                 alt=""
-                                className="w-5 h-5 rounded-full bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 object-contain"
+                                className="w-6 h-6 rounded-full bg-white dark:bg-neutral-700 border-2 border-white dark:border-neutral-800 object-contain shadow-sm"
                                 style={{ zIndex: 3 - i }}
                               />
                             ))}
                             {dateGames.length > 3 && (
-                              <div className="w-5 h-5 rounded-full bg-neutral-200 dark:bg-neutral-600 border border-neutral-300 dark:border-neutral-500 flex items-center justify-center text-[8px] font-bold text-neutral-600 dark:text-neutral-300">
+                              <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-600 border-2 border-white dark:border-neutral-800 flex items-center justify-center text-[9px] font-bold text-neutral-600 dark:text-neutral-300 shadow-sm">
                                 +{dateGames.length - 3}
                               </div>
                             )}
                           </div>
                           <div className="text-left">
-                            <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 block">
+                            <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
                               {dateGames.length} game{dateGames.length !== 1 ? "s" : ""} started
                             </span>
-                            <span className="text-[9px] text-neutral-400 dark:text-neutral-500">
+                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                               Tap to view
                             </span>
                           </div>
@@ -500,13 +503,13 @@ export function GamesSidebar({
                       </div>
                     </button>
                   )}
-                  {/* Show NBA Cup badge if any games on this date are NBA Cup */}
+                  {/* Show NBA Cup badge if any games on this date are NBA Cup - Premium */}
                   {isDateExpanded && (() => {
                     const cupGame = dateGames.find(g => isSpecialSeasonType(g.season_type));
                     const badge = cupGame ? getSeasonTypeBadge(cupGame.season_type) : null;
                     return badge ? (
                       <span className={cn(
-                        "text-[9px] font-bold px-1.5 py-0.5 rounded border mt-1.5 inline-block",
+                        "text-[9px] font-bold px-2 py-1 rounded-lg border mt-2 inline-block shadow-sm",
                         badge.color
                       )}>
                         {badge.label}
@@ -515,9 +518,9 @@ export function GamesSidebar({
                   })()}
                 </div>
                 
-                {/* Games for this date - collapsed if all started */}
+                {/* Games for this date - collapsed if all started - Premium */}
                 {isDateExpanded && (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {dateGames.map((game) => {
                     const homeAbbr = game.home_team_tricode || "TBD";
                     const awayAbbr = game.away_team_tricode || "TBD";
@@ -547,55 +550,55 @@ export function GamesSidebar({
                           type="button"
                           onClick={() => handleGameClick(game.game_id)}
                           className={cn(
-                            "w-full transition-all overflow-hidden",
-                            // Rounded corners - remove bottom when expanded
-                            isExpanded && selectedPlayer ? "rounded-t-lg" : "rounded-lg",
+                            "w-full transition-all duration-200 overflow-hidden",
+                            // Rounded corners - remove bottom when expanded - Premium
+                            isExpanded && selectedPlayer ? "rounded-t-xl" : "rounded-xl",
                             // Grey out games that have started
                             hasGameStarted(game) && "opacity-50",
                             // In drilldown mode: highlight the current player's game
                             selectedPlayer && isCurrentPlayerGame
                               ? isExpanded
-                                ? "bg-brand/10 border-2 border-b-0 border-brand/40 shadow-sm"
-                                : "bg-brand/10 border-2 border-brand/40 shadow-sm"
+                                ? "bg-gradient-to-br from-brand/10 to-brand/5 border-2 border-b-0 border-brand/40 shadow-md shadow-brand/10"
+                                : "bg-gradient-to-br from-brand/10 to-brand/5 border-2 border-brand/40 shadow-md shadow-brand/10"
                               : selectedPlayer
                                 ? isNbaCup
                                   ? isExpanded
-                                    ? "bg-amber-500/5 border border-b-0 border-amber-500/30"
-                                    : "bg-amber-500/5 border border-amber-500/30 hover:border-amber-500/50"
+                                    ? "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-b-0 border-amber-500/40"
+                                    : "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/40 hover:border-amber-500/50 shadow-sm hover:shadow-md"
                                   : isExpanded
-                                    ? "bg-white dark:bg-neutral-800 border border-b-0 border-neutral-200 dark:border-neutral-700"
-                                    : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+                                    ? "bg-white dark:bg-neutral-800 border border-b-0 border-neutral-200/80 dark:border-neutral-700/80"
+                                    : "bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 shadow-sm hover:shadow-md"
                                 // In table mode: use selection state
                                 : isSelected
-                                  ? "bg-brand/10 border-2 border-brand/40 shadow-sm"
+                                  ? "bg-gradient-to-br from-brand/10 to-brand/5 border-2 border-brand/40 shadow-md shadow-brand/10"
                                   : isNbaCup
-                                    ? "bg-amber-500/5 border border-amber-500/30 hover:border-amber-500/50"
-                                    : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+                                    ? "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/40 hover:border-amber-500/50 shadow-sm hover:shadow-md"
+                                    : "bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 shadow-sm hover:shadow-md"
                           )}
                         >
-                          {/* Team color accent bar at top */}
+                          {/* Team color accent bar at top - Premium */}
                           <div 
-                            className="h-1 w-full"
+                            className="h-1.5 w-full"
                             style={{
                               background: `linear-gradient(90deg, ${awayColors.primary} 0%, ${awayColors.primary} 45%, ${homeColors.primary} 55%, ${homeColors.primary} 100%)`,
                             }}
                           />
                           
-                          {/* Card content with padding */}
-                          <div className="px-3 py-3">
+                          {/* Card content with padding - Premium */}
+                          <div className="px-3.5 py-3.5">
                           <div className="flex items-center justify-between">
                             {/* Away Team */}
                             <div className="flex flex-col items-center w-16">
                               <img
                                 src={`/team-logos/nba/${awayAbbr}.svg`}
                                 alt={awayAbbr}
-                                className="h-9 w-9 object-contain drop-shadow-sm"
+                                className="h-10 w-10 object-contain drop-shadow-md transition-transform duration-200 hover:scale-105"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = "none";
                                 }}
                               />
                               <span className={cn(
-                                "text-xs font-semibold mt-1.5 tracking-wide",
+                                "text-xs font-bold mt-2 tracking-wide",
                                 (selectedPlayer ? isCurrentPlayerGame : isSelected) 
                                   ? "text-brand" 
                                   : "text-neutral-800 dark:text-neutral-200"
@@ -604,27 +607,27 @@ export function GamesSidebar({
                               </span>
                             </div>
 
-                            {/* Time & Broadcast in center */}
+                            {/* Time & Broadcast in center - Premium */}
                             <div className="relative flex flex-col items-center justify-center min-h-[36px]">
                               <span className={cn(
-                                "text-[11px] font-semibold",
+                                "text-[11px] font-bold",
                                 (selectedPlayer ? isCurrentPlayerGame : isSelected) 
-                                  ? "text-brand/70" 
-                                  : "text-neutral-400 dark:text-neutral-500"
+                                  ? "text-brand/80" 
+                                  : "text-neutral-500 dark:text-neutral-400"
                               )}>
                                 {formatGameTime(game.game_status, game.game_date)}
                               </span>
-                              {/* Broadcast badges - positioned absolutely so they don't affect time layout */}
+                              {/* Broadcast badges - positioned absolutely so they don't affect time layout - Premium */}
                               {(game.national_broadcast || game.neutral_site) && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 flex items-center gap-1">
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-0.5 flex items-center gap-1">
                                   {game.national_broadcast && (
-                                    <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded-md whitespace-nowrap shadow-sm">
                                       {game.national_broadcast}
                                     </span>
                                   )}
                                   {game.neutral_site && (
                                     <Tooltip content="Neutral Site" side="top">
-                                      <span className="flex items-center gap-0.5 text-[8px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded cursor-help">
+                                      <span className="flex items-center gap-0.5 text-[8px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/15 px-1 py-0.5 rounded-md cursor-help shadow-sm">
                                         <MapPin className="h-2.5 w-2.5" />
                                       </span>
                                     </Tooltip>
@@ -638,13 +641,13 @@ export function GamesSidebar({
                               <img
                                 src={`/team-logos/nba/${homeAbbr}.svg`}
                                 alt={homeAbbr}
-                                className="h-9 w-9 object-contain drop-shadow-sm"
+                                className="h-10 w-10 object-contain drop-shadow-md transition-transform duration-200 hover:scale-105"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = "none";
                                 }}
                               />
                               <span className={cn(
-                                "text-xs font-semibold mt-1.5 tracking-wide",
+                                "text-xs font-bold mt-2 tracking-wide",
                                 (selectedPlayer ? isCurrentPlayerGame : isSelected) 
                                   ? "text-brand" 
                                   : "text-neutral-800 dark:text-neutral-200"
@@ -654,10 +657,10 @@ export function GamesSidebar({
                             </div>
                           </div>
 
-                          {/* Expand indicator for drilldown mode */}
+                          {/* Expand indicator for drilldown mode - Premium */}
                           {selectedPlayer && gamePlayers.length > 0 && (
-                            <div className="flex items-center justify-center mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50">
-                              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mr-1">
+                            <div className="flex items-center justify-center mt-3 pt-2.5 border-t border-neutral-200/50 dark:border-neutral-700/50">
+                              <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 mr-1">
                                 {gamePlayers.length} player{gamePlayers.length !== 1 ? 's' : ''}
                               </span>
                               {isExpanded ? (
@@ -741,7 +744,11 @@ export function GamesSidebar({
                                     
                                     {/* Team players list */}
                                     {playersByTeam[team].map((player, playerIdx) => {
-                                      const isCurrentPlayer = player.playerId === selectedPlayer.playerId;
+                                      // Use Number() to ensure consistent comparison - handles potential string/number mismatches
+                                      const isCurrentPlayer = 
+                                        player.playerId != null && 
+                                        selectedPlayer?.playerId != null && 
+                                        Number(player.playerId) === Number(selectedPlayer.playerId);
                                       const isLastInTeam = playerIdx === playersByTeam[team].length - 1;
                                       const isLastTeam = teamIdx === teams.length - 1;
                                       

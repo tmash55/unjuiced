@@ -12,6 +12,8 @@ interface ShootingZonesProps {
   playerName?: string | null;
   opponentTeamAbbr?: string | null;
   className?: string;
+  /** Show the zone details table side-by-side with the chart (for modals). Defaults to false. */
+  showSideTable?: boolean;
 }
 
 // Internal zone data structure for rendering
@@ -57,7 +59,8 @@ export function ShootingZones({
   opponentTeamId,
   playerName,
   opponentTeamAbbr,
-  className 
+  className,
+  showSideTable = false 
 }: ShootingZonesProps) {
   // Handle null values with defaults
   const effectivePlayerName = playerName || "Player";
@@ -140,13 +143,13 @@ export function ShootingZones({
     return "url(#neutralGradient)";
   };
   
-  // Get zone glow color for effects
+  // Get zone glow color for effects - subtle glow
   const getZoneGlow = (zoneId: string): string => {
     const zone = getZone(zoneId);
-    if (!zone || zone.defRank === null) return "rgba(251, 191, 36, 0.4)";
-    if (zone.defRank >= 21) return "rgba(16, 185, 129, 0.5)";
-    if (zone.defRank <= 10) return "rgba(244, 63, 94, 0.5)";
-    return "rgba(251, 191, 36, 0.4)";
+    if (!zone || zone.defRank === null) return "rgba(251, 191, 36, 0.25)";
+    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.3)";
+    if (zone.defRank <= 10) return "rgba(239, 68, 68, 0.3)";
+    return "rgba(251, 191, 36, 0.25)";
   };
 
   // Zone component for rendering stats (badge only, no background color)
@@ -356,7 +359,12 @@ export function ShootingZones({
               <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : (
-            <div className="relative w-full mx-auto">
+            <div className={showSideTable ? "flex gap-4" : ""}>
+              {/* Chart - full width when no side table, constrained when side table shown */}
+              <div className={cn(
+                "relative",
+                showSideTable ? "flex-1 max-w-[340px]" : "max-w-md mx-auto"
+              )}>
               {/* 
                 NBA Court Dimensions (1 foot = 10 units):
                 =========================================
@@ -381,25 +389,22 @@ export function ShootingZones({
                     GRADIENT DEFINITIONS - Premium color schemes
                     ═══════════════════════════════════════════════════════════ */}
                 <defs>
-                  {/* Favorable (Green) - Vibrant teal/emerald */}
+                  {/* Favorable (Green) - Muted emerald, on-brand */}
                   <linearGradient id="favorableGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.85" />
-                    <stop offset="50%" stopColor="#059669" stopOpacity="0.75" />
-                    <stop offset="100%" stopColor="#047857" stopOpacity="0.85" />
+                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.65" />
                   </linearGradient>
                   
-                  {/* Tough (Red) - Rich coral/rose */}
+                  {/* Tough (Red) - True red, on-brand */}
                   <linearGradient id="toughGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.85" />
-                    <stop offset="50%" stopColor="#e11d48" stopOpacity="0.75" />
-                    <stop offset="100%" stopColor="#be123c" stopOpacity="0.85" />
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity="0.65" />
                   </linearGradient>
                   
-                  {/* Neutral (Amber) - Golden amber */}
+                  {/* Neutral (Amber) - Muted amber, on-brand */}
                   <linearGradient id="neutralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.85" />
-                    <stop offset="50%" stopColor="#d97706" stopOpacity="0.75" />
-                    <stop offset="100%" stopColor="#b45309" stopOpacity="0.85" />
+                    <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.50" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.60" />
                   </linearGradient>
                   
                   {/* Court wood texture gradient */}
@@ -629,30 +634,106 @@ export function ShootingZones({
                   <ZoneStat zoneId="aboveBreak3" />
                 </div>
               </div>
+              </div>
+              
+              {/* RIGHT: Zone Details Table - Only shown when showSideTable is true */}
+              {showSideTable && (
+                <div className="flex-1 min-w-[200px]">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[1fr_50px_50px_45px] items-center px-3 py-2 bg-neutral-100/80 dark:bg-neutral-800/60 rounded-t-lg border border-neutral-200/60 dark:border-neutral-700/60">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                      Zone
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 text-center">
+                      Dist
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 text-center">
+                      FG%
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 text-center">
+                      Def
+                    </span>
+                  </div>
+
+                  {/* Table Rows */}
+                  <div className="divide-y divide-neutral-100 dark:divide-neutral-700/30 border-x border-b border-neutral-200/60 dark:border-neutral-700/60 rounded-b-lg overflow-hidden">
+                    {[
+                      { id: "rim", name: "At Rim" },
+                      { id: "paint", name: "Paint" },
+                      { id: "midRange", name: "Mid-Range" },
+                      { id: "corner3Left", name: "Corner 3 L" },
+                      { id: "corner3Right", name: "Corner 3 R" },
+                      { id: "aboveBreak3", name: "Above Break" },
+                    ].map((zoneInfo, idx) => {
+                      const zone = getZone(zoneInfo.id);
+                      if (!zone) return null;
+                      
+                      const getRankBg = (rank: number | null) => {
+                        if (rank === null) return "bg-neutral-100 dark:bg-neutral-800";
+                        if (rank >= 21) return "bg-emerald-100 dark:bg-emerald-900/40";
+                        if (rank <= 10) return "bg-red-100 dark:bg-red-900/40";
+                        return "bg-amber-100 dark:bg-amber-900/40";
+                      };
+                      
+                      const getRankText = (rank: number | null) => {
+                        if (rank === null) return "text-neutral-500";
+                        if (rank >= 21) return "text-emerald-600 dark:text-emerald-400";
+                        if (rank <= 10) return "text-red-600 dark:text-red-400";
+                        return "text-amber-600 dark:text-amber-400";
+                      };
+                      
+                      return (
+                        <div 
+                          key={zoneInfo.id}
+                          className={cn(
+                            "grid grid-cols-[1fr_50px_50px_45px] px-3 py-2 items-center",
+                            idx % 2 === 0 
+                              ? "bg-white dark:bg-neutral-800/30" 
+                              : "bg-neutral-50/50 dark:bg-neutral-800/50"
+                          )}
+                        >
+                          <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                            {zoneInfo.name}
+                          </span>
+                          <span className="text-xs font-bold tabular-nums text-neutral-900 dark:text-white text-center">
+                            {zone.pct.toFixed(0)}%
+                          </span>
+                          <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400 text-center">
+                            {zone.fgPct}%
+                          </span>
+                          <div className="flex justify-center">
+                            <span className={cn(
+                              "inline-flex items-center justify-center w-7 h-5 rounded text-[10px] font-bold tabular-nums",
+                              getRankBg(zone.defRank),
+                              getRankText(zone.defRank)
+                            )}>
+                              {zone.defRank ?? "—"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend below table */}
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                      <div className="w-2 h-2 rounded-sm bg-emerald-500" />
+                      <span className="text-[9px] font-medium text-emerald-500">21-30</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
+                      <div className="w-2 h-2 rounded-sm bg-amber-500" />
+                      <span className="text-[9px] font-medium text-amber-500">11-20</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/10 border border-red-500/20">
+                      <div className="w-2 h-2 rounded-sm bg-red-500" />
+                      <span className="text-[9px] font-medium text-red-500">1-10</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
-          {/* Legend - Premium styling */}
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-sm shadow-emerald-500/30" />
-              <span className="text-[10px] font-semibold text-emerald-400">Favorable</span>
-              <span className="text-[9px] text-emerald-400/60">(21-30)</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-amber-400 to-amber-600 shadow-sm shadow-amber-500/30" />
-              <span className="text-[10px] font-semibold text-amber-400">Neutral</span>
-              <span className="text-[9px] text-amber-400/60">(11-20)</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
-              <div className="w-3 h-3 rounded-md bg-gradient-to-br from-rose-400 to-rose-600 shadow-sm shadow-rose-500/30" />
-              <span className="text-[10px] font-semibold text-rose-400">Tough</span>
-              <span className="text-[9px] text-rose-400/60">(1-10)</span>
-            </div>
-          </div>
-          <p className="mt-2 text-center text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
-            {showLabels ? "Shot Distribution % | Opponent Defensive Rank" : "Hover over zones for details"}
-          </p>
         </div>
       )}
     </div>

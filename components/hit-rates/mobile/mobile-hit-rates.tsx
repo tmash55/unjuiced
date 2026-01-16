@@ -255,25 +255,30 @@ export function MobileHitRates({
     setVisibleCount(prev => prev + 50);
   }, []);
 
-  // Loading state
+  // Loading state - Premium
   if (loading && rows.length === 0) {
     return (
-      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-brand" />
-          <span className="text-sm text-neutral-500">Loading hit rates...</span>
+      <div className="min-h-screen bg-gradient-to-b from-neutral-50 to-white dark:from-neutral-950 dark:to-neutral-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand/30 border-t-brand" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-3 w-3 rounded-full bg-brand/60 animate-pulse" />
+            </div>
+          </div>
+          <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Loading hit rates...</span>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Error state - Premium
   if (error) {
     return (
-      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-red-500 font-medium">Error loading data</p>
-          <p className="text-sm text-neutral-500 mt-1">{error}</p>
+      <div className="min-h-screen bg-gradient-to-b from-neutral-50 to-white dark:from-neutral-950 dark:to-neutral-900 flex items-center justify-center p-4">
+        <div className="text-center p-6 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200/80 dark:border-red-800/50">
+          <p className="text-red-600 dark:text-red-400 font-bold">Error loading data</p>
+          <p className="text-sm text-red-500 dark:text-red-400/80 mt-2">{error}</p>
         </div>
       </div>
     );
@@ -287,9 +292,9 @@ export function MobileHitRates({
   const FILTER_HEADER_HEIGHT = isHeaderCollapsed ? 40 : (168 + UPGRADE_BANNER_HEIGHT);
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 overflow-x-hidden">
-      {/* Fixed Header - stays at top when scrolling */}
-      <div className="fixed top-14 left-0 right-0 z-40 bg-white dark:bg-neutral-950 shadow-sm">
+    <div className="min-h-screen bg-gradient-to-b from-neutral-50 via-white to-neutral-50 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950 overflow-x-hidden">
+      {/* Fixed Header - stays at top when scrolling - Premium */}
+      <div className="fixed top-14 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg shadow-lg shadow-black/[0.03] dark:shadow-black/20 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <MobileHeader
           sport="nba"
           selectedGameIds={selectedGameIds}
@@ -318,11 +323,14 @@ export function MobileHitRates({
         style={{ height: `${FILTER_HEADER_HEIGHT}px` }} 
       />
       
-      {/* Player Cards */}
-      <div className="pb-20">
+      {/* Player Cards - Premium */}
+      <div className="pb-24">
         {visibleRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4">
-            <p className="text-neutral-500 text-center">
+          <div className="flex flex-col items-center justify-center py-24 px-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-lg shadow-black/5 dark:shadow-black/30 border border-neutral-200/50 dark:border-neutral-700/50">
+              <Loader2 className="h-7 w-7 text-neutral-400 dark:text-neutral-500" />
+            </div>
+            <p className="text-neutral-600 dark:text-neutral-400 font-medium text-center">
               No props match your filters
             </p>
             <button
@@ -332,7 +340,7 @@ export function MobileHitRates({
                 onGameIdsChange([]);
                 onSearchChange("");
               }}
-              className="mt-3 text-sm text-brand font-medium"
+              className="mt-4 px-5 py-2.5 text-sm font-bold text-brand bg-brand/10 rounded-xl hover:bg-brand/15 transition-colors"
             >
               Clear all filters
             </button>
@@ -363,21 +371,24 @@ export function MobileHitRates({
             {/* Bottom Content (e.g. upgrade CTA) */}
             {bottomContent}
             
-            {/* Load More */}
+            {/* Load More - Premium */}
             {hasMore && (
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                className={cn(
-                  "w-full py-4 text-sm font-medium",
-                  "text-brand",
-                  "bg-white dark:bg-neutral-900",
-                  "border-t border-neutral-200 dark:border-neutral-800",
-                  "active:bg-neutral-50 dark:active:bg-neutral-800"
-                )}
-              >
-                Load more ({rowsForDisplay.length - visibleCount} remaining)
-              </button>
+              <div className="flex justify-center py-6 px-4">
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  className={cn(
+                    "px-8 py-3 text-sm font-bold rounded-2xl",
+                    "text-brand bg-white dark:bg-neutral-800",
+                    "border border-neutral-200/80 dark:border-neutral-700/80",
+                    "shadow-lg shadow-black/[0.03] dark:shadow-black/20",
+                    "active:scale-[0.98] transition-all duration-200",
+                    "hover:shadow-xl"
+                  )}
+                >
+                  Load more ({rowsForDisplay.length - visibleCount} remaining)
+                </button>
+              </div>
             )}
           </>
         )}

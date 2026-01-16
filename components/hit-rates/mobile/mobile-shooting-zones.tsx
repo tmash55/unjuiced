@@ -75,17 +75,17 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
   // Helper to get zone data
   const getZone = (zoneId: string) => zones.find(z => z.zoneId === zoneId);
 
-  // Get zone fill color for SVG - vibrant colors matching alternate lines matrix
+  // Get zone fill color for SVG - muted, on-brand colors
   const getZoneFill = (zoneId: string): string => {
     const zone = getZone(zoneId);
     if (!zone || zone.defRank === null) return "#2d2d2d"; // Default dark
     
-    // Favorable (21-30) - Emerald green
-    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.7)";
-    // Tough (1-10) - Red
-    if (zone.defRank <= 10) return "rgba(248, 113, 113, 0.7)";
-    // Neutral (11-20) - Amber/Orange
-    return "rgba(251, 191, 36, 0.65)";
+    // Favorable (21-30) - Muted emerald
+    if (zone.defRank >= 21) return "rgba(52, 211, 153, 0.5)";
+    // Tough (1-10) - True red
+    if (zone.defRank <= 10) return "rgba(239, 68, 68, 0.5)";
+    // Neutral (11-20) - Muted amber
+    return "rgba(251, 191, 36, 0.45)";
   };
 
   // Calculate summary
@@ -113,37 +113,39 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
   if (!playerId || !opponentTeamId) return null;
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden">
+    <div className="bg-white dark:bg-neutral-900/80 rounded-2xl border border-neutral-200/60 dark:border-neutral-700/60 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
       {/* Header */}
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full px-4 py-3 flex items-center justify-between"
+        className="w-full px-4 py-3.5 flex items-center justify-between bg-gradient-to-br from-white via-neutral-50/50 to-orange-50/30 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-orange-900/10"
       >
-        <div className="flex items-center gap-2">
-          <div className="h-5 w-0.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-500" />
-          <span className="text-sm font-bold text-neutral-900 dark:text-white">
-            Shot Zones
-          </span>
-          <span className="text-xs text-neutral-400">vs {opponentTeamAbbr}</span>
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-1.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-600 shadow-sm shadow-orange-500/30" />
+          <div>
+            <span className="text-sm font-bold text-neutral-900 dark:text-white block">
+              Shot Zones
+            </span>
+            <span className="text-[10px] text-neutral-500">vs {opponentTeamAbbr}</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {!isLoading && summary && !collapsed && (
             <div className="flex items-center gap-1">
               {summary.favorablePct > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                <span className="px-2 py-1 rounded-lg text-[9px] font-bold bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900/50 dark:to-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-700/30">
                   {summary.favorablePct}% good
                 </span>
               )}
               {summary.toughPct > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 dark:bg-red-900/40 text-red-500 dark:text-red-400">
+                <span className="px-2 py-1 rounded-lg text-[9px] font-bold bg-gradient-to-r from-red-100 to-red-50 dark:from-red-900/50 dark:to-red-900/30 text-red-500 dark:text-red-400 border border-red-200/50 dark:border-red-700/30">
                   {summary.toughPct}% tough
                 </span>
               )}
             </div>
           )}
           <ChevronDown className={cn(
-            "h-4 w-4 text-neutral-400 transition-transform",
+            "h-4 w-4 text-neutral-500 transition-transform",
             !collapsed && "rotate-180"
           )} />
         </div>
@@ -151,17 +153,17 @@ export function MobileShootingZones({ playerId, opponentTeamId, opponentTeamAbbr
 
       {/* Content */}
       {!collapsed && (
-        <div className="border-t border-neutral-200/60 dark:border-neutral-800/60">
+        <div className="border-t border-neutral-200/60 dark:border-neutral-700/60">
           {isLoading ? (
-            <div className="px-4 py-8 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-4 w-4 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
-                <span className="text-[10px] text-neutral-400">Loading...</span>
+            <div className="px-4 py-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                <span className="text-xs text-neutral-500 font-medium">Loading shot zones...</span>
               </div>
             </div>
           ) : error || !zones.length ? (
-            <div className="px-4 py-8 text-center">
-              <p className="text-xs text-neutral-400">No shot zone data available</p>
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm text-neutral-500 font-medium">No shot zone data available</p>
             </div>
           ) : (
             <>

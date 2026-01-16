@@ -1167,7 +1167,7 @@ export function PlayerQuickViewModal({
                       opponentTeamId={profileOpponentTeamId}
                       playerName={profilePlayerName}
                       opponentTeamAbbr={profileOpponentTeamAbbr}
-                      className="max-w-md mx-auto"
+                      showSideTable
                     />
                   </div>
                 </div>

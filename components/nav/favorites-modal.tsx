@@ -10,7 +10,7 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { Heart } from "@/components/icons/heart";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
-import { X, ChevronRight, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon } from "lucide-react";
+import { X, ChevronRight, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon, ArrowRight, Trophy } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -186,63 +186,68 @@ function FavoriteItem({
       }}
       className={cn(
         "group relative flex items-center gap-3 px-4 py-3",
-        "border-b border-neutral-100 dark:border-white/5 last:border-b-0",
-        "hover:bg-neutral-50 dark:hover:bg-white/[0.02]",
-        "transition-colors duration-150",
+        "transition-all duration-150",
         isRemoving && "opacity-40 pointer-events-none",
-        isSelected && "bg-brand/5 dark:bg-brand/10"
+        isSelected 
+          ? "bg-gradient-to-r from-brand/5 to-brand/10 dark:from-brand/10 dark:to-brand/20" 
+          : "hover:bg-neutral-50/80 dark:hover:bg-white/[0.02]"
       )}
     >
       {/* Checkbox */}
       <button
         onClick={onToggleSelect}
         className={cn(
-          "shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+          "shrink-0 w-5 h-5 rounded-md flex items-center justify-center transition-all",
           isSelected 
-            ? "bg-brand border-brand text-white" 
-            : "border-neutral-300 dark:border-neutral-600 hover:border-brand"
+            ? "bg-gradient-to-br from-brand to-brand/80 shadow-sm shadow-brand/30 text-white" 
+            : "border border-neutral-300 dark:border-neutral-600 hover:border-brand bg-white dark:bg-neutral-800"
         )}
       >
-        {isSelected && <Check className="w-3 h-3" />}
+        {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
       </button>
       
-      {/* Sport badge */}
-      <div className={cn(
-        "shrink-0 w-6 h-6 rounded-md flex items-center justify-center",
-        "bg-neutral-100 dark:bg-white/5"
-      )}>
-        <SportIcon sport={normalizedSport} className="w-3.5 h-3.5 text-neutral-500" />
-      </div>
-      
-      {/* Avatar with initials */}
-      <div className={cn(
-        "shrink-0 w-9 h-9 rounded-full flex items-center justify-center",
-        "bg-gradient-to-br shadow-sm",
-        avatarColor
-      )}>
-        <span className="text-[11px] font-bold text-white tracking-tight">
-          {initials}
-        </span>
+      {/* Avatar with initials + sport badge */}
+      <div className="relative shrink-0">
+        <div className={cn(
+          "w-10 h-10 rounded-xl flex items-center justify-center",
+          "bg-gradient-to-br shadow-md ring-1 ring-white/20",
+          avatarColor
+        )}>
+          <span className="text-xs font-bold text-white tracking-tight">
+            {initials}
+          </span>
+        </div>
+        {/* Sport badge overlay */}
+        <div className={cn(
+          "absolute -bottom-1 -right-1 w-5 h-5 rounded-md flex items-center justify-center",
+          "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
+        )}>
+          <SportIcon sport={normalizedSport} className="w-3 h-3 text-neutral-500 dark:text-neutral-400" />
+        </div>
       </div>
       
       {/* Player + Bet Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
             {lastName}
           </span>
-          <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase">
-            {favorite.player_team || ""}
-          </span>
+          {favorite.player_team && (
+            <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+              {favorite.player_team}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
             {marketLabel}
           </span>
           {hasLine && (
             <span className={cn(
-              "text-xs font-semibold",
-              side === "o" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+              "text-xs font-bold px-1.5 py-0.5 rounded",
+              side === "o" 
+                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" 
+                : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
             )}>
               {side}{favorite.line}
             </span>
@@ -250,7 +255,7 @@ function FavoriteItem({
         </div>
       </div>
       
-      {/* Best Odds Section - Clickable Bet Button */}
+      {/* Best Odds Section - Premium Bet Button */}
       {betLink ? (
         <a
           href={betLink}
@@ -258,20 +263,21 @@ function FavoriteItem({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-lg transition-all",
-            "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20",
-            "ring-1 ring-emerald-200 dark:ring-emerald-500/30",
-            "group/bet"
+            "flex items-center gap-2 shrink-0 px-3 py-2 rounded-xl transition-all",
+            "bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-500/15 dark:to-emerald-500/5",
+            "hover:from-emerald-100 hover:to-emerald-50 dark:hover:from-emerald-500/20 dark:hover:to-emerald-500/10",
+            "ring-1 ring-emerald-200/80 dark:ring-emerald-500/30",
+            "shadow-sm group/bet"
           )}
         >
           {bookLogo && (
-            <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center shadow-sm ring-1 ring-black/5 dark:ring-white/10">
               <Image
                 src={bookLogo}
                 alt={displayBook || ""}
-                width={18}
-                height={18}
-                className="w-[18px] h-[18px] object-contain"
+                width={20}
+                height={20}
+                className="w-5 h-5 object-contain"
               />
             </div>
           )}
@@ -285,10 +291,10 @@ function FavoriteItem({
               {formatOdds(displayPrice)}
             </span>
           )}
-          <ChevronRight className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover/bet:opacity-100 transition-opacity" />
+          <ArrowRight className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover/bet:opacity-100 group-hover/bet:translate-x-0.5 transition-all" />
         </a>
       ) : (
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 px-2.5 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
           {bookLogo && (
             <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center">
               <Image
@@ -305,7 +311,7 @@ function FavoriteItem({
               "text-sm font-bold tabular-nums",
               displayPrice >= 0 
                 ? "text-emerald-600 dark:text-emerald-400" 
-                : "text-neutral-700 dark:text-neutral-300"
+                : "text-neutral-600 dark:text-neutral-400"
             )}>
               {formatOdds(displayPrice)}
             </span>
@@ -322,7 +328,7 @@ function FavoriteItem({
         }}
         disabled={isRemoving}
         className={cn(
-          "shrink-0 p-1.5 rounded-full transition-all duration-150",
+          "shrink-0 p-1.5 rounded-lg transition-all duration-150",
           "opacity-0 group-hover:opacity-100",
           "text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10",
           isRemoving && "opacity-100"
@@ -341,20 +347,20 @@ function FavoriteItem({
 // Empty state
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
-      <div className="relative mb-4">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center shadow-inner">
-          <Heart className="w-7 h-7 text-neutral-300 dark:text-neutral-600" />
+    <div className="flex flex-col items-center justify-center py-16 px-6">
+      <div className="relative mb-5">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-rose-100 to-pink-50 dark:from-rose-900/30 dark:to-pink-900/20 flex items-center justify-center shadow-lg shadow-rose-500/10 ring-1 ring-rose-200/50 dark:ring-rose-500/20">
+          <Heart className="w-9 h-9 text-rose-300 dark:text-rose-600" />
         </div>
-        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
-          <Sparkles className="w-3 h-3 text-white" />
+        <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 ring-1 ring-white/30">
+          <Sparkles className="w-4 h-4 text-white" />
         </div>
       </div>
-      <p className="text-base font-semibold text-neutral-700 dark:text-neutral-300 text-center">
+      <h3 className="text-lg font-bold text-neutral-800 dark:text-white text-center">
         No plays saved yet
-      </p>
-      <p className="text-sm text-neutral-400 dark:text-neutral-500 text-center mt-1.5 max-w-[240px]">
-        Tap the ❤️ on any edge to start building your parlay
+      </h3>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center mt-2 max-w-[260px] leading-relaxed">
+        Tap the <span className="text-rose-500">❤️</span> on any edge to start building your winning parlay
       </p>
     </div>
   );
@@ -393,30 +399,38 @@ function BestValueParlays({
     <motion.div 
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="border-t-2 border-emerald-200 dark:border-emerald-500/30 bg-gradient-to-b from-emerald-50/50 to-transparent dark:from-emerald-500/5 dark:to-transparent"
+      className="bg-gradient-to-b from-emerald-50 via-emerald-50/50 to-transparent dark:from-emerald-500/10 dark:via-emerald-500/5 dark:to-transparent border-t border-emerald-200/60 dark:border-emerald-500/20"
     >
       {/* Hero Header */}
-      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-        <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 shadow-sm">
-          <Flame className="w-3.5 h-3.5 text-white" />
+      <div className="px-4 pt-4 pb-3 flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
+          <Trophy className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1">
-          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-            Best Value Parlays
-          </span>
-          <span className="ml-2 text-xs text-emerald-600/70 dark:text-emerald-400/60">
-            {selectedFavorites.length} legs
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+              Best Value Parlays
+            </span>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full">
+              {selectedFavorites.length} legs
+            </span>
+          </div>
+          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/60 mt-0.5">
+            Compare parlay odds across books
+          </p>
         </div>
         {edgeVsSecond > 0 && (
-          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full">
-            +{edgeVsSecond} edge
-          </span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-100 to-teal-100 dark:from-emerald-500/20 dark:to-teal-500/20 ring-1 ring-emerald-200/80 dark:ring-emerald-500/30">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              +{edgeVsSecond} edge
+            </span>
+          </div>
         )}
       </div>
       
       {/* Parlay Cards */}
-      <div className="px-3 pb-3 space-y-2">
+      <div className="px-4 pb-4 space-y-2">
         {parlayOdds.slice(0, 3).map(({ book, odds, legCount }, index) => {
           const bookData = getSportsbookById(book);
           const logo = bookData?.image?.square || bookData?.image?.light;
@@ -429,18 +443,30 @@ function BestValueParlays({
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
               className={cn(
-                "flex items-center gap-3 px-3 py-3 rounded-xl transition-all cursor-pointer",
+                "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all cursor-pointer",
                 isTop 
-                  ? "bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-500/20 dark:to-emerald-500/10 ring-1 ring-emerald-300 dark:ring-emerald-500/40 shadow-sm" 
-                  : "bg-white/60 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.05]"
+                  ? "bg-gradient-to-r from-white to-emerald-50/50 dark:from-emerald-500/20 dark:to-emerald-500/10 ring-2 ring-emerald-300 dark:ring-emerald-500/40 shadow-lg shadow-emerald-500/10" 
+                  : "bg-white/80 dark:bg-white/[0.04] ring-1 ring-neutral-200/80 dark:ring-neutral-700/50 hover:ring-neutral-300 dark:hover:ring-neutral-600"
               )}
             >
+              {/* Rank indicator */}
+              <div className={cn(
+                "shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
+                isTop 
+                  ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm" 
+                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
+              )}>
+                {index + 1}
+              </div>
+              
               {logo && (
                 <div className={cn(
-                  "w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0",
-                  isTop ? "bg-white shadow-sm" : "bg-neutral-100 dark:bg-neutral-800"
+                  "w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shrink-0 shadow-sm",
+                  isTop 
+                    ? "bg-white ring-1 ring-emerald-200/50" 
+                    : "bg-neutral-50 dark:bg-neutral-800 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
                 )}>
-                  <Image src={logo} alt={book} width={26} height={26} className="w-[26px] h-[26px] object-contain" />
+                  <Image src={logo} alt={book} width={28} height={28} className="w-7 h-7 object-contain" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -452,19 +478,19 @@ function BestValueParlays({
                     {bookData?.name || book}
                   </span>
                   {isTop && (
-                    <span className="flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded">
                       <Star className="w-3 h-3 fill-current" />
                       BEST
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-500">
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                   {legCount === selectedFavorites.length ? "All legs available" : `${legCount} of ${selectedFavorites.length} legs`}
                 </span>
               </div>
               <div className="text-right">
                 <span className={cn(
-                  "text-base font-bold tabular-nums",
+                  "text-lg font-bold tabular-nums",
                   isTop ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
                 )}>
                   {formatOdds(odds)}
@@ -938,13 +964,13 @@ export function FavoritesModal() {
       <button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200",
+          "relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
           "bg-neutral-100 hover:bg-neutral-200 dark:bg-white/5 dark:hover:bg-white/10",
-          hasItems && "bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20"
+          hasItems && "bg-gradient-to-br from-rose-50 to-red-50 hover:from-rose-100 hover:to-red-100 dark:from-rose-500/10 dark:to-red-500/10 dark:hover:from-rose-500/20 dark:hover:to-red-500/20 ring-1 ring-rose-200/50 dark:ring-rose-500/20"
         )}
       >
         {hasItems ? (
-          <HeartFill className="h-4 w-4 text-red-500" />
+          <HeartFill className="h-4 w-4 text-rose-500" />
         ) : (
           <Heart className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
         )}
@@ -957,8 +983,8 @@ export function FavoritesModal() {
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
               className={cn(
-                "absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center",
-                "rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm"
+                "absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center",
+                "rounded-full bg-gradient-to-br from-rose-500 to-red-600 px-1.5 text-[10px] font-bold text-white shadow-lg shadow-rose-500/40 ring-2 ring-white dark:ring-neutral-900"
               )}
             >
               {count > 99 ? "99+" : count}
@@ -990,88 +1016,99 @@ export function FavoritesModal() {
               className={cn(
                 "fixed z-50 w-full max-w-[580px] max-h-[85vh] overflow-hidden",
                 "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-                "rounded-2xl border shadow-2xl",
-                "bg-white border-neutral-200",
-                "dark:bg-neutral-900 dark:border-white/10",
+                "rounded-2xl shadow-2xl ring-1 ring-black/[0.08]",
+                "bg-gradient-to-b from-white to-neutral-50/80",
+                "dark:from-neutral-900 dark:to-neutral-950/80 dark:ring-white/[0.08]",
                 // Mobile: bottom sheet
                 "max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:translate-x-0 max-sm:translate-y-0",
                 "max-sm:max-w-none max-sm:rounded-b-none max-sm:max-h-[90vh]"
               )}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-sm">
-                    <HeartFill className="w-4 h-4 text-white" />
+              {/* Premium Header */}
+              <div className="relative overflow-hidden">
+                {/* Gradient accent bar */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-red-500" />
+                
+                <div className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 shadow-lg shadow-rose-500/25 ring-1 ring-white/20">
+                      <HeartFill className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+                        My Props
+                      </h2>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                          {count} {count === 1 ? 'play' : 'plays'}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                          {betslips.length} {betslips.length === 1 ? 'slip' : 'slips'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                      Saved Props
-                    </h2>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {count} {count === 1 ? 'play' : 'plays'} · {betslips.length} {betslips.length === 1 ? 'slip' : 'slips'}
-                    </p>
-                  </div>
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <X className="w-5 h-5 text-neutral-400" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
-                >
-                  <X className="w-5 h-5 text-neutral-500" />
-                </button>
               </div>
               
               {/* Tab Navigation */}
-              <div className="flex border-b border-neutral-100 dark:border-white/5">
+              <div className="flex px-4 border-b border-neutral-100 dark:border-white/5">
                 <button
                   onClick={() => setActiveTab("plays")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all relative",
+                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all relative",
                     activeTab === "plays"
                       ? "text-neutral-900 dark:text-white"
-                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <Heart className="w-4 h-4" />
+                  <Heart className={cn("w-4 h-4", activeTab === "plays" && "text-rose-500")} />
                   All Props
                   {count > 0 && (
                     <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full",
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
                       activeTab === "plays" 
-                        ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" 
-                        : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
+                        ? "bg-gradient-to-r from-rose-500 to-red-500 text-white" 
+                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
                     )}>
                       {count}
                     </span>
                   )}
                   <div className={cn(
-                    "absolute bottom-0 left-0 right-0 h-0.5 bg-brand transition-opacity duration-200",
+                    "absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-gradient-to-r from-rose-500 to-red-500 transition-opacity duration-200",
                     activeTab === "plays" ? "opacity-100" : "opacity-0"
                   )} />
                 </button>
                 <button
                   onClick={() => setActiveTab("slips")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all relative",
+                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all relative",
                     activeTab === "slips"
                       ? "text-neutral-900 dark:text-white"
-                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <Layers className="w-4 h-4" />
+                  <Layers className={cn("w-4 h-4", activeTab === "slips" && "text-violet-500")} />
                   Slips
                   {betslips.length > 0 && (
                     <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full",
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
                       activeTab === "slips" 
-                        ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" 
-                        : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
+                        ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white" 
+                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
                     )}>
                       {betslips.length}
                     </span>
                   )}
                   <div className={cn(
-                    "absolute bottom-0 left-0 right-0 h-0.5 bg-brand transition-opacity duration-200",
+                    "absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 transition-opacity duration-200",
                     activeTab === "slips" ? "opacity-100" : "opacity-0"
                   )} />
                 </button>
@@ -1172,8 +1209,14 @@ export function FavoritesModal() {
                 selectedIds.size >= 2 ? "max-h-[35vh] max-sm:max-h-[30vh]" : "max-h-[50vh] max-sm:max-h-[45vh]"
               )}>
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 text-neutral-400 animate-spin" />
+                  <div className="flex items-center justify-center py-16">
+                    <div className="text-center">
+                      <div className="relative inline-flex">
+                        <div className="h-10 w-10 animate-spin rounded-full border-3 border-solid border-rose-200 dark:border-rose-500/30 border-t-rose-500" />
+                        <HeartFill className="absolute inset-0 m-auto h-4 w-4 text-rose-400" />
+                      </div>
+                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mt-3">Loading plays...</p>
+                    </div>
                   </div>
                 ) : !hasItems ? (
                   <EmptyState />
@@ -1437,16 +1480,17 @@ export function FavoritesModal() {
                     onClick={() => setIsOpen(false)}
                     className={cn(
                       "flex items-center justify-center gap-2 w-full py-3.5 rounded-xl",
-                      "text-sm font-semibold transition-all duration-150",
-                      "bg-gradient-to-r from-neutral-900 to-neutral-800 text-white",
-                      "hover:from-neutral-800 hover:to-neutral-700",
-                      "dark:from-white dark:to-neutral-100 dark:text-neutral-900",
-                      "dark:hover:from-neutral-100 dark:hover:to-neutral-200",
-                      "shadow-sm"
+                      "text-sm font-semibold transition-all duration-200",
+                      "bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 text-white",
+                      "hover:from-neutral-800 hover:via-neutral-700 hover:to-neutral-800",
+                      "dark:from-white dark:via-neutral-100 dark:to-white dark:text-neutral-900",
+                      "dark:hover:from-neutral-100 dark:hover:via-neutral-50 dark:hover:to-neutral-100",
+                      "shadow-lg shadow-neutral-900/20 dark:shadow-white/20",
+                      "ring-1 ring-black/10 dark:ring-white/20"
                     )}
                   >
-                    View All Plays
-                    <ChevronRight className="w-4 h-4" />
+                    View All Plays & Betslips
+                    <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               )}
@@ -1473,23 +1517,34 @@ export function FavoritesModal() {
                   {/* Slips List */}
                   <div className="flex-1 overflow-y-auto max-h-[50vh]">
                     {isLoadingSlips ? (
-                      <div className="flex items-center justify-center py-12">
-                        <Loader2 className="w-6 h-6 text-neutral-400 animate-spin" />
+                      <div className="flex items-center justify-center py-16">
+                        <div className="text-center">
+                          <div className="relative inline-flex">
+                            <div className="h-10 w-10 animate-spin rounded-full border-3 border-solid border-violet-200 dark:border-violet-500/30 border-t-violet-500" />
+                            <Layers className="absolute inset-0 m-auto h-4 w-4 text-violet-400" />
+                          </div>
+                          <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mt-3">Loading slips...</p>
+                        </div>
                       </div>
                     ) : betslips.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12 px-4">
-                        <div className="w-14 h-14 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
-                          <Layers className="w-6 h-6 text-neutral-400" />
+                      <div className="flex flex-col items-center justify-center py-16 px-6">
+                        <div className="relative mb-5">
+                          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-50 dark:from-violet-900/30 dark:to-purple-900/20 flex items-center justify-center shadow-lg shadow-violet-500/10 ring-1 ring-violet-200/50 dark:ring-violet-500/20">
+                            <Layers className="w-9 h-9 text-violet-300 dark:text-violet-600" />
+                          </div>
+                          <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30 ring-1 ring-white/30">
+                            <Plus className="w-4 h-4 text-white" />
+                          </div>
                         </div>
-                        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 text-center">
+                        <h3 className="text-lg font-bold text-neutral-800 dark:text-white text-center">
                           No bet slips yet
-                        </p>
-                        <p className="text-xs text-neutral-400 dark:text-neutral-500 text-center mt-1 max-w-[200px]">
-                          Create a slip to organize your plays into parlays
+                        </h3>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center mt-2 max-w-[240px] leading-relaxed">
+                          Create a slip to organize your plays into winning parlays
                         </p>
                         <button
                           onClick={() => setShowNewSlipForm(true)}
-                          className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand text-white hover:bg-brand/90 transition-colors"
+                          className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
                         >
                           <Plus className="w-4 h-4" />
                           Create Your First Slip

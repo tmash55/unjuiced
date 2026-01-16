@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
+import Chart from "@/icons/chart";
 import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
@@ -593,19 +594,23 @@ export function HitRateTable({
       : <ChevronDown className="h-3.5 w-3.5" />;
   };
 
-  // Render filter bar component (extracted for reuse)
+  // Render filter bar component (extracted for reuse) - Premium styling
   const filterBar = (
-    <div className="flex items-center gap-4 px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50/80 dark:bg-neutral-900/80 shrink-0">
-        {/* Markets Dropdown */}
+    <div className="flex items-center gap-4 px-5 py-3.5 border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 shrink-0 backdrop-blur-sm">
+        {/* Markets Dropdown - Premium */}
         <div ref={dropdownRef} className="relative">
           <button
             type="button"
             onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
             className={cn(
-              "flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700 w-[180px]"
+              "flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-left transition-all duration-200 w-[190px]",
+              "bg-white dark:bg-neutral-800/90 shadow-sm hover:shadow-md",
+              "border border-neutral-200/80 dark:border-neutral-700/80",
+              "ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
+              marketDropdownOpen && "ring-2 ring-brand/30 border-brand/50"
             )}
           >
-            <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
+            <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
               {selectedMarkets.length === 0
                 ? "No markets"
                 : selectedMarkets.length === MARKET_OPTIONS.length
@@ -616,22 +621,22 @@ export function HitRateTable({
                 ? selectedMarkets.map(m => MARKET_OPTIONS.find(o => o.value === m)?.label).filter(Boolean).join(", ")
                 : `${selectedMarkets.length} selected`}
             </span>
-            <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform shrink-0", marketDropdownOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200 shrink-0", marketDropdownOpen && "rotate-180 text-brand")} />
           </button>
 
           {marketDropdownOpen && (
-            <div className="absolute left-0 top-full z-[100] mt-1 w-[200px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-              <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">
-                <button type="button" onClick={selectAllMarkets} className="text-xs font-medium text-brand hover:underline">
+            <div className="absolute left-0 top-full z-[100] mt-2 w-[220px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl p-2 shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 ring-1 ring-black/5 dark:ring-white/5">
+              <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2 mb-2 px-1">
+                <button type="button" onClick={selectAllMarkets} className="text-xs font-semibold text-brand hover:text-brand/80 transition-colors">
                   Select All
                 </button>
-                <button type="button" onClick={deselectAllMarkets} className="text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
-                  Deselect All
+                <button type="button" onClick={deselectAllMarkets} className="text-xs font-semibold text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors">
+                  Clear All
                 </button>
               </div>
               <div className="flex flex-col gap-0.5 max-h-64 overflow-auto">
                 {MARKET_OPTIONS.map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
+                  <label key={opt.value} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                     <Checkbox checked={selectedMarkets.includes(opt.value)} onCheckedChange={() => toggleMarket(opt.value)} />
                     <span className="text-sm font-medium text-neutral-900 dark:text-white">{opt.label}</span>
                   </label>
@@ -641,71 +646,80 @@ export function HitRateTable({
           )}
         </div>
 
-        {/* Search Input */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+        {/* Search Input - Premium */}
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search player or team..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-neutral-200 bg-white shadow-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand dark:border-neutral-700 dark:bg-neutral-800 dark:placeholder:text-neutral-500 dark:text-white"
+            className={cn(
+              "w-full pl-10 pr-9 py-2.5 text-sm rounded-xl shadow-sm",
+              "bg-white dark:bg-neutral-800/90",
+              "border border-neutral-200/80 dark:border-neutral-700/80",
+              "ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
+              "placeholder:text-neutral-400 dark:placeholder:text-neutral-500",
+              "focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50",
+              "dark:text-white transition-all duration-200"
+            )}
           />
           {searchQuery && (
-            <button type="button" onClick={() => onSearchChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
+            <button type="button" onClick={() => onSearchChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        {/* Advanced Filters Button */}
+        {/* Advanced Filters Button - Premium */}
         <div ref={filterPopupRef} className="relative">
           <button
             type="button"
             onClick={() => setShowFilterPopup(!showFilterPopup)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-all",
+              "flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200",
               showFilterPopup || hasActiveFilters
-                ? "bg-brand/10 border-brand/30 text-brand dark:bg-brand/20 dark:border-brand/40"
-                : "bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                ? "bg-brand/10 border-brand/40 text-brand shadow-sm shadow-brand/10 dark:bg-brand/20 dark:border-brand/50"
+                : "bg-white dark:bg-neutral-800/90 border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 shadow-sm hover:shadow-md",
+              "border ring-1 ring-black/[0.03] dark:ring-white/[0.03]"
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
             Filters
             {hasActiveFilters && (
-              <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+              <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
             )}
           </button>
 
-          {/* Filter Popup */}
+          {/* Filter Popup - Premium */}
           {showFilterPopup && (
-            <div className="absolute right-0 top-full z-[100] mt-2 w-[320px] rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900 overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
-                <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Advanced Filters</span>
+            <div className="absolute right-0 top-full z-[100] mt-2 w-[340px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+              {/* Header with gradient */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-800/50 dark:to-neutral-900">
+                <span className="text-sm font-bold text-neutral-900 dark:text-white">Advanced Filters</span>
                 <button 
                   onClick={() => setShowFilterPopup(false)}
-                  className="p-1 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                 >
                   <X className="w-4 h-4 text-neutral-400" />
                 </button>
               </div>
 
               {/* Position Filter */}
-              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
-                <div className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
+              <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
+                <div className="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-3">
                   Position
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {POSITION_OPTIONS.map(({ value, label }) => (
                     <button
                       key={value}
                       onClick={() => togglePosition(value)}
                       className={cn(
-                        "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all",
+                        "flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200",
                         selectedPositions.has(value)
-                          ? "bg-brand text-white shadow-sm"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          ? "bg-gradient-to-r from-brand to-brand/90 text-white shadow-md shadow-brand/20"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200/60 dark:border-neutral-700/60"
                       )}
                     >
                       {selectedPositions.has(value) && <Check className="w-3 h-3" />}
@@ -716,13 +730,13 @@ export function HitRateTable({
               </div>
 
               {/* Matchup Rank Filter - Number Input */}
-              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
                       Top Matchups Only
                     </div>
-                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                       {maxMatchupRank > 0 ? `Showing top ${maxMatchupRank} matchups` : "Showing all matchups"}
                     </div>
                   </div>
@@ -732,10 +746,10 @@ export function HitRateTable({
                       onClick={() => setMaxMatchupRank(Math.max(0, maxMatchupRank - 1))}
                       disabled={maxMatchupRank === 0}
                       className={cn(
-                        "w-7 h-7 flex items-center justify-center rounded-lg border transition-colors",
+                        "w-8 h-8 flex items-center justify-center rounded-xl border transition-all duration-200",
                         maxMatchupRank === 0
                           ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
-                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:shadow-sm"
                       )}
                     >
                       <ChevronDown className="w-4 h-4" />
@@ -754,17 +768,17 @@ export function HitRateTable({
                           setMaxMatchupRank(Math.min(val, MAX_MATCHUP_RANK_LIMIT));
                         }
                       }}
-                      className="w-14 h-7 text-center text-sm font-semibold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-16 h-8 text-center text-sm font-bold rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
                       type="button"
                       onClick={() => setMaxMatchupRank(Math.min(MAX_MATCHUP_RANK_LIMIT, maxMatchupRank + 1))}
                       disabled={maxMatchupRank >= MAX_MATCHUP_RANK_LIMIT}
                       className={cn(
-                        "w-7 h-7 flex items-center justify-center rounded-lg border transition-colors",
+                        "w-8 h-8 flex items-center justify-center rounded-xl border transition-all duration-200",
                         maxMatchupRank >= MAX_MATCHUP_RANK_LIMIT
                           ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
-                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:shadow-sm"
                       )}
                     >
                       <ChevronUp className="w-4 h-4" />
@@ -774,13 +788,13 @@ export function HitRateTable({
               </div>
 
               {/* Hide No Odds Toggle */}
-              <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
                 <label className="flex items-center justify-between cursor-pointer group">
                   <div>
                     <div className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
                       Hide Players Without Odds
                     </div>
-                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                       Only show props with available betting lines
                     </div>
                   </div>
@@ -790,14 +804,14 @@ export function HitRateTable({
                     aria-checked={hideNoOdds}
                     onClick={() => setHideNoOdds(!hideNoOdds)}
                     className={cn(
-                      "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30 focus:ring-offset-2 dark:focus:ring-offset-neutral-900",
-                      hideNoOdds ? "bg-brand" : "bg-neutral-200 dark:bg-neutral-700"
+                      "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:ring-offset-2 dark:focus:ring-offset-neutral-900",
+                      hideNoOdds ? "bg-gradient-to-r from-brand to-brand/90 shadow-inner" : "bg-neutral-200 dark:bg-neutral-700"
                     )}
                   >
                     <span
                       className={cn(
-                        "inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
-                        hideNoOdds ? "translate-x-[22px]" : "translate-x-0.5"
+                        "inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-all duration-200",
+                        hideNoOdds ? "translate-x-[26px]" : "translate-x-1"
                       )}
                     />
                   </button>
@@ -806,10 +820,10 @@ export function HitRateTable({
 
               {/* Reset Button */}
               {hasActiveFilters && (
-                <div className="px-4 py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
+                <div className="px-5 py-3 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
                   <button
                     onClick={resetFilters}
-                    className="w-full py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    className="w-full py-2.5 text-xs font-bold text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 rounded-xl hover:bg-white dark:hover:bg-neutral-800 transition-all duration-200 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                   >
                     Reset All Filters
                   </button>
@@ -819,67 +833,74 @@ export function HitRateTable({
           )}
         </div>
 
-        {/* Count indicator - show filtered count when markets are filtered */}
-        <div className="text-xs text-neutral-500 dark:text-neutral-400 ml-auto">
+        {/* Count indicator - Premium pill style */}
+        <div className="ml-auto px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
+          <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
           {hasActiveFilters || selectedMarkets.length < MARKET_OPTIONS.length ? (
             // Filters active - show filtered count
-            <span>{filteredAndSortedRows.length} props</span>
+            <>{filteredAndSortedRows.length} props</>
           ) : totalCount !== undefined ? (
             // All markets, no filters - show pagination info
-            <span>{rows.length} of {totalCount} props</span>
+            <>{rows.length} of {totalCount} props</>
           ) : (
-            <span>{rows.length} props</span>
+            <>{rows.length} props</>
           )}
+          </span>
         </div>
       </div>
   );
 
-  // Loading state
+  // Loading state - Premium
   if (loading) {
     return (
-      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <div className="flex flex-col h-full rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
         {filterBar}
-        <div className="flex items-center justify-center py-12 flex-1">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand border-r-transparent mb-4" />
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading hit rates...</p>
+        <div className="flex items-center justify-center py-16 flex-1 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+          <div className="text-center">
+            <div className="relative inline-flex">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand/30 border-t-brand" />
+              <Chart className="absolute inset-0 m-auto h-5 w-5 text-brand/60" />
+            </div>
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-4">Loading hit rates...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Error state - Premium
   if (error) {
     return (
-      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <div className="flex flex-col h-full rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
         {filterBar}
-        <div className="flex items-center justify-center py-12 flex-1">
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-        <p className="font-semibold">Unable to load hit rates</p>
-        <p className="text-sm mt-1 opacity-80">{error}</p>
+        <div className="flex items-center justify-center py-16 flex-1">
+          <div className="rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50 to-red-100/50 p-6 text-red-800 dark:border-red-900/40 dark:from-red-950/40 dark:to-red-900/20 dark:text-red-200 shadow-sm max-w-sm">
+            <p className="font-bold text-lg">Unable to load hit rates</p>
+            <p className="text-sm mt-2 opacity-80">{error}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Empty state (no markets selected or no data)
+  // Empty state (no markets selected or no data) - Premium
   if (!rows.length) {
     return (
-      <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <div className="flex flex-col h-full rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
         {filterBar}
-        <div className="flex items-center justify-center py-12 flex-1">
-        <div className="text-center">
-          <TrendingUp className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+        <div className="flex items-center justify-center py-20 flex-1 bg-gradient-to-b from-transparent to-neutral-50/50 dark:to-neutral-950/50">
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50 mx-auto">
+              <Chart className="h-8 w-8 text-neutral-400 dark:text-neutral-500" />
+            </div>
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-2">
               {selectedMarkets.length === 0 ? "No markets selected" : "No hit rates available"}
-            </p>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            </h3>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
               {selectedMarkets.length === 0 
                 ? "Select one or more markets from the dropdown above."
                 : "Check back closer to tip-off or adjust your filters."}
-          </p>
+            </p>
           </div>
         </div>
       </div>
@@ -887,26 +908,26 @@ export function HitRateTable({
   }
 
   return (
-    <div className="flex flex-col h-full rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+    <div className="flex flex-col h-full rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03] bg-white dark:bg-neutral-900">
       {filterBar}
       
       {/* Optional upgrade banner for gated access */}
       {upgradeBanner}
 
-      {/* Table */}
+      {/* Table - Premium styling */}
       <div ref={scrollRef} className="overflow-auto flex-1">
       <table className="min-w-full text-sm table-fixed">
-          <colgroup><col style={{ width: 240 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
-        <thead className="table-header-gradient sticky top-0 z-10">
-          <tr>
+          <colgroup><col style={{ width: 250 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
             {/* Non-sortable columns */}
-            <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+            <th className="h-14 px-4 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
               Player
             </th>
             {/* Sortable: Matchup */}
             <th
               onClick={() => handleSort("matchupRank")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 Matchup
@@ -917,7 +938,7 @@ export function HitRateTable({
             {/* Sortable: Prop (line) */}
             <th
               onClick={() => handleSort("line")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 Prop
@@ -928,7 +949,7 @@ export function HitRateTable({
             {/* Sortable: L5 Avg */}
             <th
               onClick={() => handleSort("l5Avg")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 L5 Avg
@@ -939,7 +960,7 @@ export function HitRateTable({
             {/* Sortable: L10 Avg */}
             <th
               onClick={() => handleSort("l10Avg")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 L10 Avg
@@ -950,7 +971,7 @@ export function HitRateTable({
             {/* Sortable: 25/26 Avg (Season Avg) */}
             <th
               onClick={() => handleSort("seasonAvg")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 25/26 Avg
@@ -959,14 +980,14 @@ export function HitRateTable({
             </th>
             
             {/* Non-sortable: Odds */}
-            <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
               Odds
             </th>
             
             {/* Sortable: Streak */}
             <th
               onClick={() => handleSort("streak")}
-              className="h-12 px-2 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <Tooltip content="Hit Streak - Consecutive games hitting this line" side="top">
                 <div className="flex items-center justify-center gap-0.5">
@@ -977,15 +998,15 @@ export function HitRateTable({
             </th>
             
             {/* Sortable: L20 / L10 / L5 - Each clickable individually */}
-            <th className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
               <div className="flex items-center justify-center gap-1">
                 <button
                   type="button"
                   onClick={() => handleSort("l20Pct")}
                   className={cn(
-                    "px-1.5 py-0.5 rounded transition-colors",
+                    "px-2 py-1 rounded-lg transition-all duration-200",
                     sortField === "l20Pct" 
-                      ? "bg-brand/20 text-brand font-bold" 
+                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
                       : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
                 >
@@ -996,9 +1017,9 @@ export function HitRateTable({
                   type="button"
                   onClick={() => handleSort("l10Pct")}
                   className={cn(
-                    "px-1.5 py-0.5 rounded transition-colors",
+                    "px-2 py-1 rounded-lg transition-all duration-200",
                     sortField === "l10Pct" 
-                      ? "bg-brand/20 text-brand font-bold" 
+                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
                       : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
                 >
@@ -1009,9 +1030,9 @@ export function HitRateTable({
                   type="button"
                   onClick={() => handleSort("l5Pct")}
                   className={cn(
-                    "px-1.5 py-0.5 rounded transition-colors",
+                    "px-2 py-1 rounded-lg transition-all duration-200",
                     sortField === "l5Pct" 
-                      ? "bg-brand/20 text-brand font-bold" 
+                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
                       : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
                 >
@@ -1028,7 +1049,7 @@ export function HitRateTable({
             {/* Sortable: 25/26 % (Season %) */}
             <th
               onClick={() => handleSort("seasonPct")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 25/26
@@ -1039,7 +1060,7 @@ export function HitRateTable({
             {/* H2H % (Head to Head) */}
             <th
               onClick={() => handleSort("h2hPct")}
-              className="h-12 px-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 select-none transition-colors"
+              className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
                 H2H
@@ -1074,12 +1095,12 @@ export function HitRateTable({
                 onMouseEnter={() => !isBlurred && prefetchPlayer(row.playerId)}
                 onClick={() => !isBlurred && onRowClick?.(row)}
                 className={cn(
-                  "border-b border-neutral-100 dark:border-neutral-800 transition-all duration-150 group",
-                  idx % 2 === 0 ? "table-row-even" : "table-row-odd",
+                  "border-b border-neutral-100/80 dark:border-neutral-800/80 transition-all duration-200 group",
+                  idx % 2 === 0 ? "bg-white dark:bg-neutral-900" : "bg-neutral-50/50 dark:bg-neutral-900/50",
                   isBlurred 
                     ? "cursor-default select-none pointer-events-none" 
-                    : "cursor-pointer hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.1)]",
-                  isHighConfidence && !isBlurred && "shadow-[inset_0_1px_0_rgba(16,185,129,0.2)]"
+                    : "cursor-pointer hover:bg-brand/[0.04] dark:hover:bg-brand/10 hover:shadow-[inset_4px_0_0_0_rgba(99,102,241,0.5)]",
+                  isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
                 )}
               >
                 {/* Player Column: Headshot + Name + Position/Jersey */}
@@ -1381,16 +1402,19 @@ export function HitRateTable({
         </tbody>
       </table>
       
-      {/* Load More Button */}
+      {/* Load More Button - Premium */}
       {hasMore && onLoadMore && (
-        <div className="sticky bottom-0 flex items-center justify-center py-4 bg-gradient-to-t from-white via-white dark:from-neutral-900 dark:via-neutral-900">
+        <div className="sticky bottom-0 flex items-center justify-center py-5 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-neutral-900 dark:via-neutral-900/95">
           <button
             type="button"
             onClick={onLoadMore}
             disabled={isLoadingMore}
             className={cn(
-              "flex items-center gap-2 px-5 py-2 rounded-lg font-medium text-sm transition-all",
-              "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700",
+              "flex items-center gap-2.5 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200",
+              "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300",
+              "hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:shadow-lg",
+              "border border-neutral-200/80 dark:border-neutral-700/80",
+              "shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
               isLoadingMore && "opacity-70 cursor-not-allowed"
             )}
           >

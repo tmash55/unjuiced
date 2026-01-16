@@ -156,7 +156,7 @@ const SORT_CATEGORIES = {
   }
 };
 
-// Dropdown button component - Smaller version
+// Dropdown button component - Smaller version - Premium
 function DropdownButton({ 
   label, 
   value, 
@@ -175,18 +175,19 @@ function DropdownButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center justify-between gap-1 px-2.5 py-1.5 rounded-lg",
-        "bg-neutral-100 dark:bg-neutral-800/80",
+        "flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl",
+        "bg-white dark:bg-neutral-800/90",
         "border transition-all duration-200",
+        "shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]",
         isOpen 
-          ? "border-brand shadow-sm shadow-brand/20" 
-          : "border-neutral-200/60 dark:border-neutral-700/60",
-        "text-xs font-medium text-neutral-900 dark:text-neutral-100",
-        "active:scale-[0.98] transition-transform",
+          ? "border-brand/50 shadow-brand/10 shadow-md" 
+          : "border-neutral-200/80 dark:border-neutral-700/80",
+        "text-xs font-semibold text-neutral-900 dark:text-neutral-100",
+        "active:scale-[0.97] transition-all",
         "shrink-0"
       )}
     >
-      <span className="flex items-center gap-1 truncate">
+      <span className="flex items-center gap-1.5 truncate">
         {icon}
         {value || label}
       </span>
@@ -198,7 +199,7 @@ function DropdownButton({
   );
 }
 
-// Modern bottom sheet dropdown panel
+// Modern bottom sheet dropdown panel - Premium
 function DropdownPanel({
   isOpen,
   children,
@@ -215,26 +216,26 @@ function DropdownPanel({
   return (
     <>
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+        className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
         onClick={onClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 rounded-t-3xl max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 rounded-t-[2rem] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+          <div className="w-12 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
         </div>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100 dark:border-neutral-800">
-          <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 dark:border-neutral-800">
+          <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
             {title}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 -mr-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="p-2.5 -mr-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all duration-200"
           >
-            <X className="h-5 w-5 text-neutral-400" />
+            <X className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-8">
+        <div className="flex-1 overflow-y-auto px-5 pb-10">
           {children}
         </div>
       </div>
@@ -242,7 +243,7 @@ function DropdownPanel({
   );
 }
 
-// Category header with icon
+// Category header with icon - Premium
 function CategoryHeader({ 
   label, 
   icon: Icon,
@@ -253,12 +254,12 @@ function CategoryHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between py-3 mt-4 first:mt-2">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-md bg-brand/10 flex items-center justify-center">
-          <Icon className="h-3.5 w-3.5 text-brand" />
+    <div className="flex items-center justify-between py-3.5 mt-5 first:mt-3">
+      <div className="flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-brand/20 to-brand/10 flex items-center justify-center shadow-sm">
+          <Icon className="h-4 w-4 text-brand" />
         </div>
-        <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+        <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
           {label}
         </span>
       </div>
@@ -280,7 +281,7 @@ function DateHeader({ label }: { label: string }) {
   );
 }
 
-// Game option item with logos
+// Game option item with logos - Premium
 function GameOptionItem({
   game,
   selected,
@@ -295,20 +296,20 @@ function GameOptionItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3.5 rounded-xl",
-        "transition-all duration-150",
+        "w-full flex items-center gap-3 px-4 py-4 rounded-2xl",
+        "transition-all duration-200",
         selected 
-          ? "bg-brand/10 dark:bg-brand/15 ring-1 ring-brand/30" 
-          : "hover:bg-neutral-100 dark:hover:bg-neutral-800/70 active:bg-neutral-200 dark:active:bg-neutral-800"
+          ? "bg-gradient-to-br from-brand/15 to-brand/5 ring-2 ring-brand/40 shadow-md shadow-brand/10" 
+          : "bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.99] border border-neutral-200/60 dark:border-neutral-700/60"
       )}
     >
       <div className={cn(
-        "w-5 h-5 rounded-md shrink-0 flex items-center justify-center border-2 transition-all",
+        "w-6 h-6 rounded-lg shrink-0 flex items-center justify-center border-2 transition-all",
         selected 
-          ? "bg-brand border-brand" 
+          ? "bg-gradient-to-br from-brand to-brand/80 border-brand shadow-sm" 
           : "border-neutral-300 dark:border-neutral-600"
       )}>
-        {selected && <Check className="h-3 w-3 text-neutral-900" strokeWidth={3} />}
+        {selected && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
       </div>
       
       <div className="flex-1 flex items-center gap-3">
@@ -317,31 +318,31 @@ function GameOptionItem({
             <img
               src={getTeamLogoUrl(game.awayTeam)}
               alt={game.awayTeam}
-              className="h-7 w-7 object-contain"
+              className="h-8 w-8 object-contain drop-shadow-sm"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
             />
           )}
           <span className={cn(
-            "text-sm font-semibold",
+            "text-sm font-bold",
             selected ? "text-brand" : "text-neutral-900 dark:text-neutral-100"
           )}>
             {game.awayTeam}
           </span>
         </div>
         
-        <span className="text-xs text-neutral-400 font-medium">@</span>
+        <span className="text-xs text-neutral-400 font-semibold">@</span>
         
         <div className="flex items-center gap-2">
           {game.homeTeam && (
             <img
               src={getTeamLogoUrl(game.homeTeam)}
               alt={game.homeTeam}
-              className="h-7 w-7 object-contain"
+              className="h-8 w-8 object-contain drop-shadow-sm"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
             />
           )}
           <span className={cn(
-            "text-sm font-semibold",
+            "text-sm font-bold",
             selected ? "text-brand" : "text-neutral-900 dark:text-neutral-100"
           )}>
             {game.homeTeam}
@@ -349,14 +350,14 @@ function GameOptionItem({
         </div>
       </div>
       
-      <span className="text-xs text-neutral-400 shrink-0 font-medium">
+      <span className="text-xs text-neutral-500 dark:text-neutral-400 shrink-0 font-semibold">
         {game.time}
       </span>
     </button>
   );
 }
 
-// Market chip - compact selectable item
+// Market chip - compact selectable item - Premium
 function MarketChip({
   label,
   selected,
@@ -371,28 +372,28 @@ function MarketChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg",
-        "text-sm font-medium transition-all duration-150",
+        "flex items-center gap-2.5 px-4 py-2.5 rounded-xl",
+        "text-sm font-semibold transition-all duration-200",
         "border",
         selected 
-          ? "bg-brand/10 dark:bg-brand/15 border-brand/30 text-brand" 
-          : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          ? "bg-gradient-to-br from-brand/15 to-brand/5 border-brand/40 text-brand shadow-md shadow-brand/10" 
+          : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98]"
       )}
     >
       <div className={cn(
-        "w-4 h-4 rounded shrink-0 flex items-center justify-center border transition-all",
+        "w-5 h-5 rounded-lg shrink-0 flex items-center justify-center border-2 transition-all",
         selected 
-          ? "bg-brand border-brand" 
+          ? "bg-gradient-to-br from-brand to-brand/80 border-brand shadow-sm" 
           : "border-neutral-300 dark:border-neutral-600"
       )}>
-        {selected && <Check className="h-2.5 w-2.5 text-neutral-900" strokeWidth={3} />}
+        {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
       </div>
       {label}
     </button>
   );
 }
 
-// Sort option item with direction arrow
+// Sort option item with direction arrow - Premium
 function SortOptionItem({
   option,
   selected,
@@ -409,37 +410,37 @@ function SortOptionItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg",
-        "text-left transition-all duration-150",
+        "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl",
+        "text-left transition-all duration-200",
         selected 
-          ? "bg-brand/10 dark:bg-brand/15 ring-1 ring-brand/30" 
-          : "hover:bg-neutral-100 dark:hover:bg-neutral-800/70"
+          ? "bg-gradient-to-br from-brand/15 to-brand/5 ring-2 ring-brand/40 shadow-md shadow-brand/10" 
+          : "bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.99] border border-neutral-200/60 dark:border-neutral-700/60"
       )}
     >
       <div className={cn(
-        "w-4 h-4 rounded-full shrink-0 flex items-center justify-center border transition-all",
+        "w-5 h-5 rounded-full shrink-0 flex items-center justify-center border-2 transition-all",
         selected 
-          ? "bg-brand border-brand" 
+          ? "bg-gradient-to-br from-brand to-brand/80 border-brand shadow-sm" 
           : "border-neutral-300 dark:border-neutral-600"
       )}>
-        {selected && <div className="w-1.5 h-1.5 rounded-full bg-neutral-900" />}
+        {selected && <div className="w-2 h-2 rounded-full bg-white" />}
       </div>
       
       <div className={cn(
-        "w-6 h-6 rounded-md flex items-center justify-center",
+        "w-7 h-7 rounded-lg flex items-center justify-center",
         isAsc 
-          ? "bg-emerald-500/10 dark:bg-emerald-500/20" 
-          : "bg-blue-500/10 dark:bg-blue-500/20"
+          ? "bg-gradient-to-br from-emerald-500/20 to-emerald-500/10" 
+          : "bg-gradient-to-br from-blue-500/20 to-blue-500/10"
       )}>
         {isAsc ? (
-          <ArrowUp className={cn("h-3.5 w-3.5", isAsc ? "text-emerald-500" : "text-blue-500")} />
+          <ArrowUp className={cn("h-4 w-4", isAsc ? "text-emerald-500" : "text-blue-500")} />
         ) : (
-          <ArrowDown className="h-3.5 w-3.5 text-blue-500" />
+          <ArrowDown className="h-4 w-4 text-blue-500" />
         )}
       </div>
       
       <span className={cn(
-        "text-sm font-medium flex-1",
+        "text-sm font-semibold flex-1",
         selected ? "text-brand" : "text-neutral-900 dark:text-neutral-100"
       )}>
         {option.label}
@@ -498,7 +499,7 @@ function PillStrip({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Filter pill
+// Filter pill - Premium
 function FilterPill({
   label,
   active,
@@ -515,12 +516,12 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full",
-        "text-xs font-semibold whitespace-nowrap",
-        "border transition-all duration-150 active:scale-[0.96]",
+        "flex items-center gap-1.5 px-4 py-2 rounded-2xl",
+        "text-xs font-bold whitespace-nowrap",
+        "border transition-all duration-200 active:scale-[0.95]",
         active
-          ? "bg-brand text-neutral-900 border-brand shadow-sm shadow-brand/25"
-          : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+          ? "bg-gradient-to-r from-brand to-brand/90 text-white border-brand shadow-lg shadow-brand/30"
+          : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200/80 dark:border-neutral-700/80 shadow-sm"
       )}
     >
       {icon}

@@ -51,7 +51,7 @@ function getInjuryColor(status: string | null): string {
   return "text-neutral-400 dark:text-neutral-500";
 }
 
-// Unified hit rate cluster - modern chip UI with standardized widths
+// Unified hit rate cluster - modern chip UI with standardized widths - Premium
 function HitRateCluster({
   l5,
   l10,
@@ -67,56 +67,57 @@ function HitRateCluster({
   
   return (
     <div className={cn(
-      "inline-flex items-center gap-0 rounded-xl overflow-hidden",
-      "bg-neutral-50/80 dark:bg-neutral-800/50",
-      "border border-neutral-200/60 dark:border-neutral-700/40",
-      "shadow-sm"
+      "inline-flex items-center gap-0 rounded-2xl overflow-hidden",
+      "bg-white dark:bg-neutral-800/80",
+      "border border-neutral-200/80 dark:border-neutral-700/60",
+      "shadow-md shadow-black/[0.03] dark:shadow-black/20",
+      "ring-1 ring-black/[0.02] dark:ring-white/[0.02]"
     )}>
       {/* L5 - fixed width for consistency */}
-      <div className="flex flex-col items-center w-12 py-1.5">
-        <span className="text-[8px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+      <div className="flex flex-col items-center w-[52px] py-2">
+        <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
           L5
         </span>
-        <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(l5))}>
+        <span className={cn("text-[13px] font-extrabold leading-tight mt-0.5", getHitRateColor(l5))}>
           {formatPct(l5)}
         </span>
       </div>
       
       {/* Divider */}
-      <div className="w-px h-7 bg-neutral-200/50 dark:bg-neutral-700/30" />
+      <div className="w-px h-8 bg-neutral-200/60 dark:bg-neutral-700/40" />
       
       {/* L10 - fixed width for consistency */}
-      <div className="flex flex-col items-center w-12 py-1.5">
-        <span className="text-[8px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+      <div className="flex flex-col items-center w-[52px] py-2">
+        <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
           L10
         </span>
-        <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(l10))}>
+        <span className={cn("text-[13px] font-extrabold leading-tight mt-0.5", getHitRateColor(l10))}>
           {formatPct(l10)}
         </span>
       </div>
       
       {/* Divider */}
-      <div className="w-px h-7 bg-neutral-200/50 dark:bg-neutral-700/30" />
+      <div className="w-px h-8 bg-neutral-200/60 dark:bg-neutral-700/40" />
       
       {/* Season - fixed width for consistency */}
-      <div className="flex flex-col items-center w-12 py-1.5">
-        <span className="text-[8px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+      <div className="flex flex-col items-center w-[52px] py-2">
+        <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
           SZN
         </span>
-        <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(season))}>
+        <span className={cn("text-[13px] font-extrabold leading-tight mt-0.5", getHitRateColor(season))}>
           {formatPct(season)}
         </span>
       </div>
       
       {/* Divider */}
-      <div className="w-px h-7 bg-neutral-200/50 dark:bg-neutral-700/30" />
+      <div className="w-px h-8 bg-neutral-200/60 dark:bg-neutral-700/40" />
       
       {/* H2H - fixed width for consistency */}
-      <div className="flex flex-col items-center w-12 py-1.5">
-        <span className="text-[8px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+      <div className="flex flex-col items-center w-[52px] py-2">
+        <span className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
           H2H
         </span>
-        <span className={cn("text-[13px] font-extrabold leading-tight", getHitRateColor(h2h))}>
+        <span className={cn("text-[13px] font-extrabold leading-tight mt-0.5", getHitRateColor(h2h))}>
           {formatPct(h2h)}
         </span>
       </div>
@@ -210,7 +211,7 @@ function getOrdinalSuffix(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-// DVP Rank badge - subtle pill with arrows for top/bottom matchups
+// DVP Rank badge - subtle pill with arrows for top/bottom matchups - Premium
 // LOW rank (1-10) = tough defense = HARD for player (red)
 // HIGH rank (21-30) = weak defense = GOOD for player (green)
 function DvpBadge({ rank }: { rank: number | null }) {
@@ -221,13 +222,13 @@ function DvpBadge({ rank }: { rank: number | null }) {
   const isGoodMatchup = rank >= 21;    // 21-30: Weak defense (good for player)
   const isNeutral = !isHardMatchup && !isGoodMatchup;
 
-  // Get pill styling based on matchup quality
+  // Get pill styling based on matchup quality - Premium
   const getPillStyle = () => {
     if (isGoodMatchup) {
-      return "bg-emerald-500/20 dark:bg-emerald-500/15 border-emerald-500/30 dark:border-emerald-500/20";
+      return "bg-gradient-to-br from-emerald-500/25 to-emerald-500/15 border-emerald-500/40 dark:from-emerald-500/20 dark:to-emerald-500/10 dark:border-emerald-500/30 shadow-sm shadow-emerald-500/10";
     }
     if (isHardMatchup) {
-      return "bg-red-500/20 dark:bg-red-500/15 border-red-500/30 dark:border-red-500/20";
+      return "bg-gradient-to-br from-red-500/25 to-red-500/15 border-red-500/40 dark:from-red-500/20 dark:to-red-500/10 dark:border-red-500/30 shadow-sm shadow-red-500/10";
     }
     // Neutral - very subtle
     return "bg-neutral-200/50 dark:bg-neutral-700/40 border-neutral-300/50 dark:border-neutral-600/40";
@@ -242,19 +243,19 @@ function DvpBadge({ rank }: { rank: number | null }) {
 
   return (
     <div className={cn(
-      "flex items-center gap-0.5 px-1.5 py-0.5 rounded border",
+      "flex items-center gap-1 px-2 py-1 rounded-lg border",
       getPillStyle()
     )}>
       {/* Arrow indicator for good/hard matchups */}
       {isGoodMatchup && (
-        <span className="text-[9px] text-emerald-500 dark:text-emerald-400">▲</span>
+        <span className="text-[9px] text-emerald-500 dark:text-emerald-400 font-bold">▲</span>
       )}
       {isHardMatchup && (
-        <span className="text-[9px] text-red-500 dark:text-red-400">▼</span>
+        <span className="text-[9px] text-red-500 dark:text-red-400 font-bold">▼</span>
       )}
       
       {/* Rank text */}
-      <span className={cn("text-[10px] font-medium", getTextColor())}>
+      <span className={cn("text-[10px] font-bold", getTextColor())}>
         {getOrdinalSuffix(rank)} DvP
       </span>
     </div>
@@ -312,40 +313,40 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
 
   return (
     <div className={cn(
-      "bg-white dark:bg-neutral-900",
+      "bg-gradient-to-b from-white to-neutral-50/30 dark:from-neutral-900 dark:to-neutral-950/30",
       isBlurred && "pointer-events-none select-none"
     )}>
-      {/* Premium inset divider - 85% width, centered */}
+      {/* Premium inset divider - 90% width, centered with gradient */}
       {!isFirst && (
-        <div className="flex justify-center">
-          <div className="w-[85%] h-px bg-neutral-200/60 dark:bg-neutral-700/40" />
+        <div className="flex justify-center px-4">
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-neutral-200/80 to-transparent dark:via-neutral-700/60" />
         </div>
       )}
       
-      {/* Main tappable area */}
+      {/* Main tappable area - Premium */}
       <button
         type="button"
         onClick={isBlurred ? undefined : onCardClick}
         disabled={isBlurred}
         className={cn(
-          "w-full text-left px-3 py-2.5",
+          "w-full text-left px-4 py-3.5",
           isBlurred 
             ? "cursor-default" 
-            : "active:bg-neutral-50 dark:active:bg-neutral-800/50"
+            : "active:bg-neutral-50/80 dark:active:bg-neutral-800/50 transition-colors duration-150"
         )}
       >
         {/* ═══════════════════════════════════════════════════════════════
-            BLOCK 1 — Header Row (toned down: very small, mono, low-contrast)
+            BLOCK 1 — Header Row - Premium styling
             Game • DvP • Kickoff time
         ═══════════════════════════════════════════════════════════════ */}
-        <div className={cn("flex items-center justify-between mb-2", isBlurred && "blur-[3px] opacity-60")}>
-          <div className="flex items-center gap-2 text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide">
+        <div className={cn("flex items-center justify-between mb-2.5", isBlurred && "blur-[3px] opacity-60")}>
+          <div className="flex items-center gap-2 text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold tracking-wide">
             <span className="uppercase">{isBlurred ? "TM @ TM" : matchupText}</span>
-            <span className="opacity-40">•</span>
-            <span>{isBlurred ? "0:00 PM" : gameTime}</span>
+            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+            <span className="text-neutral-400 dark:text-neutral-500">{isBlurred ? "0:00 PM" : gameTime}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* Over Odds */}
+          <div className="flex items-center gap-2">
+            {/* Over Odds - Premium */}
             {!isBlurred && hasOdds && odds.bestOver && (
               <a
                 href={odds.bestOver.mobileUrl || odds.bestOver.url || "#"}
@@ -358,12 +359,13 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   }
                 }}
                 className={cn(
-                  "flex items-center gap-1 px-1.5 py-0.5 rounded",
-                  "bg-emerald-100 dark:bg-emerald-900/30",
-                  "border border-emerald-300/60 dark:border-emerald-700/40",
-                  "transition-all duration-150",
+                  "flex items-center gap-1.5 px-2 py-1 rounded-lg",
+                  "bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/40 dark:to-emerald-900/20",
+                  "border border-emerald-300/70 dark:border-emerald-700/50",
+                  "shadow-sm",
+                  "transition-all duration-200",
                   (odds.bestOver.mobileUrl || odds.bestOver.url) 
-                    ? "hover:bg-emerald-200 dark:hover:bg-emerald-900/50 active:scale-95 cursor-pointer" 
+                    ? "hover:shadow-md active:scale-95 cursor-pointer" 
                     : "cursor-default"
                 )}
               >
@@ -371,10 +373,10 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   <img
                     src={getBookLogo(odds.bestOver.book)!}
                     alt={odds.bestOver.book}
-                    className="h-3 w-3 rounded object-contain"
+                    className="h-3.5 w-3.5 rounded object-contain"
                   />
                 )}
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400">
                   {formatOdds(odds.bestOver.price)}
                 </span>
               </a>
