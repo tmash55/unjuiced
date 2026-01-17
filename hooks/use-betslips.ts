@@ -22,7 +22,7 @@ export interface BetslipItem {
 
 // SGP odds cache types
 export interface SgpBookOdds {
-  price: string; // American odds string e.g., "+425"
+  price?: string; // American odds string e.g., "+425" (omitted if error)
   links?: {
     desktop: string;
     mobile: string;

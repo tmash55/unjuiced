@@ -110,11 +110,10 @@ function setInResponseCache(key: string, data: unknown, mode: string): void {
 // Supported sports
 const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "soccer_epl"]);
 
-// Books to exclude
+// Books to exclude (regional variants)
 const EXCLUDED_BOOKS = new Set([
   "hard-rock-indiana",
   "hardrockindiana",
-  "betmgm", // Use betmgm-michigan instead
 ]);
 
 /**

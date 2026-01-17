@@ -554,9 +554,9 @@ export function normalizeSportsbookId(id: string): string {
   return idMappings[id.toLowerCase()] || id.toLowerCase();
 }
 
-// Books to exclude from all calculations (regional variants, Canada, etc.)
-export const EXCLUDED_SPORTSBOOK_KEYS = new Set([
-  'betmgm',  // Exclude base betmgm key (Canada) - use betmgm-michigan instead
+// Books to exclude from all calculations (regional variants, etc.)
+export const EXCLUDED_SPORTSBOOK_KEYS = new Set<string>([
+  // Add any books that should be globally excluded here
 ]);
 
 // Helper functions for the new structure

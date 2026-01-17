@@ -106,16 +106,15 @@ function normalizeBookId(id: string): string {
   }
 }
 
-// Books to exclude from all calculations (regional variants, Canada, inactive books)
+// Books to exclude from all calculations (regional variants, inactive books)
 const EXCLUDED_BOOKS = new Set([
   "hard-rock-indiana", 
   "hardrockindiana",
-  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
 ]);
 
 // OPTIMIZATION: Known active books for pipeline construction (avoids wildcard scans)
 const KNOWN_ACTIVE_BOOKS = [
-  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
+  "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
   "superbook", "si-sportsbook", "betfred", "tipico", "fliff"

@@ -43,11 +43,10 @@ function normalizeBookId(id: string): string {
   }
 }
 
-// Books to exclude (Canada, regional variants)
+// Books to exclude (regional variants)
 const EXCLUDED_BOOKS = new Set([
   "hard-rock-indiana",
   "hardrockindiana",
-  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
 ]);
 
 /**

@@ -65,7 +65,6 @@ function normalizeBookId(id: string): string {
 const EXCLUDED_BOOKS = new Set([
   "hard-rock-indiana",
   "hardrockindiana",
-  "betmgm",  // Exclude base betmgm (Canada) - use betmgm-michigan instead
 ]);
 
 /**
