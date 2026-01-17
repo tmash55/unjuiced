@@ -20,6 +20,7 @@ import { Tooltip } from "@/components/tooltip";
 import { 
   TrendingUp, 
   ChevronDown, 
+  ChevronUp,
   ChevronRight,
   RefreshCw, 
   Calculator,
@@ -31,6 +32,7 @@ import {
   Zap,
   Eye,
   EyeOff,
+  ArrowUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -44,7 +46,7 @@ import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
 import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { formatMarketLabel } from "@/lib/data/markets";
+import { formatMarketLabelShort } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -265,6 +267,26 @@ export default function PositiveEVPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
   
+  // Sorting state for table columns
+  const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  
+  // Toggle sort column
+  const handleSort = useCallback((column: "ev" | "time" | "stake") => {
+    if (sortColumn === column) {
+      // Toggle direction or clear if already desc
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  }, [sortColumn, sortDirection]);
+  
   // Player quick view modal state (for NBA hit rates)
   const [selectedPlayer, setSelectedPlayer] = useState<{
     odds_player_id: string;
@@ -434,8 +456,24 @@ export default function PositiveEVPage() {
   const error = autoRefresh ? (streamError ? new Error(streamError) : null) : standardError;
   const refetch = autoRefresh ? streamRefresh : standardRefetch;
   // Use freshRefetch for manual refresh button (bypasses server cache)
-  const freshRefetch = autoRefresh ? streamRefresh : standardFreshRefetch;
+  const baseFreshRefetch = autoRefresh ? streamRefresh : standardFreshRefetch;
   const dataUpdatedAt = autoRefresh ? streamLastUpdated : standardDataUpdatedAt;
+  
+  // Local state for manual refresh spinning
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  
+  // Wrapped freshRefetch that tracks loading state
+  const freshRefetch = useCallback(async () => {
+    setIsManualRefreshing(true);
+    try {
+      await baseFreshRefetch();
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [baseFreshRefetch]);
+  
+  // Combined fetching state for UI
+  const isRefreshing = isFetching || isManualRefreshing || (autoRefresh && streamLoading);
 
   // Toggle sport selection
   const toggleSport = useCallback((sport: string) => {
@@ -549,6 +587,51 @@ export default function PositiveEVPage() {
     
     return result;
   }, [data, searchQuery, expandedRows, pinnedPositions, showHidden, isHidden, savedFilters.minLiquidity]);
+  
+  // Apply sorting to filtered opportunities
+  const sortedOpportunities = useMemo(() => {
+    if (!sortColumn || filteredOpportunities.length === 0) {
+      return filteredOpportunities;
+    }
+    
+    const sorted = [...filteredOpportunities].sort((a, b) => {
+      let comparison = 0;
+      const evCaseLocal = savedFilters.evCase as "worst" | "best";
+      
+      if (sortColumn === "ev") {
+        // Sort by EV percentage
+        const evA = evCaseLocal === "best" ? a.evCalculations.evBest : a.evCalculations.evWorst;
+        const evB = evCaseLocal === "best" ? b.evCalculations.evBest : b.evCalculations.evWorst;
+        comparison = (evA || 0) - (evB || 0);
+      } else if (sortColumn === "time") {
+        // Sort by start time
+        const timeA = a.startTime ? new Date(a.startTime).getTime() : 0;
+        const timeB = b.startTime ? new Date(b.startTime).getTime() : 0;
+        comparison = timeA - timeB;
+      } else if (sortColumn === "stake") {
+        // Sort by kelly stake value
+        const getStake = (opp: typeof a) => {
+          const evPercent = evCaseLocal === "best" 
+            ? opp.evCalculations.evBest 
+            : opp.evCalculations.evWorst;
+          if (!evPercent || bankroll <= 0) return 0;
+          const decimalOdds = opp.book.price > 0 
+            ? (opp.book.price / 100) + 1 
+            : (100 / Math.abs(opp.book.price)) + 1;
+          const p = 1 / decimalOdds + (evPercent / 100);
+          const b = decimalOdds - 1;
+          const q = 1 - p;
+          const kellyFraction = Math.max(0, (p * b - q) / b);
+          return Math.round(bankroll * kellyFraction * (kellyPercent / 100));
+        };
+        comparison = getStake(a) - getStake(b);
+      }
+      
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+    
+    return sorted;
+  }, [filteredOpportunities, sortColumn, sortDirection, savedFilters.evCase, bankroll, kellyPercent]);
   
   // When streaming changes occur on expanded rows, mark them as oddsChanged
   useEffect(() => {
@@ -697,7 +780,7 @@ export default function PositiveEVPage() {
     return (
       <>
         <MobilePositiveEV
-          opportunities={filteredOpportunities}
+          opportunities={sortedOpportunities}
           isLoading={isLoading}
           isFetching={isFetching}
           error={error}
@@ -785,7 +868,7 @@ export default function PositiveEVPage() {
                 ? "Loading +EV opportunities..."
                 : isFetching
                 ? "Updating..."
-                : `${filteredOpportunities.length}+ opportunities found`}
+                : `${sortedOpportunities.length}+ opportunities found`}
             </ToolSubheading>
             {/* Method info badge */}
             <button
@@ -1032,7 +1115,7 @@ export default function PositiveEVPage() {
         {/* Refresh Button - Compact */}
         <button
           onClick={() => freshRefetch()}
-          disabled={isFetching || (autoRefresh && streamLoading)}
+          disabled={isRefreshing}
           className={cn(
             "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
             "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400",
@@ -1042,7 +1125,7 @@ export default function PositiveEVPage() {
           )}
           title="Refresh data"
         >
-          <RefreshCw className={cn("w-3.5 h-3.5", (isFetching || (autoRefresh && streamLoading)) && "animate-spin")} />
+          <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
         </button>
 
         {/* Reconnect Button (when connection failed) */}
@@ -1197,19 +1280,46 @@ export default function PositiveEVPage() {
           <colgroup><col style={{ width: 100 }} /><col style={{ width: 90 }} /><col style={{ width: 90 }} /><col style={{ width: 190 }} /><col style={{ width: 70 }} /><col style={{ width: 130 }} /><col style={{ width: 140 }} /><col style={{ width: 90 }} /><col style={{ width: 80 }} />{showStakeColumn && <col style={{ width: 85 }} />}<col style={{ width: 120 }} /></colgroup>
           <thead className="sticky top-0 z-[5]">
             <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
+              <th 
+                className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                onClick={() => handleSort("ev")}
+              >
                 <div className="flex items-center justify-center gap-1.5">
                   <div className="w-1 h-1 rounded-full bg-emerald-500" />
                   <span>EV %</span>
-                  <Tooltip content="Expected Value % based on de-vigged fair probability. Worst-case (conservative) shown by default.">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
-                      <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
-                    </svg>
-                  </Tooltip>
+                  {sortColumn === "ev" ? (
+                    sortDirection === "asc" ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                    )
+                  ) : (
+                    <Tooltip content="Expected Value % based on de-vigged fair probability. Worst-case (conservative) shown by default.">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
+                        <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
+                      </svg>
+                    </Tooltip>
+                  )}
                 </div>
               </th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Time</th>
+              <th 
+                className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                onClick={() => handleSort("time")}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Time</span>
+                  {sortColumn === "time" ? (
+                    sortDirection === "asc" ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-0 group-hover:opacity-100" />
+                  )}
+                </div>
+              </th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Selection</th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Line</th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Market</th>
@@ -1235,14 +1345,25 @@ export default function PositiveEVPage() {
                 </div>
               </th>
               {showStakeColumn && (
-                <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
+                <th 
+                  className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                  onClick={() => handleSort("stake")}
+                >
                   <div className="flex items-center justify-center gap-1.5">
                     <span>Stake</span>
-                    <Tooltip content={`Recommended bet size using Kelly Criterion (${kellyPercent}% Kelly). Based on your bankroll of $${bankroll.toLocaleString()}.`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
-                        <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
-                      </svg>
-                    </Tooltip>
+                    {sortColumn === "stake" ? (
+                      sortDirection === "asc" ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                      )
+                    ) : (
+                      <Tooltip content={`Recommended bet size using Kelly Criterion (${kellyPercent}% Kelly). Based on your bankroll of $${bankroll.toLocaleString()}.`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
+                          <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
+                        </svg>
+                      </Tooltip>
+                    )}
                   </div>
                 </th>
               )}
@@ -1356,7 +1477,7 @@ export default function PositiveEVPage() {
             )}
 
             {/* Empty State */}
-            {!isLoading && filteredOpportunities.length === 0 && (
+            {!isLoading && sortedOpportunities.length === 0 && (
               <tr>
                 <td colSpan={totalColumns}>
                   <div className="flex flex-col items-center justify-center py-20 px-4">
@@ -1375,7 +1496,7 @@ export default function PositiveEVPage() {
             )}
 
             {/* Data Rows */}
-            {!isLoading && filteredOpportunities.map((opp, index) => {
+            {!isLoading && sortedOpportunities.map((opp, index) => {
               // Get base EV based on evCase setting (worst or best)
               // The API returns evWorst, evBest, and evDisplay - we use evCase to select
               const evCase = savedFilters.evCase as "worst" | "best";
@@ -1782,7 +1903,7 @@ export default function PositiveEVPage() {
                     {/* Market */}
                     <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
-                        {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketLabel(opp.market) || opp.market}
+                        {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketLabelShort(opp.market) || opp.market}
                       </span>
                     </td>
 

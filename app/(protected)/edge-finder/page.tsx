@@ -16,7 +16,7 @@ import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
-import { Zap, ChevronDown, X, RefreshCw, Sparkles, Plus, Settings, Filter } from "lucide-react";
+import { Zap, ChevronDown, X, RefreshCw, Layers, Plus, Settings, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { FilterPresetFormModal } from "@/components/filter-presets/filter-preset-form-modal";
@@ -618,7 +618,7 @@ export default function EdgeFinderPage() {
                       : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Layers className="w-4 h-4" />
                   <span>Custom</span>
                   {isCustomMode && activePresets.length > 0 && (
                     <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-purple-600 dark:bg-purple-500 text-white text-xs font-bold">

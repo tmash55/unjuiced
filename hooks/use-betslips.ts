@@ -20,6 +20,24 @@ export interface BetslipItem {
   favorite?: Favorite;
 }
 
+// SGP odds cache types
+export interface SgpBookOdds {
+  price: string; // American odds string e.g., "+425"
+  links?: {
+    desktop: string;
+    mobile: string;
+  };
+  limits?: {
+    max?: number;
+    min?: number;
+  };
+  error?: string; // Error message if this book doesn't support the combo
+}
+
+export type SgpOddsCache = Record<string, SgpBookOdds>;
+
+export type BetType = 'individual' | 'parlay' | 'sgp' | 'sgp_plus';
+
 export interface Betslip {
   id: string;
   user_id: string;
@@ -40,6 +58,10 @@ export interface Betslip {
   potential_payout: number | null;
   created_at: string;
   updated_at: string;
+  // SGP odds cache
+  sgp_odds_cache: SgpOddsCache | null;
+  sgp_odds_updated_at: string | null;
+  bet_type: BetType | null;
   // Joined items
   items?: BetslipItem[];
 }
@@ -261,6 +283,47 @@ export function useBetslips() {
     },
   });
 
+  // Fetch SGP odds from OddsBlaze API
+  const fetchSgpOddsMutation = useMutation({
+    mutationFn: async ({
+      betslipId,
+      forceRefresh = false,
+      sportsbooks,
+    }: {
+      betslipId: string;
+      forceRefresh?: boolean;
+      sportsbooks?: string[];
+    }): Promise<{
+      odds: SgpOddsCache;
+      bet_type: BetType;
+      updated_at: string | null;
+      from_cache: boolean;
+    }> => {
+      if (!user) throw new Error("Not authenticated");
+
+      const response = await fetch("/api/v2/sgp-odds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          betslip_id: betslipId,
+          force_refresh: forceRefresh,
+          sportsbooks,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to fetch SGP odds");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate betslips query to refresh the cached odds
+      queryClient.invalidateQueries({ queryKey: ["betslips", user?.id] });
+    },
+  });
+
   return {
     betslips,
     isLoading,
@@ -282,5 +345,8 @@ export function useBetslips() {
 
     removeFromBetslip: removeItemMutation.mutateAsync,
     isRemovingItem: removeItemMutation.isPending,
+
+    fetchSgpOdds: fetchSgpOddsMutation.mutateAsync,
+    isFetchingSgpOdds: fetchSgpOddsMutation.isPending,
   };
 }

@@ -7,7 +7,10 @@ import {
   ChevronRight, 
   Check,
   Filter,
-  Info
+  Info,
+  Layers,
+  SlidersHorizontal,
+  LayoutGrid
 } from "lucide-react";
 import {
   Dialog,
@@ -815,16 +818,19 @@ export function FilterPresetFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 sm:rounded-2xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] shadow-2xl">
         <form onSubmit={handleSubmit} className="flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh]">
+          {/* Premium gradient accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hidden sm:block" />
+          
           {/* Header */}
-          <DialogHeader className="border-b border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 sm:py-5 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <Filter className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 sm:py-5 shrink-0 bg-gradient-to-r from-white via-emerald-50/20 to-teal-50/20 dark:from-neutral-900 dark:via-emerald-950/10 dark:to-teal-950/10">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
+                <Layers className="h-5 w-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold text-neutral-900 dark:text-white">
+                <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
                   {isEditing ? "Edit Model" : "Create Model"}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -839,8 +845,8 @@ export function FilterPresetFormModal({
             <div className="p-4 sm:p-6">
               {/* Filter Name - Full Width */}
               <div className="mb-6">
-                <Label htmlFor="name" className="text-sm font-medium text-neutral-900 dark:text-white mb-2 block">
-                  Filter Name
+                <Label htmlFor="name" className="text-sm font-semibold text-neutral-900 dark:text-white mb-2 block">
+                  Model Name
                 </Label>
                 <Input
                   id="name"
@@ -848,7 +854,7 @@ export function FilterPresetFormModal({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={isLoading}
-                  className="h-11 bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
+                  className="h-12 bg-white dark:bg-neutral-800 border-neutral-200/80 dark:border-neutral-700/80 rounded-xl text-base font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -858,15 +864,20 @@ export function FilterPresetFormModal({
                 {/* LEFT COLUMN - Reference Books & Weights */}
                 <div className="space-y-5">
                   {/* Pie Chart & Weights Section */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 sm:p-5">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
                     <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
-                          Adjust Weights
-                        </h3>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                          Weight each book&apos;s contribution
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/20 dark:to-teal-500/20 flex items-center justify-center">
+                          <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                            Adjust Weights
+                          </h3>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                            Weight each book&apos;s contribution
+                          </p>
+                        </div>
                       </div>
                       {referenceBooks.length > 1 && (
                         <button
@@ -875,7 +886,7 @@ export function FilterPresetFormModal({
                             setWeights(getEqualWeights(referenceBooks));
                           }}
                           disabled={isLoading}
-                          className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
                         >
                           Equal
                         </button>
@@ -925,13 +936,20 @@ export function FilterPresetFormModal({
                   </div>
 
                   {/* Reference Books Section */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-4 sm:p-5">
-                    <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide mb-1">
-                      Reference Books
-                    </h3>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
-                      Select books to calculate fair odds
-                    </p>
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 sm:p-5 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 flex items-center justify-center">
+                        <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                          Reference Books
+                        </h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                          Select books to calculate fair odds
+                        </p>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2 max-h-[250px] sm:max-h-[320px] overflow-y-auto pr-1">
                       {REFERENCE_BOOKS.map((book) => {
@@ -1005,11 +1023,11 @@ export function FilterPresetFormModal({
                   {/* Settings Row */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Min Books Required */}
-                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-3">
-                      <Label className="text-[10px] font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
-                        Min Books
+                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                      <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        Min Books Required
                       </Label>
-                      <div className="flex gap-1 mt-2">
+                      <div className="flex gap-1.5 mt-3">
                         {[1, 2, 3, 4, 5].map((n) => (
                           <button
                             key={n}
@@ -1017,10 +1035,10 @@ export function FilterPresetFormModal({
                             onClick={() => setMinBooksRequired(n)}
                             disabled={isLoading || n > referenceBooks.length}
                             className={cn(
-                              "flex-1 h-7 rounded text-xs font-medium transition-all border",
+                              "flex-1 h-8 rounded-lg text-xs font-semibold transition-all border",
                               minBooksRequired === n
-                                ? "bg-emerald-500 border-emerald-500 text-white"
-                                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400",
+                                ? "bg-gradient-to-r from-emerald-500 to-teal-500 border-transparent text-white shadow-sm"
+                                : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-emerald-300 dark:hover:border-emerald-600",
                               n > referenceBooks.length && "opacity-30 cursor-not-allowed"
                             )}
                           >
@@ -1031,36 +1049,40 @@ export function FilterPresetFormModal({
                     </div>
 
                     {/* Odds Range */}
-                    <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-3">
-                      <Label className="text-[10px] font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                    <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                      <Label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                         Odds Range
                       </Label>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-3">
                         <Input
                           type="number"
                           value={minOdds}
                           onChange={(e) => setMinOdds(Number(e.target.value))}
                           disabled={isLoading}
                           placeholder="Min"
-                          className="h-7 text-xs bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                          className="h-8 text-xs font-medium bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-lg"
                         />
+                        <span className="self-center text-neutral-400">to</span>
                         <Input
                           type="number"
                           value={maxOdds}
                           onChange={(e) => setMaxOdds(Number(e.target.value))}
                           disabled={isLoading}
                           placeholder="Max"
-                          className="h-7 text-xs bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
+                          className="h-8 text-xs font-medium bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-lg"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Sports & Markets */}
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-br from-white to-neutral-50/80 dark:from-neutral-800/60 dark:to-neutral-900/50 p-5 lg:flex-1 lg:min-h-0 overflow-y-auto shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/10 dark:from-violet-500/20 dark:to-purple-500/20 flex items-center justify-center">
+                      <LayoutGrid className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                    </div>
                     <div>
-                      <h3 className="text-xs font-semibold text-neutral-900 dark:text-white uppercase tracking-wide">
+                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
                         Sports & Markets
                       </h3>
                       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1290,25 +1312,30 @@ export function FilterPresetFormModal({
           </div>
           
 
-          {/* Footer */}
-          <div className="border-t border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 bg-neutral-50 dark:bg-neutral-800/50 shrink-0">
+          {/* Premium Footer */}
+          <div className="border-t border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-900/80 dark:to-neutral-950/50 backdrop-blur-sm shrink-0">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 text-center sm:text-left">
-                {selectedSports.length} sport{selectedSports.length !== 1 ? 's' : ''} • {referenceBooks.length} book{referenceBooks.length !== 1 ? 's' : ''}
-              </p>
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                    {selectedSports.length} sport{selectedSports.length !== 1 ? 's' : ''} • {referenceBooks.length} book{referenceBooks.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => onOpenChange(false)}
                   disabled={isLoading}
-                  className="flex-1 sm:flex-none h-12 sm:h-10 px-4 rounded-xl sm:rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 sm:bg-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-5 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 sm:flex-none h-12 sm:h-10 px-5 rounded-xl sm:rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-none h-12 sm:h-10 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isEditing ? "Save Changes" : "Create Model"}

@@ -1460,8 +1460,8 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'player_passing_attempts': 'ATT',
       'player_rushing_yards': 'RUSH',
       'player_rushing_attempts': 'RATT',
-      'player_receiving_yards': 'REC',
-      'player_receptions': 'RCPT',
+      'player_receiving_yards': 'REC YDS',
+      'player_receptions': 'REC',
       'player_touchdowns': 'TD',
       'player_first_td': '1TD',
       'player_last_td': 'LTD',
@@ -1490,8 +1490,8 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       // Legacy keys (backwards compatibility)
       'passing_yards': 'PASS',
       'rushing_yards': 'RUSH',
-      'receiving_yards': 'REC',
-      'receptions': 'RCPT',
+      'receiving_yards': 'REC YDS',
+      'receptions': 'REC',
       
       // Baseball
       'batter_home_runs': 'HR',

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,7 +10,7 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { Heart } from "@/components/icons/heart";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
-import { X, ChevronRight, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon, ArrowRight, Trophy } from "lucide-react";
+import { X, ChevronRight, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon, ArrowRight, Trophy, Info, RefreshCw } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -185,69 +185,54 @@ function FavoriteItem({
         layout: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
       }}
       className={cn(
-        "group relative flex items-center gap-3 px-4 py-3",
+        "group relative flex items-center gap-2.5 px-3 py-2",
         "transition-all duration-150",
         isRemoving && "opacity-40 pointer-events-none",
         isSelected 
-          ? "bg-gradient-to-r from-brand/5 to-brand/10 dark:from-brand/10 dark:to-brand/20" 
-          : "hover:bg-neutral-50/80 dark:hover:bg-white/[0.02]"
+          ? "bg-brand/5 dark:bg-brand/10" 
+          : "hover:bg-neutral-50 dark:hover:bg-white/[0.02]"
       )}
     >
       {/* Checkbox */}
       <button
         onClick={onToggleSelect}
         className={cn(
-          "shrink-0 w-5 h-5 rounded-md flex items-center justify-center transition-all",
+          "shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all",
           isSelected 
-            ? "bg-gradient-to-br from-brand to-brand/80 shadow-sm shadow-brand/30 text-white" 
+            ? "bg-brand text-white" 
             : "border border-neutral-300 dark:border-neutral-600 hover:border-brand bg-white dark:bg-neutral-800"
         )}
       >
-        {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
+        {isSelected && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
       </button>
       
-      {/* Avatar with initials + sport badge */}
-      <div className="relative shrink-0">
-        <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center",
-          "bg-gradient-to-br shadow-md ring-1 ring-white/20",
-          avatarColor
-        )}>
-          <span className="text-xs font-bold text-white tracking-tight">
-            {initials}
-          </span>
-        </div>
-        {/* Sport badge overlay */}
-        <div className={cn(
-          "absolute -bottom-1 -right-1 w-5 h-5 rounded-md flex items-center justify-center",
-          "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
-        )}>
-          <SportIcon sport={normalizedSport} className="w-3 h-3 text-neutral-500 dark:text-neutral-400" />
-        </div>
+      {/* Avatar with initials */}
+      <div className={cn(
+        "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center",
+        "bg-gradient-to-br text-[10px] font-bold text-white",
+        avatarColor
+      )}>
+        {initials}
       </div>
       
       {/* Player + Bet Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-semibold text-neutral-900 dark:text-white truncate">
             {lastName}
           </span>
-          {favorite.player_team && (
-            <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
-              {favorite.player_team}
-            </span>
-          )}
+          <SportIcon sport={normalizedSport} className="w-3 h-3 text-neutral-400 shrink-0" />
         </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div className="flex items-center gap-1 mt-0.5">
+          <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
             {marketLabel}
           </span>
           {hasLine && (
             <span className={cn(
-              "text-xs font-bold px-1.5 py-0.5 rounded",
+              "text-[11px] font-semibold",
               side === "o" 
-                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" 
-                : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
+                ? "text-emerald-600 dark:text-emerald-400" 
+                : "text-red-500 dark:text-red-400"
             )}>
               {side}{favorite.line}
             </span>
@@ -255,7 +240,7 @@ function FavoriteItem({
         </div>
       </div>
       
-      {/* Best Odds Section - Premium Bet Button */}
+      {/* Odds + Bet Button */}
       {betLink ? (
         <a
           href={betLink}
@@ -263,27 +248,26 @@ function FavoriteItem({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "flex items-center gap-2 shrink-0 px-3 py-2 rounded-xl transition-all",
-            "bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-500/15 dark:to-emerald-500/5",
-            "hover:from-emerald-100 hover:to-emerald-50 dark:hover:from-emerald-500/20 dark:hover:to-emerald-500/10",
-            "ring-1 ring-emerald-200/80 dark:ring-emerald-500/30",
-            "shadow-sm group/bet"
+            "flex items-center gap-1.5 shrink-0 px-2 py-1.5 rounded-lg transition-all",
+            "bg-emerald-50 dark:bg-emerald-500/10",
+            "hover:bg-emerald-100 dark:hover:bg-emerald-500/20",
+            "ring-1 ring-emerald-200/50 dark:ring-emerald-500/20"
           )}
         >
           {bookLogo && (
-            <div className="w-6 h-6 rounded-lg overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center shadow-sm ring-1 ring-black/5 dark:ring-white/10">
+            <div className="w-4 h-4 rounded overflow-hidden">
               <Image
                 src={bookLogo}
                 alt={displayBook || ""}
-                width={20}
-                height={20}
-                className="w-5 h-5 object-contain"
+                width={16}
+                height={16}
+                className="w-4 h-4 object-contain"
               />
             </div>
           )}
           {displayPrice && (
             <span className={cn(
-              "text-sm font-bold tabular-nums",
+              "text-xs font-bold tabular-nums",
               displayPrice >= 0 
                 ? "text-emerald-600 dark:text-emerald-400" 
                 : "text-neutral-700 dark:text-neutral-300"
@@ -291,24 +275,24 @@ function FavoriteItem({
               {formatOdds(displayPrice)}
             </span>
           )}
-          <ArrowRight className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover/bet:opacity-100 group-hover/bet:translate-x-0.5 transition-all" />
+          <ArrowRight className="w-3 h-3 text-emerald-500" />
         </a>
       ) : (
-        <div className="flex items-center gap-2 shrink-0 px-2.5 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+        <div className="flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-md bg-neutral-50 dark:bg-neutral-800/50">
           {bookLogo && (
-            <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 flex items-center justify-center">
+            <div className="w-4 h-4 rounded overflow-hidden">
               <Image
                 src={bookLogo}
                 alt={displayBook || ""}
-                width={18}
-                height={18}
-                className="w-[18px] h-[18px] object-contain"
+                width={16}
+                height={16}
+                className="w-4 h-4 object-contain"
               />
             </div>
           )}
           {displayPrice && (
             <span className={cn(
-              "text-sm font-bold tabular-nums",
+              "text-xs font-bold tabular-nums",
               displayPrice >= 0 
                 ? "text-emerald-600 dark:text-emerald-400" 
                 : "text-neutral-600 dark:text-neutral-400"
@@ -504,20 +488,69 @@ function BestValueParlays({
   );
 }
 
+// Helper to get readable market label for slips
+const getReadableMarket = (market: string): string => {
+  const labels: Record<string, string> = {
+    'player_points': 'Points',
+    'player_rebounds': 'Rebounds',
+    'player_assists': 'Assists',
+    'player_threes': '3PM',
+    'player_pra': 'PRA',
+    'player_pr': 'Pts+Reb',
+    'player_pa': 'Pts+Ast',
+    'player_ra': 'Reb+Ast',
+    'player_steals': 'Steals',
+    'player_blocks': 'Blocks',
+    'player_turnovers': 'Turnovers',
+    'player_double_double': 'Double Double',
+    'player_triple_double': 'Triple Double',
+    'player_passing_yards': 'Pass Yds',
+    'player_rushing_yards': 'Rush Yds',
+    'player_receiving_yards': 'Rec Yds',
+    'player_receptions': 'Receptions',
+    'player_touchdowns': 'TD',
+    'player_first_td': '1st TD',
+    'player_anytime_td': 'TD',
+    'player_pass_tds': 'Pass TDs',
+    'player_interceptions': 'INTs',
+    'player_completions': 'Completions',
+    'batter_hits': 'Hits',
+    'batter_runs': 'Runs',
+    'batter_rbis': 'RBIs',
+    'batter_total_bases': 'Total Bases',
+    'batter_home_runs': 'Home Runs',
+    'pitcher_strikeouts': 'Strikeouts',
+  };
+  const short = formatMarketLabelShort(market);
+  return labels[market] || short || market.replace(/_/g, ' ');
+};
+
 // Slip Card Component
 function SlipCard({ 
   slip, 
   onDelete,
+  onRemoveLeg,
+  onFetchSgpOdds,
   selectedFavoriteIds,
-  onAddSelected
+  onAddSelected,
+  isRemovingLeg,
+  isFetchingSgpOdds
 }: { 
   slip: Betslip; 
   onDelete: () => void;
+  onRemoveLeg: (favoriteId: string) => void;
+  onFetchSgpOdds: (forceRefresh?: boolean) => Promise<void>;
   selectedFavoriteIds: Set<string>;
   onAddSelected: () => void;
+  isRemovingLeg: boolean;
+  isFetchingSgpOdds: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [removingLegId, setRemovingLegId] = useState<string | null>(null);
+  const [showAllBooks, setShowAllBooks] = useState(false);
+  const [showIncompleteBooks, setShowIncompleteBooks] = useState(false);
+  const [hasFetchedSgp, setHasFetchedSgp] = useState(false);
   
   const colorClass = getColorClass(slip.color);
   const items = slip.items || [];
@@ -527,24 +560,30 @@ function SlipCard({
     .slice(0, 3);
   const moreCount = items.length - 3;
   
-  // Calculate parlay odds from items
-  const parlayOdds = useMemo(() => {
-    if (items.length < 2) return null;
-    
+  // Get all unique books across all legs
+  const allBooks = useMemo(() => {
     const books = new Set<string>();
     items.forEach(item => {
       if (item.favorite?.books_snapshot) {
         Object.keys(item.favorite.books_snapshot).forEach(b => books.add(b));
       }
     });
+    return Array.from(books);
+  }, [items]);
+  
+  // Calculate parlay odds from items for each book
+  const parlayOdds = useMemo(() => {
+    if (items.length < 1) return null;
     
-    const results: { book: string; odds: number; legs: number }[] = [];
-    books.forEach(book => {
+    const results: { book: string; odds: number; legs: number; legPrices: (number | null)[] }[] = [];
+    allBooks.forEach(book => {
       let totalDecimal = 1;
       let legCount = 0;
+      const legPrices: (number | null)[] = [];
       
       items.forEach(item => {
         const price = item.favorite?.books_snapshot?.[book]?.price;
+        legPrices.push(price || null);
         if (price) {
           const decimal = price > 0 ? 1 + (price / 100) : 1 + (100 / Math.abs(price));
           totalDecimal *= decimal;
@@ -556,25 +595,155 @@ function SlipCard({
         const american = totalDecimal >= 2 
           ? Math.round((totalDecimal - 1) * 100)
           : Math.round(-100 / (totalDecimal - 1));
-        results.push({ book, odds: american, legs: legCount });
+        results.push({ book, odds: american, legs: legCount, legPrices });
       }
     });
     
-    return results.sort((a, b) => b.odds - a.odds).slice(0, 3);
+    return results.sort((a, b) => b.odds - a.odds);
+  }, [items, allBooks]);
+  
+  // Handle remove leg
+  const handleRemoveLeg = async (favoriteId: string) => {
+    setRemovingLegId(favoriteId);
+    await onRemoveLeg(favoriteId);
+    setRemovingLegId(null);
+  };
+  
+  // Classify bet type based on event IDs (must be before useEffect that references it)
+  const betType = useMemo((): 'individual' | 'parlay' | 'sgp' | 'sgp_plus' => {
+    if (items.length === 0) return 'individual';
+    if (items.length === 1) return 'individual';
+    
+    // Group legs by event_id
+    const eventGroups = new Map<string, typeof items>();
+    items.forEach(item => {
+      const eventId = item.favorite?.event_id || 'unknown';
+      if (!eventGroups.has(eventId)) {
+        eventGroups.set(eventId, []);
+      }
+      eventGroups.get(eventId)!.push(item);
+    });
+    
+    const groupSizes = Array.from(eventGroups.values()).map(g => g.length);
+    const sgpGroups = groupSizes.filter(size => size >= 2); // Groups with 2+ legs (SGPs)
+    const singleLegGroups = groupSizes.filter(size => size === 1); // Groups with 1 leg
+    
+    // All legs from same game = SGP
+    if (eventGroups.size === 1 && items.length >= 2) {
+      return 'sgp';
+    }
+    
+    // Has at least one SGP group + other legs = SGP+
+    if (sgpGroups.length >= 1 && (sgpGroups.length >= 2 || singleLegGroups.length >= 1)) {
+      return 'sgp_plus';
+    }
+    
+    // Multiple games, no SGP groups = Regular Parlay
+    return 'parlay';
   }, [items]);
   
-  const bestOdds = parlayOdds?.[0];
+  // Check if SGP odds cache is stale (> 5 minutes old)
+  const sgpCacheAge = slip.sgp_odds_updated_at 
+    ? Date.now() - new Date(slip.sgp_odds_updated_at).getTime()
+    : Infinity;
+  const isSgpCacheStale = sgpCacheAge > 5 * 60 * 1000; // 5 minutes
+  const hasSgpCache = !!slip.sgp_odds_cache && Object.keys(slip.sgp_odds_cache).length > 0;
+  
+  // Auto-fetch SGP odds when card is expanded for SGP/SGP+ bets
+  useEffect(() => {
+    const needsSgpFetch = (betType === 'sgp' || betType === 'sgp_plus') && 
+                          isExpanded && 
+                          !isFetchingSgpOdds &&
+                          (!hasSgpCache || isSgpCacheStale) &&
+                          !hasFetchedSgp;
+    
+    if (needsSgpFetch) {
+      setHasFetchedSgp(true);
+      onFetchSgpOdds(false).catch(console.error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, betType, hasSgpCache, isSgpCacheStale]);
+  
+  // Reset fetch flag when card is collapsed
+  useEffect(() => {
+    if (!isExpanded) {
+      setHasFetchedSgp(false);
+    }
+  }, [isExpanded]);
+  
+  // Get bet type display info
+  const betTypeInfo = useMemo(() => {
+    switch (betType) {
+      case 'individual':
+        return { label: 'Single', color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10' };
+      case 'parlay':
+        return { label: 'Parlay', color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-500/10' };
+      case 'sgp':
+        return { label: 'SGP', color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10' };
+      case 'sgp_plus':
+        return { label: 'SGP+', color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-500/10' };
+    }
+  }, [betType]);
+  
+  // For SGP/SGP+ bets, merge API odds with frontend odds for display
+  const displayOdds = useMemo(() => {
+    // For parlay and individual, use frontend calculation
+    if (betType === 'individual' || betType === 'parlay') {
+      return parlayOdds;
+    }
+    
+    // For SGP/SGP+, use cached API odds if available
+    if (hasSgpCache && slip.sgp_odds_cache) {
+      const sgpResults: { book: string; odds: number; legs: number; fromApi: boolean; links?: { desktop: string; mobile: string }; limits?: { max?: number; min?: number }; error?: string }[] = [];
+      
+      for (const [bookId, data] of Object.entries(slip.sgp_odds_cache)) {
+        if (data.error) {
+          // Skip books with errors for now (could show them differently)
+          continue;
+        }
+        if (data.price) {
+          // Parse American odds string to number (handles "+2755", "+2666.98", etc.)
+          const cleaned = data.price.replace(/[^0-9.\-]/g, '');
+          const oddsNum = Math.round(parseFloat(cleaned));
+          const isNegative = data.price.startsWith('-');
+          const finalOdds = isNegative ? -Math.abs(oddsNum) : oddsNum;
+          
+          sgpResults.push({
+            book: bookId,
+            odds: finalOdds,
+            legs: items.length, // All legs available if we got a price
+            fromApi: true,
+            links: data.links,
+            limits: data.limits,
+          });
+        }
+      }
+      
+      // Sort by odds (best first)
+      return sgpResults.sort((a, b) => b.odds - a.odds);
+    }
+    
+    // Fall back to frontend calculation while loading
+    return parlayOdds?.map(p => ({ ...p, fromApi: false }));
+  }, [betType, hasSgpCache, slip.sgp_odds_cache, parlayOdds, items.length]);
   
   return (
     <div className={cn(
-      "rounded-xl border transition-all",
-      "bg-white dark:bg-neutral-800/50",
-      "border-neutral-200 dark:border-neutral-700/50",
-      "hover:border-neutral-300 dark:hover:border-neutral-600"
+      "rounded-xl border transition-all overflow-hidden",
+      isExpanded 
+        ? "bg-neutral-50 dark:bg-neutral-800 border-violet-300 dark:border-violet-500/40 ring-1 ring-violet-200/50 dark:ring-violet-500/20" 
+        : "bg-white dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600"
     )}>
       {/* Card Header */}
       <div
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          const newExpanded = !isExpanded;
+          setIsExpanded(newExpanded);
+          if (!newExpanded) {
+            setShowAllBooks(false);
+            setShowIncompleteBooks(false);
+          }
+        }}
         className="w-full flex items-center gap-3 p-3 cursor-pointer"
       >
         <div className={cn("w-3 h-3 rounded-full shrink-0", colorClass)} />
@@ -584,10 +753,15 @@ function SlipCard({
               {slip.name}
             </span>
             <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-700 px-1.5 py-0.5 rounded">
-              {items.length} props
+              {items.length} {items.length === 1 ? 'leg' : 'legs'}
             </span>
+            {items.length > 0 && (
+              <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", betTypeInfo.bg, betTypeInfo.color)}>
+                {betTypeInfo.label}
+              </span>
+            )}
           </div>
-          {playerNames.length > 0 && (
+          {playerNames.length > 0 && !isExpanded && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
               {playerNames.join(", ")}{moreCount > 0 ? ` +${moreCount}` : ""}
             </p>
@@ -595,15 +769,16 @@ function SlipCard({
         </div>
         
         {/* Best Odds Badge with Book Logo */}
-        {bestOdds && (
-          <div className="shrink-0 flex items-center gap-1.5">
+        {displayOdds && displayOdds[0] && (
+          <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
             {(() => {
-              const bookData = getSportsbookById(bestOdds.book);
+              const best = displayOdds[0];
+              const bookData = getSportsbookById(best.book);
               const logo = bookData?.image?.square || bookData?.image?.light;
               return logo ? (
                 <Image 
                   src={logo} 
-                  alt={bestOdds.book} 
+                  alt={best.book} 
                   width={18} 
                   height={18} 
                   className="w-[18px] h-[18px] object-contain rounded" 
@@ -611,10 +786,16 @@ function SlipCard({
               ) : null;
             })()}
             <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-              {bestOdds.odds >= 0 ? `+${bestOdds.odds}` : bestOdds.odds}
+              {displayOdds[0].odds >= 0 ? `+${displayOdds[0].odds}` : displayOdds[0].odds}
             </span>
           </div>
         )}
+        
+        {/* Expand/Collapse indicator */}
+        <ChevronRight className={cn(
+          "w-4 h-4 text-neutral-400 transition-transform",
+          isExpanded && "rotate-90"
+        )} />
         
         {/* Menu Button */}
         <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -637,7 +818,7 @@ function SlipCard({
                   setShowMenu(false);
                 }}
               />
-              <div className="absolute right-0 top-full mt-1 w-36 rounded-lg border shadow-lg overflow-hidden z-20 bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700">
+              <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border shadow-lg overflow-hidden z-20 bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700">
                 {selectedFavoriteIds.size > 0 && (
                   <button
                     onClick={(e) => {
@@ -645,8 +826,9 @@ function SlipCard({
                       onAddSelected();
                       setShowMenu(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2"
                   >
+                    <Plus className="w-3.5 h-3.5" />
                     Add {selectedFavoriteIds.size} selected
                   </button>
                 )}
@@ -656,8 +838,9 @@ function SlipCard({
                     onDelete();
                     setShowMenu(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2"
                 >
+                  <Trash2 className="w-3.5 h-3.5" />
                   Delete Slip
                 </button>
               </div>
@@ -666,7 +849,7 @@ function SlipCard({
         </div>
       </div>
       
-      {/* Expanded Content */}
+      {/* Expanded Content - Premium 2-Column Layout */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -676,75 +859,379 @@ function SlipCard({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 border-t border-neutral-100 dark:border-neutral-700/50">
-              {/* Best Value Parlays */}
-              {parlayOdds && parlayOdds.length > 0 && (
-                <div className="pt-3 space-y-1.5">
-                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                    Best Value Parlays
-                  </span>
-                  {parlayOdds.map(({ book, odds, legs }, index) => {
-                    const bookData = getSportsbookById(book);
-                    const logo = bookData?.image?.square || bookData?.image?.light;
-                    const isTop = index === 0;
-                    
-                    return (
-                      <div
-                        key={book}
-                        className={cn(
-                          "flex items-center gap-2 px-2.5 py-2 rounded-lg",
-                          isTop 
-                            ? "bg-emerald-50 dark:bg-emerald-500/10" 
-                            : "bg-neutral-50 dark:bg-neutral-700/30"
-                        )}
-                      >
-                        {logo && (
-                          <Image src={logo} alt={book} width={18} height={18} className="w-[18px] h-[18px] object-contain rounded" />
-                        )}
-                        <span className="flex-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase">
-                          {bookData?.name || book}
-                        </span>
-                        <span className="text-[10px] text-neutral-400">{legs}/{items.length}</span>
-                        <span className={cn(
-                          "text-sm font-bold tabular-nums",
-                          isTop ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
-                        )}>
-                          {odds >= 0 ? `+${odds}` : odds}
-                        </span>
-                      </div>
-                    );
-                  })}
+            <div className="border-t border-neutral-100 dark:border-neutral-700/50">
+              {items.length === 0 ? (
+                <div className="p-6 text-center">
+                  <div className="w-12 h-12 mx-auto rounded-xl bg-neutral-100 dark:bg-neutral-700/50 flex items-center justify-center mb-3">
+                    <Layers className="w-5 h-5 text-neutral-400" />
+                  </div>
+                  <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                    No legs yet
+                  </p>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    Add plays from the All Props tab
+                  </p>
                 </div>
-              )}
-              
-              {/* Items Preview */}
-              {items.length > 0 && (
-                <div className="pt-3 space-y-1">
-                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                    Legs
-                  </span>
-                  {items.slice(0, 5).map((item) => {
-                    const fav = item.favorite;
-                    if (!fav) return null;
-                    const side = fav.side === "over" ? "o" : fav.side === "under" ? "u" : fav.side.charAt(0);
-                    return (
-                      <div key={item.id} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                        <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                          {fav.player_name?.split(" ").pop()}
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100 dark:divide-neutral-700/50">
+                  {/* Left Column - Legs */}
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                        Legs ({items.length})
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {items.map((item, idx) => {
+                        const fav = item.favorite;
+                        if (!fav) return null;
+                        const side = fav.side === "over" ? "o" : fav.side === "under" ? "u" : fav.side?.charAt(0) || "";
+                        const isRemoving = removingLegId === fav.id;
+                        
+                        return (
+                          <div 
+                            key={item.id} 
+                            className={cn(
+                              "group flex items-center gap-2 px-2.5 py-2 rounded-lg transition-all",
+                              "bg-neutral-50 dark:bg-neutral-700/30",
+                              "hover:bg-neutral-100 dark:hover:bg-neutral-700/50",
+                              isRemoving && "opacity-50"
+                            )}
+                          >
+                            <span className="text-[10px] font-bold text-neutral-400 w-4">
+                              {idx + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
+                                  {fav.player_name?.split(" ").pop()}
+                                </span>
+                                {fav.player_team && (
+                                  <span className="text-[9px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-200/50 dark:bg-neutral-600/50 px-1 rounded">
+                                    {fav.player_team}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  {getReadableMarket(fav.market)}
+                                </span>
+                                <span className={cn(
+                                  "text-[11px] font-bold px-1 rounded",
+                                  side === "o" 
+                                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" 
+                                    : "text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
+                                )}>
+                                  {side}{fav.line}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Remove leg button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveLeg(fav.id);
+                              }}
+                              disabled={isRemoving || isRemovingLeg}
+                              className={cn(
+                                "shrink-0 p-1 rounded transition-all",
+                                "opacity-0 group-hover:opacity-100",
+                                "text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10",
+                                "disabled:opacity-50 disabled:cursor-not-allowed"
+                              )}
+                            >
+                              {isRemoving ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <X className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Right Column - Sportsbook Odds */}
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                          {betType === 'individual' ? 'Odds' : betType === 'sgp' ? 'SGP Odds' : betType === 'sgp_plus' ? 'SGP+ Odds' : 'Parlay Odds'}
                         </span>
-                        <span>{formatMarketLabelShort(fav.market)}</span>
-                        <span className={cn(
-                          "font-semibold",
-                          side === "o" ? "text-emerald-600" : "text-red-500"
-                        )}>
-                          {side}{fav.line}
-                        </span>
+                        {betType === 'parlay' && (
+                          <Tooltip content="Calculated by multiplying individual leg odds">
+                            <Info className="w-3 h-3 text-neutral-400 cursor-help" />
+                          </Tooltip>
+                        )}
+                        {(betType === 'sgp' || betType === 'sgp_plus') && hasSgpCache && (
+                          <Tooltip content={`Live odds from sportsbooks • Updated ${Math.round(sgpCacheAge / 60000)}m ago`}>
+                            <Check className="w-3 h-3 text-emerald-500" />
+                          </Tooltip>
+                        )}
                       </div>
-                    );
-                  })}
-                  {items.length > 5 && (
-                    <p className="text-[10px] text-neutral-400">+{items.length - 5} more</p>
-                  )}
+                      <div className="flex items-center gap-1.5">
+                        {/* Refresh button for SGP/SGP+ */}
+                        {(betType === 'sgp' || betType === 'sgp_plus') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFetchSgpOdds(true);
+                            }}
+                            disabled={isFetchingSgpOdds}
+                            className={cn(
+                              "p-1 rounded-md transition-colors",
+                              "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300",
+                              "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
+                              "disabled:opacity-50"
+                            )}
+                            title="Refresh odds"
+                          >
+                            <RefreshCw className={cn("w-3 h-3", isFetchingSgpOdds && "animate-spin")} />
+                          </button>
+                        )}
+                        {displayOdds && displayOdds.length > 0 && (() => {
+                          const completeCount = displayOdds.filter(p => p.legs === items.length).length;
+                          const incompleteCount = displayOdds.filter(p => p.legs < items.length).length;
+                          return (
+                            <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              {completeCount} {completeCount === 1 ? 'book' : 'books'}
+                              {incompleteCount > 0 && !showIncompleteBooks && (
+                                <span className="text-neutral-400 dark:text-neutral-500"> (+{incompleteCount})</span>
+                              )}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    
+                    {/* Loading state for SGP fetch */}
+                    {isFetchingSgpOdds && (betType === 'sgp' || betType === 'sgp_plus') && !hasSgpCache ? (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="text-center">
+                          <Loader2 className="w-5 h-5 animate-spin text-amber-500 mx-auto mb-2" />
+                          <p className="text-[11px] text-neutral-400">Fetching live odds...</p>
+                        </div>
+                      </div>
+                    ) : !displayOdds || displayOdds.length === 0 ? (
+                      <div className="text-center py-4">
+                        <p className="text-xs text-neutral-400">
+                          No complete odds available
+                        </p>
+                      </div>
+                    ) : (() => {
+                      // Separate complete and incomplete odds
+                      const completeOdds = displayOdds.filter(p => p.legs === items.length);
+                      const incompleteOdds = displayOdds.filter(p => p.legs < items.length);
+                      const oddsToShow = showIncompleteBooks 
+                        ? displayOdds 
+                        : completeOdds;
+                      const visibleOdds = showAllBooks ? oddsToShow : oddsToShow.slice(0, 5);
+                      
+                      return (
+                      <div className="space-y-1.5">
+                        {visibleOdds.length === 0 ? (
+                          <div className="text-center py-3">
+                            <p className="text-xs text-neutral-400">
+                              No books have all {items.length} legs
+                            </p>
+                            {incompleteOdds.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowIncompleteBooks(true);
+                                }}
+                                className="mt-2 text-[11px] font-medium text-violet-500 dark:text-violet-400 hover:text-violet-600 dark:hover:text-violet-300"
+                              >
+                                Show {incompleteOdds.length} partial {incompleteOdds.length === 1 ? 'book' : 'books'}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                        <>
+                        {visibleOdds.map((oddData, index) => {
+                          const { book, odds, legs } = oddData;
+                          const fromApi = 'fromApi' in oddData ? oddData.fromApi : false;
+                          const apiLinks = 'links' in oddData ? oddData.links : undefined;
+                          const limits = 'limits' in oddData ? oddData.limits : undefined;
+                          
+                          const bookData = getSportsbookById(book);
+                          const logo = bookData?.image?.square || bookData?.image?.light;
+                          const isTop = index === 0;
+                          const isComplete = legs === items.length;
+                          
+                          // Use API deeplink if available, otherwise fall back to leg link
+                          const betLink = apiLinks?.desktop || 
+                            items.find(item => item.favorite?.books_snapshot?.[book]?.u)?.favorite?.books_snapshot?.[book]?.u || 
+                            null;
+                          
+                          const content = (
+                            <>
+                              {/* Rank */}
+                              <span className={cn(
+                                "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                                isTop && isComplete
+                                  ? "bg-emerald-500 text-white"
+                                  : "bg-neutral-600 dark:bg-neutral-600 text-neutral-300 dark:text-neutral-400"
+                              )}>
+                                {index + 1}
+                              </span>
+                              
+                              {/* Book Logo & Name */}
+                              {logo && (
+                                <div className="w-6 h-6 rounded-lg overflow-hidden bg-white dark:bg-neutral-700 flex items-center justify-center shadow-sm ring-1 ring-black/5 dark:ring-white/5 shrink-0">
+                                  <Image src={logo} alt={book} width={20} height={20} className="w-5 h-5 object-contain" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <span className={cn(
+                                  "text-xs font-semibold truncate block",
+                                  isTop && isComplete ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-700 dark:text-neutral-200"
+                                )}>
+                                  {bookData?.name || book}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  {!isComplete && (
+                                    <span className="text-[9px] text-neutral-400">
+                                      {legs}/{items.length} legs
+                                    </span>
+                                  )}
+                                  {limits?.max && (
+                                    <span className="text-[9px] text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-1 rounded">
+                                      Max ${limits.max.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Odds */}
+                              <div className="text-right shrink-0 flex items-center gap-2">
+                                <div>
+                                  <span className={cn(
+                                    "text-sm font-bold tabular-nums",
+                                    isTop && isComplete ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-300"
+                                  )}>
+                                    {odds >= 0 ? `+${odds}` : odds}
+                                  </span>
+                                  {isTop && isComplete && (
+                                    <div className="flex items-center justify-end gap-0.5 mt-0.5">
+                                      <Star className="w-2.5 h-2.5 text-emerald-500 fill-current" />
+                                      <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                        BEST
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Bet Arrow */}
+                                {betLink && (
+                                  <ArrowRight className={cn(
+                                    "w-4 h-4 shrink-0 transition-all",
+                                    isTop && isComplete 
+                                      ? "text-emerald-500 group-hover/book:translate-x-0.5" 
+                                      : "text-neutral-400 group-hover/book:text-neutral-200 group-hover/book:translate-x-0.5"
+                                  )} />
+                                )}
+                              </div>
+                            </>
+                          );
+                          
+                          // Wrap in link if bet link is available
+                          if (betLink) {
+                            return (
+                              <a
+                                key={book}
+                                href={betLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={cn(
+                                  "group/book flex items-center gap-2 px-2.5 py-2 rounded-lg transition-all cursor-pointer",
+                                  isTop && isComplete
+                                    ? "bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/10 ring-1 ring-emerald-300/50 dark:ring-emerald-500/40 hover:ring-emerald-400/70 dark:hover:ring-emerald-400/60" 
+                                    : "bg-neutral-100/80 dark:bg-neutral-800/80 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80",
+                                  !isComplete && "opacity-60"
+                                )}
+                              >
+                                {content}
+                              </a>
+                            );
+                          }
+                          
+                          return (
+                            <div
+                              key={book}
+                              className={cn(
+                                "flex items-center gap-2 px-2.5 py-2 rounded-lg transition-all",
+                                isTop && isComplete
+                                  ? "bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/10 ring-1 ring-emerald-300/50 dark:ring-emerald-500/40" 
+                                  : "bg-neutral-100/80 dark:bg-neutral-800/80",
+                                !isComplete && "opacity-60"
+                              )}
+                            >
+                              {content}
+                            </div>
+                          );
+                        })}
+                        </>
+                        )}
+                        
+                        {/* Show more complete books button */}
+                        {oddsToShow.length > 5 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAllBooks(!showAllBooks);
+                            }}
+                            className="w-full text-[11px] font-medium text-violet-500 dark:text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 text-center pt-2 pb-1 transition-colors"
+                          >
+                            {showAllBooks ? (
+                              <span className="flex items-center justify-center gap-1">
+                                <ChevronRight className="w-3 h-3 -rotate-90" />
+                                Show less
+                              </span>
+                            ) : (
+                              <span className="flex items-center justify-center gap-1">
+                                <ChevronRight className="w-3 h-3 rotate-90" />
+                                +{oddsToShow.length - 5} more
+                              </span>
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* Toggle for showing incomplete books */}
+                        {incompleteOdds.length > 0 && completeOdds.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowIncompleteBooks(!showIncompleteBooks);
+                              if (!showIncompleteBooks) setShowAllBooks(false); // Reset when toggling
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-center gap-1.5 mt-2 pt-2 border-t border-neutral-200/50 dark:border-neutral-700/50",
+                              "text-[10px] font-medium transition-colors",
+                              showIncompleteBooks 
+                                ? "text-amber-600 dark:text-amber-400" 
+                                : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                            )}
+                          >
+                            {showIncompleteBooks ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                Showing partial books
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3" />
+                                Show {incompleteOdds.length} partial {incompleteOdds.length === 1 ? 'book' : 'books'}
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
@@ -777,7 +1264,11 @@ export function FavoritesModal() {
     createBetslip, 
     isCreating,
     deleteBetslip,
-    addToBetslip 
+    addToBetslip,
+    removeFromBetslip,
+    isRemovingItem,
+    fetchSgpOdds,
+    isFetchingSgpOdds
   } = useBetslips();
   
   const count = favorites.length;
@@ -1017,98 +1508,97 @@ export function FavoritesModal() {
                 "fixed z-50 w-full max-w-[580px] max-h-[85vh] overflow-hidden",
                 "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
                 "rounded-2xl shadow-2xl ring-1 ring-black/[0.08]",
-                "bg-gradient-to-b from-white to-neutral-50/80",
-                "dark:from-neutral-900 dark:to-neutral-950/80 dark:ring-white/[0.08]",
+                "bg-white dark:bg-neutral-900 dark:ring-white/[0.08]",
                 // Mobile: bottom sheet
                 "max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:translate-x-0 max-sm:translate-y-0",
                 "max-sm:max-w-none max-sm:rounded-b-none max-sm:max-h-[90vh]"
               )}
             >
-              {/* Premium Header */}
-              <div className="relative overflow-hidden">
+              {/* Compact Header */}
+              <div className="relative overflow-hidden shrink-0">
                 {/* Gradient accent bar */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-red-500" />
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 via-pink-500 to-red-500" />
                 
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 shadow-lg shadow-rose-500/25 ring-1 ring-white/20">
-                      <HeartFill className="w-5 h-5 text-white" />
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-rose-500 to-red-600 shadow-sm">
+                      <HeartFill className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+                      <h2 className="text-base font-bold text-neutral-900 dark:text-white">
                         My Props
                       </h2>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                          {count} {count === 1 ? 'play' : 'plays'}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                          {count} plays
                         </span>
-                        <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-                        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                          {betslips.length} {betslips.length === 1 ? 'slip' : 'slips'}
+                        <span className="w-0.5 h-0.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                          {betslips.length} slips
                         </span>
                       </div>
                     </div>
                   </div>
                   <button
                     onClick={() => setIsOpen(false)}
-                    className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
                   >
-                    <X className="w-5 h-5 text-neutral-400" />
+                    <X className="w-4 h-4 text-neutral-400" />
                   </button>
                 </div>
               </div>
               
-              {/* Tab Navigation */}
-              <div className="flex px-4 border-b border-neutral-100 dark:border-white/5">
+              {/* Tab Navigation - Compact */}
+              <div className="flex px-3 border-b border-neutral-100 dark:border-white/5 shrink-0">
                 <button
                   onClick={() => setActiveTab("plays")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all relative",
+                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all relative",
                     activeTab === "plays"
                       ? "text-neutral-900 dark:text-white"
                       : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <Heart className={cn("w-4 h-4", activeTab === "plays" && "text-rose-500")} />
-                  All Props
+                  <Heart className={cn("w-3.5 h-3.5", activeTab === "plays" && "text-rose-500")} />
+                  Props
                   {count > 0 && (
                     <span className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
                       activeTab === "plays" 
-                        ? "bg-gradient-to-r from-rose-500 to-red-500 text-white" 
+                        ? "bg-rose-500 text-white" 
                         : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
                     )}>
                       {count}
                     </span>
                   )}
                   <div className={cn(
-                    "absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-gradient-to-r from-rose-500 to-red-500 transition-opacity duration-200",
+                    "absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-rose-500 transition-opacity duration-200",
                     activeTab === "plays" ? "opacity-100" : "opacity-0"
                   )} />
                 </button>
                 <button
                   onClick={() => setActiveTab("slips")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all relative",
+                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all relative",
                     activeTab === "slips"
                       ? "text-neutral-900 dark:text-white"
                       : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <Layers className={cn("w-4 h-4", activeTab === "slips" && "text-violet-500")} />
+                  <Layers className={cn("w-3.5 h-3.5", activeTab === "slips" && "text-violet-500")} />
                   Slips
                   {betslips.length > 0 && (
                     <span className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
                       activeTab === "slips" 
-                        ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white" 
+                        ? "bg-violet-500 text-white" 
                         : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
                     )}>
                       {betslips.length}
                     </span>
                   )}
                   <div className={cn(
-                    "absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 transition-opacity duration-200",
+                    "absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-violet-500 transition-opacity duration-200",
                     activeTab === "slips" ? "opacity-100" : "opacity-0"
                   )} />
                 </button>
@@ -1247,18 +1737,23 @@ export function FavoritesModal() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="border-t border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-neutral-800/50 p-3"
+                  className="shrink-0 border-t border-neutral-200 dark:border-white/10 bg-white dark:bg-neutral-900 px-3 py-2"
                 >
-                  {/* Selection Info */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-brand" />
-                      <span className="text-sm font-semibold text-neutral-900 dark:text-white">
-                        {selectedIds.size} {selectedIds.size === 1 ? 'play' : 'plays'} selected
+                  {/* Selection Info + Buttons in one row */}
+                  <div className="flex items-center gap-2">
+                    {/* Selection count */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="w-5 h-5 rounded bg-brand/10 flex items-center justify-center">
+                        <Check className="w-3 h-3 text-brand" />
+                      </div>
+                      <span className="text-xs font-semibold text-neutral-900 dark:text-white">
+                        {selectedIds.size}
                       </span>
                     </div>
+                    
+                    {/* Parlay Odds */}
                     {buildModeData && buildModeData.bestOdds && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 shrink-0">
                         {(() => {
                           const bookLogo = buildModeData.bestBook 
                             ? getBookLogo(buildModeData.bestBook) 
@@ -1267,57 +1762,56 @@ export function FavoritesModal() {
                             <Image
                               src={bookLogo}
                               alt={buildModeData.bestBook || ""}
-                              width={16}
-                              height={16}
-                              className="w-4 h-4 object-contain rounded"
+                              width={14}
+                              height={14}
+                              className="w-3.5 h-3.5 object-contain rounded"
                             />
                           ) : null;
                         })()}
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                           {formatOdds(buildModeData.bestOdds)}
                         </span>
                       </div>
                     )}
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2">
+                    
+                    <div className="flex-1" />
+                    
+                    {/* Action Buttons - Compact */}
                     {/* New Slip Button */}
                     <button
                       onClick={handleCreateSlipWithSelected}
                       className={cn(
-                        "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl",
-                        "text-sm font-semibold transition-all",
-                        "bg-brand text-white hover:bg-brand/90",
-                        "shadow-sm"
+                        "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg",
+                        "text-xs font-semibold transition-all",
+                        "bg-brand text-white hover:bg-brand/90"
                       )}
                     >
-                      <Plus className="w-4 h-4" />
-                      New Slip
+                      <Plus className="w-3 h-3" />
+                      New
                     </button>
                     
                     {/* Add to Slip Dropdown */}
-                    <div className="relative flex-1">
+                    <div className="relative">
                       <button
                         onClick={() => setShowAddToSlipMenu(!showAddToSlipMenu)}
                         disabled={betslips.length === 0 || isAddingToSlip}
                         className={cn(
-                          "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl",
-                          "text-sm font-semibold transition-all",
-                          "bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600",
-                          "text-neutral-700 dark:text-neutral-200",
-                          "hover:bg-neutral-50 dark:hover:bg-neutral-600",
+                          "flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg",
+                          "text-xs font-semibold transition-all",
+                          "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700",
+                          "text-neutral-700 dark:text-neutral-300",
+                          "hover:bg-neutral-200 dark:hover:bg-neutral-700",
                           "disabled:opacity-50 disabled:cursor-not-allowed"
                         )}
                       >
                         {isAddingToSlip ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3 h-3 animate-spin" />
                         ) : (
                           <>
-                            <Layers className="w-4 h-4" />
-                            Add to Slip
+                            <Layers className="w-3 h-3" />
+                            Add
                             <ChevronRight className={cn(
-                              "w-3.5 h-3.5 transition-transform",
+                              "w-3 h-3 transition-transform",
                               showAddToSlipMenu && "rotate-90"
                             )} />
                           </>
@@ -1371,16 +1865,16 @@ export function FavoritesModal() {
                       onClick={handleRemoveSelected}
                       disabled={isClearing}
                       className={cn(
-                        "p-2.5 rounded-xl transition-all",
-                        "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30",
+                        "p-1.5 rounded-lg transition-all",
+                        "bg-red-50 dark:bg-red-500/10",
                         "text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20",
                         "disabled:opacity-50"
                       )}
                     >
                       {isClearing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       )}
                     </button>
                   </div>
@@ -1557,6 +2051,12 @@ export function FavoritesModal() {
                             key={slip.id} 
                             slip={slip} 
                             onDelete={() => deleteBetslip(slip.id)}
+                            onRemoveLeg={(favoriteId) => removeFromBetslip({ betslipId: slip.id, favoriteId })}
+                            onFetchSgpOdds={async (forceRefresh) => {
+                              await fetchSgpOdds({ betslipId: slip.id, forceRefresh });
+                            }}
+                            isRemovingLeg={isRemovingItem}
+                            isFetchingSgpOdds={isFetchingSgpOdds}
                             selectedFavoriteIds={selectedIds}
                             onAddSelected={() => {
                               if (selectedIds.size > 0) {

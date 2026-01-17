@@ -125,7 +125,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "betrivers": {
     id: "betrivers",
     name: "BetRivers", 
-    sgp: false,
+    sgp: true,
     legalStates: ["AZ","CO","IL","IN","IA","LA","MD","MI","NJ","NY","OH","PA","VA","WV"],
     links: {
       desktop: "https://www.betrivers.com/",
@@ -186,7 +186,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "fanatics": {
     id: "fanatics",
     name: "Fanatics",
-    sgp: false,
+    sgp: true,
     legalStates: ["AZ","CO","IL","IN","IA","KS","KY","LA","MA","MD","MI","NJ","NY","OH","PA","TN","VA","WV"],
     links: {
       desktop: "https://sportsbook.fanatics.com/",
@@ -265,7 +265,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "betparx": {
     id: "betparx",
     name: "BetPARX",
-    sgp: false,
+    sgp: true,
     legalStates: ["NJ","PA"],
     links: {
       desktop: "https://www.betparx.com/",
@@ -284,7 +284,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "bally-bet": {
     id: "bally-bet",
     name: "Bally Bet",
-    sgp: false,
+    sgp: true,
     legalStates: ["AZ","CO","IA","IL","IN","NY","VA"],
     links: {
       desktop: "https://www.ballybet.com/",
@@ -380,7 +380,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
   "prophetx": {
     id: "prophetx",
     name: "ProphetX",
-    sgp: false,
+    sgp: true,
     legalStates: ["US"],
     links: {
       desktop: "https://www.getprophetx.co/",

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Pencil, Trash2, Loader2, Check, Filter, X, Sparkles, Copy, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Check, Filter, X, Copy, EyeOff, Layers } from "lucide-react";
+import { Star } from "@/components/star";
 import {
   Dialog,
   DialogContent,
@@ -291,6 +292,7 @@ export function FilterPresetsManagerModal({
     presets,
     presetsBySport,
     togglePreset,
+    toggleFavorite,
     deletePreset,
     createPreset,
     isDeleting,
@@ -484,7 +486,7 @@ export function FilterPresetsManagerModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/25">
-                  <Sparkles className="h-5 w-5 text-white" />
+                  <Layers className="h-5 w-5 text-white" />
                 </div>
                 <div>
                   <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -498,6 +500,34 @@ export function FilterPresetsManagerModal({
               
               {/* Actions */}
               <div className="flex items-center gap-2">
+                {/* Select Favorites button */}
+                {presets.some(p => p.is_favorite) && (
+                  <button
+                    onClick={() => {
+                      const favoriteIds = new Set(presets.filter(p => p.is_favorite).map(p => p.id));
+                      setLocalSelection(favoriteIds);
+                    }}
+                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-700/50 transition-colors"
+                  >
+                    <Star className="w-4 h-4" />
+                    Favorites
+                  </button>
+                )}
+                
+                {/* Select All button */}
+                {presets.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const allIds = new Set(presets.map(p => p.id));
+                      setLocalSelection(allIds);
+                    }}
+                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 transition-colors"
+                  >
+                    <Check className="w-4 h-4" />
+                    Select All
+                  </button>
+                )}
+                
                 {/* New Model button */}
                 <button
                   onClick={onCreateNew}
@@ -576,7 +606,7 @@ export function FilterPresetsManagerModal({
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
-                        <Sparkles className="h-5 w-5 text-white" />
+                        <Layers className="h-5 w-5 text-white" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-neutral-900 dark:text-white">Quick Start Templates</h3>
@@ -659,7 +689,7 @@ export function FilterPresetsManagerModal({
               <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
                 <div className="relative mb-6">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 flex items-center justify-center shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03]">
-                    <Sparkles className="w-9 h-9 text-purple-500 dark:text-purple-400" />
+                    <Layers className="w-9 h-9 text-purple-500 dark:text-purple-400" />
                   </div>
                   <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg flex items-center justify-center">
                     <Plus className="w-4 h-4 text-white" />
@@ -722,9 +752,14 @@ export function FilterPresetsManagerModal({
                       </button>
                     </div>
 
-                    {/* Filter cards grid */}
+                    {/* Filter cards grid - sort favorites first */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {presetsBySport[sport].map((preset) => {
+                      {[...presetsBySport[sport]].sort((a, b) => {
+                        // Sort favorites first
+                        if (a.is_favorite && !b.is_favorite) return -1;
+                        if (!a.is_favorite && b.is_favorite) return 1;
+                        return 0;
+                      }).map((preset) => {
                         const sports = parseSports(preset.sport);
                         const isHovered = hoveredPreset === preset.id;
                         const isSelected = localSelection.has(preset.id);
@@ -783,6 +818,9 @@ export function FilterPresetsManagerModal({
                               {/* Name and selection */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
+                                  {preset.is_favorite && (
+                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />
+                                  )}
                                   <h4 className={cn(
                                     "font-medium truncate transition-colors",
                                     isSelected 
@@ -811,35 +849,57 @@ export function FilterPresetsManagerModal({
                               {/* Action buttons */}
                               <div 
                                 data-action="true"
-                                className={cn(
-                                  "flex items-center gap-1 transition-opacity flex-shrink-0",
-                                  isHovered ? "opacity-100" : "opacity-0"
-                                )}
+                                className="flex items-center gap-1 flex-shrink-0"
                               >
-                                <Tooltip content="Edit model">
+                                {/* Favorite button - always visible */}
+                                <Tooltip content={preset.is_favorite ? "Remove favorite" : "Add to favorites"}>
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingPreset(preset);
+                                      toggleFavorite(preset.id, !preset.is_favorite);
                                     }}
-                                    className="h-7 w-7 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors text-neutral-600 dark:text-neutral-300"
+                                    className={cn(
+                                      "h-7 w-7 flex items-center justify-center rounded-lg transition-colors",
+                                      preset.is_favorite
+                                        ? "bg-amber-100 dark:bg-amber-900/50 text-amber-500"
+                                        : "bg-neutral-100 dark:bg-neutral-700 text-neutral-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                                    )}
                                   >
-                                    <Pencil className="w-3 h-3" />
+                                    <Star className={cn("w-3.5 h-3.5", preset.is_favorite && "fill-current")} />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Delete model">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeletingPreset(preset);
-                                    }}
-                                    className="h-7 w-7 flex items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors text-red-600 dark:text-red-400"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </Tooltip>
+                                
+                                {/* Edit/Delete - show on hover */}
+                                <div className={cn(
+                                  "flex items-center gap-1 transition-opacity",
+                                  isHovered ? "opacity-100" : "opacity-0"
+                                )}>
+                                  <Tooltip content="Edit model">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingPreset(preset);
+                                      }}
+                                      className="h-7 w-7 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors text-neutral-600 dark:text-neutral-300"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                  </Tooltip>
+                                  <Tooltip content="Delete model">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeletingPreset(preset);
+                                      }}
+                                      className="h-7 w-7 flex items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors text-red-600 dark:text-red-400"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </Tooltip>
+                                </div>
                               </div>
                             </div>
 

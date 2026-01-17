@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Settings, X, Sparkles, Filter, ChevronDown, Pencil, ArrowLeftRight } from "lucide-react";
+import { Plus, Settings, X, Layers, Filter, ChevronDown, Pencil, ArrowLeftRight } from "lucide-react";
 import Logout from "@/icons/logout";
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
@@ -261,7 +261,7 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
         )}>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
-              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
@@ -319,7 +319,7 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
             : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
         )}>
           {isCustomMode ? (
-            <Sparkles className="w-3 h-3" />
+            <Layers className="w-3 h-3" />
           ) : (
             <Filter className="w-3 h-3" />
           )}

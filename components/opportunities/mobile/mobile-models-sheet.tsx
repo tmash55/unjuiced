@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { 
   X, 
   Plus, 
-  Sparkles, 
+  Layers, 
   Check, 
   Pencil,
   Trash2,
@@ -295,7 +295,7 @@ export function MobileModelsSheet({
             <div className="text-center py-16">
               <div className="flex justify-center mb-4">
                 <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 flex items-center justify-center">
-                  <Sparkles className="w-10 h-10 text-purple-500" />
+                  <Layers className="w-10 h-10 text-purple-500" />
                 </div>
               </div>
               <p className="text-neutral-900 dark:text-white font-semibold text-lg mb-1">No models yet</p>

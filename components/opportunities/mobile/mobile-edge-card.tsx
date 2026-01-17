@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
-import { formatMarketLabel } from "@/lib/data/markets";
+import { formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -249,7 +249,7 @@ export function MobileEdgeCard({
     : `${opp.awayTeam} @ ${opp.homeTeam}`;
   
   // Format the market display
-  const marketDisplay = formatMarketLabel(opp.market) || opp.market?.replace(/_/g, " ");
+  const marketDisplay = formatMarketLabelShort(opp.market) || opp.market?.replace(/_/g, " ");
   const sideDisplay = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side;
   const lineDisplay = opp.line !== undefined && opp.line !== null ? opp.line : "";
   

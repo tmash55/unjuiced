@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { PositiveEVOpportunity, DevigMethod } from "@/lib/ev/types";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
-import { formatMarketLabel } from "@/lib/data/markets";
+import { formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -215,7 +215,7 @@ export function MobileEVCard({
     : `${opp.awayTeam} @ ${opp.homeTeam}`;
   
   // Format the market display
-  const marketDisplay = formatMarketLabel(opp.market) || opp.marketDisplay || opp.market?.replace(/_/g, " ");
+  const marketDisplay = formatMarketLabelShort(opp.market) || opp.marketDisplay || opp.market?.replace(/_/g, " ");
   const sideDisplay = opp.side === "over" ? "o" : opp.side === "under" ? "u" : opp.side;
   const lineDisplay = opp.line !== undefined && opp.line !== null ? opp.line : "";
   

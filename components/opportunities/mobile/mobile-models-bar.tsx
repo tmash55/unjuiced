@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { 
-  Sparkles, 
+  Layers, 
   Filter, 
   Plus, 
   ChevronRight, 
@@ -146,7 +146,7 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
           >
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
-                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-left">
                 <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
@@ -187,7 +187,7 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
             )}
           >
             {isCustomMode ? (
-              <Sparkles className="w-3.5 h-3.5" />
+              <Layers className="w-3.5 h-3.5" />
             ) : (
               <Filter className="w-3.5 h-3.5" />
             )}

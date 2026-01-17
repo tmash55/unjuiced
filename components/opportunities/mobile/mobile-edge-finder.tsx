@@ -8,7 +8,7 @@ import {
   ChevronUp,
   RefreshCw,
   X,
-  Sparkles,
+  Layers,
   Filter,
   Zap,
   Check
