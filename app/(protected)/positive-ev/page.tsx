@@ -1697,46 +1697,77 @@ export default function PositiveEVPage() {
                         </button>
                         <Tooltip 
                           content={
-                            <div className="text-xs space-y-2 min-w-[140px]">
-                              <div className="font-semibold border-b border-neutral-600 pb-1 mb-1">
-                                EV by Method
+                            <div className="px-4 py-3 min-w-[180px] space-y-2.5">
+                              <div className="flex items-center justify-between gap-3 pb-2 border-b border-neutral-200 dark:border-neutral-700">
+                                <span className="text-sm font-semibold text-neutral-900 dark:text-white">EV by Method</span>
                                 {boostPercent > 0 && (
-                                  <span className="ml-2 text-amber-400 font-normal">+{boostPercent}% boost</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                                    <Zap className="w-3 h-3" />
+                                    +{boostPercent}%
+                                  </span>
                                 )}
                               </div>
-                              {methodEVs.power !== undefined && (
-                                <div className={cn("flex justify-between", displayMethod === "power" && "font-bold text-emerald-400")}>
-                                  <span>Power:</span>
-                                  <span>+{methodEVs.power.toFixed(2)}%</span>
-                                </div>
-                              )}
-                              {methodEVs.multiplicative !== undefined && (
-                                <div className={cn("flex justify-between", displayMethod === "multiplicative" && "font-bold text-emerald-400")}>
-                                  <span>Multiplicative:</span>
-                                  <span>+{methodEVs.multiplicative.toFixed(2)}%</span>
-                                </div>
-                              )}
-                              {methodEVs.additive !== undefined && (
-                                <div className={cn("flex justify-between", displayMethod === "additive" && "font-bold text-emerald-400")}>
-                                  <span>Additive:</span>
-                                  <span>+{methodEVs.additive.toFixed(2)}%</span>
-                                </div>
-                              )}
-                              {methodEVs.probit !== undefined && (
-                                <div className={cn("flex justify-between", displayMethod === "probit" && "font-bold text-emerald-400")}>
-                                  <span>Probit:</span>
-                                  <span>+{methodEVs.probit.toFixed(2)}%</span>
-                                </div>
-                              )}
-                              <div className="border-t border-neutral-600 pt-1 mt-1 text-[10px] text-neutral-400">
-                                Range: +{evWorst.toFixed(2)}% → +{evBest.toFixed(2)}%
+                              <div className="space-y-1.5">
+                                {methodEVs.power !== undefined && (
+                                  <div className={cn(
+                                    "flex justify-between items-center text-xs",
+                                    displayMethod === "power" 
+                                      ? "font-semibold text-emerald-600 dark:text-emerald-400" 
+                                      : "text-neutral-600 dark:text-neutral-400"
+                                  )}>
+                                    <span>Power:</span>
+                                    <span className="tabular-nums">+{methodEVs.power.toFixed(2)}%</span>
+                                  </div>
+                                )}
+                                {methodEVs.multiplicative !== undefined && (
+                                  <div className={cn(
+                                    "flex justify-between items-center text-xs",
+                                    displayMethod === "multiplicative" 
+                                      ? "font-semibold text-emerald-600 dark:text-emerald-400" 
+                                      : "text-neutral-600 dark:text-neutral-400"
+                                  )}>
+                                    <span>Multiplicative:</span>
+                                    <span className="tabular-nums">+{methodEVs.multiplicative.toFixed(2)}%</span>
+                                  </div>
+                                )}
+                                {methodEVs.additive !== undefined && (
+                                  <div className={cn(
+                                    "flex justify-between items-center text-xs",
+                                    displayMethod === "additive" 
+                                      ? "font-semibold text-emerald-600 dark:text-emerald-400" 
+                                      : "text-neutral-600 dark:text-neutral-400"
+                                  )}>
+                                    <span>Additive:</span>
+                                    <span className="tabular-nums">+{methodEVs.additive.toFixed(2)}%</span>
+                                  </div>
+                                )}
+                                {methodEVs.probit !== undefined && (
+                                  <div className={cn(
+                                    "flex justify-between items-center text-xs",
+                                    displayMethod === "probit" 
+                                      ? "font-semibold text-emerald-600 dark:text-emerald-400" 
+                                      : "text-neutral-600 dark:text-neutral-400"
+                                  )}>
+                                    <span>Probit:</span>
+                                    <span className="tabular-nums">+{methodEVs.probit.toFixed(2)}%</span>
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-[10px] text-neutral-500">
-                                Showing {evCase === "best" ? "best" : "worst"}-case ({displayMethod})
+                              <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700 space-y-1">
+                                <div className="flex justify-between items-center text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  <span>Range:</span>
+                                  <span className="tabular-nums">+{evWorst.toFixed(2)}% → +{evBest.toFixed(2)}%</span>
+                                </div>
+                                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  Showing {evCase === "best" ? "best" : "worst"}-case ({displayMethod})
+                                </div>
                               </div>
                               {boostPercent > 0 && (
-                                <div className="text-[10px] text-amber-400 border-t border-neutral-600 pt-1 mt-1">
-                                  ⚡ Base EV: +{baseEV.toFixed(2)}%
+                                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                    <Zap className="w-3 h-3" />
+                                    <span>Base EV: +{baseEV.toFixed(2)}%</span>
+                                  </div>
                                 </div>
                               )}
                             </div>

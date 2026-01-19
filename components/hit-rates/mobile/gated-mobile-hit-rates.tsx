@@ -110,7 +110,7 @@ export function GatedMobileHitRates({
   selectedGameIds,
   onGameIdsChange,
   startedGameIds,
-  hideNoOdds = true,
+  hideNoOdds = false, // Default OFF - show all players while odds load
   onHideNoOddsChange,
 }: GatedMobileHitRatesProps) {
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();

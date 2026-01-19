@@ -32,7 +32,8 @@ import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
-import { usePlayerGamesWithInjuries } from "@/hooks/use-injury-context";
+import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
+import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Helper to get sportsbook logo
@@ -1162,6 +1163,10 @@ function HeroBarChart({
     { id: "win", label: "W" },
     { id: "loss", label: "L" },
     { id: "high_mins", label: "30+" },
+    // DvP defense filters
+    { id: "dvpTough", label: "DvP 1-10", color: "red" },
+    { id: "dvpAverage", label: "DvP 11-20", color: "amber" },
+    { id: "dvpWeak", label: "DvP 21-30", color: "green" },
   ];
 
   return (
@@ -1268,6 +1273,7 @@ function HeroBarChart({
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           {quickFilterChips.map((chip) => {
             const isActive = quickFilters.has(chip.id);
+            const isDvpChip = chip.id.startsWith("dvp");
             return (
               <button
                 key={chip.id}
@@ -1276,7 +1282,13 @@ function HeroBarChart({
                 className={cn(
                   "px-2 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-all active:scale-95",
                   isActive
-                    ? "bg-brand text-white shadow-sm"
+                    ? isDvpChip && (chip as any).color === "red"
+                      ? "bg-red-500 text-white shadow-sm"
+                      : isDvpChip && (chip as any).color === "amber"
+                      ? "bg-amber-500 text-white shadow-sm"
+                      : isDvpChip && (chip as any).color === "green"
+                      ? "bg-emerald-500 text-white shadow-sm"
+                      : "bg-brand text-white shadow-sm"
                     : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
                 )}
               >
@@ -3313,14 +3325,53 @@ export function MobilePlayerDrilldown({
     playerId: profile.playerId,
     enabled: !!profile.playerId,
   });
+
+  // Fetch players out data - provides avg_pts, avg_reb, avg_ast for teammates who were out
+  const { data: playersOutData } = usePlayersOutForFilter({
+    playerId: profile.playerId,
+    enabled: !!profile.playerId,
+  });
+  
+  // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
+  const { teams: dvpTeams } = useDvpRankings({
+    position: profile.position || "PG",
+    enabled: !!profile.position,
+  });
+
+  // Build opponent DvP rank lookup map based on current market
+  const opponentDvpRanks = useMemo(() => {
+    const map = new Map<number, number | null>();
+    if (!dvpTeams || dvpTeams.length === 0) return map;
+    
+    // Determine which rank field to use based on the current market
+    const market = profile.market?.toLowerCase() || "";
+    let rankField: keyof typeof dvpTeams[0] = "ptsRank";
+    
+    if (market.includes("rebound") || market.includes("reb")) {
+      rankField = "rebRank";
+    } else if (market.includes("assist") || market.includes("ast")) {
+      rankField = "astRank";
+    } else if (market.includes("three") || market.includes("3pm") || market.includes("fg3")) {
+      rankField = "fg3mRank";
+    } else if (market.includes("steal") || market.includes("stl")) {
+      rankField = "stlRank";
+    } else if (market.includes("block") || market.includes("blk")) {
+      rankField = "blkRank";
+    } else if (market.includes("pra") || market.includes("pts_rebs_asts")) {
+      rankField = "praRank";
+    }
+    
+    for (const team of dvpTeams) {
+      map.set(team.teamId, team[rankField] as number | null);
+    }
+    return map;
+  }, [dvpTeams, profile.market]);
   
   // Build a map of gameId -> teammates out (player IDs who were out for that game)
   // Uses the full injury context data from get_player_games_with_injuries RPC
-  // which includes ALL games, not just the last 20 from gameLogs
   const teammatesOutByGame = useMemo(() => {
     const map = new Map<string, Set<number>>();
     
-    // Prefer the full injury context data if available
     if (gamesWithInjuries && gamesWithInjuries.length > 0) {
       for (const game of gamesWithInjuries) {
         if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
@@ -3329,30 +3380,10 @@ export function MobilePlayerDrilldown({
           map.set(normalizedId, playerIds);
         }
       }
-    } else {
-      // Fallback to gameLogs from profile if injury data not yet loaded
-      const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
-      if (gameLogs) {
-        for (const gameLog of gameLogs) {
-          if (!gameLog.game_id) continue;
-          const gameId = String(gameLog.game_id).replace(/^0+/, "");
-          const outSet = new Set<number>();
-          
-          if (gameLog.teammates_out) {
-            for (const out of gameLog.teammates_out) {
-              if (out.player_id) {
-                outSet.add(out.player_id);
-              }
-            }
-          }
-          
-          map.set(gameId, outSet);
-        }
-      }
     }
     
     return map;
-  }, [gamesWithInjuries, profile.gameLogs]);
+  }, [gamesWithInjuries]);
   
   // Fetch team rosters for injury report (and for filter labels)
   const { playerTeam, opponentTeam, isLoading: rostersLoading } = useGameRosters({
@@ -3438,51 +3469,52 @@ export function MobilePlayerDrilldown({
   const chartGames = useMemo(() => {
     if (!boxScoreGames) return [];
     
-    // Build a lookup of player_id -> avg from profile.gameLogs (which has avg data)
+    // Build a lookup of player_id -> avg from playersOutData (which has avg_pts, avg_reb, avg_ast)
+    // Map the appropriate stat based on the current market
     const playerAvgMap = new Map<number, number | null>();
-    const gameLogs = profile.gameLogs as Array<{ 
-      game_id?: string; 
-      teammates_out?: Array<{ 
-        player_id: number; 
-        name: string; 
-        avg: number | null;
-      }> 
-    }> | null;
     
-    if (gameLogs) {
-      for (const log of gameLogs) {
-        if (log.teammates_out) {
-          for (const t of log.teammates_out) {
-            if (t.player_id && t.avg !== undefined) {
-              playerAvgMap.set(t.player_id, t.avg);
-            }
+    if (playersOutData?.teammates_out) {
+      for (const t of playersOutData.teammates_out) {
+        if (t.player_id) {
+          // Get the appropriate average based on the current market
+          let avg: number | null = null;
+          const m = profile.market?.toLowerCase() || "";
+          
+          if (m.includes("point") || m.includes("pts")) {
+            avg = t.avg_pts;
+          } else if (m.includes("rebound") || m.includes("reb")) {
+            avg = t.avg_reb;
+          } else if (m.includes("assist") || m.includes("ast")) {
+            avg = t.avg_ast;
+          } else if (m.includes("pra") || m.includes("pts_rebs_asts")) {
+            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
+          } else if (m.includes("pts_rebs") || m.includes("pr")) {
+            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0);
+          } else if (m.includes("pts_asts") || m.includes("pa")) {
+            avg = (t.avg_pts ?? 0) + (t.avg_ast ?? 0);
+          } else if (m.includes("rebs_asts") || m.includes("ra")) {
+            avg = (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
+          } else {
+            avg = t.avg_pts;
           }
+          
+          playerAvgMap.set(t.player_id, avg);
         }
       }
     }
     
     // Create a map of game_id to teammates_out
-    // Prefer gamesWithInjuries (full history) over profile.gameLogs (recent games only)
     const teammatesOutMap = new Map<string, Array<{ player_id: number; name: string; avg: number | null }>>();
     
     if (gamesWithInjuries && gamesWithInjuries.length > 0) {
-      // Use full injury context data for ALL games
       for (const game of gamesWithInjuries) {
         if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
           const normalizedId = String(game.game_id).replace(/^0+/, "");
           teammatesOutMap.set(normalizedId, game.teammates_out.map(t => ({
             player_id: t.player_id,
             name: t.name,
-            avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from profile.gameLogs if available
+            avg: playerAvgMap.get(t.player_id) ?? null,
           })));
-        }
-      }
-    } else if (gameLogs) {
-      // Fallback to profile.gameLogs if injury data not yet loaded
-      for (const log of gameLogs) {
-        if (log.game_id && log.teammates_out) {
-          const normalizedId = log.game_id.replace(/^0+/, "");
-          teammatesOutMap.set(normalizedId, log.teammates_out);
         }
       }
     }
@@ -3506,7 +3538,7 @@ export function MobilePlayerDrilldown({
         teammates_out: teammatesOut, // Add teammates out for dialog
       };
     });
-  }, [boxScoreGames, profile.market, gamesWithInjuries, profile.gameLogs]);
+  }, [boxScoreGames, profile.market, gamesWithInjuries, playersOutData]);
   
   // Filter games based on quick filters AND injury filters
   const filteredChartGames = useMemo(() => {
@@ -3514,6 +3546,9 @@ export function MobilePlayerDrilldown({
     
     // Apply quick filters
     if (quickFilters.size > 0) {
+      // Check if any DvP filter is active
+      const hasDvpFilter = quickFilters.has("dvpTough") || quickFilters.has("dvpAverage") || quickFilters.has("dvpWeak");
+      
       games = games.filter(game => {
         // Home/Away
         if (quickFilters.has("home") && game.home_away !== "H") return false;
@@ -3531,6 +3566,21 @@ export function MobilePlayerDrilldown({
         // 30+ Minutes
         const mins = typeof game.minutes === 'number' ? game.minutes : parseFloat(String(game.minutes)) || 0;
         if (quickFilters.has("high_mins") && mins < 30) return false;
+        
+        // DvP rank filters - opponent defense strength
+        if (hasDvpFilter) {
+          const opponentTeamId = game.full_game_data?.opponentTeamId;
+          const dvpRank = opponentTeamId ? opponentDvpRanks.get(opponentTeamId) : null;
+          if (dvpRank === undefined || dvpRank === null) return false; // Skip games without DvP data
+          
+          // Check if game matches ANY of the active DvP filters (OR logic)
+          const matchesDvpFilter = (
+            (quickFilters.has("dvpTough") && dvpRank >= 1 && dvpRank <= 10) ||
+            (quickFilters.has("dvpAverage") && dvpRank >= 11 && dvpRank <= 20) ||
+            (quickFilters.has("dvpWeak") && dvpRank >= 21 && dvpRank <= 30)
+          );
+          if (!matchesDvpFilter) return false;
+        }
         
         return true;
       });
@@ -3658,7 +3708,7 @@ export function MobilePlayerDrilldown({
     }
     
     return games;
-  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
+  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, opponentDvpRanks]);
 
   // Games for TrendingFilters/AdvancedFilters histograms - applies quick + injury filters but NOT advanced filters
   // This way when you filter "without Sam Merrill", the histogram shows only those games
@@ -3878,6 +3928,24 @@ export function MobilePlayerDrilldown({
                 <span className="font-medium">{profile.position}</span>
                 <span className="text-neutral-300 dark:text-neutral-600">•</span>
                 <span>vs {profile.opponentTeamAbbr}</span>
+                {/* DvP Badge for Upcoming Opponent */}
+                {(() => {
+                  const upcomingDvpRank = profile.opponentTeamId ? opponentDvpRanks.get(profile.opponentTeamId) : null;
+                  if (upcomingDvpRank === null || upcomingDvpRank === undefined) return null;
+                  
+                  return (
+                    <span className={cn(
+                      "text-[9px] font-bold px-1 py-0.5 rounded-sm",
+                      upcomingDvpRank <= 10 
+                        ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                        : upcomingDvpRank <= 20
+                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+                        : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                    )}>
+                      DvP #{upcomingDvpRank}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -3949,6 +4017,9 @@ export function MobilePlayerDrilldown({
                     wonBy10: "Won 10+",
                     lostBy10: "Lost 10+",
                     high_mins: "30+ Min",
+                    dvpTough: "DvP 1-10",
+                    dvpAverage: "DvP 11-20",
+                    dvpWeak: "DvP 21-30",
                   };
                   return (
                     <span key={filter} className="text-[9px] px-1.5 py-0.5 rounded bg-brand/10 text-brand font-medium">

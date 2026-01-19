@@ -411,7 +411,7 @@ export function MobileInjuryImpact({
               price: bookData.over.price,
               u: bookData.over.url || null,
               m: bookData.over.mobileUrl || null,
-              sgp: null,
+              sgp: bookData.over.sgp || null, // Include SGP token
             };
           }
         });
@@ -424,15 +424,19 @@ export function MobileInjuryImpact({
           price: bestPrice,
           u: liveOdds.bestOver.url || null,
           m: liveOdds.bestOver.mobileUrl || null,
-          sgp: null,
+          sgp: liveOdds.bestOver.sgp || null, // Include SGP token
         },
       };
     }
     
+    // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
+    const eventId = row.eventId || `game_${row.gameId}`;
+    const oddsKey = `odds:nba:${eventId}:${row.market}`;
+    
     return {
       type: "player",
       sport: "nba",
-      event_id: row.eventId || `game_${row.gameId}`,
+      event_id: eventId,
       game_date: row.gameDate,
       home_team: null,
       away_team: null,
@@ -444,7 +448,7 @@ export function MobileInjuryImpact({
       market: row.market,
       line: row.line,
       side: "over",
-      odds_key: null,
+      odds_key: oddsKey,
       odds_selection_id: row.oddsSelectionId,
       books_snapshot: booksSnapshot,
       best_price_at_save: bestPrice,

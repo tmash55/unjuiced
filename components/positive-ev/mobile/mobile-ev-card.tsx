@@ -137,9 +137,8 @@ export function MobileEVCard({
         };
       }
       
-      // Build odds_key for Redis lookups
-      const playerKey = opp.playerName?.toLowerCase().replace(/\s+/g, '_') || 'game';
-      const oddsKey = `${opp.sport}:${opp.eventId}:${opp.market}:${playerKey}|${opp.side}|${opp.line ?? 0}`;
+      // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
+      const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
       
       await toggleFavorite({
         type: opp.playerName ? 'player' : 'game',

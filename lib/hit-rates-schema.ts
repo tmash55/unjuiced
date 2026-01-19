@@ -101,7 +101,8 @@ export interface HitRateProfile {
   jerseyNumber: number | null;
   gameDate: string | null;
   gameStatus: string | null;
-  gameLogs: unknown[] | null;
+  // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
+  gameLogs?: unknown[] | null;
   homeTeamName: string | null;
   awayTeamName: string | null;
   primaryColor: string | null;

@@ -341,10 +341,8 @@ export function OpportunitiesTable({
         : Math.round(-100 / (opp.bestDecimal - 1));
     }
     
-    // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
-    // This allows fetching current odds from Redis later
-    const playerKey = opp.player?.toLowerCase().replace(/\s+/g, '_') || 'game';
-    const oddsKey = `${opp.sport}:${opp.eventId}:${opp.market}:${playerKey}|${opp.side}|${opp.line ?? 0}`;
+    // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
+    const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
     
     return {
       type: (isPlayerProp ? 'player' : 'game') as 'player' | 'game',

@@ -548,7 +548,7 @@ export function MobileHeader({
   onCollapsedChange,
   upgradeBanner,
   onGlossaryClick,
-  hideNoOdds = true,
+  hideNoOdds = false, // Default OFF - show all players while odds load
   onHideNoOddsChange,
 }: MobileHeaderProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);

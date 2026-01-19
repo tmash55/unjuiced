@@ -20,7 +20,8 @@ import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
 import { PlayTypeAnalysis } from "./play-type-analysis";
 import { ShootingZones } from "./shooting-zones";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
-import { usePlayerGamesWithInjuries } from "@/hooks/use-injury-context";
+import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
+import { useDvpRankings } from "@/hooks/use-dvp-rankings";
 import { Tooltip } from "@/components/tooltip";
 
 // Injury status color helpers
@@ -565,6 +566,48 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     enabled: !!profile.playerId,
   });
 
+  // Fetch players out data - provides avg_pts, avg_reb, avg_ast for teammates who were out
+  // This replaces the avg data that was previously in profile.gameLogs
+  const { data: playersOutData } = usePlayersOutForFilter({
+    playerId: profile.playerId,
+    enabled: !!profile.playerId,
+  });
+
+  // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
+  const { teams: dvpTeams } = useDvpRankings({
+    position: profile.position || "PG",
+    enabled: !!profile.position,
+  });
+
+  // Build opponent DvP rank lookup map based on current market
+  const opponentDvpRanks = useMemo(() => {
+    const map = new Map<number, number | null>();
+    if (!dvpTeams || dvpTeams.length === 0) return map;
+    
+    // Determine which rank field to use based on the current market
+    const market = profile.market?.toLowerCase() || "";
+    let rankField: keyof typeof dvpTeams[0] = "ptsRank";
+    
+    if (market.includes("rebound") || market.includes("reb")) {
+      rankField = "rebRank";
+    } else if (market.includes("assist") || market.includes("ast")) {
+      rankField = "astRank";
+    } else if (market.includes("three") || market.includes("3pm") || market.includes("fg3")) {
+      rankField = "fg3mRank";
+    } else if (market.includes("steal") || market.includes("stl")) {
+      rankField = "stlRank";
+    } else if (market.includes("block") || market.includes("blk")) {
+      rankField = "blkRank";
+    } else if (market.includes("pra") || market.includes("pts_rebs_asts")) {
+      rankField = "praRank";
+    }
+    
+    for (const team of dvpTeams) {
+      map.set(team.teamId, team[rankField] as number | null);
+    }
+    return map;
+  }, [dvpTeams, profile.market]);
+
   // Fetch odds for current profile
   const { data: oddsData } = useQuery({
     queryKey: ["profile-odds", profile.oddsSelectionId, profile.line],
@@ -679,11 +722,9 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
 
   // Build a map of gameId -> teammates out (player IDs who were out for that game)
   // Uses the full injury context data from get_player_games_with_injuries RPC
-  // which includes ALL games, not just the last 20 from gameLogs
   const teammatesOutByGame = useMemo(() => {
     const map = new Map<string, Set<number>>();
     
-    // Prefer the full injury context data if available
     if (gamesWithInjuries && gamesWithInjuries.length > 0) {
       for (const game of gamesWithInjuries) {
         if (game.game_id && game.teammates_out && game.teammates_out.length > 0) {
@@ -692,46 +733,51 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           map.set(normalizedId, playerIds);
         }
       }
-    } else {
-      // Fallback to gameLogs from profile if injury data not yet loaded
-      const gameLogs = profile.gameLogs as Array<{ game_id?: string; teammates_out?: Array<{ player_id: number }> }> | null;
-      if (gameLogs) {
-        for (const log of gameLogs) {
-          if (log.game_id && log.teammates_out) {
-            const normalizedId = log.game_id.replace(/^0+/, "");
-            const playerIds = new Set(log.teammates_out.map(t => t.player_id));
-            map.set(normalizedId, playerIds);
-          }
-        }
-      }
     }
     
     return map;
-  }, [gamesWithInjuries, profile.gameLogs]);
+  }, [gamesWithInjuries]);
 
   // Transform gamesWithInjuries into the format expected by GameLogChart
-  // This provides teammates_out data for ALL games, not just recent ones from profile.gameLogs
+  // This provides teammates_out data for ALL games, not just recent ones
   const profileGameLogsForChart = useMemo(() => {
-    // Build a lookup of player_id -> avg from profile.gameLogs (which has avg data)
+    // Build a lookup of player_id -> avg from playersOutData (which has avg_pts, avg_reb, avg_ast)
+    // Map the appropriate stat based on the current market
     const playerAvgMap = new Map<number, number | null>();
-    const gameLogs = profile.gameLogs as Array<{ 
-      game_id?: string; 
-      teammates_out?: Array<{ player_id: number; name: string; avg: number | null }> 
-    }> | null;
     
-    if (gameLogs) {
-      for (const log of gameLogs) {
-        if (log.teammates_out) {
-          for (const t of log.teammates_out) {
-            if (t.player_id && t.avg !== undefined) {
-              playerAvgMap.set(t.player_id, t.avg);
-            }
+    if (playersOutData?.teammates_out) {
+      for (const t of playersOutData.teammates_out) {
+        if (t.player_id) {
+          // Get the appropriate average based on the current market
+          let avg: number | null = null;
+          const m = profile.market?.toLowerCase() || "";
+          
+          if (m.includes("point") || m.includes("pts")) {
+            avg = t.avg_pts;
+          } else if (m.includes("rebound") || m.includes("reb")) {
+            avg = t.avg_reb;
+          } else if (m.includes("assist") || m.includes("ast")) {
+            avg = t.avg_ast;
+          } else if (m.includes("pra") || m.includes("pts_rebs_asts")) {
+            // For PRA, sum all three
+            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
+          } else if (m.includes("pts_rebs") || m.includes("pr")) {
+            avg = (t.avg_pts ?? 0) + (t.avg_reb ?? 0);
+          } else if (m.includes("pts_asts") || m.includes("pa")) {
+            avg = (t.avg_pts ?? 0) + (t.avg_ast ?? 0);
+          } else if (m.includes("rebs_asts") || m.includes("ra")) {
+            avg = (t.avg_reb ?? 0) + (t.avg_ast ?? 0);
+          } else {
+            // Default to points for unknown markets
+            avg = t.avg_pts;
           }
+          
+          playerAvgMap.set(t.player_id, avg);
         }
       }
     }
     
-    // Prefer the full injury context data if available
+    // Use gamesWithInjuries for the game-by-game teammates_out data
     if (gamesWithInjuries && gamesWithInjuries.length > 0) {
       return gamesWithInjuries.map(game => ({
         game_id: game.game_id,
@@ -739,17 +785,21 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         teammates_out: game.teammates_out?.map(t => ({
           player_id: t.player_id,
           name: t.name,
-          avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from profile.gameLogs if available
+          avg: playerAvgMap.get(t.player_id) ?? null, // Get avg from playersOutData
         })) || [],
       }));
     }
-    // Fallback to profile.gameLogs if injury data not yet loaded
-    return gameLogs;
-  }, [gamesWithInjuries, profile.gameLogs]);
+    
+    // Return empty array if no data available
+    return [];
+  }, [gamesWithInjuries, playersOutData, profile.market]);
 
   // Helper function to apply quick filters
   const applyQuickFilters = (games: typeof boxScoreGames) => {
     if (quickFilters.size === 0) return games;
+    
+    // Check if any DvP filter is active
+    const hasDvpFilter = quickFilters.has("dvpTough") || quickFilters.has("dvpAverage") || quickFilters.has("dvpWeak");
     
     return games.filter(game => {
       // Home/Away
@@ -767,6 +817,20 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       
       // Primetime (nationally televised) - check if field exists
       if (quickFilters.has("primetime") && !(game as any).nationalBroadcast) return false;
+      
+      // DvP rank filters - opponent defense strength
+      if (hasDvpFilter) {
+        const dvpRank = opponentDvpRanks.get(game.opponentTeamId);
+        if (dvpRank === undefined || dvpRank === null) return false; // Skip games without DvP data
+        
+        // Check if game matches ANY of the active DvP filters (OR logic)
+        const matchesDvpFilter = (
+          (quickFilters.has("dvpTough") && dvpRank >= 1 && dvpRank <= 10) ||
+          (quickFilters.has("dvpAverage") && dvpRank >= 11 && dvpRank <= 20) ||
+          (quickFilters.has("dvpWeak") && dvpRank >= 21 && dvpRank <= 30)
+        );
+        if (!matchesDvpFilter) return false;
+      }
       
       return true;
     });
@@ -824,7 +888,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     games = applyGameCountFilter(games);
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr]);
+  }, [boxScoreGames, gameCount, quickFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
 
   // Filter games based on quick filters, chart filters, injury filters, THEN limit by game count
   // This way "L5 + Win" shows the last 5 wins, not wins from the last 5 games
@@ -846,7 +910,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     games = applyGameCountFilter(games);
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr]);
+  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
 
   // Get stat value from a game based on market
   const getMarketStat = (game: typeof boxScoreGames[0], market: string): number => {
@@ -1142,6 +1206,58 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                     {profile.gameStatus}
                   </span>
                   </div>
+                  
+                  {/* DvP Badge for Upcoming Opponent */}
+                  {(() => {
+                    const upcomingDvpRank = profile.opponentTeamId ? opponentDvpRanks.get(profile.opponentTeamId) : null;
+                    if (upcomingDvpRank === null || upcomingDvpRank === undefined) return null;
+                    
+                    const getDvpBadgeColor = (rank: number) => {
+                      if (rank <= 10) return "from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/20 border-red-200/60 dark:border-red-700/40 text-red-600 dark:text-red-400";
+                      if (rank <= 20) return "from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 border-amber-200/60 dark:border-amber-700/40 text-amber-600 dark:text-amber-400";
+                      return "from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/20 border-emerald-200/60 dark:border-emerald-700/40 text-emerald-600 dark:text-emerald-400";
+                    };
+                    
+                    const getDvpLabel = (rank: number) => {
+                      if (rank <= 10) return "Tough";
+                      if (rank <= 20) return "Average";
+                      return "Favorable";
+                    };
+                    
+                    return (
+                      <Tooltip 
+                        content={
+                          <div className="min-w-[180px] p-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-bold text-white">DvP Rank #{upcomingDvpRank}</span>
+                              <span className={cn(
+                                "text-[10px] px-1.5 py-0.5 rounded font-semibold",
+                                upcomingDvpRank <= 10 ? "bg-red-500/20 text-red-400" :
+                                upcomingDvpRank <= 20 ? "bg-amber-500/20 text-amber-400" :
+                                "bg-emerald-500/20 text-emerald-400"
+                              )}>
+                                {getDvpLabel(upcomingDvpRank)}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-neutral-400 leading-relaxed">
+                              {profile.opponentTeamAbbr} ranks <span className="font-semibold text-white">#{upcomingDvpRank}</span> in allowing {formatMarketLabel(profile.market)} to {profile.position}s this season.
+                              {upcomingDvpRank <= 10 && " This is a tough matchup."}
+                              {upcomingDvpRank > 20 && " This is a favorable matchup."}
+                            </p>
+                          </div>
+                        }
+                        side="bottom"
+                      >
+                        <div className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r border cursor-help transition-all hover:scale-105",
+                          getDvpBadgeColor(upcomingDvpRank)
+                        )}>
+                          <span className="text-[9px] uppercase tracking-wide font-bold opacity-70">DvP</span>
+                          <span className="text-[11px] font-black">#{upcomingDvpRank}</span>
+                        </div>
+                      </Tooltip>
+                    );
+                  })()}
             </div>
           </div>
         </div>
@@ -1541,6 +1657,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
               onQuickFilterToggle={toggleQuickFilter}
               onQuickFiltersClear={() => setQuickFilters(new Set())}
               odds={oddsForChart}
+              opponentDvpRanks={opponentDvpRanks}
             />
           )}
         </div>

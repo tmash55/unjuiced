@@ -7,7 +7,7 @@ import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
-import { MiniSparkline, MiniHitIndicator } from "@/components/hit-rates/mini-sparkline";
+// MiniSparkline removed - using color-coded percentage cells instead for performance
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { useHitRateOdds, type LineOdds } from "@/hooks/use-hit-rate-odds";
 import { cn } from "@/lib/utils";
@@ -119,25 +119,50 @@ const hitRateBadgeClass = (value: number | null) => {
   return "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400";
 };
 
-// Hit rate text color - matches alternate lines matrix (text only, no background)
-const getHitRateTextColor = (value: number | null) => {
-  if (value === null || value === undefined) {
-    return "text-neutral-400 dark:text-neutral-500";
-  }
-  if (value >= 75) {
-    return "text-emerald-600 dark:text-emerald-400";
-  }
-  if (value >= 60) {
-    return "text-emerald-500 dark:text-emerald-500";
-  }
-  if (value >= 50) {
-    return "text-amber-600 dark:text-amber-400";
-  }
-  if (value >= 35) {
-    return "text-orange-500 dark:text-orange-400";
-  }
-  return "text-red-500 dark:text-red-400";
+// Get progress bar color based on hit rate
+const getProgressBarColor = (value: number | null) => {
+  if (value === null || value === undefined) return "bg-neutral-300 dark:bg-neutral-600";
+  if (value >= 75) return "bg-emerald-500";
+  if (value >= 60) return "bg-emerald-400";
+  if (value >= 50) return "bg-amber-400";
+  if (value >= 35) return "bg-orange-400";
+  return "bg-red-400";
 };
+
+// Premium Hit Rate Cell with progress bar
+const HitRateCell = ({ 
+  value, 
+  isBlurred = false 
+}: { 
+  value: number | null; 
+  isBlurred?: boolean;
+}) => {
+  const percentage = value ?? 0;
+  const barColor = getProgressBarColor(value);
+  const textColor = value === null ? "text-neutral-400" :
+    value >= 60 ? "text-emerald-500 dark:text-emerald-400" :
+    value >= 50 ? "text-amber-500 dark:text-amber-400" :
+    value >= 35 ? "text-orange-500 dark:text-orange-400" :
+    "text-red-500 dark:text-red-400";
+  
+  return (
+    <div className={cn("flex flex-col items-center gap-1", isBlurred && "blur-[3px] opacity-60")}>
+      {/* Percentage value */}
+      <span className={cn("text-sm font-bold tabular-nums", textColor)}>
+        {value !== null ? `${Math.round(value)}%` : "—"}
+      </span>
+      {/* Progress bar */}
+      <div className="w-12 h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+        <div 
+          className={cn("h-full rounded-full transition-all duration-300", barColor)}
+          style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// getHitRateTextColor removed - using hitRateBadgeClass for all hit rate displays
 
 const formatDate = (value: string | null) => {
   if (!value) return "TBD";
@@ -410,7 +435,8 @@ export function HitRateTable({
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [maxMatchupRank, setMaxMatchupRank] = useState<number>(0); // 0 = all
   // Support both controlled and uncontrolled hideNoOdds
-  const [hideNoOddsInternal, setHideNoOddsInternal] = useState(true);
+  // Default to false so we show all players while odds are loading
+  const [hideNoOddsInternal, setHideNoOddsInternal] = useState(false);
   const hideNoOdds = hideNoOddsControlled ?? hideNoOddsInternal;
   const setHideNoOdds = onHideNoOddsChange ?? setHideNoOddsInternal;
   const filterPopupRef = useRef<HTMLDivElement>(null);
@@ -997,52 +1023,36 @@ export function HitRateTable({
               </Tooltip>
             </th>
             
-            {/* Sortable: L20 / L10 / L5 - Each clickable individually */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+            {/* Sortable: L5 */}
+            <th
+              onClick={() => handleSort("l5Pct")}
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+            >
               <div className="flex items-center justify-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleSort("l20Pct")}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-all duration-200",
-                    sortField === "l20Pct" 
-                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
-                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                  )}
-                >
-                  L20
-                </button>
-                <span className="text-neutral-300 dark:text-neutral-600">/</span>
-                <button
-                  type="button"
-                  onClick={() => handleSort("l10Pct")}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-all duration-200",
-                    sortField === "l10Pct" 
-                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
-                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                  )}
-                >
-                  L10
-                </button>
-                <span className="text-neutral-300 dark:text-neutral-600">/</span>
-                <button
-                  type="button"
-                  onClick={() => handleSort("l5Pct")}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-all duration-200",
-                    sortField === "l5Pct" 
-                      ? "bg-brand/15 text-brand font-extrabold shadow-sm" 
-                      : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                  )}
-                >
-                  L5
-                </button>
-                {(sortField === "l20Pct" || sortField === "l10Pct" || sortField === "l5Pct") && (
-                  sortDirection === "asc" 
-                    ? <ChevronUp className="h-3.5 w-3.5 text-brand" />
-                    : <ChevronDown className="h-3.5 w-3.5 text-brand" />
-                )}
+                L5
+                <SortIcon field="l5Pct" />
+              </div>
+            </th>
+            
+            {/* Sortable: L10 */}
+            <th
+              onClick={() => handleSort("l10Pct")}
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+            >
+              <div className="flex items-center justify-center gap-1">
+                L10
+                <SortIcon field="l10Pct" />
+              </div>
+            </th>
+            
+            {/* Sortable: L20 */}
+            <th
+              onClick={() => handleSort("l20Pct")}
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+            >
+              <div className="flex items-center justify-center gap-1">
+                L20
+                <SortIcon field="l20Pct" />
               </div>
             </th>
             
@@ -1344,57 +1354,29 @@ export function HitRateTable({
                   )}
                 </td>
 
-                {/* L20 / L10 / L5 Combined with full 20-game sparkline */}
-                <td className="px-3 py-4 align-middle text-center">
-                  <div className={cn("flex flex-col items-center gap-2", isBlurred && "blur-[3px] opacity-60")}>
-                    {/* Full 20-game sparkline - oldest on left, newest on right */}
-                    <MiniSparkline 
-                      gameLogs={row.gameLogs as any} 
-                      line={row.line} 
-                      count={20} 
-                      className="h-8"
-                    />
-                    {/* All three percentages below */}
-                    <div className="flex items-center gap-1.5 text-[10px] font-medium">
-                      <span className={getHitRateTextColor(row.last20Pct)}>
-                        L20: {formatPercentage(row.last20Pct)}
-                      </span>
-                      <span className="text-neutral-300 dark:text-neutral-600">|</span>
-                      <span className={getHitRateTextColor(row.last10Pct)}>
-                        L10: {formatPercentage(row.last10Pct)}
-                      </span>
-                      <span className="text-neutral-300 dark:text-neutral-600">|</span>
-                      <span className={getHitRateTextColor(row.last5Pct)}>
-                        L5: {formatPercentage(row.last5Pct)}
-                      </span>
-                    </div>
-                  </div>
+                {/* L5 % - Premium cell with progress bar */}
+                <td className="px-2 py-3 align-middle text-center">
+                  <HitRateCell value={row.last5Pct} isBlurred={isBlurred} />
                 </td>
 
-                {/* Season % - Show real values with blur for locked users */}
-                <td className="px-3 py-4 align-middle text-center">
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
-                      hitRateBadgeClass(row.seasonPct),
-                      isBlurred && "blur-[3px] opacity-60"
-                    )}
-                  >
-                    {formatPercentage(row.seasonPct)}
-                  </span>
+                {/* L10 % - Premium cell with progress bar */}
+                <td className="px-2 py-3 align-middle text-center">
+                  <HitRateCell value={row.last10Pct} isBlurred={isBlurred} />
+                </td>
+
+                {/* L20 % - Premium cell with progress bar */}
+                <td className="px-2 py-3 align-middle text-center">
+                  <HitRateCell value={row.last20Pct} isBlurred={isBlurred} />
+                </td>
+
+                {/* Season % - Premium cell with progress bar */}
+                <td className="px-2 py-3 align-middle text-center">
+                  <HitRateCell value={row.seasonPct} isBlurred={isBlurred} />
                 </td>
                 
-                {/* H2H % - Show real values with blur for locked users */}
-                <td className="px-3 py-4 align-middle text-center">
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-semibold",
-                      hitRateBadgeClass(row.h2hPct),
-                      isBlurred && "blur-[3px] opacity-60"
-                    )}
-                  >
-                    {formatPercentage(row.h2hPct)}
-                  </span>
+                {/* H2H % - Premium cell with progress bar */}
+                <td className="px-2 py-3 align-middle text-center">
+                  <HitRateCell value={row.h2hPct} isBlurred={isBlurred} />
                 </td>
               </tr>
             );

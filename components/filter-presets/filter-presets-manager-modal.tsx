@@ -477,7 +477,7 @@ export function FilterPresetsManagerModal({
       }}>
         <DialogContent 
           showCloseButton={false}
-          className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 shadow-2xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] rounded-2xl"
+          className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl"
         >
           {/* Premium Header with gradient accent bar */}
           <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
@@ -540,7 +540,7 @@ export function FilterPresetsManagerModal({
                 {/* Close button */}
                 <button
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors backdrop-blur-sm"
+                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -640,7 +640,7 @@ export function FilterPresetsManagerModal({
                             "flex items-start gap-3 p-4 rounded-xl border text-left transition-all",
                             alreadyCreated
                               ? "bg-neutral-100/80 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
-                              : "bg-white/90 dark:bg-neutral-800/80 border-neutral-200/80 dark:border-neutral-700/80 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg hover:shadow-amber-500/10 cursor-pointer ring-1 ring-black/[0.02] dark:ring-white/[0.02] hover:ring-amber-500/20 backdrop-blur-sm"
+                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg hover:shadow-amber-500/10 cursor-pointer hover:ring-1 hover:ring-amber-500/20"
                           )}
                         >
                           {/* Mini pie chart */}
@@ -963,7 +963,7 @@ export function FilterPresetsManagerModal({
 
           {/* Premium Footer with Apply/Cancel */}
           {presets.length > 0 && (
-            <div className="border-t border-neutral-200/80 dark:border-neutral-800/80 px-6 py-4 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-900/80 dark:to-neutral-950/50 backdrop-blur-sm">
+            <div className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-neutral-50 dark:bg-neutral-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
@@ -1023,7 +1023,7 @@ export function FilterPresetsManagerModal({
 
       {/* Premium Delete confirmation */}
       <Dialog open={!!deletingPreset} onOpenChange={(open) => !open && setDeletingPreset(null)}>
-        <DialogContent className="sm:max-w-md border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 shadow-2xl rounded-2xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] overflow-hidden">
+        <DialogContent className="sm:max-w-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl overflow-hidden">
           {/* Red accent bar */}
           <div className="h-1 w-full bg-gradient-to-r from-red-500 to-rose-600" />
           

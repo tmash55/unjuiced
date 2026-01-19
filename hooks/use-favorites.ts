@@ -20,6 +20,36 @@ export interface BookSnapshot {
 }
 
 /**
+ * Live odds data returned from refresh-odds API
+ */
+export interface RefreshedOdds {
+  favorite_id: string;
+  odds_key: string;
+  current_best_price: number | null;
+  current_best_book: string | null;
+  current_best_link: string | null;
+  current_sgp: string | null;
+  all_books: Array<{
+    book: string;
+    price: number;
+    decimal: number;
+    link: string | null;
+    sgp: string | null;
+  }>;
+  is_available: boolean;
+  line: number | null;
+}
+
+/**
+ * Response from refresh-odds API
+ */
+export interface RefreshOddsResponse {
+  refreshed: RefreshedOdds[];
+  count: number;
+  available: number;
+}
+
+/**
  * Database schema for user_favorites table.
  * Only includes fields that actually exist in the database.
  */
@@ -414,6 +444,40 @@ export function useFavorites() {
   });
   
   // ─────────────────────────────────────────────────────────────────────────
+  // MUTATION: Refresh live odds for favorites
+  // ─────────────────────────────────────────────────────────────────────────
+  const refreshOddsMutation = useMutation({
+    mutationFn: async (favoriteIds?: string[]) => {
+      // Get favorites to refresh (all or specific ones)
+      const toRefresh = favoriteIds 
+        ? favorites.filter(f => favoriteIds.includes(f.id))
+        : favorites;
+      
+      if (toRefresh.length === 0) return { refreshed: [], count: 0, available: 0 };
+      
+      const response = await fetch("/api/v2/favorites/refresh-odds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          favorites: toRefresh.map(f => ({
+            id: f.id,
+            odds_key: f.odds_key,
+            player_name: f.player_name,
+            line: f.line,
+            side: f.side,
+          })),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to refresh odds");
+      }
+      
+      return response.json();
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
   // HELPER: Check if a specific item is favorited
   // ─────────────────────────────────────────────────────────────────────────
   const isFavorited = (params: {
@@ -454,11 +518,13 @@ export function useFavorites() {
     addFavorite: addMutation.mutateAsync,
     removeFavorite: removeMutation.mutateAsync,
     toggleFavorite: toggleMutation.mutateAsync,
+    refreshOdds: refreshOddsMutation.mutateAsync,
     
     // Mutation states
     isAdding: addMutation.isPending,
     isRemoving: removeMutation.isPending,
     isToggling: toggleMutation.isPending,
+    isRefreshingOdds: refreshOddsMutation.isPending,
     
     // Helpers
     isFavorited,

@@ -34,8 +34,8 @@ interface RedisOddsData {
   lines?: Array<{         // ALL alternate lines
     ln: number;
     books?: Record<string, {
-      over?: { price: number; u?: string; m?: string };
-      under?: { price: number; u?: string; m?: string };
+      over?: { price: number; u?: string; m?: string; sgp?: string };  // Added sgp token
+      under?: { price: number; u?: string; m?: string; sgp?: string }; // Added sgp token
     }>;
     best?: {
       over?: { bk: string; price: number };
@@ -51,6 +51,7 @@ interface BookOddsData {
   price: number;
   url: string | null;      // Desktop deep link
   mobileUrl: string | null; // Mobile deep link
+  sgp: string | null;      // SGP token for same-game parlay API calls
 }
 
 // Simplified response for frontend
@@ -58,12 +59,12 @@ interface LineOddsResponse {
   stableKey: string;
   primaryLine: number | null;
   currentLine: number | null;      // The line we're showing odds for
-  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
+  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
   allLines: Array<{
   line: number;
-    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
+    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
     books: Record<string, { 
       over?: BookOddsData; 
       under?: BookOddsData;
@@ -157,65 +158,66 @@ export async function POST(req: NextRequest) {
       const request = validRequests.find((r) => r.stableKey.trim() === stableKey);
       const requestedLine = request?.line ?? data.primary_ln ?? null;
 
-      // Helper to get URLs for a book from line data
-      const getBookUrls = (lineData: any, bookId: string, side: 'over' | 'under') => {
-        if (!lineData?.books?.[bookId]?.[side]) return { url: null, mobileUrl: null };
+      // Helper to get URLs and SGP token for a book from line data
+      const getBookData = (lineData: any, bookId: string, side: 'over' | 'under') => {
+        if (!lineData?.books?.[bookId]?.[side]) return { url: null, mobileUrl: null, sgp: null };
         const bookOdds = lineData.books[bookId][side];
         return {
           url: bookOdds?.u || null,
           mobileUrl: bookOdds?.m || null,
+          sgp: bookOdds?.sgp || null,
         };
       };
 
       // Find best odds for the requested line (or primary line)
-      let bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
-      let bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
+      let bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null = null;
+      let bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null = null;
 
       if (requestedLine !== null && data.lines) {
         const matchingLine = data.lines.find((l) => l.ln === requestedLine);
         if (matchingLine?.best) {
           if (matchingLine.best.over) {
-            const urls = getBookUrls(matchingLine, matchingLine.best.over.bk, 'over');
+            const bookData = getBookData(matchingLine, matchingLine.best.over.bk, 'over');
             bestOver = { 
               book: matchingLine.best.over.bk, 
               price: matchingLine.best.over.price,
-              ...urls,
+              ...bookData,
             };
           }
           if (matchingLine.best.under) {
-            const urls = getBookUrls(matchingLine, matchingLine.best.under.bk, 'under');
+            const bookData = getBookData(matchingLine, matchingLine.best.under.bk, 'under');
             bestUnder = { 
               book: matchingLine.best.under.bk, 
               price: matchingLine.best.under.price,
-              ...urls,
+              ...bookData,
             };
         }
       }
       } else if (data.best) {
-        // Fall back to primary line best (no URLs available at top level)
+        // Fall back to primary line best (no URLs or SGP available at top level)
         if (data.best.o) {
-          bestOver = { book: data.best.o.bk, price: data.best.o.price, url: null, mobileUrl: null };
+          bestOver = { book: data.best.o.bk, price: data.best.o.price, url: null, mobileUrl: null, sgp: null };
         }
         if (data.best.u) {
-          bestUnder = { book: data.best.u.bk, price: data.best.u.price, url: null, mobileUrl: null };
+          bestUnder = { book: data.best.u.bk, price: data.best.u.price, url: null, mobileUrl: null, sgp: null };
         }
       }
 
-      // Build all lines array for matrix view (with deep links)
+      // Build all lines array for matrix view (with deep links and SGP tokens)
       const allLines = (data.lines || []).map((line) => ({
         line: line.ln,
         bestOver: line.best?.over 
           ? { 
               book: line.best.over.bk, 
               price: line.best.over.price,
-              ...getBookUrls(line, line.best.over.bk, 'over'),
+              ...getBookData(line, line.best.over.bk, 'over'),
             } 
           : null,
         bestUnder: line.best?.under 
           ? { 
               book: line.best.under.bk, 
               price: line.best.under.price,
-              ...getBookUrls(line, line.best.under.bk, 'under'),
+              ...getBookData(line, line.best.under.bk, 'under'),
             } 
           : null,
         books: Object.fromEntries(
@@ -226,11 +228,13 @@ export async function POST(req: NextRequest) {
                 price: bookOdds.over.price,
                 url: bookOdds.over.u || null,
                 mobileUrl: bookOdds.over.m || null,
+                sgp: bookOdds.over.sgp || null,
               } : undefined,
               under: bookOdds.under ? {
                 price: bookOdds.under.price,
                 url: bookOdds.under.u || null,
                 mobileUrl: bookOdds.under.m || null,
+                sgp: bookOdds.under.sgp || null,
               } : undefined,
             },
           ])

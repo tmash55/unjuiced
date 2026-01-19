@@ -28,6 +28,12 @@ export const SHARP_BOOKS = {
     tier: "primary",
     description: "Las Vegas sharp book known for high limits",
   },
+  prophetx: {
+    id: "prophetx",
+    name: "ProphetX",
+    tier: "primary",
+    description: "Sharp pricing with high limits and SGP support",
+  },
   hardrock: {
     id: "hardrock",
     name: "Hard Rock",
@@ -93,6 +99,13 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
     label: "Circa",
     description: "Uses Circa as the sole sharp reference. Top US-based sharp book.",
     books: [{ bookId: "circa", weight: 1.0 }],
+  },
+  prophetx: {
+    id: "prophetx",
+    name: "ProphetX",
+    label: "ProphetX",
+    description: "Uses ProphetX as the sole sharp reference. Sharp pricing with high limits.",
+    books: [{ bookId: "prophetx", weight: 1.0 }],
   },
   pinnacle_circa: {
     id: "pinnacle_circa",

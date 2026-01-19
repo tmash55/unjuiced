@@ -94,7 +94,7 @@ export function MobileHitRates({
   hideLoadMore = false,
   bottomContent,
   upgradeBanner,
-  hideNoOdds = true,
+  hideNoOdds = false, // Default OFF - show all players while odds load
   onHideNoOddsChange,
 }: MobileHitRatesProps) {
   // Filter state (only local state for game selection and visible count)

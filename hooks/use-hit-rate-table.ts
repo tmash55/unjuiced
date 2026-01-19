@@ -18,16 +18,17 @@ export interface UseHitRateTableOptions {
   sort?: HitRateSortField; // Sort field for server-side sorting
   sortDir?: "asc" | "desc"; // Sort direction
   enabled?: boolean;
+  useV2?: boolean; // Use optimized v2 API with Redis caching
 }
 
 interface HitRateTableResult {
   rows: HitRateProfile[];
   count: number;
-  meta: HitRateResponse["meta"];
+  meta: HitRateResponse["meta"] & { cacheHit?: boolean; responseTime?: number };
 }
 
 // Timeout wrapper for fetch - prevents hanging on slow/failed requests
-const fetchWithTimeout = async (url: string, timeoutMs: number = 15000): Promise<Response> => {
+const fetchWithTimeout = async (url: string, timeoutMs: number = 12000): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
@@ -51,11 +52,13 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (params.sort) searchParams.set("sort", params.sort);
   if (params.sortDir) searchParams.set("sortDir", params.sortDir);
 
-  const url = `/api/nba/hit-rates${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  // Use v2 API by default for better performance (Redis cached)
+  const apiPath = params.useV2 !== false ? "/api/nba/hit-rates/v2" : "/api/nba/hit-rates";
+  const url = `${apiPath}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   
-  // Use timeout to prevent hanging on slow/failed requests
-  // 15s timeout for initial load, browser cache will speed up subsequent loads
-  const res = await fetchWithTimeout(url, 15000);
+  // Reduced timeout - v2 API should be fast with caching
+  // Falls back gracefully on timeout
+  const res = await fetchWithTimeout(url, 12000);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -109,7 +112,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,
     gameDate: game?.game_date ?? profile.game_date,
     gameStatus: game?.game_status ?? null,
-    gameLogs: profile.game_logs ?? null,
+    // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
     homeTeamName: game?.home_team_name ?? null,
     awayTeamName: game?.away_team_name ?? null,
     primaryColor: team?.primary_color ?? null,

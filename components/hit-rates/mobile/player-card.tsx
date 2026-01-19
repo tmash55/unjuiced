@@ -125,84 +125,7 @@ function HitRateCluster({
   );
 }
 
-// Mini sparkline for mobile - refined design with baseline and fades
-function MobileSparkline({ gameLogs, line }: { gameLogs: unknown[] | null; line: number | null }) {
-  const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
-  
-  if (!gameLogs || gameLogs.length === 0) {
-    return <div className="h-8 w-full bg-neutral-100/50 dark:bg-neutral-800/30 rounded" />;
-  }
-
-  // gameLogs is sorted newest first, so slice(0, 10) gets the 10 most recent games
-  // Then reverse so oldest is on left, newest is on right (for visual consistency)
-  const recentGames = [...gameLogs.slice(0, 10)].reverse();
-  const effectiveLine = line ?? 0;
-  const maxVal = Math.max(...recentGames.map((g: any) => g.market_stat ?? 0), effectiveLine * 1.5 || 10);
-  const chartHeight = 32; // Fixed height in pixels
-
-  return (
-    <div className="relative w-full" style={{ height: chartHeight }}>
-      {/* Top fade */}
-      <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-white/30 dark:from-neutral-900/30 to-transparent z-10 pointer-events-none" />
-      
-      {/* Bottom fade */}
-      <div className="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-t from-white/30 dark:from-neutral-900/30 to-transparent z-10 pointer-events-none" />
-      
-      {/* Y-axis baseline */}
-      <div className="absolute bottom-0 inset-x-0 h-px bg-neutral-300/60 dark:bg-neutral-600/60" />
-      
-      {/* Bars container - right-aligned so most recent is always on the right */}
-      <div className="flex items-end justify-end gap-[3px] h-full w-full">
-        {recentGames.map((game: any, idx) => {
-          const val = game.market_stat ?? 0;
-          const heightPct = Math.max(15, (val / maxVal) * 100);
-          const barHeight = Math.round((heightPct / 100) * chartHeight);
-          const isHit = effectiveLine > 0 ? val >= effectiveLine : true;
-          const isHovered = hoveredIdx === idx;
-          
-          return (
-            <div
-              key={idx}
-              className="relative w-3 h-full flex items-end"
-              onMouseEnter={() => setHoveredIdx(idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              onClick={() => setHoveredIdx(hoveredIdx === idx ? null : idx)}
-            >
-              {/* Bar - softer colors, brighten on hover */}
-              <div
-                className={cn(
-                  "w-full rounded-t-[2px] transition-all duration-150",
-                  isHit 
-                    ? isHovered 
-                      ? "bg-emerald-500 dark:bg-emerald-400" 
-                      : "bg-emerald-400/80 dark:bg-emerald-500/70"
-                    : isHovered
-                      ? "bg-red-500 dark:bg-red-400"
-                      : "bg-red-400/80 dark:bg-red-500/70"
-                )}
-                style={{ height: barHeight }}
-              />
-              
-              {/* Tooltip */}
-              {isHovered && (
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20">
-                  <div className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap",
-                    "bg-neutral-900 dark:bg-neutral-100",
-                    "text-white dark:text-neutral-900",
-                    "shadow-lg"
-                  )}>
-                    {val}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// MobileSparkline removed - using HitRateCluster for colored percentage badges instead
 
 // Get ordinal suffix for a number (1st, 2nd, 3rd, 4th, etc.)
 function getOrdinalSuffix(n: number): string {
@@ -279,7 +202,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
     last10Pct,
     seasonPct,
     h2hPct,
-    gameLogs,
+    // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
     matchupRank,
     primaryColor,
     secondaryColor,

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { redis } from "@/lib/redis";
+
+// Cache configuration
+const GAMES_CACHE_KEY = "nba:games:today";
+const GAMES_CACHE_TTL = 300; // 5 minutes
 
 // Helper to parse game time from game_status like "7:00 pm ET" into sortable minutes
 function parseGameTimeToMinutes(gameStatus: string): number {
@@ -33,11 +38,10 @@ function sortGamesByDateTime(games: any[]): any[] {
 }
 
 export async function GET(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    const supabase = createServerSupabaseClient();
-    
     // Use Eastern Time for "today" since NBA games are scheduled in ET
-    // This prevents timezone issues where UTC date is already "tomorrow"
     const now = new Date();
     const etFormatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York',
@@ -45,7 +49,36 @@ export async function GET(req: NextRequest) {
       month: '2-digit',
       day: '2-digit',
     });
-    const today = etFormatter.format(now); // Format: YYYY-MM-DD
+    const today = etFormatter.format(now);
+    
+    // Generate cache key based on today's date
+    const cacheKey = `${GAMES_CACHE_KEY}:${today}`;
+    
+    // Try cache first
+    try {
+      const cached = await redis.get<{ games: any[]; dates: string[]; primaryDate: string; ts: number }>(cacheKey);
+      if (cached && cached.games) {
+        console.log(`[/api/nba/games] Cache HIT in ${Date.now() - startTime}ms`);
+        return NextResponse.json(
+          { 
+            games: cached.games,
+            dates: cached.dates,
+            primaryDate: cached.primaryDate,
+            cached: true,
+          },
+          { 
+            headers: { 
+              "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120" 
+            } 
+          }
+        );
+      }
+    } catch (cacheError) {
+      console.error("[/api/nba/games] Cache read error:", cacheError);
+    }
+    
+    // Cache miss - fetch from Supabase
+    const supabase = createServerSupabaseClient();
 
     const selectFields = `
       game_id, 
@@ -63,46 +96,29 @@ export async function GET(req: NextRequest) {
       season_type
     `;
 
-    // Get today's games
-    const { data: todayGames, error: todayError } = await supabase
-      .from("nba_games_hr")
-      .select(selectFields)
-      .eq("game_date", today);
+    // Fetch today and tomorrow in parallel for speed
+    const tomorrowDate = new Date(now);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrow = etFormatter.format(tomorrowDate);
+    
+    const [todayResult, tomorrowResult] = await Promise.all([
+      supabase.from("nba_games_hr").select(selectFields).eq("game_date", today),
+      supabase.from("nba_games_hr").select(selectFields).eq("game_date", tomorrow),
+    ]);
 
-    if (todayError) {
-      console.error("[/api/nba/games] Error fetching today's games:", todayError);
+    if (todayResult.error) {
+      console.error("[/api/nba/games] Error fetching today's games:", todayResult.error);
       return NextResponse.json(
-        { error: "Failed to fetch games", details: todayError.message },
+        { error: "Failed to fetch games", details: todayResult.error.message },
         { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // Get the next day with games (after today)
-    const { data: futureDates, error: futureDatesError } = await supabase
-      .from("nba_games_hr")
-      .select("game_date")
-      .gt("game_date", today)
-      .order("game_date", { ascending: true })
-      .limit(1);
+    const todayGames = todayResult.data || [];
+    const tomorrowGames = tomorrowResult.data || [];
 
-    let nextDayGames: any[] = [];
-    let nextGameDate: string | null = null;
-
-    if (!futureDatesError && futureDates && futureDates.length > 0) {
-      nextGameDate = futureDates[0].game_date;
-      
-      const { data: nextGames, error: nextGamesError } = await supabase
-        .from("nba_games_hr")
-        .select(selectFields)
-        .eq("game_date", nextGameDate);
-
-      if (!nextGamesError && nextGames) {
-        nextDayGames = nextGames;
-      }
-    }
-
-    // Combine today's games and next day's games
-    let allGames = [...(todayGames || []), ...nextDayGames];
+    // Combine today's games and tomorrow's games
+    let allGames = [...todayGames, ...tomorrowGames];
 
     // If no games at all, look further into the future
     if (allGames.length === 0) {
@@ -114,7 +130,6 @@ export async function GET(req: NextRequest) {
         .limit(30);
 
       if (!futureError && futureGames) {
-        // Get unique dates and take games from first two dates
         const dates = [...new Set(futureGames.map(g => g.game_date))].slice(0, 2);
         allGames = futureGames.filter(g => dates.includes(g.game_date));
       }
@@ -125,13 +140,22 @@ export async function GET(req: NextRequest) {
 
     // Get unique dates for the response
     const dates = [...new Set(sortedGames.map(g => g.game_date))];
+    
+    const response = { 
+      games: sortedGames,
+      dates: dates,
+      primaryDate: dates[0] || today
+    };
+    
+    // Cache for future requests (don't await)
+    redis.set(cacheKey, { ...response, ts: Date.now() }, { ex: GAMES_CACHE_TTL }).catch(e => 
+      console.error("[/api/nba/games] Cache write error:", e)
+    );
+    
+    console.log(`[/api/nba/games] DB fetch in ${Date.now() - startTime}ms`);
 
     return NextResponse.json(
-      { 
-        games: sortedGames,
-        dates: dates, // Array of dates with games
-        primaryDate: dates[0] || today
-      },
+      response,
       { 
         headers: { 
           "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120" 

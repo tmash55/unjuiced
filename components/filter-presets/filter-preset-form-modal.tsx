@@ -818,7 +818,7 @@ export function FilterPresetFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-b from-white to-neutral-50/80 dark:from-neutral-900 dark:to-neutral-950/80 p-0 sm:rounded-2xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl ring-1 ring-black/[0.03] dark:ring-white/[0.03] shadow-2xl">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-6xl sm:max-h-[90vh] overflow-hidden border-0 sm:border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 sm:rounded-2xl rounded-none fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 max-w-none sm:max-w-6xl shadow-2xl">
         <form onSubmit={handleSubmit} className="flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh]">
           {/* Premium gradient accent bar */}
           <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hidden sm:block" />
@@ -1313,7 +1313,7 @@ export function FilterPresetFormModal({
           
 
           {/* Premium Footer */}
-          <div className="border-t border-neutral-200/80 dark:border-neutral-800/80 px-4 sm:px-6 py-4 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-900/80 dark:to-neutral-950/50 backdrop-blur-sm shrink-0">
+          <div className="border-t border-neutral-200 dark:border-neutral-800 px-4 sm:px-6 py-4 bg-neutral-50 dark:bg-neutral-900 shrink-0">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">

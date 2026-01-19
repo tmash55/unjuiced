@@ -166,13 +166,13 @@ export interface OddsData {
   stableKey: string;
   primaryLine: number | null;
   currentLine: number | null;
-  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
+  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
   allLines: Array<{
     line: number;
-    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-    books: Record<string, { over?: { price: number; url: string | null; mobileUrl: string | null }; under?: { price: number; url: string | null; mobileUrl: string | null } }>;
+    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
+    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null } | null;
+    books: Record<string, { over?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null }; under?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null } }>;
   }>;
   live: boolean;
   timestamp: number | null;

@@ -10,10 +10,10 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { Heart } from "@/components/icons/heart";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
-import { X, ChevronRight, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon, ArrowRight, Trophy, Info, RefreshCw } from "lucide-react";
+import { X, ChevronRight, ChevronDown, Loader2, Sparkles, Share2, Trash2, Check, Copy, MessageCircle, Link2, AlertTriangle, Flame, Star, TrendingUp, Zap, Plus, MoreVertical, Layers, BookmarkIcon, ArrowRight, Trophy, Info, RefreshCw, ExternalLink } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { formatMarketLabelShort } from "@/lib/data/markets";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getSportsbookById, sportsbooksNew } from "@/lib/data/sportsbooks";
 
 // Helper to format side display
 const formatSide = (side: string): string => {
@@ -134,6 +134,372 @@ const calculateParlayOdds = (favorites: Favorite[], bookId: string): { odds: num
   return { odds: americanOdds, legCount };
 };
 
+// Get all books across all favorites with coverage info
+const getAllBooksWithCoverage = (favorites: Favorite[]) => {
+  const bookMap = new Map<string, { hasAll: boolean; legCount: number; totalLegs: number; odds: number | null }>();
+  
+  // First pass: count legs per book
+  for (const fav of favorites) {
+    if (fav.books_snapshot) {
+      for (const [bookId, bookData] of Object.entries(fav.books_snapshot)) {
+        if (!bookMap.has(bookId)) {
+          bookMap.set(bookId, { hasAll: false, legCount: 0, totalLegs: favorites.length, odds: null });
+        }
+        const entry = bookMap.get(bookId)!;
+        if (bookData?.price) {
+          entry.legCount++;
+        }
+      }
+    }
+  }
+  
+  // Second pass: calculate odds for each book
+  for (const [bookId, entry] of bookMap.entries()) {
+    const result = calculateParlayOdds(favorites, bookId);
+    entry.odds = result?.odds ?? null;
+    entry.hasAll = entry.legCount === favorites.length;
+  }
+  
+  // Sort: complete books with best odds first, then partial books
+  return Array.from(bookMap.entries())
+    .map(([bookId, data]) => ({ bookId, ...data }))
+    .sort((a, b) => {
+      if (a.hasAll && !b.hasAll) return -1;
+      if (!a.hasAll && b.hasAll) return 1;
+      if (a.hasAll && b.hasAll) {
+        return (b.odds || 0) - (a.odds || 0);
+      }
+      return b.legCount - a.legCount;
+    });
+};
+
+// Sportsbook Selector Dropdown (like competitor - dark theme)
+function SportsbookSelector({
+  favorites,
+  selectedBook,
+  onSelectBook,
+  isExpanded,
+  onToggleExpand
+}: {
+  favorites: Favorite[];
+  selectedBook: string | null;
+  onSelectBook: (bookId: string) => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  const booksWithCoverage = useMemo(() => getAllBooksWithCoverage(favorites), [favorites]);
+  const selectedBookData = booksWithCoverage.find(b => b.bookId === selectedBook);
+  const bookMeta = selectedBook ? getSportsbookById(selectedBook) : null;
+  const bookLogo = bookMeta?.image?.square || bookMeta?.image?.light;
+  
+  // Get complete books (books with all legs)
+  const completeBooks = booksWithCoverage.filter(b => b.hasAll);
+  const partialBooks = booksWithCoverage.filter(b => !b.hasAll);
+  
+  if (favorites.length === 0) return null;
+  
+  return (
+    <div className="bg-neutral-900 dark:bg-neutral-900 border-b border-white/5">
+      {/* Selected Book Header */}
+      <button
+        onClick={onToggleExpand}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-medium text-neutral-400">Sportsbooks</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedBook && bookLogo && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5">
+              <Image src={bookLogo} alt={selectedBook} width={20} height={20} className="w-5 h-5 rounded" />
+              <span className="text-xs font-semibold text-neutral-300">
+                {selectedBookData?.legCount}/{favorites.length}
+              </span>
+              {selectedBookData?.odds && (
+                <span className={cn(
+                  "text-sm font-bold tabular-nums",
+                  selectedBookData.odds >= 0 ? "text-emerald-400" : "text-neutral-300"
+                )}>
+                  {formatOdds(selectedBookData.odds)}
+                </span>
+              )}
+            </div>
+          )}
+          <ChevronDown className={cn(
+            "w-4 h-4 text-neutral-500 transition-transform",
+            isExpanded && "rotate-180"
+          )} />
+        </div>
+      </button>
+      
+      {/* Expanded Dropdown */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-white/5"
+          >
+            <div className="py-2 px-3 max-h-[280px] overflow-y-auto bg-neutral-800/50">
+              {/* Complete Books Section */}
+              {completeBooks.length > 0 && (
+                <div className="mb-2">
+                  <div className="text-[10px] font-semibold text-emerald-400 px-2 mb-1 uppercase tracking-wider">
+                    All Legs Available
+                  </div>
+                  {completeBooks.map(book => {
+                    const meta = getSportsbookById(book.bookId);
+                    const logo = meta?.image?.square || meta?.image?.light;
+                    const isSelected = selectedBook === book.bookId;
+                    
+                    return (
+                      <button
+                        key={book.bookId}
+                        onClick={() => onSelectBook(book.bookId)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all",
+                          isSelected 
+                            ? "bg-emerald-500/15 ring-1 ring-emerald-500/30" 
+                            : "hover:bg-white/[0.03]"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {logo && (
+                            <Image src={logo} alt={book.bookId} width={24} height={24} className="w-6 h-6 rounded" />
+                          )}
+                          <span className={cn(
+                            "text-sm font-medium",
+                            isSelected ? "text-emerald-300" : "text-neutral-300"
+                          )}>
+                            {meta?.name || book.bookId}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-xs font-semibold",
+                            isSelected ? "text-emerald-400" : "text-neutral-500"
+                          )}>
+                            {book.legCount}/{favorites.length}
+                          </span>
+                          {book.odds && (
+                            <span className={cn(
+                              "text-sm font-bold tabular-nums",
+                              book.odds >= 0 ? "text-emerald-400" : "text-neutral-300"
+                            )}>
+                              {formatOdds(book.odds)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Partial Books Section */}
+              {partialBooks.length > 0 && (
+                <div>
+                  {completeBooks.length > 0 && (
+                    <div className="text-[10px] font-semibold text-neutral-500 px-2 mb-1 mt-2 uppercase tracking-wider">
+                      Partial Coverage
+                    </div>
+                  )}
+                  {partialBooks.map(book => {
+                    const meta = getSportsbookById(book.bookId);
+                    const logo = meta?.image?.square || meta?.image?.light;
+                    const isSelected = selectedBook === book.bookId;
+                    
+                    return (
+                      <button
+                        key={book.bookId}
+                        onClick={() => onSelectBook(book.bookId)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all opacity-60",
+                          isSelected 
+                            ? "bg-amber-500/10 ring-1 ring-amber-500/30 opacity-100" 
+                            : "hover:bg-white/[0.03] hover:opacity-80"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {logo && (
+                            <Image src={logo} alt={book.bookId} width={20} height={20} className="w-5 h-5 rounded opacity-60" />
+                          )}
+                          <span className={cn(
+                            "text-sm font-medium",
+                            isSelected ? "text-amber-300" : "text-neutral-400"
+                          )}>
+                            {meta?.name || book.bookId}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-xs font-semibold",
+                            isSelected ? "text-amber-400" : "text-neutral-500"
+                          )}>
+                            {book.legCount}/{favorites.length}
+                          </span>
+                          {book.odds && (
+                            <span className="text-sm font-medium tabular-nums text-neutral-500">
+                              {formatOdds(book.odds)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Single Pick Card (like competitor)
+function PickCard({
+  favorite,
+  selectedBook,
+  onRemove,
+  isRemoving
+}: {
+  favorite: Favorite;
+  selectedBook: string | null;
+  onRemove: () => void;
+  isRemoving: boolean;
+}) {
+  const side = formatSide(favorite.side);
+  const marketLabel = formatMarketLabelShort(favorite.market);
+  const normalizedSport = normalizeSport(favorite.sport);
+  
+  // Get game display
+  const gameDisplay = favorite.away_team && favorite.home_team 
+    ? `${favorite.away_team} @ ${favorite.home_team}`
+    : favorite.home_team || favorite.away_team || "";
+  
+  // Get odds for selected book and top 4 other books
+  const allBooks = useMemo(() => {
+    if (!favorite.books_snapshot) return [];
+    return Object.entries(favorite.books_snapshot)
+      .filter(([_, data]) => data?.price)
+      .map(([bookId, data]) => ({
+        bookId,
+        price: data.price,
+        url: data.u || null,
+        isSelected: bookId === selectedBook
+      }))
+      .sort((a, b) => {
+        if (a.isSelected) return -1;
+        if (b.isSelected) return 1;
+        return (b.price || 0) - (a.price || 0);
+      });
+  }, [favorite.books_snapshot, selectedBook]);
+  
+  const displayBooks = allBooks.slice(0, 4);
+  const moreCount = Math.max(0, allBooks.length - 4);
+  
+  // Get deeplink for selected book
+  const selectedBookData = selectedBook ? favorite.books_snapshot?.[selectedBook] : null;
+  const betLink = selectedBookData?.u || null;
+  
+  return (
+    <motion.div
+      layout="position"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className={cn(
+        "relative bg-neutral-800/50 dark:bg-neutral-800/50 rounded-xl overflow-hidden",
+        isRemoving && "opacity-40 pointer-events-none"
+      )}
+    >
+      {/* Game Header */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <SportIcon sport={normalizedSport} className="w-4 h-4 text-rose-400" />
+        <span className="text-xs font-medium text-neutral-400 dark:text-neutral-400">
+          {gameDisplay}
+        </span>
+      </div>
+      
+      {/* Pick Content */}
+      <div className="flex items-start justify-between px-3 pb-2">
+        <div className="flex items-start gap-2.5">
+          {/* Bar indicator */}
+          <div className="w-1 h-10 rounded-full bg-neutral-600 mt-0.5" />
+          
+          <div>
+            {/* Player Name + Market */}
+            <div className="text-sm font-semibold text-white leading-tight">
+              {favorite.player_name} - {marketLabel}
+            </div>
+            {/* Line */}
+            <div className={cn(
+              "text-xs font-medium mt-0.5",
+              side === "o" ? "text-emerald-400" : "text-red-400"
+            )}>
+              {side === "o" ? "Over" : "Under"} {favorite.line}
+            </div>
+          </div>
+        </div>
+        
+        {/* Remove Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-300 hover:bg-white/5 transition-colors"
+        >
+          {isRemoving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+      
+      {/* Odds Row */}
+      <div className="flex items-center gap-1 px-3 pb-3 overflow-x-auto scrollbar-none">
+        {displayBooks.map(book => {
+          const meta = getSportsbookById(book.bookId);
+          const logo = meta?.image?.square || meta?.image?.light;
+          
+          return (
+            <div
+              key={book.bookId}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1.5 rounded-lg shrink-0",
+                book.isSelected 
+                  ? "bg-white/10 ring-1 ring-white/20" 
+                  : "bg-neutral-700/50"
+              )}
+            >
+              {logo && (
+                <Image src={logo} alt={book.bookId} width={16} height={16} className="w-4 h-4 rounded" />
+              )}
+              <span className={cn(
+                "text-xs font-semibold tabular-nums",
+                book.price && book.price >= 0 ? "text-emerald-400" : "text-neutral-300"
+              )}>
+                {book.price ? formatOdds(book.price) : "—"}
+              </span>
+            </div>
+          );
+        })}
+        
+        {moreCount > 0 && (
+          <span className="text-[10px] font-medium text-neutral-500 px-2 shrink-0">
+            +{moreCount} more
+          </span>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 // Individual favorite item
 function FavoriteItem({ 
   favorite, 
@@ -152,7 +518,7 @@ function FavoriteItem({
 }) {
   const initials = getInitials(favorite.player_name);
   const avatarColor = getAvatarColor(favorite.player_name);
-  const lastName = favorite.player_name?.split(" ").pop() || "Unknown";
+  const fullName = favorite.player_name || "Unknown";
   const side = formatSide(favorite.side);
   const hasLine = favorite.line !== null && favorite.line !== undefined;
   const marketLabel = formatMarketLabelShort(favorite.market);
@@ -219,7 +585,7 @@ function FavoriteItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] font-semibold text-neutral-900 dark:text-white truncate">
-            {lastName}
+            {fullName}
           </span>
           <SportIcon sport={normalizedSport} className="w-3 h-3 text-neutral-400 shrink-0" />
         </div>
@@ -328,23 +694,23 @@ function FavoriteItem({
   );
 }
 
-// Empty state
+// Empty state (dark theme)
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
+    <div className="flex flex-col items-center justify-center py-16 px-6 bg-neutral-900">
       <div className="relative mb-5">
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-rose-100 to-pink-50 dark:from-rose-900/30 dark:to-pink-900/20 flex items-center justify-center shadow-lg shadow-rose-500/10 ring-1 ring-rose-200/50 dark:ring-rose-500/20">
-          <Heart className="w-9 h-9 text-rose-300 dark:text-rose-600" />
+        <div className="w-20 h-20 rounded-2xl bg-neutral-800 flex items-center justify-center ring-1 ring-white/10">
+          <Heart className="w-9 h-9 text-neutral-600" />
         </div>
-        <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30 ring-1 ring-white/30">
+        <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/30 ring-1 ring-white/20">
           <Sparkles className="w-4 h-4 text-white" />
         </div>
       </div>
-      <h3 className="text-lg font-bold text-neutral-800 dark:text-white text-center">
-        No plays saved yet
+      <h3 className="text-lg font-bold text-white text-center">
+        No picks saved yet
       </h3>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center mt-2 max-w-[260px] leading-relaxed">
-        Tap the <span className="text-rose-500">❤️</span> on any edge to start building your winning parlay
+      <p className="text-sm text-neutral-400 text-center mt-2 max-w-[260px] leading-relaxed">
+        Tap the <span className="text-rose-400">❤️</span> on any edge to start building your winning parlay
       </p>
     </div>
   );
@@ -555,7 +921,7 @@ function SlipCard({
   const colorClass = getColorClass(slip.color);
   const items = slip.items || [];
   const playerNames = items
-    .map(item => item.favorite?.player_name?.split(" ").pop())
+    .map(item => item.favorite?.player_name)
     .filter(Boolean)
     .slice(0, 3);
   const moreCount = items.length - 3;
@@ -904,7 +1270,7 @@ function SlipCard({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
-                                  {fav.player_name?.split(" ").pop()}
+                                  {fav.player_name || "Unknown"}
                                 </span>
                                 {fav.player_team && (
                                   <span className="text-[9px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-200/50 dark:bg-neutral-600/50 px-1 rounded">
@@ -1256,6 +1622,9 @@ export function FavoritesModal() {
   const [newSlipColor, setNewSlipColor] = useState("yellow");
   const [showAddToSlipMenu, setShowAddToSlipMenu] = useState(false);
   const [isAddingToSlip, setIsAddingToSlip] = useState(false);
+  // New: Sportsbook selector state
+  const [isSportsbookSelectorOpen, setIsSportsbookSelectorOpen] = useState(false);
+  const [selectedSportsbook, setSelectedSportsbook] = useState<string | null>(null);
   
   const { favorites, isLoading, isLoggedIn, removeFavorite } = useFavorites();
   const { 
@@ -1275,6 +1644,36 @@ export function FavoritesModal() {
   const hasItems = count > 0;
   const uniqueBooks = useMemo(() => getUniqueBooks(favorites), [favorites]);
   const bestCoverageBook = useMemo(() => getBestCoverageBook(favorites, uniqueBooks), [favorites, uniqueBooks]);
+  
+  // Auto-select best sportsbook when favorites change
+  const booksWithCoverage = useMemo(() => getAllBooksWithCoverage(favorites), [favorites]);
+  
+  useEffect(() => {
+    if (favorites.length > 0 && !selectedSportsbook) {
+      // Auto-select first complete book with best odds, or best partial
+      const bestBook = booksWithCoverage[0]?.bookId || null;
+      setSelectedSportsbook(bestBook);
+    }
+  }, [favorites, booksWithCoverage, selectedSportsbook]);
+  
+  // Get current parlay data for selected sportsbook
+  const currentParlayData = useMemo(() => {
+    if (!selectedSportsbook || favorites.length === 0) return null;
+    const result = calculateParlayOdds(favorites, selectedSportsbook);
+    return result;
+  }, [selectedSportsbook, favorites]);
+  
+  // Get deeplink for bet button
+  const getBetDeeplink = useCallback(() => {
+    if (!selectedSportsbook || favorites.length === 0) return null;
+    // For single leg, use the direct link
+    if (favorites.length === 1) {
+      return favorites[0].books_snapshot?.[selectedSportsbook]?.u || null;
+    }
+    // For multiple legs, would need SGP link - fallback to first leg's link for now
+    const firstLegWithLink = favorites.find(f => f.books_snapshot?.[selectedSportsbook]?.u);
+    return firstLegWithLink?.books_snapshot?.[selectedSportsbook]?.u || null;
+  }, [selectedSportsbook, favorites]);
   
   // Build mode: calculate best parlay odds for selected items
   const buildModeData = useMemo(() => {
@@ -1398,10 +1797,10 @@ export function FavoritesModal() {
     if (selected.length === 0) return "";
     
     const legs = selected.map(f => {
-      const lastName = f.player_name?.split(" ").pop() || "Unknown";
+      const playerName = f.player_name || "Unknown";
       const market = formatMarketLabelShort(f.market);
       const side = formatSide(f.side);
-      return `${lastName} ${market} ${side}${f.line || ""}`;
+      return `${playerName} ${market} ${side}${f.line || ""}`;
     }).join(" | ");
     
     return `🎯 My plays: ${legs}\n\nBuilt with @UnjuicedApp`;
@@ -1514,59 +1913,53 @@ export function FavoritesModal() {
                 "max-sm:max-w-none max-sm:rounded-b-none max-sm:max-h-[90vh]"
               )}
             >
-              {/* Compact Header */}
-              <div className="relative overflow-hidden shrink-0">
+              {/* Compact Header - Like competitor */}
+              <div className="relative overflow-hidden shrink-0 bg-neutral-900 dark:bg-neutral-900">
                 {/* Gradient accent bar */}
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 via-pink-500 to-red-500" />
                 
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-rose-500 to-red-600 shadow-sm">
-                      <HeartFill className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-neutral-900 dark:text-white">
-                        My Props
-                      </h2>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                          {count} plays
-                        </span>
-                        <span className="w-0.5 h-0.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-                        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                          {betslips.length} slips
-                        </span>
-                      </div>
-                    </div>
+                <div className="flex items-center justify-between px-4 py-3.5">
+                  <h2 className="text-lg font-bold text-white">
+                    My Picks
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {/* Share Button */}
+                    <button
+                      onClick={() => setShowShareMenu(!showShareMenu)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      Share
+                    </button>
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-neutral-400" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
-                  >
-                    <X className="w-4 h-4 text-neutral-400" />
-                  </button>
                 </div>
               </div>
               
-              {/* Tab Navigation - Compact */}
-              <div className="flex px-3 border-b border-neutral-100 dark:border-white/5 shrink-0">
+              {/* Tab Navigation - Dark theme consistent */}
+              <div className="flex bg-neutral-900 dark:bg-neutral-900 border-b border-white/5 shrink-0">
                 <button
                   onClick={() => setActiveTab("plays")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all relative",
+                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all relative",
                     activeTab === "plays"
-                      ? "text-neutral-900 dark:text-white"
-                      : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                      ? "text-white"
+                      : "text-neutral-400 hover:text-neutral-300"
                   )}
                 >
-                  <Heart className={cn("w-3.5 h-3.5", activeTab === "plays" && "text-rose-500")} />
-                  Props
+                  <Heart className={cn("w-3.5 h-3.5", activeTab === "plays" && "text-rose-400")} />
+                  Picks
                   {count > 0 && (
                     <span className={cn(
                       "text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
                       activeTab === "plays" 
                         ? "bg-rose-500 text-white" 
-                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                        : "bg-white/10 text-neutral-400"
                     )}>
                       {count}
                     </span>
@@ -1579,20 +1972,20 @@ export function FavoritesModal() {
                 <button
                   onClick={() => setActiveTab("slips")}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all relative",
+                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all relative",
                     activeTab === "slips"
-                      ? "text-neutral-900 dark:text-white"
-                      : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                      ? "text-white"
+                      : "text-neutral-400 hover:text-neutral-300"
                   )}
                 >
-                  <Layers className={cn("w-3.5 h-3.5", activeTab === "slips" && "text-violet-500")} />
+                  <Layers className={cn("w-3.5 h-3.5", activeTab === "slips" && "text-violet-400")} />
                   Slips
                   {betslips.length > 0 && (
                     <span className={cn(
                       "text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
                       activeTab === "slips" 
                         ? "bg-violet-500 text-white" 
-                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                        : "bg-white/10 text-neutral-400"
                     )}>
                       {betslips.length}
                     </span>
@@ -1604,100 +1997,25 @@ export function FavoritesModal() {
                 </button>
               </div>
               
-              {/* ============ PLAYS TAB CONTENT ============ */}
+              {/* ============ PLAYS TAB CONTENT (NEW BLENDED DESIGN) ============ */}
               {activeTab === "plays" && (
                 <>
-              {/* Book Filter Tabs - More Actionable */}
-              {hasItems && uniqueBooks.length > 1 && (
-                <div className="px-4 py-3 border-b border-neutral-100 dark:border-white/5">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    <button
-                      onClick={() => setFilterBook(null)}
-                      className={cn(
-                        "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                        !filterBook 
-                          ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" 
-                          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-white/5 dark:text-neutral-400 dark:hover:bg-white/10"
-                      )}
-                    >
-                      All Books
-                    </button>
-                    {uniqueBooks.slice(0, 8).map(book => {
-                      const bookData = getSportsbookById(book);
-                      const logo = bookData?.image?.square || bookData?.image?.light;
-                      const legsWithBook = favorites.filter(f => f.books_snapshot?.[book]).length;
-                      const isAllAvailable = legsWithBook === count;
-                      const isBestCoverage = book === bestCoverageBook;
-                      
-                      return (
-                        <button
-                          key={book}
-                          onClick={() => setFilterBook(filterBook === book ? null : book)}
-                          className={cn(
-                            "shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all",
-                            filterBook === book
-                              ? "bg-neutral-900 dark:bg-white ring-2 ring-neutral-900 dark:ring-white"
-                              : isBestCoverage && isAllAvailable
-                                ? "bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/30"
-                                : "bg-neutral-100 hover:bg-neutral-200 dark:bg-white/5 dark:hover:bg-white/10"
-                          )}
-                        >
-                          {logo && (
-                            <Image src={logo} alt={book} width={16} height={16} className="w-4 h-4 object-contain" />
-                          )}
-                          <span className={cn(
-                            "text-[10px] font-medium whitespace-nowrap",
-                            filterBook === book
-                              ? "text-white dark:text-neutral-900"
-                              : isBestCoverage && isAllAvailable
-                                ? "text-emerald-700 dark:text-emerald-400"
-                                : "text-neutral-500 dark:text-neutral-400"
-                          )}>
-                            {isAllAvailable ? (
-                              <span className="flex items-center gap-1">
-                                <Check className="w-3 h-3" />
-                                All
-                              </span>
-                            ) : (
-                              `${legsWithBook}/${count}`
-                            )}
-                          </span>
-                          {isBestCoverage && isAllAvailable && filterBook !== book && (
-                            <Star className="w-3 h-3 text-emerald-500 fill-emerald-500" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {/* Build Mode Header */}
+              {/* Sportsbook Selector (like competitor) */}
               {hasItems && (
-                <div className="px-4 py-2 border-b border-neutral-100 dark:border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-3.5 h-3.5 text-brand" />
-                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-                      {selectedIds.size === 0 
-                        ? "Select plays to build a slip" 
-                        : `${selectedIds.size} ${selectedIds.size === 1 ? 'play' : 'plays'} selected`
-                      }
-                    </span>
-                  </div>
-                  <button
-                    onClick={toggleSelectAll}
-                    className="text-[11px] font-medium text-brand hover:text-brand/80 transition-colors"
-                  >
-                    {selectedIds.size === favorites.length ? "Clear" : "Select All"}
-                  </button>
-                </div>
+                <SportsbookSelector
+                  favorites={favorites}
+                  selectedBook={selectedSportsbook}
+                  onSelectBook={(bookId) => {
+                    setSelectedSportsbook(bookId);
+                    setIsSportsbookSelectorOpen(false);
+                  }}
+                  isExpanded={isSportsbookSelectorOpen}
+                  onToggleExpand={() => setIsSportsbookSelectorOpen(!isSportsbookSelectorOpen)}
+                />
               )}
               
-              {/* Content */}
-              <div className={cn(
-                "overflow-y-auto",
-                selectedIds.size >= 2 ? "max-h-[35vh] max-sm:max-h-[30vh]" : "max-h-[50vh] max-sm:max-h-[45vh]"
-              )}>
+              {/* Pick Cards Content */}
+              <div className="flex-1 overflow-y-auto bg-neutral-900 dark:bg-neutral-900 max-h-[45vh] max-sm:max-h-[40vh]">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-16">
                     <div className="text-center">
@@ -1705,31 +2023,95 @@ export function FavoritesModal() {
                         <div className="h-10 w-10 animate-spin rounded-full border-3 border-solid border-rose-200 dark:border-rose-500/30 border-t-rose-500" />
                         <HeartFill className="absolute inset-0 m-auto h-4 w-4 text-rose-400" />
                       </div>
-                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mt-3">Loading plays...</p>
+                      <p className="text-xs font-medium text-neutral-400 mt-3">Loading picks...</p>
                     </div>
                   </div>
                 ) : !hasItems ? (
-                  <EmptyState />
+                  <>
+                    <EmptyState />
+                    {/* View Full Page Link - Empty State */}
+                    <div className="px-3 pb-3">
+                      <Link
+                        href="/favorites"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-white/5 text-xs font-medium text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02] transition-colors group"
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>View Full Page & Manage Slips</span>
+                        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+                    </div>
+                  </>
                 ) : (
-                  <AnimatePresence initial={false} mode="sync">
-                    {favorites.map((favorite) => (
-                      <FavoriteItem
-                        key={favorite.id}
-                        favorite={favorite}
-                        onRemove={() => handleRemove(favorite.id)}
-                        isRemoving={removingId === favorite.id}
-                        isSelected={selectedIds.has(favorite.id)}
-                        onToggleSelect={() => toggleSelect(favorite.id)}
-                        filterBook={filterBook}
-                      />
-                    ))}
-                  </AnimatePresence>
+                  <div className="p-3 space-y-2">
+                    <AnimatePresence initial={false} mode="sync">
+                      {favorites.map((favorite) => (
+                        <PickCard
+                          key={favorite.id}
+                          favorite={favorite}
+                          selectedBook={selectedSportsbook}
+                          onRemove={() => handleRemove(favorite.id)}
+                          isRemoving={removingId === favorite.id}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 )}
               </div>
               
-              {/* Best Value Parlays */}
-              {hasItems && selectedIds.size >= 2 && (
-                <BestValueParlays favorites={favorites} selectedIds={selectedIds} />
+              {/* Footer Actions - BET BUTTON + CLEAR ALL (like competitor - dark theme) */}
+              {hasItems && (
+                <div className="shrink-0 bg-neutral-900 dark:bg-neutral-900 space-y-3">
+                  <div className="px-3 pt-3 space-y-3">
+                    {/* BET Button - Only show if we have a selected book with odds */}
+                    {selectedSportsbook && currentParlayData && (
+                      <a
+                        href={getBetDeeplink() || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          "w-full flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-xl font-semibold text-white transition-all",
+                          "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400",
+                          "shadow-lg shadow-emerald-500/20"
+                        )}
+                      >
+                        {(() => {
+                          const meta = getSportsbookById(selectedSportsbook);
+                          const logo = meta?.image?.square || meta?.image?.light;
+                          return (
+                            <>
+                              {logo && <Image src={logo} alt={selectedSportsbook} width={20} height={20} className="w-5 h-5 rounded" />}
+                              <span className="text-sm">ADD TO BETSLIP</span>
+                              <span className="text-base font-bold tabular-nums px-2 py-0.5 rounded bg-white/20">
+                                {formatOdds(currentParlayData.odds)}
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </a>
+                    )}
+                    
+                    {/* CLEAR ALL Button */}
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors border border-white/5"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      CLEAR ALL
+                    </button>
+                  </div>
+                  
+                  {/* View Full Page Link */}
+                  <Link
+                    href="/favorites"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border-t border-white/5 text-xs font-medium text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02] transition-colors group"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>View Full Page & Manage Slips</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                </div>
               )}
               
               {/* Selection Action Bar - Shows when items selected */}

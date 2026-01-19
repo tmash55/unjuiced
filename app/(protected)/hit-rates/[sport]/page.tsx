@@ -31,9 +31,10 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-const INITIAL_PAGE_SIZE = 500; // Good balance of data vs load time
-const BACKGROUND_PAGE_SIZE = 500; // Same as initial - no progressive loading needed
-const FULL_DATA_SIZE = 3000; // Full dataset for sorting/filtering accuracy (only on user interaction)
+// OPTIMIZED: Reduced initial load for faster first paint (v2 API caches full dataset)
+const INITIAL_PAGE_SIZE = 150; // Fast initial load - cached API handles sorting
+const BACKGROUND_PAGE_SIZE = 500; // Load more on demand
+const FULL_DATA_SIZE = 2000; // Full dataset for sorting/filtering accuracy (only on user interaction)
 
 // Table display pagination - limit visible rows for performance
 const TABLE_PAGE_SIZE = 100; // Show 100 rows at a time
@@ -83,7 +84,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[] | null>(null); // null = not initialized yet
   
   // Advanced filter state (shared between table and sidebar)
-  const [hideNoOdds, setHideNoOdds] = useState(true); // Default ON - only show players with odds
+  // FIXED: Default to false so we show all players while odds are loading
+  // Users can enable this filter once they see the data
+  const [hideNoOdds, setHideNoOdds] = useState(false); // Default OFF - show all players, toggle to filter
   const [idsWithOdds, setIdsWithOdds] = useState<Set<string>>(new Set());
   
   // Glossary modal state

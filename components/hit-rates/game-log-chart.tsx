@@ -47,7 +47,7 @@ interface ProfileGameLog {
   teammates_out?: TeammateOut[];
 }
 
-type QuickFilterKey = "home" | "away" | "win" | "loss" | "wonBy10" | "lostBy10" | "primetime";
+type QuickFilterKey = "home" | "away" | "win" | "loss" | "wonBy10" | "lostBy10" | "primetime" | "dvpTough" | "dvpAverage" | "dvpWeak";
 
 // Book odds structure
 interface BookOddsData {
@@ -245,6 +245,11 @@ interface GameLogChartProps {
   onQuickFiltersClear?: () => void;
   // Optional: odds data for display
   odds?: OddsDisplayData | null;
+  // Optional: opponent DvP ranks - map of teamId to rank (1-30)
+  opponentDvpRanks?: Map<number, number | null>;
+  // Optional: DvP range filter (min, max)
+  dvpRange?: [number, number] | null;
+  onDvpRangeChange?: (range: [number, number] | null) => void;
 }
 
 // Get the stat value based on market
@@ -549,7 +554,12 @@ export function GameLogChart({
   onQuickFilterToggle,
   onQuickFiltersClear,
   odds,
+  opponentDvpRanks,
+  dvpRange,
+  onDvpRangeChange,
 }: GameLogChartProps) {
+  // State for showing DvP overlay line
+  const [showDvpLine, setShowDvpLine] = useState(false);
   const marketLabel = getMarketLabel(market);
   const chartRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -707,6 +717,36 @@ export function GameLogChart({
                   {label}
                 </button>
               ))}
+              {/* DvP Defense Filters - only show if we have DvP data */}
+              {opponentDvpRanks && opponentDvpRanks.size > 0 && (
+                <>
+                  <span className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+                  {([
+                    { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10", tooltip: "Tough defense" },
+                    { key: "dvpAverage" as QuickFilterKey, label: "DvP 11-20", tooltip: "Average defense" },
+                    { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30", tooltip: "Weak defense" },
+                  ]).map(({ key, label, tooltip }) => (
+                    <Tooltip key={key} content={tooltip} side="top">
+                      <button
+                        type="button"
+                        onClick={() => onQuickFilterToggle(key)}
+                        className={cn(
+                          "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-all",
+                          quickFilters?.has(key)
+                            ? key === "dvpTough" 
+                              ? "bg-red-500 text-white border-red-500 shadow-sm"
+                              : key === "dvpAverage"
+                              ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                              : "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                            : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    </Tooltip>
+                  ))}
+                </>
+              )}
               {quickFilters && quickFilters.size > 0 && onQuickFiltersClear && (
                 <button
                   type="button"
@@ -760,9 +800,27 @@ export function GameLogChart({
         <span>{Math.round(maxStat / 2)}</span>
         <span>0</span>
       </div>
+      
+      {/* DvP Y-Axis Labels - Right side (only when DvP line is shown) */}
+      {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && (
+        <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1" style={{ top: 0, height: chartHeight }}>
+          {/* Top = Rank 30 (Weak defense = good for player) */}
+          <div className="flex items-center justify-end gap-0.5">
+            <span className="text-emerald-500 font-bold">#30</span>
+          </div>
+          {/* Middle = Rank 15 */}
+          <div className="flex items-center justify-end gap-0.5">
+            <span className="text-amber-500 font-bold">#15</span>
+          </div>
+          {/* Bottom = Rank 1 (Tough defense = hard for player) */}
+          <div className="flex items-center justify-end gap-0.5">
+            <span className="text-red-500 font-bold">#1</span>
+          </div>
+        </div>
+      )}
 
       {/* Chart Area */}
-      <div ref={chartRef} className="ml-10 relative" style={{ height: chartHeight }}>
+      <div ref={chartRef} className={cn("ml-10 relative", showDvpLine && "mr-16")} style={{ height: chartHeight }}>
         {/* Bottom Line Only */}
         <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-200 dark:border-neutral-700" />
 
@@ -782,8 +840,71 @@ export function GameLogChart({
           </div>
         )}
 
-        {/* Bars - above the line */}
+        {/* Bars Container - centered with gap */}
         <div className="absolute inset-0 flex items-end justify-center gap-3 z-10 pointer-events-none">
+          
+          {/* DvP Line Overlay - positioned relative to centered bars */}
+          {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && games.length > 1 && (() => {
+            // Calculate dimensions matching the flex layout
+            const gapSize = 12; // gap-3 = 12px
+            const totalGap = (games.length - 1) * gapSize;
+            const totalBarWidth = games.length * barWidth;
+            const contentWidth = totalBarWidth + totalGap;
+            
+            // Build points data - X positions are relative to content start (0)
+            const points = games.map((game, idx) => {
+              const dvpRank = opponentDvpRanks.get(game.opponentTeamId);
+              if (dvpRank === null || dvpRank === undefined) return null;
+              
+              // X = center of each bar within the content area
+              const x = idx * (barWidth + gapSize) + (barWidth / 2);
+              
+              // Y = rank 1 at bottom (tough), rank 30 at top (weak)
+              const yPercent = ((dvpRank - 1) / 29) * 100;
+              const y = chartHeight * (1 - yPercent / 100);
+              
+              return { x, y, rank: dvpRank, idx };
+            }).filter(Boolean) as { x: number; y: number; rank: number; idx: number }[];
+            
+            if (points.length < 2) return null;
+            
+            // Build SVG path
+            const pathD = points.map((p, i) => 
+              i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
+            ).join(' ');
+            
+            return (
+              <svg 
+                className="absolute bottom-0 left-1/2 z-[5] pointer-events-none"
+                style={{ 
+                  width: contentWidth, 
+                  height: chartHeight,
+                  transform: 'translateX(-50%)', // Center to match flex justify-center
+                }}
+                viewBox={`0 0 ${contentWidth} ${chartHeight}`}
+              >
+                {/* Gradient definition */}
+                <defs>
+                  <linearGradient id="dvpLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+                
+                {/* Line path - clean without dots/numbers */}
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke="url(#dvpLineGrad)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ filter: 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.4))' }}
+                />
+              </svg>
+            );
+          })()}
+          
           {/* Note: individual bars will have pointer-events-auto for tooltips */}
           {games.map((game, idx) => {
             const statValue = getMarketStat(game, market);
@@ -793,6 +914,21 @@ export function GameLogChart({
             const hasLine = displayLine !== null;
             const isHit = hasLine && statValue >= displayLine;
             const opponentLogo = getTeamLogoUrl(game.opponentAbbr, "nba");
+            
+            // Get opponent DvP rank for this market
+            const opponentDvpRank = opponentDvpRanks?.get(game.opponentTeamId) ?? null;
+            const getDvpRankColor = (rank: number | null) => {
+              if (rank === null) return "text-neutral-400";
+              if (rank <= 10) return "text-red-400"; // tough
+              if (rank <= 20) return "text-amber-400"; // average
+              return "text-emerald-400"; // weak
+            };
+            const getDvpLabel = (rank: number | null) => {
+              if (rank === null) return null;
+              if (rank <= 10) return "Tough";
+              if (rank <= 20) return "Avg";
+              return "Weak";
+            };
             
             // Get teammates out for this game from profile game logs
             // Use normalized game ID to match across different formats
@@ -817,7 +953,16 @@ export function GameLogChart({
                     {formatDate(game.date)} {game.homeAway === "H" ? "vs" : "@"} {game.opponentAbbr}
                   </span>
                     </div>
-                    {/* Result Pill */}
+                    {/* Result Pill + DvP Badge */}
+                    <div className="flex items-center gap-2">
+                      {opponentDvpRank !== null && (
+                        <div className={cn(
+                          "px-2 py-1 rounded-md text-[10px] font-bold tracking-wide bg-neutral-800/50",
+                          getDvpRankColor(opponentDvpRank)
+                        )}>
+                          DvP #{opponentDvpRank} <span className="opacity-70">({getDvpLabel(opponentDvpRank)})</span>
+                        </div>
+                      )}
                     <div className={cn(
                       "px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wide",
                     game.result === "W" 
@@ -825,6 +970,7 @@ export function GameLogChart({
                         : "bg-red-500/20 text-red-400 ring-1 ring-red-500/30"
                   )}>
                       {game.result === "W" ? `W +${Math.abs(game.margin)}` : `L ${game.margin}`}
+                    </div>
                     </div>
                   </div>
                 </div>
@@ -1188,6 +1334,36 @@ export function GameLogChart({
                 {label}
               </button>
             ))}
+            {/* DvP Defense Filters - only show if we have DvP data */}
+            {opponentDvpRanks && opponentDvpRanks.size > 0 && (
+              <>
+                <span className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+                {([
+                  { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10", tooltip: "Tough defense" },
+                  { key: "dvpAverage" as QuickFilterKey, label: "DvP 11-20", tooltip: "Average defense" },
+                  { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30", tooltip: "Weak defense" },
+                ]).map(({ key, label, tooltip }) => (
+                  <Tooltip key={key} content={tooltip} side="top">
+                    <button
+                      type="button"
+                      onClick={() => onQuickFilterToggle(key)}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-all",
+                        quickFilters?.has(key)
+                          ? key === "dvpTough" 
+                            ? "bg-red-500 text-white border-red-500 shadow-sm"
+                            : key === "dvpAverage"
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                          : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  </Tooltip>
+                ))}
+              </>
+            )}
             {quickFilters && quickFilters.size > 0 && onQuickFiltersClear && (
               <button
                 type="button"
@@ -1203,7 +1379,7 @@ export function GameLogChart({
         )}
 
         {/* Legend - Center */}
-        <div className="flex items-center justify-center gap-4 text-[10px] flex-1">
+        <div className="flex items-center justify-center gap-3 text-[10px] flex-1">
         <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-500 to-emerald-400" />
           <span className="text-neutral-500 dark:text-neutral-400">Over</span>
@@ -1228,6 +1404,32 @@ export function GameLogChart({
           <div className="w-6 border-t-2 border-dashed border-primary dark:border-primary-weak" />
           <span className="text-neutral-500 dark:text-neutral-400">Line ({line})</span>
           </div>
+          
+          {/* DvP Line Toggle */}
+          {opponentDvpRanks && opponentDvpRanks.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDvpLine(!showDvpLine)}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all",
+                showDvpLine
+                  ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 ring-1 ring-blue-500/30"
+                  : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              )}
+            >
+              <div className="flex items-center gap-0.5">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <div className="w-3 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
+                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              </div>
+              <span className={cn(
+                "text-[10px] font-medium",
+                showDvpLine ? "text-blue-500 dark:text-blue-400" : "text-neutral-500 dark:text-neutral-400"
+              )}>
+                DvP
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Odds - Right */}
