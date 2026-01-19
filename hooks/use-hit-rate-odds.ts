@@ -87,20 +87,41 @@ interface UseHitRateOddsOptions {
  * 2. Background fetch remaining rows in batches
  * 3. Merge results into a single cache
  */
+// Global cache for odds - persists across component remounts and navigation
+// This ensures we don't lose odds when navigating to/from drilldown
+const globalOddsCache: Record<string, LineOdds> = {};
+
 export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) {
   const queryClient = useQueryClient();
   const backgroundFetchRef = useRef<boolean>(false);
-  const allOddsRef = useRef<Record<string, LineOdds>>({});
+  const allOddsRef = useRef<Record<string, LineOdds>>(globalOddsCache);
+  
+  // Force re-render when global cache updates
+  const [cacheVersion, setCacheVersion] = useState(0);
+  
+  // Check if we have any cached odds (including from global cache)
+  const hasCachedOdds = Object.keys(globalOddsCache).length > 0;
   
   // Delay odds loading to let profiles render first (better perceived performance)
-  const [isReady, setIsReady] = useState(false);
+  // But if we already have cached odds, skip the delay
+  const [isReady, setIsReady] = useState(hasCachedOdds);
+  
   useEffect(() => {
     if (enabled && rows.length > 0) {
+      // Skip delay if we already have cached odds (e.g., returning from drilldown)
+      if (hasCachedOdds) {
+        setIsReady(true);
+        return;
+      }
       const timer = setTimeout(() => setIsReady(true), STARTUP_DELAY_MS);
       return () => clearTimeout(timer);
     }
-    setIsReady(false);
-  }, [enabled, rows.length]);
+    // Don't reset isReady to false when rows temporarily empty (navigation)
+    // Only reset if explicitly disabled
+    if (!enabled) {
+      setIsReady(false);
+    }
+  }, [enabled, rows.length, hasCachedOdds]);
 
   // Build unique selections from rows
   const allSelections = useMemo(() => {
@@ -163,12 +184,16 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
         const result = await fetchHitRateOdds(batch);
         
         if (result.odds) {
-          allOddsRef.current = { ...allOddsRef.current, ...result.odds };
+          // Update both ref and global cache
+          Object.assign(globalOddsCache, result.odds);
+          allOddsRef.current = globalOddsCache;
+          // Trigger re-render
+          setCacheVersion(v => v + 1);
         }
 
         queryClient.setQueryData<OddsResponse>(
           ["hit-rate-odds-merged"],
-          { odds: { ...allOddsRef.current } }
+          { odds: { ...globalOddsCache } }
         );
 
         if (i + BACKGROUND_BATCH_SIZE < remainingSelections.length) {
@@ -180,21 +205,53 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
     }
   }, [remainingSelections, queryClient]);
 
+  // Track the previous selections to detect meaningful changes
+  const prevSelectionsRef = useRef<string>("");
+  
+  // Merge initial data into global cache when it arrives
+  useEffect(() => {
+    if (initialQuery.data?.odds) {
+      Object.assign(globalOddsCache, initialQuery.data.odds);
+      allOddsRef.current = globalOddsCache;
+      setCacheVersion(v => v + 1);
+    }
+  }, [initialQuery.data]);
+  
   // Start background fetch after initial data loads
   useEffect(() => {
     if (initialQuery.data && remainingSelections.length > 0 && !backgroundFetchRef.current) {
-      allOddsRef.current = { ...initialQuery.data.odds };
-      
       const timer = setTimeout(fetchRemainingBatches, 200);
       return () => clearTimeout(timer);
     }
   }, [initialQuery.data, remainingSelections.length, fetchRemainingBatches]);
 
-  // Reset background fetch flag when selections change significantly
+  // Only reset when selections ACTUALLY change (not just length)
+  // This prevents losing odds when navigating back from drilldown
   useEffect(() => {
-    backgroundFetchRef.current = false;
-    allOddsRef.current = {};
-  }, [allSelections.length]);
+    const currentSelectionKey = allSelections.map(s => s.stableKey).sort().join(",");
+    
+    // Only reset if the actual keys changed significantly (>50% different)
+    if (prevSelectionsRef.current && currentSelectionKey) {
+      const prevKeys = new Set(prevSelectionsRef.current.split(","));
+      const currentKeys = new Set(currentSelectionKey.split(","));
+      
+      // Check overlap - if most keys are the same, don't reset
+      let overlap = 0;
+      for (const key of currentKeys) {
+        if (prevKeys.has(key)) overlap++;
+      }
+      
+      const overlapRatio = currentKeys.size > 0 ? overlap / currentKeys.size : 0;
+      
+      // Only reset if less than 50% overlap (significant change in data)
+      if (overlapRatio < 0.5) {
+        backgroundFetchRef.current = false;
+        // Don't clear allOddsRef - keep cached odds for keys that still exist
+      }
+    }
+    
+    prevSelectionsRef.current = currentSelectionKey;
+  }, [allSelections]);
 
   // Subscribe to merged query for updates
   const mergedQuery = useQuery<OddsResponse>({
@@ -204,13 +261,13 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
     staleTime: Infinity,
   });
 
-  // Combine initial + merged odds
+  // Combine all odds sources - global cache is the primary source
+  // cacheVersion triggers re-render when cache updates
   const combinedOdds = useMemo(() => {
-    return {
-      ...(initialQuery.data?.odds || {}),
-      ...(mergedQuery.data?.odds || {}),
-    };
-  }, [initialQuery.data, mergedQuery.data]);
+    // Use global cache as the source of truth
+    return { ...globalOddsCache };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheVersion, initialQuery.data, mergedQuery.data]);
 
   // Create a lookup function by stable key
   const getOdds = useCallback(
