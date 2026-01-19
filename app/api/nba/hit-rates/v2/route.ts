@@ -6,19 +6,20 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
 
 /**
- * Hit Rates API v2 - Optimized for Performance
+ * Hit Rates API v2 - OPTIMIZED VERSION
  * 
- * Key optimizations:
- * 1. Redis caching for hit rate profiles (60s TTL)
- * 2. Matchups fetched in parallel with main query
- * 3. Smaller initial payload (100 rows default)
- * 4. Fast path for cache hits
- * 5. Background cache refresh on stale data
+ * Uses the new `get_nba_hit_rate_profiles_fast` RPC which:
+ * 1. Has NO JOINs (all data denormalized in the table)
+ * 2. Pre-computed DvP ranks (no separate matchup call needed)
+ * 3. Filters by has_live_odds for actionable profiles first
+ * 4. No COUNT(*) query overhead
+ * 
+ * Expected performance: <500ms vs 8-12s before
  */
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:nba";
+const CACHE_KEY_PREFIX = "hitrates:nba:v3"; // New cache key for new format
 
 // Valid sort fields for hit rates
 const VALID_SORT_FIELDS = [
@@ -42,10 +43,12 @@ const QuerySchema = z.object({
   playerId: z.coerce.number().int().positive().optional(),
   sort: z.enum(VALID_SORT_FIELDS).optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
-  skipCache: z.coerce.boolean().optional(), // Force fresh data
+  skipCache: z.coerce.boolean().optional(),
+  hasOdds: z.coerce.boolean().optional(), // Filter for profiles with odds
 });
 
-const DEFAULT_LIMIT = 100; // Reduced from 200 for faster initial load
+const DEFAULT_LIMIT = 500; // Fetch more for client-side sorting
+// No default market - when null, fetch ALL markets for flexible client-side filtering
 
 // Get current ET date
 function getETDate(offsetDays = 0): string {
@@ -60,12 +63,23 @@ function getETDate(offsetDays = 0): string {
 }
 
 // Generate cache key
-function getCacheKey(date: string, sort?: string, sortDir?: string): string {
-  return `${CACHE_KEY_PREFIX}:${date}:${sort || "default"}:${sortDir || "desc"}`;
+function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean): string {
+  const dateKey = dates.sort().join("_");
+  const marketKey = market || "all";
+  const oddsKey = hasOdds ? "odds" : "all";
+  return `${CACHE_KEY_PREFIX}:${dateKey}:${marketKey}:${oddsKey}`;
 }
 
-// Transform raw data to frontend format
-function transformProfile(row: any, matchup?: any) {
+// Transform RPC response to frontend format
+function transformProfile(row: any) {
+  // Determine matchup quality from dvp_rank
+  let matchupQuality: "favorable" | "neutral" | "unfavorable" | null = null;
+  if (row.dvp_rank) {
+    if (row.dvp_rank <= 10) matchupQuality = "unfavorable"; // Tough defense
+    else if (row.dvp_rank >= 21) matchupQuality = "favorable"; // Weak defense
+    else matchupQuality = "neutral";
+  }
+
   return {
     id: row.id,
     player_id: row.player_id,
@@ -97,9 +111,8 @@ function transformProfile(row: any, matchup?: any) {
     team_abbr: row.team_abbr,
     opponent_team_name: row.opponent_team_name,
     opponent_team_abbr: row.opponent_team_abbr,
-    player_position: row.player_position,
+    player_position: row.player_position || row.player_depth_chart_pos,
     jersey_number: row.jersey_number,
-    // game_logs removed - fetched separately via /api/nba/player-box-scores for drilldown
     created_at: row.created_at,
     updated_at: row.updated_at,
     home_away: row.home_away,
@@ -108,75 +121,42 @@ function transformProfile(row: any, matchup?: any) {
     odds_selection_id: row.odds_selection_id,
     event_id: row.event_id,
     is_back_to_back: row.is_back_to_back,
+    // Player info (now denormalized)
     nba_players_hr: row.player_name ? {
       nba_player_id: row.player_id,
       name: row.player_name,
-      position: row.player_full_position,
+      position: row.player_depth_chart_pos || row.player_position,
       depth_chart_pos: row.player_depth_chart_pos,
-      jersey_number: row.player_jersey_number,
+      jersey_number: row.jersey_number,
     } : null,
+    // Game info (now denormalized)
     nba_games_hr: {
       game_date: row.game_date,
       home_team_name: row.home_team_name,
       away_team_name: row.away_team_name,
       game_status: row.game_status,
     },
+    // Team colors (now denormalized - no accent_color in table yet)
     nba_teams: row.primary_color ? {
       primary_color: row.primary_color,
       secondary_color: row.secondary_color,
-      accent_color: row.accent_color,
+      accent_color: null, // Not in table yet
     } : null,
-    matchup: matchup ? {
-      player_id: matchup.player_id,
-      market: matchup.market,
-      opponent_team_id: matchup.opponent_team_id,
-      player_position: matchup.player_position,
-      matchup_rank: matchup.matchup_rank,
-      rank_label: matchup.rank_label,
-      avg_allowed: matchup.avg_allowed,
-      matchup_quality: matchup.matchup_quality,
+    // Matchup/DvP data (now pre-computed in table - no dvp_avg_allowed yet)
+    matchup: row.dvp_rank ? {
+      player_id: row.player_id,
+      market: row.market,
+      opponent_team_id: row.opponent_team_id,
+      player_position: row.player_depth_chart_pos || row.player_position,
+      matchup_rank: row.dvp_rank,
+      rank_label: row.dvp_label,
+      avg_allowed: null, // Not in table yet
+      matchup_quality: matchupQuality,
     } : null,
   };
 }
 
-// Fetch matchup data for a batch of profiles
-async function fetchMatchups(
-  supabase: any, 
-  data: any[]
-): Promise<Map<string, any>> {
-  const matchupMap = new Map<string, any>();
-  
-  if (data.length === 0) return matchupMap;
-  
-  // Limit to first 500 profiles for matchup fetch to avoid timeout
-  const subset = data.slice(0, 500);
-  
-  const playerIds = subset.map((r: any) => r.player_id);
-  const markets = subset.map((r: any) => r.market);
-  const opponentIds = subset.map((r: any) => r.opponent_team_id);
-
-  try {
-    const { data: matchups, error } = await supabase.rpc("get_matchup_ranks_batch", {
-      p_player_ids: playerIds,
-      p_markets: markets,
-      p_opponent_team_ids: opponentIds,
-    });
-
-    if (error) {
-      console.error("[Hit Rates v2] Matchup RPC error:", error.message);
-    } else if (matchups && Array.isArray(matchups)) {
-      for (const m of matchups) {
-        matchupMap.set(`${m.player_id}-${m.market}`, m);
-      }
-    }
-  } catch (e) {
-    console.error("[Hit Rates v2] Matchup fetch error:", e);
-  }
-  
-  return matchupMap;
-}
-
-// Sort data by field
+// Sort data client-side for flexibility
 function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
   const multiplier = sortDir === "asc" ? 1 : -1;
   
@@ -191,15 +171,21 @@ function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
     "l20Pct": "last_20_pct",
     "seasonPct": "season_pct",
     "h2hPct": "h2h_pct",
-    "matchupRank": "matchup_rank",
+    "matchupRank": "dvp_rank",
   };
   
   const dbField = fieldMap[sort];
   if (!dbField) return data;
   
   return [...data].sort((a, b) => {
-    const aVal = a[dbField] ?? (sortDir === "asc" ? Infinity : -Infinity);
-    const bVal = b[dbField] ?? (sortDir === "asc" ? Infinity : -Infinity);
+    const aVal = a[dbField];
+    const bVal = b[dbField];
+    
+    // ALWAYS push nulls to the END of the list
+    if (aVal === null && bVal === null) return 0;
+    if (aVal === null) return 1;  // a goes after b
+    if (bVal === null) return -1; // b goes after a
+    
     return (aVal - bVal) * multiplier;
   });
 }
@@ -248,6 +234,7 @@ export async function GET(request: Request) {
     sort: url.searchParams.get("sort") ?? undefined,
     sortDir: url.searchParams.get("sortDir") ?? undefined,
     skipCache: url.searchParams.get("skipCache") ?? undefined,
+    hasOdds: url.searchParams.get("hasOdds") ?? undefined,
   });
 
   if (!query.success) {
@@ -259,7 +246,7 @@ export async function GET(request: Request) {
 
   const { 
     date, 
-    market, 
+    market: rawMarket, 
     minHitRate, 
     limit = DEFAULT_LIMIT, 
     offset = 0, 
@@ -268,7 +255,11 @@ export async function GET(request: Request) {
     sort = "l10Pct",
     sortDir = "desc",
     skipCache = false,
+    hasOdds = true, // Default to only profiles with odds
   } = query.data;
+  
+  // When no market specified, fetch ALL markets (client filters as needed)
+  const market = rawMarket || null;
 
   const todayET = getETDate();
   const tomorrowET = getETDate(1);
@@ -278,120 +269,83 @@ export async function GET(request: Request) {
   
   try {
     let allData: any[] = [];
-    let totalCount = 0;
     let cacheHit = false;
     
     // Try cache first (unless search/player filter or skipCache)
     const canUseCache = !search && !playerId && !skipCache;
     
     if (canUseCache) {
-      // Try to get cached data for each date
-      const cachePromises = datesToFetch.map(async (d) => {
-        const cacheKey = getCacheKey(d, sort, sortDir);
-        try {
-          const cached = await redis.get<{ data: any[]; count: number; ts: number }>(cacheKey);
-          if (cached) {
-            return { date: d, ...cached };
-          }
-        } catch (e) {
-          console.error(`[Hit Rates v2] Cache read error for ${d}:`, e);
+      const cacheKey = getCacheKey(datesToFetch, market, hasOdds);
+      try {
+        const cached = await redis.get<{ data: any[]; ts: number }>(cacheKey);
+        if (cached && cached.data) {
+          allData = cached.data;
+          cacheHit = true;
+          console.log(`[Hit Rates v2] Cache HIT (${allData.length} profiles) in ${Date.now() - startTime}ms`);
         }
-        return null;
-      });
-      
-      const cacheResults = await Promise.all(cachePromises);
-      const validCaches = cacheResults.filter(Boolean);
-      
-      if (validCaches.length === datesToFetch.length) {
-        // Full cache hit!
-        cacheHit = true;
-        for (const cache of validCaches) {
-          if (cache) {
-            allData = [...allData, ...cache.data];
-            totalCount += cache.count;
-          }
-        }
-        console.log(`[Hit Rates v2] Cache HIT for ${datesToFetch.join(", ")} in ${Date.now() - startTime}ms`);
+      } catch (e) {
+        console.error("[Hit Rates v2] Cache read error:", e);
       }
     }
     
-    // Cache miss - fetch from Supabase
+    // Cache miss - fetch from Supabase using FAST RPC
     if (!cacheHit) {
       const supabase = createServerSupabaseClient();
+      const dbStartTime = Date.now();
       
-      // Fetch profiles for all dates in parallel
-      const fetchPromises = datesToFetch.map(async (d) => {
-        const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles", {
-          p_dates: [d],
-          p_market: null, // Fetch all markets, filter client-side for better caching
-          p_min_hit_rate: minHitRate || null,
-          p_search: null, // Filter client-side for better caching
-          p_player_id: null, // Filter client-side for better caching
-          p_limit: 3000, // Fetch more for caching
-          p_offset: 0,
-        });
-        
-        if (error) {
-          console.error(`[Hit Rates v2] RPC error for ${d}:`, error.message);
-          return { date: d, data: [], count: 0, error };
-        }
-        
-        return { 
-          date: d, 
-          data: data || [], 
-          count: data?.[0]?.total_profiles ?? 0,
-        };
+      // Call the new optimized RPC function
+      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast", {
+        p_dates: datesToFetch,
+        p_market: market || null,
+        p_has_odds: hasOdds,
+        p_limit: market ? 500 : 3000, // 500 per market, 3000 for all markets
+        p_offset: 0,
       });
       
-      const fetchResults = await Promise.all(fetchPromises);
-      
-      // Process results and cache
-      for (const result of fetchResults) {
-        if (result.data.length > 0 && canUseCache) {
-          // Sort data before caching
-          const sortedData = sortData(result.data, sort, sortDir);
-          
-          // Cache for future requests (don't await to not block response)
-          const cacheKey = getCacheKey(result.date, sort, sortDir);
-          redis.set(cacheKey, {
-            data: sortedData,
-            count: result.count,
-            ts: Date.now(),
-          }, { ex: CACHE_TTL_SECONDS }).catch(e => 
-            console.error(`[Hit Rates v2] Cache write error:`, e)
-          );
-          
-          allData = [...allData, ...sortedData];
-        } else {
-          allData = [...allData, ...result.data];
-        }
-        totalCount += result.count;
+      if (error) {
+        console.error("[Hit Rates v2] RPC error:", error.message);
+        return NextResponse.json(
+          { error: "Database error", details: error.message },
+          { status: 500 }
+        );
       }
       
-      console.log(`[Hit Rates v2] DB fetch for ${datesToFetch.join(", ")} in ${Date.now() - startTime}ms`);
+      allData = data || [];
+      
+      const dbTime = Date.now() - dbStartTime;
+      const withOddsCount = allData.filter((r: any) => r.odds_selection_id).length;
+      console.log(`[Hit Rates v2] RPC fetch: ${allData.length} profiles (${withOddsCount} with odds) in ${dbTime}ms`);
+      
+      // Cache the data
+      if (canUseCache && allData.length > 0) {
+        const cacheKey = getCacheKey(datesToFetch, market, hasOdds);
+        redis.set(cacheKey, {
+          data: allData,
+          ts: Date.now(),
+        }, { ex: CACHE_TTL_SECONDS }).catch(e => 
+          console.error("[Hit Rates v2] Cache write error:", e)
+        );
+      }
     }
     
-    // Apply client-side filters
-    let filteredData = filterData(allData, search, market, playerId);
+    // Apply client-side filters (for search/playerId which bypass cache)
+    let filteredData = filterData(allData, search, undefined, playerId);
     
-    // Apply sorting if not already sorted (cache data is pre-sorted)
-    if (!cacheHit) {
-      filteredData = sortData(filteredData, sort, sortDir);
+    // Apply sorting
+    filteredData = sortData(filteredData, sort, sortDir);
+    
+    // Apply min hit rate filter if specified
+    if (minHitRate) {
+      filteredData = filteredData.filter(row => 
+        row.last_10_pct !== null && row.last_10_pct >= minHitRate
+      );
     }
     
     // Apply pagination
     const paginatedData = filteredData.slice(offset, offset + limit);
     
-    // Fetch matchups for paginated data (run in parallel with no blocking)
-    // Only fetch if we have a reasonable number of rows
-    const supabaseForMatchups = createServerSupabaseClient();
-    const matchupMap = await fetchMatchups(supabaseForMatchups, paginatedData);
-    
-    // Transform to frontend format with matchup data
-    const transformedData = paginatedData.map(row => {
-      const matchup = matchupMap.get(`${row.player_id}-${row.market}`);
-      return transformProfile(row, matchup);
-    });
+    // Transform to frontend format (matchup data is now included!)
+    const transformedData = paginatedData.map(transformProfile);
     
     // Get unique dates from response
     const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
@@ -412,6 +366,7 @@ export async function GET(request: Request) {
           offset,
           cacheHit,
           responseTime,
+          hasMore: filteredData.length > offset + limit,
         },
       },
       {
@@ -420,11 +375,11 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (error: any) {
-    console.error("[Hit Rates v2] Error:", error);
+  } catch (error) {
+    console.error("[Hit Rates v2] Unexpected error:", error);
     return NextResponse.json(
-      { error: "Failed to load hit rates", details: error?.message },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { error: "Internal server error" },
+      { status: 500 }
     );
   }
 }

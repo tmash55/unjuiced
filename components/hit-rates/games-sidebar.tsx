@@ -106,6 +106,7 @@ interface GamesSidebarProps {
   selectedPlayer?: HitRateProfile | null;
   gamePlayers?: HitRateProfile[]; // All players from the selected game
   onPlayerSelect?: (player: HitRateProfile) => void;
+  isLoadingPlayers?: boolean; // Show loading state for player list
   // Filter props (shared with table)
   hideNoOdds?: boolean;
   idsWithOdds?: Set<string>;
@@ -183,6 +184,7 @@ export function GamesSidebar({
   selectedPlayer,
   gamePlayers,
   onPlayerSelect,
+  isLoadingPlayers = false,
   hideNoOdds,
   idsWithOdds,
   isCollapsed = false,
@@ -658,15 +660,23 @@ export function GamesSidebar({
                           </div>
 
                           {/* Expand indicator for drilldown mode - Premium */}
-                          {selectedPlayer && gamePlayers.length > 0 && (
+                          {selectedPlayer && (isLoadingPlayers || gamePlayers.length > 0) && (
                             <div className="flex items-center justify-center mt-3 pt-2.5 border-t border-neutral-200/50 dark:border-neutral-700/50">
-                              <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 mr-1">
-                                {gamePlayers.length} player{gamePlayers.length !== 1 ? 's' : ''}
-                              </span>
-                              {isExpanded ? (
-                                <ChevronUp className="h-3 w-3 text-neutral-400" />
+                              {isLoadingPlayers ? (
+                                <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 animate-pulse">
+                                  Loading players...
+                                </span>
                               ) : (
-                                <ChevronDown className="h-3 w-3 text-neutral-400" />
+                                <>
+                                  <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 mr-1">
+                                    {gamePlayers.length} player{gamePlayers.length !== 1 ? 's' : ''}
+                                  </span>
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-3 w-3 text-neutral-400" />
+                                  ) : (
+                                    <ChevronDown className="h-3 w-3 text-neutral-400" />
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

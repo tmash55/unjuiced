@@ -339,7 +339,8 @@ export function RosterAndInjuries({
   onFiltersChange,
   className,
 }: RosterAndInjuriesProps) {
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
+  // Default to collapsed for a cleaner reading flow
+  const [isCollapsed, setIsCollapsed] = React.useState(true);
   
   const { playerTeam, opponentTeam, isLoading } = useGameRosters({
     playerTeamId,
@@ -347,6 +348,30 @@ export function RosterAndInjuries({
     season,
     enabled: !!playerTeamId || !!opponentTeamId,
   });
+  
+  // Calculate injury summary for collapsed view
+  const injurySummary = React.useMemo(() => {
+    const allPlayers = [...playerTeam.players, ...opponentTeam.players];
+    const outPlayers = allPlayers.filter(p => p.injuryStatus?.toLowerCase() === 'out');
+    const gtdPlayers = allPlayers.filter(p => {
+      const s = p.injuryStatus?.toLowerCase();
+      return s === 'questionable' || s === 'gtd' || s === 'game time decision';
+    });
+    const probablePlayers = allPlayers.filter(p => p.injuryStatus?.toLowerCase() === 'probable');
+    
+    // Get starters (players with high minutes) who are out
+    const startersOut = outPlayers.filter(p => (p.avgMinutes || 0) >= 20);
+    const keyOutNames = startersOut.slice(0, 3).map(p => p.name.split(' ').pop());
+    
+    return {
+      totalInjured: outPlayers.length + gtdPlayers.length + probablePlayers.length,
+      outCount: outPlayers.length,
+      gtdCount: gtdPlayers.length,
+      probableCount: probablePlayers.length,
+      startersOutCount: startersOut.length,
+      keyNames: keyOutNames,
+    };
+  }, [playerTeam.players, opponentTeam.players]);
   
   // Check for errors from either team
   const error = playerTeam.error || opponentTeam.error;
@@ -424,23 +449,69 @@ export function RosterAndInjuries({
         className
       )}
     >
-      {/* Header - Premium Design */}
-      <div className="relative overflow-hidden">
+      {/* Header - Clickable to expand/collapse */}
+      <button
+        type="button"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="w-full text-left relative overflow-hidden group"
+      >
         {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-orange-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-orange-900/10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-orange-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-orange-900/10 group-hover:from-neutral-50 dark:group-hover:from-neutral-700/80 transition-colors" />
         
         {/* Content */}
         <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-orange-500 to-amber-600 shadow-sm shadow-orange-500/30" />
-              <div>
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-                  Team Rosters & Injuries
-                </h2>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                  Filter games by player availability
-                </p>
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
+                    Rosters & Injuries
+                  </h2>
+                  {injurySummary.totalInjured > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full">
+                      {injurySummary.totalInjured}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Summary when collapsed */}
+                {isCollapsed ? (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {injurySummary.outCount > 0 && (
+                      <span className="text-xs font-medium text-red-500">
+                        {injurySummary.startersOutCount > 0 
+                          ? `${injurySummary.startersOutCount} starter${injurySummary.startersOutCount > 1 ? 's' : ''} OUT`
+                          : `${injurySummary.outCount} OUT`}
+                      </span>
+                    )}
+                    {injurySummary.gtdCount > 0 && (
+                      <>
+                        <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                        <span className="text-xs font-medium text-amber-500">
+                          {injurySummary.gtdCount} GTD
+                        </span>
+                      </>
+                    )}
+                    {injurySummary.keyNames.length > 0 && (
+                      <>
+                        <span className="text-neutral-300 dark:text-neutral-600">·</span>
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                          {injurySummary.keyNames.join(', ')}
+                        </span>
+                      </>
+                    )}
+                    {injurySummary.totalInjured === 0 && (
+                      <span className="text-xs text-neutral-400 dark:text-neutral-500">
+                        All players healthy
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+                    Filter games by player availability
+                  </p>
+                )}
               </div>
             </div>
             
@@ -454,22 +525,18 @@ export function RosterAndInjuries({
                 </div>
               )}
               
-              {/* Collapse/Expand Button */}
-              <button
-                type="button"
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-700/50 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
-              >
+              {/* Collapse/Expand Indicator */}
+              <div className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-700/50 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-700 transition-all">
                 {isCollapsed ? (
                   <ChevronDown className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
                 ) : (
                   <ChevronUp className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Two-column layout - Collapsible */}
       {!isCollapsed && (

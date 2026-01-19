@@ -16,7 +16,9 @@ import { GameLogChart } from "./game-log-chart";
 import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
+import { FilterDrawer, FilterButton } from "./filter-drawer";
 import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
+import { InjuryImpactCard } from "./injury-impact-card";
 import { PlayTypeAnalysis } from "./play-type-analysis";
 import { ShootingZones } from "./shooting-zones";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
@@ -492,6 +494,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const [chartFilters, setChartFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
@@ -546,11 +549,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     setQuickFilters(new Set());
   }, [initialProfile.playerId]);
 
-  // Reset custom line and filters when market changes
+  // Reset custom line when market changes (line values are market-specific)
+  // BUT preserve filters - users shouldn't have to re-apply filters for each market
   useEffect(() => {
     setCustomLine(null);
-    setChartFilters(DEFAULT_FILTERS);
-    setQuickFilters(new Set());
+    // Filters persist across market changes for better UX flow
   }, [selectedMarket]);
 
   // Fetch box scores for this player (used for chart and table)
@@ -1632,6 +1635,12 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   <span className="font-bold text-neutral-700 dark:text-neutral-300">{chartStats.hits}/{chartStats.total}</span>
                   <span className="text-[9px]">games</span>
                 </div>
+
+                {/* Filter Button */}
+                <FilterButton 
+                  onClick={() => setFilterDrawerOpen(true)}
+                  activeCount={quickFilters.size + injuryFilters.length + (chartFilters.minutes || chartFilters.usage || chartFilters.points || chartFilters.rebounds || chartFilters.assists ? 1 : 0)}
+                />
               </div>
             </div>
           </div>
@@ -1664,69 +1673,21 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          CHART FILTERS - Scrollable mini charts (Premium Design)
+          INJURY IMPACT CARD - Shows stat boosts when teammates are out
           ═══════════════════════════════════════════════════════════════════ */}
-      {!boxScoresLoading && boxScoreGames.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
-          {/* Header */}
-          <div className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-violet-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-violet-900/10" />
-            <div className="relative px-5 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-1 rounded-full bg-gradient-to-b from-purple-500 to-purple-600" />
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-                      Advanced Filters
-                    </h2>
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-                      Filter by performance metrics
-                    </p>
-                  </div>
-                </div>
-                
-                {/* View Toggle Button */}
-              <button
-                type="button"
-                  onClick={() => setFiltersExpanded(!filtersExpanded)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all",
-                    filtersExpanded
-                      ? "bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400"
-                      : "bg-neutral-100 dark:bg-neutral-700/50 border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-500"
-                  )}
-                >
-                  {filtersExpanded ? (
-                    <>
-                      <LayoutList className="h-3.5 w-3.5" />
-                      <span>Scroll View</span>
-                    </>
-                  ) : (
-                    <>
-                      <Grid3X3 className="h-3.5 w-3.5" />
-                      <span>View All</span>
-                    </>
-                  )}
-              </button>
-          </div>
-        </div>
+      <div className="mt-6">
+        {profile.teamId && activeLine !== null && (
+          <InjuryImpactCard
+            playerId={profile.playerId}
+            market={profile.market}
+            line={activeLine}
+            teamId={profile.teamId}
+          />
+        )}
       </div>
-          <div className="p-5">
-            <ChartFilters
-              games={gamesForChartFilters}
-              filters={chartFilters}
-              onFiltersChange={setChartFilters}
-              market={profile.market}
-              isExpanded={filtersExpanded}
-              onExpandedChange={setFiltersExpanded}
-              hideControls={true}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          TEAM ROSTERS & INJURIES (Combined)
+          TEAM ROSTERS & INJURIES (Combined) - Collapsible
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
         <RosterAndInjuries
@@ -1827,6 +1788,36 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           prefetchedSeasonSummary={seasonSummary}
         />
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          FILTER DRAWER (Right Slide-Over Panel)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <FilterDrawer
+        isOpen={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        quickFilters={quickFilters}
+        onQuickFilterToggle={toggleQuickFilter}
+        onQuickFiltersClear={() => setQuickFilters(new Set())}
+        chartFilters={chartFilters}
+        onChartFiltersChange={setChartFilters}
+        gamesForFilters={gamesForChartFilters}
+        market={profile.market}
+        hasDvpData={opponentDvpRanks.size > 0}
+        activeQuickFiltersCount={quickFilters.size}
+        activeChartFiltersCount={[
+          chartFilters.minutes,
+          chartFilters.usage,
+          chartFilters.points,
+          chartFilters.rebounds,
+          chartFilters.assists,
+          chartFilters.fg3m,
+          chartFilters.fg3a,
+          chartFilters.steals,
+          chartFilters.blocks,
+          chartFilters.turnovers,
+        ].filter(Boolean).length}
+        activeInjuryFiltersCount={injuryFilters.length}
+      />
     </div>
   );
 }

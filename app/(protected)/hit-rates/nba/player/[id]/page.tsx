@@ -34,9 +34,10 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   });
 
   // Fetch all players for the sidebar (for game navigation)
-  const { rows: allPlayers } = useHitRateTable({
+  // Note: This fetches ALL markets since no market param is passed
+  const { rows: allPlayers, isLoading: isLoadingAllPlayers } = useHitRateTable({
     enabled: !isNaN(playerId),
-    limit: 10000, // Get all players for sidebar
+    limit: 3000, // Get enough players for sidebar (all markets)
   });
 
   // Sidebar collapse state - initialize from URL
@@ -334,12 +335,13 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
           onSelectTodaysGames={() => {}}
           onClearAll={() => {}}
           selectedPlayer={profile}
-          gamePlayers={allPlayers}
+          gamePlayers={isLoadingAllPlayers ? [] : allPlayers}
           onPlayerSelect={handleSidebarPlayerSelect}
           hideNoOdds={false}
           idsWithOdds={new Set()}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
+          isLoadingPlayers={isLoadingAllPlayers}
         />
 
         {/* Player Drilldown */}

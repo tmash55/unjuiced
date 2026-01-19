@@ -130,12 +130,49 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
   };
 }
 
+// Client-side sort function for instant UI response
+function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir: "asc" | "desc"): HitRateProfile[] {
+  if (!sort || rows.length === 0) return rows;
+  
+  const multiplier = sortDir === "asc" ? 1 : -1;
+  
+  const fieldMap: Record<HitRateSortField, keyof HitRateProfile> = {
+    line: "line",
+    l5Avg: "last5Avg",
+    l10Avg: "last10Avg",
+    seasonAvg: "seasonAvg",
+    streak: "hitStreak",
+    l5Pct: "last5Pct",
+    l10Pct: "last10Pct",
+    l20Pct: "last20Pct",
+    seasonPct: "seasonPct",
+    h2hPct: "h2hPct",
+    matchupRank: "matchupRank",
+  };
+  
+  const field = fieldMap[sort];
+  
+  return [...rows].sort((a, b) => {
+    const aVal = a[field] as number | null;
+    const bVal = b[field] as number | null;
+    
+    // ALWAYS push nulls to the END of the list
+    if (aVal === null && bVal === null) return 0;
+    if (aVal === null) return 1;  // a goes after b
+    if (bVal === null) return -1; // b goes after a
+    
+    return (aVal - bVal) * multiplier;
+  });
+}
+
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
   const { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir, enabled = true } = options;
 
+  // NOTE: Sort is NOT in the query key - sorting is done client-side for instant response
+  // The API returns data pre-sorted by has_odds + L10, client re-sorts as needed
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId, sort, sortDir }),
+    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId }],
+    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer
@@ -143,10 +180,16 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
     refetchOnReconnect: false, // Don't refetch on network reconnect
   });
 
-  const rows = queryResult.data?.rows ?? [];
+  const rawRows = queryResult.data?.rows ?? [];
   const count = queryResult.data?.count ?? 0;
   const meta = queryResult.data?.meta;
   const availableDates = meta?.availableDates ?? [];
+
+  // Client-side sorting - instant response, no refetch
+  const rows = useMemo(() => {
+    if (!sort || !sortDir) return rawRows;
+    return sortRows(rawRows, sort, sortDir);
+  }, [rawRows, sort, sortDir]);
 
   return useMemo(
     () => ({

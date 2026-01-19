@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
 import Chart from "@/icons/chart";
-import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
+// Disabled: usePrefetchPlayer was causing excessive API calls on hover
+// import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
@@ -427,8 +428,8 @@ export function HitRateTable({
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Prefetch player data on hover for faster drilldown loading
-  const prefetchPlayer = usePrefetchPlayer();
+  // Disabled: Prefetch was causing excessive API calls on every row hover
+  // const prefetchPlayer = usePrefetchPlayer();
   
   // Advanced filter states
   const [showFilterPopup, setShowFilterPopup] = useState(false);
@@ -518,8 +519,8 @@ export function HitRateTable({
     }
   }, [sortField, sortDirection, onSortChange]);
 
-  // Apply advanced filters first, then sort
-  const filteredAndSortedRows = useMemo(() => {
+  // Apply advanced filters only (sorting is consolidated in sortedRows)
+  const filteredRows = useMemo(() => {
     let result = rows;
     
     // Filter by position
@@ -546,33 +547,8 @@ export function HitRateTable({
     
     // Note: hideNoOdds filter is applied in render since odds are fetched separately
     
-    // Sort
-    if (sortField) {
-      result = [...result].sort((a, b) => {
-        // Push "out" players to the bottom regardless of sort order
-        const aIsOut = a.injuryStatus?.toLowerCase() === "out";
-        const bIsOut = b.injuryStatus?.toLowerCase() === "out";
-        if (aIsOut && !bIsOut) return 1;
-        if (!aIsOut && bIsOut) return -1;
-        
-        const aVal = getSortValue(a, sortField);
-        const bVal = getSortValue(b, sortField);
-        
-        // Handle nulls - push them to the end
-        if (aVal === null && bVal === null) return 0;
-        if (aVal === null) return 1;
-        if (bVal === null) return -1;
-        
-        const diff = aVal - bVal;
-        return sortDirection === "asc" ? diff : -diff;
-      });
-    }
-    
     return result;
-  }, [rows, sortField, sortDirection, selectedPositions, maxMatchupRank]);
-  
-  // Keep sortedRows for backwards compatibility (used elsewhere)
-  const sortedRows = filteredAndSortedRows;
+  }, [rows, selectedPositions, maxMatchupRank]);
 
   // Fetch odds for all rows using the new stable key system
   // The oddsSelectionId is now a stable hash that never changes
@@ -584,6 +560,68 @@ export function HitRateTable({
     })),
     enabled: rows.length > 0,
   });
+  
+  // Sort rows: All sorting consolidated here
+  // Priority: 1) "Out" players to bottom, 2) Primary sort field, 3) Odds availability (tiebreaker)
+  const sortedRows = useMemo(() => {
+    // Get sort field mapping
+    const fieldMap: Record<string, keyof HitRateProfile> = {
+      line: "line",
+      l5Avg: "last5Avg",
+      l10Avg: "last10Avg",
+      seasonAvg: "seasonAvg",
+      streak: "hitStreak",
+      l5Pct: "last5Pct",
+      l10Pct: "last10Pct",
+      l20Pct: "last20Pct",
+      seasonPct: "seasonPct",
+      h2hPct: "h2hPct",
+      matchupRank: "matchupRank",
+    };
+    
+    const sortFieldKey = sortField ? fieldMap[sortField] : null;
+    const multiplier = sortDirection === "asc" ? 1 : -1;
+    
+    return [...filteredRows].sort((a, b) => {
+      // 0. ALWAYS push "out" players to the bottom
+      const aIsOut = a.injuryStatus?.toLowerCase() === "out";
+      const bIsOut = b.injuryStatus?.toLowerCase() === "out";
+      if (aIsOut && !bIsOut) return 1;
+      if (!aIsOut && bIsOut) return -1;
+      
+      // 1. PRIMARY SORT: by user's selected field (L10%, etc.)
+      if (sortFieldKey) {
+        const aVal = a[sortFieldKey] as number | null;
+        const bVal = b[sortFieldKey] as number | null;
+        
+        // Push nulls to the end (regardless of sort direction)
+        if (aVal === null && bVal !== null) return 1;
+        if (aVal !== null && bVal === null) return -1;
+        
+        // If both have values, compare them
+        if (aVal !== null && bVal !== null) {
+          const diff = (aVal - bVal) * multiplier;
+          if (diff !== 0) return diff;
+        }
+        // If both are null, fall through to secondary sort
+      }
+      
+      // 2. SECONDARY SORT (tiebreaker): prefer rows with odds
+      // Only apply when odds have finished loading
+      if (!oddsLoading) {
+        const aOdds = getOdds(a.oddsSelectionId);
+        const bOdds = getOdds(b.oddsSelectionId);
+        
+        const aHasOdds = !!(aOdds && (aOdds.bestOver || aOdds.bestUnder));
+        const bHasOdds = !!(bOdds && (bOdds.bestOver || bOdds.bestUnder));
+        
+        if (aHasOdds && !bHasOdds) return -1;
+        if (!aHasOdds && bHasOdds) return 1;
+      }
+      
+      return 0;
+    });
+  }, [filteredRows, getOdds, oddsLoading, sortField, sortDirection]);
 
   // Report which profiles have odds (for filtering in other components like sidebar)
   // Use a ref to track previous value and avoid infinite loops
@@ -624,7 +662,7 @@ export function HitRateTable({
   const filterBar = (
     <div className="flex items-center gap-4 px-5 py-3.5 border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 shrink-0 backdrop-blur-sm">
         {/* Markets Dropdown - Premium */}
-        <div ref={dropdownRef} className="relative">
+        <div ref={dropdownRef} className="relative z-[9998]">
           <button
             type="button"
             onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
@@ -651,7 +689,7 @@ export function HitRateTable({
           </button>
 
           {marketDropdownOpen && (
-            <div className="absolute left-0 top-full z-[100] mt-2 w-[220px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl p-2 shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 ring-1 ring-black/5 dark:ring-white/5">
+            <div className="absolute left-0 top-full z-[9999] mt-2 w-[220px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl p-2 shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 ring-1 ring-black/5 dark:ring-white/5">
               <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2 mb-2 px-1">
                 <button type="button" onClick={selectAllMarkets} className="text-xs font-semibold text-brand hover:text-brand/80 transition-colors">
                   Select All
@@ -698,7 +736,7 @@ export function HitRateTable({
         </div>
 
         {/* Advanced Filters Button - Premium */}
-        <div ref={filterPopupRef} className="relative">
+        <div ref={filterPopupRef} className="relative z-[9998]">
           <button
             type="button"
             onClick={() => setShowFilterPopup(!showFilterPopup)}
@@ -719,7 +757,7 @@ export function HitRateTable({
 
           {/* Filter Popup - Premium */}
           {showFilterPopup && (
-            <div className="absolute right-0 top-full z-[100] mt-2 w-[340px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+            <div className="absolute right-0 top-full z-[9999] mt-2 w-[340px] rounded-2xl border border-neutral-200/80 bg-white/95 backdrop-blur-xl shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900/95 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
               {/* Header with gradient */}
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-800/50 dark:to-neutral-900">
                 <span className="text-sm font-bold text-neutral-900 dark:text-white">Advanced Filters</span>
@@ -864,7 +902,7 @@ export function HitRateTable({
           <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
           {hasActiveFilters || selectedMarkets.length < MARKET_OPTIONS.length ? (
             // Filters active - show filtered count
-            <>{filteredAndSortedRows.length} props</>
+            <>{filteredRows.length} props</>
           ) : totalCount !== undefined ? (
             // All markets, no filters - show pagination info
             <>{rows.length} of {totalCount} props</>
@@ -944,7 +982,7 @@ export function HitRateTable({
       <div ref={scrollRef} className="overflow-auto flex-1">
       <table className="min-w-full text-sm table-fixed">
           <colgroup><col style={{ width: 250 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
-        <thead className="sticky top-0 z-10">
+        <thead className="sticky top-0 z-[5]">
           <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
             {/* Non-sortable columns */}
             <th className="h-14 px-4 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
@@ -1005,11 +1043,6 @@ export function HitRateTable({
               </div>
             </th>
             
-            {/* Non-sortable: Odds */}
-            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-              Odds
-            </th>
-            
             {/* Sortable: Streak */}
             <th
               onClick={() => handleSort("streak")}
@@ -1026,7 +1059,7 @@ export function HitRateTable({
             {/* Sortable: L5 */}
             <th
               onClick={() => handleSort("l5Pct")}
-              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
+              className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200 w-16 min-w-[64px]"
             >
               <div className="flex items-center justify-center gap-1">
                 L5
@@ -1077,6 +1110,11 @@ export function HitRateTable({
                 <SortIcon field="h2hPct" />
               </div>
             </th>
+            
+            {/* Non-sortable: Odds (last column) */}
+            <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+              Odds
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1102,7 +1140,6 @@ export function HitRateTable({
             return (
               <tr
                 key={rowKey}
-                onMouseEnter={() => !isBlurred && prefetchPlayer(row.playerId)}
                 onClick={() => !isBlurred && onRowClick?.(row)}
                 className={cn(
                   "border-b border-neutral-100/80 dark:border-neutral-800/80 transition-all duration-200 group",
@@ -1262,13 +1299,13 @@ export function HitRateTable({
                         )}
                       </div>
                       
-                      {/* Matchup Rank */}
-                      {row.matchupRankLabel && (
+                      {/* DvP Rank Number */}
+                      {row.matchupRank !== null && (
                         <span className={cn(
-                          "text-[10px] font-semibold mt-0.5",
+                          "text-xs font-bold mt-0.5 tabular-nums",
                           getMatchupRankColor(row.matchupRank)
                         )}>
-                          {row.matchupRankLabel}
+                          #{row.matchupRank}
                         </span>
                       )}
                     </div>
@@ -1327,20 +1364,6 @@ export function HitRateTable({
                   </span>
                 </td>
 
-                {/* Odds Column */}
-                <td className="px-3 py-4 align-middle text-center">
-                  {isBlurred ? (
-                    <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>
-                  ) : hasGameStarted(row.gameStatus, row.gameDate) ? (
-                    <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
-                  ) : (
-                    <OddsDropdown 
-                      odds={odds} 
-                      loading={oddsLoading} 
-                    />
-                  )}
-                </td>
-
                 {/* Streak Column */}
                 <td className="px-1 py-4 align-middle text-center">
                   {isBlurred ? (
@@ -1377,6 +1400,20 @@ export function HitRateTable({
                 {/* H2H % - Premium cell with progress bar */}
                 <td className="px-2 py-3 align-middle text-center">
                   <HitRateCell value={row.h2hPct} isBlurred={isBlurred} />
+                </td>
+                
+                {/* Odds Column (last column) */}
+                <td className="px-3 py-4 align-middle text-center">
+                  {isBlurred ? (
+                    <span className="text-xs text-neutral-400 opacity-50 blur-[2px]">+000</span>
+                  ) : hasGameStarted(row.gameStatus, row.gameDate) ? (
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
+                  ) : (
+                    <OddsDropdown 
+                      odds={odds} 
+                      loading={oddsLoading} 
+                    />
+                  )}
                 </td>
               </tr>
             );

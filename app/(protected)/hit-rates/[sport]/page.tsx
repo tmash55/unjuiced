@@ -31,13 +31,13 @@ const MARKET_OPTIONS = [
 const FILTER_DEBOUNCE_MS = 300;
 
 // Pagination settings - Progressive loading for snappy UX
-// OPTIMIZED: Reduced initial load for faster first paint (v2 API caches full dataset)
-const INITIAL_PAGE_SIZE = 150; // Fast initial load - cached API handles sorting
-const BACKGROUND_PAGE_SIZE = 500; // Load more on demand
-const FULL_DATA_SIZE = 2000; // Full dataset for sorting/filtering accuracy (only on user interaction)
+// OPTIMIZED: Load all player_points for today/tomorrow upfront for client-side sorting
+const INITIAL_PAGE_SIZE = 500; // Load all player_points in one request
+const BACKGROUND_PAGE_SIZE = 500; // Same size for consistency
+const FULL_DATA_SIZE = 1500; // Full dataset for other markets
 
 // Table display pagination - limit visible rows for performance
-const TABLE_PAGE_SIZE = 100; // Show 100 rows at a time
+const TABLE_PAGE_SIZE = 150; // Show 150 rows at a time for better odds coverage
 const TABLE_LOAD_MORE = 100; // Load 100 more when clicking "Show More"
 
 // Memoized helper - normalize game IDs (remove leading zeros)
@@ -60,10 +60,30 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Detect mobile viewport
   const isMobile = useMediaQuery("(max-width: 767px)");
 
+  // Session storage key for filter state preservation
+  const FILTER_STATE_KEY = "hit-rate-filter-state";
+
+  // Restore filter state from sessionStorage on mount
+  const getSavedFilterState = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = sessionStorage.getItem(FILTER_STATE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to parse saved filter state:", e);
+    }
+    return null;
+  };
+
+  // Initialize state from sessionStorage if available
+  const savedState = getSavedFilterState();
+
   // Let the API determine the best date (today, or next day with profiles if today has none)
-  // Default to Points only
+  // Default to Points only, or restore from session
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(
-    ["player_points"]
+    savedState?.selectedMarkets || ["player_points"]
   );
   
   // Search state - with debouncing for server-side search
@@ -74,8 +94,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
   
   // Desktop sort state (lifted up to persist across drilldown navigation)
-  const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>("l10Pct");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>(
+    savedState?.sortField || "l10Pct"
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(
+    savedState?.sortDirection || "desc"
+  );
   
   // Mobile-specific filter state (lifted up to persist across drilldown navigation)
   const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
@@ -308,18 +332,49 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const totalCount = count ?? 0;
   const hasMoreApiData = rows.length < totalCount && !hasLoadedBackground;
 
+  // Save filter state to sessionStorage before navigating to drilldown
+  const saveFilterState = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const state = {
+        selectedMarkets,
+        sortField,
+        sortDirection,
+        // Add more state if needed
+      };
+      sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error("Failed to save filter state:", e);
+    }
+  }, [selectedMarkets, sortField, sortDirection]);
+
+  // Clear saved filter state after it's been restored
+  useEffect(() => {
+    if (savedState) {
+      // Clear after a short delay to ensure state is applied
+      const timer = setTimeout(() => {
+        sessionStorage.removeItem(FILTER_STATE_KEY);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Only run once on mount
+
   // Player drill-down handler for TABLE clicks - navigate to player page
   const handleTableRowClick = useCallback((player: HitRateProfile) => {
+    // Save current filter state before navigating
+    saveFilterState();
     // Navigate to player page with market and sidebar collapse state
     const params = new URLSearchParams({
       market: player.market,
       ...(isSidebarCollapsed && { sidebar: 'collapsed' }),
     });
     router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
-  }, [router, sport, isSidebarCollapsed]);
+  }, [router, sport, isSidebarCollapsed, saveFilterState]);
 
   // Player drill-down handler for SIDEBAR clicks - navigate with preferred market
   const handleSidebarPlayerSelect = useCallback((player: HitRateProfile) => {
+    // Save current filter state before navigating
+    saveFilterState();
     // Use preferred market if available, otherwise use the player's current market
     const marketToUse = preferredMarket || player.market;
     const params = new URLSearchParams({
@@ -327,7 +382,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       ...(isSidebarCollapsed && { sidebar: 'collapsed' }),
     });
     router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
-  }, [router, sport, preferredMarket, isSidebarCollapsed]);
+  }, [router, sport, preferredMarket, isSidebarCollapsed, saveFilterState]);
 
   // Pre-compute normalized selected game IDs (avoids recalc in filter)
   const normalizedSelectedGameIds = useMemo(() => 
@@ -347,7 +402,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Client-side filtering: markets + game filter (search is server-side)
   const filteredRows = useMemo(() => {
-    let result = rows;
+    // First: exclude records with no betting line (null line = no actionable data)
+    let result = rows.filter((row: HitRateProfile) => row.line !== null);
     
     // Filter by selected markets (instant, no API call)
     if (selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length) {
@@ -401,13 +457,16 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Mobile filtered rows - apply started games filter to match desktop behavior
   // Mobile does its own market/game filtering internally, but we pre-filter started games
   const mobileFilteredRows = useMemo(() => {
+    // First: exclude records with no betting line
+    let result = rows.filter((row: HitRateProfile) => row.line !== null);
+    
     // If specific games are selected on mobile, don't filter started games (user explicitly selected them)
     if (effectiveMobileGameIds.length > 0) {
-      return rows;
+      return result;
     }
     
     // No games selected - filter out players from games that have already started
-    return rows.filter((row: HitRateProfile) => {
+    return result.filter((row: HitRateProfile) => {
       if (!row.gameId) return true;
       return !startedGameIds.has(normalizeGameId(row.gameId));
     });

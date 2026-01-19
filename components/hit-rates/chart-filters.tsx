@@ -147,6 +147,28 @@ const formatShortDate = (dateStr: string) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
+// Preset chip type for dual-mode filters
+type PresetChip = {
+  label: string;
+  getRange: (min: number, max: number, avg: number) => FilterRange;
+};
+
+// Default preset chips for common filters
+const DEFAULT_PRESET_CHIPS: PresetChip[] = [
+  { 
+    label: "Low", 
+    getRange: (min, max) => ({ min, max: min + (max - min) * 0.33 })
+  },
+  { 
+    label: "Avg", 
+    getRange: (min, max) => ({ min: min + (max - min) * 0.33, max: min + (max - min) * 0.67 })
+  },
+  { 
+    label: "High", 
+    getRange: (min, max) => ({ min: min + (max - min) * 0.67, max })
+  },
+];
+
 // Mini bar chart component showing individual game bars with tooltips
 function MiniBarChart({
   title,
@@ -160,6 +182,7 @@ function MiniBarChart({
   isPercentage = false,
   isInteger = false,
   useRelativeScale = false, // Scale bars based on data range, not from 0
+  showPresetChips = false, // Show Low/Avg/High chips
 }: {
   title: string;
   games: BoxScoreGame[];
@@ -172,6 +195,7 @@ function MiniBarChart({
   isPercentage?: boolean;
   isInteger?: boolean;
   useRelativeScale?: boolean; // When true, bars scale from min to max instead of 0 to max
+  showPresetChips?: boolean; // When true, show Low/Avg/High quick selection chips
 }) {
   const sliderRef = useRef<HTMLDivElement>(null);
   const [activeHandle, setActiveHandle] = useState<"min" | "max" | null>(null);
@@ -300,6 +324,14 @@ function MiniBarChart({
     return val.toFixed(decimals) + unit;
   };
   
+  // Check if a preset chip matches the current filter
+  const isPresetActive = (preset: PresetChip) => {
+    if (!selectedRange) return false;
+    const presetRange = preset.getRange(minVal, maxVal, avgValue);
+    return Math.abs(selectedRange.min - presetRange.min) < 0.01 && 
+           Math.abs(selectedRange.max - presetRange.max) < 0.01;
+  };
+  
   return (
     <div className="flex-shrink-0 min-w-[280px] sm:min-w-[300px] rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5">
       {/* Header */}
@@ -321,6 +353,36 @@ function MiniBarChart({
           )}
         </div>
       </div>
+      
+      {/* Preset Chips (Low/Avg/High) */}
+      {showPresetChips && (
+        <div className="flex items-center gap-1.5 mb-3">
+          {DEFAULT_PRESET_CHIPS.map((preset) => {
+            const isActive = isPresetActive(preset);
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => {
+                  if (isActive) {
+                    onRangeChange(null); // Toggle off
+                  } else {
+                    onRangeChange(preset.getRange(minVal, maxVal, avgValue));
+                  }
+                }}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all",
+                  isActive
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                )}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       
       {/* Individual game bars (oldest left, newest right) */}
       <div className="relative mb-4">
@@ -702,11 +764,12 @@ export function ChartFilters({
       isInteger?: boolean;
       useRelativeScale?: boolean;
       decimals?: number;
-      category: "base" | "core" | "shooting" | "advanced";
+      category: "opportunity" | "efficiency" | "playmaking" | "rebounding" | "defense";
+      showPresetChips?: boolean; // Show Low/Avg/High chips for key filters
     };
     
     const allConfigs: FilterConfig[] = [
-      // Base filters - always first
+      // OPPORTUNITY - Minutes, Usage, FGA, FG3A
       {
         key: "minutes",
         title: "Minutes",
@@ -715,7 +778,8 @@ export function ChartFilters({
         selectedRange: filters.minutes,
         filterKey: "minutes",
         decimals: 1,
-        category: "base",
+        category: "opportunity",
+        showPresetChips: true, // Key filter
       },
       {
         key: "usage",
@@ -726,110 +790,9 @@ export function ChartFilters({
         filterKey: "usage",
         isPercentage: true,
         useRelativeScale: true,
-        category: "base",
+        category: "opportunity",
+        showPresetChips: true, // Key filter
       },
-      // Core stats
-      {
-        key: "points",
-        title: "Points",
-        getValue: (g) => g.pts,
-        avgValue: avgPoints,
-        selectedRange: filters.points,
-        filterKey: "points",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "rebounds",
-        title: "Rebounds",
-        getValue: (g) => g.reb,
-        avgValue: avgRebounds,
-        selectedRange: filters.rebounds,
-        filterKey: "rebounds",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "oreb",
-        title: "Off Reb",
-        getValue: (g) => g.oreb,
-        avgValue: avgOreb,
-        selectedRange: filters.oreb,
-        filterKey: "oreb",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "dreb",
-        title: "Def Reb",
-        getValue: (g) => g.dreb,
-        avgValue: avgDreb,
-        selectedRange: filters.dreb,
-        filterKey: "dreb",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "potentialReb",
-        title: "Potential Reb",
-        getValue: (g) => g.potentialReb,
-        avgValue: avgPotentialReb,
-        selectedRange: filters.potentialReb,
-        filterKey: "potentialReb",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "assists",
-        title: "Assists",
-        getValue: (g) => g.ast,
-        avgValue: avgAssists,
-        selectedRange: filters.assists,
-        filterKey: "assists",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "passes",
-        title: "Passes",
-        getValue: (g) => g.passes,
-        avgValue: avgPasses,
-        selectedRange: filters.passes,
-        filterKey: "passes",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "steals",
-        title: "Steals",
-        getValue: (g) => g.stl,
-        avgValue: avgSteals,
-        selectedRange: filters.steals,
-        filterKey: "steals",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "blocks",
-        title: "Blocks",
-        getValue: (g) => g.blk,
-        avgValue: avgBlocks,
-        selectedRange: filters.blocks,
-        filterKey: "blocks",
-        isInteger: true,
-        category: "core",
-      },
-      {
-        key: "turnovers",
-        title: "Turnovers",
-        getValue: (g) => g.tov,
-        avgValue: avgTurnovers,
-        selectedRange: filters.turnovers,
-        filterKey: "turnovers",
-        isInteger: true,
-        category: "core",
-      },
-      // Shooting stats
       {
         key: "fga",
         title: "FGA",
@@ -838,17 +801,8 @@ export function ChartFilters({
         selectedRange: filters.fga,
         filterKey: "fga",
         isInteger: true,
-        category: "shooting",
-      },
-      {
-        key: "fgm",
-        title: "FGM",
-        getValue: (g) => g.fgm,
-        avgValue: avgFgm,
-        selectedRange: filters.fgm,
-        filterKey: "fgm",
-        isInteger: true,
-        category: "shooting",
+        category: "opportunity",
+        showPresetChips: true, // Key filter
       },
       {
         key: "fg3a",
@@ -858,7 +812,18 @@ export function ChartFilters({
         selectedRange: filters.fg3a,
         filterKey: "fg3a",
         isInteger: true,
-        category: "shooting",
+        category: "opportunity",
+      },
+      // EFFICIENCY - FGM, 3PM, TS%, eFG%
+      {
+        key: "fgm",
+        title: "FGM",
+        getValue: (g) => g.fgm,
+        avgValue: avgFgm,
+        selectedRange: filters.fgm,
+        filterKey: "fgm",
+        isInteger: true,
+        category: "efficiency",
       },
       {
         key: "fg3m",
@@ -868,38 +833,7 @@ export function ChartFilters({
         selectedRange: filters.fg3m,
         filterKey: "fg3m",
         isInteger: true,
-        category: "shooting",
-      },
-      {
-        key: "fta",
-        title: "FTA",
-        getValue: (g) => g.fta,
-        avgValue: avgFta,
-        selectedRange: filters.fta,
-        filterKey: "fta",
-        isInteger: true,
-        category: "shooting",
-      },
-      {
-        key: "ftm",
-        title: "FTM",
-        getValue: (g) => g.ftm,
-        avgValue: avgFtm,
-        selectedRange: filters.ftm,
-        filterKey: "ftm",
-        isInteger: true,
-        category: "shooting",
-      },
-      // Advanced stats
-      {
-        key: "plusMinus",
-        title: "+/-",
-        getValue: (g) => g.plusMinus,
-        avgValue: avgPlusMinus,
-        selectedRange: filters.plusMinus,
-        filterKey: "plusMinus",
-        isInteger: true,
-        category: "advanced",
+        category: "efficiency",
       },
       {
         key: "tsPct",
@@ -910,7 +844,7 @@ export function ChartFilters({
         filterKey: "tsPct",
         isPercentage: true,
         useRelativeScale: true,
-        category: "advanced",
+        category: "efficiency",
       },
       {
         key: "efgPct",
@@ -921,7 +855,142 @@ export function ChartFilters({
         filterKey: "efgPct",
         isPercentage: true,
         useRelativeScale: true,
-        category: "advanced",
+        category: "efficiency",
+      },
+      // PLAYMAKING - Assists, Passes, Turnovers
+      {
+        key: "assists",
+        title: "Assists",
+        getValue: (g) => g.ast,
+        avgValue: avgAssists,
+        selectedRange: filters.assists,
+        filterKey: "assists",
+        isInteger: true,
+        category: "playmaking",
+      },
+      {
+        key: "passes",
+        title: "Passes",
+        getValue: (g) => g.passes,
+        avgValue: avgPasses,
+        selectedRange: filters.passes,
+        filterKey: "passes",
+        isInteger: true,
+        category: "playmaking",
+      },
+      {
+        key: "turnovers",
+        title: "Turnovers",
+        getValue: (g) => g.tov,
+        avgValue: avgTurnovers,
+        selectedRange: filters.turnovers,
+        filterKey: "turnovers",
+        isInteger: true,
+        category: "playmaking",
+      },
+      // REBOUNDING - Total, OREB, DREB, Potential
+      {
+        key: "rebounds",
+        title: "Rebounds",
+        getValue: (g) => g.reb,
+        avgValue: avgRebounds,
+        selectedRange: filters.rebounds,
+        filterKey: "rebounds",
+        isInteger: true,
+        category: "rebounding",
+      },
+      {
+        key: "oreb",
+        title: "Off Reb",
+        getValue: (g) => g.oreb,
+        avgValue: avgOreb,
+        selectedRange: filters.oreb,
+        filterKey: "oreb",
+        isInteger: true,
+        category: "rebounding",
+      },
+      {
+        key: "dreb",
+        title: "Def Reb",
+        getValue: (g) => g.dreb,
+        avgValue: avgDreb,
+        selectedRange: filters.dreb,
+        filterKey: "dreb",
+        isInteger: true,
+        category: "rebounding",
+      },
+      {
+        key: "potentialReb",
+        title: "Potential Reb",
+        getValue: (g) => g.potentialReb,
+        avgValue: avgPotentialReb,
+        selectedRange: filters.potentialReb,
+        filterKey: "potentialReb",
+        isInteger: true,
+        category: "rebounding",
+      },
+      // DEFENSE - Steals, Blocks
+      {
+        key: "steals",
+        title: "Steals",
+        getValue: (g) => g.stl,
+        avgValue: avgSteals,
+        selectedRange: filters.steals,
+        filterKey: "steals",
+        isInteger: true,
+        category: "defense",
+      },
+      {
+        key: "blocks",
+        title: "Blocks",
+        getValue: (g) => g.blk,
+        avgValue: avgBlocks,
+        selectedRange: filters.blocks,
+        filterKey: "blocks",
+        isInteger: true,
+        category: "defense",
+      },
+      // SCORING (Points + FTA/FTM)
+      {
+        key: "points",
+        title: "Points",
+        getValue: (g) => g.pts,
+        avgValue: avgPoints,
+        selectedRange: filters.points,
+        filterKey: "points",
+        isInteger: true,
+        category: "efficiency",
+      },
+      {
+        key: "fta",
+        title: "FTA",
+        getValue: (g) => g.fta,
+        avgValue: avgFta,
+        selectedRange: filters.fta,
+        filterKey: "fta",
+        isInteger: true,
+        category: "opportunity",
+      },
+      {
+        key: "ftm",
+        title: "FTM",
+        getValue: (g) => g.ftm,
+        avgValue: avgFtm,
+        selectedRange: filters.ftm,
+        filterKey: "ftm",
+        isInteger: true,
+        category: "efficiency",
+      },
+      // Plus/Minus - Defense
+      {
+        key: "plusMinus",
+        title: "+/-",
+        getValue: (g) => g.plusMinus,
+        avgValue: avgPlusMinus,
+        selectedRange: filters.plusMinus,
+        filterKey: "plusMinus",
+        isInteger: true,
+        category: "defense",
       },
     ];
     
@@ -953,6 +1022,7 @@ export function ChartFilters({
       isInteger={config.isInteger}
       useRelativeScale={config.useRelativeScale}
       decimals={config.decimals}
+      showPresetChips={config.showPresetChips}
     />
   );
   

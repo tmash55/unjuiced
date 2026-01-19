@@ -14,18 +14,21 @@ export interface BookOddsData {
   price: number;
   url: string | null;
   mobileUrl: string | null;
+  sgp?: string | null;  // SGP token for same-game parlay API
 }
 
 export interface LineOdds {
   stableKey: string;
+  eventId: string | null;    // For fetching full link data
+  market: string | null;     // For fetching full link data
   primaryLine: number | null;
   currentLine: number | null;
-  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+  bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp?: string | null } | null;
+  bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp?: string | null } | null;
   allLines: Array<{
-  line: number;
-    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
+    line: number;
+    bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp?: string | null } | null;
+    bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null; sgp?: string | null } | null;
     books: Record<string, { over?: BookOddsData; under?: BookOddsData }>;
   }>;
   live: boolean;
