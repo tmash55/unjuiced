@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
 import { createClient } from "@/libs/supabase/server";
-import { getUserPlan, PLAN_LIMITS } from "@/lib/plans";
+import { PLAN_LIMITS } from "@/lib/plans";
+import { getUserPlan } from "@/lib/plans-server";
 
 const H_ROWS = "arbs:rows";
 const Z_ROI = "arbs:sort:roi";

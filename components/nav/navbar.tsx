@@ -37,6 +37,11 @@ export const NavContext = createContext<{ theme: NavTheme }>({
 
 export const navItems = [
   {
+    name: "Today",
+    href: "/today",
+    segments: ["/today"],
+  },
+  {
     name: "Tools",
     content: ProductContent,
     childItems: TOOLS,
@@ -320,6 +325,12 @@ function MobileNav({ domain }: { domain: string }) {
   type MobileNavGroup = { group: string; items: MobileNavItem[] };
   
   const mobileNavGroups: MobileNavGroup[] = [
+    {
+      group: "Overview",
+      items: [
+        { title: "Today", href: "/today", badge: "NEW" },
+      ],
+    },
     {
       group: "Tools",
       items: [

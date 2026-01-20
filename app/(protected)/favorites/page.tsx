@@ -257,15 +257,15 @@ function PlayCard({
         <motion.button
           onClick={onToggle}
           whileTap={{ scale: 0.9 }}
-          className={cn(
+        className={cn(
             "shrink-0 w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all",
-            isSelected
+          isSelected
               ? "bg-brand border-brand text-white shadow-sm shadow-brand/30"
               : "border-neutral-300 dark:border-neutral-600 hover:border-brand hover:bg-brand/5"
-          )}
-        >
+        )}
+      >
           <AnimatePresence mode="wait">
-            {isSelected && (
+        {isSelected && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -301,21 +301,21 @@ function PlayCard({
         </div>
 
         {/* Player + Bet Info */}
-        <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-[15px] font-semibold text-neutral-900 dark:text-white truncate">
               {fullName}
-            </span>
-            {favorite.player_team && (
+          </span>
+          {favorite.player_team && (
               <span className="hidden sm:inline-flex text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800">
-                {favorite.player_team}
-              </span>
-            )}
-          </div>
+              {favorite.player_team}
+            </span>
+          )}
+        </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-neutral-600 dark:text-neutral-400">
               {marketLabel}
-            </span>
+          </span>
             {hasLine && (
               <span className={cn(
                 "text-sm font-bold px-1.5 py-0.5 rounded-md",
@@ -324,15 +324,15 @@ function PlayCard({
                   : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
               )}>
                 {side}{favorite.line}
-              </span>
-            )}
-          </div>
+            </span>
+          )}
         </div>
+      </div>
 
         {/* Best Odds Display */}
         <div className="hidden md:flex flex-col items-end gap-1">
           <div className="flex items-center gap-2">
-            {bookLogo && (
+        {bookLogo && (
               <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
                 <Image src={bookLogo} alt={displayBook || ""} width={20} height={20} className="w-full h-full object-contain" />
               </div>
@@ -464,7 +464,7 @@ function PlayCard({
                         Live
                       </span>
                     )}
-                  </div>
+    </div>
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     Best to worst →
                   </span>
@@ -576,7 +576,7 @@ function LegsCarousel({
             <button
               onClick={goBack}
               disabled={!canGoBack}
-              className={cn(
+        className={cn(
                 "w-5 h-5 rounded flex items-center justify-center transition-colors",
                 canGoBack 
                   ? "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" 
@@ -1003,7 +1003,7 @@ function ParlayBuilder({
 
   // Empty state - clean version
   if (selectedFavorites.length < 2) {
-    return (
+  return (
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
@@ -1039,7 +1039,7 @@ function ParlayBuilder({
             <Zap className="w-3.5 h-3.5 text-brand" />
             <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 uppercase tracking-wide">
               Parlay Builder
-            </span>
+              </span>
           </div>
           <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide", betTypeInfo.bg, betTypeInfo.color)}>
             <span>{betTypeInfo.icon}</span>
@@ -1076,7 +1076,7 @@ function ParlayBuilder({
               </button>
             )}
             <span className="text-[9px] text-neutral-400">{parlayByBook.length} available</span>
-          </div>
+        </div>
         </div>
         <div className="flex flex-wrap gap-1">
           {parlayByBook.slice(0, 8).map(({ book, odds }, index) => {
@@ -1750,8 +1750,8 @@ function BetslipCard({
                         side === 'o' ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
                       )}>
                         {side}{fav.line}
-                      </span>
-                    </div>
+                    </span>
+                  </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <span className={cn(
@@ -2047,7 +2047,7 @@ function CreateSlipModal({
                       )}
                     />
                   ))}
-                </div>
+                  </div>
               </div>
             </div>
           </div>
@@ -2071,7 +2071,7 @@ function CreateSlipModal({
               >
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Create Slip"}
               </button>
-          </div>
+              </div>
         </form>
       </motion.div>
     </div>
@@ -2264,7 +2264,7 @@ function MobileParlaySheet({
               </span>
               <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase", betTypeInfo.bg, betTypeInfo.color)}>
                 {betTypeInfo.label}
-              </span>
+                  </span>
             </div>
             {currentParlay && (
               <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
@@ -2277,8 +2277,8 @@ function MobileParlaySheet({
                   ) : null;
                 })()}
                 {getBookName(currentParlay.book)}
-              </div>
-            )}
+                </div>
+              )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -2345,10 +2345,10 @@ function MobileParlaySheet({
                   const isBest = index === 0;
                   
                   return (
-                    <button
+              <button
                       key={book}
                       onClick={() => onBookChange(book === selectedBook ? null : book)}
-                      className={cn(
+                className={cn(
                         "flex items-center gap-1.5 px-2.5 py-2 rounded-xl transition-all",
                         isSelected 
                           ? "bg-brand/10 ring-2 ring-brand" 
@@ -2369,10 +2369,10 @@ function MobileParlaySheet({
                         {formatOdds(odds)}
                       </span>
                       {isBest && <Trophy className="w-3 h-3 text-emerald-500" />}
-                    </button>
+              </button>
                   );
                 })}
-              </div>
+            </div>
 
               {/* Stake & Payout */}
               <div className="grid grid-cols-2 gap-3">
@@ -2442,7 +2442,7 @@ function MobileParlaySheet({
                     <Trash2 className="w-4 h-4" />
                   )}
                 </button>
-              </div>
+        </div>
               
               {/* Share buttons */}
               <div className="flex items-center justify-center gap-2 pt-1">
@@ -2456,7 +2456,7 @@ function MobileParlaySheet({
                 <button className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                   <Share2 className="w-4 h-4" />
                 </button>
-              </div>
+      </div>
             </div>
           </motion.div>
         )}
@@ -2485,22 +2485,22 @@ function EmptyPlaysState() {
         Save plays from the Edge Finder, Odds Screen, or Cheat Sheets to start building parlays
       </p>
       <div className="flex flex-col sm:flex-row items-center gap-3">
-        <Link
+          <Link
           href="/edge-finder"
           className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-brand to-brand/90 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all"
-        >
+          >
           <TrendingUp className="w-4 h-4" />
           Edge Finder
           <ArrowRight className="w-4 h-4" />
-        </Link>
-        <Link
+          </Link>
+          <Link
           href="/positive-ev"
           className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-200 dark:ring-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all"
-        >
+          >
           <Zap className="w-4 h-4 text-amber-500" />
           Positive EV
-        </Link>
-      </div>
+          </Link>
+        </div>
     </div>
   );
 }
@@ -2809,7 +2809,7 @@ export default function FavoritesPage() {
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white tracking-tight">
                   My Plays
-                </h1>
+            </h1>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:block">
                   Build parlays and track your selections
                 </p>
@@ -2823,7 +2823,7 @@ export default function FavoritesPage() {
                   <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
                     {stats.bestOdds ? formatOdds(stats.bestOdds) : "—"}
-                  </span>
+              </span>
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-200/50 dark:border-violet-500/20">
                   <Layers className="w-3 h-3 text-violet-600 dark:text-violet-400" />
@@ -2838,8 +2838,8 @@ export default function FavoritesPage() {
                       {stats.todayCount}
                     </span>
                   </div>
-                )}
-              </div>
+            )}
+          </div>
             )}
           </div>
         </MaxWidthWrapper>
@@ -2999,16 +2999,16 @@ export default function FavoritesPage() {
                   </span>
                 </div>
                 
-                {/* Actions Bar */}
+              {/* Actions Bar */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSelectAll}
+                <button
+                  onClick={handleSelectAll}
                       className="text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-brand transition-colors"
-                    >
-                      {allSelected ? "Deselect All" : "Select All"}
-                    </button>
-                    {selectedIds.size > 0 && (
+                >
+                  {allSelected ? "Deselect All" : "Select All"}
+                </button>
+                {selectedIds.size > 0 && (
                       <span className="text-xs text-neutral-400">{selectedIds.size} selected</span>
                     )}
                   </div>
@@ -3020,32 +3020,32 @@ export default function FavoritesPage() {
                         onCreateNew={() => setShowCreateModal(true)}
                         selectedCount={selectedIds.size}
                       />
-                      <button
+                  <button
                         onClick={() => setShowDeleteConfirmation(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800/50 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                  >
+                    <Trash2 className="w-4 h-4" />
                         Delete
-                      </button>
+                  </button>
                     </div>
-                  )}
-                </div>
+                )}
+              </div>
 
                 {/* Plays */}
-                <div className="space-y-3">
+              <div className="space-y-3">
                   <AnimatePresence mode="popLayout">
                     {filteredFavorites.map((favorite) => (
                       <PlayCard
-                        key={favorite.id}
-                        favorite={favorite}
+                    key={favorite.id}
+                    favorite={favorite}
                         isSelected={selectedIds.has(favorite.id)}
                         onToggle={() => handleToggle(favorite.id)}
-                        onRemove={() => handleRemove(favorite.id)}
-                        isRemoving={removingId === favorite.id}
+                    onRemove={() => handleRemove(favorite.id)}
+                    isRemoving={removingId === favorite.id}
                         selectedBook={selectedBook}
                         liveOdds={liveOddsCache[favorite.id]}
-                      />
-                    ))}
+                  />
+                ))}
                   </AnimatePresence>
                   
                   {/* Empty filter state */}
@@ -3064,14 +3064,14 @@ export default function FavoritesPage() {
                       </button>
                     </div>
                   )}
-                </div>
               </div>
+            </div>
 
               {/* Right: Parlay Builder (Desktop) */}
               <div className="hidden lg:block w-[360px] shrink-0">
                 <div className="sticky top-20 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-neutral-900 overflow-hidden shadow-sm">
                   <ParlayBuilder
-                    selectedFavorites={selectedFavorites}
+                selectedFavorites={selectedFavorites}
                     allBooks={uniqueBooks}
                     selectedBook={selectedBook}
                     onBookChange={setSelectedBook}
@@ -3083,9 +3083,9 @@ export default function FavoritesPage() {
                     sharedSgpCache={getValidCache(selectedFavorites.map(f => f.id))}
                     onUpdateSgpCache={updateSharedCache}
                     liveOddsCache={liveOddsCache}
-                  />
-                </div>
-              </div>
+              />
+            </div>
+          </div>
             </div>
           )
         ) : (
