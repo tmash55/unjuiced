@@ -71,10 +71,10 @@ export function DataSignalsSection() {
             <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
               Data Signals
             </h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
               Statistical insights and injury impacts
             </p>
           </div>
@@ -84,7 +84,7 @@ export function DataSignalsSection() {
           href="/hit-rates/nba"
           className={cn(
             "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium",
-            "text-neutral-500 dark:text-neutral-500",
+            "text-neutral-600 dark:text-neutral-400",
             "hover:bg-neutral-100 dark:hover:bg-neutral-800",
             "transition-colors"
           )}
@@ -94,7 +94,7 @@ export function DataSignalsSection() {
         </Link>
       </div>
       
-      {/* Content - 2-Panel Grid */}
+      {/* Content - 2-Panel Grid with Quiet, Matte Finish */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
@@ -113,14 +113,14 @@ export function DataSignalsSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Top Hit Rates Panel */}
           <div className={cn(
-            "p-4 rounded-lg border",
-            "bg-white dark:bg-neutral-900",
+            "p-5 rounded-xl border",
+            "bg-neutral-50 dark:bg-neutral-900/50", // Matte background
             "border-neutral-200 dark:border-neutral-800"
           )}>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="h-4 w-4 text-emerald-500" />
-              <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Top Hit Rates Today
+              <h3 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
+                Top Hit Rates
               </h3>
             </div>
             
@@ -129,49 +129,44 @@ export function DataSignalsSection() {
                 No high hit rates found
               </p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {hitRates.map((signal) => (
                   <Link
                     key={`${signal.playerId}-${signal.market}`}
                     href={signal.profileUrl}
                     className={cn(
-                      "flex items-center justify-between p-2.5 rounded-lg",
-                      "hover:bg-neutral-50 dark:hover:bg-neutral-800",
-                      "transition-colors group"
+                      "flex items-center justify-between p-3 rounded-lg border transition-all duration-200",
+                      "bg-white dark:bg-neutral-900", // Card-like, but flatter
+                      "border-neutral-200/60 dark:border-neutral-800",
+                      "hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-sm"
                     )}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                           {signal.playerName}
                         </p>
-                        <span className="text-[10px] text-neutral-400 uppercase">
+                        <span className="text-[10px] text-neutral-400 uppercase font-medium">
                           {signal.team}
                         </span>
                       </div>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-500">
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                         {signal.marketDisplay} O {signal.line}
                       </p>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "px-2 py-1 rounded text-xs font-bold tabular-nums",
-                        signal.l10Pct >= 90
-                          ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-                          : signal.l10Pct >= 80
-                            ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
-                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                      )}>
-                        {signal.l10Pct}%
-                      </div>
+                    <div className="flex items-center gap-3">
                       {signal.streak && signal.streak >= 5 && (
-                        <div className="flex items-center gap-0.5 text-[10px] text-amber-500 dark:text-amber-400">
-                          <Zap className="h-3 w-3" />
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
+                          <Zap className="h-3 w-3 fill-current" />
                           {signal.streak}
                         </div>
                       )}
-                      <ChevronRight className="h-3.5 w-3.5 text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-400 transition-colors" />
+                      <div className={cn(
+                        "text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
+                      )}>
+                        {signal.l10Pct}%
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -181,14 +176,14 @@ export function DataSignalsSection() {
           
           {/* Injury Boosts Panel */}
           <div className={cn(
-            "p-4 rounded-lg border",
-            "bg-white dark:bg-neutral-900",
+            "p-5 rounded-xl border",
+            "bg-neutral-50 dark:bg-neutral-900/50", // Matte background
             "border-neutral-200 dark:border-neutral-800"
           )}>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-4">
               <UserMinus className="h-4 w-4 text-rose-500" />
-              <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Injury Usage Boosts
+              <h3 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
+                Injury Boosts
               </h3>
             </div>
             
@@ -197,39 +192,36 @@ export function DataSignalsSection() {
                 No significant injury impacts found
               </p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {injuryBoosts.map((boost) => (
                   <Link
                     key={`${boost.playerId}-${boost.market}`}
                     href={boost.profileUrl}
                     className={cn(
-                      "flex items-center justify-between p-2.5 rounded-lg",
-                      "hover:bg-neutral-50 dark:hover:bg-neutral-800",
-                      "transition-colors group"
+                      "flex items-center justify-between p-3 rounded-lg border transition-all duration-200",
+                      "bg-white dark:bg-neutral-900",
+                      "border-neutral-200/60 dark:border-neutral-800",
+                      "hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-sm"
                     )}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                           {boost.playerName}
                         </p>
-                        <span className="text-[10px] text-neutral-400 uppercase">
+                        <span className="text-[10px] text-neutral-400 uppercase font-medium">
                           {boost.team}
                         </span>
                       </div>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-500 truncate">
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
                         {boost.boostReason} out
                       </p>
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "px-2 py-1 rounded text-xs font-bold tabular-nums",
-                        "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
-                      )}>
+                      <span className="text-sm font-bold tabular-nums text-rose-600 dark:text-rose-400">
                         +{boost.usageDelta.toFixed(1)}
-                      </div>
-                      <ChevronRight className="h-3.5 w-3.5 text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-400 transition-colors" />
+                      </span>
                     </div>
                   </Link>
                 ))}

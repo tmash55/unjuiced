@@ -56,7 +56,7 @@ export const SignInEmail = () => {
 
           // Check for redirect URL
           const redirectTo = searchParams.get("redirectTo");
-          const destination = redirectTo || "/edge-finder";
+          const destination = redirectTo || "/today";
 
           setTimeout(() => {
             router.push(destination);

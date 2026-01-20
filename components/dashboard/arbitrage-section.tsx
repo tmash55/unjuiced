@@ -132,8 +132,8 @@ export function ArbitrageSection() {
         <div className="space-y-3">
           {/* Visible Arbs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {visibleArbs.map((arb) => (
-              <ArbCard key={arb.id} arb={arb} />
+            {visibleArbs.map((arb, idx) => (
+              <ArbCard key={`${arb.id}-${idx}`} arb={arb} />
             ))}
           </div>
           
@@ -141,8 +141,8 @@ export function ArbitrageSection() {
           {!isPro && hiddenCount > 0 && (
             <div className="relative">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 blur-sm pointer-events-none select-none opacity-50">
-                {arbs.slice(1, 3).map((arb) => (
-                  <ArbCard key={arb.id} arb={arb} />
+                {arbs.slice(1, 3).map((arb, idx) => (
+                  <ArbCard key={`blur-${arb.id}-${idx}`} arb={arb} />
                 ))}
               </div>
               

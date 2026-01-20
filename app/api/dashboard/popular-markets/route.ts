@@ -44,6 +44,9 @@ interface MarketPlay {
   bestOddsFormatted: string;
   book: string;
   evPercent: number | null;
+  marketAvg: number | null;
+  marketAvgFormatted: string | null;
+  vsMarketAvg: number | null;
 }
 
 interface PopularMarket {
@@ -62,6 +65,14 @@ interface PopularMarketsResponse {
 
 function formatOdds(price: number): string {
   return price > 0 ? `+${price}` : String(price);
+}
+
+function decimalToAmerican(decimal: number): number {
+  if (decimal >= 2) {
+    return Math.round((decimal - 1) * 100);
+  } else {
+    return Math.round(-100 / (decimal - 1));
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -126,15 +137,43 @@ export async function GET(req: NextRequest) {
         .sort((a: any, b: any) => (b.ev_pct || -999) - (a.ev_pct || -999))
         .slice(0, group.config.maxPlays);
       
-      const plays: MarketPlay[] = sortedPlays.map((opp: any) => ({
-        player: opp.player || "Unknown",
-        team: opp.team || null,
-        line: opp.line || 0.5,
-        bestOdds: parseInt(opp.best_price) || 0,
-        bestOddsFormatted: opp.best_price || "0",
-        book: opp.best_book || "unknown",
-        evPercent: opp.ev_pct ? Math.round(opp.ev_pct * 10) / 10 : null,
-      }));
+      const plays: MarketPlay[] = sortedPlays.map((opp: any) => {
+        // Calculate Market Avg and vsMarketAvg
+        let marketAvg: number | null = null;
+        let marketAvgFormatted: string | null = null;
+        let vsMarketAvg: number | null = null;
+
+        if (opp.all_books && opp.all_books.length > 0) {
+          const sumDecimal = opp.all_books.reduce((sum: number, b: any) => sum + b.decimal, 0);
+          const avgDecimal = sumDecimal / opp.all_books.length;
+          
+          if (avgDecimal > 1) {
+            marketAvg = decimalToAmerican(avgDecimal);
+            marketAvgFormatted = formatOdds(marketAvg);
+            
+            const bestDecimal = opp.best_decimal || (opp.best_price > 0 ? (opp.best_price / 100) + 1 : (100 / Math.abs(opp.best_price)) + 1);
+            
+            // Calculate % improvement over market average payout (decimal - 1)
+            // ((BestPayout - AvgPayout) / AvgPayout) * 100
+            if (avgDecimal > 1) {
+              vsMarketAvg = ((bestDecimal - avgDecimal) / (avgDecimal - 1)) * 100;
+            }
+          }
+        }
+
+        return {
+          player: opp.player || "Unknown",
+          team: opp.team || null,
+          line: opp.line || 0.5,
+          bestOdds: parseInt(opp.best_price) || 0,
+          bestOddsFormatted: opp.best_price || "0",
+          book: opp.best_book || "unknown",
+          evPercent: opp.ev_pct ? Math.round(opp.ev_pct * 10) / 10 : null,
+          marketAvg,
+          marketAvgFormatted,
+          vsMarketAvg: vsMarketAvg ? Math.round(vsMarketAvg) : null,
+        };
+      });
       
       marketsWithPlays.push({
         marketKey: group.config.key,
