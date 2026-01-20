@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Pencil, Trash2, Loader2, Check, Filter, X, Copy, EyeOff, Layers } from "lucide-react";
 import { Star } from "@/components/star";
 import {
@@ -311,13 +311,18 @@ export function FilterPresetsManagerModal({
   
   // Local selection state - tracks which presets are selected
   const [localSelection, setLocalSelection] = useState<Set<string>>(new Set());
+  
+  // Track previous open state to detect open transition
+  const wasOpenRef = useRef(false);
 
-  // Initialize local selection from current active presets when modal opens
+  // Initialize local selection from current active presets ONLY when modal opens (not on every presets change)
   useEffect(() => {
-    if (open) {
+    // Only sync when transitioning from closed to open
+    if (open && !wasOpenRef.current) {
       const activeIds = new Set(presets.filter(p => p.is_active).map(p => p.id));
       setLocalSelection(activeIds);
     }
+    wasOpenRef.current = open;
   }, [open, presets]);
 
   // Calculate if there are pending changes
