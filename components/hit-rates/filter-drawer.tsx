@@ -750,6 +750,7 @@ export function FilterDrawer({
                       // Get current opponent's rank for this play type
                       const currentMatchup = playTypeMatchup?.play_types.find(m => m.play_type === pt.playType);
                       const currentRank = currentMatchup?.opponent_def_rank;
+                      const playerPpg = currentMatchup?.player_ppg;
                       
                       return (
                         <div 
@@ -779,6 +780,17 @@ export function FilterDrawer({
                                 </span>
                               )}
                             </div>
+                            {/* Player's PPG from this play type */}
+                            {playerPpg !== undefined && playerPpg > 0 && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[9px] text-neutral-500 tabular-nums">
+                                  {playerPpg.toFixed(1)} PPG
+                                </span>
+                                <Tooltip content={`This player averages ${playerPpg.toFixed(1)} points per game from ${displayName.toLowerCase()} plays`}>
+                                  <Info className="h-2.5 w-2.5 text-neutral-400 cursor-help" />
+                                </Tooltip>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Filter buttons */}
@@ -863,18 +875,30 @@ export function FilterDrawer({
                                   : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/30"
                             )}
                           >
-                            <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                              {pt.display_name}
-                            </span>
+                            <div className="flex-1">
+                              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                                {pt.display_name}
+                              </span>
+                              {pt.player_ppg > 0 && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[9px] text-neutral-500 tabular-nums">
+                                    {pt.player_ppg.toFixed(1)} PPG
+                                  </span>
+                                  <Tooltip content={`This player averages ${pt.player_ppg.toFixed(1)} points per game from ${pt.display_name.toLowerCase()} plays`}>
+                                    <Info className="h-2.5 w-2.5 text-neutral-400 cursor-help" />
+                                  </Tooltip>
+                                </div>
+                              )}
+                            </div>
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums",
+                              "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums shrink-0",
                               isFavorable 
                                 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
                                 : isTough 
                                   ? "bg-red-500/20 text-red-600 dark:text-red-400"
                                   : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
                             )}>
-                              {rank}
+                              #{rank}
                             </span>
                           </div>
                         );
@@ -911,6 +935,7 @@ export function FilterDrawer({
                       // Get current opponent's rank for this zone
                       const currentMatchup = shotZoneMatchup?.zones.find(z => z.zone === zone.zone);
                       const currentRank = currentMatchup?.opponent_def_rank;
+                      const playerPctOfTotal = currentMatchup?.player_pct_of_total;
                       
                       return (
                         <div 
@@ -940,6 +965,17 @@ export function FilterDrawer({
                                 </span>
                               )}
                             </div>
+                            {/* Player's % of shots from this zone - data is stored as percentage * 100 */}
+                            {playerPctOfTotal !== undefined && playerPctOfTotal > 0 && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[9px] text-neutral-500 tabular-nums">
+                                  {playerPctOfTotal > 100 ? (playerPctOfTotal / 100).toFixed(0) : playerPctOfTotal.toFixed(0)}% of shots
+                                </span>
+                                <Tooltip content={`${playerPctOfTotal > 100 ? (playerPctOfTotal / 100).toFixed(1) : playerPctOfTotal.toFixed(1)}% of this player's field goal attempts come from this zone`}>
+                                  <Info className="h-2.5 w-2.5 text-neutral-400 cursor-help" />
+                                </Tooltip>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Filter buttons */}
@@ -1023,18 +1059,30 @@ export function FilterDrawer({
                                   : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/30"
                             )}
                           >
-                            <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                              {zone.display_name}
-                            </span>
+                            <div className="flex-1">
+                              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                                {zone.display_name}
+                              </span>
+                              {zone.player_pct_of_total > 0 && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[9px] text-neutral-500 tabular-nums">
+                                    {zone.player_pct_of_total > 100 ? (zone.player_pct_of_total / 100).toFixed(0) : zone.player_pct_of_total.toFixed(0)}% of shots
+                                  </span>
+                                  <Tooltip content={`${zone.player_pct_of_total > 100 ? (zone.player_pct_of_total / 100).toFixed(1) : zone.player_pct_of_total.toFixed(1)}% of this player's field goal attempts come from this zone`}>
+                                    <Info className="h-2.5 w-2.5 text-neutral-400 cursor-help" />
+                                  </Tooltip>
+                                </div>
+                              )}
+                            </div>
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums",
+                              "px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums shrink-0",
                               isFavorable 
                                 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
                                 : isTough 
                                   ? "bg-red-500/20 text-red-600 dark:text-red-400"
                                   : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
                             )}>
-                              {rank}
+                              #{rank}
                             </span>
                           </div>
                         );

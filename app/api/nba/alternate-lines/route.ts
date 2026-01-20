@@ -4,10 +4,12 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { z } from "zod";
 
 /**
- * Alternate Lines API - Updated for new stable key system
+ * Alternate Lines API - Updated for hitrate:nba:v2 key structure
  * 
- * Uses the stable key from odds_selection_id to fetch from props:nba:hitrate
+ * Uses the stable key from odds_selection_id to fetch from hitrate:nba:v2
  * Then calculates hit rates for each alternate line using game logs
+ * 
+ * New v2 structure has prices inside over/under objects with links
  */
 
 // Request validation
@@ -80,7 +82,15 @@ interface AlternateLinesResponse {
   currentLine: number | null;
 }
 
-const REDIS_KEY = "props:nba:hitrate";
+const REDIS_KEY = "hitrate:nba:v2";
+
+// Parse price from string or number (v2 has prices as strings like "+450")
+function parsePrice(val: string | number | undefined | null): number | null {
+  if (val === undefined || val === null) return null;
+  if (typeof val === "number") return val;
+  const parsed = parseInt(val, 10);
+  return isNaN(parsed) ? null : parsed;
+}
 
 /**
  * Calculate hit rate for a given line using game logs
@@ -384,6 +394,7 @@ export async function POST(req: NextRequest) {
       const hitRates = calculateHitRate(gameLogs, line, market);
 
       // Extract book odds with deep links (including under odds)
+      // v2 structure: books.{bookKey}.over = { price: "+450", u: "...", m: "...", sgp: "..." }
       const books: BookOddsWithUnder[] = [];
       const booksData = redisLine.books || {};
       
@@ -396,22 +407,26 @@ export async function POST(req: NextRequest) {
         const data = bookData as any;
         const isSharp = SHARP_BOOKS.includes(bookKey.toLowerCase());
         
-        if (data?.over?.price !== undefined) {
+        // v2 structure has price inside over/under objects
+        const overPrice = parsePrice(data?.over?.price);
+        const underPrice = parsePrice(data?.under?.price);
+        
+        if (overPrice !== null) {
           books.push({
             book: bookKey,
-            price: data.over.price,
-            url: data.over.u || null,
-            mobileUrl: data.over.m || null,
-            underPrice: data.under?.price ?? null,
+            price: overPrice,
+            url: data.over?.u || null,
+            mobileUrl: data.over?.m || null,
+            underPrice: underPrice,
             underUrl: data.under?.u || null,
             underMobileUrl: data.under?.m || null,
             isSharp,
           });
           
           // Use first available sharp book for EV calculation
-          if (isSharp && sharpOverPrice === null && data.over?.price !== undefined && data.under?.price !== undefined) {
-            sharpOverPrice = data.over.price;
-            sharpUnderPrice = data.under.price;
+          if (isSharp && sharpOverPrice === null && overPrice !== null && underPrice !== null) {
+            sharpOverPrice = overPrice;
+            sharpUnderPrice = underPrice;
             sharpBookUsed = bookKey;
           }
         }
