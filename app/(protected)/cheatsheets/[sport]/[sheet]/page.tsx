@@ -229,8 +229,9 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
   const rows = useMemo(() => {
     if (!isGated) return allRows;
     
-    // Wait for odds to load
-    if (!oddsData) return [];
+    // If odds haven't loaded yet, show first N rows to prevent jarring empty state
+    // The loading state will be shown via isLoading prop
+    if (!oddsData) return allRows.slice(0, FREE_USER_MAX_ROWS);
     
     // Filter to rows that have live odds
     const rowsWithOdds = allRows.filter(row => {
@@ -578,8 +579,9 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   const displayRows = useMemo(() => {
     if (!isGated) return filteredRows;
     
-    // Wait for odds to load
-    if (!oddsData) return [];
+    // If odds haven't loaded yet, show first N rows to prevent jarring empty state
+    // The loading state will be shown via isLoading prop
+    if (!oddsData) return filteredRows.slice(0, FREE_USER_MAX_ROWS);
     
     // Filter to rows that have live odds
     const rowsWithOdds = filteredRows.filter(row => {
