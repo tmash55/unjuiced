@@ -16,14 +16,19 @@ import { GameLogChart } from "./game-log-chart";
 import { TeamRoster } from "./team-roster";
 import { BoxScoreTable } from "./box-score-table";
 import { ChartFilters, ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "./chart-filters";
-import { FilterDrawer, FilterButton } from "./filter-drawer";
+import { FilterDrawer, FilterButton, PlayTypeFilter, ShotZoneFilter } from "./filter-drawer";
+import { ShareChartButton } from "./share-chart-button";
 import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
-import { InjuryImpactCard } from "./injury-impact-card";
 import { PlayTypeAnalysis } from "./play-type-analysis";
 import { ShootingZones } from "./shooting-zones";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
+import { useTeamRoster } from "@/hooks/use-team-roster";
+import { usePlayTypeMatchup } from "@/hooks/use-play-type-matchup";
+import { useShotZoneMatchup } from "@/hooks/use-shot-zone-matchup";
+import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
+import { useTeamShotZoneRanks } from "@/hooks/use-team-shot-zone-ranks";
 import { Tooltip } from "@/components/tooltip";
 
 // Injury status color helpers
@@ -117,9 +122,16 @@ interface MarketSelectorStripProps {
   quickFilters: Set<string>;
   chartFilters: ChartFiltersState;
   injuryFilters: InjuryFilter[];
+  playTypeFilters?: PlayTypeFilter[];
+  shotZoneFilters?: ShotZoneFilter[];
   onClearAllFilters: () => void;
   onRemoveQuickFilter: (filter: string) => void;
   onRemoveInjuryFilter: (playerId: number) => void;
+  onRemovePlayTypeFilter?: (playType: string) => void;
+  onRemoveShotZoneFilter?: (zone: string) => void;
+  // Sample size
+  filteredGamesCount?: number;
+  totalGamesCount?: number;
 }
 
 function MarketSelectorStrip({ 
@@ -131,9 +143,15 @@ function MarketSelectorStrip({
   quickFilters,
   chartFilters,
   injuryFilters,
+  playTypeFilters = [],
+  shotZoneFilters = [],
   onClearAllFilters,
   onRemoveQuickFilter,
   onRemoveInjuryFilter,
+  onRemovePlayTypeFilter,
+  onRemoveShotZoneFilter,
+  filteredGamesCount,
+  totalGamesCount,
 }: MarketSelectorStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -286,9 +304,15 @@ function MarketSelectorStrip({
         quickFilters={quickFilters}
         chartFilters={chartFilters}
         injuryFilters={injuryFilters}
+        playTypeFilters={playTypeFilters}
+        shotZoneFilters={shotZoneFilters}
         onClearAll={onClearAllFilters}
         onRemoveQuickFilter={onRemoveQuickFilter}
         onRemoveInjuryFilter={onRemoveInjuryFilter}
+        onRemovePlayTypeFilter={onRemovePlayTypeFilter}
+        onRemoveShotZoneFilter={onRemoveShotZoneFilter}
+        filteredGamesCount={filteredGamesCount}
+        totalGamesCount={totalGamesCount}
       />
     </div>
   );
@@ -299,18 +323,31 @@ interface ActiveFiltersBarProps {
   quickFilters: Set<string>;
   chartFilters: ChartFiltersState;
   injuryFilters: InjuryFilter[];
+  playTypeFilters?: PlayTypeFilter[];
+  shotZoneFilters?: ShotZoneFilter[];
   onClearAll: () => void;
   onRemoveQuickFilter: (filter: string) => void;
   onRemoveInjuryFilter: (playerId: number) => void;
+  onRemovePlayTypeFilter?: (playType: string) => void;
+  onRemoveShotZoneFilter?: (zone: string) => void;
+  // Sample size info
+  filteredGamesCount?: number;
+  totalGamesCount?: number;
 }
 
 function ActiveFiltersBar({
   quickFilters,
   chartFilters,
   injuryFilters,
+  playTypeFilters = [],
+  shotZoneFilters = [],
   onClearAll,
   onRemoveQuickFilter,
   onRemoveInjuryFilter,
+  onRemovePlayTypeFilter,
+  onRemoveShotZoneFilter,
+  filteredGamesCount,
+  totalGamesCount,
 }: ActiveFiltersBarProps) {
   // Count active chart filters
   const activeChartFiltersCount = [
@@ -340,20 +377,24 @@ function ActiveFiltersBar({
     chartFilters.daysRest,
   ].filter(Boolean).length;
 
-  const hasActiveFilters = quickFilters.size > 0 || activeChartFiltersCount > 0 || injuryFilters.length > 0;
+  const hasActiveFilters = quickFilters.size > 0 || activeChartFiltersCount > 0 || injuryFilters.length > 0 || playTypeFilters.length > 0 || shotZoneFilters.length > 0;
 
   if (!hasActiveFilters) return null;
 
   return (
     <div className="mt-2 pt-2 border-t border-neutral-200/40 dark:border-neutral-700/40">
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Filter Icon + Label */}
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          <span>Filtered:</span>
-        </div>
+        {/* Sample Size Info - Muted, left side */}
+        {filteredGamesCount !== undefined && totalGamesCount !== undefined && filteredGamesCount < totalGamesCount && (
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium tabular-nums">
+            Showing {filteredGamesCount} of {totalGamesCount} games
+          </span>
+        )}
+        
+        {/* Divider */}
+        {filteredGamesCount !== undefined && totalGamesCount !== undefined && filteredGamesCount < totalGamesCount && (
+          <span className="text-neutral-300 dark:text-neutral-600">·</span>
+        )}
         
         {/* Quick Filters */}
         {Array.from(quickFilters).map((filter) => (
@@ -463,6 +504,46 @@ function ActiveFiltersBar({
           </button>
         ))}
 
+        {/* Play Type Filters */}
+        {playTypeFilters.map((filter) => (
+          <button
+            key={filter.playType}
+            type="button"
+            onClick={() => onRemovePlayTypeFilter?.(filter.playType)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded-md transition-all text-[11px] font-medium group",
+              filter.label === "favorable"
+                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                : filter.label === "tough"
+                  ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50"
+            )}
+          >
+            <span>{filter.playType.replace(/([A-Z])/g, ' $1').trim()}: {filter.label === "favorable" ? "Soft" : filter.label === "tough" ? "Tough" : "Mid"}</span>
+            <X className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+          </button>
+        ))}
+
+        {/* Shot Zone Filters */}
+        {shotZoneFilters.map((filter) => (
+          <button
+            key={filter.zone}
+            type="button"
+            onClick={() => onRemoveShotZoneFilter?.(filter.zone)}
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded-md transition-all text-[11px] font-medium group",
+              filter.label === "favorable"
+                ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900/50"
+                : filter.label === "tough"
+                  ? "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/50"
+                  : "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50"
+            )}
+          >
+            <span>{filter.zone}: {filter.label === "favorable" ? "Soft" : filter.label === "tough" ? "Tough" : "Mid"}</span>
+            <X className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+          </button>
+        ))}
+
         {/* Clear All Button */}
         <button
           type="button"
@@ -482,6 +563,12 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Ref for the scroll container - used to scroll to top when switching players
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
+  // Ref for chart capture area - used by ShareChartButton (includes header + chart)
+  const chartCaptureRef = useRef<HTMLDivElement>(null);
+  
+  // State to track when we're capturing (to hide certain UI elements)
+  const [isCapturingChart, setIsCapturingChart] = useState(false);
+  
   // Wrap setSelectedMarket to also notify parent
   const setSelectedMarket = useCallback((market: string) => {
     setSelectedMarketInternal(market);
@@ -493,8 +580,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   const [editValue, setEditValue] = useState("");
   const [chartFilters, setChartFilters] = useState<ChartFiltersState>(DEFAULT_FILTERS);
   const [injuryFilters, setInjuryFilters] = useState<InjuryFilter[]>([]);
+  const [playTypeFilters, setPlayTypeFilters] = useState<PlayTypeFilter[]>([]);
+  const [shotZoneFilters, setShotZoneFilters] = useState<ShotZoneFilter[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [comparisonModalOpen, setComparisonModalOpen] = useState(false);
   
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
@@ -576,11 +666,120 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     enabled: !!profile.playerId,
   });
 
+  // Fetch team roster to get current injury status for teammates
+  const { players: rosterPlayers } = useTeamRoster({
+    teamId: profile.teamId,
+    enabled: !!profile.teamId,
+  });
+
+  // Build a lookup map of player_id -> injury status from roster
+  const injuryStatusMap = useMemo(() => {
+    const map = new Map<number, { status: string | null; avg: number | null }>();
+    for (const p of rosterPlayers) {
+      // Get the appropriate avg based on market
+      const m = profile.market?.toLowerCase() || "";
+      const avg = m.includes("point") || m.includes("pts") ? p.avgPoints
+        : m.includes("rebound") || m.includes("reb") ? p.avgRebounds
+        : m.includes("assist") || m.includes("ast") ? p.avgAssists
+        : p.avgPoints;
+      map.set(p.playerId, { status: p.injuryStatus, avg });
+    }
+    return map;
+  }, [rosterPlayers, profile.market]);
+
   // Fetch DvP rankings for the player's position - used for opponent rank in chart tooltip
   const { teams: dvpTeams } = useDvpRankings({
     position: profile.position || "PG",
     enabled: !!profile.position,
   });
+
+  // Fetch play type matchup for current opponent - used in filter drawer Matchup tab
+  const { data: playTypeMatchupData } = usePlayTypeMatchup({
+    playerId: profile.playerId,
+    opponentTeamId: profile.opponentTeamId,
+    enabled: !!profile.playerId && !!profile.opponentTeamId,
+  });
+
+  // Fetch shot zone matchup for current opponent - used in filter drawer Matchup tab
+  const { data: shotZoneMatchupData } = useShotZoneMatchup({
+    playerId: profile.playerId,
+    opponentTeamId: profile.opponentTeamId,
+    enabled: !!profile.playerId && !!profile.opponentTeamId,
+  });
+
+  // Fetch all teams' play type ranks - used for filtering games by opponent defense
+  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames, isAvailable: playTypeRanksAvailable } = useTeamPlayTypeRanks();
+
+  // Fetch all teams' shot zone ranks - used for filtering games by opponent defense
+  const { zones: shotZoneRanks, isAvailable: shotZoneRanksAvailable } = useTeamShotZoneRanks();
+
+  // Build play type ranks map for chart overlay lines: playType -> teamAbbr -> rank
+  const playTypeRanksMap = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    if (!playTypeRanks || playTypeRanks.length === 0) return map;
+    
+    for (const pt of playTypeRanks) {
+      const teamMap = new Map<string, number>();
+      for (const team of pt.teams) {
+        teamMap.set(team.teamAbbr, team.pppRank);
+      }
+      map.set(pt.playType, teamMap);
+    }
+    return map;
+  }, [playTypeRanks]);
+
+  // Build shot zone ranks map for chart overlay lines: zone -> teamAbbr -> rank
+  const shotZoneRanksMap = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    if (!shotZoneRanks || shotZoneRanks.length === 0) return map;
+    
+    for (const zone of shotZoneRanks) {
+      const teamMap = new Map<string, number>();
+      for (const team of zone.teams) {
+        teamMap.set(team.teamAbbr, team.rank);
+      }
+      map.set(zone.zone, teamMap);
+    }
+    return map;
+  }, [shotZoneRanks]);
+
+  // Build active matchup filter lines for chart overlay
+  const activeMatchupFilterLines = useMemo(() => {
+    const lines: Array<{
+      type: "playType" | "shotZone";
+      key: string;
+      label: "tough" | "neutral" | "favorable";
+      displayName: string;
+      color: string;
+    }> = [];
+
+    // Colors for each filter type
+    const playTypeColors = ["#f97316", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"];
+    const shotZoneColors = ["#14b8a6", "#f59e0b", "#6366f1", "#84cc16", "#ef4444"];
+
+    playTypeFilters.forEach((filter, idx) => {
+      const displayName = playTypeDisplayNames[filter.playType] || filter.playType.replace(/([A-Z])/g, ' $1').trim();
+      lines.push({
+        type: "playType",
+        key: filter.playType,
+        label: filter.label,
+        displayName,
+        color: playTypeColors[idx % playTypeColors.length],
+      });
+    });
+
+    shotZoneFilters.forEach((filter, idx) => {
+      lines.push({
+        type: "shotZone",
+        key: filter.zone,
+        label: filter.label,
+        displayName: filter.zone,
+        color: shotZoneColors[idx % shotZoneColors.length],
+      });
+    });
+
+    return lines;
+  }, [playTypeFilters, shotZoneFilters, playTypeDisplayNames]);
 
   // Build opponent DvP rank lookup map based on current market
   const opponentDvpRanks = useMemo(() => {
@@ -880,6 +1079,60 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return result;
   };
 
+  // Helper function to apply play type defense filters
+  const applyPlayTypeFilters = (games: typeof boxScoreGames) => {
+    if (playTypeFilters.length === 0 || playTypeRanks.length === 0) return games;
+    
+    return games.filter(game => {
+      const opponentAbbr = game.opponentAbbr;
+      if (!opponentAbbr) return true; // Keep game if no opponent info
+      
+      // Check each play type filter
+      for (const filter of playTypeFilters) {
+        const playTypeData = playTypeRanks.find(pt => pt.playType === filter.playType);
+        if (!playTypeData) continue;
+        
+        const teamData = playTypeData.teams.find(t => t.teamAbbr === opponentAbbr);
+        if (!teamData) continue;
+        
+        const rank = teamData.pppRank;
+        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        
+        // If this game's opponent doesn't match the filter label, exclude the game
+        if (matchupLabel !== filter.label) return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Helper function to apply shot zone defense filters
+  const applyShotZoneFilters = (games: typeof boxScoreGames) => {
+    if (shotZoneFilters.length === 0 || shotZoneRanks.length === 0) return games;
+    
+    return games.filter(game => {
+      const opponentAbbr = game.opponentAbbr;
+      if (!opponentAbbr) return true; // Keep game if no opponent info
+      
+      // Check each shot zone filter
+      for (const filter of shotZoneFilters) {
+        const zoneData = shotZoneRanks.find(z => z.zone === filter.zone);
+        if (!zoneData) continue;
+        
+        const teamData = zoneData.teams.find(t => t.teamAbbr === opponentAbbr);
+        if (!teamData) continue;
+        
+        const rank = teamData.rank;
+        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        
+        // If this game's opponent doesn't match the filter label, exclude the game
+        if (matchupLabel !== filter.label) return false;
+      }
+      
+      return true;
+    });
+  };
+
   // Games for ChartFilters histograms - applies quick + injury filters but NOT chart filters
   // This way when you filter "without Sam Merrill", the histogram shows only those games
   const gamesForChartFilters = useMemo(() => {
@@ -888,10 +1141,12 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     let games = [...boxScoreGames];
     games = applyQuickFilters(games);
     games = applyInjuryFilters(games);
+    games = applyPlayTypeFilters(games);
+    games = applyShotZoneFilters(games);
     games = applyGameCountFilter(games);
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
+  }, [boxScoreGames, gameCount, quickFilters, injuryFilters, playTypeFilters, shotZoneFilters, playTypeRanks, shotZoneRanks, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
 
   // Filter games based on quick filters, chart filters, injury filters, THEN limit by game count
   // This way "L5 + Win" shows the last 5 wins, not wins from the last 5 games
@@ -909,11 +1164,17 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     // Apply injury filters
     games = applyInjuryFilters(games);
     
+    // Apply play type defense filters
+    games = applyPlayTypeFilters(games);
+    
+    // Apply shot zone defense filters
+    games = applyShotZoneFilters(games);
+    
     // Apply game count filter
     games = applyGameCountFilter(games);
     
     return games;
-  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
+  }, [boxScoreGames, gameCount, quickFilters, chartFilters, injuryFilters, playTypeFilters, shotZoneFilters, playTypeRanks, shotZoneRanks, teammatesOutByGame, profile.opponentTeamAbbr, opponentDvpRanks]);
 
   // Get stat value from a game based on market
   const getMarketStat = (game: typeof boxScoreGames[0], market: string): number => {
@@ -1028,15 +1289,95 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return rates;
   }, [boxScoreGames, filteredGames, gameCount, allPlayerProfiles, profile.opponentTeamAbbr, selectedMarket, activeLine]);
 
+  // Calculate baseline stats (UNFILTERED - just game count applied)
+  // This is what we compare filtered results against
+  const baselineStats = useMemo(() => {
+    // Get games with just game count filter applied (no quick/chart/injury filters)
+    let games = [...boxScoreGames];
+    
+    // Apply game count filter
+    if (gameCount === "h2h" && profile.opponentTeamAbbr) {
+      games = games.filter(g => g.opponentAbbr === profile.opponentTeamAbbr);
+    } else if (gameCount !== "season" && gameCount !== "h2h") {
+      games = games.slice(0, gameCount);
+    }
+    
+    if (games.length === 0) {
+      return { avg: null, hitRate: null, hits: 0, total: 0, usage: null, minutes: null, fga: null };
+    }
+    
+    const stats = games.map(g => getMarketStat(g, profile.market));
+    const avg = stats.reduce((a, b) => a + b, 0) / stats.length;
+    
+    // Calculate additional context stats
+    const usageAvg = games.reduce((sum, g) => sum + (g.usagePct || 0), 0) / games.length;
+    const minutesAvg = games.reduce((sum, g) => sum + (g.minutes || 0), 0) / games.length;
+    const fgaAvg = games.reduce((sum, g) => sum + (g.fga || 0), 0) / games.length;
+    const rebAvg = games.reduce((sum, g) => sum + (g.reb || 0), 0) / games.length;
+    const astAvg = games.reduce((sum, g) => sum + (g.ast || 0), 0) / games.length;
+    const fg3aAvg = games.reduce((sum, g) => sum + (g.fg3a || 0), 0) / games.length;
+    const fg3mAvg = games.reduce((sum, g) => sum + (g.fg3m || 0), 0) / games.length;
+    const ftaAvg = games.reduce((sum, g) => sum + (g.fta || 0), 0) / games.length;
+    const ptsAvg = games.reduce((sum, g) => sum + (g.pts || 0), 0) / games.length;
+    
+    if (activeLine === null) {
+      return {
+        avg: Math.round(avg * 10) / 10,
+        hitRate: null,
+        hits: 0,
+        total: stats.length,
+        usage: Math.round(usageAvg * 100 * 10) / 10, // usagePct is 0-1, convert to %
+        minutes: Math.round(minutesAvg * 10) / 10,
+        fga: Math.round(fgaAvg * 10) / 10,
+        reb: Math.round(rebAvg * 10) / 10,
+        ast: Math.round(astAvg * 10) / 10,
+        fg3a: Math.round(fg3aAvg * 10) / 10,
+        fg3m: Math.round(fg3mAvg * 10) / 10,
+        fta: Math.round(ftaAvg * 10) / 10,
+        pts: Math.round(ptsAvg * 10) / 10,
+      };
+    }
+    
+    const hits = stats.filter(s => s >= activeLine).length;
+    const hitRate = (hits / stats.length) * 100;
+    
+    return {
+      avg: Math.round(avg * 10) / 10,
+      hitRate: Math.round(hitRate),
+      hits,
+      total: stats.length,
+      usage: Math.round(usageAvg * 100 * 10) / 10,
+      minutes: Math.round(minutesAvg * 10) / 10,
+      fga: Math.round(fgaAvg * 10) / 10,
+      reb: Math.round(rebAvg * 10) / 10,
+      ast: Math.round(astAvg * 10) / 10,
+      fg3a: Math.round(fg3aAvg * 10) / 10,
+      fg3m: Math.round(fg3mAvg * 10) / 10,
+      fta: Math.round(ftaAvg * 10) / 10,
+      pts: Math.round(ptsAvg * 10) / 10,
+    };
+  }, [boxScoreGames, gameCount, profile.market, profile.opponentTeamAbbr, activeLine]);
+
   // Calculate chart stats (for filtered games)
   // Always calculate average even if no line, but only calculate hit rate if line exists
   const chartStats = useMemo(() => {
     if (filteredGames.length === 0) {
-      return { avg: null, hitRate: null, hits: 0, total: 0 };
+      return { avg: null, hitRate: null, hits: 0, total: 0, usage: null, minutes: null, fga: null };
     }
     
     const stats = filteredGames.map(g => getMarketStat(g, profile.market));
     const avg = stats.reduce((a, b) => a + b, 0) / stats.length;
+    
+    // Calculate additional context stats
+    const usageAvg = filteredGames.reduce((sum, g) => sum + (g.usagePct || 0), 0) / filteredGames.length;
+    const minutesAvg = filteredGames.reduce((sum, g) => sum + (g.minutes || 0), 0) / filteredGames.length;
+    const fgaAvg = filteredGames.reduce((sum, g) => sum + (g.fga || 0), 0) / filteredGames.length;
+    const rebAvg = filteredGames.reduce((sum, g) => sum + (g.reb || 0), 0) / filteredGames.length;
+    const astAvg = filteredGames.reduce((sum, g) => sum + (g.ast || 0), 0) / filteredGames.length;
+    const fg3aAvg = filteredGames.reduce((sum, g) => sum + (g.fg3a || 0), 0) / filteredGames.length;
+    const fg3mAvg = filteredGames.reduce((sum, g) => sum + (g.fg3m || 0), 0) / filteredGames.length;
+    const ftaAvg = filteredGames.reduce((sum, g) => sum + (g.fta || 0), 0) / filteredGames.length;
+    const ptsAvg = filteredGames.reduce((sum, g) => sum + (g.pts || 0), 0) / filteredGames.length;
     
     // Only calculate hit rate if we have a line
     if (activeLine === null) {
@@ -1045,6 +1386,15 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         hitRate: null,
         hits: 0,
         total: stats.length,
+        usage: Math.round(usageAvg * 100 * 10) / 10,
+        minutes: Math.round(minutesAvg * 10) / 10,
+        fga: Math.round(fgaAvg * 10) / 10,
+        reb: Math.round(rebAvg * 10) / 10,
+        ast: Math.round(astAvg * 10) / 10,
+        fg3a: Math.round(fg3aAvg * 10) / 10,
+        fg3m: Math.round(fg3mAvg * 10) / 10,
+        fta: Math.round(ftaAvg * 10) / 10,
+        pts: Math.round(ptsAvg * 10) / 10,
       };
     }
     
@@ -1057,11 +1407,35 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       hitRate: Math.round(hitRate),
       hits,
       total: stats.length,
+      usage: Math.round(usageAvg * 100 * 10) / 10,
+      minutes: Math.round(minutesAvg * 10) / 10,
+      fga: Math.round(fgaAvg * 10) / 10,
+      reb: Math.round(rebAvg * 10) / 10,
+      ast: Math.round(astAvg * 10) / 10,
+      fg3a: Math.round(fg3aAvg * 10) / 10,
+      fg3m: Math.round(fg3mAvg * 10) / 10,
+      fta: Math.round(ftaAvg * 10) / 10,
+      pts: Math.round(ptsAvg * 10) / 10,
     };
   }, [filteredGames, profile.market, activeLine]);
 
+  // Check if we have active filters (to show comparison panel)
+  const hasActiveFilters = quickFilters.size > 0 || injuryFilters.length > 0 || playTypeFilters.length > 0 || shotZoneFilters.length > 0 || [
+    chartFilters.minutes,
+    chartFilters.usage,
+    chartFilters.points,
+    chartFilters.rebounds,
+    chartFilters.assists,
+    chartFilters.fg3m,
+    chartFilters.fg3a,
+    chartFilters.fga,
+  ].some(Boolean);
+
   return (
     <div ref={scrollContainerRef} className="h-full overflow-auto pr-3 drilldown-scroll">
+      {/* Capture Wrapper - Contains header + chart for sharing */}
+      <div ref={chartCaptureRef}>
+      
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY PLAYER HEADER - Premium Design
           ═══════════════════════════════════════════════════════════════════ */}
@@ -1079,11 +1453,15 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                 LEFT SECTION - Identity Cluster - Premium
                 ════════════════════════════════════════════════════════════════ */}
             <div className="flex-1 flex items-center gap-5 p-5 bg-gradient-to-r from-white/60 via-white/40 to-transparent dark:from-neutral-900/60 dark:via-neutral-900/40 dark:to-transparent">
-              {/* Back Button - Premium */}
+              {/* Back Button - Premium (hidden on capture) */}
           <button
             type="button"
             onClick={onBack}
-                className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-sm"
+            data-hide-on-capture
+                className={cn(
+                  "p-2.5 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-sm",
+                  isCapturingChart && "opacity-0"
+                )}
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
@@ -1499,10 +1877,14 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             quickFilters={quickFilters}
             chartFilters={chartFilters}
             injuryFilters={injuryFilters}
+            playTypeFilters={playTypeFilters}
+            shotZoneFilters={shotZoneFilters}
             onClearAllFilters={() => {
               setQuickFilters(new Set());
               setChartFilters(DEFAULT_FILTERS);
               setInjuryFilters([]);
+              setPlayTypeFilters([]);
+              setShotZoneFilters([]);
             }}
             onRemoveQuickFilter={(filter) => {
               const newFilters = new Set(quickFilters);
@@ -1512,179 +1894,430 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             onRemoveInjuryFilter={(playerId) => {
               setInjuryFilters(injuryFilters.filter(f => f.playerId !== playerId));
             }}
+            onRemovePlayTypeFilter={(playType) => {
+              setPlayTypeFilters(playTypeFilters.filter(f => f.playType !== playType));
+            }}
+            onRemoveShotZoneFilter={(zone) => {
+              setShotZoneFilters(shotZoneFilters.filter(f => f.zone !== zone));
+            }}
+            filteredGamesCount={chartStats.total}
+            totalGamesCount={totalGamesAvailable}
           />
         )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          MAIN CONTENT - BAR CHART (Premium Card Design)
+          CONTEXT BAR - Primary Control Cluster Above Chart
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5">
-        {/* Header - Premium Design */}
-        <div className="relative overflow-hidden">
-          {/* Background Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-emerald-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-emerald-900/10" />
+        {/* Context Bar - Single Row Control Cluster */}
+        <div className="px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60 bg-gradient-to-r from-neutral-50/50 to-white dark:from-neutral-800/50 dark:to-neutral-900">
+          <div className="flex items-center justify-between gap-4">
+            {/* LEFT: Sample Size Tabs + Hit Rate */}
+            <div className="flex items-center gap-4">
+              {/* L5/L10/L20/Season Tabs - Compact */}
+              <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
+                {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
+                  const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
+                  const isDisabled = numericCount > totalGamesAvailable;
+                  const displayCount = count === "season" ? "All" : `L${count}`;
+                  
+                  return (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => !isDisabled && setGameCount(count)}
+                      disabled={isDisabled}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                        gameCount === count
+                          ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                          : isDisabled
+                            ? "text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
+                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                      )}
+                    >
+                      {displayCount}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Divider */}
+              <div className="h-8 w-px bg-neutral-200 dark:bg-neutral-700" />
+              
+              {/* Hit Rate + Games - Merged Display */}
+              <div className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl",
+                chartStats.hitRate !== null && chartStats.hitRate >= 70 
+                  ? "bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30"
+                  : chartStats.hitRate !== null && chartStats.hitRate >= 50 
+                    ? "bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-200/50 dark:ring-amber-700/30"
+                    : chartStats.hitRate !== null
+                      ? "bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200/50 dark:ring-red-700/30"
+                      : "bg-neutral-50 dark:bg-neutral-800 ring-1 ring-neutral-200/50 dark:ring-neutral-700/30"
+              )}>
+                <span className={cn(
+                  "text-2xl font-black tabular-nums tracking-tight",
+                  chartStats.hitRate !== null
+                    ? chartStats.hitRate >= 70
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : chartStats.hitRate >= 50
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-500 dark:text-red-400"
+                    : "text-neutral-400"
+                )}>
+                  {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Hit Rate
+                  </span>
+                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 tabular-nums">
+                    {chartStats.hits}/{chartStats.total} games
+                  </span>
+                </div>
+              </div>
+              
+              {/* Average - Compact */}
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 ring-1 ring-neutral-200/50 dark:ring-neutral-700/30">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">Avg</span>
+                <span className={cn(
+                  "text-lg font-bold tabular-nums",
+                  chartStats.avg !== null && activeLine !== null && chartStats.avg > activeLine
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-neutral-700 dark:text-neutral-300"
+                )}>
+                  {chartStats.avg?.toFixed(1) ?? "—"}
+                </span>
+              </div>
+            </div>
+            
+            {/* RIGHT: Share + Filters Buttons (hidden on capture) */}
+            <div 
+              className={cn("flex items-center gap-2", isCapturingChart && "opacity-0")}
+              data-hide-on-capture
+            >
+              <ShareChartButton
+                targetRef={chartCaptureRef}
+                playerName={profile.playerName}
+                market={profile.market}
+                compact
+                onCaptureStart={() => setIsCapturingChart(true)}
+                onCaptureEnd={() => setIsCapturingChart(false)}
+                gameRange={gameCount === "season" ? "Season" : gameCount === "h2h" ? `vs ${profile.opponentTeamAbbr}` : `L${gameCount}`}
+                stats={{
+                  hitRate: chartStats.hitRate,
+                  avg: chartStats.avg,
+                  gamesCount: chartStats.total,
+                  line: activeLine,
+                }}
+                activeFilters={[
+                  ...Array.from(quickFilters).map(f => ({ type: "quick" as const, label: f === "home" ? "Home" : f === "away" ? "Away" : f === "win" ? "Wins" : f === "loss" ? "Losses" : f === "wonBy10" ? "Won 10+" : f === "lostBy10" ? "Lost 10+" : f })),
+                  ...injuryFilters.map(f => ({ type: "injury" as const, label: `${f.mode === "without" ? "w/o" : "w/"} ${f.playerName?.split(" ").pop()}` })),
+                  ...playTypeFilters.map(f => ({ type: "playType" as const, label: `${f.playType} ${f.label}` })),
+                  ...shotZoneFilters.map(f => ({ type: "shotZone" as const, label: `${f.zone} ${f.label}` })),
+                  ...(chartFilters.minutes ? [{ type: "chart" as const, label: `Min ${chartFilters.minutes.min}-${chartFilters.minutes.max}` }] : []),
+                  ...(chartFilters.usage ? [{ type: "chart" as const, label: `Usage ${Math.round(chartFilters.usage.min * 100)}-${Math.round(chartFilters.usage.max * 100)}%` }] : []),
+                ]}
+              />
+              <FilterButton 
+                onClick={() => setFilterDrawerOpen(true)}
+                activeCount={quickFilters.size + injuryFilters.length + playTypeFilters.length + shotZoneFilters.length + [
+                  chartFilters.minutes,
+                  chartFilters.usage,
+                  chartFilters.points,
+                  chartFilters.rebounds,
+                  chartFilters.assists,
+                  chartFilters.fg3m,
+                  chartFilters.fg3a,
+                  chartFilters.fga,
+                ].filter(Boolean).length}
+              />
+            </div>
+          </div>
           
-          {/* Content */}
-          <div className="relative px-6 py-5 border-b border-neutral-200/60 dark:border-neutral-700/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-                  <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600 shadow-sm shadow-emerald-500/30" />
+          {/* Active Injury/Lineup Context Chip - Below main row when active */}
+          {injuryFilters.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-neutral-200/50 dark:border-neutral-700/50">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">Lineup:</span>
+                {injuryFilters.map((filter) => (
+                  <button
+                    key={filter.playerId}
+                    type="button"
+                    onClick={() => setFilterDrawerOpen(true)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                      filter.mode === "without"
+                        ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200"
+                        : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200"
+                    )}
+                  >
+                    <span>{filter.mode === "without" ? "Without" : "With"}</span>
+                    <span className="font-bold">{filter.playerName}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bar Chart Content + Comparison Panel */}
+        <div className={cn(
+          "flex gap-4 p-5",
+          hasActiveFilters ? "flex-col lg:flex-row lg:items-stretch" : ""
+        )}>
+          {/* Chart - Takes 70% when comparison is shown, vertically centered */}
+          <div className={cn(
+            "flex flex-col",
+            hasActiveFilters ? "lg:w-[70%] lg:justify-center" : "w-full"
+          )}>
+            {boxScoresLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-pulse flex flex-col items-center gap-2">
+                  <div className="h-6 w-6 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
+                  <span className="text-sm text-neutral-500">Loading game data...</span>
+                </div>
+              </div>
+            ) : (
+              <GameLogChart
+                games={filteredGames}
+                line={customLine ?? profile.line}
+                market={profile.market}
+                profileGameLogs={profileGameLogsForChart as any}
+                onLineChange={setCustomLine}
+                quickFilters={quickFilters}
+                onQuickFilterToggle={toggleQuickFilter}
+                onQuickFiltersClear={() => setQuickFilters(new Set())}
+                odds={oddsForChart}
+                opponentDvpRanks={opponentDvpRanks}
+                playTypeRanksMap={playTypeRanksMap}
+                shotZoneRanksMap={shotZoneRanksMap}
+                activeMatchupFilters={activeMatchupFilterLines}
+              />
+            )}
+          </div>
+          
+          {/* Comparison Panel - 30% width when filters active */}
+          {hasActiveFilters && !boxScoresLoading && (
+            <div className="lg:w-[30%] lg:border-l lg:border-neutral-200/60 lg:dark:border-neutral-700/60 lg:pl-4 flex flex-col justify-center">
+              <div className="bg-gradient-to-br from-neutral-50 to-white dark:from-neutral-800/50 dark:to-neutral-900 rounded-xl border border-neutral-200/60 dark:border-neutral-700/60 p-4">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
+                  <div className="w-1 h-6 rounded-full bg-gradient-to-b from-brand to-purple-500" />
                   <div>
-                    <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
-              Game Log
-            </h2>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                      Performance history & trends
-                    </p>
+                    <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Filter Impact</h3>
+                    <p className="text-[10px] text-neutral-500">Baseline vs Filtered</p>
                   </div>
                 </div>
                 
-                {/* Game Count Filter - Premium Pills */}
-                <div className="flex items-center gap-1 bg-neutral-100/50 dark:bg-neutral-800/30 rounded-xl p-1 ml-2">
-              {([5, 10, 20, "season"] as GameCountFilter[]).map((count) => {
-                    const numericCount = count === "season" ? totalGamesAvailable : (typeof count === 'number' ? count : 0);
-                const isDisabled = numericCount > totalGamesAvailable;
-                const displayCount = count === "season" 
-                  ? `All (${totalGamesAvailable})` 
-                  : `L${count}`;
+                {/* Comparison Table */}
+                <div className="space-y-3">
+                  {/* Column Headers */}
+                  <div className="grid grid-cols-3 gap-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 pb-2 border-b border-neutral-200/40 dark:border-neutral-700/40">
+                    <span>Stat</span>
+                    <span className="text-center">Baseline</span>
+                    <span className="text-right">Filtered</span>
+                  </div>
+                  
+                  {/* Hit Rate Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Hit Rate</span>
+                    <span className="text-center text-sm font-bold tabular-nums text-neutral-500">
+                      {baselineStats.hitRate !== null ? `${baselineStats.hitRate}%` : "—"}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className={cn(
+                        "text-sm font-bold tabular-nums",
+                        chartStats.hitRate !== null && baselineStats.hitRate !== null
+                          ? chartStats.hitRate > baselineStats.hitRate
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : chartStats.hitRate < baselineStats.hitRate
+                              ? "text-red-500 dark:text-red-400"
+                              : "text-neutral-600 dark:text-neutral-300"
+                          : "text-neutral-600 dark:text-neutral-300"
+                      )}>
+                        {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                      </span>
+                      {chartStats.hitRate !== null && baselineStats.hitRate !== null && chartStats.hitRate !== baselineStats.hitRate && (
+                        <span className={cn(
+                          "text-[10px] font-semibold",
+                          chartStats.hitRate > baselineStats.hitRate
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                        )}>
+                          {chartStats.hitRate > baselineStats.hitRate ? "+" : ""}{chartStats.hitRate - baselineStats.hitRate}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Average Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Average</span>
+                    <span className="text-center text-sm font-bold tabular-nums text-neutral-500">
+                      {baselineStats.avg?.toFixed(1) ?? "—"}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className={cn(
+                        "text-sm font-bold tabular-nums",
+                        chartStats.avg !== null && baselineStats.avg !== null
+                          ? chartStats.avg > baselineStats.avg
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : chartStats.avg < baselineStats.avg
+                              ? "text-red-500 dark:text-red-400"
+                              : "text-neutral-600 dark:text-neutral-300"
+                          : "text-neutral-600 dark:text-neutral-300"
+                      )}>
+                        {chartStats.avg?.toFixed(1) ?? "—"}
+                      </span>
+                      {chartStats.avg !== null && baselineStats.avg !== null && chartStats.avg !== baselineStats.avg && (
+                        <span className={cn(
+                          "text-[10px] font-semibold",
+                          chartStats.avg > baselineStats.avg
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                        )}>
+                          {chartStats.avg > baselineStats.avg ? "+" : ""}{(chartStats.avg - baselineStats.avg).toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Games Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Games</span>
+                    <span className="text-center text-sm font-bold tabular-nums text-neutral-500">
+                      {baselineStats.total}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className="text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">
+                        {chartStats.total}
+                      </span>
+                      {chartStats.total !== baselineStats.total && (
+                        <span className="text-[10px] font-semibold text-neutral-400">
+                          ({chartStats.total < baselineStats.total ? "" : "+"}{chartStats.total - baselineStats.total})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Divider */}
+                  <div className="h-px bg-neutral-200/60 dark:bg-neutral-700/60 my-2" />
+                  
+                  {/* Minutes Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">Minutes</span>
+                    <span className="text-center text-xs font-semibold tabular-nums text-neutral-400">
+                      {baselineStats.minutes?.toFixed(1) ?? "—"}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className={cn(
+                        "text-xs font-semibold tabular-nums",
+                        chartStats.minutes !== null && baselineStats.minutes !== null
+                          ? chartStats.minutes > baselineStats.minutes
+                            ? "text-emerald-500 dark:text-emerald-400"
+                            : chartStats.minutes < baselineStats.minutes
+                              ? "text-red-400"
+                              : "text-neutral-500"
+                          : "text-neutral-500"
+                      )}>
+                        {chartStats.minutes?.toFixed(1) ?? "—"}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Usage Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">Usage %</span>
+                    <span className="text-center text-xs font-semibold tabular-nums text-neutral-400">
+                      {baselineStats.usage !== null ? `${baselineStats.usage.toFixed(1)}%` : "—"}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className={cn(
+                        "text-xs font-semibold tabular-nums",
+                        chartStats.usage !== null && baselineStats.usage !== null
+                          ? chartStats.usage > baselineStats.usage
+                            ? "text-emerald-500 dark:text-emerald-400"
+                            : chartStats.usage < baselineStats.usage
+                              ? "text-red-400"
+                              : "text-neutral-500"
+                          : "text-neutral-500"
+                      )}>
+                        {chartStats.usage !== null ? `${chartStats.usage.toFixed(1)}%` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* FGA Row */}
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">FGA</span>
+                    <span className="text-center text-xs font-semibold tabular-nums text-neutral-400">
+                      {baselineStats.fga?.toFixed(1) ?? "—"}
+                    </span>
+                    <div className="text-right flex items-center justify-end gap-1">
+                      <span className={cn(
+                        "text-xs font-semibold tabular-nums",
+                        chartStats.fga !== null && baselineStats.fga !== null
+                          ? chartStats.fga > baselineStats.fga
+                            ? "text-emerald-500 dark:text-emerald-400"
+                            : chartStats.fga < baselineStats.fga
+                              ? "text-red-400"
+                              : "text-neutral-500"
+                          : "text-neutral-500"
+                      )}>
+                        {chartStats.fga?.toFixed(1) ?? "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 
-                return (
+                {/* View All Stats Button */}
+                <div className="mt-4 pt-3 border-t border-neutral-200/60 dark:border-neutral-700/60">
                   <button
-                    key={count}
                     type="button"
-                    onClick={() => !isDisabled && setGameCount(count)}
-                    disabled={isDisabled}
-                    className={cn(
-                          "px-3.5 py-2 text-xs font-bold rounded-lg transition-all",
-                      gameCount === count
-                            ? "bg-white dark:bg-neutral-800 text-emerald-700 dark:text-emerald-400 shadow-md ring-1 ring-emerald-200/50 dark:ring-emerald-700/30"
-                        : isDisabled
-                          ? "text-neutral-300 dark:text-neutral-600 cursor-not-allowed"
-                              : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/50 dark:hover:bg-neutral-800/50"
-                    )}
+                    onClick={() => setComparisonModalOpen(true)}
+                    className="w-full px-3 py-2 text-xs font-semibold text-brand bg-brand/10 hover:bg-brand/20 rounded-lg transition-all flex items-center justify-center gap-1.5"
                   >
-                    {displayCount}
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    View All Stats
                   </button>
-                );
-              })}
-            </div>
-          </div>
-          
-              {/* Chart Stats - Premium Cards */}
-              <div className="flex items-center gap-2.5">
-                {/* Chart Average - Premium */}
-                <div className="flex flex-col items-center px-4 py-2.5 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
-                    Avg
-                  </span>
-                  <span className={cn(
-                    "text-xl font-bold tabular-nums tracking-tight",
-                    chartStats.avg !== null && activeLine !== null
-                      ? chartStats.avg > activeLine
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-neutral-900 dark:text-white"
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {chartStats.avg?.toFixed(1) ?? "—"}
-                  </span>
+                  
+                  {/* Filter Summary */}
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {Array.from(quickFilters).slice(0, 3).map((filter) => (
+                      <span
+                        key={filter}
+                        className="px-1.5 py-0.5 text-[9px] font-semibold bg-brand/10 text-brand rounded"
+                      >
+                        {QUICK_FILTER_LABELS[filter] || filter}
+                      </span>
+                    ))}
+                    {injuryFilters.slice(0, 2).map((f) => (
+                      <span
+                        key={f.playerId}
+                        className="px-1.5 py-0.5 text-[9px] font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded"
+                      >
+                        {f.mode === "without" ? "−" : "+"} {f.playerName.split(" ").pop()}
+                      </span>
+                    ))}
+                    {(quickFilters.size > 3 || injuryFilters.length > 2) && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-medium text-neutral-400">
+                        +{Math.max(0, quickFilters.size - 3) + Math.max(0, injuryFilters.length - 2)} more
+                      </span>
+                    )}
+                  </div>
                 </div>
-
-                {/* Chart Hit Rate */}
-                {/* Hit Rate - Premium Gradient */}
-                <div className={cn(
-                  "flex flex-col items-center px-4 py-2.5 rounded-xl ring-1 shadow-sm",
-                  chartStats.hitRate !== null && chartStats.hitRate >= 70 
-                    ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 ring-emerald-200/60 dark:ring-emerald-700/40"
-                    : chartStats.hitRate !== null && chartStats.hitRate >= 50 
-                      ? "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 ring-amber-200/60 dark:ring-amber-700/40"
-                      : chartStats.hitRate !== null
-                        ? "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 ring-red-200/60 dark:ring-red-700/40"
-                        : "bg-white dark:bg-neutral-700/40 ring-neutral-200/60 dark:ring-neutral-600/40"
-                )}>
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
-                    Hit Rate
-                  </span>
-                  <span className={cn(
-                    "text-xl font-bold tabular-nums tracking-tight",
-                    chartStats.hitRate !== null
-                      ? chartStats.hitRate >= 70
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : chartStats.hitRate >= 50
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-red-500 dark:text-red-400"
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
-                  </span>
-                </div>
-
-                {/* Season Avg - Premium */}
-                <div className="flex flex-col items-center px-4 py-2.5 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
-                    Season
-                  </span>
-                  <span className="text-xl font-bold text-neutral-600 dark:text-neutral-300 tabular-nums tracking-tight">
-              {profile.seasonAvg?.toFixed(1) ?? "—"}
-            </span>
-                </div>
-
-                {/* Games Count */}
-                <div className="flex flex-col items-center text-xs text-neutral-500">
-                  <span className="font-bold text-neutral-700 dark:text-neutral-300">{chartStats.hits}/{chartStats.total}</span>
-                  <span className="text-[9px]">games</span>
-                </div>
-
-                {/* Filter Button */}
-                <FilterButton 
-                  onClick={() => setFilterDrawerOpen(true)}
-                  activeCount={quickFilters.size + injuryFilters.length + (chartFilters.minutes || chartFilters.usage || chartFilters.points || chartFilters.rebounds || chartFilters.assists ? 1 : 0)}
-                />
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Bar Chart Content */}
-        <div className="p-5">
-        {boxScoresLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-pulse flex flex-col items-center gap-2">
-                <div className="h-6 w-6 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-                <span className="text-sm text-neutral-500">Loading game data...</span>
-              </div>
-          </div>
-        ) : (
-          <GameLogChart
-            games={filteredGames}
-              line={customLine ?? profile.line}
-            market={profile.market}
-            profileGameLogs={profileGameLogsForChart as any}
-              onLineChange={setCustomLine}
-              quickFilters={quickFilters}
-              onQuickFilterToggle={toggleQuickFilter}
-              onQuickFiltersClear={() => setQuickFilters(new Set())}
-              odds={oddsForChart}
-              opponentDvpRanks={opponentDvpRanks}
-            />
           )}
         </div>
       </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          INJURY IMPACT CARD - Shows stat boosts when teammates are out
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div className="mt-6">
-        {profile.teamId && activeLine !== null && (
-          <InjuryImpactCard
-            playerId={profile.playerId}
-            market={profile.market}
-            line={activeLine}
-            teamId={profile.teamId}
-          />
-        )}
-      </div>
+      
+      </div>{/* End of chartCaptureRef wrapper */}
 
       {/* ═══════════════════════════════════════════════════════════════════
           TEAM ROSTERS & INJURIES (Combined) - Collapsible
@@ -1790,6 +2423,241 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
+          FULL STATS COMPARISON MODAL
+          ═══════════════════════════════════════════════════════════════════ */}
+      {comparisonModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setComparisonModalOpen(false)}
+          />
+          
+          {/* Modal */}
+          <div className="relative w-full max-w-2xl max-h-[85vh] mx-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-gradient-to-r from-brand/5 to-purple-500/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-brand/10">
+                  <svg className="h-5 w-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Full Stats Comparison</h2>
+                  <p className="text-xs text-neutral-500">Baseline ({baselineStats.total} games) vs Filtered ({chartStats.total} games)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setComparisonModalOpen(false)}
+                className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="h-5 w-5 text-neutral-500" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="overflow-y-auto max-h-[calc(85vh-80px)] p-6">
+              {/* Active Filters Summary */}
+              <div className="mb-6 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/60">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Active Filters</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.from(quickFilters).map((filter) => (
+                    <span key={filter} className="px-2 py-1 text-xs font-semibold bg-brand/10 text-brand rounded-lg">
+                      {QUICK_FILTER_LABELS[filter] || filter}
+                    </span>
+                  ))}
+                  {injuryFilters.map((f) => (
+                    <span key={f.playerId} className="px-2 py-1 text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg">
+                      {f.mode === "without" ? "Without" : "With"} {f.playerName}
+                    </span>
+                  ))}
+                  {chartFilters.minutes && (
+                    <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
+                      Minutes: {chartFilters.minutes.min.toFixed(0)}-{chartFilters.minutes.max.toFixed(0)}
+                    </span>
+                  )}
+                  {chartFilters.usage && (
+                    <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
+                      Usage: {(chartFilters.usage.min * 100).toFixed(0)}%-{(chartFilters.usage.max * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Stats Grid */}
+              <div className="space-y-6">
+                {/* Primary Stats */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Primary Stats</h3>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-neutral-500">Stat</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Baseline</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Filtered</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-neutral-500">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
+                        {/* Hit Rate */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Hit Rate</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">
+                            {baselineStats.hitRate !== null ? `${baselineStats.hitRate}%` : "—"}
+                          </td>
+                          <td className={cn(
+                            "px-4 py-3 text-center text-sm font-bold tabular-nums",
+                            chartStats.hitRate !== null && baselineStats.hitRate !== null
+                              ? chartStats.hitRate > baselineStats.hitRate
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : chartStats.hitRate < baselineStats.hitRate
+                                  ? "text-red-500 dark:text-red-400"
+                                  : "text-neutral-600 dark:text-neutral-300"
+                              : "text-neutral-600 dark:text-neutral-300"
+                          )}>
+                            {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {chartStats.hitRate !== null && baselineStats.hitRate !== null && (
+                              <span className={cn(
+                                "px-2 py-1 text-xs font-bold rounded-lg",
+                                chartStats.hitRate > baselineStats.hitRate
+                                  ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                                  : chartStats.hitRate < baselineStats.hitRate
+                                    ? "bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400"
+                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
+                              )}>
+                                {chartStats.hitRate > baselineStats.hitRate ? "+" : ""}{chartStats.hitRate - baselineStats.hitRate}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {/* Points */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Points</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.pts?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.pts && baselineStats.pts && chartStats.pts > baselineStats.pts ? "text-emerald-600 dark:text-emerald-400" : chartStats.pts && baselineStats.pts && chartStats.pts < baselineStats.pts ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.pts?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.pts && baselineStats.pts && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.pts > baselineStats.pts ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.pts < baselineStats.pts ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.pts > baselineStats.pts ? "+" : ""}{(chartStats.pts - baselineStats.pts).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* Rebounds */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Rebounds</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.reb?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.reb && baselineStats.reb && chartStats.reb > baselineStats.reb ? "text-emerald-600 dark:text-emerald-400" : chartStats.reb && baselineStats.reb && chartStats.reb < baselineStats.reb ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.reb?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.reb && baselineStats.reb && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.reb > baselineStats.reb ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.reb < baselineStats.reb ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.reb > baselineStats.reb ? "+" : ""}{(chartStats.reb - baselineStats.reb).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* Assists */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Assists</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.ast?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.ast && baselineStats.ast && chartStats.ast > baselineStats.ast ? "text-emerald-600 dark:text-emerald-400" : chartStats.ast && baselineStats.ast && chartStats.ast < baselineStats.ast ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.ast?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.ast && baselineStats.ast && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.ast > baselineStats.ast ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.ast < baselineStats.ast ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.ast > baselineStats.ast ? "+" : ""}{(chartStats.ast - baselineStats.ast).toFixed(1)}</span>}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Shooting Stats */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Shooting</h3>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-neutral-500">Stat</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Baseline</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Filtered</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-neutral-500">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
+                        {/* FGA */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">FGA</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.fga?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.fga && baselineStats.fga && chartStats.fga > baselineStats.fga ? "text-emerald-600 dark:text-emerald-400" : chartStats.fga && baselineStats.fga && chartStats.fga < baselineStats.fga ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.fga?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.fga && baselineStats.fga && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.fga > baselineStats.fga ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.fga < baselineStats.fga ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.fga > baselineStats.fga ? "+" : ""}{(chartStats.fga - baselineStats.fga).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* 3PA */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">3PA</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.fg3a?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.fg3a && baselineStats.fg3a && chartStats.fg3a > baselineStats.fg3a ? "text-emerald-600 dark:text-emerald-400" : chartStats.fg3a && baselineStats.fg3a && chartStats.fg3a < baselineStats.fg3a ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.fg3a?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.fg3a && baselineStats.fg3a && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.fg3a > baselineStats.fg3a ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.fg3a < baselineStats.fg3a ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.fg3a > baselineStats.fg3a ? "+" : ""}{(chartStats.fg3a - baselineStats.fg3a).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* 3PM */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">3PM</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.fg3m?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.fg3m && baselineStats.fg3m && chartStats.fg3m > baselineStats.fg3m ? "text-emerald-600 dark:text-emerald-400" : chartStats.fg3m && baselineStats.fg3m && chartStats.fg3m < baselineStats.fg3m ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.fg3m?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.fg3m && baselineStats.fg3m && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.fg3m > baselineStats.fg3m ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.fg3m < baselineStats.fg3m ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.fg3m > baselineStats.fg3m ? "+" : ""}{(chartStats.fg3m - baselineStats.fg3m).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* FTA */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">FTA</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.fta?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.fta && baselineStats.fta && chartStats.fta > baselineStats.fta ? "text-emerald-600 dark:text-emerald-400" : chartStats.fta && baselineStats.fta && chartStats.fta < baselineStats.fta ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.fta?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.fta && baselineStats.fta && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.fta > baselineStats.fta ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.fta < baselineStats.fta ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.fta > baselineStats.fta ? "+" : ""}{(chartStats.fta - baselineStats.fta).toFixed(1)}</span>}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Role & Context Stats */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Role & Context</h3>
+                  <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-neutral-500">Stat</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Baseline</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-neutral-500">Filtered</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-neutral-500">Change</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-700/50">
+                        {/* Minutes */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Minutes</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.minutes?.toFixed(1) ?? "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.minutes && baselineStats.minutes && chartStats.minutes > baselineStats.minutes ? "text-emerald-600 dark:text-emerald-400" : chartStats.minutes && baselineStats.minutes && chartStats.minutes < baselineStats.minutes ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.minutes?.toFixed(1) ?? "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.minutes && baselineStats.minutes && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.minutes > baselineStats.minutes ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.minutes < baselineStats.minutes ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.minutes > baselineStats.minutes ? "+" : ""}{(chartStats.minutes - baselineStats.minutes).toFixed(1)}</span>}</td>
+                        </tr>
+                        {/* Usage */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Usage %</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.usage !== null ? `${baselineStats.usage.toFixed(1)}%` : "—"}</td>
+                          <td className={cn("px-4 py-3 text-center text-sm font-bold tabular-nums", chartStats.usage && baselineStats.usage && chartStats.usage > baselineStats.usage ? "text-emerald-600 dark:text-emerald-400" : chartStats.usage && baselineStats.usage && chartStats.usage < baselineStats.usage ? "text-red-500" : "text-neutral-600 dark:text-neutral-300")}>{chartStats.usage !== null ? `${chartStats.usage.toFixed(1)}%` : "—"}</td>
+                          <td className="px-4 py-3 text-right">{chartStats.usage && baselineStats.usage && <span className={cn("px-2 py-1 text-xs font-bold rounded-lg", chartStats.usage > baselineStats.usage ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : chartStats.usage < baselineStats.usage ? "bg-red-100 dark:bg-red-900/30 text-red-500" : "bg-neutral-100 text-neutral-500")}>{chartStats.usage > baselineStats.usage ? "+" : ""}{(chartStats.usage - baselineStats.usage).toFixed(1)}%</span>}</td>
+                        </tr>
+                        {/* Games */}
+                        <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-neutral-900 dark:text-white">Sample Size</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{baselineStats.total} games</td>
+                          <td className="px-4 py-3 text-center text-sm font-bold tabular-nums text-neutral-600 dark:text-neutral-300">{chartStats.total} games</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="px-2 py-1 text-xs font-bold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                              {chartStats.total - baselineStats.total}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
           FILTER DRAWER (Right Slide-Over Panel)
           ═══════════════════════════════════════════════════════════════════ */}
       <FilterDrawer
@@ -1801,8 +2669,20 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         chartFilters={chartFilters}
         onChartFiltersChange={setChartFilters}
         gamesForFilters={gamesForChartFilters}
+        allSeasonGames={boxScoreGames}
         market={profile.market}
         hasDvpData={opponentDvpRanks.size > 0}
+        playTypeMatchup={playTypeMatchupData}
+        shotZoneMatchup={shotZoneMatchupData}
+        opponentTeamAbbr={profile.opponentTeamAbbr}
+        // Play type and shot zone ranks for filtering
+        playTypeRanks={playTypeRanks}
+        playTypeDisplayNames={playTypeDisplayNames}
+        shotZoneRanks={shotZoneRanks}
+        playTypeFilters={playTypeFilters}
+        onPlayTypeFiltersChange={setPlayTypeFilters}
+        shotZoneFilters={shotZoneFilters}
+        onShotZoneFiltersChange={setShotZoneFilters}
         activeQuickFiltersCount={quickFilters.size}
         activeChartFiltersCount={[
           chartFilters.minutes,
@@ -1817,6 +2697,31 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           chartFilters.turnovers,
         ].filter(Boolean).length}
         activeInjuryFiltersCount={injuryFilters.length}
+        // Lineup Context - Pass injury filters for teammate filtering
+        injuryFilters={injuryFilters}
+        onInjuryFiltersChange={setInjuryFilters}
+        availableTeammates={playersOutData?.teammates_out?.map(t => {
+          const m = profile.market?.toLowerCase() || "";
+          const marketAvg = m.includes("point") || m.includes("pts") ? t.avg_pts
+            : m.includes("rebound") || m.includes("reb") ? t.avg_reb
+            : m.includes("assist") || m.includes("ast") ? t.avg_ast
+            : t.avg_pts;
+          // Get injury status and season avg from roster data
+          const rosterInfo = injuryStatusMap.get(t.player_id);
+          return {
+            playerId: t.player_id,
+            name: t.name,
+            teamId: profile.teamId,
+            gamesOut: t.games_out ?? 0,
+            avgImpact: marketAvg,
+            seasonAvg: rosterInfo?.avg ?? marketAvg,
+            injuryStatus: rosterInfo?.status ?? null,
+          };
+        }) ?? []}
+        // Filter Impact Preview
+        filteredGamesCount={chartStats.total}
+        totalGamesCount={totalGamesAvailable}
+        filteredHitRate={chartStats.hitRate}
       />
     </div>
   );

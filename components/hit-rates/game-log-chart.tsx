@@ -230,6 +230,15 @@ function MiniOddsButton({
   );
 }
 
+// Play type/shot zone filter types for chart overlay lines
+interface MatchupFilterLine {
+  type: "playType" | "shotZone";
+  key: string; // play type name or zone name
+  label: "tough" | "neutral" | "favorable";
+  displayName: string;
+  color: string;
+}
+
 interface GameLogChartProps {
   games: BoxScoreGame[];
   line: number | null;
@@ -250,6 +259,12 @@ interface GameLogChartProps {
   // Optional: DvP range filter (min, max)
   dvpRange?: [number, number] | null;
   onDvpRangeChange?: (range: [number, number] | null) => void;
+  // Optional: Play type ranks for overlay lines - map of playType -> teamAbbr -> rank
+  playTypeRanksMap?: Map<string, Map<string, number>>;
+  // Optional: Shot zone ranks for overlay lines - map of zone -> teamAbbr -> rank
+  shotZoneRanksMap?: Map<string, Map<string, number>>;
+  // Optional: Active matchup filter lines to show
+  activeMatchupFilters?: MatchupFilterLine[];
 }
 
 // Get the stat value based on market
@@ -557,9 +572,14 @@ export function GameLogChart({
   opponentDvpRanks,
   dvpRange,
   onDvpRangeChange,
+  playTypeRanksMap,
+  shotZoneRanksMap,
+  activeMatchupFilters = [],
 }: GameLogChartProps) {
   // State for showing DvP overlay line
   const [showDvpLine, setShowDvpLine] = useState(false);
+  // State for showing matchup filter lines
+  const [showMatchupLines, setShowMatchupLines] = useState(true);
   const marketLabel = getMarketLabel(market);
   const chartRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -903,6 +923,71 @@ export function GameLogChart({
                 />
               </svg>
             );
+          })()}
+          
+          {/* Matchup Filter Lines - Play Type and Shot Zone */}
+          {showMatchupLines && activeMatchupFilters.length > 0 && games.length > 1 && (() => {
+            // Calculate dimensions matching the flex layout
+            const gapSize = 12; // gap-3 = 12px
+            const totalGap = (games.length - 1) * gapSize;
+            const totalBarWidth = games.length * barWidth;
+            const contentWidth = totalBarWidth + totalGap;
+            
+            // Render a line for each active matchup filter
+            return activeMatchupFilters.map((filter, filterIdx) => {
+              const ranksMap = filter.type === "playType" ? playTypeRanksMap?.get(filter.key) : shotZoneRanksMap?.get(filter.key);
+              if (!ranksMap) return null;
+              
+              // Build points data - X positions are relative to content start (0)
+              const points = games.map((game, idx) => {
+                const rank = ranksMap.get(game.opponentAbbr);
+                if (rank === null || rank === undefined) return null;
+                
+                // X = center of each bar within the content area
+                const x = idx * (barWidth + gapSize) + (barWidth / 2);
+                
+                // Y = rank 1 at bottom (tough), rank 30 at top (weak/favorable)
+                const yPercent = ((rank - 1) / 29) * 100;
+                const y = chartHeight * (1 - yPercent / 100);
+                
+                return { x, y, rank, idx };
+              }).filter(Boolean) as { x: number; y: number; rank: number; idx: number }[];
+              
+              if (points.length < 2) return null;
+              
+              // Build SVG path
+              const pathD = points.map((p, i) => 
+                i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
+              ).join(' ');
+              
+              return (
+                <svg 
+                  key={`${filter.type}-${filter.key}`}
+                  className="absolute bottom-0 left-1/2 z-[4] pointer-events-none"
+                  style={{ 
+                    width: contentWidth, 
+                    height: chartHeight,
+                    transform: 'translateX(-50%)', // Center to match flex justify-center
+                  }}
+                  viewBox={`0 0 ${contentWidth} ${chartHeight}`}
+                >
+                  {/* Line path */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={filter.color}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray={filter.type === "shotZone" ? "4 2" : "none"}
+                    style={{ 
+                      filter: `drop-shadow(0 0 4px ${filter.color}40)`,
+                      opacity: 0.8,
+                    }}
+                  />
+                </svg>
+              );
+            });
           })()}
           
           {/* Note: individual bars will have pointer-events-auto for tooltips */}
@@ -1295,7 +1380,7 @@ export function GameLogChart({
       </div>
 
       {/* X-Axis - Dates */}
-      <div className="ml-10 mt-8 flex justify-center gap-3">
+      <div className={cn("ml-10 mt-8 flex justify-center gap-3", showDvpLine && "mr-16")}>
         {games.map((game, idx) => (
           <div
             key={game.gameId || idx}
@@ -1307,173 +1392,117 @@ export function GameLogChart({
         ))}
       </div>
 
-      {/* Quick Filters, Legend & Odds Row */}
-      <div className="mt-4 flex items-center justify-between">
-        {/* Quick Filters - Left */}
+      {/* Chart Annotation Row - Minimal legend + context toggles */}
+      <div className={cn("ml-10 mt-3 flex items-center justify-between", showDvpLine && "mr-16")}>
+        {/* Context Toggles - Slim, clickable pills (left) */}
         {onQuickFilterToggle ? (
-          <div className="flex items-center gap-1.5 flex-wrap flex-1">
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] font-medium text-neutral-400 mr-1">Context:</span>
             {([
               { key: "home" as QuickFilterKey, label: "Home" },
               { key: "away" as QuickFilterKey, label: "Away" },
               { key: "win" as QuickFilterKey, label: "Win" },
               { key: "loss" as QuickFilterKey, label: "Loss" },
-              { key: "wonBy10" as QuickFilterKey, label: "Won 10+" },
-              { key: "lostBy10" as QuickFilterKey, label: "Lost 10+" },
             ]).map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => onQuickFilterToggle(key)}
                 className={cn(
-                  "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-all",
+                  "px-1.5 py-0.5 text-[9px] font-medium rounded transition-all",
                   quickFilters?.has(key)
-                    ? "bg-brand text-white border-brand shadow-sm"
-                    : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    ? "bg-neutral-800 dark:bg-white text-white dark:text-neutral-900"
+                    : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                 )}
               >
                 {label}
               </button>
             ))}
-            {/* DvP Defense Filters - only show if we have DvP data */}
+            {/* DvP toggles - only show if we have DvP data */}
             {opponentDvpRanks && opponentDvpRanks.size > 0 && (
               <>
-                <span className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+                <span className="text-neutral-300 dark:text-neutral-600 mx-0.5">·</span>
                 {([
-                  { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10", tooltip: "Tough defense" },
-                  { key: "dvpAverage" as QuickFilterKey, label: "DvP 11-20", tooltip: "Average defense" },
-                  { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30", tooltip: "Weak defense" },
-                ]).map(({ key, label, tooltip }) => (
-                  <Tooltip key={key} content={tooltip} side="top">
-                    <button
-                      type="button"
-                      onClick={() => onQuickFilterToggle(key)}
-                      className={cn(
-                        "px-2.5 py-1 text-[10px] font-medium rounded-md border transition-all",
-                        quickFilters?.has(key)
-                          ? key === "dvpTough" 
-                            ? "bg-red-500 text-white border-red-500 shadow-sm"
-                            : key === "dvpAverage"
-                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                            : "bg-emerald-500 text-white border-emerald-500 shadow-sm"
-                          : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  </Tooltip>
+                  { key: "dvpTough" as QuickFilterKey, label: "DvP 1-10" },
+                  { key: "dvpWeak" as QuickFilterKey, label: "DvP 21-30" },
+                ]).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onQuickFilterToggle(key)}
+                    className={cn(
+                      "px-1.5 py-0.5 text-[9px] font-medium rounded transition-all",
+                      quickFilters?.has(key)
+                        ? key === "dvpTough" 
+                          ? "bg-red-500 text-white"
+                          : "bg-emerald-500 text-white"
+                        : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    )}
+                  >
+                    {label}
+                  </button>
                 ))}
               </>
             )}
-            {quickFilters && quickFilters.size > 0 && onQuickFiltersClear && (
-              <button
-                type="button"
-                onClick={onQuickFiltersClear}
-                className="px-2 py-1 text-[10px] font-medium text-red-500 hover:text-red-600"
-              >
-                Clear
-              </button>
-            )}
           </div>
         ) : (
-          <div className="flex-1" /> 
+          <div /> 
         )}
 
-        {/* Legend - Center */}
-        <div className="flex items-center justify-center gap-3 text-[10px] flex-1">
-        <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-500 to-emerald-400" />
-          <span className="text-neutral-500 dark:text-neutral-400">Over</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-red-500 to-red-400" />
-          <span className="text-neutral-500 dark:text-neutral-400">Under</span>
-        </div>
-        {market === "player_rebounds" && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-neutral-400/30 dark:bg-neutral-500/30" />
-            <span className="text-neutral-500 dark:text-neutral-400">Chances</span>
+        {/* Minimal Legend - Whispers, doesn't speak (center-right) */}
+        <div className="flex items-center gap-3 text-[9px] text-neutral-400 dark:text-neutral-500">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-sm bg-emerald-500/70" />
+            <span>Hit</span>
           </div>
-        )}
-        {market === "player_threes_made" && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-neutral-400/30 dark:bg-neutral-500/30" />
-            <span className="text-neutral-500 dark:text-neutral-400">Attempts</span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-sm bg-red-500/70" />
+            <span>Miss</span>
           </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <div className="w-6 border-t-2 border-dashed border-primary dark:border-primary-weak" />
-          <span className="text-neutral-500 dark:text-neutral-400">Line ({line})</span>
+          <div className="flex items-center gap-1">
+            <div className="w-4 border-t border-dashed border-neutral-400/50" />
+            <span>{line}</span>
           </div>
-          
-          {/* DvP Line Toggle */}
+          {/* DvP Line Toggle - subtle */}
           {opponentDvpRanks && opponentDvpRanks.size > 0 && (
             <button
               type="button"
               onClick={() => setShowDvpLine(!showDvpLine)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all",
+                "flex items-center gap-1 px-1.5 py-0.5 rounded transition-all",
                 showDvpLine
-                  ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 ring-1 ring-blue-500/30"
+                  ? "bg-blue-500/10 text-blue-500 dark:text-blue-400"
                   : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
               )}
             >
-              <div className="flex items-center gap-0.5">
-                <div className="w-2 h-2 rounded-full bg-red-400" />
-                <div className="w-3 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
-                <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              </div>
-              <span className={cn(
-                "text-[10px] font-medium",
-                showDvpLine ? "text-blue-500 dark:text-blue-400" : "text-neutral-500 dark:text-neutral-400"
-              )}>
-                DvP
-              </span>
+              <div className="w-3 h-0.5 bg-gradient-to-r from-red-400 via-blue-400 to-emerald-400 rounded-full" />
+              <span>DvP</span>
             </button>
           )}
-        </div>
-
-        {/* Odds - Right */}
-        <div className="flex items-center justify-end gap-2 text-[10px] flex-1">
-          {(odds?.bestOver || odds?.bestUnder) && (
-            <>
-              {/* Show which line these odds are for when it differs from chart line */}
-              {odds?.oddsLine !== undefined && odds?.oddsLine !== null && odds?.oddsLine !== line && (
-                <Tooltip 
-                  content={
-                    odds.isClosestLine 
-                      ? `Showing odds for closest available line (${odds.oddsLine})`
-                      : `Odds shown for ${odds.oddsLine} line`
-                  }
-                  side="top"
+          {/* Active Matchup Filter Lines Legend */}
+          {activeMatchupFilters.length > 0 && (
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-700">
+              {activeMatchupFilters.map((filter) => (
+                <div 
+                  key={`${filter.type}-${filter.key}`}
+                  className="flex items-center gap-1"
                 >
-                  <span className={cn(
-                    "text-[10px] font-semibold px-2 py-1 rounded-md cursor-help",
-                    odds.isClosestLine 
-                      ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-700" 
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                  )}>
-                    {odds.isClosestLine ? `≈ ${odds.oddsLine}` : `O/U ${odds.oddsLine}`}
+                  <div 
+                    className={cn(
+                      "w-3 h-0.5 rounded-full",
+                      filter.type === "shotZone" && "border-t border-dashed"
+                    )}
+                    style={{ 
+                      backgroundColor: filter.type !== "shotZone" ? filter.color : undefined,
+                      borderColor: filter.type === "shotZone" ? filter.color : undefined 
+                    }}
+                  />
+                  <span className="text-[9px]" style={{ color: filter.color }}>
+                    {filter.displayName.length > 10 ? filter.displayName.substring(0, 10) + "..." : filter.displayName}
                   </span>
-                </Tooltip>
-              )}
-              {odds?.bestOver && (
-                <MiniOddsButton
-                  type="over"
-                  best={odds.bestOver}
-                  allBooks={odds.allBooks?.over || []}
-                />
-              )}
-              {odds?.bestUnder && (
-                <MiniOddsButton
-                  type="under"
-                  best={odds.bestUnder}
-                  allBooks={odds.allBooks?.under || []}
-                />
-              )}
-            </>
-          )}
-          {!odds?.bestOver && !odds?.bestUnder && (
-            <span className="text-neutral-400 dark:text-neutral-500">No odds</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

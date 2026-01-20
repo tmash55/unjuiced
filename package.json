@@ -41,6 +41,8 @@
     "date-fns": "^4.1.0",
     "dub": "^0.69.0",
     "geist": "^1.5.1",
+    "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^1.6.5",
     "linkify-react": "^4.3.2",
     "lucide-react": "^0.542.0",
     "motion": "^12.23.12",

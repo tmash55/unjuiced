@@ -659,8 +659,9 @@ export function HitRateTable({
   };
 
   // Render filter bar component (extracted for reuse) - Premium styling
+  // z-[20] ensures dropdowns appear above the sticky table header (z-[5])
   const filterBar = (
-    <div className="flex items-center gap-4 px-5 py-3.5 border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 shrink-0 backdrop-blur-sm">
+    <div className="relative z-[20] flex items-center gap-4 px-5 py-3.5 border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/30 dark:to-neutral-900 shrink-0 backdrop-blur-sm">
         {/* Markets Dropdown - Premium */}
         <div ref={dropdownRef} className="relative z-[9998]">
           <button

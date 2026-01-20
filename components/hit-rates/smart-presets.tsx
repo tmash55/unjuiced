@@ -168,8 +168,37 @@ export function SmartPresets({
 
   const allPresets = [...DEFAULT_PRESETS, ...userPresets];
 
+  // Count how many presets are currently active (for stacking indicator)
+  const activePresetCount = allPresets.filter(p => isPresetActive(p)).length;
+
   return (
     <div className={cn("space-y-3", className)}>
+      {/* Stacking Indicator - Show when multiple presets are stacked */}
+      {activePresetCount > 1 && (
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200/50 dark:border-amber-700/30">
+          <div className="flex items-center -space-x-1">
+            {allPresets
+              .filter(p => isPresetActive(p))
+              .slice(0, 3)
+              .map((preset, idx) => (
+                <div
+                  key={preset.id}
+                  className={cn(
+                    "w-5 h-5 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-[8px] ring-2 ring-white dark:ring-neutral-900",
+                    preset.color
+                  )}
+                  style={{ zIndex: 3 - idx }}
+                >
+                  ✓
+                </div>
+              ))}
+          </div>
+          <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+            {activePresetCount} presets stacked
+          </span>
+        </div>
+      )}
+      
       {/* Preset Grid */}
       <div className="grid grid-cols-2 gap-2">
         {allPresets.map((preset) => {
@@ -183,16 +212,23 @@ export function SmartPresets({
                 "relative flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all",
                 "hover:shadow-md active:scale-[0.98]",
                 isActive
-                  ? "bg-gradient-to-br from-brand/5 to-brand/10 border-brand/30 ring-1 ring-brand/20"
+                  ? "bg-gradient-to-br from-brand/5 to-brand/10 border-brand/30 ring-2 ring-brand/30 shadow-sm"
                   : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
               )}
             >
               {/* Icon with gradient background */}
               <div className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br text-white shadow-sm shrink-0",
-                preset.color
+                "flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br text-white shadow-sm shrink-0 transition-transform",
+                preset.color,
+                isActive && "scale-110"
               )}>
-                {preset.icon}
+                {isActive ? (
+                  <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="3">
+                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ) : (
+                  preset.icon
+                )}
               </div>
               
               <div className="min-w-0 flex-1">
@@ -208,16 +244,16 @@ export function SmartPresets({
                       SAVED
                     </span>
                   )}
+                  {isActive && (
+                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-brand/20 text-brand rounded">
+                      ON
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-2 mt-0.5">
                   {preset.description}
                 </p>
               </div>
-
-              {/* Active indicator */}
-              {isActive && (
-                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand animate-pulse" />
-              )}
             </button>
           );
         })}

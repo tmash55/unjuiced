@@ -14,7 +14,7 @@ export type InjuryFilterMode = "with" | "without" | null;
 export interface InjuryFilter {
   playerId: number;
   playerName: string;
-  teamId: number;
+  teamId: number | null;
   mode: InjuryFilterMode;
 }
 
