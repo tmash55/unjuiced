@@ -38,6 +38,7 @@ interface GatedHitRateTableProps {
   hideNoOdds?: boolean;
   onHideNoOddsChange?: (value: boolean) => void;
   onOddsAvailabilityChange?: (idsWithOdds: Set<string>) => void;
+  gamesFilter?: React.ReactNode;
 }
 
 // Elegant upgrade banner component - using brand blue color
@@ -125,6 +126,7 @@ export function GatedHitRateTable({
   hideNoOdds,
   onHideNoOddsChange,
   onOddsAvailabilityChange,
+  gamesFilter,
 }: GatedHitRateTableProps) {
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
 
@@ -152,6 +154,7 @@ export function GatedHitRateTable({
         hideNoOdds={hideNoOdds}
         onHideNoOddsChange={onHideNoOddsChange}
         onOddsAvailabilityChange={onOddsAvailabilityChange}
+        gamesFilter={gamesFilter}
       />
     );
   }
@@ -182,6 +185,7 @@ export function GatedHitRateTable({
       hideNoOdds={hideNoOdds}
       onHideNoOddsChange={onHideNoOddsChange}
       onOddsAvailabilityChange={onOddsAvailabilityChange}
+      gamesFilter={gamesFilter}
       upgradeBanner={
         hiddenCount > 0 ? (
           <UpgradeBanner />

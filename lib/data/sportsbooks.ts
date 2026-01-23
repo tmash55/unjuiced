@@ -509,7 +509,26 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     priority: 4,
     isActive: true,
     requiresState: false
-  }
+  },
+  "polymarket": {
+    id: "polymarket",
+    name: "Polymarket",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.polymarket.com/",
+      mobile: "https://www.polymarket.com/"
+    },
+    image: {
+      light: "/images/sports-books/polymarket.png",
+      long: "/images/sports-books/polymarket_long.png"
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    requiresState: false
+  },
+  
 };
 
 

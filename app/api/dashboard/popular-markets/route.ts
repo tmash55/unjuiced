@@ -1,40 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
+import { redis } from "@/lib/redis";
 
 /**
  * Dashboard Popular Markets API
  * 
- * Returns top plays for viral/popular markets:
- * - First Basket (NBA)
- * - Double Double (NBA)
- * - Triple Double (NBA)
- * - Anytime TD (NFL)
- * - Anytime Goal Scorer (NHL)
- * - First Goal Scorer (NHL)
+ * Reads pre-computed popular market edges from Redis.
  * 
- * Leverages the existing opportunities API for consistent data.
+ * Redis Structure:
+ * - Key: dashboard:popular-markets:data (HASH)
+ * - Fields: market names (e.g., "first_basket", "double_double")
+ * - Values: JSON array of plays for each market
+ * 
+ * - Key: dashboard:popular-markets:timestamp (STRING)
+ * - Value: Unix timestamp (ms) of last update
  */
 
-// Popular markets configuration
-const POPULAR_MARKETS = [
-  { key: "player_first_basket", display: "First Basket", sport: "nba", maxPlays: 2 },
-  { key: "player_double_double", display: "Double Double", sport: "nba", maxPlays: 2 },
-  { key: "player_triple_double", display: "Triple Double", sport: "nba", maxPlays: 2 },
-  { key: "player_anytime_td", display: "Anytime TD", sport: "nfl", maxPlays: 2 },
-  { key: "anytime_td", display: "Anytime TD", sport: "nfl", maxPlays: 2 }, // Alternative key
-  { key: "player_first_td", display: "First TD", sport: "nfl", maxPlays: 1 },
-  { key: "first_td", display: "First TD", sport: "nfl", maxPlays: 1 }, // Alternative key
-  { key: "player_anytime_goal", display: "Anytime Goal", sport: "nhl", maxPlays: 2 },
-  { key: "anytime_goal_scorer", display: "Anytime Goal", sport: "nhl", maxPlays: 2 }, // Alternative key
-  { key: "player_first_goal", display: "First Goal", sport: "nhl", maxPlays: 1 },
-  { key: "first_goal_scorer", display: "First Goal", sport: "nhl", maxPlays: 1 }, // Alternative key
-];
+const REDIS_DATA_KEY = "dashboard:popular-markets:data";
+const REDIS_TIMESTAMP_KEY = "dashboard:popular-markets:timestamp";
+
+// Market display configuration
+const MARKET_CONFIG: Record<string, { display: string; sport: string; maxPlays: number }> = {
+  first_basket: { display: "First Basket", sport: "nba", maxPlays: 2 },
+  player_first_basket: { display: "First Basket", sport: "nba", maxPlays: 2 },
+  double_double: { display: "Double Double", sport: "nba", maxPlays: 2 },
+  player_double_double: { display: "Double Double", sport: "nba", maxPlays: 2 },
+  triple_double: { display: "Triple Double", sport: "nba", maxPlays: 2 },
+  player_triple_double: { display: "Triple Double", sport: "nba", maxPlays: 2 },
+  anytime_td: { display: "Anytime TD", sport: "nfl", maxPlays: 2 },
+  player_anytime_td: { display: "Anytime TD", sport: "nfl", maxPlays: 2 },
+  first_td: { display: "First TD", sport: "nfl", maxPlays: 2 },
+  player_first_td: { display: "First TD", sport: "nfl", maxPlays: 2 },
+  anytime_goal: { display: "Anytime Goal", sport: "nhl", maxPlays: 2 },
+  player_anytime_goal: { display: "Anytime Goal", sport: "nhl", maxPlays: 2 },
+  first_goal: { display: "First Goal", sport: "nhl", maxPlays: 2 },
+  player_first_goal: { display: "First Goal", sport: "nhl", maxPlays: 2 },
+};
 
 // Sport icons
 const SPORT_ICONS: Record<string, string> = {
   nba: "🏀",
   nfl: "🏈",
   nhl: "🏒",
+  ncaab: "🏀",
+  ncaaf: "🏈",
 };
+
+interface RedisOpportunity {
+  id: string;
+  player: string;
+  playerRaw: string;
+  team: string;
+  position?: string;
+  market: string;
+  marketDisplay: string;
+  side: string;
+  bestOdds: number;
+  bestOddsFormatted: string;
+  bestOddsDecimal: number;
+  avgOdds: number;
+  avgOddsFormatted: string;
+  avgOddsDecimal: number;
+  book: string;
+  u: string | null;
+  m: string | null;
+  deepLink: string | null;
+  vsMarketAvg: number;
+  bookCount: number;
+  uniqueBookCount: number;
+  sport: string;
+  eventId: string;
+  homeTeam: string;
+  awayTeam: string;
+  startTime: string;
+  isLive: boolean;
+}
 
 interface MarketPlay {
   player: string;
@@ -63,143 +102,98 @@ interface PopularMarketsResponse {
   timestamp: number;
 }
 
-function formatOdds(price: number): string {
-  return price > 0 ? `+${price}` : String(price);
-}
-
-function decimalToAmerican(decimal: number): number {
-  if (decimal >= 2) {
-    return Math.round((decimal - 1) * 100);
-  } else {
-    return Math.round(-100 / (decimal - 1));
-  }
-}
-
 export async function GET(req: NextRequest) {
   try {
-    const baseUrl = req.nextUrl.origin;
+    // Read the hash: each field = market name, value = JSON array of plays
+    const hashData = await redis.hgetall(REDIS_DATA_KEY);
+    const timestamp = await redis.get(REDIS_TIMESTAMP_KEY);
     
-    // Fetch opportunities from all sports
-    const response = await fetch(
-      `${baseUrl}/api/v2/opportunities?sports=nba,nfl,nhl&limit=200&sort=ev`,
-      {
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-      }
-    );
+    console.log(`[Popular Markets] Hash fields found: ${hashData ? Object.keys(hashData).length : 0}`);
     
-    if (!response.ok) {
-      console.error("[Popular Markets] Opportunities API error:", response.status);
+    if (!hashData || Object.keys(hashData).length === 0) {
+      console.log("[Popular Markets] No data in Redis hash");
       return NextResponse.json({
         markets: [],
         timestamp: Date.now(),
       });
     }
-    
-    const data = await response.json();
-    const opportunities = data.opportunities || [];
-    
-    // Group opportunities by market
-    const marketGroups = new Map<string, { config: typeof POPULAR_MARKETS[0]; plays: any[] }>();
-    
-    for (const marketConfig of POPULAR_MARKETS) {
-      const key = `${marketConfig.sport}-${marketConfig.display}`;
-      if (!marketGroups.has(key)) {
-        marketGroups.set(key, { config: marketConfig, plays: [] });
-      }
-    }
-    
-    // Match opportunities to popular markets
-    for (const opp of opportunities) {
-      const market = (opp.market || "").toLowerCase();
-      const sport = (opp.sport || "").toLowerCase();
-      
-      for (const marketConfig of POPULAR_MARKETS) {
-        if (sport === marketConfig.sport && market === marketConfig.key.toLowerCase()) {
-          const key = `${marketConfig.sport}-${marketConfig.display}`;
-          const group = marketGroups.get(key);
-          if (group) {
-            group.plays.push(opp);
-          }
-          break;
-        }
-      }
-    }
-    
-    // Build response
+
+    // Build markets from hash data
+    // Structure: { "first_basket": "[{play1}, {play2}]", "double_double": "[...]" }
     const marketsWithPlays: PopularMarket[] = [];
-    
-    for (const [key, group] of marketGroups) {
-      if (group.plays.length === 0) continue;
-      
-      // Sort by EV and take top plays
-      const sortedPlays = group.plays
-        .sort((a: any, b: any) => (b.ev_pct || -999) - (a.ev_pct || -999))
-        .slice(0, group.config.maxPlays);
-      
-      const plays: MarketPlay[] = sortedPlays.map((opp: any) => {
-        // Calculate Market Avg and vsMarketAvg
-        let marketAvg: number | null = null;
-        let marketAvgFormatted: string | null = null;
-        let vsMarketAvg: number | null = null;
 
-        if (opp.all_books && opp.all_books.length > 0) {
-          const sumDecimal = opp.all_books.reduce((sum: number, b: any) => sum + b.decimal, 0);
-          const avgDecimal = sumDecimal / opp.all_books.length;
-          
-          if (avgDecimal > 1) {
-            marketAvg = decimalToAmerican(avgDecimal);
-            marketAvgFormatted = formatOdds(marketAvg);
-            
-            const bestDecimal = opp.best_decimal || (opp.best_price > 0 ? (opp.best_price / 100) + 1 : (100 / Math.abs(opp.best_price)) + 1);
-            
-            // Calculate % improvement over market average payout (decimal - 1)
-            // ((BestPayout - AvgPayout) / AvgPayout) * 100
-            if (avgDecimal > 1) {
-              vsMarketAvg = ((bestDecimal - avgDecimal) / (avgDecimal - 1)) * 100;
-            }
-          }
+    for (const [marketKey, playsJson] of Object.entries(hashData)) {
+      const config = MARKET_CONFIG[marketKey];
+      if (!config) {
+        console.log(`[Popular Markets] Unknown market key: ${marketKey}`);
+        continue;
+      }
+
+      // Parse the JSON array of plays
+      let plays: RedisOpportunity[] = [];
+      try {
+        if (typeof playsJson === "string") {
+          plays = JSON.parse(playsJson);
+        } else if (Array.isArray(playsJson)) {
+          plays = playsJson;
         }
+      } catch (e) {
+        console.error(`[Popular Markets] Failed to parse plays for ${marketKey}:`, e);
+        continue;
+      }
 
-        return {
-          player: opp.player || "Unknown",
-          team: opp.team || null,
-          line: opp.line || 0.5,
-          bestOdds: parseInt(opp.best_price) || 0,
-          bestOddsFormatted: opp.best_price || "0",
-          book: opp.best_book || "unknown",
-          evPercent: opp.ev_pct ? Math.round(opp.ev_pct * 10) / 10 : null,
-          marketAvg,
-          marketAvgFormatted,
-          vsMarketAvg: vsMarketAvg ? Math.round(vsMarketAvg) : null,
-        };
-      });
-      
+      if (!Array.isArray(plays) || plays.length === 0) {
+        continue;
+      }
+
+      // Get sport from first play or from config
+      const sport = plays[0]?.sport || config.sport;
+
+      // Sort by vsMarketAvg descending and take top plays
+      const sortedPlays = plays
+        .sort((a, b) => (b.vsMarketAvg || 0) - (a.vsMarketAvg || 0))
+        .slice(0, config.maxPlays);
+
+      const formattedPlays: MarketPlay[] = sortedPlays.map((opp) => ({
+        player: opp.player,
+        team: opp.team || null,
+        line: 0.5, // One-way markets don't have traditional lines
+        bestOdds: opp.bestOdds,
+        bestOddsFormatted: opp.bestOddsFormatted,
+        book: opp.book,
+        evPercent: opp.vsMarketAvg ? Math.round(opp.vsMarketAvg * 10) / 10 : null,
+        marketAvg: opp.avgOdds,
+        marketAvgFormatted: opp.avgOddsFormatted,
+        vsMarketAvg: opp.vsMarketAvg ? Math.round(opp.vsMarketAvg * 10) / 10 : null,
+      }));
+
       marketsWithPlays.push({
-        marketKey: group.config.key,
-        displayName: group.config.display,
-        sport: group.config.sport,
-        icon: SPORT_ICONS[group.config.sport] || "🎯",
-        plays,
-        edgeFinderUrl: `/edge-finder?markets=${group.config.key}&sports=${group.config.sport}`,
+        marketKey,
+        displayName: config.display,
+        sport,
+        icon: SPORT_ICONS[sport] || "🎯",
+        plays: formattedPlays,
+        edgeFinderUrl: `/edge-finder?markets=${marketKey}&sports=${sport}`,
       });
     }
-    
-    // Sort markets by whether they have positive EV plays
+
+    console.log(`[Popular Markets] Built ${marketsWithPlays.length} markets`);
+
+    // Sort markets by best edge
     marketsWithPlays.sort((a, b) => {
-      const aMaxEV = Math.max(...a.plays.map(p => p.evPercent || 0), 0);
-      const bMaxEV = Math.max(...b.plays.map(p => p.evPercent || 0), 0);
-      return bMaxEV - aMaxEV;
+      const aMaxEdge = Math.max(...a.plays.map(p => p.vsMarketAvg || 0), 0);
+      const bMaxEdge = Math.max(...b.plays.map(p => p.vsMarketAvg || 0), 0);
+      return bMaxEdge - aMaxEdge;
     });
-    
+
     const result: PopularMarketsResponse = {
-      markets: marketsWithPlays,
-      timestamp: Date.now(),
+      markets: marketsWithPlays.slice(0, 6), // Max 6 markets for dashboard
+      timestamp: timestamp ? Number(timestamp) : Date.now(),
     };
-    
+
     return NextResponse.json(result, {
       headers: {
-        "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control": "public, max-age=30, s-maxage=30, stale-while-revalidate=60",
       },
     });
   } catch (error) {

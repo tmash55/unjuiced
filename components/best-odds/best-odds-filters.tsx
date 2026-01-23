@@ -55,9 +55,9 @@ interface BestOddsFiltersProps {
 export function BestOddsFilters({
   prefs,
   onPrefsChange,
-  availableLeagues,
-  availableMarkets,
-  availableSportsbooks,
+  availableLeagues = [],
+  availableMarkets = [],
+  availableSportsbooks = [],
   deals = [],
   locked = false,
   isLoggedIn = false,
@@ -114,7 +114,7 @@ export function BestOddsFilters({
   const [localBooks, setLocalBooks] = useState<string[]>(prefs.selectedBooks);
   const [localSports, setLocalSports] = useState<string[]>(getInitialSports());
   const [localLeagues, setLocalLeagues] = useState<string[]>(
-    prefs.selectedLeagues.length === 0 ? availableLeagues : prefs.selectedLeagues
+    prefs.selectedLeagues.length === 0 ? (availableLeagues ?? []) : prefs.selectedLeagues
   );
   const [localMarkets, setLocalMarkets] = useState<string[]>(prefs.selectedMarkets);
   const [localMarketLines, setLocalMarketLines] = useState<Record<string, number[]>>(prefs.marketLines);
@@ -197,7 +197,7 @@ export function BestOddsFilters({
   // Keep local UI state in sync when preferences load or change
   useEffect(() => {
     setLocalBooks(prefs.selectedBooks);
-    setLocalLeagues(prefs.selectedLeagues.length === 0 ? availableLeagues : prefs.selectedLeagues);
+    setLocalLeagues(prefs.selectedLeagues.length === 0 ? (availableLeagues ?? []) : prefs.selectedLeagues);
     setLocalMarkets(prefs.selectedMarkets);
     setLocalMarketLines(prefs.marketLines);
     setLocalMinImprovement(prefs.minImprovement);
@@ -325,14 +325,14 @@ export function BestOddsFilters({
     (SPORT_MARKETS['soccer_epl'] || []).forEach(m => soccerMarkets.add(m.apiKey));
 
     const leagueSelected = (leagueId: string) => {
-      if (localLeagues.length === 0) return availableLeagues.includes(leagueId);
+      if (localLeagues.length === 0) return availableLeagues?.includes(leagueId) ?? false;
       return localLeagues.includes(leagueId);
     };
 
     const soccerInScope = leagueSelected('soccer_epl');
     const hockeyInScope = leagueSelected('nhl');
 
-    availableMarkets.forEach(market => {
+    (availableMarkets || []).forEach(market => {
       const m = market.toLowerCase();
       
       // Check SPORT_MARKETS first for accurate categorization
@@ -428,7 +428,7 @@ export function BestOddsFilters({
       } else {
         // Sport is being selected - add its leagues if they're in availableLeagues
         const leaguesToAdd = allLeagues
-          .filter(league => league.sportId === id && availableLeagues.includes(league.id))
+          .filter(league => league.sportId === id && availableLeagues?.includes(league.id))
           .map(league => league.id);
         
         setLocalLeagues(currentLeagues => {
@@ -464,7 +464,7 @@ export function BestOddsFilters({
       
       // If empty (all selected), clicking one means "deselect this one, keep all others"
       if (prev.length === 0) {
-        return availableMarkets.filter(m => m !== id);
+        return (availableMarkets ?? []).filter(m => m !== id);
       }
       // Otherwise, normal toggle
       return prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id];
@@ -492,8 +492,8 @@ export function BestOddsFilters({
     if (locked) return;
     // Convert UI state to backend format:
     // If all items are selected in UI, send empty array to backend (meaning "show all")
-    const allLeaguesInUI = localLeagues.length === availableLeagues.length;
-    const allMarketsInUI = localMarkets.length === availableMarkets.length;
+    const allLeaguesInUI = localLeagues.length === (availableLeagues?.length ?? 0);
+    const allMarketsInUI = localMarkets.length === (availableMarkets?.length ?? 0);
     
     // Filter leagues based on selected sports
     // If specific sports are selected, only include leagues from those sports
@@ -550,8 +550,8 @@ export function BestOddsFilters({
     // Reset to all selected (populate UI with all IDs, backend will receive empty arrays)
     setLocalBooks([]);
     setLocalSports(allSports.map(s => s.id));
-    setLocalLeagues(availableLeagues);
-    setLocalMarkets(availableMarkets);
+    setLocalLeagues(availableLeagues ?? []);
+    setLocalMarkets(availableMarkets ?? []);
     setLocalMarketLines({});
     setLocalMinImprovement(0);
     setLocalMaxOdds(undefined);
@@ -585,8 +585,8 @@ export function BestOddsFilters({
   // For books: empty array = all selected (deselection logic - empty means none deselected)
   // Check if filters are actually applied (not just "all selected")
   const allBooksSelected = localBooks.length === 0;
-  const allLeaguesSelected = localLeagues.length === availableLeagues.length || localLeagues.length === 0;
-  const allMarketsSelected = localMarkets.length === availableMarkets.length || localMarkets.length === 0;
+  const allLeaguesSelected = localLeagues.length === (availableLeagues?.length ?? 0) || localLeagues.length === 0;
+  const allMarketsSelected = localMarkets.length === (availableMarkets?.length ?? 0) || localMarkets.length === 0;
 
   const activeFiltersCount =
     (!allLeaguesSelected ? 1 : 0) +

@@ -26,6 +26,7 @@ const SPORT_KEY_MAP: Record<string, string> = {
   ncaab: "ncaab",
   ncaaf: "ncaaf",
   mlb: "mlb",
+  wnba: "wnba",
 };
 
 // Sport configuration
@@ -36,13 +37,17 @@ interface SportConfig {
   disabledReason?: string;
 }
 
+// Active sports first, off-season at the bottom
 const SPORTS: SportConfig[] = [
+  // Active
   { id: "nba", label: "NBA" },
   { id: "nfl", label: "NFL" },
   { id: "nhl", label: "NHL" },
   { id: "ncaab", label: "NCAAB" },
-  { id: "ncaaf", label: "NCAAF" },
+  // Off season
   { id: "mlb", label: "MLB", disabled: true, disabledReason: "Off Season" },
+  { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
+  { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
 ];
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
@@ -96,6 +101,7 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "atd", label: "ATD", apiKey: "player_touchdowns", type: "player" },
   ],
   mlb: [],
+  wnba: [],
 };
 
 // Tier 2: Secondary markets in "More" dropdown
@@ -200,6 +206,7 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "rush_att", label: "Rush Attempts", apiKey: "rush_attempts", type: "player" },
   ],
   mlb: [],
+  wnba: [],
 };
 
 // Tier 1: Primary game markets (always visible when in Game mode)
@@ -251,6 +258,11 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
     { id: "spread", label: "Run Line", apiKey: "game_spread", type: "game" },
     { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
+  ],
+  wnba: [
+    { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "game_spread", type: "game" },
+    { id: "total", label: "Total", apiKey: "total_points", type: "game" },
   ],
 };
 
@@ -319,6 +331,7 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "total_tds", label: "Total TDs", apiKey: "game_total_touchdowns", type: "game" },
   ],
   mlb: [],
+  wnba: [],
 };
 
 // Default game market for each sport (used when switching to Game mode)
@@ -330,6 +343,7 @@ const DEFAULT_GAME_MARKET: Record<string, string> = {
   ncaab: "game_moneyline",
   ncaaf: "game_moneyline",
   mlb: "game_moneyline",
+  wnba: "game_moneyline",
 };
 
 interface OddsNavigationProps {

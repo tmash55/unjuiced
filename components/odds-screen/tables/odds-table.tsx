@@ -43,7 +43,7 @@ import { cn } from '@/lib/utils'
 import { useSSE } from '@/hooks/use-sse'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useIsPro } from '@/hooks/use-entitlements'
-import { ExpandableRowWrapper, ExpandButton } from './expandable-row-wrapper'
+import { ExpandableRowWrapper, ExpandButton, AltBadge } from './expandable-row-wrapper'
 import { ProGateModal } from '../pro-gate-modal'
 import Lock from '@/icons/lock'
 import { usePlayerInjuries, hasInjuryStatus, getInjuryIconColorClass, isGLeagueAssignment } from '@/hooks/use-player-injuries'
@@ -818,7 +818,7 @@ const renderAlternateRow = (
                       </>
                     )
                   })() : (
-                    <div className="text-xs text-neutral-400 dark:text-neutral-600">-</div>
+                    <div className="text-xs">{/* Empty */}</div>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -865,7 +865,7 @@ const renderAlternateRow = (
                       </>
                     )
                   })() : (
-                    <div className="text-xs text-neutral-400 dark:text-neutral-600">-</div>
+                    <div className="text-xs">{/* Empty */}</div>
                   )}
                 </div>
               </div>
@@ -884,7 +884,7 @@ const renderAlternateRow = (
                   const avgPrice = calculateAlternateAverage(overBooks)
                   
                   if (avgPrice === null) {
-                    return <div className="text-xs text-neutral-400 dark:text-neutral-500">-</div>
+                    return <div className="text-xs">{/* Empty */}</div>
                   }
                   
                   return (
@@ -901,7 +901,7 @@ const renderAlternateRow = (
                   const avgPrice = calculateAlternateAverage(underBooks)
                   
                   if (avgPrice === null) {
-                    return <div className="text-xs text-neutral-400 dark:text-neutral-500">-</div>
+                    return <div className="text-xs">{/* Empty */}</div>
                   }
                   
                   return (
@@ -1986,6 +1986,7 @@ export function OddsTable({
           // Player props
           const playerTeam = item.entity?.team; // Team abbreviation (e.g., "JAX")
           const showLogos = hasTeamLogos(sport);
+          const teamLogoUrl = showLogos && playerTeam ? getTeamLogoUrl(playerTeam) : undefined;
           
           // For NBA/WNBA player props, make player name clickable
           const isNBASport = sport === 'nba' || sport === 'wnba';
@@ -1993,7 +1994,11 @@ export function OddsTable({
           
           return (
             <div className="flex items-center gap-1.5 min-w-[120px] sm:min-w-[160px]">
-              <ExpandButton disabled={!preferences.includeAlternates} />
+              <ExpandButton 
+                disabled={!preferences.includeAlternates} 
+                teamLogo={teamLogoUrl}
+                teamName={playerTeam}
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   {canShowProfile ? (
@@ -2070,21 +2075,9 @@ export function OddsTable({
                     );
                   })()}
                 </div>
-                {playerTeam && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
-                    {showLogos && (
-                      <img 
-                        src={getTeamLogoUrl(playerTeam)} 
-                        alt={playerTeam}
-                        className="w-4 h-4 object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    )}
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                      {playerTeam}
-                    </span>
+                {preferences.includeAlternates && (
+                  <div className="mt-0.5">
+                    <AltBadge disabled={!preferences.includeAlternates} />
                   </div>
                 )}
               </div>
@@ -2453,8 +2446,8 @@ export function OddsTable({
                               item.odds.books?.[book.id.toUpperCase()]
 
             const renderPlaceholder = () => (
-              <div className="block w-full text-xs text-neutral-300 dark:text-neutral-600 px-2 py-1.5 mx-auto text-center">
-                -
+              <div className="block w-full text-xs px-2 py-1.5 mx-auto text-center">
+                {/* Empty cell - no odds available */}
               </div>
             )
 
@@ -3309,6 +3302,32 @@ export function OddsTable({
                         eventId={item.event?.id}
                         market={market}
                         playerKey={item.entity?.id}
+                        // Player info for modal
+                        playerName={item.entity?.name}
+                        team={item.entity?.team}
+                        // Callback to view player profile (NBA/WNBA only)
+                        onViewProfile={(sport === 'nba' || sport === 'wnba') && item.entity?.id && item.entity?.name ? () => {
+                          setSelectedPlayer({
+                            odds_player_id: item.entity.id!,
+                            player_name: item.entity.name!,
+                            market: typeof market === 'string' ? market : 'player_points',
+                            event_id: item.event?.id,
+                            odds: {
+                              over: item.odds.best?.over ? {
+                                price: item.odds.best.over.price,
+                                line: item.odds.best.over.line,
+                                book: item.odds.best.over.book,
+                                mobileLink: item.odds.best.over.mobileLink,
+                              } : undefined,
+                              under: item.odds.best?.under ? {
+                                price: item.odds.best.under.price,
+                                line: item.odds.best.under.line,
+                                book: item.odds.best.under.book,
+                                mobileLink: item.odds.best.under.mobileLink,
+                              } : undefined,
+                            },
+                          });
+                        } : undefined}
                       >
                         {cells}
                       </ExpandableRowWrapper>

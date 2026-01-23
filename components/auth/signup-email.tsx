@@ -58,13 +58,19 @@ export const SignUpEmail = () => {
           setPassword(data.password);
 
           // Determine where to redirect after signup
-          const nextUrl = redirectTo || '/arbitrage';
+          // Default to app subdomain /today
+          const nextUrl = redirectTo || '/today';
+          
+          // Build the callback URL - pass redirectTo for cross-subdomain redirect
+          const callbackUrl = redirectTo 
+            ? `${window.location.origin}/api/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+            : `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextUrl)}`;
           
           const { data: signUpData, error } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
             options: {
-              emailRedirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextUrl)}`,
+              emailRedirectTo: callbackUrl,
             },
           });
 
@@ -127,9 +133,15 @@ export const SignUpEmail = () => {
             });
 
             // Redirect to plans page so user can choose their plan
+            // Handle cross-subdomain redirects if needed
             setTimeout(() => {
-              router.push("/plans");
-              router.refresh();
+              const destination = "/plans";
+              if (destination.startsWith('http://') || destination.startsWith('https://')) {
+                window.location.href = destination;
+              } else {
+                router.push(destination);
+                router.refresh();
+              }
             }, 500);
           } else {
             // Email confirmation is required

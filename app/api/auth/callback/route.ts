@@ -5,18 +5,39 @@ import { cookies } from 'next/headers'
 import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
 import { syncNewSignupToBrevo } from '@/libs/brevo'
+import { getRedirectUrl, DOMAINS } from '@/lib/domain'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type')
-  const next = searchParams.get('next') ?? '/arbitrage'
+  const redirectTo = searchParams.get('redirectTo')
+  const next = searchParams.get('next') ?? '/today' // Default to /today on app subdomain
 
-  console.log('🔄 Auth callback started:', { code: !!code, token_hash: !!token_hash, type, next, origin })
+  const host = request.headers.get('host') || ''
+  const isLocal = host.includes('localhost')
+
+  console.log('🔄 Auth callback started:', { code: !!code, token_hash: !!token_hash, type, next, redirectTo, origin, host })
 
   const supabase = await createClient()
   const cookieStore = await cookies()
+
+  // Helper function to get the redirect destination
+  const getAuthRedirect = (path: string) => {
+    // If redirectTo is specified (e.g., from app subdomain login flow)
+    if (redirectTo) {
+      // If it's already a full URL (e.g., https://app.unjuiced.bet/today)
+      if (redirectTo.startsWith('http')) {
+        return redirectTo
+      }
+      // Otherwise, build the app subdomain URL
+      return getRedirectUrl(host, redirectTo, 'app')
+    }
+    
+    // Default: redirect to app subdomain with the path
+    return getRedirectUrl(host, path, 'app')
+  }
 
   // Handle token_hash for email confirmations and password recovery
   if (token_hash && type) {
@@ -28,19 +49,24 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       console.log('✅ OTP verified for user:', data.user.id, 'type:', type)
       
-      // For password recovery, redirect to forgot-password page
-      const redirectPath = type === 'recovery' ? '/forgot-password' : next
-      
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
-      
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${redirectPath}`)
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
-      } else {
-        return NextResponse.redirect(`${origin}${redirectPath}`)
+      // For password recovery, redirect to forgot-password page on marketing site
+      if (type === 'recovery') {
+        const forwardedHost = request.headers.get('x-forwarded-host')
+        const redirectPath = '/forgot-password'
+        
+        if (isLocal) {
+          return NextResponse.redirect(`${origin}${redirectPath}`)
+        } else if (forwardedHost) {
+          return NextResponse.redirect(`https://${forwardedHost}${redirectPath}`)
+        } else {
+          return NextResponse.redirect(`${origin}${redirectPath}`)
+        }
       }
+      
+      // For other OTP types (email confirmation, etc.), redirect to app subdomain
+      const redirectUrl = getAuthRedirect(next)
+      console.log('✨ OTP success, redirecting to:', redirectUrl)
+      return NextResponse.redirect(redirectUrl)
     } else {
       console.error('❌ OTP verification error:', error)
     }
@@ -153,19 +179,11 @@ export async function GET(request: NextRequest) {
         )
       }
       
-      console.log('✨ Redirecting to:', next)
+      // Build the redirect URL (to app subdomain)
+      const redirectUrl = getAuthRedirect(next)
+      console.log('✨ Auth success, redirecting to:', redirectUrl)
       
-      // Redirect to next page
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
-      
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`)
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
-      } else {
-        return NextResponse.redirect(`${origin}${next}`)
-      }
+      return NextResponse.redirect(redirectUrl)
     } else {
       console.error('❌ Auth error:', error)
     }

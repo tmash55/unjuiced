@@ -2,10 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { TrendingUp, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Compass, ChevronRight, Flame } from "lucide-react";
 import Link from "next/link";
-import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { SportIcon } from "@/components/icons/sport-icons";
 
 interface MarketPlay {
   player: string;
@@ -42,35 +42,211 @@ async function fetchPopularMarkets(): Promise<PopularMarketsResponse> {
   return response.json();
 }
 
-const SPORT_COLORS: Record<string, { 
-  bg: string; 
-  border: string; 
-  text: string; 
+// Sport-specific styling
+const SPORT_STYLES: Record<string, { 
   iconBg: string; 
-  hoverBorder: string;
+  iconColor: string; 
+  accent: string;
+  borderAccent: string;
 }> = {
   nba: { 
-    bg: "bg-orange-50/50 dark:bg-orange-950/10", 
-    border: "border-orange-100 dark:border-orange-900/20", 
-    text: "text-orange-600 dark:text-orange-400",
-    iconBg: "bg-orange-100 dark:bg-orange-900/40",
-    hoverBorder: "hover:border-orange-200 dark:hover:border-orange-800/40"
+    iconBg: "bg-orange-50 dark:bg-orange-900/20", 
+    iconColor: "text-orange-500 dark:text-orange-400",
+    accent: "from-orange-500/5 to-transparent",
+    borderAccent: "hover:border-orange-300/50 dark:hover:border-orange-800/40"
   },
   nfl: { 
-    bg: "bg-green-50/50 dark:bg-green-950/10", 
-    border: "border-green-100 dark:border-green-900/20", 
-    text: "text-green-600 dark:text-green-400",
-    iconBg: "bg-green-100 dark:bg-green-900/40",
-    hoverBorder: "hover:border-green-200 dark:hover:border-green-800/40"
+    iconBg: "bg-emerald-50 dark:bg-emerald-900/20", 
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    accent: "from-emerald-500/5 to-transparent",
+    borderAccent: "hover:border-emerald-300/50 dark:hover:border-emerald-800/40"
   },
   nhl: { 
-    bg: "bg-blue-50/50 dark:bg-blue-950/10", 
-    border: "border-blue-100 dark:border-blue-900/20", 
-    text: "text-blue-600 dark:text-blue-400",
-    iconBg: "bg-blue-100 dark:bg-blue-900/40",
-    hoverBorder: "hover:border-blue-200 dark:hover:border-blue-800/40"
+    iconBg: "bg-blue-50 dark:bg-blue-900/20", 
+    iconColor: "text-blue-500 dark:text-blue-400",
+    accent: "from-blue-500/5 to-transparent",
+    borderAccent: "hover:border-blue-300/50 dark:hover:border-blue-800/40"
+  },
+  ncaab: { 
+    iconBg: "bg-orange-50 dark:bg-orange-900/20", 
+    iconColor: "text-orange-500 dark:text-orange-400",
+    accent: "from-orange-500/5 to-transparent",
+    borderAccent: "hover:border-orange-300/50 dark:hover:border-orange-800/40"
+  },
+  ncaaf: { 
+    iconBg: "bg-emerald-50 dark:bg-emerald-900/20", 
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    accent: "from-emerald-500/5 to-transparent",
+    borderAccent: "hover:border-emerald-300/50 dark:hover:border-emerald-800/40"
   },
 };
+
+
+// Premium Market Card Component
+function MarketCard({ market, isTrending = false }: { market: PopularMarket; isTrending?: boolean }) {
+  const plays = market.plays.slice(0, 2); // Show max 2 example edges
+  const totalEdges = market.plays.length;
+  const sportStyle = SPORT_STYLES[market.sport.toLowerCase()] || SPORT_STYLES.nba;
+  
+  return (
+    <Link 
+      href={market.edgeFinderUrl}
+      className={cn(
+        "group relative flex flex-col p-3 rounded-xl transition-all duration-200",
+        // Allow badge to overflow
+        "overflow-visible",
+        // Subtle background with sport-specific gradient accent
+        "bg-neutral-50/80 dark:bg-neutral-900/60",
+        `bg-gradient-to-br ${sportStyle.accent}`,
+        // Border with sport-specific hover accent
+        "border border-neutral-200/80 dark:border-neutral-800/60",
+        // Softer glow in light mode
+        "hover:shadow-md hover:shadow-neutral-300/30 dark:hover:shadow-lg hover:-translate-y-0.5",
+        sportStyle.borderAccent
+      )}
+    >
+      {/* Trending Badge - Only on first card */}
+      {isTrending && (
+        <div className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 px-2 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-bold uppercase tracking-wide shadow-md">
+          <Flame className="w-2.5 h-2.5 fill-white" />
+          Trending
+        </div>
+      )}
+      
+      {/* Card Header - Market identity */}
+      <div className="flex items-center gap-2 mb-2">
+        {/* Sport Icon with sport-specific tint */}
+        <div className={cn(
+          "flex items-center justify-center w-7 h-7 rounded-lg",
+          sportStyle.iconBg
+        )}>
+          <SportIcon 
+            sport={market.sport} 
+            className={cn("w-4 h-4", sportStyle.iconColor)} 
+          />
+        </div>
+        {/* Market Name + League Pill */}
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 leading-tight">
+            {market.displayName}
+          </h3>
+          {/* League as subtle pill */}
+          <span className="text-[8px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
+            {market.sport.toUpperCase()}
+          </span>
+        </div>
+      </div>
+      
+      {/* Example Edges - 1-2 players, restructured layout */}
+      <div className="flex-1 space-y-1.5 mb-2">
+        {plays.length > 0 ? (
+          plays.map((play, idx) => {
+            const bookMeta = getSportsbookById(play.book);
+            const bookLogo = bookMeta?.image?.light;
+            
+            return (
+              <div 
+                key={idx}
+                className={cn(
+                  "flex flex-col gap-1 py-2 px-2.5 rounded-lg",
+                  "bg-white/80 dark:bg-neutral-800/40",
+                  // Subtle row hover affordance
+                  "transition-colors cursor-pointer",
+                  "hover:bg-white dark:hover:bg-neutral-800/60"
+                )}
+              >
+                {/* Top row: Player Name + Odds */}
+                <div className="flex items-start justify-between gap-2">
+                  {/* Player name - more prominent, 2-line wrap */}
+                  <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200 line-clamp-2 leading-snug">
+                    {play.player}
+                  </span>
+                  
+                  {/* Odds - right aligned */}
+                  <span className="text-xs font-bold tabular-nums text-neutral-900 dark:text-neutral-100 shrink-0">
+                    {play.bestOddsFormatted}
+                  </span>
+                </div>
+                
+                {/* Bottom row: EV pill + Book logo */}
+                <div className="flex items-center justify-between">
+                  {/* EV Pill - compact */}
+                  {play.vsMarketAvg && play.vsMarketAvg > 0 ? (
+                    <span className={cn(
+                      "text-[9px] font-semibold text-emerald-600 dark:text-emerald-400",
+                      "bg-emerald-50/80 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded",
+                      // Subtle depth
+                      "border border-emerald-200/40 dark:border-emerald-700/30"
+                    )}>
+                      +{play.vsMarketAvg.toFixed(0)}% vs Market
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  
+                  {/* Book logo - small, right aligned */}
+                  {bookLogo && (
+                    <img 
+                      src={bookLogo} 
+                      alt="" 
+                      className="h-3 w-auto object-contain opacity-50" 
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="flex items-center justify-center py-3 text-[10px] text-neutral-400">
+            No edges found
+          </div>
+        )}
+      </div>
+      
+      {/* Card Footer - CTA + Edge count */}
+      <div className="flex items-center justify-between pt-2 border-t border-neutral-200/60 dark:border-neutral-800/40">
+        <span className="text-[8px] text-neutral-500 dark:text-neutral-400">
+          {totalEdges > 0 ? `${totalEdges} active edge${totalEdges !== 1 ? 's' : ''}` : 'Scanning...'}
+        </span>
+        {/* Consistent CTA styling */}
+        <div className="flex items-center gap-0.5 text-[10px] font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200 transition-colors">
+          <span>View all</span>
+          <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// Loading skeleton for market card
+function MarketCardSkeleton() {
+  return (
+    <div className={cn(
+      "flex flex-col p-3 rounded-xl animate-pulse",
+      "bg-neutral-50/80 dark:bg-neutral-900/60",
+      "border border-neutral-200/80 dark:border-neutral-800/60"
+    )}>
+      {/* Header skeleton */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+        <div className="space-y-1.5">
+          <div className="h-3.5 w-20 bg-neutral-100 dark:bg-neutral-800 rounded" />
+          <div className="h-2 w-10 bg-neutral-100 dark:bg-neutral-800 rounded" />
+        </div>
+      </div>
+      {/* Plays skeleton */}
+      <div className="space-y-1.5 mb-2">
+        <div className="h-8 bg-white/60 dark:bg-neutral-800/40 rounded-md" />
+        <div className="h-8 bg-white/60 dark:bg-neutral-800/40 rounded-md" />
+      </div>
+      {/* Footer skeleton */}
+      <div className="flex justify-between pt-2 border-t border-neutral-200/60 dark:border-neutral-800/40">
+        <div className="h-2 w-16 bg-neutral-100 dark:bg-neutral-800 rounded" />
+        <div className="h-2 w-12 bg-neutral-100 dark:bg-neutral-800 rounded" />
+      </div>
+    </div>
+  );
+}
 
 export function PopularMarketsSection() {
   const { data, isLoading, error } = useQuery({
@@ -81,149 +257,77 @@ export function PopularMarketsSection() {
 
   const markets = data?.markets || [];
   
-  // Hide section entirely if no data
-  if (!isLoading && !error && markets.length === 0) {
-    return null;
-  }
-
-  if (error) return null;
-
   return (
-    <section className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">
-          <TrendingUp className="h-4 w-4" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-            Popular Markets
-          </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            Trending props and lines happening soon
-          </p>
-        </div>
+    <section className={cn(
+      "h-full flex flex-col relative group/bento rounded-xl",
+      // Amber/orange gradient for Edge Finder branding
+      "bg-gradient-to-br from-amber-50/40 via-transparent to-orange-50/20",
+      "dark:from-amber-950/20 dark:via-transparent dark:to-orange-950/10"
+    )}>
+      {/* Market Cards Grid */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hide pb-4">
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {[1, 2, 3, 4].map((i) => (
+              <MarketCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-neutral-500">Unable to load markets</p>
+          </div>
+        ) : markets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full py-8">
+            <Compass className="w-8 h-8 text-neutral-300 dark:text-neutral-700 mb-2" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Markets updating</p>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-500">Check back soon</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {markets.slice(0, 6).map((market, index) => (
+              <MarketCard 
+                key={market.marketKey} 
+                market={market} 
+                isTrending={index === 0 && market.plays.length > 0 && (market.plays[0]?.vsMarketAvg || 0) >= 30}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {isLoading ? (
-          // Skeletons
-          [1, 2, 3].map((i) => (
-            <div key={i} className="h-48 rounded-xl bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-          ))
-        ) : (
-          markets.map((market) => {
-            const colors = SPORT_COLORS[market.sport] || SPORT_COLORS.nba;
-            
-            return (
-              <div 
-                key={market.marketKey}
-                className={cn(
-                  "group flex flex-col justify-between rounded-xl border transition-all duration-300",
-                  "bg-white dark:bg-neutral-900", // Clean base
-                  colors.border,
-                  colors.hoverBorder,
-                  "hover:shadow-lg hover:-translate-y-1 hover:shadow-neutral-100 dark:hover:shadow-black/20"
-                )}
-              >
-                {/* Header: Icon + Market + League */}
-                <div className={cn("px-4 py-3 border-b border-dashed", colors.border)}>
-                  <div className="flex items-center gap-2.5">
-                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-sm", colors.iconBg)}>
-                      {market.icon}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 leading-none">
-                        {market.displayName}
-                      </h3>
-                      <span className={cn("text-[10px] font-bold uppercase tracking-wider mt-0.5 block", colors.text)}>
-                        {market.sport.toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Content: Plays */}
-                <div className="p-4 space-y-4 flex-1">
-                  {market.plays.slice(0, 2).map((play, idx) => {
-                    const bookMeta = getSportsbookById(play.book);
-                    const bookLogo = bookMeta?.image?.light;
-                    const teamLogo = play.team ? getTeamLogoUrl(play.team, market.sport) : null;
-                    
-                    return (
-                      <div key={idx} className="space-y-1.5">
-                        {/* Player + Team Logo */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
-                            {play.player}
-                          </span>
-                          {teamLogo && (
-                            <img 
-                              src={teamLogo} 
-                              alt={play.team || ""} 
-                              className="w-4 h-4 object-contain opacity-70 grayscale group-hover:grayscale-0 transition-all" 
-                            />
-                          )}
-                        </div>
-
-                        {/* Odds + Book + vs Market Avg */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {/* Odds Pill */}
-                          <div className={cn(
-                            "flex items-center gap-2 px-2 py-1 rounded-md border",
-                            "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
-                          )}>
-                            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                              {play.bestOddsFormatted}
-                            </span>
-                            {/* Inline Book Logo */}
-                            {bookLogo && (
-                              <img 
-                                src={bookLogo} 
-                                alt={play.book} 
-                                className="h-4 w-auto object-contain opacity-80 group-hover:opacity-100 transition-opacity" 
-                              />
-                            )}
-                          </div>
-                          
-                          {/* vs Market Avg Badge */}
-                          {play.vsMarketAvg && play.vsMarketAvg > 0 && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
-                              <TrendingUp className="w-3 h-3" />
-                              +{play.vsMarketAvg}% vs Avg
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Market Avg Line - Trust Builder */}
-                        {play.marketAvgFormatted && (
-                          <div className="flex items-center gap-2 text-[10px] text-neutral-400 pl-0.5">
-                            <span>Market Avg: <span className="font-medium text-neutral-500 dark:text-neutral-400">{play.marketAvgFormatted}</span></span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Footer: View All */}
-                <Link 
-                  href={market.edgeFinderUrl}
-                  className={cn(
-                    "px-4 py-2.5 text-xs font-medium border-t flex items-center justify-between transition-colors rounded-b-xl",
-                    colors.border,
-                    "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200",
-                    "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                  )}
-                >
-                  View all props
-                  <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </div>
-            );
-          })
-        )}
+      {/* Footer - Section title with hover animation */}
+      <div className="mt-auto pt-3 px-1 flex items-center justify-between transition duration-200 group-hover/bento:translate-x-2 border-t border-amber-100/50 dark:border-amber-900/30">
+        <div className="flex items-center gap-2.5">
+          <div className={cn(
+            "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
+            // Amber/orange gradient for Edge Finder
+            "bg-gradient-to-br from-amber-500 to-orange-500"
+          )}>
+            <Compass className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
+              Popular Markets
+            </h2>
+            <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 font-medium">
+              Discovery hub • Fun props
+            </p>
+          </div>
+        </div>
+        
+        <Link
+          href="/edge-finder"
+          className={cn(
+            "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all",
+            "text-amber-700 dark:text-amber-300",
+            "bg-amber-50 dark:bg-amber-900/30",
+            "hover:bg-amber-100 dark:hover:bg-amber-900/50",
+            "border border-amber-200/50 dark:border-amber-700/30"
+          )}
+        >
+          Edge Finder
+          <ChevronRight className="h-3 w-3" />
+        </Link>
       </div>
     </section>
   );

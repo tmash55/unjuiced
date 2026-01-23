@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState, useCallback, useRef, createContext, useContext, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { useState, useCallback, useRef, createContext, useContext } from "react";
 import { cn } from "@/lib/utils";
-import { AlternateLinesRow } from "./alternate-lines-row";
+import { AlternatesModal } from "../alternates-modal";
 
-// Context to share expand state with the entity column
+// Context to share modal state with the entity column
 interface ExpandContextType {
-  isExpanded: boolean;
-  handleToggle: (e: React.MouseEvent) => void;
+  openModal: (e: React.MouseEvent) => void;
+  isLoading: boolean;
 }
 
 const ExpandContext = createContext<ExpandContextType | null>(null);
@@ -18,37 +16,57 @@ export function useExpandContext() {
   return useContext(ExpandContext);
 }
 
-// Expand button component to be used in the entity column
-export function ExpandButton({ hide = false, disabled = false }: { hide?: boolean; disabled?: boolean }) {
+// Team logo button - just displays team logo, no expand functionality
+export function ExpandButton({ 
+  hide = false, 
+  disabled = false,
+  teamLogo,
+  teamName 
+}: { 
+  hide?: boolean; 
+  disabled?: boolean;
+  teamLogo?: string;
+  teamName?: string;
+}) {
+  // If no team logo or hidden/disabled, show placeholder
+  if (hide || disabled || !teamLogo) {
+    return <div className="w-6 h-6 shrink-0" />;
+  }
+  
+  return (
+    <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+      <img 
+        src={teamLogo} 
+        alt={teamName || 'Team'}
+        className="w-5 h-5 object-contain"
+        onError={(e) => {
+          e.currentTarget.style.display = 'none'
+        }}
+      />
+    </div>
+  );
+}
+
+// Alt badge that opens the modal
+export function AltBadge({ disabled = false }: { disabled?: boolean }) {
   const context = useExpandContext();
   
-  // Hide if explicitly hidden, disabled (alternates not enabled), or no context
-  if (!context || hide || disabled) return <div className="w-7 h-6 shrink-0" />;
+  if (!context || disabled) return null;
   
-  const { isExpanded, handleToggle } = context;
+  const { openModal, isLoading } = context;
   
   return (
     <button
-      onClick={handleToggle}
+      onClick={openModal}
+      disabled={isLoading}
       className={cn(
-        "flex items-center justify-center gap-0.5 px-1.5 h-6 rounded-md transition-all shrink-0",
-        "border border-transparent",
-        !isExpanded && "hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-950/50 dark:hover:border-blue-800",
-        !isExpanded && "text-blue-600 dark:text-blue-400",
-        isExpanded && "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/50 dark:border-blue-700 dark:text-blue-300"
+        "text-[10px] font-semibold uppercase tracking-wide transition-all",
+        "text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300",
+        "hover:underline cursor-pointer",
+        isLoading && "opacity-50 cursor-wait"
       )}
-      aria-label={isExpanded ? "Collapse alternates" : "Expand alternates"}
-      aria-expanded={isExpanded}
-      title="View alternate lines"
     >
-      <motion.div
-        initial={false}
-        animate={{ rotate: isExpanded ? 90 : 0 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-      >
-        <ChevronRight className="w-3.5 h-3.5" />
-      </motion.div>
-      <span className="text-[10px] font-semibold uppercase tracking-wide">Alt</span>
+      {isLoading ? "Loading..." : "Alt"}
     </button>
   );
 }
@@ -96,6 +114,11 @@ interface ExpandableRowWrapperProps {
   eventId?: string; // Event ID for v2 alternates
   market?: string; // Market key for v2 alternates
   playerKey?: string; // Normalized player key for v2 alternates
+  // Player info for modal
+  playerName?: string;
+  team?: string;
+  // Callback to open player profile
+  onViewProfile?: () => void;
 }
 
 // Client-side cache with TTL (60 seconds)
@@ -105,15 +128,8 @@ const CACHE_TTL = 60 * 1000; // 60 seconds
 /**
  * ExpandableRowWrapper
  * 
- * Wraps a table row and adds expand/collapse functionality to fetch and display
- * alternate lines from the /api/props/alternates endpoint.
- * 
- * Features:
- * - Expand/collapse icon with smooth animations
- * - Client-side caching (60s TTL) to reduce API calls
- * - Loading states
- * - Error handling
- * - Smooth expand/collapse animations
+ * Wraps a table row and adds modal functionality to fetch and display
+ * alternate lines in a modal overlay.
  */
 export function ExpandableRowWrapper({
   sid,
@@ -130,55 +146,50 @@ export function ExpandableRowWrapper({
   eventId,
   market,
   playerKey,
+  playerName,
+  team,
+  onViewProfile,
 }: ExpandableRowWrapperProps & { rowClassName?: string }) {
-  // Always call hooks at the top level (Rules of Hooks)
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentMarket, setCurrentMarket] = useState(market || '');
   const [alternates, setAlternates] = useState<AlternateLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasFetched = useRef(false);
+  const fetchedMarkets = useRef(new Set<string>());
 
   /**
    * Fetch alternates from API with caching
-   * Uses v2 API when eventId, market, and playerKey are available
    */
-  const fetchAlternates = useCallback(async () => {
-    // Don't fetch if alternates are disabled
+  const fetchAlternates = useCallback(async (marketKey?: string) => {
     if (!includeAlternates) return;
     
-    // Check cache first
-    const cacheKey = `${sport}:${sid}`;
+    const targetMarket = marketKey || market || '';
+    const cacheKey = `${sport}:${eventId}:${playerKey}:${targetMarket}`;
     const cached = alternatesCache.get(cacheKey);
     
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log(`[Alternates] Cache hit for ${sid}`);
       setAlternates(cached.data.alternates);
       return;
     }
 
-    // Fetch from API
     setLoading(true);
     setError(null);
     
     try {
       let url: string;
       
-      // Use v2 API if we have the required params
-      if (eventId && market && playerKey) {
+      if (eventId && targetMarket && playerKey) {
         const query = new URLSearchParams({ 
           sport, 
           eventId, 
-          market, 
+          market: targetMarket, 
           player: playerKey,
           ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
         });
         url = `/api/v2/props/alternates?${query.toString()}`;
-        console.log(`[Alternates v2] Fetching: ${url}`);
       } else {
-        // Fall back to v1 API
         const query = new URLSearchParams({ sport, sid });
         url = `/api/props/alternates?${query.toString()}`;
-        console.log(`[Alternates v1] Fetching: ${url}`);
       }
       
       const response = await fetch(url);
@@ -188,18 +199,16 @@ export function ExpandableRowWrapper({
       }
       
       const result = await response.json();
+      // Use all_lines to include the primary line, fallback to alternates for backwards compatibility
+      const alternatesData = result.all_lines || result.alternates || [];
       
-      // v2 API returns "alternates" array, same as v1
-      const alternatesData = result.alternates || [];
-      
-      // Update cache
       alternatesCache.set(cacheKey, {
         data: { ...result, alternates: alternatesData },
         timestamp: Date.now(),
       });
       
       setAlternates(alternatesData);
-      console.log(`[Alternates] Fetched ${alternatesData.length} alternates for ${sid}`);
+      fetchedMarkets.current.add(targetMarket);
     } catch (err: any) {
       console.error("[Alternates] Fetch error:", err);
       setError(err.message || "Failed to load alternates");
@@ -209,86 +218,45 @@ export function ExpandableRowWrapper({
   }, [sport, sid, includeAlternates, eventId, market, playerKey, primaryLine]);
 
   /**
-   * Toggle expand/collapse
+   * Open modal and fetch alternates
    */
-  const handleToggle = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click events
+  const openModal = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
     
-    if (!includeAlternates) return; // Don't allow toggle if disabled
+    if (!includeAlternates) return;
     
-    if (!isExpanded && !hasFetched.current) {
-      hasFetched.current = true;
-      await fetchAlternates();
+    setIsModalOpen(true);
+    setCurrentMarket(market || '');
+    
+    if (!fetchedMarkets.current.has(market || '')) {
+      await fetchAlternates(market);
     }
-    
-    setIsExpanded(prev => !prev);
-  }, [isExpanded, fetchAlternates, includeAlternates]);
+  }, [includeAlternates, fetchAlternates, market]);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
 
   /**
-   * Real-time refresh: Poll alternates every 30 seconds while expanded
-   * This keeps alternate lines in sync with main row odds
+   * Handle market change from modal - fetch new alternates
    */
-  useEffect(() => {
-    if (!isExpanded || !includeAlternates) return;
-
-    const REFRESH_INTERVAL = 10 * 1000; // 10 seconds
-
-    const refreshAlternates = async () => {
-      // Bypass cache for real-time updates
-      const cacheKey = `${sport}:${sid}`;
-      alternatesCache.delete(cacheKey);
-      
-      try {
-        let url: string;
-        
-        if (eventId && market && playerKey) {
-          const query = new URLSearchParams({ 
-            sport, 
-            eventId, 
-            market, 
-            player: playerKey,
-            ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
-          });
-          url = `/api/v2/props/alternates?${query.toString()}`;
-        } else {
-          const query = new URLSearchParams({ sport, sid });
-          url = `/api/props/alternates?${query.toString()}`;
-        }
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) return;
-        
-        const result = await response.json();
-        const alternatesData = result.alternates || [];
-        
-        // Update cache
-        alternatesCache.set(cacheKey, {
-          data: { ...result, alternates: alternatesData },
-          timestamp: Date.now(),
-        });
-        
-        setAlternates(alternatesData);
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[Alternates] 🔄 Refreshed ${alternatesData.length} alternates for ${sid}`);
-        }
-      } catch (err) {
-        // Silently fail on refresh errors - don't disrupt the UI
-        if (process.env.NODE_ENV === 'development') {
-          console.warn("[Alternates] Refresh error:", err);
-        }
+  const handleMarketChange = useCallback(async (newMarket: string) => {
+    setCurrentMarket(newMarket);
+    
+    // Check if we already fetched this market
+    if (!fetchedMarkets.current.has(newMarket)) {
+      await fetchAlternates(newMarket);
+    } else {
+      // Load from cache
+      const cacheKey = `${sport}:${eventId}:${playerKey}:${newMarket}`;
+      const cached = alternatesCache.get(cacheKey);
+      if (cached) {
+        setAlternates(cached.data.alternates);
       }
-    };
+    }
+  }, [fetchAlternates, sport, eventId, playerKey]);
 
-    const intervalId = setInterval(refreshAlternates, REFRESH_INTERVAL);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [isExpanded, includeAlternates, sport, sid, eventId, market, playerKey, primaryLine]);
-
-  // If alternates are disabled, just render the children without expand functionality
+  // If alternates are disabled, just render the children without modal functionality
   if (!includeAlternates) {
     return (
       <tr className={cn("group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]", rowClassName)}>
@@ -298,37 +266,29 @@ export function ExpandableRowWrapper({
   }
 
   return (
-    <ExpandContext.Provider value={{ isExpanded, handleToggle }}>
+    <ExpandContext.Provider value={{ openModal, isLoading: loading }}>
       {/* Main Row */}
       <tr className="group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]">
         {children}
       </tr>
 
-      {/* Alternate Lines Rows (Expandable) */}
-      <AnimatePresence>
-        {isExpanded && (
-          <AlternateLinesRow
-            alternates={alternates}
-            loading={loading}
-            error={error}
-            primaryLine={primaryLine}
-            columnOrder={columnOrder}
-            sportsbookOrder={sportsbookOrder}
-            onOddsClick={onOddsClick}
-            isPro={isPro}
-            setShowProGate={setShowProGate}
-          />
-        )}
-      </AnimatePresence>
+      {/* Alternates Modal */}
+      <AlternatesModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        playerName={playerName || 'Player'}
+        team={team}
+        market={currentMarket || market || 'props'}
+        sport={sport}
+        alternates={alternates}
+        loading={loading}
+        error={error}
+        primaryLine={primaryLine}
+        playerId={playerKey}
+        eventId={eventId}
+        onMarketChange={handleMarketChange}
+        onViewProfile={onViewProfile}
+      />
     </ExpandContext.Provider>
   );
 }
-
-
-
-
-
-
-
-
-

@@ -54,14 +54,17 @@ export const SignInEmail = () => {
             duration: 3000,
           });
 
-          // Check for redirect URL
-          const redirectTo = searchParams.get("redirectTo");
-          const destination = redirectTo || "/today";
+          // Check for redirect URL (support both 'next' and 'redirectTo' params)
+          const next = searchParams.get("next") || searchParams.get("redirectTo");
+          const destination = next || "/today";
 
+          // Use full page navigation to ensure cookies are properly sent
+          // This is more reliable than router.push for post-auth navigation
           setTimeout(() => {
-            router.push(destination);
-            router.refresh();
-          }, 500);
+            window.location.href = destination.startsWith('http') 
+              ? destination 
+              : `${window.location.origin}${destination}`;
+          }, 300);
         } catch (error) {
           // Handle specific authentication errors
           let errorMessage = "Invalid email or password.";

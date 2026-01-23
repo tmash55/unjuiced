@@ -93,6 +93,8 @@ interface HitRateTableProps {
   bottomContent?: React.ReactNode;
   // Index after which rows should be blurred (for gated access preview)
   blurAfterIndex?: number;
+  // Optional games filter element
+  gamesFilter?: React.ReactNode;
 }
 
 const formatPercentage = (value: number | null) => {

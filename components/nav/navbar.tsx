@@ -20,13 +20,38 @@ import { STATS } from "@/lib/stats";
 import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
-import { Menu, X, Moon, Sun, Monitor } from "lucide-react";
+import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
 import { FavoritesModal } from "@/components/nav/favorites-modal";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useMobileNav } from "@/contexts/mobile-nav-context";
+
+// Helper to get app subdomain URL for auth routes
+// Uses window.location in browser to detect local vs production
+function getAppAuthUrl(path: string): string {
+  // In browser, check the actual hostname
+  if (typeof window !== 'undefined') {
+    const host = window.location.host;
+    const isLocal = host.includes('localhost');
+    
+    if (isLocal) {
+      const port = host.split(':')[1] || '3000';
+      return `http://app.localhost:${port}${path}`;
+    }
+  }
+  
+  // Server-side or production: use env var
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) {
+    const baseUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+    return `${baseUrl}${path}`;
+  }
+  
+  // Production fallback
+  return `https://app.unjuiced.bet${path}`;
+}
 
 
 export type NavTheme = "light" | "dark";
@@ -36,26 +61,6 @@ export const NavContext = createContext<{ theme: NavTheme }>({
 });
 
 export const navItems = [
-  {
-    name: "Today",
-    href: "/today",
-    segments: ["/today"],
-  },
-  {
-    name: "Tools",
-    content: ProductContent,
-    childItems: TOOLS,
-    segments: [
-      "/arbitrage",
-      "/odds",
-      "/edge-finder",
-      "/analytics",
-      "/partners",
-      "/integrations",
-      "/compare",
-      "/features",
-    ],
-  },
   {
     name: "Cheat Sheets",
     content: CheatSheetsContent,
@@ -156,9 +161,9 @@ export function Nav({
           />
           <MaxWidthWrapper className={cn("relative", maxWidthWrapperClassName)}>
             <div className="flex h-14 items-center justify-between">
-              <div className="grow basis-0">
+              <div className="flex grow basis-0 items-center">
                 <Link
-                  className="block w-fit py-2 pr-2"
+                  className="flex items-center w-fit py-2 pr-2"
                   href="/"
                 >
                   <NavWordmark />
@@ -224,35 +229,36 @@ export function Nav({
                 </div>
               </NavigationMenuPrimitive.Root>
 
-              <div className="hidden grow basis-0 justify-end gap-2 lg:flex items-center">
-                <FavoritesModal />
+              <div className="hidden grow basis-0 justify-end gap-3 lg:flex items-center">
                 {!loading && (
                   <>
                     {user ? (
-                      <AccountDropdown user={user} />
+                      <>
+                        <FavoritesModal />
+                        <AccountDropdown user={user} />
+                      </>
                     ) : (
                       <>
-                        <ModeToggle />
-                        <Link
-                          href={createHref("/login", domain, { utm_content: "login" })}
+                        {/* Login - plain text link, less focal */}
+                        <a
+                          href={getAppAuthUrl("/login")}
+                          className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors dark:text-neutral-300 dark:hover:text-white"
+                        >
+                          Login
+                        </a>
+                        {/* Sign up for free - prominent blue button */}
+                        <a
+                          href={getAppAuthUrl("/register")}
                           className={cn(
-                            buttonVariants({ variant: "secondary" }),
-                            "flex h-8 items-center rounded-lg border px-4 text-sm",
-                            "dark:border-white/10 dark:bg-black dark:text-white dark:hover:bg-neutral-900",
+                            "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
+                            "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
+                            "shadow-sm hover:shadow-md",
+                            "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
                           )}
                         >
-                          Log in
-                        </Link>
-                        <Link
-                          href={createHref("/register", domain, { utm_content: "signup" })}
-                          className={cn(
-                            buttonVariants({ variant: "primary" }),
-                            "flex h-8 items-center rounded-lg border px-4 text-sm",
-                            "dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50 dark:hover:ring-white/10",
-                          )}
-                        >
-                          Sign up
-                        </Link>
+                          Sign up for free
+                          <ArrowRight className="h-4 w-4" />
+                        </a>
                       </>
                     )}
                   </>
@@ -326,21 +332,6 @@ function MobileNav({ domain }: { domain: string }) {
   
   const mobileNavGroups: MobileNavGroup[] = [
     {
-      group: "Overview",
-      items: [
-        { title: "Today", href: "/today", badge: "NEW" },
-      ],
-    },
-    {
-      group: "Tools",
-      items: [
-        { title: "Arbitrage", href: "/arbitrage" },
-        { title: "Hit Rates", href: "/hit-rates/nba", badge: "NEW" },
-        { title: "Edge Finder", href: "/edge-finder" },
-        { title: "Odds Screen", href: "/odds/nfl" },
-      ],
-    },
-    {
       group: "Cheat Sheets",
       items: [
         { title: "Hit Rate Cheat Sheet", href: "/cheatsheets/nba/hit-rates", badge: "NEW" },
@@ -376,7 +367,7 @@ function MobileNav({ domain }: { domain: string }) {
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
-      <FavoritesModal />
+      {user && <FavoritesModal />}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex size-8 items-center justify-center rounded-md text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800"
@@ -581,80 +572,35 @@ function MobileNav({ domain }: { domain: string }) {
                       </>
                     ) : (
                       <>
-                        {/* Theme Toggle for logged out users */}
-                        {mounted && (
-                          <div className="rounded-xl border border-neutral-200 p-3 dark:border-white/10 mb-4">
-                            <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
-                              Theme
-                            </div>
-                            <div className="flex gap-1 p-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                              <button
-                                onClick={() => setTheme("light")}
-                                className={cn(
-                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                                  theme === "light"
-                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
-                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                                )}
-                              >
-                                <Sun className="h-4 w-4" />
-                                Light
-                              </button>
-                              <button
-                                onClick={() => setTheme("dark")}
-                                className={cn(
-                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                                  theme === "dark"
-                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
-                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                                )}
-                              >
-                                <Moon className="h-4 w-4" />
-                                Dark
-                              </button>
-                              <button
-                                onClick={() => setTheme("system")}
-                                className={cn(
-                                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                                  theme === "system"
-                                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
-                                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                                )}
-                              >
-                                <Monitor className="h-4 w-4" />
-                                Auto
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                        
                         <div className="space-y-3">
-                          <Link
-                            href={createHref("/login", domain, { utm_content: "login" })}
+                          <a
+                            href={getAppAuthUrl("/login")}
                             onClick={() => setIsOpen(false)}
                             className={cn(
                               "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
-                              buttonVariants({ variant: "secondary" }),
-                              "group relative w-full overflow-hidden shadow-sm hover:scale-[1.02] active:scale-[0.98]",
+                              "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
+                              "dark:border-white/10 dark:bg-transparent dark:text-white dark:hover:bg-white/5",
+                              "w-full overflow-hidden hover:scale-[1.02] active:scale-[0.98]",
                             )}
                           >
-                            <span className="relative z-10">Log in</span>
-                          </Link>
-                          <Link
-                            href={createHref("/register", domain, { utm_content: "signup" })}
+                            <span className="relative z-10">Login</span>
+                          </a>
+                          <a
+                            href={getAppAuthUrl("/register")}
                             onClick={() => setIsOpen(false)}
                             className={cn(
-                              "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
-                              buttonVariants({ variant: "primary" }),
-                              "group relative w-full overflow-hidden shadow-lg shadow-neutral-900/10 hover:scale-[1.02] hover:shadow-xl hover:shadow-neutral-900/20 active:scale-[0.98] dark:shadow-white/5 dark:hover:shadow-white/10",
+                              "flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all",
+                              "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
+                              "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
+                              "w-full overflow-hidden shadow-lg hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]",
                             )}
                           >
-                            <span className="relative z-10">Sign up</span>
-                            <div className="absolute inset-0 -z-0 bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 opacity-0 transition-opacity group-hover:opacity-100 dark:from-white dark:via-neutral-50 dark:to-white" />
-                          </Link>
+                            <span className="relative z-10">Sign up for free</span>
+                            <ArrowRight className="h-4 w-4" />
+                          </a>
                         </div>
                         <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-                          Start your free trial today
+                          No credit card required
                         </p>
                       </>
                     )}
