@@ -116,6 +116,18 @@ export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCa
     if (link) window.open(link, '_blank', 'noopener,noreferrer');
   };
 
+  // Handle drag start - set URL data for drag-and-drop to other browsers
+  const handleDragStart = (e: React.DragEvent, bk?: string, url?: string, mobileUrl?: string | null) => {
+    const link = getBookUrl(bk, url, mobileUrl);
+    if (!link) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData('text/uri-list', link);
+    e.dataTransfer.setData('text/plain', link);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
   // Format time - compact
   const formatTime = () => {
     const d = row.ev?.dt ? new Date(row.ev.dt) : null;
@@ -216,10 +228,12 @@ export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCa
                 </div>
               </div>
             </div>
-            {/* Bet Button - Subtle Pill */}
+            {/* Bet Button - Draggable Pill */}
             <button
+              draggable="true"
               onClick={(e) => openBet(e, row.o?.bk, row.o?.u, row.o?.m)}
-              className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-full text-[10px] font-medium uppercase tracking-wide bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all duration-150 active:scale-[0.97]"
+              onDragStart={(e) => handleDragStart(e, row.o?.bk, row.o?.u, row.o?.m)}
+              className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-full text-[10px] font-medium uppercase tracking-wide bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all duration-150 active:scale-[0.97] cursor-grab active:cursor-grabbing"
             >
               Bet
               <ExternalLink className="w-2.5 h-2.5" />
@@ -250,10 +264,12 @@ export function CompactArbCard({ row, totalBetAmount, isNew, hasChange, onOpenCa
                 </div>
               </div>
             </div>
-            {/* Bet Button - Subtle Pill */}
+            {/* Bet Button - Draggable Pill */}
             <button
+              draggable="true"
               onClick={(e) => openBet(e, row.u?.bk, row.u?.u, row.u?.m)}
-              className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-full text-[10px] font-medium uppercase tracking-wide bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all duration-150 active:scale-[0.97]"
+              onDragStart={(e) => handleDragStart(e, row.u?.bk, row.u?.u, row.u?.m)}
+              className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 rounded-full text-[10px] font-medium uppercase tracking-wide bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all duration-150 active:scale-[0.97] cursor-grab active:cursor-grabbing"
             >
               Bet
               <ExternalLink className="w-2.5 h-2.5" />
