@@ -77,6 +77,7 @@ import { X } from "lucide-react";
 import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
 import { usePositiveEvPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
+import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 
 // Constants
@@ -899,246 +900,95 @@ export default function PositiveEVPage() {
         </div>
       </div>
 
-      {/* Premium Filter Bar - Unified Design */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        {/* Mode Tabs - Compact pill style */}
-        <div className="flex items-center gap-0.5 p-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200/50 dark:border-neutral-700/50">
-          <button
-            onClick={() => updateSavedFilters({ mode: "pregame" })}
-            disabled={locked}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-              savedFilters.mode === "pregame"
-                ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-            )}
-          >
-            Pregame
-          </button>
-          <button
-            onClick={() => updateSavedFilters({ mode: "live" })}
-            disabled={locked}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
-              savedFilters.mode === "live"
-                ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-            )}
-          >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-            </span>
-            Live
-          </button>
-          <button
-            onClick={() => updateSavedFilters({ mode: "all" })}
-            disabled={locked}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-              savedFilters.mode === "all"
-                ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-            )}
-          >
-            All
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
-
-        {/* Search - More compact */}
-        <div className="relative">
-          <InputSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-          <Input
-            placeholder="Search players, teams..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 w-48 text-sm bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/80 dark:border-neutral-700/80"
-            disabled={locked}
-          />
-        </div>
-
-        {/* Divider */}
-        <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
-
-        {/* Devig Selector - Premium style */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Devig</span>
-          <select
-            value={savedFilters.sharpPreset}
-            onChange={(e) => {
-              const newPreset = e.target.value as SharpPreset;
-              console.log('[Devig] Select changed to:', newPreset);
-              updateSavedFilters({ sharpPreset: newPreset }).then(() => {
-                console.log('[Devig] ✅ Saved preset to preferences');
-              }).catch((err) => {
-                console.warn('[Devig] Failed to save preset:', err);
-              });
-            }}
-            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors"
-            disabled={locked}
-          >
-            {Object.entries(SHARP_PRESETS).map(([key, preset]) => (
-              <option key={key} value={key}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Min EV Selector - Premium style */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Min EV</span>
-          <select
-            value={savedFilters.minEv}
-            onChange={(e) => updateSavedFilters({ minEv: Number(e.target.value) })}
-            className="h-8 px-2.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors"
-            disabled={locked}
-          >
-            {MIN_EV_OPTIONS.map((val) => (
-              <option key={val} value={val}>
-                {val}%
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Profit Boost Selector */}
-        <div className="flex items-center gap-1.5">
-          <span className={cn(
-            "text-[11px] font-medium uppercase tracking-wide",
-            boostPercent > 0 ? "text-amber-600 dark:text-amber-400" : "text-neutral-500 dark:text-neutral-400"
-          )}>
-            <Zap className={cn("w-3 h-3 inline mr-0.5", boostPercent > 0 && "text-amber-500")} />
-            Boost
-          </span>
-          <select
-            value={boostPercent}
-            onChange={(e) => setBoostPercent(Number(e.target.value))}
-            className={cn(
-              "h-8 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors",
-              boostPercent > 0
-                ? "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
-                : "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
-            )}
-            disabled={locked}
-          >
-            <option value={0}>None</option>
-            <option value={10}>+10%</option>
-            <option value={15}>+15%</option>
-            <option value={20}>+20%</option>
-            <option value={25}>+25%</option>
-            <option value={30}>+30%</option>
-            <option value={50}>+50%</option>
-            <option value={100}>+100%</option>
-          </select>
-        </div>
-
-        {/* Filters Button */}
-        <UnifiedFilters
-          tool="positive-ev"
-          selectedBooks={savedFilters.selectedBooks}
-          selectedMarkets={savedFilters.selectedMarkets}
-          minLiquidity={savedFilters.minLiquidity ?? 0}
-          showHidden={showHidden}
-          hiddenCount={hiddenCount}
-          toolSettings={{
-            selectedSports: savedFilters.selectedSports,
-            sharpPreset: savedFilters.sharpPreset as SharpPreset,
-            devigMethods: savedFilters.devigMethods as DevigMethod[],
-            evCase: savedFilters.evCase as "worst" | "best",
-            minEv: savedFilters.minEv,
-            maxEv: savedFilters.maxEv,
-            mode: savedFilters.mode,
-            minBooksPerSide: savedFilters.minBooksPerSide,
-          } satisfies PositiveEVSettings}
-          onFiltersChange={handleFiltersChange}
-          onToggleShowHidden={() => handleFiltersChange({ showHidden: !showHidden })}
-          availableSports={AVAILABLE_SPORTS}
-          availableMarkets={availableMarkets}
-          sportsbookCounts={(() => {
-            const counts: Record<string, number> = {};
-            data.forEach((opp) => {
-              const bookId = opp.book.bookId;
-              counts[bookId] = (counts[bookId] || 0) + 1;
-            });
-            return counts;
-          })()}
-          locked={locked}
-          isLoggedIn={isLoggedIn}
-          isPro={effectiveIsPro}
-          bankroll={evPrefs.bankroll}
-          kellyPercent={evPrefs.kellyPercent}
-          onBankrollChange={(value) => updateEvPrefs({ bankroll: value })}
-          onKellyPercentChange={(value) => updateEvPrefs({ kellyPercent: value })}
-        />
-
-        {/* Spacer to push right-side items */}
-        <div className="flex-1" />
-
-        {/* Auto-Refresh Toggle - Compact */}
-        <button
-          onClick={() => effectiveIsPro && setAutoRefresh(!autoRefresh)}
-          disabled={!effectiveIsPro}
-          className={cn(
-            "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-all",
-            autoRefresh && streamConnected && "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800",
-            autoRefresh && streamIsReconnecting && "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800",
-            autoRefresh && streamHasFailed && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800",
-            !autoRefresh && "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
-            !effectiveIsPro && "opacity-50 cursor-not-allowed"
-          )}
-          title={effectiveIsPro ? (autoRefresh ? "Disable auto refresh" : "Enable auto refresh") : "Pro required"}
-        >
-          <span className={cn(
-            "inline-flex h-1.5 w-1.5 rounded-full",
-            autoRefresh && streamConnected && "bg-emerald-500",
-            autoRefresh && streamIsReconnecting && "bg-amber-500 animate-pulse",
-            autoRefresh && streamHasFailed && "bg-red-500",
-            !autoRefresh && "bg-neutral-400"
-          )} />
-          <span>
-            {autoRefresh 
-              ? (streamConnected 
-                  ? "Auto" 
-                  : streamIsReconnecting 
-                    ? "..." 
-                    : streamHasFailed
-                      ? "Lost"
-                      : "...")
-              : "Auto"}
-          </span>
-        </button>
-
-        {/* Refresh Button - Compact */}
-        <button
-          onClick={() => freshRefetch()}
-          disabled={isRefreshing}
-          className={cn(
-            "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
-            "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400",
-            "border border-neutral-200/80 dark:border-neutral-700/80",
-            "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-700 dark:hover:text-neutral-200",
-            "disabled:opacity-50 disabled:cursor-not-allowed"
-          )}
-          title="Refresh data"
-        >
-          <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
-        </button>
-
-        {/* Reconnect Button (when connection failed) */}
-        {autoRefresh && streamHasFailed && (
-          <button
-            onClick={streamReconnect}
-            className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-200/50 dark:hover:bg-red-900/50 transition-all"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Retry
-          </button>
-        )}
-      </div>
+      {/* Unified Filter Bar */}
+      <UnifiedFilterBar
+        tool="positive-ev"
+        className="mb-5"
+        // Mode
+        mode={savedFilters.mode}
+        onModeChange={(mode) => updateSavedFilters({ mode })}
+        // Search
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        // Boost
+        boostPercent={boostPercent}
+        onBoostChange={setBoostPercent}
+        // Sports
+        selectedSports={savedFilters.selectedSports}
+        onSportsChange={(sports) => updateSavedFilters({ selectedSports: sports })}
+        availableSports={AVAILABLE_SPORTS}
+        // Markets
+        selectedMarkets={savedFilters.selectedMarkets}
+        onMarketsChange={(markets) => updateSavedFilters({ selectedMarkets: markets })}
+        availableMarkets={availableMarkets.map(m => ({ key: m, label: formatMarketLabelShort(m) }))}
+        // Sportsbooks
+        selectedBooks={savedFilters.selectedBooks}
+        onBooksChange={(books) => updateSavedFilters({ selectedBooks: books })}
+        sportsbookCounts={(() => {
+          const counts: Record<string, number> = {};
+          data.forEach((opp) => {
+            const bookId = opp.book.bookId;
+            counts[bookId] = (counts[bookId] || 0) + 1;
+          });
+          return counts;
+        })()}
+        // Sharp preset (Comparing Against)
+        sharpPreset={savedFilters.sharpPreset as SharpPreset}
+        onSharpPresetChange={(preset) => updateSavedFilters({ sharpPreset: preset })}
+        // De-vig methods
+        devigMethods={savedFilters.devigMethods as DevigMethod[]}
+        onDevigMethodsChange={(methods) => updateSavedFilters({ devigMethods: methods })}
+        evCase={savedFilters.evCase as "worst" | "best"}
+        onEvCaseChange={(evCase) => updateSavedFilters({ evCase } as any)}
+        // Global settings
+        minEv={savedFilters.minEv}
+        onMinEvChange={(minEv) => updateSavedFilters({ minEv })}
+        maxEv={savedFilters.maxEv}
+        onMaxEvChange={(maxEv) => updateSavedFilters({ maxEv })}
+        minBooksPerSide={savedFilters.minBooksPerSide}
+        onMinBooksPerSideChange={(minBooksPerSide) => updateSavedFilters({ minBooksPerSide } as any)}
+        minLiquidity={savedFilters.minLiquidity ?? 0}
+        onMinLiquidityChange={(minLiquidity) => updateSavedFilters({ minLiquidity } as any)}
+        // Kelly
+        bankroll={evPrefs.bankroll}
+        kellyPercent={evPrefs.kellyPercent}
+        onBankrollChange={(value) => updateEvPrefs({ bankroll: value })}
+        onKellyPercentChange={(value) => updateEvPrefs({ kellyPercent: value })}
+        // Hidden
+        showHidden={showHidden}
+        hiddenCount={hiddenCount}
+        onToggleShowHidden={() => handleFiltersChange({ showHidden: !showHidden })}
+        // Auto refresh
+        autoRefresh={autoRefresh}
+        onAutoRefreshChange={setAutoRefresh}
+        isConnected={streamConnected}
+        isReconnecting={streamIsReconnecting}
+        hasFailed={streamHasFailed}
+        // Refresh
+        onRefresh={freshRefetch}
+        isRefreshing={isRefreshing}
+        // Reset
+        onReset={() => {
+          updateSavedFilters({
+            mode: "pregame",
+            selectedSports: AVAILABLE_SPORTS,
+            selectedBooks: [],
+            selectedMarkets: [],
+            sharpPreset: "pinnacle",
+            devigMethods: ["power", "multiplicative"],
+            evCase: "worst",
+            minEv: 0,
+            maxEv: undefined,
+            minBooksPerSide: 2,
+            minLiquidity: 0,
+          } as any);
+          setBoostPercent(0);
+          setSearchQuery("");
+        }}
+        // UI state
+        locked={locked}
+        isPro={effectiveIsPro}
+      />
 
       {/* Method Info Panel */}
       <AnimatePresence>
@@ -1171,10 +1021,10 @@ export default function PositiveEVPage() {
 
 
 
-      {/* Active Filters Pills - Compact inline style */}
-      {activeFilterCount > 0 && (
+      {/* Active Filters Pills - Show only important/meaningful filters */}
+      {(savedFilters.maxEv || savedFilters.selectedMarkets.length > 0 || boostPercent > 0 || (savedFilters.devigMethods && savedFilters.devigMethods.length !== 2)) && (
         <div className="mb-4 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide mr-1">Filters:</span>
+          <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wide mr-1">Active:</span>
           
           {savedFilters.maxEv && (
             <button
@@ -1182,16 +1032,6 @@ export default function PositiveEVPage() {
               className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
             >
               Max {savedFilters.maxEv}%
-              <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
-            </button>
-          )}
-          
-          {savedFilters.selectedBooks.length > 0 && (
-            <button
-              onClick={() => updateSavedFilters({ selectedBooks: [] })}
-              className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-            >
-              {savedFilters.selectedBooks.length} Book{savedFilters.selectedBooks.length > 1 ? "s" : ""}
               <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
             </button>
           )}
@@ -1234,31 +1074,15 @@ export default function PositiveEVPage() {
               <X className="w-3 h-3 opacity-50 group-hover:opacity-100" />
             </button>
           )}
-
-          {/* Hidden count pill */}
-          {hiddenCount > 0 && (
-            <button
-              onClick={() => handleFiltersChange({ showHidden: !showHidden })}
-              className={cn(
-                "group inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors",
-                showHidden
-                  ? "bg-neutral-600 dark:bg-neutral-500 text-white border-neutral-700 dark:border-neutral-600"
-                  : "bg-neutral-50 dark:bg-neutral-900/20 text-neutral-600 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-900/40"
-              )}
-            >
-              {showHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-              {hiddenCount} Hidden
-            </button>
-          )}
           
           <button
             onClick={() => {
               updateSavedFilters({
-                selectedBooks: [],
                 selectedMarkets: [],
                 maxEv: undefined,
                 devigMethods: ['power', 'multiplicative'],
               });
+              setBoostPercent(0);
             }}
             className="text-[10px] font-medium text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ml-1"
           >

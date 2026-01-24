@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink, AlertTriangle, Lock, Pin, TrendingUp } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle, Lock, Pin, TrendingUp, Calculator, X } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { Tooltip } from "@/components/tooltip";
+import { motion, AnimatePresence } from "motion/react";
 
 const SB_MAP = new Map(sportsbooks.map((sb) => [sb.id.toLowerCase(), sb]));
 const norm = (s?: string) => (s || "").toLowerCase();
@@ -275,6 +277,378 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     return { overStake, underStake, total, profit };
   };
 
+  // Arb Calculator Modal - allows editing odds and amounts
+  function ArbCalculatorModal({ 
+    row, 
+    isOpen, 
+    onClose, 
+    defaultOverOdds,
+    defaultUnderOdds,
+    defaultOverStake,
+    defaultUnderStake,
+    onApply 
+  }: { 
+    row: ArbRowWithId;
+    isOpen: boolean;
+    onClose: () => void;
+    defaultOverOdds: number;
+    defaultUnderOdds: number;
+    defaultOverStake: number;
+    defaultUnderStake: number;
+    onApply: (overStake: number, underStake: number) => void;
+  }) {
+    const [overOdds, setOverOdds] = React.useState(String(defaultOverOdds));
+    const [underOdds, setUnderOdds] = React.useState(String(defaultUnderOdds));
+    const [overStake, setOverStake] = React.useState(defaultOverStake.toFixed(2));
+    const [underStake, setUnderStake] = React.useState(defaultUnderStake.toFixed(2));
+    
+    // Reset state when modal opens
+    React.useEffect(() => {
+      if (isOpen) {
+        setOverOdds(String(defaultOverOdds));
+        setUnderOdds(String(defaultUnderOdds));
+        setOverStake(defaultOverStake.toFixed(2));
+        setUnderStake(defaultUnderStake.toFixed(2));
+      }
+    }, [isOpen, defaultOverOdds, defaultUnderOdds, defaultOverStake, defaultUnderStake]);
+    
+    // Close on escape
+    React.useEffect(() => {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      if (isOpen) {
+        document.addEventListener('keydown', handleEscape);
+        document.body.style.overflow = 'hidden';
+      }
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.body.style.overflow = '';
+      };
+    }, [isOpen, onClose]);
+    
+    const parseOdds = (s: string): number => {
+      const n = parseInt(s.replace('+', ''), 10);
+      return isFinite(n) ? n : 0;
+    };
+    
+    const overOddsNum = parseOdds(overOdds);
+    const underOddsNum = parseOdds(underOdds);
+    const overStakeNum = parseFloat(overStake) || 0;
+    const underStakeNum = parseFloat(underStake) || 0;
+    const totalStake = overStakeNum + underStakeNum;
+    
+    const overPayout = overOddsNum !== 0 ? calculatePayout(overOddsNum, overStakeNum) : 0;
+    const underPayout = underOddsNum !== 0 ? calculatePayout(underOddsNum, underStakeNum) : 0;
+    const guaranteedPayout = Math.min(overPayout, underPayout);
+    const profit = guaranteedPayout - totalStake;
+    const roiPercent = totalStake > 0 ? (profit / totalStake) * 100 : 0;
+    
+    // Recalculate opposite stake when one side changes
+    const recalcFromOver = (newOverStake: number, oOdds: number, uOdds: number) => {
+      if (oOdds === 0 || uOdds === 0) return;
+      const opposite = calculateOptimalWager(newOverStake, oOdds, uOdds);
+      setUnderStake(opposite.toFixed(2));
+    };
+    
+    const recalcFromUnder = (newUnderStake: number, oOdds: number, uOdds: number) => {
+      if (oOdds === 0 || uOdds === 0) return;
+      const opposite = calculateOptimalWager(newUnderStake, uOdds, oOdds);
+      setOverStake(opposite.toFixed(2));
+    };
+    
+    // Recalculate stakes when odds change (keeping over stake fixed)
+    const handleOverOddsChange = (val: string) => {
+      setOverOdds(val);
+      const newOverOdds = parseOdds(val);
+      if (newOverOdds !== 0 && underOddsNum !== 0 && overStakeNum > 0) {
+        const opposite = calculateOptimalWager(overStakeNum, newOverOdds, underOddsNum);
+        setUnderStake(opposite.toFixed(2));
+      }
+    };
+    
+    const handleUnderOddsChange = (val: string) => {
+      setUnderOdds(val);
+      const newUnderOdds = parseOdds(val);
+      if (overOddsNum !== 0 && newUnderOdds !== 0 && overStakeNum > 0) {
+        const opposite = calculateOptimalWager(overStakeNum, overOddsNum, newUnderOdds);
+        setUnderStake(opposite.toFixed(2));
+      }
+    };
+    
+    const handleApply = () => {
+      onApply(overStakeNum, underStakeNum);
+      onClose();
+    };
+    
+    // Quick presets
+    const presets = [100, 200, 300, 500];
+    const applyPreset = (total: number) => {
+      if (overOddsNum === 0 || underOddsNum === 0) return;
+      const overDec = toDecimal(overOddsNum);
+      const underDec = toDecimal(underOddsNum);
+      const newOverStake = (total * underDec) / (overDec + underDec);
+      const newUnderStake = total - newOverStake;
+      setOverStake(newOverStake.toFixed(2));
+      setUnderStake(newUnderStake.toFixed(2));
+    };
+    
+    // Don't render if not open or if we're on the server
+    if (!isOpen || typeof document === 'undefined') return null;
+    
+    const overLogo = logo(row.o?.bk);
+    const underLogo = logo(row.u?.bk);
+    const overBookNm = bookName(row.o?.bk);
+    const underBookNm = bookName(row.u?.bk);
+    const player = extractPlayer(row.o?.name) || extractPlayer(row.u?.name);
+    const market = humanizeMarket(row.mkt);
+    const gameTitle = `${row.ev?.away?.abbr || "Away"} @ ${row.ev?.home?.abbr || "Home"}`;
+    
+    // Use portal to render modal outside of table DOM hierarchy
+    return createPortal(
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              onClick={onClose}
+            />
+            
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-800/50 pointer-events-auto">
+                {/* Header */}
+                <div className="flex flex-col border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                        <Calculator className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-neutral-900 dark:text-white tracking-tight">
+                          Arb Calculator
+                        </h2>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Adjust odds & stakes
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={onClose}
+                      className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  {/* Market Info */}
+                  <div className="px-5 pb-4 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                    <div className="flex items-center justify-center w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
+                      <SportIcon sport={row.lg?.sport?.toLowerCase() || "basketball"} className="w-3 h-3" />
+                    </div>
+                    <span className="font-medium text-neutral-600 dark:text-neutral-300">{row.lg?.name}</span>
+                    <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                    <span>{gameTitle}</span>
+                    {player && (
+                      <>
+                        <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                        <span className="font-medium text-neutral-700 dark:text-neutral-300">{player}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Quick Presets */}
+                <div className="px-5 pt-4 pb-3">
+                  <div className="flex gap-2">
+                    {presets.map((amount) => (
+                      <button
+                        key={amount}
+                        onClick={() => applyPreset(amount)}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-xs font-semibold tabular-nums transition-all duration-150",
+                          Math.abs(totalStake - amount) < 1
+                            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                        )}
+                      >
+                        ${amount}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Odds & Stakes Grid */}
+                <div className="px-5 pb-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Over Side */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {overLogo ? (
+                          <img src={overLogo} alt={row.o?.bk || ''} className="h-6 w-6 object-contain rounded" />
+                        ) : (
+                          <div className="h-6 w-6 rounded bg-neutral-200 dark:bg-neutral-700" />
+                        )}
+                        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300 truncate">{overBookNm}</span>
+                      </div>
+                      
+                      {/* Odds Input */}
+                      <div>
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-500 uppercase tracking-wide font-semibold">Odds</label>
+                        <input
+                          type="text"
+                          value={overOdds}
+                          onChange={(e) => handleOverOddsChange(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full mt-1.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-2.5 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        />
+                      </div>
+                      
+                      {/* Stake Input */}
+                      <div>
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-500 uppercase tracking-wide font-semibold">Stake</label>
+                        <div className="relative mt-1.5">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-sm font-medium">$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={overStake}
+                            onChange={(e) => {
+                              setOverStake(e.target.value);
+                              const n = parseFloat(e.target.value);
+                              if (isFinite(n) && n > 0) {
+                                recalcFromOver(n, overOddsNum, underOddsNum);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg pl-7 pr-3 py-2.5 text-base font-bold tabular-nums text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Under Side */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {underLogo ? (
+                          <img src={underLogo} alt={row.u?.bk || ''} className="h-6 w-6 object-contain rounded" />
+                        ) : (
+                          <div className="h-6 w-6 rounded bg-neutral-200 dark:bg-neutral-700" />
+                        )}
+                        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300 truncate">{underBookNm}</span>
+                      </div>
+                      
+                      {/* Odds Input */}
+                      <div>
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-500 uppercase tracking-wide font-semibold">Odds</label>
+                        <input
+                          type="text"
+                          value={underOdds}
+                          onChange={(e) => handleUnderOddsChange(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full mt-1.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-2.5 text-xl font-bold tabular-nums text-rose-600 dark:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500"
+                        />
+                      </div>
+                      
+                      {/* Stake Input */}
+                      <div>
+                        <label className="text-[10px] text-neutral-500 dark:text-neutral-500 uppercase tracking-wide font-semibold">Stake</label>
+                        <div className="relative mt-1.5">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-sm font-medium">$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={underStake}
+                            onChange={(e) => {
+                              setUnderStake(e.target.value);
+                              const n = parseFloat(e.target.value);
+                              if (isFinite(n) && n > 0) {
+                                recalcFromUnder(n, overOddsNum, underOddsNum);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg pl-7 pr-3 py-2.5 text-base font-bold tabular-nums text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Summary Footer */}
+                <div className="px-5 py-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
+                  {/* Stats Row */}
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <div className="text-center">
+                      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">Total</div>
+                      <div className="text-base font-bold tabular-nums text-neutral-900 dark:text-white mt-0.5">
+                        {currency(totalStake)}
+                      </div>
+                    </div>
+                    <div className="w-px h-10 bg-neutral-200 dark:bg-neutral-700" />
+                    <div className="text-center">
+                      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">Payout</div>
+                      <div className="text-base font-bold tabular-nums text-neutral-600 dark:text-neutral-300 mt-0.5">
+                        {currency(guaranteedPayout)}
+                      </div>
+                    </div>
+                    <div className="w-px h-10 bg-neutral-200 dark:bg-neutral-700" />
+                    <div className="text-center">
+                      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase tracking-wide font-medium">Profit</div>
+                      <div className={cn(
+                        "text-lg font-bold tabular-nums mt-0.5",
+                        profit > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-500 dark:text-neutral-400"
+                      )}>
+                        {profit > 0 ? "+" : ""}{currency(profit)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* ROI Badge */}
+                  <div className={cn(
+                    "text-center py-2.5 rounded-xl mb-4",
+                    roiPercent > 0 
+                      ? "bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200/50 dark:border-emerald-800/30" 
+                      : "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
+                  )}>
+                    <span className={cn(
+                      "text-sm font-bold tabular-nums",
+                      roiPercent > 0 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-500 dark:text-neutral-400"
+                    )}>
+                      {roiPercent > 0 ? "+" : ""}{roiPercent.toFixed(2)}% ROI
+                    </span>
+                  </div>
+                  
+                  {/* Apply Button */}
+                  <button
+                    onClick={handleApply}
+                    className="w-full py-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-semibold text-sm hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shadow-sm"
+                  >
+                    Apply to Table
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>,
+      document.body
+    );
+  }
+
   // Local, focus-safe cell for bet size editing. Avoids table-level re-renders on each keystroke.
   function BetSizeCell({ r, id }: { r: ArbRowWithId; id: string }) {
     const plan = getBetPlan(r, id);
@@ -283,6 +657,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     };
     const [overLocal, setOverLocal] = React.useState<string>(formatAmount(plan.overStake));
     const [underLocal, setUnderLocal] = React.useState<string>(formatAmount(plan.underStake));
+    const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
     // Sync local state if row id changes
     React.useEffect(() => {
@@ -342,9 +717,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
       setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
     };
+    
+    const handleCalcApply = (newOver: number, newUnder: number) => {
+      const overFinal = roundBets ? Math.round(newOver) : Math.round(newOver * 100) / 100;
+      const underFinal = roundBets ? Math.round(newUnder) : Math.round(newUnder * 100) / 100;
+      setCustomWagersBoth(prev => ({
+        ...prev,
+        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
+      }));
+      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
+      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
+    };
 
     return (
-      <div className="inline-block">
+      <div className="flex items-stretch gap-1.5">
         <div className="bg-neutral-50/50 dark:bg-neutral-800/50 rounded-lg p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 min-w-[170px]">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -419,6 +805,31 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{currency((parseFloat(overLocal || '0') || 0) + (parseFloat(underLocal || '0') || 0))}</span>
           </div>
         </div>
+        
+        {/* Calculator Button */}
+        <Tooltip content="Open calculator to adjust odds">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCalcOpen(true);
+            }}
+            className="flex items-center justify-center w-8 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50/50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
+          >
+            <Calculator className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+          </button>
+        </Tooltip>
+        
+        {/* Calculator Modal */}
+        <ArbCalculatorModal
+          row={r}
+          isOpen={isCalcOpen}
+          onClose={() => setIsCalcOpen(false)}
+          defaultOverOdds={Number(r.o?.od || 0)}
+          defaultUnderOdds={Number(r.u?.od || 0)}
+          defaultOverStake={parseFloat(overLocal) || 0}
+          defaultUnderStake={parseFloat(underLocal) || 0}
+          onApply={handleCalcApply}
+        />
       </div>
     );
   }

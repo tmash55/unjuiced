@@ -56,7 +56,20 @@ export interface MultiDevigResult {
  * - market_average: Average of all available sharp books (most robust consensus)
  * - custom: User-defined blend of books with weights
  */
-export type SharpPreset = "pinnacle" | "circa" | "prophetx" | "pinnacle_circa" | "hardrock_thescore" | "market_average" | "custom";
+export type SharpPreset = 
+  | "pinnacle" 
+  | "circa" 
+  | "prophetx" 
+  | "pinnacle_circa" 
+  | "hardrock_thescore" 
+  | "market_average" 
+  | "draftkings"
+  | "fanduel"
+  | "betmgm"
+  | "caesars"
+  | "hardrock"
+  | "bet365"
+  | "custom";
 
 /**
  * Configuration for a sharp reference preset
