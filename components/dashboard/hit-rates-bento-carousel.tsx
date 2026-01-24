@@ -677,16 +677,16 @@ export function HitRatesBentoCarousel() {
       )}>
         {/* Header with hover animation */}
         <div className="flex items-center justify-between px-1 py-2 transition duration-200 group-hover/bento:translate-x-2">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <div className={cn(
-              "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
+              "flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-lg shadow-sm",
               "bg-gradient-to-br from-sky-500 to-blue-600"
             )}>
-              <IconChartBar className="h-3.5 w-3.5 text-white" />
+              <IconChartBar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Top Hit Rates</span>
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+              <span className="font-bold text-neutral-800 dark:text-neutral-100 text-xs sm:text-sm">Hit Rates</span>
+              <p className="text-[9px] sm:text-[10px] text-neutral-500 dark:text-neutral-400 font-medium hidden sm:block">
                 Trending props • Historical data
               </p>
             </div>
@@ -695,7 +695,7 @@ export function HitRatesBentoCarousel() {
           <Link 
             href="/hit-rates/nba"
             className={cn(
-              "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all",
+              "flex items-center gap-0.5 sm:gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-semibold transition-all",
               "text-sky-700 dark:text-sky-300",
               "bg-sky-50 dark:bg-sky-900/30",
               "hover:bg-sky-100 dark:hover:bg-sky-900/50",
@@ -703,7 +703,7 @@ export function HitRatesBentoCarousel() {
             )}
           >
             View All
-            <ArrowRight className="h-3 w-3" />
+            <ArrowRight className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
           </Link>
         </div>
         

@@ -173,19 +173,19 @@ export function PopularMarketsSection() {
   const markets = data?.markets || [];
   
   return (
-    <section className="h-full flex flex-col relative group/bento rounded-xl">
-      {/* Header with hover animation */}
-      <div className="flex items-center justify-between px-1 py-2 transition duration-200 group-hover/bento:translate-x-2">
-        <div className="flex items-center gap-2.5">
+    <section className="h-full flex flex-col relative group/bento">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <div className={cn(
-            "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
+            "flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-lg shadow-sm",
             "bg-gradient-to-br from-amber-500 to-orange-500"
           )}>
-            <Compass className="h-3.5 w-3.5 text-white" />
+            <Compass className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white" />
           </div>
           <div>
-            <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Popular Markets</span>
-            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+            <span className="font-bold text-neutral-800 dark:text-neutral-100 text-xs sm:text-sm">Popular Markets</span>
+            <p className="text-[9px] sm:text-[10px] text-neutral-500 dark:text-neutral-400 font-medium hidden sm:block">
               Longshot props • Fun bets
             </p>
           </div>
@@ -194,38 +194,39 @@ export function PopularMarketsSection() {
         <Link
           href="/edge-finder"
           className={cn(
-            "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all",
+            "flex items-center gap-0.5 sm:gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-semibold transition-all",
             "text-amber-700 dark:text-amber-300",
             "bg-amber-50 dark:bg-amber-900/30",
             "hover:bg-amber-100 dark:hover:bg-amber-900/50",
             "border border-amber-200/50 dark:border-amber-700/30"
           )}
         >
-          Edge Finder
-          <ChevronRight className="h-3 w-3" />
+          <span className="hidden sm:inline">Edge Finder</span>
+          <span className="sm:hidden">View</span>
+          <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
         </Link>
       </div>
 
-      {/* Market Cards Grid - padding to prevent hover ring clipping */}
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1 py-1">
+      {/* Market Cards Grid */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-2 sm:px-3 py-2 sm:py-3">
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             {[1, 2, 3, 4].map((i) => (
               <MarketCardSkeleton key={i} />
             ))}
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-neutral-500">Unable to load markets</p>
+            <p className="text-xs sm:text-sm text-neutral-500">Unable to load markets</p>
           </div>
         ) : markets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-8 rounded-xl bg-neutral-900/50">
-            <Sparkles className="w-8 h-8 text-amber-500/50 mb-2" />
-            <p className="text-sm text-neutral-300 font-medium">Markets updating</p>
-            <p className="text-[10px] text-neutral-500">Check back soon</p>
+          <div className="flex flex-col items-center justify-center h-full py-6 sm:py-8 rounded-lg sm:rounded-xl bg-neutral-900/50">
+            <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500/50 mb-2" />
+            <p className="text-xs sm:text-sm text-neutral-300 font-medium">Markets updating</p>
+            <p className="text-[9px] sm:text-[10px] text-neutral-500">Check back soon</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             {markets.slice(0, 4).map((market) => (
               <MarketCard 
                 key={market.marketKey} 
