@@ -565,17 +565,20 @@ export function OddsNavigation({
               </button>
               <button
                 onClick={() => {
-                  if (type !== "player") {
+                  if (primaryMarkets.length > 0 && type !== "player") {
                     const firstMarket = primaryMarkets[0];
                     if (firstMarket) {
                       onMarketChange(firstMarket.apiKey, "player");
                     }
                   }
                 }}
+                disabled={primaryMarkets.length === 0}
                 className={cn(
                   "px-3 py-1 text-xs font-bold rounded-md transition-all",
                   type === "player"
                     ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                    : primaryMarkets.length === 0
+                    ? "text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
                     : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                 )}
               >

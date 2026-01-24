@@ -141,10 +141,10 @@ export function useNBAProps(
         sport: 'nba',
         market,
         scope,
-        limit: '300', // Get all available props
+        limit: '1000', // Get all available props
       });
       
-      const response = await fetch(`/api/props/table?${params}`);
+      const response = await fetch(`/api/v2/props/table?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch props');
       }

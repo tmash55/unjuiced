@@ -426,6 +426,7 @@ export function HitRateTable({
   upgradeBanner,
   bottomContent,
   blurAfterIndex,
+  gamesFilter,
 }: HitRateTableProps) {
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -712,6 +713,9 @@ export function HitRateTable({
             </div>
           )}
         </div>
+
+        {/* Games Filter Dropdown */}
+        {gamesFilter}
 
         {/* Search Input - Premium */}
         <div className="relative flex-1 max-w-sm">

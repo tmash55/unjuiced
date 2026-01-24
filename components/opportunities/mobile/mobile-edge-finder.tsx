@@ -11,7 +11,9 @@ import {
   Layers,
   Filter,
   Zap,
-  Check
+  Check,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileEdgeCard } from "./mobile-edge-card";
@@ -54,6 +56,11 @@ const BOOST_OPTIONS = [
   { value: 100, label: "+100%" },
 ];
 
+// Types for streaming animation
+type Direction = "up" | "down";
+type RowChange = { edge?: Direction; price?: Direction };
+type ChangeMap = Map<string, RowChange>;
+
 interface MobileEdgeFinderProps {
   opportunities: Opportunity[];
   isLoading?: boolean;
@@ -86,6 +93,16 @@ interface MobileEdgeFinderProps {
   // Kelly settings handlers
   onBankrollChange?: (value: number) => void;
   onKellyPercentChange?: (value: number) => void;
+  // Streaming/auto-refresh props
+  autoRefresh?: boolean;
+  onAutoRefreshChange?: (value: boolean) => void;
+  streamChanges?: ChangeMap;
+  streamAdded?: Set<string>;
+  streamStale?: Set<string>;
+  streamConnected?: boolean;
+  streamReconnecting?: boolean;
+  streamFailed?: boolean;
+  onStreamReconnect?: () => void;
 }
 
 export function MobileEdgeFinder({
@@ -112,6 +129,16 @@ export function MobileEdgeFinder({
   availableSportsbooks = [],
   boostPercent = 0,
   onBoostChange,
+  // Streaming props
+  autoRefresh = false,
+  onAutoRefreshChange,
+  streamChanges = new Map(),
+  streamAdded = new Set(),
+  streamStale = new Set(),
+  streamConnected = false,
+  streamReconnecting = false,
+  streamFailed = false,
+  onStreamReconnect,
   onBankrollChange,
   onKellyPercentChange,
 }: MobileEdgeFinderProps) {
@@ -251,13 +278,57 @@ export function MobileEdgeFinder({
             </h1>
             {/* Last Updated - Compact */}
             {dataUpdatedAt && (
-              <span className="text-[10px] text-neutral-400">
+              <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+                {autoRefresh && streamConnected && (
+                  <span className="text-emerald-500 font-medium">LIVE</span>
+                )}
                 {formatTimeAgo(dataUpdatedAt)}
               </span>
             )}
           </div>
           
           <div className="flex items-center gap-1">
+            {/* Auto-Refresh Toggle - Pro Feature */}
+            {isPro && onAutoRefreshChange && (
+              <button
+                onClick={() => {
+                  if (autoRefresh && streamFailed && onStreamReconnect) {
+                    onStreamReconnect();
+                  } else {
+                    onAutoRefreshChange(!autoRefresh);
+                  }
+                }}
+                className={cn(
+                  "p-2 rounded-lg transition-colors flex items-center gap-1",
+                  autoRefresh
+                    ? streamFailed
+                      ? "text-red-500"
+                      : streamConnected
+                      ? "text-emerald-500"
+                      : "text-amber-500"
+                    : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                )}
+              >
+                {autoRefresh ? (
+                  streamFailed ? (
+                    <WifiOff className="w-4 h-4" />
+                  ) : streamConnected ? (
+                    <>
+                      <Wifi className="w-4 h-4" />
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                    </>
+                  ) : (
+                    <Wifi className="w-4 h-4 animate-pulse" />
+                  )
+                ) : (
+                  <Wifi className="w-4 h-4 opacity-60" />
+                )}
+              </button>
+            )}
+            
             {/* Refresh Button */}
             {onRefresh && (
               <button

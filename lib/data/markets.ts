@@ -1882,14 +1882,18 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       return 'game_moneyline';
     }
     
+    // Sports that only have game lines (no player props)
+    const gameOnlySports = ['ncaab', 'mlb', 'wnba'];
+    if (gameOnlySports.includes(sport.toLowerCase())) {
+      return 'game_moneyline';
+    }
+    
     // Default player markets by sport
     const defaultPlayerMarkets: Record<string, string> = {
       'nfl': 'player_touchdowns', // Anytime TD
       'ncaaf': 'player_touchdowns', // Anytime TD
       'nba': 'player_points',
-      'ncaab': 'player_points',
       'nhl': 'player_goals',
-      'mlb': 'batter_hits',
       'soccer_epl': 'player_goals',
     };
     
@@ -1921,11 +1925,14 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   }
   
   // List of API keys that are known single-line markets (for quick lookup without sport context)
+  // NOTE: These are "to score" markets with no over/under - just yes (player scores)
+  // Do NOT include over/under markets like player_goals (Over 0.5 goals) or player_touchdowns (Over 0.5 TDs)
   export const SINGLE_LINE_MARKETS = new Set([
-    // Basketball
+    // Basketball - Yes/No markets
     'player_double_double',
     'player_triple_double',
     'first_field_goal',
+    'first_basket',
     'team_first_basket',
     'home_team_first_field_goal',
     'away_team_first_field_goal',
@@ -1934,20 +1941,24 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     '1st_3_minutes_player_points',
     '1st_3_minutes_player_assists',
     '1st_3_minutes_player_rebounds',
-    // Game markets (all sports)
+    
+    // Game markets (all sports) - Yes/No or 3-way
     'overtime',
     'both_teams_to_score',
     'first_team_to_score',
     'first_team_to_score_3_way',
     'last_team_to_score_3_way',
-    // Hockey
-    'player_goals',
+    
+    // Hockey - Goalscorer markets (single-line "to score" markets)
     'player_first_goal',
     'player_last_goal',
+    'first_goalscorer',
+    'last_goalscorer',
     'home_team_first_goalscorer',
     'away_team_first_goalscorer',
     'second_goalscorer',
     'third_goalscorer',
+    'anytime_goalscorer',
     'player_shutout',
     '1st_period_both_teams_to_score',
     '2nd_period_both_teams_to_score',
@@ -1957,30 +1968,25 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     'race_to_4_goals_3_way_reg_time',
     'race_to_5_goals_3_way_reg_time',
     'first_team_to_5_shots_on_goal',
-    '1st_period_player_goals',
-    '2nd_period_player_goals',
-    '3rd_period_player_goals',
-    // Football
-    'player_touchdowns',
+    // Note: player_goals is OVER/UNDER (Over 0.5 goals) - NOT single-line
+    
+    // Football - TD Scorer markets (single-line "to score" markets)
+    'player_first_td',
+    'player_last_td',
     'first_td',
     'last_td',
-    '1q_player_touchdowns',
-    '1st_quarter_player_touchdowns',
-    '1h_player_touchdowns',
-    '1st_half_player_touchdowns',
-    '2h_player_touchdowns',
-    '2nd_half_player_touchdowns',
+    'player_anytime_td',
     '2nd_half_first_touchdown_scorer',
-    '3q_player_touchdowns',
-    'both_halves_player_touchdowns',
-    // Soccer
-    'anytime_goalscorer',
+    'home_team_first_touchdown_scorer',
+    'away_team_first_touchdown_scorer',
+    // Note: player_touchdowns is OVER/UNDER (Over 0.5 TDs) - NOT single-line
+    // Note: 1st_half_player_touchdowns, etc. are OVER/UNDER - NOT single-line
+    
+    // Soccer - Goalscorer markets
     'first_goalscorer',
     'last_goalscorer',
-    // Hockey
-    'player_first_goal',
-    'player_last_goal',
-    'player_shutout',
+    'anytime_goalscorer',
+    
     // Baseball
     'batter_first_home_run',
   ]);

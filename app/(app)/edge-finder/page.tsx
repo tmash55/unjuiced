@@ -124,9 +124,6 @@ export default function EdgeFinderPage() {
     updatePrefs({ comparisonMode: mode, comparisonBook: book });
   };
   
-  // NOTE: Auto-refresh (SSE streaming) is disabled for now
-  // The streaming hook needs more work to match the standard hook's behavior
-  // TODO: Re-enable when streaming is properly aligned with useMultiFilterOpportunities
 
   // Hidden edges management
   const { 
@@ -179,18 +176,19 @@ export default function EdgeFinderPage() {
     return () => clearTimeout(timer);
   }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
-  // Use multi-filter hook (handles multiple active presets, parallel fetching, deduplication)
-  // Standard data fetching - disabled when auto-refresh is on
+  // ===== DATA SOURCE =====
+  // Manual refresh only - SSE streaming removed until backend optimization
+  
   const {
-    opportunities: standardOpportunities,
+    opportunities,
     activeFilters,
     isCustomMode,
-    isLoading: standardIsLoading,
-    isFetching: standardIsFetching,
-    error: standardError,
-    refetch: standardRefetch,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
     prefetchPreset,
-    dataUpdatedAt: standardDataUpdatedAt,
+    dataUpdatedAt,
     isStale,
     isLoadingMore,
     loadProgress,
@@ -205,15 +203,8 @@ export default function EdgeFinderPage() {
     enabled: !planLoading && !prefsLoading && !presetsLoading,
   });
 
-  // Data access - use standard hook directly (auto-refresh disabled for now)
-  const opportunities = standardOpportunities;
-  const isLoading = standardIsLoading;
-  const isFetching = standardIsFetching;
-  const error = standardError;
-  const refetch = standardRefetch;
-  const dataUpdatedAt = standardDataUpdatedAt;
-
   // Apply hidden edges filter and min liquidity filter (must be done client-side due to user-specific state)
+  // Note: Pinning of expanded rows is handled internally by OpportunitiesTable
   const filteredOpportunities = useMemo(() => {
     let filtered = opportunities;
 
@@ -728,11 +719,6 @@ export default function EdgeFinderPage() {
         bankroll={evPrefs.bankroll}
         kellyPercent={evPrefs.kellyPercent || 25}
         boostPercent={boostPercent}
-        // Streaming disabled for now - pass empty/false values
-        autoRefresh={false}
-        streamChanges={new Map()}
-        streamAdded={new Set()}
-        streamStale={new Set()}
       />
 
       {/* Load more button */}

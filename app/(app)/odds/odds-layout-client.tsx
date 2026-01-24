@@ -57,7 +57,10 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
     if (newSport === sport) return;
     setIsTransitioning(true);
     const newMarket = getDefaultMarket(newSport);
-    router.push(`/odds/${newSport}?type=${type}&market=${newMarket}&scope=${scope}`, { scroll: false });
+    // Reset to "game" type for sports without player props (ncaab, mlb, wnba)
+    const sportsWithoutPlayerProps = ['ncaab', 'mlb', 'wnba'];
+    const newType = sportsWithoutPlayerProps.includes(newSport.toLowerCase()) ? 'game' : type;
+    router.push(`/odds/${newSport}?type=${newType}&market=${newMarket}&scope=${scope}`, { scroll: false });
   }, [sport, type, scope, router]);
   
   const handleMarketChange = useCallback((newMarket: string, newType: "game" | "player") => {
@@ -96,7 +99,7 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
           </div>
           
           {/* Navigation Tabs - sticky below header */}
-          <div className="sticky top-14 z-20 bg-white dark:bg-neutral-950">
+          <div className="sticky top-14 z-50 bg-white dark:bg-neutral-950">
             <OddsNavigation
               sport={sport}
               market={market}

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { Zap, TrendingUp, Scale, BookOpen, Activity, Clock, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { IconBolt } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
@@ -57,14 +57,13 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 }
 
 export function MarketPulseStats() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: fetchMetrics,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
     staleTime: 15000,
   });
   
-  // Fallback values
   const metrics = data || {
     edgesFoundToday: 0,
     arbsFoundToday: 0,
@@ -77,15 +76,10 @@ export function MarketPulseStats() {
   };
   
   return (
-    <div className={cn(
-      "h-full flex flex-col p-2 rounded-xl",
-      // Violet/purple gradient for premium pulse feel
-      "bg-gradient-to-br from-violet-50/40 via-transparent to-purple-50/20",
-      "dark:from-violet-950/20 dark:via-transparent dark:to-purple-950/10"
-    )}>
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-center gap-2.5">
           <div className={cn(
             "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
             "bg-gradient-to-br from-violet-500 to-purple-600"
@@ -94,93 +88,71 @@ export function MarketPulseStats() {
           </div>
           <div>
             <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Market Pulse</span>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+              Today's activity snapshot
+            </p>
           </div>
         </div>
         {/* Live indicator */}
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-violet-100/80 dark:bg-violet-900/30">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 border border-violet-200/50 dark:border-violet-700/30">
           <span className="w-1.5 h-1.5 rounded-full bg-violet-500 dark:bg-violet-400 animate-pulse" />
-          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400">LIVE</span>
+          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wide">Live</span>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col justify-between">
-          {/* Hero Stat */}
-          <div className="mb-2">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Zap className="h-3.5 w-3.5 text-violet-500 fill-violet-500" />
-              <span className="text-[10px] font-bold text-violet-600/70 dark:text-violet-400/70 uppercase tracking-wider">
-                Edges Found Today
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black text-neutral-900 dark:text-neutral-100 tracking-tight">
+      {/* Content */}
+      <div className="flex-1 min-h-0 px-3 pb-3 flex items-center">
+        {isLoading ? (
+          <div className="w-full flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+          </div>
+        ) : (
+          /* 3-Column Stats Grid */
+          <div className="grid grid-cols-3 gap-2 w-full">
+            {/* Edges Found Today */}
+            <div className={cn(
+              "flex flex-col items-center justify-center px-2 py-3 rounded-lg text-center",
+              "bg-violet-50 dark:bg-violet-900/20",
+              "border border-violet-200/50 dark:border-violet-800/30"
+            )}>
+              <span className="text-lg font-black text-violet-700 dark:text-violet-300 tabular-nums leading-none">
                 <AnimatedNumber value={metrics.edgesFoundToday} />
               </span>
-              <span className="text-xs font-medium text-neutral-400">
-                +EV bets surfaced
+              <span className="text-[9px] font-semibold text-violet-600/80 dark:text-violet-400/80 uppercase tracking-wide mt-1">
+                Edges
+              </span>
+            </div>
+
+            {/* Highest EV */}
+            <div className={cn(
+              "flex flex-col items-center justify-center px-2 py-3 rounded-lg text-center",
+              "bg-emerald-50 dark:bg-emerald-900/20",
+              "border border-emerald-200/50 dark:border-emerald-800/30"
+            )}>
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 tabular-nums leading-none">
+                {metrics.highestEvToday > 0 ? `+${metrics.highestEvToday.toFixed(1)}%` : "—"}
+              </span>
+              <span className="text-[9px] font-semibold text-emerald-600/80 dark:text-emerald-400/80 uppercase tracking-wide mt-1">
+                Best EV
+              </span>
+            </div>
+
+            {/* Best Arb */}
+            <div className={cn(
+              "flex flex-col items-center justify-center px-2 py-3 rounded-lg text-center",
+              "bg-sky-50 dark:bg-sky-900/20",
+              "border border-sky-200/50 dark:border-sky-800/30"
+            )}>
+              <span className="text-lg font-black text-sky-700 dark:text-sky-300 tabular-nums leading-none">
+                {metrics.highestArbToday > 0 ? `${metrics.highestArbToday.toFixed(2)}%` : "—"}
+              </span>
+              <span className="text-[9px] font-semibold text-sky-600/80 dark:text-sky-400/80 uppercase tracking-wide mt-1">
+                Best Arb
               </span>
             </div>
           </div>
-
-          {/* Secondary Stats Grid */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-2.5 border-t border-violet-100/50 dark:border-violet-900/30">
-            {/* Highest EV - green for profit */}
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1 text-[9px] font-medium text-neutral-400">
-                <TrendingUp className="h-2.5 w-2.5" />
-                Highest EV
-              </div>
-              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                {metrics.highestEvToday > 0 ? `+${metrics.highestEvToday.toFixed(1)}%` : "—"}
-              </div>
-            </div>
-
-            {/* Best Arb - blue for arbitrage */}
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1 text-[9px] font-medium text-neutral-400">
-                <Scale className="h-2.5 w-2.5" />
-                Best Arb
-              </div>
-              <div className="text-sm font-bold text-[#0EA5E9] dark:text-[#7DD3FC]">
-                {metrics.highestArbToday > 0 ? `${metrics.highestArbToday.toFixed(2)}%` : "—"}
-              </div>
-            </div>
-
-            {/* Books Tracked - violet accent */}
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1 text-[9px] font-medium text-neutral-400">
-                <BookOpen className="h-2.5 w-2.5" />
-                Books Active
-              </div>
-              <div className="text-sm font-bold text-violet-600 dark:text-violet-400">
-                {metrics.activeSportsbooks || 17}
-              </div>
-            </div>
-
-            {/* Arbs Today */}
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1 text-[9px] font-medium text-neutral-400">
-                <Activity className="h-2.5 w-2.5" />
-                Arbs Today
-              </div>
-              <div className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
-                <AnimatedNumber value={metrics.arbsFoundToday} />
-              </div>
-            </div>
-          </div>
-
-          {/* Last Updated Footer */}
-          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-violet-100/50 dark:border-violet-900/30 text-[9px] text-violet-500/70 dark:text-violet-400/70">
-            <Clock className="h-2.5 w-2.5" />
-            <span>Updated {metrics.lastUpdated}</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

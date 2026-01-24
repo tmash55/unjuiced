@@ -9,7 +9,6 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { cn } from "@/lib/utils";
-import { Lightbulb, ArrowRight } from "lucide-react";
 import { IconBulb } from "@tabler/icons-react";
 
 const INSIGHTS = [
@@ -33,73 +32,69 @@ const INSIGHTS = [
 
 export function QuickInsightsCarousel() {
   return (
-    <div className={cn(
-      "h-full flex flex-col p-2 rounded-xl",
-      // Brand blue gradient for educational content
-      "bg-gradient-to-br from-[#0EA5E9]/[0.04] via-transparent to-[#7DD3FC]/[0.02]",
-      "dark:from-[#0EA5E9]/[0.06] dark:via-transparent dark:to-[#7DD3FC]/[0.03]"
-    )}>
+    <Carousel
+      opts={{
+        align: "start",
+        loop: true,
+      }}
+      className="h-full flex flex-col"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-center gap-2.5">
           <div className={cn(
             "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
-            // Brand blue gradient
-            "bg-gradient-to-br from-[#0EA5E9] to-[#0284C7]"
+            "bg-gradient-to-br from-sky-500 to-blue-600"
           )}>
             <IconBulb className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Quick Insights</span>
+          <div>
+            <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Quick Insights</span>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+              Tips & education
+            </p>
+          </div>
+        </div>
+        
+        {/* Navigation Controls */}
+        <div className="flex gap-1">
+          <CarouselPrevious className="static translate-y-0 translate-x-0 !h-6 !w-6 border-sky-200 dark:border-sky-700/30 hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:border-sky-300 dark:hover:border-sky-600/30" />
+          <CarouselNext className="static translate-y-0 translate-x-0 !h-6 !w-6 border-sky-200 dark:border-sky-700/30 hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:border-sky-300 dark:hover:border-sky-600/30" />
         </div>
       </div>
 
-      <Carousel
-        opts={{
-          align: "start",
-          loop: true,
-        }}
-        className="w-full flex-1 flex flex-col min-h-0"
-      >
-        <CarouselContent className="h-full">
-          {INSIGHTS.map((insight, index) => (
-            <CarouselItem key={index} className="h-full">
-              <div className="h-full flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className={cn(
-                    "h-7 w-7 rounded-lg flex items-center justify-center",
-                    "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10"
-                  )}>
-                    <Lightbulb className="h-3.5 w-3.5 text-[#0EA5E9] dark:text-[#7DD3FC]" />
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 leading-tight">
-                      {insight.title}
-                    </h4>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                      {insight.description}
-                    </p>
-                  </div>
+      {/* Carousel Content */}
+      <CarouselContent className="flex-1 min-h-0">
+        {INSIGHTS.map((insight, index) => (
+          <CarouselItem key={index} className="h-full">
+            <div className="h-full flex flex-col justify-center px-4 py-3">
+              {/* Insight Card */}
+              <div className={cn(
+                "p-4 rounded-xl",
+                "bg-sky-50 dark:bg-sky-900/20",
+                "border border-sky-200/50 dark:border-sky-800/30"
+              )}>
+                {/* Index Badge */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wide">
+                    Tip {index + 1} of {INSIGHTS.length}
+                  </span>
                 </div>
-
-                <div className={cn(
-                  "flex items-center text-[10px] font-semibold mt-2 transition-colors",
-                  "text-[#0284C7] dark:text-[#7DD3FC]",
-                  "hover:text-[#0EA5E9] dark:hover:text-[#38BDF8]"
-                )}>
-                  Learn more <ArrowRight className="ml-1 h-3 w-3" />
-                </div>
+                
+                {/* Title */}
+                <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 leading-tight mb-1.5">
+                  {insight.title}
+                </h4>
+                
+                {/* Description */}
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {insight.description}
+                </p>
               </div>
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        
-        {/* Navigation Controls */}
-        <div className="absolute -top-8 right-0 flex gap-1">
-          <CarouselPrevious className="static translate-y-0 translate-x-0 left-auto top-auto right-auto bottom-auto !h-6 !w-6 border-[#0EA5E9]/20 hover:bg-[#0EA5E9]/10 hover:border-[#0EA5E9]/30" />
-          <CarouselNext className="static translate-y-0 translate-x-0 left-auto top-auto right-auto bottom-auto !h-6 !w-6 border-[#0EA5E9]/20 hover:bg-[#0EA5E9]/10 hover:border-[#0EA5E9]/30" />
-        </div>
-      </Carousel>
-    </div>
+            </div>
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+    </Carousel>
   );
 }

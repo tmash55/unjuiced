@@ -88,7 +88,7 @@ function getInsightText(bet: BestBet): string {
   return `+${bet.evPercent.toFixed(1)}% edge vs Pinnacle`;
 }
 
-// Premium Bet Row Component - Conviction → Context → Action
+// Premium Bet Row Component - Light/Dark responsive
 function BetRow({ bet }: { bet: BestBet }) {
   const bookMeta = getSportsbookById(bet.book);
   const bookLogo = bookMeta?.image?.light;
@@ -99,133 +99,136 @@ function BetRow({ bet }: { bet: BestBet }) {
 
   return (
     <div className={cn(
-      "group relative flex gap-3 p-3 mb-3 rounded-xl transition-all duration-200",
-      "bg-neutral-50/50 dark:bg-neutral-900/50",
-      "hover:bg-neutral-100/80 dark:hover:bg-neutral-800/50",
-      "border border-transparent hover:border-neutral-200/50 dark:hover:border-neutral-700/50"
+      "group relative rounded-xl overflow-hidden transition-all duration-300 mb-3",
+      "bg-white dark:bg-neutral-900",
+      "border border-neutral-200 dark:border-neutral-800",
+      "hover:ring-1 hover:ring-emerald-500/30",
+      "hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/5"
     )}>
-      {/* 1️⃣ CONVICTION COLUMN - EV Badge (premium pill treatment) */}
-      <div className="flex flex-col items-center justify-center shrink-0">
-        {/* EV Badge - Soft pill with tinted background */}
-        <div className={cn(
-          "relative flex items-center justify-center px-3 py-2 rounded-lg",
-          // Subtle tinted background - works in light + dark mode
-          "bg-emerald-500/[0.08] dark:bg-emerald-500/[0.12]",
-          // Optional soft border for extra definition
-          "border border-emerald-500/20 dark:border-emerald-500/20"
-        )}>
-          {/* EV % - The visual anchor */}
-          <span className="text-lg font-black tabular-nums text-emerald-600 dark:text-emerald-400 leading-none">
-            {bet.evPercent.toFixed(1)}%
-          </span>
-        </div>
-      </div>
-
-      {/* 2️⃣ CONTEXT COLUMN - Player, Market, Insight */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
-        {/* Player + Sport - tighter grouping */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
-            {bet.player}
-          </span>
-          <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 shrink-0">
-            {sportLabel}
-          </span>
-        </div>
-        
-        {/* Market + Line - reduced spacing, leaning into O/U color */}
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-            {bet.marketDisplay}
-          </span>
-          <span className={cn(
-            "text-xs font-semibold",
-            bet.side === "over" 
-              ? "text-emerald-600 dark:text-emerald-400" 
-              : "text-rose-600 dark:text-rose-400"
-          )}>
-            {bet.side === "over" ? "O" : "U"} {bet.line}
-          </span>
-        </div>
-        
-        {/* Insight Row - The "why" (KEY differentiator) */}
-        <div className="mt-2 pt-1.5 border-t border-neutral-100 dark:border-neutral-800/50">
-          <span className="text-[10px] text-neutral-500 dark:text-neutral-400 italic">
-            {insight}
-          </span>
-        </div>
-      </div>
-
-      {/* 3️⃣ ACTION COLUMN - Book + Odds + CTA (brand first = trust) */}
-      <div className="flex flex-col items-end justify-between shrink-0">
-        {/* Book + Odds grouped (brand first, odds second) */}
-        <div className="flex items-center gap-1.5">
-          {bookLogo && (
-            <img 
-              src={bookLogo} 
-              alt={bookName} 
-              className="h-4 w-auto object-contain opacity-80" 
-            />
-          )}
-          <span className="text-base font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
-            {bet.bestOddsFormatted}
-          </span>
-        </div>
-        
-        {/* CTA Button - Calm, confident */}
-        {betLink ? (
-          <a
-            href={betLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "flex items-center gap-1 px-3 py-1.5 mt-2 rounded-lg text-xs font-semibold transition-all",
-              "bg-emerald-600 text-white",
-              "hover:bg-emerald-500",
-              "active:scale-[0.98]"
-            )}
-          >
-            Bet
-            <ArrowRight className="w-3 h-3" />
-          </a>
-        ) : (
-          <div className="flex items-center gap-1 px-3 py-1.5 mt-2 rounded-lg text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-400">
-            <Lock className="w-3 h-3" />
-            <span>Link</span>
+      {/* Main Content Row */}
+      <div className="flex items-stretch">
+        {/* EV Badge Column - Prominent visual anchor */}
+        <div className="flex items-center justify-center px-4 py-4 bg-emerald-50 dark:bg-emerald-500/10 border-r border-emerald-200 dark:border-emerald-500/20">
+          <div className="text-center">
+            <span className="text-xl font-black tabular-nums text-emerald-600 dark:text-emerald-400 leading-none">
+              {bet.evPercent.toFixed(1)}%
+            </span>
           </div>
-        )}
+        </div>
+
+        {/* Context Column - Player & Market Info */}
+        <div className="flex-1 min-w-0 px-4 py-3 flex flex-col justify-center">
+          {/* Player Name + Sport */}
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-neutral-900 dark:text-white truncate">
+              {bet.player}
+            </span>
+            <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide shrink-0">
+              {sportLabel}
+            </span>
+          </div>
+          
+          {/* Market + Line */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              {bet.marketDisplay}
+            </span>
+            <span className={cn(
+              "text-sm font-bold",
+              bet.side === "over" 
+                ? "text-emerald-600 dark:text-emerald-400" 
+                : "text-rose-600 dark:text-rose-400"
+            )}>
+              {bet.side === "over" ? "O" : "U"} {bet.line}
+            </span>
+          </div>
+          
+          {/* Insight - The "why" */}
+          <div className="mt-2">
+            <span className="text-[11px] text-neutral-500 italic">
+              {insight}
+            </span>
+          </div>
+        </div>
+
+        {/* Action Column - Book, Odds & CTA */}
+        <div className="flex flex-col items-end justify-between px-4 py-3 shrink-0">
+          {/* Book Logo + Odds */}
+          <div className="flex items-center gap-2">
+            {bookLogo && (
+              <img 
+                src={bookLogo} 
+                alt={bookName} 
+                className="h-5 w-5 object-contain rounded" 
+              />
+            )}
+            <span className="text-lg font-bold tabular-nums text-neutral-900 dark:text-white">
+              {bet.bestOddsFormatted}
+            </span>
+          </div>
+          
+          {/* CTA Button */}
+          {betLink ? (
+            <a
+              href={betLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 mt-2 rounded-lg text-xs font-bold transition-all",
+                "bg-emerald-500 text-white",
+                "hover:bg-emerald-400",
+                "active:scale-[0.97]"
+              )}
+            >
+              Bet
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <div className="flex items-center gap-1.5 px-4 py-2 mt-2 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400">
+              <Lock className="w-3 h-3" />
+              <span>Link</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// Locked Bet Row for non-pro users
+// Locked Bet Row for non-pro users - Light/Dark responsive
 function LockedBetRow() {
   return (
     <div className={cn(
-      "relative flex gap-3 p-3 mb-3 rounded-xl",
-      "bg-neutral-50/30 dark:bg-neutral-900/30",
-      "border border-dashed border-neutral-200 dark:border-neutral-800"
+      "relative rounded-xl overflow-hidden mb-3",
+      "bg-neutral-100/60 dark:bg-neutral-900/60",
+      "border border-dashed border-neutral-300 dark:border-neutral-700/50"
     )}>
-      {/* Blurred conviction column - matching new badge style */}
-      <div className="flex flex-col items-center justify-center shrink-0 opacity-30 blur-[2px]">
-        <div className="flex items-center justify-center px-3 py-2 rounded-lg bg-neutral-200/50 dark:bg-neutral-700/50 border border-neutral-300/30">
-          <span className="text-lg font-black tabular-nums text-neutral-400 leading-none">?.?%</span>
+      {/* Blurred content mimicking the row layout */}
+      <div className="flex items-stretch opacity-40 blur-[3px]">
+        {/* EV Badge area */}
+        <div className="flex items-center justify-center px-4 py-4 bg-neutral-200/50 dark:bg-neutral-800/50 border-r border-neutral-300/30 dark:border-neutral-700/30">
+          <span className="text-xl font-black tabular-nums text-neutral-400 dark:text-neutral-500 leading-none">?.?%</span>
+        </div>
+        
+        {/* Content area */}
+        <div className="flex-1 min-w-0 px-4 py-3">
+          <div className="h-4 w-28 bg-neutral-300 dark:bg-neutral-700 rounded mb-2" />
+          <div className="h-3 w-20 bg-neutral-200 dark:bg-neutral-800 rounded mb-2" />
+          <div className="h-2 w-32 bg-neutral-200 dark:bg-neutral-800 rounded" />
+        </div>
+        
+        {/* Action area */}
+        <div className="flex flex-col items-end justify-between px-4 py-3">
+          <div className="h-5 w-14 bg-neutral-300 dark:bg-neutral-700 rounded" />
+          <div className="h-8 w-16 bg-neutral-200 dark:bg-neutral-800 rounded-lg mt-2" />
         </div>
       </div>
 
-      {/* Blurred content */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center opacity-30 blur-[2px]">
-        <div className="h-4 w-32 bg-neutral-200 dark:bg-neutral-700 rounded" />
-        <div className="h-3 w-20 bg-neutral-100 dark:bg-neutral-800 rounded mt-1" />
-        <div className="h-2 w-36 bg-neutral-100 dark:bg-neutral-800 rounded mt-2.5" />
-      </div>
-
       {/* Lock overlay */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-neutral-900/90 border border-neutral-200 dark:border-neutral-700">
-          <Lock className="w-3.5 h-3.5 text-neutral-400" />
-          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Pro Only</span>
+      <div className="absolute inset-0 flex items-center justify-center bg-white/30 dark:bg-neutral-900/30">
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm">
+          <Lock className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+          <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Pro Only</span>
         </div>
       </div>
     </div>
@@ -269,107 +272,9 @@ export function BestBetsSection() {
   };
   
   return (
-    <section className={cn(
-      "h-full flex flex-col relative group/bento rounded-xl",
-      // Subtle emerald gradient background for +EV branding
-      "bg-gradient-to-br from-emerald-50/30 via-transparent to-emerald-50/10",
-      "dark:from-emerald-950/20 dark:via-transparent dark:to-emerald-950/10"
-    )}>
-      {/* Content */}
-      <div 
-        ref={scrollRef}
-        onScroll={checkScroll}
-        className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide pb-6"
-      >
-        {isLoading || isLoadingPlan ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex gap-3 rounded-xl p-3 bg-neutral-50/50 dark:bg-neutral-900/50 animate-pulse">
-                {/* Conviction skeleton */}
-                <div className="w-12 flex flex-col items-center">
-                  <div className="w-1 h-full bg-neutral-200 dark:bg-neutral-700 rounded-full" />
-                </div>
-                {/* Content skeleton */}
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-32 bg-neutral-200 dark:bg-neutral-700 rounded" />
-                  <div className="h-3 w-24 bg-neutral-100 dark:bg-neutral-800 rounded" />
-                  <div className="h-2 w-40 bg-neutral-100 dark:bg-neutral-800 rounded" />
-                </div>
-                {/* Action skeleton */}
-                <div className="w-20 flex flex-col items-end gap-2">
-                  <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
-                  <div className="h-7 w-16 bg-emerald-200 dark:bg-emerald-900/30 rounded-lg" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="py-8 text-center">
-            <p className="text-neutral-500 dark:text-neutral-400 text-sm">
-              Unable to load opportunities
-            </p>
-          </div>
-        ) : bets.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-neutral-600 dark:text-neutral-300 text-sm font-medium">
-              Markets are updating
-            </p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              Best bets refresh throughout the day
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Bet Rows - Vertical Stack with Conviction → Context → Action */}
-            <div>
-              {visibleBets.map((bet) => (
-                <BetRow key={bet.id} bet={bet} />
-              ))}
-            </div>
-            
-            {/* Locked previews + Upgrade prompt for non-pro users */}
-            {!isPro && hiddenCount > 0 && (
-              <div className="mt-1">
-                {/* Show 1-2 locked rows as teasers */}
-                <LockedBetRow />
-                {hiddenCount > 1 && <LockedBetRow />}
-                
-                {/* Upgrade CTA */}
-                <Link
-                  href="/subscribe"
-                  className={cn(
-                    "flex items-center justify-center gap-2 py-3 px-4 rounded-xl mt-2",
-                    "bg-gradient-to-r from-neutral-900 to-neutral-800",
-                    "dark:from-white dark:to-neutral-100",
-                    "text-white dark:text-neutral-900",
-                    "text-sm font-bold",
-                    "hover:opacity-90 transition-opacity"
-                  )}
-                >
-                  <Lock className="h-3.5 w-3.5" />
-                  Unlock {hiddenCount} more edges
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Floating Scroll Arrow */}
-      {showScrollArrow && (
-        <div className="absolute bottom-14 left-0 right-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <button
-            onClick={handleScrollDown}
-            className="flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-md pointer-events-auto hover:scale-110 transition-transform"
-          >
-            <ChevronDown className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
-          </button>
-        </div>
-      )}
-
-      {/* Footer - Section title with hover animation */}
-      <div className="mt-auto pt-3 px-1 flex items-center justify-between transition duration-200 group-hover/bento:translate-x-2 border-t border-emerald-100/50 dark:border-emerald-900/30">
+    <section className="h-full flex flex-col relative group/bento rounded-xl">
+      {/* Header with hover animation */}
+      <div className="flex items-center justify-between px-1 py-2 transition duration-200 group-hover/bento:translate-x-2">
         <div className="flex items-center gap-2.5">
           <div className={cn(
             "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
@@ -378,10 +283,8 @@ export function BestBetsSection() {
             <Trophy className="h-3.5 w-3.5 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
-              Today's Best Bets
-            </h2>
-            <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 font-medium">
+            <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Today's Best Bets</span>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
               +EV edges • Devigged vs Pinnacle
             </p>
           </div>
@@ -401,6 +304,96 @@ export function BestBetsSection() {
           <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
+
+      {/* Content - padding to prevent hover ring clipping */}
+      <div 
+        ref={scrollRef}
+        onScroll={checkScroll}
+        className="flex-1 min-h-0 overflow-y-auto px-1 scrollbar-hide pt-1"
+      >
+        {isLoading || isLoadingPlan ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 animate-pulse overflow-hidden">
+                <div className="flex items-stretch">
+                  <div className="w-20 py-4 bg-emerald-50 dark:bg-emerald-500/10 border-r border-emerald-200 dark:border-emerald-500/20" />
+                  <div className="flex-1 px-4 py-3 space-y-2">
+                    <div className="h-4 w-28 bg-neutral-200 dark:bg-neutral-700 rounded" />
+                    <div className="h-3 w-20 bg-neutral-100 dark:bg-neutral-800 rounded" />
+                    <div className="h-2 w-32 bg-neutral-100 dark:bg-neutral-800 rounded" />
+                  </div>
+                  <div className="w-24 px-4 py-3 flex flex-col items-end gap-2">
+                    <div className="h-5 w-14 bg-neutral-200 dark:bg-neutral-700 rounded" />
+                    <div className="h-8 w-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="py-8 text-center">
+            <p className="text-neutral-500 dark:text-neutral-400 text-sm">
+              Unable to load opportunities
+            </p>
+          </div>
+        ) : bets.length === 0 ? (
+          <div className="py-8 text-center rounded-xl bg-neutral-900/50 dark:bg-neutral-950/50">
+            <p className="text-neutral-300 text-sm font-medium">
+              Markets are updating
+            </p>
+            <p className="text-xs text-neutral-500 mt-1">
+              Best bets refresh throughout the day
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Bet Rows */}
+            <div>
+              {visibleBets.map((bet) => (
+                <BetRow key={bet.id} bet={bet} />
+              ))}
+            </div>
+            
+            {/* Locked previews + Upgrade prompt for non-pro users */}
+            {!isPro && hiddenCount > 0 && (
+              <div className="mt-1">
+                {/* Show 1-2 locked rows as teasers */}
+                <LockedBetRow />
+                {hiddenCount > 1 && <LockedBetRow />}
+                
+                {/* Upgrade CTA */}
+                <Link
+                  href="/subscribe"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl mt-3",
+                    "bg-gradient-to-r from-emerald-600 to-teal-600",
+                    "text-white",
+                    "text-sm font-bold",
+                    "hover:from-emerald-500 hover:to-teal-500 transition-all",
+                    "shadow-lg shadow-emerald-500/20"
+                  )}
+                >
+                  <Lock className="h-4 w-4" />
+                  Unlock {hiddenCount} more edges
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Floating Scroll Arrow */}
+      {showScrollArrow && (
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <button
+            onClick={handleScrollDown}
+            className="flex items-center justify-center w-7 h-7 rounded-full bg-neutral-800 border border-neutral-700 shadow-md pointer-events-auto hover:scale-110 hover:bg-neutral-700 transition-all"
+          >
+            <ChevronDown className="w-4 h-4 text-neutral-400" />
+          </button>
+        </div>
+      )}
     </section>
   );
 }

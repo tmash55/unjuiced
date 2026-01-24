@@ -18,8 +18,42 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
 
-// Helper to get app subdomain URL for auth routes
-// Uses window.location in browser to detect local vs production
+// Hook to get app subdomain URL for auth routes with proper hydration handling
+// Returns URLs that update after client-side mount to use correct localhost port
+function useAppAuthUrls() {
+  const [urls, setUrls] = useState({
+    login: "/login", // Initial safe fallback (relative)
+    register: "/register",
+  });
+  
+  useEffect(() => {
+    // After mount, compute the correct URLs based on actual hostname
+    const host = window.location.host;
+    const isLocal = host.includes('localhost');
+    
+    if (isLocal) {
+      const port = host.split(':')[1] || '3000';
+      const baseUrl = `http://app.localhost:${port}`;
+      setUrls({
+        login: `${baseUrl}/login`,
+        register: `${baseUrl}/register`,
+      });
+    } else {
+      // Production: use env var or default
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.unjuiced.bet';
+      const baseUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+      setUrls({
+        login: `${baseUrl}/login`,
+        register: `${baseUrl}/register`,
+      });
+    }
+  }, []);
+  
+  return urls;
+}
+
+// Helper to get app subdomain URL for auth routes (for non-hook contexts)
+// NOTE: This doesn't work well with SSR - use useAppAuthUrls hook instead
 function getAppAuthUrl(path: string): string {
   // In browser, check the actual hostname
   if (typeof window !== 'undefined') {
@@ -108,6 +142,7 @@ export function PublicNav({
   const layoutGroupId = useId();
   const scrolled = useScroll(40);
   const pathname = usePathname();
+  const authUrls = useAppAuthUrls();
 
   return (
     <PublicNavContext.Provider value={{ theme }}>
@@ -200,14 +235,14 @@ export function PublicNav({
               <div className="hidden grow basis-0 justify-end gap-3 lg:flex items-center">
                 {/* Login - plain text link, less focal */}
                 <a
-                  href={getAppAuthUrl("/login")}
+                  href={authUrls.login}
                   className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors dark:text-neutral-300 dark:hover:text-white"
                 >
                   Login
                 </a>
                 {/* Sign up for free - prominent blue button */}
                 <a
-                  href={getAppAuthUrl("/register")}
+                  href={authUrls.register}
                   className={cn(
                     "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
                     "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
@@ -270,6 +305,7 @@ function PublicMobileNav({ domain }: { domain: string }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const authUrls = useAppAuthUrls();
   
   useEffect(() => {
     setMounted(true);
@@ -420,7 +456,7 @@ function PublicMobileNav({ domain }: { domain: string }) {
                   >
                     <div className="space-y-3">
                       <a
-                        href={getAppAuthUrl("/login")}
+                        href={authUrls.login}
                         onClick={() => setIsOpen(false)}
                         className={cn(
                           "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
@@ -432,7 +468,7 @@ function PublicMobileNav({ domain }: { domain: string }) {
                         <span className="relative z-10">Login</span>
                       </a>
                       <a
-                        href={getAppAuthUrl("/register")}
+                        href={authUrls.register}
                         onClick={() => setIsOpen(false)}
                         className={cn(
                           "flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all",

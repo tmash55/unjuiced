@@ -69,8 +69,8 @@ export async function fetchPropsTable(params: {
   if (params.limit != null) sp.set("limit", String(params.limit));
   if (params.playerId) sp.set("playerId", params.playerId);
   if (params.team) sp.set("team", params.team);
-  const res = await fetch(`/api/props/table?${sp.toString()}`, { credentials: "include", cache: "no-store" });
-  if (!res.ok) throw new Error(`GET /api/props/table ${res.status}`);
+  const res = await fetch(`/api/v2/props/table?${sp.toString()}`, { credentials: "include", cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/v2/props/table ${res.status}`);
   return res.json();
 }
 

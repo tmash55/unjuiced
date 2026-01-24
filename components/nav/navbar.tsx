@@ -28,10 +28,39 @@ import { AccountDropdown } from "./account-dropdown";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useMobileNav } from "@/contexts/mobile-nav-context";
 
-// Helper to get app subdomain URL for auth routes
-// Uses window.location in browser to detect local vs production
+// Hook to get app subdomain URL for auth routes with proper hydration handling
+function useAppAuthUrls() {
+  const [urls, setUrls] = useState({
+    login: "/login",
+    register: "/register",
+  });
+  
+  useEffect(() => {
+    const host = window.location.host;
+    const isLocal = host.includes('localhost');
+    
+    if (isLocal) {
+      const port = host.split(':')[1] || '3000';
+      const baseUrl = `http://app.localhost:${port}`;
+      setUrls({
+        login: `${baseUrl}/login`,
+        register: `${baseUrl}/register`,
+      });
+    } else {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.unjuiced.bet';
+      const baseUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+      setUrls({
+        login: `${baseUrl}/login`,
+        register: `${baseUrl}/register`,
+      });
+    }
+  }, []);
+  
+  return urls;
+}
+
+// Helper to get app subdomain URL for auth routes (legacy, prefer hook)
 function getAppAuthUrl(path: string): string {
-  // In browser, check the actual hostname
   if (typeof window !== 'undefined') {
     const host = window.location.host;
     const isLocal = host.includes('localhost');
@@ -42,14 +71,12 @@ function getAppAuthUrl(path: string): string {
     }
   }
   
-  // Server-side or production: use env var
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
     const baseUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
     return `${baseUrl}${path}`;
   }
   
-  // Production fallback
   return `https://app.unjuiced.bet${path}`;
 }
 
@@ -130,6 +157,7 @@ export function Nav({
   const pathname = usePathname();
   const { user, loading } = useAuth();
   const { data: entitlements } = useEntitlements();
+  const authUrls = useAppAuthUrls();
 
   // Hide pricing if user has Pro via subscription or grant (still show during trial to encourage upgrade)
   const showPricing =
@@ -241,14 +269,14 @@ export function Nav({
                       <>
                         {/* Login - plain text link, less focal */}
                         <a
-                          href={getAppAuthUrl("/login")}
+                          href={authUrls.login}
                           className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors dark:text-neutral-300 dark:hover:text-white"
                         >
                           Login
                         </a>
                         {/* Sign up for free - prominent blue button */}
                         <a
-                          href={getAppAuthUrl("/register")}
+                          href={authUrls.register}
                           className={cn(
                             "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
                             "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
@@ -317,6 +345,7 @@ function MobileNav({ domain }: { domain: string }) {
   const { data: entitlements } = useEntitlements();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const authUrls = useAppAuthUrls();
   
   // Avoid hydration mismatch for theme
   useEffect(() => {
@@ -574,7 +603,7 @@ function MobileNav({ domain }: { domain: string }) {
                       <>
                         <div className="space-y-3">
                           <a
-                            href={getAppAuthUrl("/login")}
+                            href={authUrls.login}
                             onClick={() => setIsOpen(false)}
                             className={cn(
                               "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
@@ -586,7 +615,7 @@ function MobileNav({ domain }: { domain: string }) {
                             <span className="relative z-10">Login</span>
                           </a>
                           <a
-                            href={getAppAuthUrl("/register")}
+                            href={authUrls.register}
                             onClick={() => setIsOpen(false)}
                             className={cn(
                               "flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all",

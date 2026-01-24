@@ -1080,58 +1080,70 @@ code .line::before {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    RELAXED VIEW VARIANTS
-   Normal cell sizes matching production - comfortable for casual users
+   Larger, more comfortable cell sizes for casual users who prefer bigger text
    These use --relaxed suffix to distinguish from compact (power user) view
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Relaxed sportsbook cell - matches production base styles */
+/* Relaxed sportsbook cell - significantly larger for readability */
 .sportsbook-cell--relaxed {
-  padding: 1px 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 /* Relaxed single-line variant */
 .sportsbook-cell--relaxed-single-line {
-  padding: 1px 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Relaxed best line cell - matches production */
+/* Relaxed best line cell - larger with better visual hierarchy */
 .best-line--relaxed {
-  padding: 1px 4px;
-  gap: 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  gap: 6px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 /* Relaxed single-line best line */
 .best-line--relaxed-single-line {
-  padding: 1px 4px;
-  gap: 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  gap: 6px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Relaxed average line cell - matches production */
+/* Relaxed average line cell - larger for better readability */
 .avg-line--relaxed {
-  padding: 1px 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 /* Relaxed single-line average line */
 .avg-line--relaxed-single-line {
-  padding: 1px 4px;
-  border-radius: 5px;
-  min-height: 24px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 40px;
+  font-size: 0.8rem;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1726,6 +1738,167 @@ thead .books th {
 
 .dark .use-case-card:hover {
   background: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Hit Rate Cards - Premium Dashboard Styling
+   Clean, dark-header design with clear visual hierarchy
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Card container */
+.hit-rate-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  background: var(--card);
+}
+
+.hit-rate-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-color: color-mix(in oklab, var(--border) 100%, transparent);
+}
+
+.dark .hit-rate-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Dark header section */
+.hit-rate-card-header {
+  background: #171717;
+  padding: 1rem;
+  color: white;
+}
+
+.dark .hit-rate-card-header {
+  background: #0a0a0a;
+}
+
+/* Stats grid */
+.hit-rate-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--color-neutral-50);
+}
+
+.dark .hit-rate-stats-grid {
+  background: color-mix(in oklab, var(--card) 80%, #000);
+}
+
+.hit-rate-stat {
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  border-right: 1px solid var(--border);
+}
+
+.hit-rate-stat:last-child {
+  border-right: none;
+}
+
+.hit-rate-stat-label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.hit-rate-stat-value {
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.hit-rate-stat-value--strong {
+  color: var(--color-success);
+}
+
+.hit-rate-stat-value--moderate {
+  color: var(--color-warning);
+}
+
+.hit-rate-stat-value--weak {
+  color: var(--text-muted);
+}
+
+/* Confidence badges */
+.hit-rate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.hit-rate-badge--elite {
+  background: color-mix(in oklab, #f97316 20%, transparent);
+  color: #f97316;
+}
+
+.hit-rate-badge--strong {
+  background: color-mix(in oklab, var(--color-success) 20%, transparent);
+  color: var(--color-success);
+}
+
+.hit-rate-badge--volatile {
+  background: color-mix(in oklab, var(--color-warning) 20%, transparent);
+  color: var(--color-warning);
+}
+
+/* Matchup footer */
+.hit-rate-matchup {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hit-rate-opponent {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.hit-rate-game-time {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--color-neutral-100);
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+}
+
+.dark .hit-rate-game-time {
+  background: var(--color-neutral-800);
+}
+
+/* DVP Badge */
+.hit-rate-dvp {
+  font-size: 0.625rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.hit-rate-dvp--favorable {
+  background: color-mix(in oklab, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.hit-rate-dvp--neutral {
+  background: var(--color-neutral-100);
+  color: var(--text-muted);
+}
+
+.dark .hit-rate-dvp--neutral {
+  background: var(--color-neutral-800);
 }
 
 

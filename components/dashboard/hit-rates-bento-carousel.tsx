@@ -406,6 +406,12 @@ function ExpandedHitRateCard({
     return () => { document.body.style.overflow = "auto"; };
   }, []);
 
+  // Calculate hits for display
+  const hitsL10 = item.gameLogs?.slice(0, 10).filter(g => {
+    const lineNum = typeof item.line === 'string' ? parseFloat(item.line) : item.line;
+    return g.market_stat > lineNum;
+  }).length || 0;
+
   return (
     <div className="fixed inset-0 grid place-items-center z-[100]">
       <motion.div
@@ -417,64 +423,67 @@ function ExpandedHitRateCard({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {/* Header with gradient - matches card header style */}
-        <div className="relative bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-850 p-5 border-b border-neutral-100 dark:border-neutral-800">
+        {/* Header - Light/Dark responsive */}
+        <div className="relative bg-neutral-100 dark:bg-neutral-900 p-5">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/80 dark:bg-neutral-800/80 hover:bg-white dark:hover:bg-neutral-700 transition-colors z-10"
+            className="absolute top-4 right-4 p-2 rounded-full bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors z-10"
           >
-            <IconX className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+            <IconX className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
           </button>
           
-          <div className="flex items-center gap-4">
-            {/* Player Headshot with team logo overlay - matching card style */}
+          <div className="flex items-start gap-4">
+            {/* Player Headshot */}
             <motion.div 
               layoutId={`headshot-${item.playerId}-${item.market}-${id}`}
               className="relative shrink-0"
             >
-              <div className="h-20 w-20 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700 border-4 border-white dark:border-neutral-800 shadow-lg">
+              <div className="h-20 w-20 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 ring-2 ring-neutral-300/50 dark:ring-neutral-700/50">
                 <img
                   src={getPlayerHeadshotUrl(item.playerId, "small")}
                   alt={item.playerName}
                   className="h-full w-full object-cover object-top"
                 />
               </div>
-              {/* Team logo overlay */}
-              <img
-                src={`/team-logos/nba/${item.team}.svg`}
-                alt={item.team}
-                className="absolute -bottom-1 -right-1 h-7 w-7 object-contain bg-white dark:bg-neutral-800 rounded-full p-1 shadow-md border border-neutral-200 dark:border-neutral-700"
-              />
             </motion.div>
             
-            <div className="flex-1 min-w-0">
-              <motion.h2 
-                layoutId={`name-${item.playerId}-${item.market}-${id}`}
-                className="text-2xl font-bold text-neutral-900 dark:text-neutral-100"
-              >
-                {item.playerName}
-              </motion.h2>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 flex items-center gap-2 mt-0.5">
-                <span>{item.team}</span>
-                <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                <span>{item.position}</span>
-              </p>
+            <div className="flex-1 min-w-0 pt-1">
+              <div className="flex items-center gap-2">
+                <motion.h2 
+                  layoutId={`name-${item.playerId}-${item.market}-${id}`}
+                  className="text-2xl font-bold text-neutral-900 dark:text-white"
+                >
+                  {item.playerName}
+                </motion.h2>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                {/* Team Logo */}
+                <img
+                  src={`/team-logos/nba/${item.team}.svg`}
+                  alt={item.team}
+                  className="h-5 w-5 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span className="text-sm text-neutral-500 dark:text-neutral-400">{item.position}</span>
+              </div>
               
               {/* Market & Line + Badge */}
               <div className="flex items-center gap-2 mt-3">
-                <div className="px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                  <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                    {item.marketDisplay} O {item.line}
-                  </span>
+                <div className="px-3 py-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-sm font-bold text-neutral-900 dark:text-white">
+                  {item.marketDisplay} O {item.line}
                 </div>
                 
                 {/* Confidence Badge */}
                 <div className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold",
-                  badge.color
+                  badge.label === "Elite" && "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400",
+                  badge.label === "Strong" && "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+                  badge.label === "Volatile" && "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400"
                 )}>
-                  <BadgeIcon className={cn("h-4 w-4", badge.iconColor)} />
+                  <BadgeIcon className="h-4 w-4" />
                   <span>{badge.label}</span>
                 </div>
               </div>
@@ -483,90 +492,94 @@ function ExpandedHitRateCard({
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-auto p-5 space-y-5">
-          {/* Matchup Info */}
+        <div className="flex-1 overflow-auto">
+          {/* Matchup Info - Now grouped with visual prominence */}
           {item.opponent && (
-            <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
+            <div className="flex items-center justify-between px-5 py-4 bg-neutral-50 dark:bg-neutral-800/40 border-b border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-neutral-500">{item.homeAway === 'H' ? 'vs' : '@'}</span>
+                <span className="text-sm font-medium text-neutral-400">{item.homeAway === 'H' ? 'vs' : '@'}</span>
                 <img
                   src={`/team-logos/nba/${item.opponent}.svg`}
                   alt={item.opponent}
                   className="h-8 w-8 object-contain"
                 />
-                <span className="font-bold text-neutral-900 dark:text-neutral-100">{item.opponent}</span>
-              </div>
-              <div className="text-right">
-                {item.gameStatus && (
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{item.gameStatus}</p>
-                )}
+                <span className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{item.opponent}</span>
                 {item.dvpRank && (
-                  <p className={cn(
-                    "text-xs mt-0.5",
-                    item.dvpLabel === 'favorable' ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-neutral-500"
+                  <span className={cn(
+                    "text-xs px-2.5 py-1 rounded-full font-semibold",
+                    item.dvpLabel === 'favorable' 
+                      ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" 
+                      : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
                   )}>
-                    #{item.dvpRank} vs {item.marketDisplay}
+                    #{item.dvpRank} DVP
+                  </span>
+                )}
+              </div>
+              {item.gameStatus && (
+                <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 bg-neutral-200 dark:bg-neutral-700 px-3 py-1.5 rounded-lg">
+                  {item.gameStatus}
+                </span>
+              )}
+            </div>
+          )}
+          
+          <div className="p-5 space-y-5">
+            {/* Hit Rate Stats - Clean grid */}
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "L5", value: item.l5, avg: item.l5Avg, hits: item.gameLogs?.slice(0, 5).filter(g => g.market_stat > (typeof item.line === 'string' ? parseFloat(item.line) : item.line)).length || 0, total: 5 },
+                { label: "L10", value: item.l10, avg: item.l10Avg, hits: hitsL10, total: 10 },
+                { label: "L20", value: item.l20, avg: null, hits: null, total: null },
+                { label: "Season", value: item.szn, avg: null, hits: null, total: null },
+              ].map((stat) => (
+                <div 
+                  key={stat.label}
+                  className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 text-center"
+                >
+                  <p className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2 font-medium">{stat.label}</p>
+                  <p className={cn(
+                    "text-2xl font-black",
+                    stat.value >= 0.8 ? "text-emerald-600 dark:text-emerald-400" 
+                      : stat.value >= 0.6 ? "text-amber-600 dark:text-amber-400" 
+                      : "text-neutral-600 dark:text-neutral-300"
+                  )}>
+                    {stat.hits !== null ? `${stat.hits}/${stat.total}` : `${Math.round(stat.value * 100)}%`}
                   </p>
-                )}
-              </div>
+                  {stat.avg !== null && (
+                    <p className="text-xs text-neutral-500 mt-1">Avg: {stat.avg}</p>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-          
-          {/* Hit Rate Stats */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: "L5", value: item.l5, avg: item.l5Avg },
-              { label: "L10", value: item.l10, avg: item.l10Avg },
-              { label: "L20", value: item.l20, avg: null },
-              { label: "Season", value: item.szn, avg: null },
-            ].map((stat) => (
-              <div 
-                key={stat.label}
-                className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800 text-center"
-              >
-                <p className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">{stat.label}</p>
-                <p className={cn(
-                  "text-xl font-bold",
-                  stat.value >= 0.8 ? "text-emerald-600 dark:text-emerald-400" 
-                    : stat.value >= 0.6 ? "text-amber-600 dark:text-amber-400" 
-                    : "text-neutral-600 dark:text-neutral-300"
-                )}>
-                  {Math.round(stat.value * 100)}%
-                </p>
-                {stat.avg !== null && (
-                  <p className="text-[10px] text-neutral-500 mt-0.5">Avg: {stat.avg}</p>
-                )}
+            
+            {/* Hit Streak */}
+            {item.hitStreak && item.hitStreak >= 2 && (
+              <div className="flex items-center gap-2.5 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-800/30">
+                <IconFlame className="h-6 w-6 text-amber-500 fill-amber-500" />
+                <span className="text-base font-bold text-amber-700 dark:text-amber-400">
+                  {item.hitStreak} game hit streak
+                </span>
               </div>
-            ))}
-          </div>
-          
-          {/* Hit Streak */}
-          {item.hitStreak && item.hitStreak >= 2 && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
-              <IconFlame className="h-5 w-5 text-amber-500 fill-amber-500" />
-              <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                {item.hitStreak} game hit streak
-              </span>
-            </div>
-          )}
-          
-          {/* Game Log Chart */}
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mb-3">Game Log</h3>
-            <div className="h-[200px] p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800">
-              <ExpandedGameLogChart 
-                gameLogs={item.gameLogs} 
-                line={typeof item.line === 'string' ? parseFloat(item.line) : item.line} 
-              />
+            )}
+            
+            {/* Game Log Chart */}
+            <div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 mb-3">Game Log</h3>
+              <div className="h-[200px] p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/50">
+                <ExpandedGameLogChart 
+                  gameLogs={item.gameLogs} 
+                  line={typeof item.line === 'string' ? parseFloat(item.line) : item.line} 
+                />
+              </div>
             </div>
           </div>
         </div>
         
         {/* Footer CTA */}
-        <div className="p-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+        <div className="p-4 border-t border-neutral-100 dark:border-neutral-800">
           <Link
             href={item.profileUrl}
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold transition-colors"
           >
             View Full Profile
             <ExternalLink className="h-4 w-4" />
@@ -660,24 +673,20 @@ export function HitRatesBentoCarousel() {
       </AnimatePresence>
 
       <div className={cn(
-        "h-full flex flex-col relative group/bento rounded-xl",
-        // Amber/gold gradient for Hit Rates (trending/hot)
-        "bg-gradient-to-br from-amber-50/30 via-transparent to-yellow-50/20",
-        "dark:from-amber-950/15 dark:via-transparent dark:to-yellow-950/10"
+        "h-full flex flex-col relative group/bento rounded-xl"
       )}>
         {/* Header with hover animation */}
         <div className="flex items-center justify-between px-1 py-2 transition duration-200 group-hover/bento:translate-x-2">
           <div className="flex items-center gap-2.5">
             <div className={cn(
               "flex items-center justify-center w-7 h-7 rounded-lg shadow-sm",
-              // Amber/gold gradient
-              "bg-gradient-to-br from-amber-500 to-yellow-500"
+              "bg-gradient-to-br from-sky-500 to-blue-600"
             )}>
               <IconChartBar className="h-3.5 w-3.5 text-white" />
             </div>
             <div>
               <span className="font-bold text-neutral-800 dark:text-neutral-100 text-sm">Top Hit Rates</span>
-              <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 font-medium">
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
                 Trending props • Historical data
               </p>
             </div>
@@ -687,10 +696,10 @@ export function HitRatesBentoCarousel() {
             href="/hit-rates/nba"
             className={cn(
               "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all",
-              "text-amber-700 dark:text-amber-300",
-              "bg-amber-50 dark:bg-amber-900/30",
-              "hover:bg-amber-100 dark:hover:bg-amber-900/50",
-              "border border-amber-200/50 dark:border-amber-700/30"
+              "text-sky-700 dark:text-sky-300",
+              "bg-sky-50 dark:bg-sky-900/30",
+              "hover:bg-sky-100 dark:hover:bg-sky-900/50",
+              "border border-sky-200/50 dark:border-sky-700/30"
             )}
           >
             View All
@@ -762,17 +771,17 @@ export function HitRatesBentoCarousel() {
                     <motion.div 
                       layoutId={`card-${item.playerId}-${item.market}-${id}`}
                       onClick={(e) => handleCardClick(item, e)}
-                      className="flex-1 flex flex-col rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden hover:shadow-lg hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer"
+                      className="flex-1 flex flex-col rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-neutral-900 overflow-hidden hover:shadow-xl hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-300 cursor-pointer"
                     >
-                      {/* Player Header - Premium drilldown style */}
-                      <div className="relative bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-850 p-3 border-b border-neutral-100 dark:border-neutral-800">
-                        <div className="flex items-center gap-3">
-                          {/* Large Player Headshot with Team Logo Overlay */}
+                      {/* Player Header - Light/Dark responsive */}
+                      <div className="relative bg-neutral-100 dark:bg-neutral-900 p-4">
+                        <div className="flex items-start gap-3">
+                          {/* Player Headshot with subtle ring */}
                           <motion.div 
                             layoutId={`headshot-${item.playerId}-${item.market}-${id}`}
                             className="relative shrink-0"
                           >
-                            <div className="h-14 w-14 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700 border-3 border-white dark:border-neutral-800 shadow-md">
+                            <div className="h-16 w-16 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 ring-2 ring-neutral-300/50 dark:ring-neutral-700/50">
                               <img
                                 src={getPlayerHeadshotUrl(item.playerId, "small")}
                                 alt={item.playerName}
@@ -782,40 +791,45 @@ export function HitRatesBentoCarousel() {
                                 }}
                               />
                             </div>
-                            {/* Team logo overlay */}
-                            <img
-                              src={`/team-logos/nba/${item.team}.svg`}
-                              alt={item.team}
-                              className="absolute -bottom-0.5 -right-0.5 h-5 w-5 object-contain bg-white dark:bg-neutral-800 rounded-full p-0.5 shadow-sm border border-neutral-200 dark:border-neutral-700"
-                            />
                           </motion.div>
                           
-                          {/* Player Info */}
+                          {/* Player Info + Market Badge */}
                           <div className="flex-1 min-w-0">
-                            <motion.h4 
-                              layoutId={`name-${item.playerId}-${item.market}-${id}`}
-                              className="text-base font-bold text-neutral-900 dark:text-neutral-100 truncate"
-                            >
-                              {item.playerName}
-                            </motion.h4>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
-                              <span>{item.team}</span>
-                              <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                              <span>{item.position}</span>
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <motion.h4 
+                                layoutId={`name-${item.playerId}-${item.market}-${id}`}
+                                className="text-lg font-bold text-neutral-900 dark:text-white truncate"
+                              >
+                                {item.playerName}
+                              </motion.h4>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {/* Team Logo */}
+                              <img
+                                src={`/team-logos/nba/${item.team}.svg`}
+                                alt={item.team}
+                                className="h-4 w-4 object-contain"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                              <span className="text-xs text-neutral-500 dark:text-neutral-400">{item.position}</span>
+                            </div>
                             
-                            {/* Market + Line Badge */}
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <div className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                            {/* Market + Line + Confidence Badge Row */}
+                            <div className="flex items-center gap-2 mt-2.5">
+                              <div className="px-2.5 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-sm font-bold text-neutral-900 dark:text-white">
                                 {item.marketDisplay} O {item.line}
                               </div>
                               
                               {/* Confidence Badge */}
                               <div className={cn(
-                                "flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold",
-                                badge.color
+                                "flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold",
+                                badge.label === "Elite" && "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400",
+                                badge.label === "Strong" && "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+                                badge.label === "Volatile" && "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400"
                               )}>
-                                <BadgeIcon className={cn("h-3 w-3", badge.iconColor)} />
+                                <BadgeIcon className="h-3.5 w-3.5" />
                                 <span>{badge.label}</span>
                               </div>
                             </div>
@@ -823,13 +837,13 @@ export function HitRatesBentoCarousel() {
                         </div>
                       </div>
                       
-                      {/* Quick Stats Row */}
-                      <div className="flex items-center justify-around py-2 px-3 bg-neutral-50/50 dark:bg-neutral-800/30 border-b border-neutral-100 dark:border-neutral-800">
+                      {/* Stats Row - Clean 3-column layout */}
+                      <div className="grid grid-cols-3 divide-x divide-neutral-100 dark:divide-neutral-800 bg-neutral-50 dark:bg-neutral-800/40">
                         {/* L10 Hit Rate */}
-                        <div className="text-center">
-                          <p className="text-[9px] uppercase tracking-wider text-neutral-500 mb-0.5">L10</p>
+                        <div className="py-3 px-2 text-center">
+                          <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1 font-medium">L10</p>
                           <p className={cn(
-                            "text-lg font-black leading-none",
+                            "text-xl font-black leading-none",
                             item.l10 >= 0.8 ? "text-emerald-600 dark:text-emerald-400" 
                               : item.l10 >= 0.6 ? "text-amber-600 dark:text-amber-400" 
                               : "text-neutral-600 dark:text-neutral-400"
@@ -838,35 +852,29 @@ export function HitRatesBentoCarousel() {
                           </p>
                         </div>
                         
-                        {/* Divider */}
-                        <div className="h-8 w-px bg-neutral-200 dark:bg-neutral-700" />
-                        
                         {/* L5 Avg */}
-                        <div className="text-center">
-                          <p className="text-[9px] uppercase tracking-wider text-neutral-500 mb-0.5">L5 Avg</p>
-                          <p className="text-lg font-black text-neutral-800 dark:text-neutral-200 leading-none">
+                        <div className="py-3 px-2 text-center">
+                          <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1 font-medium">L5 Avg</p>
+                          <p className="text-xl font-black text-neutral-800 dark:text-neutral-100 leading-none">
                             {item.l5Avg?.toFixed(1) || '—'}
                           </p>
                         </div>
                         
-                        {/* Divider */}
-                        <div className="h-8 w-px bg-neutral-200 dark:bg-neutral-700" />
-                        
                         {/* Hit Streak or Season */}
-                        <div className="text-center">
+                        <div className="py-3 px-2 text-center">
                           {item.hitStreak && item.hitStreak >= 2 ? (
                             <>
-                              <p className="text-[9px] uppercase tracking-wider text-neutral-500 mb-0.5">Streak</p>
-                              <p className="text-lg font-black text-amber-500 leading-none flex items-center justify-center gap-0.5">
-                                <IconFlame className="h-4 w-4 fill-amber-500" />
+                              <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1 font-medium">Streak</p>
+                              <p className="text-xl font-black text-amber-500 leading-none flex items-center justify-center gap-1">
+                                <IconFlame className="h-5 w-5 fill-amber-500" />
                                 {item.hitStreak}
                               </p>
                             </>
                           ) : (
                             <>
-                              <p className="text-[9px] uppercase tracking-wider text-neutral-500 mb-0.5">Season</p>
+                              <p className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1 font-medium">Season</p>
                               <p className={cn(
-                                "text-lg font-black leading-none",
+                                "text-xl font-black leading-none",
                                 item.szn >= 0.7 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
                               )}>
                                 {Math.round(item.szn * 100)}%
@@ -876,47 +884,51 @@ export function HitRatesBentoCarousel() {
                         </div>
                       </div>
                       
-                      {/* Game Log Chart - Takes most of the space */}
-                      <div className="flex-1 px-4 py-3 min-h-[220px]">
+                      {/* Game Log Chart */}
+                      <div className="flex-1 px-4 py-3 min-h-[180px] bg-white dark:bg-neutral-900">
                         <GameLogChart 
                           gameLogs={item.gameLogs} 
                           line={typeof item.line === 'string' ? parseFloat(item.line) : item.line} 
                         />
                       </div>
 
-                      {/* Footer - Matchup Context */}
-                      <div className="px-3 py-2 bg-neutral-50/50 dark:bg-neutral-800/30 border-t border-neutral-100 dark:border-neutral-800">
+                      {/* Footer - Matchup & Game Time grouped */}
+                      <div className="px-4 py-3 border-t border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
                         {item.opponent ? (
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-                              <span className="font-medium">{item.homeAway === 'H' ? 'vs' : '@'}</span>
+                            {/* Opponent Info */}
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xs font-medium text-neutral-400">{item.homeAway === 'H' ? 'vs' : '@'}</span>
                               <img
                                 src={`/team-logos/nba/${item.opponent}.svg`}
                                 alt={item.opponent}
-                                className="h-4 w-4 object-contain"
+                                className="h-5 w-5 object-contain"
                               />
-                              <span className="font-semibold text-neutral-900 dark:text-neutral-100">{item.opponent}</span>
+                              <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.opponent}</span>
                               {item.dvpRank && (
                                 <span className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded",
+                                  "text-[10px] px-2 py-0.5 rounded-full font-semibold",
                                   item.dvpLabel === 'favorable' 
-                                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium" 
+                                    ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" 
                                     : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
                                 )}>
-                                  {item.dvpRank >= 25 ? 'Easy matchup' : `#${item.dvpRank} DVP`}
+                                  #{item.dvpRank} DVP
                                 </span>
                               )}
                             </div>
+                            {/* Game Time */}
                             {item.gameStatus && (
-                              <span className="text-[10px] text-neutral-500">{item.gameStatus}</span>
+                              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md">
+                                {item.gameStatus}
+                              </span>
                             )}
                           </div>
                         ) : insight ? (
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400 italic">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
                             {insight}
                           </p>
                         ) : (
-                          <div className="flex gap-4 text-xs">
+                          <div className="flex items-center gap-4 text-sm">
                             <span className="text-neutral-500">
                               L5: <span className={cn(
                                 "font-bold",
@@ -946,8 +958,8 @@ export function HitRatesBentoCarousel() {
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
                   index === current 
-                    ? "w-5 bg-gradient-to-r from-amber-500 to-yellow-500 shadow-sm shadow-amber-500/30" 
-                    : "w-1.5 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/50"
+                    ? "w-5 bg-gradient-to-r from-sky-500 to-blue-500 shadow-sm shadow-sky-500/30" 
+                    : "w-1.5 bg-neutral-300 dark:bg-neutral-700 hover:bg-neutral-400 dark:hover:bg-neutral-600"
                 )}
                 onClick={() => api?.scrollTo(index)}
                 aria-label={`Go to slide ${index + 1}`}

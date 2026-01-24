@@ -697,9 +697,10 @@ export function OpportunitiesTable({
       isToday: boolean;
       isHiddenRow: boolean;
       sortedBooks: { book: string; price: number; decimal: number; link: string | null; limits?: { max?: number; min?: number } | null }[];
+      rowIndex: number;  // For pinning support
     }
   ) => {
-    const { isExpanded, showLogos, bestBooksWithPrice, dateStr, timeStr, isToday, isHiddenRow, sortedBooks } = helpers;
+    const { isExpanded, showLogos, bestBooksWithPrice, dateStr, timeStr, isToday, isHiddenRow, sortedBooks, rowIndex } = helpers;
     
     switch (colId) {
       case 'edge':
@@ -714,7 +715,7 @@ export function OpportunitiesTable({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleRow(opp.id);
+                  toggleRow(opp.id, rowIndex);
                 }}
                 className={cn(
                   "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0",
@@ -1255,6 +1256,7 @@ export function OpportunitiesTable({
     : "Sharp reference odds used for edge calculation";
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [pinnedPositions, setPinnedPositions] = useState<Map<string, number>>(new Map());
   const [sortField, setSortField] = useState<SortField>('edge');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [openBetDropdown, setOpenBetDropdown] = useState<string | null>(null);
@@ -1303,13 +1305,26 @@ export function OpportunitiesTable({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [openBetDropdown]);
 
-  const toggleRow = (key: string) => {
+  const toggleRow = (key: string, currentIndex?: number) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
       if (next.has(key)) {
         next.delete(key);
       } else {
         next.add(key);
+      }
+      return next;
+    });
+    
+    // Track pinned position for auto-refresh stability
+    setPinnedPositions(prev => {
+      const next = new Map(prev);
+      if (prev.has(key)) {
+        // Collapsing - remove from pinned
+        next.delete(key);
+      } else if (currentIndex !== undefined) {
+        // Expanding - save position
+        next.set(key, currentIndex);
       }
       return next;
     });
@@ -1326,6 +1341,7 @@ export function OpportunitiesTable({
   };
 
   // Filter hidden and sort opportunities
+  // Also handles pinning: expanded rows stay at their position during auto-refresh
   const sortedOpportunities = React.useMemo(() => {
     // Filter out hidden opportunities (unless showHidden is true)
     let filtered = opportunities;
@@ -1373,8 +1389,52 @@ export function OpportunitiesTable({
       }
       return 0;
     });
+    
+    // PIN LOGIC: During auto-refresh, keep expanded rows at their pinned positions
+    if (autoRefresh && expandedRows.size > 0 && pinnedPositions.size > 0) {
+      // Separate pinned rows from unpinned rows
+      const pinnedRows: Array<{ opp: Opportunity; pinnedIndex: number }> = [];
+      const unpinnedRows: Opportunity[] = [];
+      
+      for (const opp of sorted) {
+        const pinnedIndex = pinnedPositions.get(opp.id);
+        if (expandedRows.has(opp.id) && pinnedIndex !== undefined) {
+          pinnedRows.push({ opp, pinnedIndex });
+        } else {
+          unpinnedRows.push(opp);
+        }
+      }
+      
+      // Sort pinned rows by their pinned index
+      pinnedRows.sort((a, b) => a.pinnedIndex - b.pinnedIndex);
+      
+      // Build result array with pinned rows at their positions
+      const result: Opportunity[] = [];
+      let unpinnedIdx = 0;
+      let pinnedIdx = 0;
+      
+      for (let i = 0; i < sorted.length; i++) {
+        const pinnedAtThisPos = pinnedRows.find(p => p.pinnedIndex === i);
+        if (pinnedAtThisPos && pinnedIdx < pinnedRows.length) {
+          result.push(pinnedAtThisPos.opp);
+          pinnedIdx++;
+        } else if (unpinnedIdx < unpinnedRows.length) {
+          result.push(unpinnedRows[unpinnedIdx]);
+          unpinnedIdx++;
+        }
+      }
+      
+      // Add any remaining rows
+      while (unpinnedIdx < unpinnedRows.length) {
+        result.push(unpinnedRows[unpinnedIdx]);
+        unpinnedIdx++;
+      }
+      
+      return result;
+    }
+    
     return sorted;
-  }, [opportunities, sortField, sortDirection, showHidden, isHidden]);
+  }, [opportunities, sortField, sortDirection, showHidden, isHidden, autoRefresh, expandedRows, pinnedPositions]);
 
   const openLink = (bookId?: string, link?: string | null) => {
     const fallback = getBookFallbackUrl(bookId);
@@ -1549,8 +1609,9 @@ export function OpportunitiesTable({
     );
   }
 
-  // When switching filters, show loading state instead of stale data
-  const showLoadingState = isFetching;
+  // Only show skeleton loading state when there's NO data yet (initial load)
+  // During refetch/refresh, keep existing rows visible with a subtle indicator
+  const showLoadingState = isLoading && sortedOpportunities.length === 0;
 
   return (
     <DndContext
@@ -1560,8 +1621,12 @@ export function OpportunitiesTable({
     >
       <div
         ref={tableRef}
-        className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
+        className="relative overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm"
       >
+        {/* Subtle refresh indicator - shows when fetching with existing data */}
+        {isFetching && sortedOpportunities.length > 0 && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-brand to-transparent animate-pulse z-10" />
+        )}
         <table className="min-w-full text-sm table-fixed">
         {/* Dynamic column widths based on column order */}
         <colgroup>
@@ -1658,7 +1723,7 @@ export function OpportunitiesTable({
             return (
               <React.Fragment key={opp.id}>
                 <tr
-                  onClick={() => toggleRow(opp.id)}
+                  onClick={() => toggleRow(opp.id, index)}
                   className={cn(
                     "group/row transition-all duration-200 cursor-pointer",
                     "hover:bg-gradient-to-r hover:from-amber-50/80 hover:to-amber-50/20 dark:hover:from-amber-950/40 dark:hover:to-amber-950/10",
@@ -1669,9 +1734,11 @@ export function OpportunitiesTable({
                     isHiddenRow && "opacity-40",
                     // Streaming states
                     isStale && "opacity-40 line-through",
-                    isNewlyAdded && "animate-pulse bg-emerald-50/50 dark:bg-emerald-950/30",
-                    hasChange && change?.edge === "up" && "bg-emerald-50/80 dark:bg-emerald-950/40",
-                    hasChange && change?.edge === "down" && "bg-red-50/80 dark:bg-red-950/40"
+                    // New row highlight - ring effect like Positive EV
+                    isNewlyAdded && "ring-2 ring-emerald-400/50 ring-inset bg-emerald-50/50 dark:bg-emerald-900/20",
+                    // Edge change highlights
+                    hasChange && change?.edge === "up" && "ring-1 ring-green-400/50 ring-inset",
+                    hasChange && change?.edge === "down" && "ring-1 ring-amber-400/50 ring-inset"
                   )}
                 >
                   {filteredColumnOrder.map(colId => 
@@ -1684,6 +1751,7 @@ export function OpportunitiesTable({
                       isToday,
                       isHiddenRow: isHiddenRow ?? false,
                       sortedBooks,
+                      rowIndex: index,
                     })
                   )}
                 </tr>

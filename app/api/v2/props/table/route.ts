@@ -8,6 +8,46 @@ import {
   SSEBookSelections,
 } from "@/lib/odds/types";
 
+// Single-line markets where we show ALL players (no main line filtering)
+// For these markets, each player is their own "line" - show everyone
+// NOTE: These are "to score" markets with no over/under - just yes (player scores)
+// Do NOT include over/under markets like player_goals (Over 0.5 goals) or player_touchdowns (Over 0.5 TDs)
+const SINGLE_LINE_PLAYER_MARKETS = new Set([
+  // Hockey goalscorers (single-line "to score" markets)
+  "player_first_goal",
+  "player_last_goal",
+  "first_goalscorer",
+  "last_goalscorer",
+  "home_team_first_goalscorer",
+  "away_team_first_goalscorer",
+  "second_goalscorer",
+  "third_goalscorer",
+  "anytime_goalscorer",
+  // Note: player_goals is an OVER/UNDER market (Over 0.5 goals) - NOT single-line
+  
+  // Football TD scorers (single-line "to score" markets)
+  // Note: player_touchdowns is an OVER/UNDER market (Over 0.5 TDs) - NOT single-line
+  "player_first_td",
+  "player_last_td",
+  "first_td",
+  "last_td",
+  "player_anytime_td", // Anytime TD scorer (single-line)
+  "2nd_half_first_touchdown_scorer",
+  "home_team_first_touchdown_scorer",
+  "away_team_first_touchdown_scorer",
+  // Note: 1st_half_player_touchdowns, 2nd_half_player_touchdowns, 1st_quarter_player_touchdowns 
+  // are OVER/UNDER markets - NOT single-line
+  
+  // Basketball first basket
+  "first_field_goal",
+  "first_basket",
+  "team_first_basket",
+  "home_team_first_field_goal",
+  "away_team_first_field_goal",
+  
+  // Soccer goalscorers (already listed above with hockey, same markets apply)
+]);
+
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -321,11 +361,11 @@ function normalizeMarketName(market: string): string {
     "1st_half_player_passing__rushing_yards": "1st_half_player_passing__rushing_yards",
     "1st_half_player_passing_+_rushing_yards": "1st_half_player_passing__rushing_yards",
     
-    // Touchdowns
+    // Touchdowns - OVER/UNDER markets (Over 0.5 TDs)
     "player_touchdowns": "player_touchdowns",
-    "anytime_td": "player_touchdowns",
-    "anytime_touchdown": "player_touchdowns",
     "touchdowns": "player_touchdowns",
+    
+    // First/Last TD Scorer - SINGLE-LINE markets
     "first_td": "player_first_td",
     "first_touchdown": "player_first_td",
     "first_td_scorer": "player_first_td",
@@ -334,6 +374,10 @@ function normalizeMarketName(market: string): string {
     "last_touchdown": "player_last_td",
     "last_td_scorer": "player_last_td",
     "player_last_td": "player_last_td",
+    
+    // Anytime TD Scorer - SINGLE-LINE market (NOT the same as player_touchdowns over/under)
+    "anytime_td": "player_anytime_td",
+    "anytime_touchdown": "player_anytime_td",
     "anytime_td_scorer": "player_anytime_td",
     "player_anytime_td": "player_anytime_td",
     
@@ -383,10 +427,33 @@ function normalizeMarketName(market: string): string {
     // Goals
     "goals": "player_goals",
     "player_goals": "player_goals",
+    "anytime_goals": "player_goals",
+    "anytime_goal": "player_goals",
+    
+    // First/Last Goalscorer markets - multiple naming conventions
     "first_goal": "player_first_goal",
     "player_first_goal": "player_first_goal",
+    "first_goalscorer": "player_first_goal",
+    "first_goal_scorer": "player_first_goal",
+    "firstgoalscorer": "player_first_goal",
     "last_goal": "player_last_goal",
     "player_last_goal": "player_last_goal",
+    "last_goalscorer": "player_last_goal",
+    "last_goal_scorer": "player_last_goal",
+    "lastgoalscorer": "player_last_goal",
+    
+    // Team-specific goalscorers
+    "home_team_first_goalscorer": "home_team_first_goalscorer",
+    "home_first_goalscorer": "home_team_first_goalscorer",
+    "away_team_first_goalscorer": "away_team_first_goalscorer", 
+    "away_first_goalscorer": "away_team_first_goalscorer",
+    "second_goalscorer": "second_goalscorer",
+    "2nd_goalscorer": "second_goalscorer",
+    "third_goalscorer": "third_goalscorer",
+    "3rd_goalscorer": "third_goalscorer",
+    
+    // Anytime goalscorer
+    "anytime_goalscorer": "anytime_goalscorer",
     "1p_player_goals": "1st_period_player_goals",
     "1st_period_player_goals": "1st_period_player_goals",
     "1st_period_goals": "1st_period_player_goals",
@@ -551,6 +618,22 @@ function normalizeSide(side: string): "over" | "under" | null {
 }
 
 /**
+ * Alternative market names to scan for when primary market returns no results
+ * Maps canonical market name -> array of alternative Redis key names to try
+ */
+const MARKET_SCAN_ALIASES: Record<string, string[]> = {
+  // First goalscorer - Redis might use different naming
+  "player_first_goal": ["first_goalscorer", "first_goal_scorer", "first_goal"],
+  "player_last_goal": ["last_goalscorer", "last_goal_scorer", "last_goal"],
+  "home_team_first_goalscorer": ["home_first_goalscorer", "home_team_first_goal"],
+  "away_team_first_goalscorer": ["away_first_goalscorer", "away_team_first_goal"],
+  // Anytime goalscorer (single-line "to score" market - NOT the same as player_goals over/under)
+  "anytime_goalscorer": ["anytime_goal_scorer", "anytime_goal"],
+  // Note: player_goals is over/under (e.g., Over 0.5 goals) - do NOT alias to anytime_goalscorer
+  // They are different market types and should not be mixed
+};
+
+/**
  * OPTIMIZATION: Get odds keys for specific events and market
  * Uses event-scoped scanning: active_events (O(1) SET) + per-event focused scans
  * This avoids maintaining a massive global odds_keys set that's hard to clean up
@@ -572,18 +655,26 @@ async function getOddsKeysForEvents(
   // ~10-50 events × 1 market = 10-50 focused scans (much better than global)
   const allKeys: string[] = [];
   
+  // Primary market name + aliases to try
+  const marketsToScan = [market, ...(MARKET_SCAN_ALIASES[market] || [])];
+  
   // Batch scans in parallel (limit concurrency)
   const BATCH_SIZE = 10;
   for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
     const batch = eventIds.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map(eventId => scanKeysOnce(`odds:${sport}:${eventId}:${market}:*`))
+      batch.flatMap(eventId => 
+        marketsToScan.map(m => scanKeysOnce(`odds:${sport}:${eventId}:${m}:*`))
+      )
     );
     allKeys.push(...batchResults.flat());
   }
   
-  oddsKeysCache.set(cacheKey, { keys: allKeys, ts: Date.now() });
-  return allKeys;
+  // Deduplicate keys (same data might be under different market names)
+  const uniqueKeys = [...new Set(allKeys)];
+  
+  oddsKeysCache.set(cacheKey, { keys: uniqueKeys, ts: Date.now() });
+  return uniqueKeys;
 }
 
 /**
@@ -777,6 +868,10 @@ async function buildPropsRows(
   const isGameTotal = market.includes("total") || market.includes("over_under");
   const isGameLine = (market.includes("spread") || market.includes("moneyline") || market.includes("puck_line")) && !isGameTotal;
   const isGameMarket = isGameTotal || isGameLine;
+  
+  // Check if this is a single-line player market (goalscorers, TDs, first basket)
+  // For these markets, we show ALL players - no main line filtering
+  const isSingleLinePlayerMarket = SINGLE_LINE_PLAYER_MARKETS.has(market);
 
   // THREE-PASS APPROACH:
   // Pass 1: Find main lines (main=true) for each player per book
@@ -897,65 +992,71 @@ async function buildPropsRows(
       const playerBookKey = `${eventId}:${entityKey}:${book}`;
       const playerKey = `${eventId}:${entityKey}`;
       
-      // Check if this book has its own main line (main=true)
-      const bookMainLine = mainLinesByPlayerBook.get(playerBookKey);
-      // Get canonical main line (from DraftKings/FanDuel/etc)
-      const canonical = canonicalMainLine.get(playerKey);
-      
-      // Determine which line to show for this book:
-      // 1. If this book has main=true for any line, use that line
-      // 2. Otherwise, use the canonical main line from DraftKings/FanDuel
-      // 3. If book doesn't have the canonical line, find the closest available line
-      let targetLine: number | undefined = bookMainLine;
-      
-      if (targetLine === undefined && canonical?.line !== undefined) {
-        // This book doesn't have main=true, check if it has the canonical line
-        const bookLines = allLinesByEntityBook.get(playerBookKey);
-        if (bookLines) {
-          const isSpread = market.includes("spread") || market.includes("puck_line");
-          const canonicalLine = canonical.line;
-          
-          // Check if book has exact canonical line
-          const hasExact = isSpread && isGameMarket
-            ? [...bookLines].some(l => Math.abs(l) === Math.abs(canonicalLine))
-            : bookLines.has(canonicalLine);
-          
-          if (hasExact) {
-            targetLine = canonicalLine;
-          } else {
-            // Find closest line to canonical
-            let closestLine: number | undefined;
-            let closestDiff = Infinity;
-            for (const availLine of bookLines) {
-              const diff = Math.abs(availLine - canonicalLine);
-              if (diff < closestDiff) {
-                closestDiff = diff;
-                closestLine = availLine;
+      // SINGLE-LINE PLAYER MARKETS: Skip main line filtering
+      // For markets like First Goalscorer, Anytime TD, etc., show ALL players
+      // Each player is their own "entity" with line=0
+      if (!isSingleLinePlayerMarket) {
+        // Check if this book has its own main line (main=true)
+        const bookMainLine = mainLinesByPlayerBook.get(playerBookKey);
+        // Get canonical main line (from DraftKings/FanDuel/etc)
+        const canonical = canonicalMainLine.get(playerKey);
+        
+        // Determine which line to show for this book:
+        // 1. If this book has main=true for any line, use that line
+        // 2. Otherwise, use the canonical main line from DraftKings/FanDuel
+        // 3. If book doesn't have the canonical line, find the closest available line
+        let targetLine: number | undefined = bookMainLine;
+        
+        if (targetLine === undefined && canonical?.line !== undefined) {
+          // This book doesn't have main=true, check if it has the canonical line
+          const bookLines = allLinesByEntityBook.get(playerBookKey);
+          if (bookLines) {
+            const isSpread = market.includes("spread") || market.includes("puck_line");
+            const canonicalLine = canonical.line;
+            
+            // Check if book has exact canonical line
+            const hasExact = isSpread && isGameMarket
+              ? [...bookLines].some(l => Math.abs(l) === Math.abs(canonicalLine))
+              : bookLines.has(canonicalLine);
+            
+            if (hasExact) {
+              targetLine = canonicalLine;
+            } else {
+              // Find closest line to canonical
+              let closestLine: number | undefined;
+              let closestDiff = Infinity;
+              for (const availLine of bookLines) {
+                const diff = Math.abs(availLine - canonicalLine);
+                if (diff < closestDiff) {
+                  closestDiff = diff;
+                  closestLine = availLine;
+                }
+              }
+              // Only use closest if within reasonable range (0.5 for most markets)
+              if (closestLine !== undefined && closestDiff <= 0.5) {
+                targetLine = closestLine;
+              } else {
+                // No suitable line found, skip this selection
+                continue;
               }
             }
-            // Only use closest if within reasonable range (0.5 for most markets)
-            if (closestLine !== undefined && closestDiff <= 0.5) {
-              targetLine = closestLine;
-            } else {
-              // No suitable line found, skip this selection
-              continue;
-            }
+          } else {
+            // Book has no lines for this entity
+            continue;
           }
-        } else {
-          // Book has no lines for this entity
-          continue;
+        }
+        
+        // Only include if line matches the target
+        if (targetLine !== undefined) {
+          const isSpread = market.includes("spread") || market.includes("puck_line");
+          const match = (isSpread && isGameMarket) 
+            ? Math.abs(line) === Math.abs(targetLine)
+            : line === targetLine;
+            
+          if (!match) continue;
         }
       }
-      
-      // Only include if line matches the target
-      if (targetLine !== undefined) {
-        const isSpread = market.includes("spread") || market.includes("puck_line");
-        const match = (isSpread && isGameMarket) 
-          ? Math.abs(line) === Math.abs(targetLine)
-          : line === targetLine;
-          
-        if (!match) continue;
-      }
+      // For single-line player markets, we don't filter by main line - show ALL selections
 
       // SANITY CHECK: For game spreads/puck lines, reject unreasonable odds
       // Legitimate spread odds are typically between -200 and +200
@@ -1261,15 +1362,27 @@ async function buildPropsRows(
     });
   }
 
-  // 7. Sort by best edge (best over price) and limit
-  rows.sort((a, b) => {
-    const aPrice = a.best?.over?.price ?? -Infinity;
-    const bPrice = b.best?.over?.price ?? -Infinity;
-    return bPrice - aPrice; // Higher price first
-  });
+  // 7. Sort rows by best odds price (for single-line markets) or alphabetically (for better UX)
+  // For single-line player markets (first goalscorer, etc.), sort alphabetically by player name
+  // This ensures consistent ordering and all players are visible
+  if (isSingleLinePlayerMarket) {
+    rows.sort((a, b) => {
+      // Sort by player name for single-line markets
+      const aName = a.player || "";
+      const bName = b.player || "";
+      return aName.localeCompare(bName);
+    });
+  } else {
+    rows.sort((a, b) => {
+      const aPrice = a.best?.over?.price ?? -Infinity;
+      const bPrice = b.best?.over?.price ?? -Infinity;
+      return bPrice - aPrice; // Higher price first
+    });
+  }
 
+  // Limit and return - extract sids from the sorted/limited rows to ensure alignment
   const limitedRows = rows.slice(0, limit);
-  const limitedSids = sids.slice(0, limit);
+  const limitedSids = limitedRows.map(row => row.sid);
 
   return { sids: limitedSids, rows: limitedRows, normalizedMarket: market };
 }
@@ -1296,7 +1409,7 @@ export async function GET(req: NextRequest) {
     const sport = (sp.get("sport") || "").trim().toLowerCase();
     const market = (sp.get("market") || "").trim();
     const scope = (sp.get("scope") || "pregame").toLowerCase() as "pregame" | "live";
-    const limit = Math.max(1, Math.min(500, parseIntSafe(sp.get("limit"), 200)));
+    const limit = Math.max(1, Math.min(1000, parseIntSafe(sp.get("limit"), 200)));
 
     // Validate sport
     if (!sport || !VALID_SPORTS.has(sport)) {

@@ -1007,6 +1007,8 @@ export interface OddsTableProps extends Partial<TableInteractionHandlers> {
   searchQuery?: string // Optional search query to filter players/teams
   height?: string // Optional max height for scroll container (e.g., '82vh')
   tableView?: 'compact' | 'relaxed' // View mode for cell sizing
+  selectedGameId?: string | null // Game ID to scroll to when selected
+  onGameScrollComplete?: () => void // Callback after scrolling to game
 }
 
 type SortField = 'entity' | 'event' | 'bestOver' | 'bestUnder' | 'startTime'
@@ -1115,8 +1117,10 @@ export function OddsTable({
   className = '',
   columnHighlighting = true,
   searchQuery = '',
-  height = '90vh',
-  tableView: tableViewProp
+  height = 'calc(100vh - 180px)', // Default to remaining viewport height (accounts for header + nav)
+  tableView: tableViewProp,
+  selectedGameId,
+  onGameScrollComplete
 }: OddsTableProps) {
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -1598,6 +1602,49 @@ export function OddsTable({
     })
   }, [])
 
+  // Scroll to selected game when selectedGameId changes
+  useEffect(() => {
+    if (!selectedGameId || !containerRef.current) return
+    
+    // Helper function to scroll within the table container
+    const scrollToElementInContainer = (element: HTMLElement) => {
+      const container = containerRef.current
+      if (!container) return
+      
+      // Account for sticky table header (~48px)
+      const HEADER_OFFSET = 48
+      
+      // Get element position relative to container
+      const elementTop = element.offsetTop
+      const scrollPosition = elementTop - HEADER_OFFSET
+      
+      container.scrollTo({
+        top: Math.max(0, scrollPosition),
+        behavior: 'smooth'
+      })
+      
+      // Add a brief highlight effect
+      element.classList.add('ring-2', 'ring-blue-500', 'ring-offset-1')
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-1')
+        onGameScrollComplete?.()
+      }, 2000)
+    }
+    
+    // Find the game row by data-game-id attribute
+    const gameRow = containerRef.current.querySelector(`[data-game-id="${selectedGameId}"]`) as HTMLElement
+    
+    if (gameRow) {
+      scrollToElementInContainer(gameRow)
+    } else {
+      // Game row not found - might be a game market view where we need to find by event ID in the data
+      const eventRow = containerRef.current.querySelector(`tr[data-event-id="${selectedGameId}"]`) as HTMLElement
+      if (eventRow) {
+        scrollToElementInContainer(eventRow)
+      }
+    }
+  }, [selectedGameId, onGameScrollComplete])
+
   // Format position with slashes (e.g., "FC" -> "F/C", "GF" -> "G/F")
   const formatPosition = useCallback((position: string | undefined): string => {
     if (!position) return ''
@@ -1923,8 +1970,8 @@ export function OddsTable({
             </div>
           )
         },
-        // Entity/Player column width - wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 160 : 220) : (isSmallScreen ? 110 : 160),
+        // Entity/Player column width - much wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 180 : 280) : (isSmallScreen ? 110 : 160),
         cell: (info) => {
           const item = info.row.original
           if (item.entity.type === 'game') {
@@ -1934,21 +1981,28 @@ export function OddsTable({
             return (
               <div className={cn(
                 "flex items-center gap-1.5",
-                isRelaxedView ? "min-w-[160px] sm:min-w-[220px]" : "min-w-[120px] sm:min-w-[160px]"
+                isRelaxedView ? "min-w-[180px] sm:min-w-[280px]" : "min-w-[120px] sm:min-w-[160px]"
               )}>
                 <ExpandButton hide={true} />
                 <div className="flex-1 min-w-0">
                   {/* Two-line display with team logos: Away on top, Home on bottom */}
-                  <div className="flex flex-col gap-0.5">
+                  <div className={cn("flex flex-col", isRelaxedView ? "gap-1.5" : "gap-0.5")}>
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
-                      (sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]'
+                      isRelaxedView 
+                        ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[15px]' : 'text-[17px]')
+                        : ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]')
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
                           src={getTeamLogoUrl(item.event?.awayTeam || '')}
                           alt={item.event?.awayTeam || ''}
-                          className={cn('object-contain', (sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')}
+                          className={cn(
+                            'object-contain',
+                            isRelaxedView 
+                              ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-5 w-5' : 'h-6 w-6')
+                              : ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')
+                          )}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
@@ -1958,13 +2012,20 @@ export function OddsTable({
                     </div>
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
-                      (sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]'
+                      isRelaxedView 
+                        ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[15px]' : 'text-[17px]')
+                        : ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]')
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
                           src={getTeamLogoUrl(item.event?.homeTeam || '')}
                           alt={item.event?.homeTeam || ''}
-                          className={cn('object-contain', (sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')}
+                          className={cn(
+                            'object-contain',
+                            isRelaxedView 
+                              ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-5 w-5' : 'h-6 w-6')
+                              : ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')
+                          )}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
@@ -2238,10 +2299,10 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Best line column width - wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 90 : 115) : (isSmallScreen ? 56 : 64),
-        minSize: isRelaxedView ? 90 : 56,
-        maxSize: isRelaxedView ? 140 : 72,
+        // Best line column width - much wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 110 : 140) : (isSmallScreen ? 56 : 64),
+        minSize: isRelaxedView ? 100 : 56,
+        maxSize: isRelaxedView ? 180 : 72,
         cell: (info) => {
           const item = info.row.original
             const isMoneyline = item.entity.type === 'game' && (
@@ -2318,10 +2379,10 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Average line column width - wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 85 : 110) : (isSmallScreen ? 48 : 56),
-        minSize: isRelaxedView ? 85 : 48,
-        maxSize: isRelaxedView ? 130 : 64,
+        // Average line column width - much wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 105 : 135) : (isSmallScreen ? 48 : 56),
+        minSize: isRelaxedView ? 95 : 48,
+        maxSize: isRelaxedView ? 170 : 64,
         cell: (info) => {
           const item = info.row.original
           const isMoneyline = item.entity.type === 'game' && (
@@ -2396,7 +2457,7 @@ export function OddsTable({
                     className={cn(
                       "flex items-center justify-center hover:opacity-80 transition-opacity",
                       isRelaxedView 
-                        ? "flex-col gap-0.5 min-w-[80px] sm:min-w-[100px] py-1.5"
+                        ? "flex-col gap-1 min-w-[100px] sm:min-w-[130px] py-2"
                         : "min-w-[56px] sm:min-w-[72px] py-1"
                     )}
                     title={`Visit ${book.name}`}
@@ -2406,11 +2467,11 @@ export function OddsTable({
                       alt={book.name} 
                       className={cn(
                         "book-logo w-auto",
-                        isRelaxedView ? "h-7" : "h-6"
+                        isRelaxedView ? "h-8" : "h-6"
                       )} 
                     />
                     {isRelaxedView && (
-                      <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[90px]">
+                      <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[120px]">
                         {book.name}
                       </span>
                     )}
@@ -2428,14 +2489,14 @@ export function OddsTable({
               </div>
             )
           },
-          // Column widths - wider for relaxed view
+          // Column widths - much wider for relaxed view
           size: isRelaxedView
-            ? (isSmallScreen ? 90 : 110)
+            ? (isSmallScreen ? 110 : 140)
             : (isSingleLineMarket 
                 ? (isSmallScreen ? 56 : 72) 
                 : (isSmallScreen ? 72 : 96)),
-          minSize: isRelaxedView ? 80 : (isSingleLineMarket ? 48 : 64),
-          maxSize: isRelaxedView ? 140 : (isSingleLineMarket ? 80 : 120),
+          minSize: isRelaxedView ? 100 : (isSingleLineMarket ? 48 : 64),
+          maxSize: isRelaxedView ? 180 : (isSingleLineMarket ? 80 : 120),
           cell: (info) => {
             const item = info.row.original
             const n = item.odds.normalized
@@ -3049,6 +3110,7 @@ export function OddsTable({
                 >
               {/* Custom Table with ExpandableRowWrapper */}
               <table className="w-full border-separate border-spacing-0">
+                {/* Sticky header - sticks to top of scroll container */}
                 <thead className="sticky top-0 z-30 bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
                   {tableProps.table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
@@ -3065,7 +3127,11 @@ export function OddsTable({
                         <th
                           key={header.id}
                           className={cn(
-                            "bg-transparent border-b border-r border-neutral-100 dark:border-neutral-800/50 px-1 py-2 sm:px-2 sm:py-2.5 text-left font-semibold text-[11px] text-neutral-600 dark:text-neutral-400 uppercase tracking-wider",
+                            "bg-transparent border-b border-r border-neutral-100 dark:border-neutral-800/50 text-left font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider",
+                            // Header padding and text size - larger for relaxed view
+                            isRelaxedView 
+                              ? "px-2 py-3 sm:px-3 sm:py-4 text-xs" 
+                              : "px-1 py-2 sm:px-2 sm:py-2.5 text-[11px]",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
                             header.column.id === 'entity' && 'sticky left-0 z-40 !bg-gradient-to-r !from-neutral-50 !to-neutral-50 dark:!from-neutral-900 dark:!to-neutral-900',
                             header.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
@@ -3255,15 +3321,19 @@ export function OddsTable({
                         <td
                           key={cell.id}
                           className={cn(
-                            'border-b border-r border-neutral-100 dark:border-neutral-800/50 px-1 py-1 sm:px-2 sm:py-1.5 text-sm',
+                            'border-b border-r border-neutral-100 dark:border-neutral-800/50',
+                            // Padding - much larger for relaxed view
+                            isRelaxedView 
+                              ? 'px-2 py-2.5 sm:px-3 sm:py-3 text-base' 
+                              : 'px-1 py-1 sm:px-2 sm:py-1.5 text-sm',
                             // Center sportsbook columns for single-line markets, otherwise left-align
                             isBookColumn && isSingleLineMarket ? 'text-center' : 'text-left',
                             rowBg,
                             cell.column.id === 'average-line' && 'hidden sm:table-cell',
                             cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`,
-                            cell.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
-                            cell.column.id === 'best-line' && 'px-0.5 sm:px-1',
-                            cell.column.id === 'average-line' && 'px-0.5 sm:px-1',
+                            cell.column.id === 'line' && (isRelaxedView ? 'px-1 sm:px-2 text-center' : 'px-0.5 sm:px-1 text-center'),
+                            cell.column.id === 'best-line' && (isRelaxedView ? 'px-1 sm:px-2' : 'px-0.5 sm:px-1'),
+                            cell.column.id === 'average-line' && (isRelaxedView ? 'px-1 sm:px-2' : 'px-0.5 sm:px-1'),
                             // Stronger border between meta columns and book columns
                             isLastMetaColumn && 'border-r-2 border-r-neutral-200 dark:border-r-neutral-700'
                           )}
@@ -3280,7 +3350,7 @@ export function OddsTable({
 
                     if (isMoneyline) {
                       return (
-                        <tr key={row.id} className={cn('group relative transition-all duration-200', rowBg, 'hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-blue-50/20 dark:hover:from-blue-950/30 dark:hover:to-blue-950/10')}>
+                        <tr key={row.id} data-event-id={item.event?.id} className={cn('group relative transition-all duration-200', rowBg, 'hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-blue-50/20 dark:hover:from-blue-950/30 dark:hover:to-blue-950/10')}>
                           {cells}
                         </tr>
                       )
@@ -3288,6 +3358,7 @@ export function OddsTable({
 
                     return (
                       <ExpandableRowWrapper
+                        data-event-id={item.event?.id}
                         key={row.id}
                         sid={item.id}
                         sport={sport}

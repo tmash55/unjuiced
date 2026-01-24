@@ -350,9 +350,9 @@ export async function fetchOddsWithNewAPI(params: {
   type: 'player' | 'game'
   limit?: number
 }): Promise<{ data: OddsScreenItem[]; nextCursor: string | null }> {
-  const { sport, market, scope, type, limit = 300 } = params
+  const { sport, market, scope, type, limit = 1000 } = params
 
-  const url = `/api/props/table?sport=${encodeURIComponent(sport)}&market=${encodeURIComponent(
+  const url = `/api/v2/props/table?sport=${encodeURIComponent(sport)}&market=${encodeURIComponent(
     market
   )}&scope=${encodeURIComponent(scope)}&limit=${limit}`
 

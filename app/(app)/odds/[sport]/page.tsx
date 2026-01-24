@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState, useCallback } from "react";
+import { use, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { OddsTable } from "@/components/odds-screen/tables/odds-table";
 import { OddsTableSkeleton } from "@/components/odds-screen/tables/odds-table-skeleton";
@@ -10,6 +10,8 @@ import { useOddsUtility } from "../odds-utility-context";
 import { fetchOddsWithNewAPI } from "@/lib/api-adapters/props-to-odds";
 import { useQuery } from "@tanstack/react-query";
 import { getDefaultMarket } from "@/lib/data/markets";
+import { useSSE } from "@/hooks/use-sse";
+import { useIsPro } from "@/hooks/use-entitlements";
 
 interface OddsPageProps {
   params: Promise<{ sport: string }>;
@@ -22,13 +24,33 @@ export default function OddsPage({ params }: OddsPageProps) {
   const router = useRouter();
   const { preferences } = useOddsPreferences();
   
+  // Sports without player props - force to game type
+  const sportsWithoutPlayerProps = ['ncaab', 'mlb', 'wnba'];
+  const hasPlayerProps = !sportsWithoutPlayerProps.includes(sport.toLowerCase());
+  
   // Get search params or defaults
-  const type = (searchParams.get("type") || "game") as "game" | "player";
+  const rawType = (searchParams.get("type") || "game") as "game" | "player";
+  const type = hasPlayerProps ? rawType : "game"; // Force game type for sports without player props
   const market = searchParams.get("market") || getDefaultMarket(sport);
   const scope = (searchParams.get("scope") || "pregame") as "pregame" | "live";
   
+  // Redirect if type=player for sports without player props
+  useEffect(() => {
+    if (!hasPlayerProps && rawType === "player") {
+      router.replace(`/odds/${sport}?type=game&market=${market}&scope=${scope}`);
+    }
+  }, [hasPlayerProps, rawType, sport, market, scope, router]);
+  
   // Connect to utility context for search and filters
   const utility = useOddsUtility();
+  
+  // Check if user is Pro for SSE access
+  const { isPro } = useIsPro();
+  
+  // SSE state - live updates enabled by default for Pro users
+  const [liveUpdatesEnabled] = useState(true);
+  const lastRefetchRef = useRef<number>(0);
+  const REFETCH_DEBOUNCE_MS = 2000; // Don't refetch more than every 2 seconds
   
   // Fetch odds data
   const { data, isLoading, error, refetch } = useQuery({
@@ -39,7 +61,7 @@ export default function OddsPage({ params }: OddsPageProps) {
         market,
         scope,
         type,
-        limit: 300,
+        limit: 1000,
       });
       return result.data;
     },
@@ -48,8 +70,54 @@ export default function OddsPage({ params }: OddsPageProps) {
     refetchOnWindowFocus: false,
   });
   
-  // Extract setGames to avoid dependency on entire utility object
-  const setGames = utility?.setGames;
+  // SSE URL for live updates
+  const sseUrl = useMemo(() => {
+    return `/api/v2/sse/props?sport=${sport}`;
+  }, [sport]);
+  
+  // Handle SSE message - trigger refetch when updates arrive for this sport
+  const handleSSEMessage = useCallback((message: any) => {
+    // Any valid message for this sport should trigger a refetch
+    // The SSE endpoint already filters by sport, so all messages are relevant
+    if (!message) return;
+    
+    // Debounce refetches to avoid overwhelming the API
+    const now = Date.now();
+    if (now - lastRefetchRef.current < REFETCH_DEBOUNCE_MS) {
+      return;
+    }
+    
+    // Trigger refetch for any incoming update
+    // The useQuery cache will handle deduplication
+    lastRefetchRef.current = now;
+    refetch();
+  }, [refetch]);
+  
+  // SSE connection for Pro users
+  const {
+    isConnected: sseConnected,
+    isReconnecting: sseReconnecting,
+  } = useSSE(sseUrl, {
+    enabled: isPro && liveUpdatesEnabled,
+    onMessage: handleSSEMessage,
+    reconnectInterval: 3000,
+    maxReconnectAttempts: 10,
+  });
+  
+  // Extract stable references from utility to avoid re-render loops
+  const setConnectionStatus = utility.setConnectionStatus;
+  const setGames = utility.setGames;
+  
+  // Register connection status with utility context
+  useEffect(() => {
+    if (isPro) {
+      setConnectionStatus({
+        connected: sseConnected,
+        reconnecting: sseReconnecting,
+        show: liveUpdatesEnabled,
+      });
+    }
+  }, [sseConnected, sseReconnecting, liveUpdatesEnabled, isPro, setConnectionStatus]);
   
   // Register games when data changes
   useEffect(() => {
@@ -129,6 +197,8 @@ export default function OddsPage({ params }: OddsPageProps) {
         scope={scope}
         searchQuery={utility?.searchQuery}
         tableView={preferences.tableView}
+        selectedGameId={utility?.selectedGameId}
+        onGameScrollComplete={() => utility?.onGameSelect(null)}
       />
     </div>
   );

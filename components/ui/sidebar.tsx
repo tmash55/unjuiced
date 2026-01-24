@@ -2,7 +2,7 @@
 import { cn } from "@/lib/utils";
 import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { IconMenu2, IconX } from "@tabler/icons-react";
+import { IconX } from "@tabler/icons-react";
 
 interface Links {
   label: string;
@@ -113,22 +113,7 @@ export const MobileSidebar = ({
   const { open, setOpen } = useSidebar();
   return (
     <>
-      {/* Mobile header bar - only shows on mobile */}
-      <div
-        className={cn(
-          "h-12 px-4 flex flex-row md:hidden items-center bg-white dark:bg-neutral-900 w-full border-b border-neutral-200 dark:border-neutral-800"
-        )}
-        {...props}
-      >
-        <button
-          className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-          onClick={() => setOpen(!open)}
-        >
-          <IconMenu2 className="h-5 w-5" />
-        </button>
-      </div>
-      
-      {/* Mobile drawer */}
+      {/* Mobile drawer - triggered from layout header */}
       <AnimatePresence>
         {open && (
           <>
@@ -153,12 +138,12 @@ export const MobileSidebar = ({
                 damping: 30,
               }}
               className={cn(
-                "fixed h-full w-72 inset-y-0 left-0 bg-white dark:bg-neutral-900 p-4 z-[100] flex flex-col md:hidden",
+                "fixed h-full w-72 inset-y-0 left-0 bg-white dark:bg-neutral-900 z-[100] flex flex-col md:hidden",
                 className
               )}
             >
               <button
-                className="absolute right-4 top-4 p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                className="absolute right-4 top-4 p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 z-10"
                 onClick={() => setOpen(false)}
               >
                 <IconX className="h-5 w-5" />

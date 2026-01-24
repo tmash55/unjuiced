@@ -119,6 +119,8 @@ interface ExpandableRowWrapperProps {
   team?: string;
   // Callback to open player profile
   onViewProfile?: () => void;
+  // Data attribute for scroll-to functionality
+  'data-event-id'?: string;
 }
 
 // Client-side cache with TTL (60 seconds)
@@ -149,6 +151,7 @@ export function ExpandableRowWrapper({
   playerName,
   team,
   onViewProfile,
+  'data-event-id': dataEventId,
 }: ExpandableRowWrapperProps & { rowClassName?: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentMarket, setCurrentMarket] = useState(market || '');
@@ -259,7 +262,7 @@ export function ExpandableRowWrapper({
   // If alternates are disabled, just render the children without modal functionality
   if (!includeAlternates) {
     return (
-      <tr className={cn("group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]", rowClassName)}>
+      <tr data-event-id={dataEventId} className={cn("group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]", rowClassName)}>
         {children}
       </tr>
     );
@@ -268,7 +271,7 @@ export function ExpandableRowWrapper({
   return (
     <ExpandContext.Provider value={{ openModal, isLoading: loading }}>
       {/* Main Row */}
-      <tr className="group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]">
+      <tr data-event-id={dataEventId} className="group relative transition-colors hover:[background:color-mix(in_oklab,var(--primary)_5%,var(--card))]">
         {children}
       </tr>
 
