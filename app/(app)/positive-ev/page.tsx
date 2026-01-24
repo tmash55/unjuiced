@@ -108,13 +108,44 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 /**
- * Format EV percentage with color coding
+ * Format EV percentage with color coding and intensity scaling
+ * Higher EV = more intense/saturated colors
  */
-function formatEVPercent(ev: number): { text: string; color: string; bgClass: string } {
+function formatEVPercent(ev: number): { text: string; color: string; bgClass: string; accentClass: string; tier: "elite" | "great" | "good" | "solid" } {
   const text = `+${ev.toFixed(1)}%`;
-  if (ev >= 10) return { text, color: "text-emerald-700 dark:text-emerald-400", bgClass: "bg-emerald-100 dark:bg-emerald-900/30" };
-  if (ev >= 5) return { text, color: "text-green-700 dark:text-green-400", bgClass: "bg-green-100 dark:bg-green-900/30" };
-  return { text, color: "text-blue-700 dark:text-blue-400", bgClass: "bg-blue-100 dark:bg-blue-900/30" };
+  
+  // Elite tier: 15%+ (rare, exceptional)
+  if (ev >= 15) return { 
+    text, 
+    color: "text-emerald-800 dark:text-emerald-300", 
+    bgClass: "bg-emerald-200 dark:bg-emerald-800/50",
+    accentClass: "border-l-emerald-500",
+    tier: "elite"
+  };
+  // Great tier: 8-15% (very good)
+  if (ev >= 8) return { 
+    text, 
+    color: "text-emerald-700 dark:text-emerald-400", 
+    bgClass: "bg-emerald-100 dark:bg-emerald-900/40",
+    accentClass: "border-l-emerald-400",
+    tier: "great"
+  };
+  // Good tier: 4-8% (solid)
+  if (ev >= 4) return { 
+    text, 
+    color: "text-green-700 dark:text-green-400", 
+    bgClass: "bg-green-100/80 dark:bg-green-900/30",
+    accentClass: "border-l-green-400",
+    tier: "good"
+  };
+  // Solid tier: <4% (standard)
+  return { 
+    text, 
+    color: "text-sky-700 dark:text-sky-400", 
+    bgClass: "bg-sky-100/80 dark:bg-sky-900/30",
+    accentClass: "border-l-sky-400",
+    tier: "solid"
+  };
 }
 
 /**
@@ -1477,11 +1508,14 @@ export default function PositiveEVPage() {
                   <tr
                     onClick={() => toggleRow(opp.id, index)}
                     className={cn(
-                      "group/row transition-all duration-200 cursor-pointer",
+                      "group/row transition-all duration-200 cursor-pointer border-l-4",
+                      // EV-based left accent border for quick visual scanning
+                      !isGreyedOut && evFormat.accentClass,
+                      isGreyedOut && "border-l-neutral-300 dark:border-l-neutral-700",
                       !isGreyedOut && "hover:bg-gradient-to-r hover:from-emerald-50/80 hover:to-emerald-50/20 dark:hover:from-emerald-950/40 dark:hover:to-emerald-950/10",
                       index % 2 === 0 
                         ? "bg-white dark:bg-neutral-900" 
-                        : "bg-neutral-100/70 dark:bg-neutral-800/40",
+                        : "bg-neutral-50/80 dark:bg-neutral-800/30",
                       isExpanded && !isGreyedOut && "!bg-gradient-to-r !from-emerald-50 !to-emerald-50/30 dark:!from-emerald-950/50 dark:!to-emerald-950/20",
                       // Greyed out states (stale, odds changed on expanded, or hidden)
                       isGreyedOut && !isHiddenRow && "opacity-50 bg-neutral-200/50 dark:bg-neutral-800/50",
@@ -1830,21 +1864,44 @@ export default function PositiveEVPage() {
 
                     {/* Sharp */}
                     <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
-                          {formatOdds(opp.side === "over" || opp.side === "yes" ? opp.sharpReference.overOdds : opp.sharpReference.underOdds)}
-                        </span>
-                        <span className="text-[9px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                          {opp.sharpReference.source?.split(" ")[0] || savedFilters.sharpPreset}
-                        </span>
-                      </div>
+                      {(() => {
+                        const sharpOdds = opp.side === "over" || opp.side === "yes" ? opp.sharpReference.overOdds : opp.sharpReference.underOdds;
+                        const sharpSource = opp.sharpReference.source?.split(" ")[0]?.toLowerCase() || savedFilters.sharpPreset?.toLowerCase();
+                        // Handle blends like "pinnacle_circa" - just show first book's logo
+                        const sharpBookId = sharpSource?.includes("_") ? sharpSource.split("_")[0] : sharpSource;
+                        const sharpLogo = getBookLogo(sharpBookId);
+                        const sharpName = getBookName(sharpBookId) || sharpSource?.toUpperCase() || "Sharp";
+                        
+                        return (
+                          <div className="flex items-center justify-center gap-2">
+                            {sharpLogo ? (
+                              <Tooltip content={sharpName}>
+                                <img 
+                                  src={sharpLogo} 
+                                  alt={sharpName} 
+                                  className="h-7 w-7 object-contain rounded-md bg-white dark:bg-neutral-800"
+                                />
+                              </Tooltip>
+                            ) : (
+                              <span className="text-[9px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                                {sharpName}
+                              </span>
+                            )}
+                            <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
+                              {formatOdds(sharpOdds)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Fair Odds */}
                     <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-                      <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
-                        {fairOdds}
-                      </span>
+                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
+                        <span className="text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+                          {fairOdds}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Stake */}
@@ -1887,17 +1944,39 @@ export default function PositiveEVPage() {
                             ? `Full Kelly: ${fullKellyPct.toFixed(1)}% • ${kellyPercent}% Kelly: ${display} • +${boostPercent}% boosted`
                             : `Full Kelly: ${fullKellyPct.toFixed(1)}% • ${kellyPercent}% Kelly: ${display}`;
                           
+                          // Kelly % tier for visual emphasis (consistent across all bankrolls)
+                          // High: 3%+ full Kelly = strong bet
+                          // Medium: 1.5-3% full Kelly = solid bet
+                          // Standard: <1.5% full Kelly = smaller edge
+                          const isHighKelly = fullKellyPct >= 3;
+                          const isMediumKelly = fullKellyPct >= 1.5 && fullKellyPct < 3;
+                          
                           return (
                             <Tooltip content={tooltipText}>
-                              <span className={cn(
-                                "text-sm font-semibold tabular-nums cursor-help",
+                              <div className={cn(
+                                "inline-flex items-center gap-0.5 px-2 py-1 rounded-md cursor-help transition-colors",
                                 boostPercent > 0 
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-amber-600 dark:text-amber-400"
+                                  ? "bg-amber-100/80 dark:bg-amber-900/30"
+                                  : isHighKelly 
+                                    ? "bg-amber-100 dark:bg-amber-900/40"
+                                    : isMediumKelly 
+                                      ? "bg-amber-50 dark:bg-amber-900/20"
+                                      : "bg-neutral-100/60 dark:bg-neutral-800/40"
                               )}>
-                                {boostPercent > 0 && <Zap className="w-3 h-3 inline mr-0.5 -mt-0.5" />}
-                                {display}
-                              </span>
+                                {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
+                                <span className={cn(
+                                  "text-sm font-bold tabular-nums",
+                                  boostPercent > 0 
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : isHighKelly 
+                                      ? "text-amber-700 dark:text-amber-400"
+                                      : isMediumKelly 
+                                        ? "text-amber-600 dark:text-amber-400"
+                                        : "text-neutral-600 dark:text-neutral-400"
+                                )}>
+                                  {display}
+                                </span>
+                              </div>
                             </Tooltip>
                           );
                         })()}
