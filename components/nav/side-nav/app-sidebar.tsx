@@ -132,7 +132,7 @@ const researchLinks: NavItem[] = [
     children: [
       { label: "Hit Rates", href: "/cheatsheets/nba/hit-rates" },
       { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
-      { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
+      { label: "Defense vs Position", href: "/stats/nba/defense-vs-position" },
     ]
   },
 ]
