@@ -85,19 +85,19 @@ export function AppPageLayout({
   children,
   className,
   contentClassName,
-  maxWidth = "2xl",
+  maxWidth = "full",
 }: AppPageLayoutProps) {
   return (
-    <div className={cn("mx-auto px-4 sm:px-6 lg:px-8 py-8", maxWidthClasses[maxWidth], className)}>
+    <div className={cn("mx-auto px-3 sm:px-4 lg:px-6 py-5", maxWidthClasses[maxWidth], className)}>
       {/* Page Header */}
-      <div className="mb-8">
+      <div className="mb-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white sm:text-4xl">
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white sm:text-3xl">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-2 text-base text-neutral-600 dark:text-neutral-400 sm:text-lg max-w-3xl">
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-base max-w-3xl">
                 {subtitle}
               </p>
             )}
@@ -112,14 +112,14 @@ export function AppPageLayout({
 
       {/* Optional Stats Bar */}
       {statsBar && (
-        <div className="mb-6">
+        <div className="mb-4">
           {statsBar}
         </div>
       )}
 
       {/* Context Bar (filters, tabs, etc.) */}
       {contextBar && (
-        <div className={cn("mb-6", stickyContextBar && "sticky top-14 z-30")}>
+        <div className={cn("mb-4", stickyContextBar && "sticky top-14 z-30")}>
           {contextBar}
         </div>
       )}

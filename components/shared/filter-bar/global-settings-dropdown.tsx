@@ -114,6 +114,16 @@ interface GlobalSettingsDropdownProps {
   hiddenCount: number;
   onToggleShowHidden: () => void;
   
+  // Arbitrage-specific settings
+  minArb?: number;
+  onMinArbChange?: (value: number) => void;
+  maxArb?: number;
+  onMaxArbChange?: (value: number) => void;
+  totalBetAmount?: number;
+  onTotalBetAmountChange?: (value: number) => void;
+  selectedMarketTypes?: ("player" | "game")[];
+  onMarketTypesChange?: (types: ("player" | "game")[]) => void;
+  
   disabled?: boolean;
 }
 
@@ -142,10 +152,19 @@ export function GlobalSettingsDropdown({
   showHidden,
   hiddenCount,
   onToggleShowHidden,
+  minArb,
+  onMinArbChange,
+  maxArb,
+  onMaxArbChange,
+  totalBetAmount,
+  onTotalBetAmountChange,
+  selectedMarketTypes,
+  onMarketTypesChange,
   disabled = false,
 }: GlobalSettingsDropdownProps) {
   const [open, setOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["ev", "kelly"]));
+  // All sections expanded by default
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["ev", "arb", "odds", "books", "kelly"]));
   
   // Local state for bankroll input to allow proper typing/clearing
   const [bankrollInput, setBankrollInput] = useState<string>(
@@ -278,12 +297,6 @@ export function GlobalSettingsDropdown({
     }
   };
 
-  // Check if there are active settings
-  const hasActiveSettings = 
-    (minEv !== undefined && minEv > 0) ||
-    (minLiquidity > 0) ||
-    hiddenCount > 0;
-
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <Tooltip content="Global settings & filters">
@@ -291,9 +304,9 @@ export function GlobalSettingsDropdown({
           <button
             className={cn(
               "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
-              hasActiveSettings
-                ? "bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
+              "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400",
+              "border border-neutral-200/80 dark:border-neutral-700/80",
+              "hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
               disabled && "opacity-50 cursor-not-allowed"
             )}
           >
@@ -414,6 +427,134 @@ export function GlobalSettingsDropdown({
                       ))}
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Arbitrage Settings (Arbitrage only) */}
+          {tool === "arbitrage" && (
+            <div className="border-b border-neutral-200 dark:border-neutral-700">
+              <button
+                onClick={() => toggleSection("arb")}
+                className="w-full flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+              >
+                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  Arbitrage Settings
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "w-4 h-4 text-neutral-400 transition-transform",
+                    expandedSections.has("arb") && "rotate-90"
+                  )}
+                />
+              </button>
+
+              {expandedSections.has("arb") && (
+                <div className="px-3 pb-3 space-y-3">
+                  {/* Min ROI */}
+                  {onMinArbChange && (
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Min ROI %</label>
+                      <select
+                        value={minArb ?? 0}
+                        onChange={(e) => onMinArbChange(Number(e.target.value))}
+                        className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+                      >
+                        {[0, 0.5, 1, 2, 3, 5].map((val) => (
+                          <option key={val} value={val}>
+                            {val === 0 ? "Any" : `${val}%+`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Max ROI */}
+                  {onMaxArbChange && (
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Max ROI %</label>
+                      <select
+                        value={maxArb ?? 20}
+                        onChange={(e) => onMaxArbChange(Number(e.target.value))}
+                        className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+                      >
+                        {[5, 10, 15, 20, 25, 50].map((val) => (
+                          <option key={val} value={val}>
+                            {val}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Total Bet Amount */}
+                  {onTotalBetAmountChange && (
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
+                        <DollarSign className="w-3 h-3" />
+                        Total Stake
+                      </label>
+                      <select
+                        value={totalBetAmount ?? 200}
+                        onChange={(e) => onTotalBetAmountChange(Number(e.target.value))}
+                        className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+                      >
+                        {[50, 100, 200, 300, 500, 1000, 2000, 5000].map((val) => (
+                          <option key={val} value={val}>
+                            ${val.toLocaleString()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Market Types */}
+                  {onMarketTypesChange && (
+                    <div>
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1.5">
+                        Market Types
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          onClick={() => {
+                            const types = selectedMarketTypes || ["player", "game"];
+                            if (types.includes("player")) {
+                              if (types.length > 1) onMarketTypesChange(types.filter(t => t !== "player"));
+                            } else {
+                              onMarketTypesChange([...types, "player"]);
+                            }
+                          }}
+                          className={cn(
+                            "px-2 py-1 rounded text-[10px] font-medium transition-all",
+                            (selectedMarketTypes || ["player", "game"]).includes("player")
+                              ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          Player Props
+                        </button>
+                        <button
+                          onClick={() => {
+                            const types = selectedMarketTypes || ["player", "game"];
+                            if (types.includes("game")) {
+                              if (types.length > 1) onMarketTypesChange(types.filter(t => t !== "game"));
+                            } else {
+                              onMarketTypesChange([...types, "game"]);
+                            }
+                          }}
+                          className={cn(
+                            "px-2 py-1 rounded text-[10px] font-medium transition-all",
+                            (selectedMarketTypes || ["player", "game"]).includes("game")
+                              ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          Game Lines
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

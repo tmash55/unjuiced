@@ -9,6 +9,7 @@ import {
   shortenPeriodPrefix,
 } from "@/lib/types/opportunities";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
@@ -948,22 +949,62 @@ export function OpportunitiesTable({
         );
       
       case 'line':
+        // Determine if this is a binary/yes-no market
+        // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
+        const isScorerMarket = (
+          opp.market.includes("first_td") ||
+          opp.market.includes("last_td") ||
+          opp.market.includes("first_touchdown") ||
+          opp.market.includes("first_goal") ||
+          opp.market.includes("last_goal") ||
+          opp.market.includes("first_basket") ||
+          opp.market.includes("goalscorer") ||
+          opp.market.includes("first_field_goal")
+        );
+        // Other binary markets require line === 0.5
+        const isBinaryMarket = isScorerMarket || (opp.line === 0.5 && (
+          opp.market.includes("double_double") ||
+          opp.market.includes("triple_double") ||
+          opp.market.includes("to_score") ||
+          opp.market.includes("anytime") ||
+          opp.market.includes("to_record") ||
+          opp.market.includes("overtime") ||
+          opp.market.includes("player_touchdowns") ||
+          opp.market.includes("player_goals")
+        ));
+        
+        const lineDisplay = opp.side === "yes" ? "Yes" : 
+          opp.side === "no" ? "No" :
+          isBinaryMarket ? (opp.side === "over" ? "Yes" : "No") :
+          `${opp.side === "over" ? "O" : "U"} ${opp.line}`;
+        
         return (
           <td key="line" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-700 dark:text-neutral-300 shadow-sm">
-              {opp.side === "yes" ? "Yes" : 
-               opp.side === "no" ? "No" : 
-               `${opp.side === "over" ? "O" : "U"} ${opp.line}`}
+              {lineDisplay}
             </span>
           </td>
         );
       
       case 'market':
+        const marketShortLabel = opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketName(opp.market);
+        const marketFullLabel = formatMarketLabel(opp.market) || opp.marketDisplay || opp.market;
+        // Only show tooltip if the short label is different from the full label
+        const showMarketTooltip = marketShortLabel !== marketFullLabel && marketShortLabel.length < marketFullLabel.length;
+        
         return (
           <td key="market" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
-              {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketName(opp.market)}
-            </span>
+            {showMarketTooltip ? (
+              <Tooltip content={marketFullLabel}>
+                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px] cursor-help">
+                  {marketShortLabel}
+                </span>
+              </Tooltip>
+            ) : (
+              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
+                {marketShortLabel}
+              </span>
+            )}
           </td>
         );
       

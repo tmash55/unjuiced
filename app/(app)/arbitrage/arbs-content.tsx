@@ -5,13 +5,9 @@ import { AutoToggle } from "@/components/arbs/auto-toggle";
 import { GatedArbTable } from "@/components/arbs/gated-arb-table";
 import { useArbsView } from "@/hooks/use-arbs-view";
 import { Button } from "@/components/button";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useArbitragePreferences } from "@/context/preferences-context";
-import { FiltersSheet } from "@/components/arbs/filters-sheet";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
-import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -19,6 +15,12 @@ import { useIsPro } from "@/hooks/use-entitlements";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { MobileArbsView } from "@/components/arbs/mobile";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
+import { UnifiedFilterBar } from "@/components/shared/filter-bar";
+import { getAllLeagues } from "@/lib/data/sports";
+import type { MarketType } from "@/lib/arb-filters";
+
+// Available leagues for arbitrage
+const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
 
 export default function ArbsPage() {
   // VC-Grade: Use centralized, cached Pro status
@@ -124,6 +126,12 @@ export default function ArbsPage() {
   const { filters: arbFilters } = useArbitragePreferences();
   const roundBets = (arbFilters as any)?.roundBets ?? false;
   
+  // Debug: Log prefs on each render
+  console.log('[ArbitrageContent] Current prefs:', {
+    selectedLeagues: prefs.selectedLeagues,
+    selectedBooks: prefs.selectedBooks?.length,
+  });
+  
   // Rows are already filtered by useArbsView (sportsbooks, ROI, liquidity, etc.)
   const fRows = rows;
   const fIds = ids;
@@ -203,85 +211,77 @@ export default function ArbsPage() {
     </div>
   ) : null;
 
-  // Context Bar (Mode Toggle + Filters)
+  // Context Bar - Using Unified Filter Bar
   const contextBar = (
-    <div className="flex flex-col gap-4">
-      {/* Mode Toggle Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Mode Toggle */}
-          <div className="mode-toggle">
-            <button
-              type="button"
-              onClick={() => setMode('prematch')}
-              className={cn(mode !== 'live' && 'active')}
-            >
-              Pre-Match{(pro ? counts : previewCounts) ? ` (${(pro ? counts : previewCounts)?.pregame})` : ''}
-            </button>
-            <button
-              type="button"
-              disabled={!pro}
-              onClick={() => pro && setMode('live')}
-              className={cn(mode === 'live' && pro && 'active')}
-            >
-              Live{(pro ? counts : previewCounts) ? ` (${(pro ? counts : previewCounts)?.live})` : ''}
-              {!pro && (
-                <span className="ml-1 text-xs opacity-60">Pro</span>
-              )}
-            </button>
-          </div>
-
-          {/* Info Text - Hidden on Mobile */}
-          <div className="hidden md:block text-sm text-neutral-600 dark:text-neutral-400">
-            {mode === 'prematch' ? 'Showing pre-match opportunities' : 'Showing live opportunities'}
-          </div>
-        </div>
-
-        {/* Auto Toggle - Far Right */}
-        {pro && (
-          <AutoToggle
-            enabled={auto}
-            setEnabled={setAuto}
-            pro={pro}
-            connected={connected}
-          />
-        )}
-      </div>
-
-      {/* Filter Bar */}
-      <FiltersBar useDots={true}>
-        <FiltersBarSection align="left">
-          {/* Search Input */}
-          <div className="relative flex-1 md:flex-initial">
-            <InputSearch className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-gray-400 dark:text-gray-500" />
-            <Input
-              type="text"
-              placeholder="Search player or team..."
-              value={searchLocal}
-              onChange={(e) => setSearchLocal(e.target.value)}
-              className="w-full md:w-64 flex-shrink pl-10"
-            />
-          </div>
-        </FiltersBarSection>
-
-        <FiltersBarSection align="right">
-          {/* Refresh Button */}
-          <button
-            onClick={async () => {
-              try { setRefreshing(true); await refresh(); } finally { setRefreshing(false); }
-            }}
-            disabled={refreshing}
-            className="refresh-btn flex items-center justify-center h-9 w-9 rounded-lg text-sm font-medium transition-all"
-            title="Refresh opportunities"
-          >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-          </button>
-          
-          {/* Filters Button */}
-          <FiltersSheet pro={pro} isLoggedIn={loggedIn} />
-        </FiltersBarSection>
-      </FiltersBar>
-    </div>
+    <UnifiedFilterBar
+      tool="arbitrage"
+      // Mode
+      mode={mode === "live" ? "live" : "pregame"}
+      onModeChange={(m) => setMode(m === "live" ? "live" : "prematch")}
+      // Search
+      searchQuery={searchLocal}
+      onSearchChange={setSearchLocal}
+      // Boost (not used for arbitrage, but required)
+      boostPercent={0}
+      onBoostChange={() => {}}
+      // Leagues
+      selectedLeagues={prefs.selectedLeagues || []}
+      onLeaguesChange={(leagues) => {
+        console.log('[ArbitrageContent] onLeaguesChange called with:', leagues);
+        console.log('[ArbitrageContent] Current prefs.selectedLeagues:', prefs.selectedLeagues);
+        updateFilters({ selectedLeagues: leagues });
+      }}
+      availableLeagues={AVAILABLE_LEAGUES}
+      // Markets (arbitrage uses market types instead, pass empty)
+      selectedMarkets={[]}
+      onMarketsChange={() => {}}
+      availableMarkets={[]}
+      // Sportsbooks
+      selectedBooks={prefs.selectedBooks || []}
+      onBooksChange={(books) => updateFilters({ selectedBooks: books })}
+      // Min liquidity
+      minLiquidity={prefs.minLiquidity ?? 50}
+      onMinLiquidityChange={(minLiquidity) => updateFilters({ minLiquidity })}
+      // Arbitrage-specific
+      minArb={prefs.minArb ?? 0}
+      onMinArbChange={(minArb) => updateFilters({ minArb })}
+      maxArb={prefs.maxArb ?? 20}
+      onMaxArbChange={(maxArb) => updateFilters({ maxArb })}
+      totalBetAmount={prefs.totalBetAmount ?? 200}
+      onTotalBetAmountChange={(totalBetAmount) => updateFilters({ totalBetAmount })}
+      selectedMarketTypes={(prefs.selectedMarketTypes || ['player', 'game']) as ("player" | "game")[]}
+      onMarketTypesChange={(types) => updateFilters({ selectedMarketTypes: types as MarketType[] })}
+      // Hidden (arbitrage doesn't have hidden feature, but required)
+      showHidden={false}
+      hiddenCount={0}
+      onToggleShowHidden={() => {}}
+      // Auto Refresh
+      autoRefresh={auto}
+      onAutoRefreshChange={setAuto}
+      isConnected={connected}
+      hasFailed={hasFailed}
+      // Refresh
+      onRefresh={async () => {
+        try { setRefreshing(true); await refresh(); } finally { setRefreshing(false); }
+      }}
+      isRefreshing={refreshing}
+      // Reset
+      onReset={() => {
+        updateFilters({
+          selectedLeagues: AVAILABLE_LEAGUES,
+          selectedBooks: [],
+          selectedMarketTypes: ['player', 'game'],
+          minArb: 0,
+          maxArb: 20,
+          totalBetAmount: 200,
+          minLiquidity: 50,
+        });
+        setSearchLocal("");
+      }}
+      // UI State
+      locked={!pro}
+      isPro={pro}
+    />
   );
 
   return (

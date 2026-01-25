@@ -430,11 +430,31 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    // Sort
+    // Sort - use stable sort with secondary keys to ensure consistent ordering
+    // Primary: edge or ev (descending), Secondary: game start time (ascending), Tertiary: unique key
+    const getUniqueKey = (opp: Opportunity) => 
+      `${opp.event_id}:${opp.player}:${opp.market}:${opp.line}:${opp.side}`;
+    
     if (sortBy === "ev") {
-      allOpportunities.sort((a, b) => (b.ev_pct || 0) - (a.ev_pct || 0));
+      allOpportunities.sort((a, b) => {
+        const evDiff = (b.ev_pct || 0) - (a.ev_pct || 0);
+        if (evDiff !== 0) return evDiff;
+        // Secondary: earlier games first
+        const timeDiff = (new Date(a.event?.start_time || 0).getTime()) - (new Date(b.event?.start_time || 0).getTime());
+        if (timeDiff !== 0) return timeDiff;
+        // Tertiary: stable by unique key
+        return getUniqueKey(a).localeCompare(getUniqueKey(b));
+      });
     } else {
-      allOpportunities.sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0));
+      allOpportunities.sort((a, b) => {
+        const edgeDiff = (b.edge_pct || 0) - (a.edge_pct || 0);
+        if (edgeDiff !== 0) return edgeDiff;
+        // Secondary: earlier games first
+        const timeDiff = (new Date(a.event?.start_time || 0).getTime()) - (new Date(b.event?.start_time || 0).getTime());
+        if (timeDiff !== 0) return timeDiff;
+        // Tertiary: stable by unique key
+        return getUniqueKey(a).localeCompare(getUniqueKey(b));
+      });
     }
 
     // Track count after filters but before limit
@@ -576,6 +596,7 @@ async function fetchSportOpportunitiesCached(
   if (ENABLE_CACHE) {
     try {
       const cached = await redis.get<{ opportunities: Opportunity[]; timestamp: number }>(cacheKey);
+      // Use same TTL for read check as we do for write - ensures consistency
       if (cached && (Date.now() - cached.timestamp) < SPORT_CACHE_TTL * 1000) {
         return { opportunities: cached.opportunities, cacheHit: true };
       }
@@ -590,10 +611,20 @@ async function fetchSportOpportunitiesCached(
   
   // Cache the results - limit count AND strip large fields to avoid size limits
   // Upstash has a 1MB limit per item
+  // Use consistent TTL (SPORT_CACHE_TTL seconds) - don't multiply by 2 to avoid stale reads
   if (ENABLE_CACHE && opportunities.length > 0) {
     try {
-      const toCache = opportunities.slice(0, 300).map(stripForCache); // Reduced from 1000 to 300
-      await redis.set(cacheKey, { opportunities: toCache, timestamp: Date.now() }, { ex: SPORT_CACHE_TTL * 2 });
+      // Sort before caching to ensure consistent order when returned from cache
+      const getKey = (o: Opportunity) => `${o.event_id}:${o.player}:${o.market}:${o.line}:${o.side}`;
+      const sorted = [...opportunities].sort((a, b) => {
+        const edgeDiff = (b.edge_pct || 0) - (a.edge_pct || 0);
+        if (edgeDiff !== 0) return edgeDiff;
+        const timeDiff = (new Date(a.event?.start_time || 0).getTime()) - (new Date(b.event?.start_time || 0).getTime());
+        if (timeDiff !== 0) return timeDiff;
+        return getKey(a).localeCompare(getKey(b));
+      });
+      const toCache = sorted.slice(0, 500).map(stripForCache); // Increased to 500 for more coverage
+      await redis.set(cacheKey, { opportunities: toCache, timestamp: Date.now() }, { ex: SPORT_CACHE_TTL });
     } catch (e) {
       // Cache write failed - likely size issue, ignore
       console.warn("[Cache] Write failed (size?):", e);

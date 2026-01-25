@@ -438,7 +438,13 @@ function normalInverseCDF(p: number): number {
  * Probit de-vig method
  * 
  * Transforms probabilities via normal quantiles, adjusts, and transforms back.
- * Provides a statistically smoother correction.
+ * Provides a statistically smoother correction that handles favorite/longshot bias.
+ * 
+ * The key insight is that we need to find a shift value 'k' such that:
+ * Φ(z_over + k) + Φ(z_under + k) = 1
+ * 
+ * Since Φ(z) + Φ(-z) = 1, we need: z_over + k = -(z_under + k)
+ * Which gives us: k = -(z_over + z_under) / 2
  * 
  * @param overOdds American odds for over
  * @param underOdds American odds for under
@@ -450,44 +456,49 @@ export function devigProbit(overOdds: number, underOdds: number): DevigResult {
     const probUnder = americanToImpliedProb(underOdds);
     const margin = probOver + probUnder - 1;
     
+    // If margin is very small, just use multiplicative (more stable)
+    if (Math.abs(margin) < 0.001) {
+      const fairProbOver = probOver / (probOver + probUnder);
+      const fairProbUnder = probUnder / (probOver + probUnder);
+      return {
+        method: "probit",
+        fairProbOver,
+        fairProbUnder,
+        margin,
+        success: true,
+      };
+    }
+    
     // Clamp to avoid infinity in probit
     const clampedOver = Math.max(0.001, Math.min(0.999, probOver));
     const clampedUnder = Math.max(0.001, Math.min(0.999, probUnder));
     
-    // Transform to normal scale
+    // Transform to normal scale (z-scores)
     const zOver = normalInverseCDF(clampedOver);
     const zUnder = normalInverseCDF(clampedUnder);
     
-    // The margin in probit space
-    // We need to find an adjustment that makes the probabilities sum to 1
-    // Binary search for the right shift
-    let shiftLow = -2;
-    let shiftHigh = 2;
-    let shift = 0;
-    const tolerance = 1e-10;
-    const maxIterations = 100;
+    // The analytical solution: shift both z-scores by -k where k = (zOver + zUnder) / 2
+    // This makes the adjusted z-scores symmetric around 0, ensuring probs sum to 1
+    const k = (zOver + zUnder) / 2;
     
-    for (let i = 0; i < maxIterations; i++) {
-      shift = (shiftLow + shiftHigh) / 2;
-      const adjOver = normalCDF(zOver - shift);
-      const adjUnder = normalCDF(zUnder + shift);
-      const sum = adjOver + adjUnder;
-      
-      if (Math.abs(sum - 1) < tolerance) {
-        break;
-      }
-      
-      if (sum > 1) {
-        shiftLow = shift;
-      } else {
-        shiftHigh = shift;
-      }
+    const fairProbOver = normalCDF(zOver - k);
+    const fairProbUnder = normalCDF(zUnder - k);
+    
+    // Safety check: if results are unreasonable, fall back to multiplicative
+    if (fairProbOver <= 0 || fairProbOver >= 1 || fairProbUnder <= 0 || fairProbUnder >= 1 ||
+        !isFinite(fairProbOver) || !isFinite(fairProbUnder)) {
+      const fairProbOverFallback = probOver / (probOver + probUnder);
+      const fairProbUnderFallback = probUnder / (probOver + probUnder);
+      return {
+        method: "probit",
+        fairProbOver: fairProbOverFallback,
+        fairProbUnder: fairProbUnderFallback,
+        margin,
+        success: true,
+      };
     }
     
-    const fairProbOver = normalCDF(zOver - shift);
-    const fairProbUnder = normalCDF(zUnder + shift);
-    
-    // Normalize to ensure sum is exactly 1
+    // Normalize to ensure sum is exactly 1 (handle any floating point errors)
     const total = fairProbOver + fairProbUnder;
     
     return {

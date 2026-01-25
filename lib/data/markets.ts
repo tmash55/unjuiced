@@ -441,7 +441,7 @@ export interface SportMarket {
     // TOUCHDOWN SCORER MARKETS (Single-line / ML side)
     // -------------------------------------------------------------------------
     { value: "Anytime TD", label: "Anytime Touchdown", apiKey: "player_touchdowns", group: "Scoring", period: 'full', singleLine: true },
-    { value: "First TD", label: "First Touchdown Scorer", apiKey: "player_first_td", group: "Scoring", period: 'full', singleLine: true },
+    { value: "1st TD", label: "1st Touchdown", apiKey: "player_first_td", group: "Scoring", period: 'full', singleLine: true },
     { value: "Last TD", label: "Last Touchdown Scorer", apiKey: "player_last_td", group: "Scoring", period: 'full', singleLine: true },
     { value: "Home First TD", label: "Home Team First TD Scorer", apiKey: "home_team_first_touchdown_scorer", group: "Scoring", period: 'full', singleLine: true },
     { value: "Away First TD", label: "Away Team First TD Scorer", apiKey: "away_team_first_touchdown_scorer", group: "Scoring", period: 'full', singleLine: true },
@@ -1620,7 +1620,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       
       // Scoring
       'player_touchdowns': 'Anytime TD',
-      'player_first_td': 'First TD Scorer',
+      'player_first_td': '1st TD',
       'player_last_td': 'Last TD Scorer',
       'home_team_first_touchdown_scorer': 'Home 1st TD',
       'away_team_first_touchdown_scorer': 'Away 1st TD',
@@ -1712,7 +1712,7 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'rush_attempts': 'Rush Attempts',
       'pass_rush_yards': 'Pass + Rush Yards',
       'rush_rec_yards': 'Rush + Rec Yards',
-      'first_td': 'First TD Scorer',
+      'first_td': '1st TD',
       'last_td': 'Last TD Scorer',
       'player_anytime_td': 'Anytime TD',
       'player_tackles_and_assists': 'Tackles + Assists',

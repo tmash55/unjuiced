@@ -21,7 +21,7 @@ import { Layers } from "lucide-react";
 import type { SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 
-export type FilterTool = "positive-ev" | "edge-finder";
+export type FilterTool = "positive-ev" | "edge-finder" | "arbitrage";
 
 // Common filter state shared between tools
 export interface CommonFilterState {
@@ -56,7 +56,16 @@ export interface EdgeFinderFilterState extends CommonFilterState {
   marketLines?: Record<string, number[]>;
 }
 
-export type FilterState = PositiveEVFilterState | EdgeFinderFilterState;
+// Arbitrage specific state
+export interface ArbitrageFilterState extends CommonFilterState {
+  selectedLeagues: string[];
+  selectedMarketTypes: ("player" | "game")[];
+  minArb: number;
+  maxArb: number;
+  totalBetAmount: number;
+}
+
+export type FilterState = PositiveEVFilterState | EdgeFinderFilterState | ArbitrageFilterState;
 
 // Props for the unified filter bar
 export interface UnifiedFilterBarProps {
@@ -117,6 +126,16 @@ export interface UnifiedFilterBarProps {
   onMinBooksPerSideChange?: (value: number) => void;
   minLiquidity: number;
   onMinLiquidityChange: (value: number) => void;
+  
+  // Arbitrage-specific settings
+  minArb?: number;
+  onMinArbChange?: (value: number) => void;
+  maxArb?: number;
+  onMaxArbChange?: (value: number) => void;
+  totalBetAmount?: number;
+  onTotalBetAmountChange?: (value: number) => void;
+  selectedMarketTypes?: ("player" | "game")[];
+  onMarketTypesChange?: (types: ("player" | "game")[]) => void;
   
   // Kelly criterion
   bankroll?: number;
@@ -195,6 +214,14 @@ export function UnifiedFilterBar({
   onMinBooksPerSideChange,
   minLiquidity,
   onMinLiquidityChange,
+  minArb,
+  onMinArbChange,
+  maxArb,
+  onMaxArbChange,
+  totalBetAmount,
+  onTotalBetAmountChange,
+  selectedMarketTypes,
+  onMarketTypesChange,
   bankroll,
   kellyPercent,
   onBankrollChange,
@@ -228,8 +255,8 @@ export function UnifiedFilterBar({
       <div className="relative z-10 flex flex-wrap items-center gap-3 p-3 sm:p-4">
         {/* Left Section */}
         <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
-          {/* Mode Tabs - Only show for Positive EV (Edge Finder is pregame only) */}
-          {tool === "positive-ev" && (
+          {/* Mode Tabs - Show for Positive EV and Arbitrage (Edge Finder is pregame only) */}
+          {(tool === "positive-ev" || tool === "arbitrage") && (
             <div className="flex items-center gap-0.5 p-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200/50 dark:border-neutral-700/50">
               <button
                 onClick={() => onModeChange("pregame")}
@@ -241,16 +268,17 @@ export function UnifiedFilterBar({
                     : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
                 )}
               >
-                Pregame
+                {tool === "arbitrage" ? "Pre-Match" : "Pregame"}
               </button>
               <button
                 onClick={() => onModeChange("live")}
-                disabled={locked}
+                disabled={locked || (tool === "arbitrage" && !isPro)}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
                   mode === "live"
                     ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
-                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300",
+                  tool === "arbitrage" && !isPro && "opacity-50"
                 )}
               >
                 <span className="relative flex h-1.5 w-1.5">
@@ -258,6 +286,9 @@ export function UnifiedFilterBar({
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
                 </span>
                 Live
+                {tool === "arbitrage" && !isPro && (
+                  <span className="text-[9px] opacity-60">Pro</span>
+                )}
               </button>
             </div>
           )}
@@ -326,15 +357,19 @@ export function UnifiedFilterBar({
             />
           </div>
 
-          {/* Divider */}
-          <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
+          {/* Divider - only show if boost button is visible */}
+          {tool !== "arbitrage" && (
+            <div className="h-6 w-px bg-neutral-200 dark:bg-neutral-700 hidden sm:block" />
+          )}
 
-          {/* Boost Button */}
-          <BoostButton
-            value={boostPercent}
-            onChange={onBoostChange}
-            disabled={locked}
-          />
+          {/* Boost Button - not used for arbitrage */}
+          {tool !== "arbitrage" && (
+            <BoostButton
+              value={boostPercent}
+              onChange={onBoostChange}
+              disabled={locked}
+            />
+          )}
         </div>
 
         {/* Right Section */}
@@ -363,16 +398,18 @@ export function UnifiedFilterBar({
             disabled={locked}
           />
 
-          {/* Comparing Against Dropdown */}
-          <ComparingDropdown
-            tool={tool}
-            sharpPreset={sharpPreset}
-            onSharpPresetChange={onSharpPresetChange}
-            comparisonMode={comparisonMode}
-            comparisonBook={comparisonBook}
-            onComparisonChange={onComparisonChange}
-            disabled={locked}
-          />
+          {/* Comparing Against Dropdown - Not needed for Arbitrage */}
+          {tool !== "arbitrage" && (
+            <ComparingDropdown
+              tool={tool}
+              sharpPreset={sharpPreset}
+              onSharpPresetChange={onSharpPresetChange}
+              comparisonMode={comparisonMode}
+              comparisonBook={comparisonBook}
+              onComparisonChange={onComparisonChange}
+              disabled={locked}
+            />
+          )}
 
           {/* Global Settings Dropdown */}
           <GlobalSettingsDropdown
@@ -400,6 +437,15 @@ export function UnifiedFilterBar({
             showHidden={showHidden}
             hiddenCount={hiddenCount}
             onToggleShowHidden={onToggleShowHidden}
+            // Arbitrage-specific
+            minArb={minArb}
+            onMinArbChange={onMinArbChange}
+            maxArb={maxArb}
+            onMaxArbChange={onMaxArbChange}
+            totalBetAmount={totalBetAmount}
+            onTotalBetAmountChange={onTotalBetAmountChange}
+            selectedMarketTypes={selectedMarketTypes}
+            onMarketTypesChange={onMarketTypesChange}
             disabled={locked}
           />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Search, Check, X } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -86,9 +86,54 @@ export function SportsDropdown({
 
   // Determine if using sports or leagues based on tool
   const isPositiveEV = tool === "positive-ev";
-  const selected = isPositiveEV ? selectedSports : selectedLeagues;
+  const propSelected = isPositiveEV ? selectedSports : selectedLeagues;
   const available = isPositiveEV ? availableSports : availableLeagues;
-  const onChange = isPositiveEV ? onSportsChange : onLeaguesChange;
+  const propOnChange = isPositiveEV ? onSportsChange : onLeaguesChange;
+
+  // Local state for pending changes - only apply when dropdown closes
+  const [localSelected, setLocalSelected] = useState<string[]>(propSelected);
+  const [localMarkets, setLocalMarkets] = useState<string[]>(selectedMarkets);
+  const [wasOpen, setWasOpen] = useState(false);
+
+  // Sync local state with props ONLY when dropdown transitions from closed to open
+  useEffect(() => {
+    if (open && !wasOpen) {
+      // Dropdown just opened - sync local state with props
+      console.log('[SportsDropdown] Dropdown opened - syncing state:', { propSelected, selectedMarkets });
+      setLocalSelected(propSelected);
+      setLocalMarkets(selectedMarkets);
+    }
+    setWasOpen(open);
+  }, [open, wasOpen, propSelected, selectedMarkets]);
+
+  // Handle dropdown close - apply pending changes only when closing
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && open) {
+      // Dropdown is closing - apply pending changes if different
+      const sportsChanged = JSON.stringify([...localSelected].sort()) !== JSON.stringify([...propSelected].sort());
+      const marketsChanged = JSON.stringify([...localMarkets].sort()) !== JSON.stringify([...selectedMarkets].sort());
+      
+      console.log('[SportsDropdown] Closing - checking changes:', {
+        tool,
+        localSelected,
+        propSelected,
+        sportsChanged,
+        marketsChanged
+      });
+      
+      if (sportsChanged && propOnChange) {
+        console.log('[SportsDropdown] Calling propOnChange with:', localSelected);
+        propOnChange(localSelected);
+      }
+      if (marketsChanged) {
+        onMarketsChange(localMarkets);
+      }
+    }
+    setOpen(newOpen);
+  }, [open, localSelected, propSelected, localMarkets, selectedMarkets, propOnChange, onMarketsChange, tool]);
+
+  // Use local state for display
+  const selected = localSelected;
 
   // Get the first selected sport for the icon
   const primarySport = selected.length > 0 ? selected[0] : available[0];
@@ -97,39 +142,49 @@ export function SportsDropdown({
   const allSportsSelected = selected.length === 0 || selected.length === available.length;
   
   // Check if all markets are selected (empty = all)
-  const allMarketsSelected = selectedMarkets.length === 0;
+  const allMarketsSelected = localMarkets.length === 0;
 
-  // Toggle sport/league selection
+  // Toggle sport/league selection - update LOCAL state only
   const toggleSportLeague = (id: string) => {
-    if (!onChange) return;
-    if (selected.includes(id)) {
-      // If deselecting and only one left, clear all (which means all selected)
-      if (selected.length === 1) {
-        onChange([]);
+    // Check if this item is currently "selected" (showing as checked)
+    const isCurrentlySelected = selected.length === 0 || selected.includes(id);
+    
+    console.log('[SportsDropdown] Toggling:', id, 'Current selected:', selected, 'Is selected?', isCurrentlySelected);
+
+    if (isCurrentlySelected) {
+      // We're deselecting this item
+      if (selected.length === 0) {
+        // All were selected (empty array), now select all EXCEPT this one
+        const newState = available.filter((s) => s !== id);
+        console.log('[SportsDropdown] Deselecting from ALL -> New state:', newState);
+        setLocalSelected(newState);
+      } else if (selected.length === 1 && selected[0] === id) {
+        // Only one was selected and we're deselecting it - reset to all
+        console.log('[SportsDropdown] Deselecting last one -> Reset to ALL');
+        setLocalSelected([]);
       } else {
-        onChange(selected.filter((s) => s !== id));
+        // Multiple were selected, just remove this one
+        const newState = selected.filter((s) => s !== id);
+        console.log('[SportsDropdown] Deselecting one -> New state:', newState);
+        setLocalSelected(newState);
       }
     } else {
-      // If currently all selected (empty array), start fresh with just this one
-      if (selected.length === 0) {
-        onChange([id]);
-      } else {
-        onChange([...selected, id]);
-      }
+      // We're selecting this item (adding it to the list)
+      const newState = [...selected, id];
+      console.log('[SportsDropdown] Selecting -> New state:', newState);
+      setLocalSelected(newState);
     }
   };
 
-  // Select all sports/leagues
+  // Select all sports/leagues - update LOCAL state only
   const selectAllSports = () => {
-    if (!onChange) return;
-    onChange([]);
+    setLocalSelected([]);
   };
 
-  // Clear all sports/leagues
+  // Clear all sports/leagues - update LOCAL state only
   const clearAllSports = () => {
-    if (!onChange) return;
     // Select just the first one (can't have none)
-    onChange([available[0]]);
+    setLocalSelected([available[0]]);
   };
 
   // Group markets by category
@@ -171,93 +226,101 @@ export function SportsDropdown({
   // Get markets for a category
   const getMarketsForCategory = (category: string) => groupedMarkets[category] || [];
 
-  // Check if all markets in category are selected
+  // Check if all markets in category are selected - use LOCAL state
   const isCategoryAllSelected = (category: string) => {
     const markets = getMarketsForCategory(category);
     if (markets.length === 0) return false;
-    if (selectedMarkets.length === 0) return true; // All selected
-    return markets.every(m => selectedMarkets.includes(m.key));
+    if (localMarkets.length === 0) return true; // All selected
+    return markets.every(m => localMarkets.includes(m.key));
   };
 
-  // Check if some markets in category are selected
+  // Check if some markets in category are selected - use LOCAL state
   const isCategorySomeSelected = (category: string) => {
     const markets = getMarketsForCategory(category);
     if (markets.length === 0) return false;
-    if (selectedMarkets.length === 0) return true;
-    return markets.some(m => selectedMarkets.includes(m.key));
+    if (localMarkets.length === 0) return true;
+    return markets.some(m => localMarkets.includes(m.key));
   };
 
-  // Toggle all markets in a category
+  // Toggle all markets in a category - update LOCAL state only
   const toggleCategoryMarkets = (category: string) => {
     const categoryMarkets = getMarketsForCategory(category);
     const categoryKeys = categoryMarkets.map(m => m.key);
     
     if (isCategoryAllSelected(category)) {
       // Deselect all in category
-      if (selectedMarkets.length === 0) {
+      if (localMarkets.length === 0) {
         // Currently all markets selected, so select all EXCEPT this category
         const allOtherMarkets = availableMarkets
           .filter(m => !categoryKeys.includes(m.key))
           .map(m => m.key);
-        onMarketsChange(allOtherMarkets);
+        setLocalMarkets(allOtherMarkets);
       } else {
         // Remove this category's markets
-        onMarketsChange(selectedMarkets.filter(m => !categoryKeys.includes(m)));
+        setLocalMarkets(localMarkets.filter(m => !categoryKeys.includes(m)));
       }
     } else {
       // Select all in category
-      if (selectedMarkets.length === 0) {
+      if (localMarkets.length === 0) {
         // Currently showing all, just select this category
-        onMarketsChange(categoryKeys);
+        setLocalMarkets(categoryKeys);
       } else {
         // Add this category's markets
-        const newSelected = [...new Set([...selectedMarkets, ...categoryKeys])];
-        onMarketsChange(newSelected);
+        const newSelected = [...new Set([...localMarkets, ...categoryKeys])];
+        setLocalMarkets(newSelected);
       }
     }
   };
 
-  // Toggle individual market
+  // Toggle individual market - update LOCAL state only
   const toggleMarket = (marketKey: string) => {
-    if (selectedMarkets.length === 0) {
+    if (localMarkets.length === 0) {
       // Currently all selected, select all EXCEPT this one
       const allOther = availableMarkets.filter(m => m.key !== marketKey).map(m => m.key);
-      onMarketsChange(allOther);
-    } else if (selectedMarkets.includes(marketKey)) {
-      const newSelected = selectedMarkets.filter(m => m !== marketKey);
+      setLocalMarkets(allOther);
+    } else if (localMarkets.includes(marketKey)) {
+      const newSelected = localMarkets.filter(m => m !== marketKey);
       // If removing leaves empty, that means all selected
-      onMarketsChange(newSelected);
+      setLocalMarkets(newSelected);
     } else {
-      onMarketsChange([...selectedMarkets, marketKey]);
+      setLocalMarkets([...localMarkets, marketKey]);
     }
   };
 
-  // Select all markets
+  // Select all markets - update LOCAL state only
   const selectAllMarkets = () => {
-    onMarketsChange([]);
+    setLocalMarkets([]);
   };
 
-  // Clear all markets (select none - but we'll just select the first category)
+  // Clear all markets (select none - but we'll just select the first category) - update LOCAL state only
   const clearAllMarkets = () => {
     const firstCategoryWithMarkets = Object.entries(groupedMarkets).find(([_, markets]) => markets.length > 0);
     if (firstCategoryWithMarkets) {
-      onMarketsChange(firstCategoryWithMarkets[1].map(m => m.key));
+      setLocalMarkets(firstCategoryWithMarkets[1].map(m => m.key));
     }
   };
 
-  // Count selected in category
+  // Count selected in category - use LOCAL state
   const getSelectedCount = (category: string) => {
     const markets = getMarketsForCategory(category);
-    if (selectedMarkets.length === 0) return markets.length;
-    return markets.filter(m => selectedMarkets.includes(m.key)).length;
+    if (localMarkets.length === 0) return markets.length;
+    return markets.filter(m => localMarkets.includes(m.key)).length;
   };
 
-  // Summary text for button
+  // Summary text for button - use PROP state (not local) for the button display
+  // since we only want to show committed state in the trigger
+  const propAllSportsSelected = propSelected.length === 0 || propSelected.length === available.length;
+  const propAllMarketsSelected = selectedMarkets.length === 0;
+  const propPrimarySport = propSelected.length > 0 ? propSelected[0] : available[0];
+  
   const getSummaryText = () => {
-    const sportsText = allSportsSelected 
-      ? "All Sports" 
-      : `${selected.length} Sport${selected.length !== 1 ? "s" : ""}`;
-    const marketsText = allMarketsSelected 
+    // For arbitrage, use "Leagues" label, for positive-ev use "Sports", for edge-finder use "Leagues"
+    const entityLabel = tool === "positive-ev" ? "Sport" : "League";
+    const entityLabelPlural = tool === "positive-ev" ? "Sports" : "Leagues";
+    const sportsText = propAllSportsSelected 
+      ? `All ${entityLabelPlural}` 
+      : `${propSelected.length} ${propSelected.length !== 1 ? entityLabelPlural : entityLabel}`;
+    const marketsText = propAllMarketsSelected 
       ? "All Markets" 
       : `${selectedMarkets.length} Market${selectedMarkets.length !== 1 ? "s" : ""}`;
     return { sportsText, marketsText };
@@ -266,7 +329,7 @@ export function SportsDropdown({
   const { sportsText, marketsText } = getSummaryText();
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild disabled={disabled}>
         <button
           className={cn(
@@ -277,16 +340,26 @@ export function SportsDropdown({
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
-          <SportIcon sport={primarySport} className="w-4 h-4" />
+          <SportIcon sport={propPrimarySport} className="w-4 h-4" />
           <span className="hidden sm:inline text-xs">
-            {!allSportsSelected || !allMarketsSelected ? (
-              <span className="text-neutral-500 dark:text-neutral-400">
-                {!allSportsSelected && sportsText}
-                {!allSportsSelected && !allMarketsSelected && " · "}
-                {!allMarketsSelected && marketsText}
-              </span>
+            {tool === "arbitrage" ? (
+              // Arbitrage: only show leagues, no markets
+              !propAllSportsSelected ? (
+                <span className="text-neutral-500 dark:text-neutral-400">{sportsText}</span>
+              ) : (
+                "Leagues"
+              )
             ) : (
-              "Filters"
+              // Positive EV / Edge Finder: show both sports/leagues and markets
+              !propAllSportsSelected || !propAllMarketsSelected ? (
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  {!propAllSportsSelected && sportsText}
+                  {!propAllSportsSelected && !propAllMarketsSelected && " · "}
+                  {!propAllMarketsSelected && marketsText}
+                </span>
+              ) : (
+                "Filters"
+              )
             )}
           </span>
           <ChevronDown className="w-3 h-3 opacity-60" />
@@ -295,12 +368,18 @@ export function SportsDropdown({
 
       <DropdownMenuContent 
         align="start" 
-        className="w-[520px] p-0 overflow-hidden"
+        className={cn(
+          "p-0 overflow-hidden",
+          tool === "arbitrage" ? "w-[220px]" : "w-[520px]"
+        )}
         sideOffset={4}
       >
-        <div className="flex h-[400px]">
+        <div className={cn("flex", tool === "arbitrage" ? "h-[300px]" : "h-[400px]")}>
           {/* Left Column - Sports/Leagues */}
-          <div className="w-[180px] border-r border-neutral-200 dark:border-neutral-700 flex flex-col">
+          <div className={cn(
+            "border-r border-neutral-200 dark:border-neutral-700 flex flex-col",
+            tool === "arbitrage" ? "w-full border-r-0" : "w-[180px]"
+          )}>
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
@@ -356,9 +435,22 @@ export function SportsDropdown({
                 );
               })}
             </div>
+            
+            {/* Footer for arbitrage (when no markets column) */}
+            {tool === "arbitrage" && (
+              <div className="px-3 py-2 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 flex justify-end">
+                <button
+                  onClick={() => handleOpenChange(false)}
+                  className="px-4 py-1.5 rounded-md text-xs font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Right Column - Markets */}
+          {/* Right Column - Markets (hidden for arbitrage) */}
+          {tool !== "arbitrage" && (
           <div className="flex-1 flex flex-col">
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between mb-2">
@@ -366,7 +458,7 @@ export function SportsDropdown({
                   Markets
                 </span>
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                  {allMarketsSelected ? "All" : selectedMarkets.length} selected
+                  {allMarketsSelected ? "All" : localMarkets.length} selected
                 </span>
               </div>
               
@@ -542,13 +634,14 @@ export function SportsDropdown({
             {/* Footer */}
             <div className="px-3 py-2 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 flex justify-end">
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => handleOpenChange(false)}
                 className="px-4 py-1.5 rounded-md text-xs font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
               >
                 Done
               </button>
             </div>
           </div>
+          )}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

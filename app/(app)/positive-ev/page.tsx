@@ -10,15 +10,13 @@
  */
 
 import React, { useEffect, useMemo, useRef, useCallback, useState } from "react";
-import { ToolHeading } from "@/components/common/tool-heading";
-import { ToolSubheading } from "@/components/common/tool-subheading";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
 import { Tooltip } from "@/components/tooltip";
+import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { 
-  TrendingUp, 
   ChevronDown, 
   ChevronUp,
   ChevronRight,
@@ -46,7 +44,7 @@ import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
 import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -905,56 +903,33 @@ export default function PositiveEVPage() {
     );
   }
 
-  return (
-    <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-white" />
-          </div>
-          <ToolHeading>Positive EV</ToolHeading>
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ToolSubheading>
-              {isLoading
-                ? "Loading +EV opportunities..."
-                : isFetching
-                ? "Updating..."
-                : `${sortedOpportunities.length}+ opportunities found`}
-            </ToolSubheading>
-            {/* Method info badge */}
-            <button
-              onClick={() => setShowMethodInfo(!showMethodInfo)}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              <span>Power + Multiplicative</span>
-              <Info className="w-3 h-3 opacity-60" />
-            </button>
-          </div>
-          {/* Freshness Indicator */}
-          {dataUpdatedAt && !isLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-              {autoRefresh && streamConnected && (
-                <>
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-                  <span className="text-green-600 dark:text-green-400">Live</span>
-                  <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
-                </>
-              )}
-              <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
-              {(isFetching || (autoRefresh && streamIsReconnecting)) && (
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+  // Build subtitle based on loading state
+  const subtitle = isLoading
+    ? "Loading +EV opportunities..."
+    : isFetching
+    ? "Updating..."
+    : `${sortedOpportunities.length}+ opportunities found`;
 
-      {/* Unified Filter Bar */}
-      <UnifiedFilterBar
+  // Header actions - freshness indicator
+  const headerActions = dataUpdatedAt && !isLoading ? (
+    <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
+      {autoRefresh && streamConnected && (
+        <>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+          <span className="text-green-600 dark:text-green-400">Live</span>
+          <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
+        </>
+      )}
+      <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+      {(isFetching || (autoRefresh && streamIsReconnecting)) && (
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      )}
+    </div>
+  ) : null;
+
+  // Context bar - filter bar
+  const contextBar = (
+    <UnifiedFilterBar
         tool="positive-ev"
         className="mb-5"
         // Mode
@@ -1042,7 +1017,16 @@ export default function PositiveEVPage() {
         locked={locked}
         isPro={effectiveIsPro}
       />
+  );
 
+  return (
+    <AppPageLayout
+      title="Positive EV"
+      subtitle={subtitle}
+      headerActions={headerActions}
+      contextBar={contextBar}
+      stickyContextBar={true}
+    >
       {/* Method Info Panel */}
       <AnimatePresence>
         {showMethodInfo && (
@@ -1359,7 +1343,7 @@ export default function PositiveEVPage() {
                 <td colSpan={totalColumns}>
                   <div className="flex flex-col items-center justify-center py-20 px-4">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
-                      <TrendingUp className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
+                      <Zap className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1.5">
                       No +EV opportunities found
@@ -1384,7 +1368,12 @@ export default function PositiveEVPage() {
               // Calculate boosted EV if boost is active
               const decimalOdds = opp.book.priceDecimal || 
                 (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
-              const fairProbability = opp.evCalculations.power?.fairProb || opp.evCalculations.multiplicative?.fairProb || 0;
+              // Get fair probability from whichever devig method is available
+              const fairProbability = opp.evCalculations.power?.fairProb 
+                || opp.evCalculations.multiplicative?.fairProb 
+                || opp.evCalculations.additive?.fairProb 
+                || opp.evCalculations.probit?.fairProb 
+                || 0;
               const displayEV = boostPercent > 0 
                 ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent) 
                 : baseEV;
@@ -1415,7 +1404,12 @@ export default function PositiveEVPage() {
               }
               
               // Get fair probability and convert to American odds
-              const fairProb = opp.evCalculations.power?.fairProb || opp.evCalculations.multiplicative?.fairProb || 0;
+              // Check all devig methods in order of preference
+              const fairProb = opp.evCalculations.power?.fairProb 
+                || opp.evCalculations.multiplicative?.fairProb 
+                || opp.evCalculations.additive?.fairProb 
+                || opp.evCalculations.probit?.fairProb 
+                || 0;
               const fairOdds = fairProbToAmerican(fairProb);
               
               // Get all method EV values for tooltip (apply boost if active)
@@ -1782,16 +1776,29 @@ export default function PositiveEVPage() {
                     {/* Line */}
                     <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
-                        // Determine if this is a binary/yes-no market (e.g., double_double, triple_double)
-                        const isBinaryMarket = opp.line === 0.5 && (
+                        // Determine if this is a binary/yes-no market
+                        // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
+                        const isScorerMarket = (
+                          opp.market.includes("first_td") ||
+                          opp.market.includes("last_td") ||
+                          opp.market.includes("first_touchdown") ||
+                          opp.market.includes("first_goal") ||
+                          opp.market.includes("last_goal") ||
+                          opp.market.includes("first_basket") ||
+                          opp.market.includes("goalscorer") ||
+                          opp.market.includes("first_field_goal")
+                        );
+                        // Other binary markets require line === 0.5
+                        const isBinaryMarket = isScorerMarket || (opp.line === 0.5 && (
                           opp.market.includes("double_double") ||
                           opp.market.includes("triple_double") ||
                           opp.market.includes("to_score") ||
-                          opp.market.includes("first_basket") ||
-                          opp.market.includes("first_touchdown") ||
                           opp.market.includes("anytime") ||
-                          opp.market.includes("to_record")
-                        );
+                          opp.market.includes("to_record") ||
+                          opp.market.includes("overtime") ||
+                          opp.market.includes("player_touchdowns") ||
+                          opp.market.includes("player_goals")
+                        ));
                         
                         const lineDisplay = opp.side === "yes" ? "Yes" : 
                           opp.side === "no" ? "No" :
@@ -1813,9 +1820,24 @@ export default function PositiveEVPage() {
 
                     {/* Market */}
                     <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
-                        {opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketLabelShort(opp.market) || opp.market}
-                      </span>
+                      {(() => {
+                        const shortLabel = opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketLabelShort(opp.market) || opp.market;
+                        const fullLabel = formatMarketLabel(opp.market) || opp.marketDisplay || opp.market;
+                        // Only show tooltip if the short label is different from the full label
+                        const showTooltip = shortLabel !== fullLabel && shortLabel.length < fullLabel.length;
+                        
+                        return showTooltip ? (
+                          <Tooltip content={fullLabel}>
+                            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px] cursor-help">
+                              {shortLabel}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px]">
+                            {shortLabel}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Best Book */}
@@ -2455,6 +2477,6 @@ export default function PositiveEVPage() {
           }}
         />
       )}
-    </div>
+    </AppPageLayout>
   );
 }

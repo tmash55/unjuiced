@@ -108,10 +108,14 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   if (pct < prefs.minArb || pct > prefs.maxArb) return false;
 
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  const books = new Set(prefs.selectedBooks.map((b) => normalize(b)));
-  const overOk = books.has(normalize(String(row.o?.bk || "")));
-  const underOk = books.has(normalize(String(row.u?.bk || "")));
-  if (!(overOk && underOk)) return false;
+  
+  // Sportsbooks filter: empty array means ALL books are included
+  if (prefs.selectedBooks.length > 0) {
+    const books = new Set(prefs.selectedBooks.map((b) => normalize(b)));
+    const overOk = books.has(normalize(String(row.o?.bk || "")));
+    const underOk = books.has(normalize(String(row.u?.bk || "")));
+    if (!(overOk && underOk)) return false;
+  }
 
   // Filter by min liquidity - if either leg has a known max below threshold, exclude
   const minLiq = prefs.minLiquidity ?? 0;
@@ -128,14 +132,8 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
     if (!prefs.selectedMarketTypes.includes(marketType)) return false;
   }
 
-  // Filter by sports
-  if (prefs.selectedSports.length > 0 && row.lg?.sport) {
-    const sport = normalize(row.lg.sport);
-    const selectedSportsNormalized = prefs.selectedSports.map((s) => normalize(s));
-    if (!selectedSportsNormalized.includes(sport)) return false;
-  }
-
-  // Filter by leagues
+  // Filter by leagues only (not sports) - leagues are more granular
+  // Empty array means "all leagues selected", non-empty means "only these leagues"
   if (prefs.selectedLeagues.length > 0 && row.lg?.id) {
     const league = normalize(row.lg.id);
     const selectedLeaguesNormalized = prefs.selectedLeagues.map((l) => normalize(l));

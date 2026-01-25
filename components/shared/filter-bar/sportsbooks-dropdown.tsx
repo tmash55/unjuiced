@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Check, Building2 } from "lucide-react";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
@@ -27,6 +27,9 @@ export function SportsbooksDropdown({
   disabled = false,
 }: SportsbooksDropdownProps) {
   const [open, setOpen] = useState(false);
+  
+  // Local state for pending changes - only apply when dropdown closes
+  const [localSelectedBooks, setLocalSelectedBooks] = useState<string[]>(selectedBooks);
 
   // Get all active sportsbooks
   const allBooks = useMemo(() => {
@@ -41,63 +44,82 @@ export function SportsbooksDropdown({
 
   const allBookIds = useMemo(() => allBooks.map(b => b.id), [allBooks]);
 
+  // Sync local state with prop when dropdown opens
+  useEffect(() => {
+    if (open) {
+      setLocalSelectedBooks(selectedBooks);
+    }
+  }, [open, selectedBooks]);
+
+  // Handle dropdown close - apply changes only when closing
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && open) {
+      // Dropdown is closing - apply pending changes if different
+      const hasChanges = JSON.stringify(localSelectedBooks.sort()) !== JSON.stringify(selectedBooks.sort());
+      if (hasChanges) {
+        onBooksChange(localSelectedBooks);
+      }
+    }
+    setOpen(newOpen);
+  }, [open, localSelectedBooks, selectedBooks, onBooksChange]);
+
   /**
    * Selection semantics:
-   * - Positive EV: selectedBooks = books to INCLUDE (empty = all books included)
+   * - Positive EV & Arbitrage: selectedBooks = books to INCLUDE (empty = all books included)
    * - Edge Finder: selectedBooks = books to EXCLUDE (empty = all books included)
    * 
    * For display, we want to show which books are INCLUDED (visible in results)
    */
   const isExcludeMode = tool === "edge-finder";
 
-  // Get the books that are actually being shown (included in results)
+  // Get the books that are actually being shown (included in results) - use local state
   const includedBooks = useMemo(() => {
     if (isExcludeMode) {
       // Edge Finder: selectedBooks are EXCLUDED, so included = all - selected
-      if (selectedBooks.length === 0) return allBookIds;
-      return allBookIds.filter(id => !selectedBooks.includes(id));
+      if (localSelectedBooks.length === 0) return allBookIds;
+      return allBookIds.filter(id => !localSelectedBooks.includes(id));
     } else {
       // Positive EV: selectedBooks are INCLUDED (empty = all)
-      if (selectedBooks.length === 0) return allBookIds;
-      return selectedBooks;
+      if (localSelectedBooks.length === 0) return allBookIds;
+      return localSelectedBooks;
     }
-  }, [selectedBooks, allBookIds, isExcludeMode]);
+  }, [localSelectedBooks, allBookIds, isExcludeMode]);
 
   // Check if a book is visually "selected" (i.e., included in results)
   const isBookIncluded = (bookId: string) => {
     return includedBooks.includes(bookId);
   };
 
-  // Toggle sportsbook selection
+  // Toggle sportsbook selection - update LOCAL state only
   const toggleBook = (bookId: string) => {
     if (isExcludeMode) {
-      if (selectedBooks.includes(bookId)) {
-        onBooksChange(selectedBooks.filter((b) => b !== bookId));
+      if (localSelectedBooks.includes(bookId)) {
+        setLocalSelectedBooks(localSelectedBooks.filter((b) => b !== bookId));
       } else {
-        onBooksChange([...selectedBooks, bookId]);
+        setLocalSelectedBooks([...localSelectedBooks, bookId]);
       }
     } else {
-      if (selectedBooks.length === 0) {
-        onBooksChange([bookId]);
-      } else if (selectedBooks.includes(bookId)) {
-        const newSelected = selectedBooks.filter((b) => b !== bookId);
-        onBooksChange(newSelected);
+      if (localSelectedBooks.length === 0) {
+        setLocalSelectedBooks([bookId]);
+      } else if (localSelectedBooks.includes(bookId)) {
+        const newSelected = localSelectedBooks.filter((b) => b !== bookId);
+        setLocalSelectedBooks(newSelected);
       } else {
-        onBooksChange([...selectedBooks, bookId]);
+        setLocalSelectedBooks([...localSelectedBooks, bookId]);
       }
     }
   };
 
-  // Select all (include all books)
-  const selectAll = () => onBooksChange([]);
+  // Select all (include all books) - update LOCAL state only
+  const selectAll = () => setLocalSelectedBooks([]);
 
-  // Clear all (include no books - or in practice, just one)
+  // Clear all (include no books - or in practice, just one) - update LOCAL state only
   const clearAll = () => {
     if (isExcludeMode) {
       const booksToExclude = allBookIds.slice(1);
-      onBooksChange(booksToExclude);
+      setLocalSelectedBooks(booksToExclude);
     } else {
-      onBooksChange([allBookIds[0]]);
+      setLocalSelectedBooks([allBookIds[0]]);
     }
   };
 
@@ -107,7 +129,7 @@ export function SportsbooksDropdown({
   const isAllIncluded = includedCount === totalCount;
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild disabled={disabled}>
         <button
           className={cn(

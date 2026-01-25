@@ -249,8 +249,36 @@ export function MobileEdgeCard({
   
   // Format the market display
   const marketDisplay = formatMarketLabelShort(opp.market) || opp.market?.replace(/_/g, " ");
-  const sideDisplay = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side;
-  const lineDisplay = opp.line !== undefined && opp.line !== null ? opp.line : "";
+  
+  // Determine if this is a binary/yes-no market
+  // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
+  const isScorerMarket = (
+    opp.market.includes("first_td") ||
+    opp.market.includes("last_td") ||
+    opp.market.includes("first_touchdown") ||
+    opp.market.includes("first_goal") ||
+    opp.market.includes("last_goal") ||
+    opp.market.includes("first_basket") ||
+    opp.market.includes("goalscorer") ||
+    opp.market.includes("first_field_goal")
+  );
+  // Other binary markets require line === 0.5
+  const isBinaryMarket = isScorerMarket || (opp.line === 0.5 && (
+    opp.market.includes("double_double") ||
+    opp.market.includes("triple_double") ||
+    opp.market.includes("to_score") ||
+    opp.market.includes("anytime") ||
+    opp.market.includes("to_record") ||
+    opp.market.includes("overtime") ||
+    opp.market.includes("player_touchdowns") ||
+    opp.market.includes("player_goals")
+  ));
+  
+  const sideDisplay = opp.side === "yes" ? "Yes" : 
+    opp.side === "no" ? "No" :
+    isBinaryMarket ? (opp.side === "over" ? "Yes" : "No") :
+    opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side;
+  const lineDisplay = isBinaryMarket ? "" : (opp.line !== undefined && opp.line !== null ? opp.line : "");
   
   return (
     <div className={cn(

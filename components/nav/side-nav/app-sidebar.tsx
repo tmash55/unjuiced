@@ -7,11 +7,10 @@ import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "motion/react"
 import {
   IconHome,
-  IconLink,
-  IconTrendingUp,
-  IconTarget,
-  IconEye,
-  IconChartBar,
+  IconScale,
+  IconPlus,
+  IconRocket,
+  IconTable,
   IconFileText,
   IconStar,
   IconSettings,
@@ -28,6 +27,7 @@ import {
   IconBuildingBank,
   IconTags,
 } from "@tabler/icons-react"
+import Chart from "@/icons/chart"
 
 import {
   SidebarBody,
@@ -106,9 +106,9 @@ const overviewLinks: NavItem[] = [
 
 // Edge Tools - Money-making tools (Arbitrage, EV, Edge Finder)
 const edgeToolsLinks: NavItem[] = [
-  { label: "Arbitrage", href: "/arbitrage", icon: IconLink },
-  { label: "Positive EV", href: "/positive-ev", icon: IconTarget },
-  { label: "Edge Finder", href: "/edge-finder", icon: IconTrendingUp },
+  { label: "Arbitrage", href: "/arbitrage", icon: IconScale },
+  { label: "Positive EV", href: "/positive-ev", icon: IconPlus },
+  { label: "Edge Finder", href: "/edge-finder", icon: IconRocket },
 ]
 
 // Research - Analysis and research tools
@@ -116,13 +116,13 @@ const researchLinks: NavItem[] = [
   { 
     label: "Odds Screen", 
     href: "/odds", 
-    icon: IconEye,
+    icon: IconTable,
     children: oddsScreenSports
   },
   { 
     label: "Hit Rates", 
     href: "/hit-rates", 
-    icon: IconChartBar,
+    icon: Chart,
     children: hitRatesSports
   },
   { 

@@ -10,12 +10,11 @@
  */
 
 import { useEffect, useMemo, useRef, useCallback, useState } from "react";
-import { ToolHeading } from "@/components/common/tool-heading";
-import { ToolSubheading } from "@/components/common/tool-subheading";
 import { FiltersBar, FiltersBarSection } from "@/components/common/filters-bar";
 import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
+import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { Zap, ChevronDown, X, RefreshCw, Layers, Plus, Settings, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
@@ -361,48 +360,43 @@ export default function EdgeFinderPage() {
     );
   }
 
-  // Desktop View
-  return (
-    <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <ToolHeading>Edge Finder</ToolHeading>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ToolSubheading>
-              {isLoading
-              ? "Loading opportunities..."
-              : isFetching && !isLoadingMore
-              ? "Updating opportunities..."
-              : `${filteredOpportunities.length}+ opportunities found`}
-            </ToolSubheading>
-            {/* Progressive Loading Indicator - Billion Dollar UX */}
-            {isLoadingMore && (
-              <div className="flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
-                <div className="w-16 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                    style={{ width: `${loadProgress}%` }}
-                  />
-                </div>
-                <span>Loading more...</span>
-              </div>
-            )}
+  // Build subtitle based on loading state
+  const subtitle = isLoading
+    ? "Loading opportunities..."
+    : isFetching && !isLoadingMore
+    ? "Updating opportunities..."
+    : `${filteredOpportunities.length}+ opportunities found`;
+
+  // Header actions - freshness indicator and loading
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      {/* Progressive Loading Indicator */}
+      {isLoadingMore && (
+        <div className="flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
+          <div className="w-16 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+              style={{ width: `${loadProgress}%` }}
+            />
           </div>
-          {/* Freshness Indicator - Right aligned */}
-          {dataUpdatedAt && !isLoading && !isLoadingMore && (
-            <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-              <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
-              {isFetching && (
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              )}
-            </div>
+          <span>Loading more...</span>
+        </div>
+      )}
+      {/* Freshness Indicator */}
+      {dataUpdatedAt && !isLoading && !isLoadingMore && (
+        <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
+          <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+          {isFetching && (
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
           )}
         </div>
-      </div>
+      )}
+    </div>
+  );
 
-      {/* Unified Filter Bar */}
-      <UnifiedFilterBar
+  // Context bar - filter bar
+  const contextBar = (
+    <UnifiedFilterBar
         tool="edge-finder"
         className="mb-6"
         // Mode (using scope for Edge Finder)
@@ -489,7 +483,17 @@ export default function EdgeFinderPage() {
         locked={locked}
         isPro={effectiveIsPro}
       />
+  );
 
+  // Desktop View
+  return (
+    <AppPageLayout
+      title="Edge Finder"
+      subtitle={subtitle}
+      headerActions={headerActions}
+      contextBar={contextBar}
+      stickyContextBar={true}
+    >
       {/* Error */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
@@ -584,7 +588,7 @@ export default function EdgeFinderPage() {
         onOpenChange={setShowPresetForm}
         onSuccess={() => refetch()}
       />
-    </div>
+    </AppPageLayout>
   );
 }
 

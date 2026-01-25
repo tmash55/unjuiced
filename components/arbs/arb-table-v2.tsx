@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { ArbRow } from "@/lib/arb-schema";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Table, useTable } from "@/components/table";
-import { Zap, ExternalLink, AlertTriangle, Lock, Pin, TrendingUp, Calculator, X } from "lucide-react";
+import { Zap, ExternalLink, AlertTriangle, Lock, Pin, TrendingUp, Calculator, X, Loader2 } from "lucide-react";
 import { sportsbooks } from "@/lib/data/sportsbooks";
 import { cn } from "@/lib/utils";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -60,6 +60,13 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     if (!base) return undefined;
     if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
     return base;
+  };
+
+  // Get book URL - prioritizes direct/mobile link, falls back to book homepage
+  const getBookUrl = (bk?: string, directUrl?: string, mobileUrl?: string | null): string | undefined => {
+    if (mobileUrl) return mobileUrl;
+    if (directUrl) return directUrl;
+    return getBookFallbackUrl(bk);
   };
 
   const titleCase = (s: string) => s.replace(/\b\w/g, (m) => m.toUpperCase());
@@ -301,6 +308,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     const [underOdds, setUnderOdds] = React.useState(String(defaultUnderOdds));
     const [overStake, setOverStake] = React.useState(defaultOverStake.toFixed(2));
     const [underStake, setUnderStake] = React.useState(defaultUnderStake.toFixed(2));
+    const [loadingOver, setLoadingOver] = React.useState(false);
+    const [loadingUnder, setLoadingUnder] = React.useState(false);
     
     // Reset state when modal opens
     React.useEffect(() => {
@@ -309,6 +318,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
         setUnderOdds(String(defaultUnderOdds));
         setOverStake(defaultOverStake.toFixed(2));
         setUnderStake(defaultUnderStake.toFixed(2));
+        setLoadingOver(false);
+        setLoadingUnder(false);
       }
     }, [isOpen, defaultOverOdds, defaultUnderOdds, defaultOverStake, defaultUnderStake]);
     
@@ -379,6 +390,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     const handleApply = () => {
       onApply(overStakeNum, underStakeNum);
       onClose();
+    };
+
+    // Open bet with loading state
+    const openBet = (bk?: string, url?: string, mobileUrl?: string | null, side: 'over' | 'under' = 'over') => {
+      const setLoading = side === 'over' ? setLoadingOver : setLoadingUnder;
+      setLoading(true);
+      
+      // Brief loading state for feedback
+      setTimeout(() => {
+        const link = getBookUrl(bk, url, mobileUrl);
+        if (link) window.open(link, '_blank', 'noopener,noreferrer');
+        // Reset loading after a moment
+        setTimeout(() => setLoading(false), 1000);
+      }, 150);
     };
     
     // Quick presets
@@ -536,6 +561,35 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                           />
                         </div>
                       </div>
+
+                      {/* Bet Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!loadingOver) {
+                            openBet(row.o?.bk, row.o?.u, row.o?.m, 'over');
+                          }
+                        }}
+                        disabled={loadingOver}
+                        className={cn(
+                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150",
+                          loadingOver
+                            ? "bg-emerald-700 text-white"
+                            : "bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.98]"
+                        )}
+                      >
+                        {loadingOver ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Opening...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Bet at {overBookNm.split(' ')[0]}</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
                     </div>
                     
                     {/* Under Side */}
@@ -582,6 +636,35 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                           />
                         </div>
                       </div>
+
+                      {/* Bet Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!loadingUnder) {
+                            openBet(row.u?.bk, row.u?.u, row.u?.m, 'under');
+                          }
+                        }}
+                        disabled={loadingUnder}
+                        className={cn(
+                          "w-full flex items-center justify-center gap-2 mt-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150",
+                          loadingUnder
+                            ? "bg-emerald-700 text-white"
+                            : "bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.98]"
+                        )}
+                      >
+                        {loadingUnder ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Opening...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Bet at {underBookNm.split(' ')[0]}</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
