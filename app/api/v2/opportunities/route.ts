@@ -748,24 +748,40 @@ async function fetchSportOpportunities(
       }
 
       // Get all unique base selection keys (player|line without side)
+      // For team_total market, we need to differentiate home vs away teams
       const baseSelectionKeys = new Set<string>();
       for (const [bookName, selections] of Object.entries(bookSelections)) {
-        for (const key of Object.keys(selections)) {
+        for (const [key, sel] of Object.entries(selections)) {
           const [playerRaw, , lineStr] = key.split("|");
           if (playerRaw && lineStr) {
-            baseSelectionKeys.add(`${playerRaw}|${lineStr}`);
+            // For team_total markets, include home/away designation from raw_market
+            if (market === "team_total" && sel && typeof sel === "object" && "raw_market" in sel) {
+              const rawMarket = (sel as SSESelection).raw_market || "";
+              const teamSide = rawMarket.toLowerCase().includes("home") ? "home" 
+                : rawMarket.toLowerCase().includes("away") ? "away" 
+                : "";
+              if (teamSide) {
+                baseSelectionKeys.add(`${playerRaw}|${lineStr}|${teamSide}`);
+              } else {
+                baseSelectionKeys.add(`${playerRaw}|${lineStr}|`);
+              }
+            } else {
+              baseSelectionKeys.add(`${playerRaw}|${lineStr}|`);
+            }
           }
         }
       }
 
       // Process each player/line pair (collecting both over and under)
       for (const baseKey of baseSelectionKeys) {
-        const [playerRaw, lineStr] = baseKey.split("|");
+        const [playerRaw, lineStr, teamSide] = baseKey.split("|");
         const player = normalizePlayerName(playerRaw);
         const line = parseFloat(lineStr);
 
-        // Create unique pair key (without side)
-        const pairKey = `${eventId}:${market}:${player}:${line}`;
+        // Create unique pair key (include teamSide for team_total markets to separate home/away)
+        const pairKey = teamSide 
+          ? `${eventId}:${market}:${player}:${line}:${teamSide}`
+          : `${eventId}:${market}:${player}:${line}`;
 
         // Get or create selection pair
         let pair = pairMap.get(pairKey);
@@ -788,6 +804,16 @@ async function fetchSportOpportunities(
           pairMap.set(pairKey, pair);
         }
 
+        // Helper to check if a selection matches the expected team side (for team_total markets)
+        const matchesTeamSide = (sel: SSESelection | undefined): boolean => {
+          if (!teamSide || market !== "team_total") return true; // No filtering needed
+          if (!sel?.raw_market) return false;
+          const rawMarket = sel.raw_market.toLowerCase();
+          if (teamSide === "home") return rawMarket.includes("home");
+          if (teamSide === "away") return rawMarket.includes("away");
+          return true;
+        };
+
         // Gather prices from all books for both sides
         // Support both over/under AND yes/no (for double/triple double, anytime scorer, etc.)
         for (const [book, selections] of Object.entries(bookSelections)) {
@@ -800,7 +826,8 @@ async function fetchSportOpportunities(
           const yesKey = `${playerRaw}|yes|${lineStr}`;
           const mlKey = `${playerRaw}|ml|${lineStr}`;
           const overSel = (selections[overKey] || selections[yesKey] || selections[mlKey]) as SSESelection | undefined;
-          if (overSel && !overSel.locked) {
+          // For team_total markets, only include selections that match the team side
+          if (overSel && !overSel.locked && matchesTeamSide(overSel)) {
             const overPrice = parseInt(String(overSel.price), 10);
             pair.over.books.push({
               book,
@@ -832,7 +859,8 @@ async function fetchSportOpportunities(
           const underKey = `${playerRaw}|under|${lineStr}`;
           const noKey = `${playerRaw}|no|${lineStr}`;
           const underSel = (selections[underKey] || selections[noKey]) as SSESelection | undefined;
-          if (underSel && !underSel.locked) {
+          // For team_total markets, only include selections that match the team side
+          if (underSel && !underSel.locked && matchesTeamSide(underSel)) {
             const underPrice = parseInt(String(underSel.price), 10);
             pair.under.books.push({
               book,

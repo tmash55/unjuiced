@@ -62,6 +62,73 @@ const EDGE_LOADING_MESSAGES = [
   "Analyzing market odds...",
 ];
 
+/**
+ * Format selection display name
+ * Converts raw player names like "game_total" into readable display names
+ * For team totals, shows "Home Team Total" or "Away Team Total"
+ */
+function formatSelectionDisplay(playerName: string | null | undefined, marketDisplay?: string | null): string {
+  if (!playerName || playerName === "game_total" || playerName === "Game") {
+    // Check if it's a team total (home or away)
+    if (marketDisplay) {
+      const lower = marketDisplay.toLowerCase();
+      if (lower.includes("home") && lower.includes("total")) {
+        return "Home Team Total";
+      }
+      if (lower.includes("away") && lower.includes("total")) {
+        return "Away Team Total";
+      }
+    }
+    return "Game Total";
+  }
+  return playerName;
+}
+
+/**
+ * Format edge percentage with color coding and intensity scaling
+ * Higher edge = more intense/saturated colors (matches Positive EV styling)
+ */
+function getEdgeFormat(edge: number): { 
+  color: string; 
+  bgClass: string; 
+  borderClass: string;
+  accentClass: string; 
+  tier: "elite" | "great" | "good" | "solid" 
+} {
+  // Elite tier: 15%+ (rare, exceptional)
+  if (edge >= 15) return { 
+    color: "text-emerald-800 dark:text-emerald-300", 
+    bgClass: "bg-emerald-200 dark:bg-emerald-800/50",
+    borderClass: "border-emerald-200/50 dark:border-emerald-800/50",
+    accentClass: "border-l-emerald-500",
+    tier: "elite"
+  };
+  // Great tier: 8-15% (very good)
+  if (edge >= 8) return { 
+    color: "text-emerald-700 dark:text-emerald-400", 
+    bgClass: "bg-emerald-100 dark:bg-emerald-900/40",
+    borderClass: "border-emerald-200/50 dark:border-emerald-800/50",
+    accentClass: "border-l-emerald-400",
+    tier: "great"
+  };
+  // Good tier: 4-8% (solid)
+  if (edge >= 4) return { 
+    color: "text-green-700 dark:text-green-400", 
+    bgClass: "bg-green-100/80 dark:bg-green-900/30",
+    borderClass: "border-green-200/50 dark:border-green-800/50",
+    accentClass: "border-l-green-400",
+    tier: "good"
+  };
+  // Solid tier: <4% (standard)
+  return { 
+    color: "text-sky-700 dark:text-sky-400", 
+    bgClass: "bg-sky-100/80 dark:bg-sky-900/30",
+    borderClass: "border-sky-200/50 dark:border-sky-800/50",
+    accentClass: "border-l-sky-400",
+    tier: "solid"
+  };
+}
+
 interface HideEdgeParams {
   edgeKey: string;
   eventId?: string;
@@ -708,6 +775,7 @@ export function OpportunitiesTable({
         const baseEdge = opp.edgePct ?? 0;
         const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
         const displayEdge = boostedEdge;
+        const edgeFormat = getEdgeFormat(displayEdge);
         
         return (
           <td key="edge" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
@@ -735,14 +803,12 @@ export function OpportunitiesTable({
               </button>
               <span className={cn(
                 "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold shadow-sm border",
-                // Use boosted edge for styling thresholds
-                displayEdge >= 10 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50" :
-                displayEdge >= 5 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200/50 dark:border-green-800/50" :
-                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200/50 dark:border-blue-800/50",
+                // Use tiered edge formatting
+                edgeFormat.bgClass, edgeFormat.color, edgeFormat.borderClass,
                 // Amber glow when boosted
                 boostPercent > 0 && "ring-1 ring-amber-400/30"
               )}>
-                {boostPercent > 0 && <span className="text-[8px] text-amber-500 mr-0.5">⚡</span>}
+                {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
                 <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
                   <path d="M6 0L12 10H0L6 0Z" />
                 </svg>
@@ -826,12 +892,12 @@ export function OpportunitiesTable({
                       className="text-[15px] font-semibold text-neutral-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors"
                       type="button"
                     >
-                      {opp.player}
+                      {formatSelectionDisplay(opp.player, opp.marketDisplay)}
                     </button>
                   </Tooltip>
                 ) : (
                   <span className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight">
-                    {isGameProp ? "Game" : opp.player}
+                    {formatSelectionDisplay(opp.player, opp.marketDisplay)}
                   </span>
                 )}
                 {opp.position && (
@@ -987,9 +1053,11 @@ export function OpportunitiesTable({
       case 'fair':
         return (
           <td key="fair" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-            <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {opp.fairAmerican || opp.sharpPrice || "—"}
-            </span>
+            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
+              <span className="text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+                {opp.fairAmerican || opp.sharpPrice || "—"}
+              </span>
+            </div>
           </td>
         );
       
@@ -1027,15 +1095,39 @@ export function OpportunitiesTable({
                 ? `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display} • +${boostPercent}% boosted`
                 : `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display}`;
               
+              // Kelly % tier for visual emphasis (consistent across all bankrolls)
+              // High: 3%+ full Kelly = strong bet
+              // Medium: 1.5-3% full Kelly = solid bet
+              // Standard: <1.5% full Kelly = smaller edge
+              const isHighKelly = kellyPct >= 3;
+              const isMediumKelly = kellyPct >= 1.5 && kellyPct < 3;
+              
               return (
                 <Tooltip content={tooltipContent}>
-                  <span className={cn(
-                    "text-sm font-semibold tabular-nums cursor-help",
-                    "text-amber-600 dark:text-amber-400"
+                  <div className={cn(
+                    "inline-flex items-center gap-0.5 px-2 py-1 rounded-md cursor-help transition-colors",
+                    boostPercent > 0 
+                      ? "bg-amber-100/80 dark:bg-amber-900/30"
+                      : isHighKelly 
+                        ? "bg-amber-100 dark:bg-amber-900/40"
+                        : isMediumKelly 
+                          ? "bg-amber-50 dark:bg-amber-900/20"
+                          : "bg-neutral-100/60 dark:bg-neutral-800/40"
                   )}>
-                    {boostPercent > 0 && <Zap className="w-3 h-3 inline mr-0.5 -mt-0.5" />}
-                    {display}
-                  </span>
+                    {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
+                    <span className={cn(
+                      "text-sm font-bold tabular-nums",
+                      boostPercent > 0 
+                        ? "text-amber-600 dark:text-amber-400"
+                        : isHighKelly 
+                          ? "text-amber-700 dark:text-amber-400"
+                          : isMediumKelly 
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-neutral-600 dark:text-neutral-400"
+                    )}>
+                      {display}
+                    </span>
+                  </div>
                 </Tooltip>
               );
             })()}
@@ -1725,11 +1817,16 @@ export function OpportunitiesTable({
                 <tr
                   onClick={() => toggleRow(opp.id, index)}
                   className={cn(
-                    "group/row transition-all duration-200 cursor-pointer",
+                    "group/row transition-all duration-200 cursor-pointer border-l-4",
+                    // Edge-based left accent border for quick visual scanning
+                    (() => {
+                      const edgeFormat = getEdgeFormat(opp.edgePct ?? 0);
+                      return !isHiddenRow && !isStale ? edgeFormat.accentClass : "border-l-neutral-300 dark:border-l-neutral-700";
+                    })(),
                     "hover:bg-gradient-to-r hover:from-amber-50/80 hover:to-amber-50/20 dark:hover:from-amber-950/40 dark:hover:to-amber-950/10",
                     index % 2 === 0 
                       ? "bg-white dark:bg-neutral-900" 
-                      : "bg-neutral-100/70 dark:bg-neutral-800/40",
+                      : "bg-neutral-50/80 dark:bg-neutral-800/30",
                     isExpanded && "!bg-gradient-to-r !from-amber-50 !to-amber-50/30 dark:!from-amber-950/50 dark:!to-amber-950/20",
                     isHiddenRow && "opacity-40",
                     // Streaming states

@@ -108,6 +108,28 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 /**
+ * Format selection display name
+ * Converts raw player names like "game_total" into readable display names
+ * For team totals, shows "Home Team Total" or "Away Team Total"
+ */
+function formatSelectionDisplay(playerName: string | null | undefined, marketDisplay?: string | null): string {
+  if (!playerName || playerName === "game_total" || playerName === "Game") {
+    // Check if it's a team total (home or away)
+    if (marketDisplay) {
+      const lower = marketDisplay.toLowerCase();
+      if (lower.includes("home") && lower.includes("total")) {
+        return "Home Team Total";
+      }
+      if (lower.includes("away") && lower.includes("total")) {
+        return "Away Team Total";
+      }
+    }
+    return "Game Total";
+  }
+  return playerName;
+}
+
+/**
  * Format EV percentage with color coding and intensity scaling
  * Higher EV = more intense/saturated colors
  */
@@ -1704,11 +1726,11 @@ export default function PositiveEVPage() {
                               }}
                               className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight hover:text-brand dark:hover:text-brand transition-colors text-left"
                             >
-                              {opp.playerName}
+                              {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                             </button>
                           ) : (
                             <span className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight">
-                              {opp.playerName || "Game"}
+                              {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                             </span>
                           )}
                           {opp.playerPosition && (
