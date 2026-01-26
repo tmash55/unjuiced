@@ -531,13 +531,13 @@ function Logo() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex items-center gap-1.5"
+        className="flex items-end gap-1"
       >
-        <span className="font-semibold whitespace-pre text-neutral-900 dark:text-white text-base tracking-tight">
+        <span className="font-semibold whitespace-pre text-neutral-900 dark:text-white text-base tracking-tight leading-none">
           Unjuiced
         </span>
         <span className={cn(
-          "text-[9px] whitespace-pre font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
+          "text-[8px] whitespace-pre font-bold uppercase tracking-wide px-1 py-px rounded mb-px",
           isPro 
             ? "text-[#0EA5E9] dark:text-[#7DD3FC] bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10" 
             : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"

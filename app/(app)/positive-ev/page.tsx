@@ -37,7 +37,8 @@ import { motion, AnimatePresence } from "motion/react";
 
 // Hooks and types
 import { usePositiveEV } from "@/hooks/use-positive-ev";
-import { usePositiveEVStream } from "@/hooks/use-positive-ev-stream";
+import { useMultiEvModelOpportunities } from "@/hooks/use-multi-ev-model-opportunities";
+import { useMultiEvModelStream } from "@/hooks/use-multi-ev-model-stream";
 import type { PositiveEVOpportunity, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
@@ -52,7 +53,7 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 // Auth & entitlements
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
-import { useIsMobile } from "@/hooks/use-media-query";
+import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 
 // Favorites
 import { useFavorites } from "@/hooks/use-favorites";
@@ -62,6 +63,9 @@ import { SportIcon } from "@/components/icons/sport-icons";
 
 // Hidden edges
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
+
+// EV Models
+import { useEvModels } from "@/hooks/use-ev-models";
 
 // Player profile modal
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
@@ -275,7 +279,7 @@ export default function PositiveEVPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
   const isLoggedIn = !!user;
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobileOrTablet(); // Show card view on phones & tablets (< 1280px)
   const stablePlanRef = useRef(isPro);
 
   useEffect(() => {
@@ -303,6 +307,15 @@ export default function PositiveEVPage() {
   
   // Total column count (base 10 + stake column if shown)
   const totalColumns = showStakeColumn ? 11 : 10;
+  
+  // EV Custom Models
+  const { 
+    models: evModels, 
+    activeModels: activeEvModels,
+    isLoading: evModelsLoading,
+    toggleModel: toggleEvModel,
+    refetch: refetchEvModels,
+  } = useEvModels();
   
   // Dynamically fetch available markets
   const { data: marketsData } = useAvailableMarkets(AVAILABLE_SPORTS);
@@ -427,25 +440,23 @@ export default function PositiveEVPage() {
     return count;
   }, [savedFilters.selectedBooks, savedFilters.selectedMarkets, savedFilters.maxEv, savedFilters.devigMethods]);
 
-  // Memoize filters object
-  const filters = useMemo(() => {
-    const f = {
-      sports: savedFilters.selectedSports,
-      sharpPreset: savedFilters.sharpPreset as SharpPreset,
-      devigMethods: savedFilters.devigMethods as DevigMethod[] || DEFAULT_DEVIG_METHODS,
-      minEV: savedFilters.minEv,
-      maxEV: savedFilters.maxEv,
-      books: savedFilters.selectedBooks.length > 0 ? savedFilters.selectedBooks : null,
-      markets: savedFilters.selectedMarkets.length > 0 ? savedFilters.selectedMarkets : null,
-      limit,
-      mode: savedFilters.mode,
-      minBooksPerSide: savedFilters.minBooksPerSide,
-    };
-    console.log('[Devig] Filters object updated:', f);
-    return f;
-  }, [savedFilters, limit]);
+  // Memoize prefs object for the multi-model hook
+  const multiModelPrefs = useMemo(() => ({
+    selectedSports: savedFilters.selectedSports,
+    sharpPreset: savedFilters.sharpPreset as SharpPreset,
+    devigMethods: (savedFilters.devigMethods as DevigMethod[]) || DEFAULT_DEVIG_METHODS,
+    minEv: savedFilters.minEv,
+    maxEv: savedFilters.maxEv,
+    selectedBooks: savedFilters.selectedBooks,
+    selectedMarkets: savedFilters.selectedMarkets,
+    mode: savedFilters.mode,
+    minBooksPerSide: savedFilters.minBooksPerSide,
+    searchQuery: searchQuery,
+  }), [savedFilters, searchQuery]);
+  
 
-  // Standard fetch (used when auto-refresh is disabled)
+  // Multi-model fetch (handles both preset and custom model modes)
+  // Used when auto-refresh is disabled
   const {
     opportunities: standardData,
     totalFound: standardTotalFound,
@@ -456,13 +467,18 @@ export default function PositiveEVPage() {
     refetch: standardRefetch,
     freshRefetch: standardFreshRefetch,
     dataUpdatedAt: standardDataUpdatedAt,
-  } = usePositiveEV({
-    filters,
+    isCustomMode,
+    activeConfigs,
+  } = useMultiEvModelOpportunities({
+    prefs: multiModelPrefs,
+    activeModels: activeEvModels,
     isPro: effectiveIsPro,
+    limit,
     enabled: !planLoading && !prefsLoading && !autoRefresh, // Don't fetch if auto-refresh is enabled
   });
 
   // Streaming hook (used when auto-refresh is enabled)
+  // Now supports multiple custom models with parallel fetching and merged results
   const {
     rows: streamRows,
     changes: streamChanges,
@@ -477,12 +493,28 @@ export default function PositiveEVPage() {
     refresh: streamRefresh,
     reconnect: streamReconnect,
     meta: streamMeta,
-  } = usePositiveEVStream({
-    filters,
+    isCustomMode: streamIsCustomMode,
+    activeConfigs: streamActiveConfigs,
+  } = useMultiEvModelStream({
+    prefs: multiModelPrefs,
+    activeModels: activeEvModels,
     isPro: effectiveIsPro,
+    limit,
     autoRefresh,
     enabled: !planLoading && !prefsLoading && autoRefresh,
   });
+
+  // Debug logging for custom mode
+  useEffect(() => {
+    const configs = autoRefresh ? streamActiveConfigs : activeConfigs;
+    const customMode = autoRefresh ? streamIsCustomMode : isCustomMode;
+    console.log('[Positive EV] Mode:', {
+      isCustomMode: customMode,
+      activeModels: activeEvModels.length,
+      activeConfigs: configs?.map(c => c.metadata.modelName),
+      autoRefresh,
+    });
+  }, [isCustomMode, streamIsCustomMode, activeEvModels, activeConfigs, streamActiveConfigs, autoRefresh]);
 
   // Unified data access - use stream when auto-refresh is on, otherwise use standard
   // SMART FALLBACK: Keep showing previous data during mode transitions to avoid jarring skeleton
@@ -929,9 +961,10 @@ export default function PositiveEVPage() {
 
   // Context bar - filter bar
   const contextBar = (
-    <UnifiedFilterBar
+    <>
+      <UnifiedFilterBar
         tool="positive-ev"
-        className="mb-5"
+        className=""
         // Mode
         mode={savedFilters.mode}
         onModeChange={(mode) => updateSavedFilters({ mode })}
@@ -963,6 +996,9 @@ export default function PositiveEVPage() {
         // Sharp preset (Comparing Against)
         sharpPreset={savedFilters.sharpPreset as SharpPreset}
         onSharpPresetChange={(preset) => updateSavedFilters({ sharpPreset: preset })}
+        // Custom EV models
+        activeEvModels={activeEvModels.map(m => ({ id: m.id, name: m.name }))}
+        onManageEvModels={() => refetchEvModels()}
         // De-vig methods
         devigMethods={savedFilters.devigMethods as DevigMethod[]}
         onDevigMethodsChange={(methods) => updateSavedFilters({ devigMethods: methods })}
@@ -1017,6 +1053,7 @@ export default function PositiveEVPage() {
         locked={locked}
         isPro={effectiveIsPro}
       />
+    </>
   );
 
   return (
@@ -1137,35 +1174,34 @@ export default function PositiveEVPage() {
 
       {/* Results Table - Premium Design */}
       <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm">
-        <table className="min-w-full text-sm table-fixed">
-          <colgroup><col style={{ width: 100 }} /><col style={{ width: 90 }} /><col style={{ width: 90 }} /><col style={{ width: 190 }} /><col style={{ width: 70 }} /><col style={{ width: 130 }} /><col style={{ width: 140 }} /><col style={{ width: 90 }} /><col style={{ width: 80 }} />{showStakeColumn && <col style={{ width: 85 }} />}<col style={{ width: 120 }} /></colgroup>
+        <table className="w-full text-sm">
           <thead className="sticky top-0 z-[5]">
             <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
               <th 
-                className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none whitespace-nowrap"
                 onClick={() => handleSort("ev")}
               >
-                <div className="flex items-center justify-center gap-1.5">
-                  <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                <div className="flex items-center justify-center gap-1">
+                  <div className="w-1 h-1 rounded-full bg-emerald-500 hidden lg:block" />
                   <span>EV %</span>
                   {sortColumn === "ev" ? (
                     sortDirection === "asc" ? (
-                      <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                      <ChevronUp className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-emerald-500" />
                     ) : (
-                      <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                      <ChevronDown className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-emerald-500" />
                     )
                   ) : (
                     <Tooltip content="Expected Value % based on de-vigged fair probability. Worst-case (conservative) shown by default.">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help hidden lg:block" aria-hidden>
                         <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
                       </svg>
                     </Tooltip>
                   )}
                 </div>
               </th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
+              <th className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
               <th 
-                className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
                 onClick={() => handleSort("time")}
               >
                 <div className="flex items-center gap-1.5">
@@ -1181,11 +1217,11 @@ export default function PositiveEVPage() {
                   )}
                 </div>
               </th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Selection</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Line</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Market</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Best Book</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
+              <th className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Selection</th>
+              <th className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Line</th>
+              <th className="hidden lg:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Market</th>
+              <th className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 whitespace-nowrap">Best Book</th>
+              <th className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
                 <div className="flex items-center justify-center gap-1.5">
                   <span>Sharp</span>
                   <Tooltip content="Sharp reference odds used for de-vigging (e.g., Pinnacle).">
@@ -1195,11 +1231,11 @@ export default function PositiveEVPage() {
                   </Tooltip>
                 </div>
               </th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
-                <div className="flex items-center justify-center gap-1.5">
+              <th className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">
+                <div className="flex items-center justify-center gap-1">
                   <span>Fair</span>
                   <Tooltip content="De-vigged fair odds (no-vig true probability). Calculated using the Power method by default. Hover over EV% to see all method calculations.">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help hidden lg:block" aria-hidden>
                       <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
                     </svg>
                   </Tooltip>
@@ -1207,20 +1243,20 @@ export default function PositiveEVPage() {
               </th>
               {showStakeColumn && (
                 <th 
-                  className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
+                  className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none"
                   onClick={() => handleSort("stake")}
                 >
-                  <div className="flex items-center justify-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1">
                     <span>Stake</span>
                     {sortColumn === "stake" ? (
                       sortDirection === "asc" ? (
-                        <ChevronUp className="w-3.5 h-3.5 text-emerald-500" />
+                        <ChevronUp className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-emerald-500" />
                       ) : (
-                        <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
+                        <ChevronDown className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-emerald-500" />
                       )
                     ) : (
                       <Tooltip content={`Recommended bet size using Kelly Criterion (${kellyPercent}% Kelly). Based on your bankroll of $${bankroll.toLocaleString()}.`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help" aria-hidden>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-emerald-500 transition-colors cursor-help hidden lg:block" aria-hidden>
                           <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Zm0-11a1.25 1.25 0 1 0-1.25-1.25A1.25 1.25 0 0 0 12 9Zm1 2h-2a1 1 0 0 0-1 1v5h2v-4h1a1 1 0 0 0 0-2Z" />
                         </svg>
                       </Tooltip>
@@ -1228,113 +1264,82 @@ export default function PositiveEVPage() {
                   </div>
                 </th>
               )}
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Action</th>
+              <th className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Action</th>
             </tr>
           </thead>
           <tbody>
-            {/* Loading State */}
+            {/* Loading State - Clean and Premium */}
             {isLoading && (
-              <>
-                {/* Loading message row */}
-                <tr>
-                  <td colSpan={totalColumns} className="p-0">
-                    <div className="flex items-center justify-center py-4 bg-gradient-to-r from-emerald-50/50 via-white to-emerald-50/50 dark:from-emerald-950/20 dark:via-neutral-900 dark:to-emerald-950/20">
-                      <div className="flex items-center gap-3">
-                        <div className="relative w-5 h-5">
-                          <div className="absolute inset-0 rounded-full border-2 border-emerald-200 dark:border-emerald-800" />
-                          <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                        </div>
-                        <AnimatePresence mode="wait">
-                          <motion.span
-                            key={loadingMessageIndex}
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            transition={{ duration: 0.25 }}
-                            className="text-sm font-medium text-neutral-600 dark:text-neutral-400"
-                          >
-                            {EV_LOADING_MESSAGES[loadingMessageIndex]}
-                          </motion.span>
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                {/* Skeleton rows */}
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <tr 
-                    key={`skeleton-${i}`} 
-                    className={cn(
-                      i % 2 === 0 ? "bg-white dark:bg-neutral-900" : "bg-neutral-100/70 dark:bg-neutral-800/40"
-                    )}
-                    style={{ animationDelay: `${i * 50}ms` }}
+              <tr>
+                <td colSpan={totalColumns} className="p-0">
+                  <motion.div 
+                    className="flex flex-col items-center justify-center py-24"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3 }}
                   >
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-14 h-7 rounded-lg bg-gradient-to-r from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-900/10 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex justify-center">
-                        <div className="w-16 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="space-y-1.5">
-                        <div className="w-12 h-4 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-16 h-3 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="space-y-2">
-                        <div className="w-32 h-5 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-24 h-3 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex justify-center">
-                        <div className="w-14 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="w-20 h-4 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-14 h-6 rounded bg-emerald-100 dark:bg-emerald-900/30 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="w-12 h-5 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-8 h-2 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex justify-center">
-                        <div className="w-12 h-5 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                    {/* Stake column skeleton (conditional) */}
-                    {showStakeColumn && (
-                      <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                        <div className="flex justify-center">
-                          <div className="w-16 h-5 rounded bg-amber-100 dark:bg-amber-900/30 animate-pulse" />
-                        </div>
-                      </td>
-                    )}
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex justify-center gap-2">
-                        <div className="w-14 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 animate-pulse" />
-                        <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                        <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </>
+                    {/* Logo with glow */}
+                    <motion.div 
+                      className="relative mb-6"
+                      initial={{ scale: 0.9 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <motion.div 
+                        className="absolute -inset-3 rounded-full bg-sky-400/10 blur-lg"
+                        animate={{ 
+                          scale: [1, 1.2, 1],
+                          opacity: [0.3, 0.5, 0.3] 
+                        }}
+                        transition={{ 
+                          duration: 2.5, 
+                          repeat: Infinity,
+                          ease: "easeInOut" 
+                        }}
+                      />
+                      <img
+                        src="/logo.png"
+                        alt="Unjuiced"
+                        className="relative w-12 h-12 object-contain"
+                      />
+                    </motion.div>
+                    
+                    {/* Loading dots */}
+                    <div className="flex items-center gap-1.5 mb-4">
+                      {[0, 1, 2].map((i) => (
+                        <motion.div
+                          key={i}
+                          className="w-1.5 h-1.5 rounded-full bg-sky-400/70"
+                          animate={{
+                            scale: [1, 1.4, 1],
+                            opacity: [0.4, 1, 0.4],
+                          }}
+                          transition={{
+                            duration: 1.2,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                            ease: "easeInOut",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    
+                    {/* Animated message */}
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={loadingMessageIndex}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-sm text-neutral-400 dark:text-neutral-500"
+                      >
+                        {EV_LOADING_MESSAGES[loadingMessageIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </motion.div>
+                </td>
+              </tr>
             )}
 
             {/* Empty State */}
@@ -1546,12 +1551,12 @@ export default function PositiveEVPage() {
                     )}
                   >
                     {/* EV% */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                      <div className="flex items-center justify-center gap-1 lg:gap-2">
                         {/* Pin indicator for expanded rows */}
                         {isExpanded && autoRefresh && (
                           <Tooltip content="Row pinned - won't move during refresh">
-                            <Pin className="w-3 h-3 text-emerald-500 dark:text-emerald-400 -rotate-45" />
+                            <Pin className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-emerald-500 dark:text-emerald-400 -rotate-45" />
                           </Tooltip>
                         )}
                         <button
@@ -1560,14 +1565,14 @@ export default function PositiveEVPage() {
                             toggleRow(opp.id, index);
                           }}
                           className={cn(
-                            "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0",
+                            "flex items-center justify-center w-5 h-5 lg:w-7 lg:h-7 rounded-lg transition-all duration-200 shrink-0",
                             "hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 hover:scale-110",
                             "text-neutral-400 dark:text-neutral-500",
                             isExpanded && "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rotate-90"
                           )}
                           aria-label={isExpanded ? "Collapse" : "Expand"}
                         >
-                          <ChevronRight className="w-4 h-4 transition-transform" />
+                          <ChevronRight className="w-3 h-3 lg:w-4 lg:h-4 transition-transform" />
                         </button>
                         <Tooltip 
                           content={
@@ -1648,14 +1653,14 @@ export default function PositiveEVPage() {
                           }
                         >
                           <div className={cn(
-                            "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold tabular-nums cursor-help",
+                            "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold tabular-nums cursor-help",
                             "shadow-sm border",
                             boostPercent > 0 
                               ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-700/50 ring-1 ring-amber-400/30"
                               : cn(evFormat.bgClass, evFormat.color, "border-emerald-200/50 dark:border-emerald-800/50")
                           )}>
-                            {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                            {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
+                            <svg className="w-2.5 h-2.5 lg:w-3 lg:h-3" viewBox="0 0 12 12" fill="currentColor">
                               <path d="M6 0L12 10H0L6 0Z" />
                             </svg>
                             {evFormat.text}
@@ -1664,8 +1669,8 @@ export default function PositiveEVPage() {
                       </div>
                     </td>
 
-                    {/* League */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                    {/* League - hidden on smaller screens */}
+                    <td className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                       <div className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm">
                         <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
                         <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
@@ -1674,8 +1679,8 @@ export default function PositiveEVPage() {
                       </div>
                     </td>
 
-                    {/* Time */}
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+                    {/* Time - hidden on smaller screens */}
+                    <td className="hidden xl:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       <div className="flex flex-col">
                         <span className={cn(
                           "text-sm font-semibold tracking-tight",
@@ -1692,9 +1697,11 @@ export default function PositiveEVPage() {
                     </td>
 
                     {/* Selection */}
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
+                          {/* Sport icon - shown on smaller screens when League column is hidden */}
+                          <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-400 xl:hidden shrink-0" />
                           {/* NBA player names are clickable to show hit rate modal */}
                           {opp.sport === "nba" && opp.playerId && opp.playerName ? (
                             <button
@@ -1718,28 +1725,28 @@ export default function PositiveEVPage() {
                                   },
                                 });
                               }}
-                              className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight hover:text-brand dark:hover:text-brand transition-colors text-left"
+                              className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight hover:text-brand dark:hover:text-brand transition-colors text-left truncate"
                             >
                               {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                             </button>
                           ) : (
-                            <span className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight">
+                            <span className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight truncate">
                               {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                             </span>
                           )}
                           {opp.playerPosition && (
-                            <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                            <span className="hidden lg:inline text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0">
                               {opp.playerPosition}
                             </span>
                           )}
                         </div>
                         {opp.awayTeam && opp.homeTeam && (
-                          <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-[10px] lg:text-xs text-neutral-500 dark:text-neutral-400">
                             {showLogos && (
                               <img
                                 src={getTeamLogoUrl(opp.awayTeam, opp.sport)}
                                 alt={opp.awayTeam}
-                                className="w-4 h-4 object-contain"
+                                className="w-3 h-3 lg:w-4 lg:h-4 object-contain"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = "none";
                                 }}
@@ -1756,7 +1763,7 @@ export default function PositiveEVPage() {
                               <img
                                 src={getTeamLogoUrl(opp.homeTeam, opp.sport)}
                                 alt={opp.homeTeam}
-                                className="w-4 h-4 object-contain"
+                                className="w-3 h-3 lg:w-4 lg:h-4 object-contain"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).style.display = "none";
                                 }}
@@ -1774,7 +1781,7 @@ export default function PositiveEVPage() {
                     </td>
 
                     {/* Line */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
                         // Determine if this is a binary/yes-no market
                         // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
@@ -1807,7 +1814,7 @@ export default function PositiveEVPage() {
                         
                         return (
                           <span className={cn(
-                            "inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide",
+                            "inline-flex items-center px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-md lg:rounded-lg text-[10px] lg:text-xs font-bold tracking-wide",
                             "bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50",
                             "border border-neutral-200/50 dark:border-neutral-700/50",
                             "text-neutral-700 dark:text-neutral-300 shadow-sm"
@@ -1818,8 +1825,8 @@ export default function PositiveEVPage() {
                       })()}
                     </td>
 
-                    {/* Market */}
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+                    {/* Market - hidden on smaller screens */}
+                    <td className="hidden lg:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
                         const shortLabel = opp.marketDisplay ? shortenPeriodPrefix(opp.marketDisplay) : formatMarketLabelShort(opp.market) || opp.market;
                         const fullLabel = formatMarketLabel(opp.market) || opp.marketDisplay || opp.market;
@@ -1841,7 +1848,7 @@ export default function PositiveEVPage() {
                     </td>
 
                     {/* Best Book */}
-                    <td className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
                         // Find all books with the same best EV (ties)
                         const bestEV = opp.book.evPercent ?? opp.evCalculations.evWorst;
@@ -1851,9 +1858,9 @@ export default function PositiveEVPage() {
                         const extraCount = opp.allBooks.filter(b => !b.isSharpRef && Math.abs((b.evPercent ?? 0) - bestEV) < 0.01).length - 4;
                         
                         return (
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1.5 lg:gap-2">
                             {/* Overlapping logos for tied books */}
-                            <div className="flex items-center -space-x-2">
+                            <div className="flex items-center -space-x-1.5 lg:-space-x-2">
                               {tiedBooks.map((book, idx) => {
                                 const logo = getBookLogo(book.bookId);
                                 if (!logo) return null;
@@ -1873,7 +1880,7 @@ export default function PositiveEVPage() {
                                       <img 
                                         src={logo} 
                                         alt={getBookName(book.bookId) || book.bookId} 
-                                        className="h-7 w-7 object-contain rounded-md bg-white dark:bg-neutral-800"
+                                        className="h-5 w-5 lg:h-7 lg:w-7 object-contain rounded-md bg-white dark:bg-neutral-800"
                                       />
                                     </div>
                                   </Tooltip>
@@ -1883,20 +1890,20 @@ export default function PositiveEVPage() {
                               {extraCount > 0 && (
                                 <Tooltip content={`${extraCount} more books with same odds`}>
                                   <div 
-                                    className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md h-7 w-7 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center"
+                                    className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md h-5 w-5 lg:h-7 lg:w-7 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center"
                                     style={{ zIndex: 0 }}
                                   >
-                                    <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300">+{extraCount}</span>
+                                    <span className="text-[8px] lg:text-[10px] font-bold text-neutral-600 dark:text-neutral-300">+{extraCount}</span>
                                   </div>
                                 </Tooltip>
                               )}
                             </div>
                             <div className="flex flex-col items-center">
-                              <span className="text-[17px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
+                              <span className="text-[14px] lg:text-[17px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
                                 {formatOdds(opp.book.price)}
                               </span>
                               {opp.book.limits?.max && (
-                                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                                <span className="text-[9px] lg:text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
                                   Max ${opp.book.limits.max >= 1000 ? `${(opp.book.limits.max / 1000).toFixed(0)}k` : opp.book.limits.max}
                                 </span>
                               )}
@@ -1906,10 +1913,38 @@ export default function PositiveEVPage() {
                       })()}
                     </td>
 
-                    {/* Sharp */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                    {/* Sharp - hidden on smaller screens */}
+                    <td className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
                         const sharpOdds = opp.side === "over" || opp.side === "yes" ? opp.sharpReference.overOdds : opp.sharpReference.underOdds;
+                        
+                        // Check if this opportunity came from a custom model
+                        const oppWithModel = opp as typeof opp & { modelId?: string; modelName?: string };
+                        const isCustomModel = oppWithModel.modelId && oppWithModel.modelId !== "default";
+                        
+                        if (isCustomModel && oppWithModel.modelName) {
+                          // Custom model - show model name with tooltip showing books used
+                          const booksUsed = opp.sharpReference.blendedFrom || 
+                            (opp.sharpReference.source ? [opp.sharpReference.source] : []);
+                          const tooltipContent = booksUsed.length > 0 
+                            ? `Sharp books: ${booksUsed.map(b => getBookName(b) || b).join(", ")}`
+                            : oppWithModel.modelName;
+                          
+                          return (
+                            <div className="flex items-center justify-center gap-2">
+                              <Tooltip content={tooltipContent}>
+                                <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded cursor-help truncate max-w-[80px]">
+                                  {oppWithModel.modelName}
+                                </span>
+                              </Tooltip>
+                              <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
+                                {formatOdds(sharpOdds)}
+                              </span>
+                            </div>
+                          );
+                        }
+                        
+                        // Standard preset - show book logo
                         const sharpSource = opp.sharpReference.source?.split(" ")[0]?.toLowerCase() || savedFilters.sharpPreset?.toLowerCase();
                         // Handle blends like "pinnacle_circa" - just show first book's logo
                         const sharpBookId = sharpSource?.includes("_") ? sharpSource.split("_")[0] : sharpSource;
@@ -1940,9 +1975,9 @@ export default function PositiveEVPage() {
                     </td>
 
                     {/* Fair Odds */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
-                        <span className="text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                      <div className="inline-flex items-center gap-1 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
+                        <span className="text-[12px] lg:text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
                           {fairOdds}
                         </span>
                       </div>
@@ -1950,7 +1985,7 @@ export default function PositiveEVPage() {
 
                     {/* Stake */}
                     {showStakeColumn && (
-                      <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                      <td className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                         {(() => {
                           // Get EV% and decimal odds for Kelly calculation
                           // Use boosted values when boost is active
@@ -1960,7 +1995,7 @@ export default function PositiveEVPage() {
                           const evPercent = displayEV; // Already boosted if boost is active
                           
                           if (evPercent <= 0 || effectiveDecimalOdds <= 1) {
-                            return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+                            return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
                           }
                           
                           // Kelly ≈ EV / (decimal_odds - 1)
@@ -1968,7 +2003,7 @@ export default function PositiveEVPage() {
                           const fullKellyPct = (evPercent / 100) / (effectiveDecimalOdds - 1) * 100;
                           
                           if (fullKellyPct <= 0 || !isFinite(fullKellyPct)) {
-                            return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+                            return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
                           }
                           
                           // Apply user's kelly percentage (fractional Kelly)
@@ -1976,7 +2011,7 @@ export default function PositiveEVPage() {
                           const stake = bankroll * (fractionalKellyPct / 100);
                           
                           if (stake < 0.5) {
-                            return <span className="text-xs text-neutral-400 dark:text-neutral-500">&lt;$1</span>;
+                            return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">&lt;$1</span>;
                           }
                           
                           // Format stake
@@ -1998,7 +2033,7 @@ export default function PositiveEVPage() {
                           return (
                             <Tooltip content={tooltipText}>
                               <div className={cn(
-                                "inline-flex items-center gap-0.5 px-2 py-1 rounded-md cursor-help transition-colors",
+                                "inline-flex items-center gap-0.5 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-md cursor-help transition-colors",
                                 boostPercent > 0 
                                   ? "bg-amber-100/80 dark:bg-amber-900/30"
                                   : isHighKelly 
@@ -2007,9 +2042,9 @@ export default function PositiveEVPage() {
                                       ? "bg-amber-50 dark:bg-amber-900/20"
                                       : "bg-neutral-100/60 dark:bg-neutral-800/40"
                               )}>
-                                {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
+                                {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
                                 <span className={cn(
-                                  "text-sm font-bold tabular-nums",
+                                  "text-[11px] lg:text-sm font-bold tabular-nums",
                                   boostPercent > 0 
                                     ? "text-amber-600 dark:text-amber-400"
                                     : isHighKelly 
@@ -2028,8 +2063,8 @@ export default function PositiveEVPage() {
                     )}
 
                     {/* Action */}
-                    <td className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-                      <div className="relative flex items-center justify-center gap-2">
+                    <td className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+                      <div className="relative flex items-center justify-center gap-1 lg:gap-2">
                         <Tooltip content={`Place bet on ${book?.name || opp.book.bookName}`}>
                           <button
                             type="button"
@@ -2038,20 +2073,20 @@ export default function PositiveEVPage() {
                               openLink(opp.book.bookId, opp.book.link, opp.book.mobileLink);
                             }}
                             className={cn(
-                              "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg",
+                              "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
                               "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700",
-                              "text-white font-semibold text-xs shadow-sm",
+                              "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
                               "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
                               "transition-all duration-200",
                               "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-1"
                             )}
                           >
                             <span>Bet</span>
-                            <ExternalLink className="h-3 w-3" />
+                            <ExternalLink className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                           </button>
                         </Tooltip>
                         
-                        {/* Add to Betslip Button */}
+                        {/* Add to Betslip Button - hidden on small screens */}
                         <Tooltip content={isFav ? "Remove from betslip" : "Add to betslip"} side="left">
                           <button
                             type="button"
@@ -2061,7 +2096,7 @@ export default function PositiveEVPage() {
                             }}
                             disabled={isTogglingThis}
                             className={cn(
-                              "p-1.5 rounded-lg transition-all duration-200",
+                              "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
                               "hover:scale-110 active:scale-95",
                               isFav
                                 ? "bg-red-500/10 hover:bg-red-500/20"
@@ -2069,16 +2104,16 @@ export default function PositiveEVPage() {
                             )}
                           >
                             {isTogglingThis ? (
-                              <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                              <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-400 animate-pulse" />
                             ) : isFav ? (
-                              <HeartFill className="w-4 h-4 text-red-500" />
+                              <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-500" />
                             ) : (
-                              <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                              <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400 hover:text-red-400" />
                             )}
                           </button>
                         </Tooltip>
 
-                        {/* Hide/Unhide Button */}
+                        {/* Hide/Unhide Button - hidden on small screens */}
                         <Tooltip content={isHidden(opp.id) ? "Unhide this opportunity" : "Hide this opportunity"}>
                           <button
                             type="button"
@@ -2099,12 +2134,12 @@ export default function PositiveEVPage() {
                                 });
                               }
                             }}
-                            className="p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
+                            className="hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
                           >
                             {isHidden(opp.id) ? (
-                              <Eye className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                              <Eye className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
                             ) : (
-                              <EyeOff className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                              <EyeOff className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
                             )}
                           </button>
                         </Tooltip>
@@ -2333,7 +2368,7 @@ export default function PositiveEVPage() {
                                             <div className={cn(
                                               "h-14 flex flex-col items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40",
                                               isOverBest && "bg-emerald-50 dark:bg-emerald-950/30",
-                                              overOffer?.isSharpRef && "opacity-50"
+                                              overOffer?.isSharpRef && "bg-amber-50/50 dark:bg-amber-900/10"
                                             )}>
                                               {overOffer ? (
                                                 <>
@@ -2350,15 +2385,18 @@ export default function PositiveEVPage() {
                                                     {formatOdds(overOffer.price)}
                                                   </button>
                                                   {/* EV% for this book - only show for the +EV side if it's positive */}
-                                                  {isOverSide && overOffer.evPercent !== undefined && overOffer.evPercent > 0 && (
-                                                    <span className={cn(
-                                                      "text-[9px] font-bold tabular-nums",
-                                                      overOffer.isSharpRef 
-                                                        ? "text-neutral-400 dark:text-neutral-500"
-                                                        : "text-emerald-600 dark:text-emerald-400"
-                                                    )}>
-                                                      {overOffer.isSharpRef ? "REF" : `+${overOffer.evPercent.toFixed(1)}%`}
+                                                  {isOverSide && overOffer.evPercent !== undefined && overOffer.evPercent > 0 && !overOffer.isSharpRef && (
+                                                    <span className="text-[9px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                      +{overOffer.evPercent.toFixed(1)}%
                                                     </span>
+                                                  )}
+                                                  {/* REF badge for sharp reference books */}
+                                                  {overOffer.isSharpRef && (
+                                                    <Tooltip content="Reference book used for fair odds calculation">
+                                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                                                        REF
+                                                      </span>
+                                                    </Tooltip>
                                                   )}
                                                   {overOffer.limits?.max && !isOverSide && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">
@@ -2374,7 +2412,7 @@ export default function PositiveEVPage() {
                                             <div className={cn(
                                               "h-14 flex flex-col items-center justify-center",
                                               isUnderBest && "bg-emerald-50 dark:bg-emerald-950/30",
-                                              underOffer?.isSharpRef && "opacity-50"
+                                              underOffer?.isSharpRef && "bg-amber-50/50 dark:bg-amber-900/10"
                                             )}>
                                               {underOffer ? (
                                                 <>
@@ -2391,15 +2429,18 @@ export default function PositiveEVPage() {
                                                     {formatOdds(underOffer.price)}
                                                   </button>
                                                   {/* EV% for this book - only show for the +EV side if it's positive */}
-                                                  {!isOverSide && underOffer.evPercent !== undefined && underOffer.evPercent > 0 && (
-                                                    <span className={cn(
-                                                      "text-[9px] font-bold tabular-nums",
-                                                      underOffer.isSharpRef 
-                                                        ? "text-neutral-400 dark:text-neutral-500"
-                                                        : "text-emerald-600 dark:text-emerald-400"
-                                                    )}>
-                                                      {underOffer.isSharpRef ? "REF" : `+${underOffer.evPercent.toFixed(1)}%`}
+                                                  {!isOverSide && underOffer.evPercent !== undefined && underOffer.evPercent > 0 && !underOffer.isSharpRef && (
+                                                    <span className="text-[9px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                      +{underOffer.evPercent.toFixed(1)}%
                                                     </span>
+                                                  )}
+                                                  {/* REF badge for sharp reference books */}
+                                                  {underOffer.isSharpRef && (
+                                                    <Tooltip content="Reference book used for fair odds calculation">
+                                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                                                        REF
+                                                      </span>
+                                                    </Tooltip>
                                                   )}
                                                   {underOffer.limits?.max && isOverSide && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">

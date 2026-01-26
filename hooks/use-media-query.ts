@@ -37,7 +37,7 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /**
- * Hook to detect if the current viewport is mobile
+ * Hook to detect if the current viewport is mobile (phone)
  * @returns boolean indicating if viewport is mobile (< 768px)
  */
 export function useIsMobile(): boolean {
@@ -46,16 +46,27 @@ export function useIsMobile(): boolean {
 
 /**
  * Hook to detect if the current viewport is tablet
- * @returns boolean indicating if viewport is tablet (768px - 1023px)
+ * @returns boolean indicating if viewport is tablet (768px - 1279px)
  */
 export function useIsTablet(): boolean {
-  return useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
+  return useMediaQuery("(min-width: 768px) and (max-width: 1279px)");
 }
 
 /**
  * Hook to detect if the current viewport is desktop
- * @returns boolean indicating if viewport is desktop (>= 1024px)
+ * @returns boolean indicating if viewport is desktop (>= 1280px)
  */
 export function useIsDesktop(): boolean {
-  return useMediaQuery("(min-width: 1024px)");
+  return useMediaQuery("(min-width: 1280px)");
+}
+
+/**
+ * Hook to detect if the viewport should use mobile/card view
+ * Used by tools like Positive EV, Edge Finder that have complex tables
+ * Shows card view only on phones (< 768px) to avoid conflict with sidebar
+ * Desktop table view is shown on tablets and larger to utilize the sidebar layout
+ * @returns boolean indicating if should use mobile/card view
+ */
+export function useIsMobileOrTablet(): boolean {
+  return useMediaQuery("(max-width: 767px)");
 }

@@ -31,13 +31,24 @@ const SHARP_PRESET_TO_BOOK: Record<string, string | null> = {
   market_average: null, // Average - no logo
 };
 
-// Sharp books for Edge Finder
+// Sharp books for Edge Finder (primary sharp books)
 const SHARP_BOOK_OPTIONS = [
   { id: "pinnacle", name: "Pinnacle" },
   { id: "circa", name: "Circa" },
   { id: "prophetx", name: "ProphetX" },
   { id: "hardrock", name: "Hard Rock" },
   { id: "thescore", name: "theScore" },
+];
+
+// Retail books for Edge Finder
+const RETAIL_BOOK_OPTIONS = [
+  { id: "fanduel", name: "FanDuel" },
+  { id: "draftkings", name: "DraftKings" },
+  { id: "betmgm", name: "BetMGM" },
+  { id: "caesars", name: "Caesars" },
+  { id: "bet365", name: "Bet365" },
+  { id: "espnbet", name: "ESPN Bet" },
+  { id: "fanatics", name: "Fanatics" },
 ];
 
 interface ComparingDropdownProps {
@@ -303,10 +314,57 @@ export function ComparingDropdown({
                 </button>
               );
             })}
+
+            <DropdownMenuSeparator className="my-1" />
+
+            {/* Retail Books */}
+            <div className="px-2 py-1">
+              <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+                Retail Books
+              </span>
+            </div>
+
+            {RETAIL_BOOK_OPTIONS.map((book) => {
+              const sportsbook = getSportsbookById(book.id);
+              const logo = sportsbook?.image?.light;
+              const isSelected = comparisonMode === "book" && comparisonBook === book.id;
+
+              return (
+                <button
+                  key={book.id}
+                  onClick={() => handleBookSelect(book.id)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
+                    isSelected
+                      ? "bg-neutral-100 dark:bg-neutral-800"
+                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {logo ? (
+                      <img src={logo} alt={book.name} className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <div className="w-4 h-4 rounded bg-neutral-200 dark:bg-neutral-700" />
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium flex-1",
+                    isSelected
+                      ? "text-neutral-900 dark:text-white"
+                      : "text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {book.name}
+                  </span>
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {/* Edge Finder: Sharp book selector (if using old flow) */}
+        {/* Edge Finder: Book selector (if using old flow) */}
         {tool === "edge-finder" && showBookSelector && (
           <div className="p-1.5">
             <button
@@ -319,7 +377,7 @@ export function ComparingDropdown({
             <DropdownMenuSeparator className="my-1" />
             
             <div className="space-y-0.5">
-              {SHARP_BOOK_OPTIONS.map((book) => {
+              {[...SHARP_BOOK_OPTIONS, ...RETAIL_BOOK_OPTIONS].map((book) => {
                 const sportsbook = getSportsbookById(book.id);
                 const logo = sportsbook?.image?.light;
                 const isSelected = comparisonBook === book.id;

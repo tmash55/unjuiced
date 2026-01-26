@@ -547,17 +547,17 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="edge"
             id="edge"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors whitespace-nowrap"
             onClick={() => handleSort('edge')}
           >
-            <div className="flex items-center justify-center gap-1.5">
-              <div className="w-1 h-1 rounded-full bg-amber-500" />
+            <div className="flex items-center justify-center gap-1">
+              <div className="w-1 h-1 rounded-full bg-amber-500 hidden lg:block" />
               <span>Edge %</span>
               <Tooltip content="Edge vs market average or sharp reference. Calculated using decimal odds.">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 hidden lg:block"
                   aria-hidden
                 >
                   <path
@@ -567,7 +567,7 @@ export function OpportunitiesTable({
                 </svg>
               </Tooltip>
               {sortField === 'edge' && (
-                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 lg:w-4 lg:h-4" /> : <ChevronDown className="w-3 h-3 lg:w-4 lg:h-4" />
               )}
             </div>
           </SortableColumnHeader>
@@ -577,7 +577,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="league"
             id="league"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             League
           </SortableColumnHeader>
@@ -587,7 +587,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="time"
             id="time"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
+            className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('time')}
           >
             <div className="flex items-center gap-1">
@@ -603,7 +603,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="selection"
             id="selection"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Selection
           </SortableColumnHeader>
@@ -613,7 +613,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="line"
             id="line"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Line
           </SortableColumnHeader>
@@ -623,7 +623,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="market"
             id="market"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="hidden lg:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Market
           </SortableColumnHeader>
@@ -633,7 +633,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="best-book"
             id="best-book"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 whitespace-nowrap"
           >
             Best Book
           </SortableColumnHeader>
@@ -643,7 +643,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="reference"
             id="reference"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             <div className="flex items-center justify-center gap-1.5">
               <span>{referenceColumnLabel}</span>
@@ -668,16 +668,16 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="fair"
             id="fair"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('fair')}
           >
-            <div className="flex items-center justify-center gap-1.5">
+            <div className="flex items-center justify-center gap-1">
               <span>Fair</span>
               <Tooltip content="Devigged fair odds (no-vig true probability). Calculated from both sides of the market when available.">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 hidden lg:block"
                   aria-hidden
                 >
                   <path
@@ -687,7 +687,7 @@ export function OpportunitiesTable({
                 </svg>
               </Tooltip>
               {sortField === 'fair' && (
-                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 lg:w-4 lg:h-4" /> : <ChevronDown className="w-3 h-3 lg:w-4 lg:h-4" />
               )}
             </div>
           </SortableColumnHeader>
@@ -697,16 +697,16 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="stake"
             id="stake"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('stake')}
           >
-            <div className="flex items-center justify-center gap-1.5">
+            <div className="flex items-center justify-center gap-1">
               <span>Stake</span>
               <Tooltip content={`Recommended bet size based on Kelly Criterion (${kellyPercent || 25}% Kelly). Uses your bankroll of $${bankroll.toLocaleString()}.`}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 hidden lg:block"
                   aria-hidden
                 >
                   <path
@@ -716,7 +716,7 @@ export function OpportunitiesTable({
                 </svg>
               </Tooltip>
               {sortField === 'stake' && (
-                sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 lg:w-4 lg:h-4" /> : <ChevronDown className="w-3 h-3 lg:w-4 lg:h-4" />
               )}
             </div>
           </SortableColumnHeader>
@@ -726,7 +726,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="filter"
             id="filter"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
+            className="hidden xl:table-cell font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors"
             onClick={() => handleSort('filter')}
           >
             <div className="flex items-center justify-center gap-1.5">
@@ -742,7 +742,7 @@ export function OpportunitiesTable({
           <SortableColumnHeader
             key="action"
             id="action"
-            className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
+            className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700"
           >
             Action
           </SortableColumnHeader>
@@ -779,15 +779,15 @@ export function OpportunitiesTable({
         const edgeFormat = getEdgeFormat(displayEdge);
         
         return (
-          <td key="edge" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-            <div className="flex items-center justify-center gap-2">
+          <td key="edge" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+            <div className="flex items-center justify-center gap-1 lg:gap-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleRow(opp.id, rowIndex);
                 }}
                 className={cn(
-                  "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0",
+                  "flex items-center justify-center w-5 h-5 lg:w-7 lg:h-7 rounded-lg transition-all duration-200 shrink-0",
                   "hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 hover:scale-110",
                   "text-neutral-400 dark:text-neutral-500",
                   isExpanded && "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rotate-90"
@@ -799,18 +799,18 @@ export function OpportunitiesTable({
                   animate={{ rotate: isExpanded ? 90 : 0 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3 h-3 lg:w-4 lg:h-4" />
                 </motion.div>
               </button>
               <span className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold shadow-sm border",
+                "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold shadow-sm border",
                 // Use tiered edge formatting
                 edgeFormat.bgClass, edgeFormat.color, edgeFormat.borderClass,
                 // Amber glow when boosted
                 boostPercent > 0 && "ring-1 ring-amber-400/30"
               )}>
-                {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
-                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
+                <svg className="w-2.5 h-2.5 lg:w-3 lg:h-3" viewBox="0 0 12 12" fill="currentColor">
                   <path d="M6 0L12 10H0L6 0Z" />
                 </svg>
                 +{displayEdge.toFixed(1)}%
@@ -821,7 +821,7 @@ export function OpportunitiesTable({
       
       case 'league':
         return (
-          <td key="league" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="league" className="hidden xl:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
             <div className="flex items-center gap-2">
               <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
               <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
@@ -833,7 +833,7 @@ export function OpportunitiesTable({
       
       case 'time':
         return (
-          <td key="time" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="time" className="hidden xl:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
             <div className="flex flex-col">
               <span className={cn(
                 "text-sm font-semibold tracking-tight",
@@ -857,7 +857,7 @@ export function OpportunitiesTable({
         return (
           <td 
             key="selection" 
-            className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50"
+            className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50"
             onClick={(e) => {
               // Stop propagation at the cell level if clicking on a player with profile
               if (canShowProfile && e.target !== e.currentTarget) {
@@ -867,6 +867,8 @@ export function OpportunitiesTable({
           >
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1.5">
+                {/* Sport icon - shown on smaller screens when League column is hidden */}
+                <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-400 xl:hidden shrink-0" />
                 {canShowProfile ? (
                   <Tooltip content="View Profile">
                     <button
@@ -890,30 +892,30 @@ export function OpportunitiesTable({
                           } as any,
                         });
                       }}
-                      className="text-[15px] font-semibold text-neutral-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors"
+                      className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-300 hover:underline tracking-tight transition-colors truncate"
                       type="button"
                     >
                       {formatSelectionDisplay(opp.player, opp.marketDisplay)}
                     </button>
                   </Tooltip>
                 ) : (
-                  <span className="text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight">
+                  <span className="text-[13px] lg:text-[15px] font-semibold text-neutral-900 dark:text-white tracking-tight truncate">
                     {formatSelectionDisplay(opp.player, opp.marketDisplay)}
                   </span>
                 )}
                 {opp.position && (
-                  <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                  <span className="hidden lg:inline text-[10px] font-medium text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0">
                     {opp.position}
                   </span>
                 )}
               </div>
               {opp.awayTeam && opp.homeTeam && (
-                <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                <div className="flex items-center gap-1 lg:gap-1.5 text-[10px] lg:text-xs text-neutral-500 dark:text-neutral-400">
                   {showLogos && (
                     <img
                       src={getTeamLogoUrl(opp.awayTeam, opp.sport)}
                       alt={opp.awayTeam}
-                      className="w-4 h-4 object-contain"
+                      className="w-3 h-3 lg:w-4 lg:h-4 object-contain"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display = "none";
                       }}
@@ -930,7 +932,7 @@ export function OpportunitiesTable({
                     <img
                       src={getTeamLogoUrl(opp.homeTeam, opp.sport)}
                       alt={opp.homeTeam}
-                      className="w-4 h-4 object-contain"
+                      className="w-3 h-3 lg:w-4 lg:h-4 object-contain"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display = "none";
                       }}
@@ -979,8 +981,8 @@ export function OpportunitiesTable({
           `${opp.side === "over" ? "O" : "U"} ${opp.line}`;
         
         return (
-          <td key="line" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-700 dark:text-neutral-300 shadow-sm">
+          <td key="line" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+            <span className="inline-flex items-center px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-md lg:rounded-lg text-[10px] lg:text-xs font-bold tracking-wide bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-700 dark:text-neutral-300 shadow-sm">
               {lineDisplay}
             </span>
           </td>
@@ -993,7 +995,7 @@ export function OpportunitiesTable({
         const showMarketTooltip = marketShortLabel !== marketFullLabel && marketShortLabel.length < marketFullLabel.length;
         
         return (
-          <td key="market" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="market" className="hidden lg:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
             {showMarketTooltip ? (
               <Tooltip content={marketFullLabel}>
                 <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 truncate block max-w-[120px] cursor-help">
@@ -1012,9 +1014,9 @@ export function OpportunitiesTable({
         // Find limits from the best book(s) - use first book with limits
         const bestBookLimits = bestBooksWithPrice.find(b => b.limits?.max)?.limits;
         return (
-          <td key="best-book" className="px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-            <div className="flex items-center justify-center gap-2">
-              <div className="flex items-center -space-x-1">
+          <td key="best-book" className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
+            <div className="flex items-center justify-center gap-1.5 lg:gap-2">
+              <div className="flex items-center -space-x-1 lg:-space-x-1.5">
                 {bestBooksWithPrice.slice(0, 3).map((book) => {
                   const bookLogo = getBookLogo(book.book);
                   const bookName = getBookName(book.book);
@@ -1027,25 +1029,25 @@ export function OpportunitiesTable({
                       <img 
                         src={bookLogo} 
                         alt={bookName} 
-                        className="h-6 w-6 object-contain rounded-md"
+                        className="h-5 w-5 lg:h-6 lg:w-6 object-contain rounded-md"
                       />
                     </Tooltip>
                   ) : null;
                 })}
                 {bestBooksWithPrice.length > 3 && (
-                  <div className="h-6 w-6 flex items-center justify-center">
-                    <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-400">
+                  <div className="h-5 w-5 lg:h-6 lg:w-6 flex items-center justify-center">
+                    <span className="text-[8px] lg:text-[10px] font-semibold text-neutral-600 dark:text-neutral-400">
                       +{bestBooksWithPrice.length - 3}
                     </span>
                   </div>
                 )}
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-[17px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
+                <span className="text-[14px] lg:text-[17px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
                   {opp.bestPrice}
                 </span>
                 {bestBookLimits?.max && (
-                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                  <span className="text-[9px] lg:text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
                     Max ${bestBookLimits.max >= 1000 ? `${(bestBookLimits.max / 1000).toFixed(0)}k` : bestBookLimits.max}
                   </span>
                 )}
@@ -1056,7 +1058,7 @@ export function OpportunitiesTable({
       
       case 'reference':
         return (
-          <td key="reference" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="reference" className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {(() => {
               const sharpBooksCount = opp.sharpBooks?.length || 0;
               const shouldShowLogos = 
@@ -1093,9 +1095,9 @@ export function OpportunitiesTable({
       
       case 'fair':
         return (
-          <td key="fair" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
-              <span className="text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+          <td key="fair" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+            <div className="inline-flex items-center gap-1 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60">
+              <span className="text-[12px] lg:text-[14px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
                 {opp.fairAmerican || opp.sharpPrice || "—"}
               </span>
             </div>
@@ -1104,20 +1106,20 @@ export function OpportunitiesTable({
       
       case 'stake':
         return (
-          <td key="stake" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="stake" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {(() => {
               const bestPriceStr = opp.bestPrice || "";
               const fairPriceStr = opp.fairAmerican || opp.sharpPrice || "";
               
               if (!bestPriceStr || !fairPriceStr) {
-                return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+                return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
               const bestOdds = parseInt(bestPriceStr.replace('+', ''), 10);
               const fairOdds = parseInt(fairPriceStr.replace('+', ''), 10);
               
               if (isNaN(bestOdds) || isNaN(fairOdds) || bestOdds === 0 || fairOdds === 0) {
-                return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+                return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
               const { stake, display, kellyPct } = getKellyStakeDisplay({
@@ -1129,7 +1131,7 @@ export function OpportunitiesTable({
               });
               
               if (stake <= 0) {
-                return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
+                return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
               const tooltipContent = boostPercent > 0
@@ -1146,7 +1148,7 @@ export function OpportunitiesTable({
               return (
                 <Tooltip content={tooltipContent}>
                   <div className={cn(
-                    "inline-flex items-center gap-0.5 px-2 py-1 rounded-md cursor-help transition-colors",
+                    "inline-flex items-center gap-0.5 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-md cursor-help transition-colors",
                     boostPercent > 0 
                       ? "bg-amber-100/80 dark:bg-amber-900/30"
                       : isHighKelly 
@@ -1155,9 +1157,9 @@ export function OpportunitiesTable({
                           ? "bg-amber-50 dark:bg-amber-900/20"
                           : "bg-neutral-100/60 dark:bg-neutral-800/40"
                   )}>
-                    {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
+                    {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
                     <span className={cn(
-                      "text-sm font-bold tabular-nums",
+                      "text-[11px] lg:text-sm font-bold tabular-nums",
                       boostPercent > 0 
                         ? "text-amber-600 dark:text-amber-400"
                         : isHighKelly 
@@ -1177,7 +1179,7 @@ export function OpportunitiesTable({
       
       case 'filter':
         return (
-          <td key="filter" className="px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
+          <td key="filter" className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {opp.filterId && opp.filterId !== "default" ? (
               <Tooltip content={opp.filterName || "Custom Filter"}>
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200/60 dark:border-amber-800/40 text-amber-700 dark:text-amber-400 text-xs font-semibold shadow-sm">
@@ -1210,8 +1212,8 @@ export function OpportunitiesTable({
       
       case 'action':
         return (
-          <td key="action" className="px-3 py-3 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
-            <div className="relative flex items-center justify-center gap-2">
+          <td key="action" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-200/50 dark:border-neutral-800/50">
+            <div className="relative flex items-center justify-center gap-1 lg:gap-2">
               {bestBooksWithPrice.length > 0 && (
                 <>
                   {bestBooksWithPrice.length === 1 ? (
@@ -1223,16 +1225,16 @@ export function OpportunitiesTable({
                           openLink(opp.bestBook, opp.bestLink);
                         }}
                         className={cn(
-                          "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg",
+                          "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
                           "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
-                          "text-white font-semibold text-xs shadow-sm",
+                          "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
                           "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
                           "transition-all duration-200",
                           "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
                         )}
                       >
                         <span>Bet</span>
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                       </button>
                     </Tooltip>
                   ) : (
@@ -1244,16 +1246,16 @@ export function OpportunitiesTable({
                           setOpenBetDropdown(openBetDropdown === opp.id ? null : opp.id);
                         }}
                         className={cn(
-                          "inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg",
+                          "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
                           "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
-                          "text-white font-semibold text-xs shadow-sm",
+                          "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
                           "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
                           "transition-all duration-200",
                           "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
                         )}
                       >
                         <span>Bet</span>
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                       </button>
                       
                       {openBetDropdown === opp.id && (
@@ -1288,15 +1290,15 @@ export function OpportunitiesTable({
                 </>
               )}
               
-              {/* Add to Betslip Button */}
+              {/* Add to Betslip Button - hidden on small screens */}
               {!isLoggedIn ? (
                 <Tooltip content="Sign in to save to betslip" side="left">
                   <button
                     type="button"
                     disabled
-                    className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
+                    className="hidden lg:block p-1 lg:p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
                   >
-                    <Heart className="w-4 h-4 text-neutral-400" />
+                    <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400" />
                   </button>
                 </Tooltip>
               ) : (
@@ -1309,7 +1311,7 @@ export function OpportunitiesTable({
                     }}
                     disabled={togglingRows.has(opp.id)}
                     className={cn(
-                      "p-1.5 rounded-lg transition-all duration-200",
+                      "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
                       "hover:scale-110 active:scale-95",
                       isOppFavorited(opp)
                         ? "bg-red-500/10 hover:bg-red-500/20"
@@ -1317,11 +1319,11 @@ export function OpportunitiesTable({
                     )}
                   >
                     {togglingRows.has(opp.id) ? (
-                      <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                      <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-400 animate-pulse" />
                     ) : isOppFavorited(opp) ? (
-                      <HeartFill className="w-4 h-4 text-red-500" />
+                      <HeartFill className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-red-500" />
                     ) : (
-                      <Heart className="w-4 h-4 text-neutral-400 hover:text-red-400" />
+                      <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400 hover:text-red-400" />
                     )}
                   </button>
                 </Tooltip>
@@ -1348,12 +1350,12 @@ export function OpportunitiesTable({
                         });
                       }
                     }}
-                    className="p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
+                    className="hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
                   >
                     {isHidden?.(opp.id) ? (
-                      <Eye className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                      <Eye className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
                     ) : (
-                      <EyeOff className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                      <EyeOff className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
                     )}
                   </button>
                 </Tooltip>
@@ -2083,23 +2085,26 @@ export function OpportunitiesTable({
                                         const underOffer = underMap.get(bookId);
                                         const isOverBest = overOffer && overOffer.decimal === bestOver;
                                         const isUnderBest = underOffer && underOffer.decimal === bestUnder;
+                                        // Check if this book is a reference book (used in custom model calculation)
+                                        const isReferenceBook = excludedBooks.includes(normalizeSportsbookId(bookId));
                                         
                                         return (
                                           <div 
                                             key={`${opp.id}-${bookId}`} 
                                             className={cn(
                                               "flex-shrink-0 w-[72px] border-r border-neutral-100 dark:border-neutral-800/40 last:border-r-0",
-                                              "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30 transition-colors"
+                                              "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30 transition-colors",
+                                              isReferenceBook && "bg-amber-50/50 dark:bg-amber-900/10"
                                             )}
                                           >
                                             {/* Book Logo Header */}
-                                            <div className="h-12 flex items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40 px-2">
+                                            <div className="h-12 flex flex-col items-center justify-center border-b border-neutral-200/40 dark:border-neutral-800/40 px-2 gap-0.5">
                                               <Tooltip content={getBookName(bookId)}>
                                                 {bookLogo ? (
                                                   <img
                                                     src={bookLogo}
                                                     alt={bookId}
-                                                    className="h-6 w-6 object-contain opacity-90 hover:opacity-100 transition-opacity"
+                                                    className="h-5 w-5 object-contain opacity-90 hover:opacity-100 transition-opacity"
                                                   />
                                                 ) : (
                                                   <span className="text-[10px] font-medium text-neutral-500 truncate">
@@ -2107,6 +2112,14 @@ export function OpportunitiesTable({
                                                   </span>
                                                 )}
                                               </Tooltip>
+                                              {/* REF badge for reference books */}
+                                              {isReferenceBook && (
+                                                <Tooltip content="Reference book used for edge calculation">
+                                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+                                                    REF
+                                                  </span>
+                                                </Tooltip>
+                                              )}
                                             </div>
                                             {/* Over Odds */}
                                             <div className={cn(

@@ -12,7 +12,7 @@ import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 import { MobileArbsView } from "@/components/arbs/mobile";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
@@ -104,8 +104,8 @@ export default function ArbsPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   
-  // Mobile detection
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  // Mobile/tablet detection - show card view on screens < 1280px
+  const isMobile = useIsMobileOrTablet();
   const bestRoi = useMemo(() => rows.length ? Math.max(...rows.map(r => (r.roi_bps || 0) / 100)).toFixed(2) : "0.00", [rows]);
   const [previewBestRoi, setPreviewBestRoi] = useState<string>("0.00");
   const [freshFound, setFreshFound] = useState(false);

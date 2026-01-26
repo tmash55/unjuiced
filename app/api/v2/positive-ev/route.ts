@@ -27,6 +27,7 @@ import {
   type BookOffer,
   type MultiDevigResult,
   type EVMode,
+  type CustomSharpConfig,
 } from "@/lib/ev";
 import {
   SHARP_PRESETS,
@@ -57,7 +58,7 @@ const responseCache = new Map<string, { data: unknown; timestamp: number; mode: 
  * Build cache key from request parameters
  */
 function buildResponseCacheKey(params: URLSearchParams): string {
-  const keys = ['sports', 'sharpPreset', 'devigMethods', 'minEV', 'maxEV', 'books', 'limit', 'mode', 'minBooksPerSide'];
+  const keys = ['sports', 'sharpPreset', 'devigMethods', 'minEV', 'maxEV', 'books', 'limit', 'mode', 'minBooksPerSide', 'customSharpBooks', 'customBookWeights'];
   return keys.map(k => `${k}:${params.get(k) || ''}`).join('|');
 }
 
@@ -286,10 +287,31 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
     const minBooksPerSide = parseInt(params.get("minBooksPerSide") || "2");
     
+    // Custom sharp books (for user's custom models)
+    const customSharpBooksParam = params.get("customSharpBooks")?.toLowerCase().split(",").filter(Boolean) || null;
+    const customBookWeightsParam = params.get("customBookWeights");
+    let customSharpConfig: CustomSharpConfig | null = null;
+    
+    if (customSharpBooksParam && customSharpBooksParam.length > 0) {
+      let weights: Record<string, number> | null = null;
+      if (customBookWeightsParam) {
+        try {
+          weights = JSON.parse(customBookWeightsParam);
+        } catch (e) {
+          console.warn("[positive-ev] Failed to parse customBookWeights, using equal weights");
+        }
+      }
+      customSharpConfig = {
+        books: customSharpBooksParam,
+        weights,
+      };
+      console.log(`[positive-ev] Using custom sharp config: ${customSharpBooksParam.join(", ")}`, weights ? `with weights` : `equal weights`);
+    }
+    
     // Note: mode is already parsed above for cache check
 
-    // Validate sharp preset
-    if (!SHARP_PRESETS[sharpPreset]) {
+    // Validate sharp preset (only if not using custom config)
+    if (!customSharpConfig && !SHARP_PRESETS[sharpPreset]) {
       return NextResponse.json({ error: `Invalid sharpPreset: ${sharpPreset}` }, { status: 400 });
     }
 
@@ -308,7 +330,8 @@ export async function GET(req: NextRequest) {
           maxEV,
           booksFilter,
           mode,
-          minBooksPerSide
+          minBooksPerSide,
+          customSharpConfig
         );
         console.log(`[positive-ev] ✅ ${sport}: ${sportOpps.length} opps in ${Date.now() - startTime}ms`);
         return sportOpps;
@@ -332,7 +355,8 @@ export async function GET(req: NextRequest) {
       meta: {
         totalFound: allOpportunities.length,
         returned: opportunities.length,
-        sharpPreset,
+        sharpPreset: customSharpConfig ? "custom" : sharpPreset,
+        customSharpConfig: customSharpConfig || undefined,
         devigMethods,
         minEV,
         minBooksPerSide,
@@ -382,7 +406,8 @@ async function fetchPositiveEVOpportunities(
   maxEV: number,
   booksFilter: string[] | null,
   mode: EVMode,
-  minBooksPerSide: number
+  minBooksPerSide: number,
+  customSharpConfig: CustomSharpConfig | null = null
 ): Promise<PositiveEVOpportunity[]> {
   const opportunities: PositiveEVOpportunity[] = [];
   const pairMap = new Map<string, SelectionPair>();
@@ -693,30 +718,44 @@ async function fetchPositiveEVOpportunities(
       // Need minimum books on both sides for proper de-vigging (width filter)
       if (pair.over.books.length < minBooksPerSide || pair.under.books.length < minBooksPerSide) continue;
 
-      // Get sharp reference odds
-      const sharpOver = getSharpOddsForPreset(pair.over.books, sharpPreset);
-      const sharpUnder = getSharpOddsForPreset(pair.under.books, sharpPreset);
+      // Get sharp reference odds (use custom config if provided, otherwise use preset)
+      const sharpOver = customSharpConfig 
+        ? getSharpOddsForCustomConfig(pair.over.books, customSharpConfig)
+        : getSharpOddsForPreset(pair.over.books, sharpPreset);
+      const sharpUnder = customSharpConfig
+        ? getSharpOddsForCustomConfig(pair.under.books, customSharpConfig)
+        : getSharpOddsForPreset(pair.under.books, sharpPreset);
 
       if (!sharpOver || !sharpUnder) continue;
 
       // De-vig using the sharp reference
       const devigResults = devigMultiple(sharpOver.price, sharpUnder.price, devigMethods);
 
+      // Determine the effective preset name for display
+      const effectivePreset = customSharpConfig ? "custom" : sharpPreset;
+
       // Create sharp reference object
+      // Only include books that contributed to BOTH sides in blendedFrom
+      const bothSidesBooks = sharpOver.blendedFrom && sharpUnder.blendedFrom
+        ? sharpOver.blendedFrom.filter(b => sharpUnder.blendedFrom!.includes(b))
+        : sharpOver.blendedFrom;
+      
       const sharpReference = createSharpReference(
         sharpOver.price,
         sharpUnder.price,
-        sharpPreset,
+        effectivePreset,
         sharpOver.source,
-        sharpOver.blendedFrom
+        bothSidesBooks
       );
 
       // Check each book for +EV opportunities on both sides
       const sides: ("over" | "under")[] = ["over", "under"];
       
-      // Get books to exclude based on the current preset
-      // Only the books used as the sharp reference are excluded
-      const excludedBooks = getExcludedBooksForPreset(sharpPreset);
+      // Get books to exclude based on the sharp reference
+      // When using custom config, exclude the custom sharp books
+      const excludedBooks = customSharpConfig
+        ? new Set(customSharpConfig.books.map(b => b.toLowerCase()))
+        : getExcludedBooksForPreset(sharpPreset);
 
       for (const side of sides) {
         const sideData = pair[side];
@@ -787,7 +826,7 @@ async function fetchPositiveEVOpportunities(
           playerPosition: pair.position || undefined,
           line: pair.line,
           side,
-          sharpPreset,
+          sharpPreset: effectivePreset,
           sharpReference: {
             ...sharpReference,
             blendedFrom: undefined,
@@ -832,6 +871,28 @@ async function fetchPositiveEVOpportunities(
 }
 
 /**
+ * Filter out Polymarket odds that are too extreme (-1000 or worse)
+ * These extreme odds can skew market average and blend calculations
+ */
+function filterExtremePolymarketOdds(books: BookOffer[]): BookOffer[] {
+  const POLYMARKET_EXTREME_THRESHOLD = -1000; // -1000 or worse (more negative)
+  
+  return books.filter((book) => {
+    const isPolymarket = book.bookId.toLowerCase() === "polymarket";
+    if (!isPolymarket) return true; // Keep all non-Polymarket books
+    
+    // Filter out Polymarket odds that are -1000 or worse (heavy favorites)
+    // Note: -1000 means you bet $1000 to win $100, which is 90.9% implied prob
+    if (book.price <= POLYMARKET_EXTREME_THRESHOLD) {
+      console.log(`[positive-ev] Filtering extreme Polymarket odds: ${book.price}`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+/**
  * Get sharp odds for a preset from available books
  */
 function getSharpOddsForPreset(
@@ -848,10 +909,13 @@ function getSharpOddsForPreset(
 
   // Market Average: Use ALL available books for this market
   if (preset === "market_average") {
-    if (books.length === 0) return null;
+    // Filter out extreme Polymarket odds that could skew the average
+    const filteredBooks = filterExtremePolymarketOdds(books);
+    
+    if (filteredBooks.length === 0) return null;
     
     // Equal weight for all books
-    const blendInputs = books.map((b) => ({
+    const blendInputs = filteredBooks.map((b) => ({
       bookId: b.bookId,
       odds: b.price,
       weight: 1.0,
@@ -862,8 +926,8 @@ function getSharpOddsForPreset(
     
     return {
       price: blendedOdds,
-      source: `Market Avg (${books.length} books)`,
-      blendedFrom: books.map((b) => b.bookId),
+      source: `Market Avg (${filteredBooks.length} books)`,
+      blendedFrom: filteredBooks.map((b) => b.bookId),
     };
   }
 
@@ -904,6 +968,83 @@ function getSharpOddsForPreset(
   return {
     price: blendedOdds,
     source: `${preset} (${blendedFrom.join(", ")})`,
+    blendedFrom,
+  };
+}
+
+/**
+ * Get sharp odds using a custom configuration (user's custom EV model)
+ * Supports weighted blending of multiple sharp books
+ */
+function getSharpOddsForCustomConfig(
+  books: BookOffer[],
+  config: CustomSharpConfig
+): { price: number; source: string; blendedFrom?: string[] } | null {
+  if (!config.books || config.books.length === 0) {
+    return null;
+  }
+
+  // Filter out extreme Polymarket odds that could skew the blend
+  const filteredBooks = filterExtremePolymarketOdds(books);
+
+  // Single book in custom config
+  if (config.books.length === 1) {
+    const targetBook = config.books[0].toLowerCase();
+    const match = filteredBooks.find((b) => 
+      b.bookId.toLowerCase() === targetBook || 
+      normalizeBookIdForSharp(b.bookId) === targetBook ||
+      b.bookId.toLowerCase() === normalizeBookIdForSharp(targetBook)
+    );
+    if (match) {
+      return { price: match.price, source: targetBook };
+    }
+    return null;
+  }
+
+  // Multiple books - use weighted blending
+  const blendInputs: { bookId: string; odds: number; weight: number }[] = [];
+  const blendedFrom: string[] = [];
+  
+  // Calculate total weight from available books for normalization
+  let totalAvailableWeight = 0;
+
+  for (const bookId of config.books) {
+    const normalizedBookId = bookId.toLowerCase();
+    const match = filteredBooks.find((b) => 
+      b.bookId.toLowerCase() === normalizedBookId || 
+      normalizeBookIdForSharp(b.bookId) === normalizedBookId ||
+      b.bookId.toLowerCase() === normalizeBookIdForSharp(normalizedBookId)
+    );
+    
+    if (match) {
+      // Get weight from config, default to equal weight if not specified
+      const weight = config.weights?.[bookId] ?? config.weights?.[normalizedBookId] ?? (100 / config.books.length);
+      blendInputs.push({ bookId: normalizedBookId, odds: match.price, weight });
+      blendedFrom.push(normalizedBookId);
+      totalAvailableWeight += weight;
+    }
+  }
+
+  // Require at least one book to be available
+  if (blendInputs.length === 0) {
+    return null;
+  }
+
+  // If not all books are available, normalize weights to sum to 100%
+  if (blendInputs.length < config.books.length && totalAvailableWeight > 0) {
+    const normalizationFactor = 100 / totalAvailableWeight;
+    blendInputs.forEach(input => {
+      input.weight = input.weight * normalizationFactor;
+    });
+  }
+
+  const blendedOdds = blendSharpOdds(blendInputs);
+  if (blendedOdds === 0) return null;
+
+  const sourceBooks = blendedFrom.map(b => b.charAt(0).toUpperCase() + b.slice(1)).join(", ");
+  return {
+    price: blendedOdds,
+    source: `Custom (${sourceBooks})`,
     blendedFrom,
   };
 }

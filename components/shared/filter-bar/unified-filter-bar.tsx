@@ -15,6 +15,7 @@ import { ComparingDropdown } from "./comparing-dropdown";
 import { GlobalSettingsDropdown } from "./global-settings-dropdown";
 import { ResetButton } from "./reset-button";
 import { FilterPresetsManagerModal } from "@/components/filter-presets/filter-presets-manager-modal";
+import { EvModelsManagerModal } from "@/components/ev-models/ev-models-manager-modal";
 import { Layers } from "lucide-react";
 
 // Types
@@ -152,6 +153,10 @@ export interface UnifiedFilterBarProps {
   activePresets?: { id: string; name: string }[];
   onManageModels?: () => void;
   
+  // Custom EV models (for Positive EV)
+  activeEvModels?: { id: string; name: string }[];
+  onManageEvModels?: () => void;
+  
   // Auto refresh
   autoRefresh?: boolean;
   onAutoRefreshChange?: (value: boolean) => void;
@@ -231,6 +236,8 @@ export function UnifiedFilterBar({
   onToggleShowHidden,
   activePresets,
   onManageModels,
+  activeEvModels,
+  onManageEvModels,
   autoRefresh,
   onAutoRefreshChange,
   isConnected,
@@ -244,6 +251,7 @@ export function UnifiedFilterBar({
   className,
 }: UnifiedFilterBarProps) {
   const [showModelsModal, setShowModelsModal] = React.useState(false);
+  const [showEvModelsModal, setShowEvModelsModal] = React.useState(false);
 
   return (
     <div
@@ -399,6 +407,7 @@ export function UnifiedFilterBar({
           />
 
           {/* Comparing Against Dropdown - Not needed for Arbitrage */}
+          {/* Disabled for Positive EV when custom models are active, or for Edge Finder when presets are active */}
           {tool !== "arbitrage" && (
             <ComparingDropdown
               tool={tool}
@@ -407,7 +416,11 @@ export function UnifiedFilterBar({
               comparisonMode={comparisonMode}
               comparisonBook={comparisonBook}
               onComparisonChange={onComparisonChange}
-              disabled={locked}
+              disabled={
+                locked || 
+                (tool === "positive-ev" && activeEvModels && activeEvModels.length > 0) ||
+                (tool === "edge-finder" && activePresets && activePresets.length > 0)
+              }
             />
           )}
 
@@ -449,33 +462,67 @@ export function UnifiedFilterBar({
             disabled={locked}
           />
 
-          {/* Custom Models Button */}
+          {/* Custom Models Button - Edge Finder */}
           {tool === "edge-finder" && onManageModels && (
             <>
               <Tooltip content="Manage custom models">
-                <button
-                  onClick={() => setShowModelsModal(true)}
-                  disabled={locked}
-                  className={cn(
-                    "flex items-center justify-center h-8 w-8 rounded-lg transition-all",
-                    activePresets && activePresets.length > 0
-                      ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-700"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50",
-                    locked && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <Layers className="w-4 h-4" />
+                <div className="relative">
+                  <button
+                    onClick={() => setShowModelsModal(true)}
+                    disabled={locked}
+                    className={cn(
+                      "group relative h-8 w-8 rounded-lg bg-gradient-to-br from-amber-500 via-orange-500 to-yellow-600 p-[1.5px] shadow-sm hover:shadow-md hover:shadow-amber-500/25 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900",
+                      locked && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <span className="flex h-full w-full items-center justify-center rounded-[6px] bg-white dark:bg-neutral-900 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
+                      <Layers className="w-4 h-4" />
+                    </span>
+                  </button>
                   {activePresets && activePresets.length > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white z-10 shadow-sm ring-2 ring-white dark:ring-neutral-900">
                       {activePresets.length}
                     </span>
                   )}
-                </button>
+                </div>
               </Tooltip>
               
               <FilterPresetsManagerModal
                 open={showModelsModal}
                 onOpenChange={setShowModelsModal}
+              />
+            </>
+          )}
+
+          {/* Custom EV Models Button - Positive EV */}
+          {tool === "positive-ev" && onManageEvModels && (
+            <>
+              <Tooltip content="Manage custom EV models">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEvModelsModal(true)}
+                    disabled={locked}
+                    className={cn(
+                      "group relative h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 p-[1.5px] shadow-sm hover:shadow-md hover:shadow-emerald-500/25 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900",
+                      locked && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <span className="flex h-full w-full items-center justify-center rounded-[6px] bg-white dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
+                      <Layers className="w-4 h-4" />
+                    </span>
+                  </button>
+                  {activeEvModels && activeEvModels.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white z-10 shadow-sm ring-2 ring-white dark:ring-neutral-900">
+                      {activeEvModels.length}
+                    </span>
+                  )}
+                </div>
+              </Tooltip>
+              
+              <EvModelsManagerModal
+                open={showEvModelsModal}
+                onOpenChange={setShowEvModelsModal}
+                onModelsChanged={onManageEvModels}
               />
             </>
           )}

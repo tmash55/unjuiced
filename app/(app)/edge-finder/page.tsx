@@ -37,7 +37,7 @@ import { formatMarketLabelShort } from "@/lib/data/markets";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
-import { useIsMobile } from "@/hooks/use-media-query";
+import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
@@ -76,7 +76,7 @@ export default function EdgeFinderPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
   const isLoggedIn = !!user;
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobileOrTablet(); // Show card view on phones & tablets (< 1280px)
   const stablePlanRef = useRef(isPro);
 
   useEffect(() => {

@@ -59,6 +59,12 @@ export interface PositiveEVFilters {
   
   /** Minimum books required on BOTH sides (width filter, default: 2) */
   minBooksPerSide?: number;
+  
+  /** Custom sharp books (for user's custom EV models) */
+  customSharpBooks?: string[] | null;
+  
+  /** Custom book weights (for user's custom EV models, e.g., {"pinnacle": 60, "circa": 40}) */
+  customBookWeights?: Record<string, number> | null;
 }
 
 export interface UsePositiveEVOptions {
@@ -121,6 +127,8 @@ const DEFAULT_FILTERS: PositiveEVFilters = {
   search: "",
   mode: "pregame",
   minBooksPerSide: 2,
+  customSharpBooks: null,
+  customBookWeights: null,
 };
 
 // =============================================================================
@@ -143,8 +151,20 @@ function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearch
     params.set("markets", filters.markets.join(","));
   }
   
-  // Sharp preset
-  params.set("sharpPreset", filters.sharpPreset);
+  // Sharp preset (only set if not using custom sharp books)
+  if (!filters.customSharpBooks || filters.customSharpBooks.length === 0) {
+    params.set("sharpPreset", filters.sharpPreset);
+  }
+  
+  // Custom sharp books (for user's custom EV models)
+  if (filters.customSharpBooks && filters.customSharpBooks.length > 0) {
+    params.set("customSharpBooks", filters.customSharpBooks.join(","));
+    
+    // Custom book weights (JSON encoded)
+    if (filters.customBookWeights && Object.keys(filters.customBookWeights).length > 0) {
+      params.set("customBookWeights", JSON.stringify(filters.customBookWeights));
+    }
+  }
   
   // De-vig methods
   if (filters.devigMethods && filters.devigMethods.length > 0) {
@@ -287,7 +307,8 @@ export function usePositiveEV({
         "positive-ev",
         filters.sports.join(","),
         filters.markets?.join(",") || "all",
-        filters.sharpPreset,
+        filters.customSharpBooks?.join(",") || filters.sharpPreset,
+        filters.customBookWeights ? JSON.stringify(filters.customBookWeights) : "no-weights",
         filters.devigMethods?.join(",") || "default",
         filters.minEV,
         filters.maxEV,

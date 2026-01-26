@@ -253,6 +253,14 @@ export interface PositiveEVRequest {
 export type EVMode = "pregame" | "live" | "all";
 
 /**
+ * Custom sharp configuration (for user's custom EV models)
+ */
+export interface CustomSharpConfig {
+  books: string[];
+  weights: Record<string, number> | null;
+}
+
+/**
  * Response from the +EV API
  */
 export interface PositiveEVResponse {
@@ -261,6 +269,7 @@ export interface PositiveEVResponse {
     totalFound: number;
     returned: number;
     sharpPreset: SharpPreset;
+    customSharpConfig?: CustomSharpConfig;
     devigMethods: DevigMethod[];
     minEV: number;
     minBooksPerSide?: number;

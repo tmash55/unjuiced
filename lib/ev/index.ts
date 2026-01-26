@@ -40,6 +40,7 @@ export type {
   PositiveEVResponse,
   PositiveEVModel,
   EVMode,
+  CustomSharpConfig,
 } from "./types";
 
 // Constants

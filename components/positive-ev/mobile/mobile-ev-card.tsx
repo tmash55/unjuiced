@@ -582,94 +582,164 @@ export function MobileEVCard({
                 </div>
               </div>
               
-              {/* Book Comparison Header */}
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                  Compare Odds
-                </span>
-                <span className="text-[9px] text-neutral-400">
-                  {opp.allBooks.length} book{opp.allBooks.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-              
-              {/* Book Comparison Grid - 2 Columns */}
-              <div className="grid grid-cols-2 gap-1">
-                {opp.allBooks.map((book, idx) => {
-                  const bookInfo = getSportsbookById(book.bookId);
-                  const bookLogo = getBookLogo(book.bookId);
-                  const isBest = book.bookId === opp.book.bookId;
+              {/* Book Comparison - Over/Under side-by-side or single side grid */}
+              {(opp.side === "over" || opp.side === "under") && opp.oppositeBooks && opp.oppositeBooks.length > 0 ? (
+                <>
+                  {/* Over/Under Comparison Header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                      Over {opp.line}
+                    </span>
+                    <span className="text-[8px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase">
+                      Book
+                    </span>
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                      Under {opp.line}
+                    </span>
+                  </div>
                   
-                  return (
-                    <button
-                      key={`${book.bookId}-${idx}`}
-                      type="button"
-                      onClick={() => {
-                        const link = book.mobileLink || book.link;
-                        if (link) window.open(link, "_blank");
-                      }}
-                      className={cn(
-                        "flex items-center justify-between px-2 py-1.5 rounded-lg",
-                        "transition-all duration-100 active:scale-[0.98]",
-                        isBest 
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300/60 dark:border-emerald-800/60"
-                          : "bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800"
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        {bookLogo ? (
-                          <img 
-                            src={bookLogo} 
-                            alt={bookInfo?.name || book.bookId} 
-                            className="w-4 h-4 rounded object-contain shrink-0"
-                          />
-                        ) : (
-                          <div className="w-4 h-4 rounded bg-neutral-300 dark:bg-neutral-600 shrink-0" />
-                        )}
-                        <span className={cn(
-                          "text-[10px] font-medium truncate",
-                          isBest ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-600 dark:text-neutral-300"
-                        )}>
-                          {bookInfo?.name || book.bookId}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end shrink-0 ml-1">
-                        <span className={cn(
-                          "text-[11px] font-bold tabular-nums",
-                          isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                        )}>
-                          {formatOdds(book.price)}
-                        </span>
-                        {book.limits?.max && (
-                          <span className="text-[8px] text-neutral-400">
-                            Max ${book.limits.max >= 1000 ? `${(book.limits.max / 1000).toFixed(0)}k` : book.limits.max}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              
-              {/* Opposite Side (if available) */}
-              {opp.oppositeBooks && opp.oppositeBooks.length > 0 && (
-                <div className="mt-3 pt-2 border-t border-neutral-200/50 dark:border-neutral-800/50">
-                  <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider mb-1.5 block">
-                    {opp.side === "over" ? "Under" : "Over"} {opp.line}
-                  </span>
+                  {/* Over/Under Rows - Logo in center */}
+                  <div className="space-y-1">
+                    {(() => {
+                      // Combine books from both sides, matching by bookId
+                      const overBooks = opp.side === "over" ? opp.allBooks : opp.oppositeBooks;
+                      const underBooks = opp.side === "under" ? opp.allBooks : opp.oppositeBooks;
+                      
+                      // Get all unique book IDs
+                      const allBookIds = new Set([
+                        ...overBooks.map(b => b.bookId),
+                        ...underBooks.map(b => b.bookId)
+                      ]);
+                      
+                      // Find best books for each side
+                      const bestOverBook = overBooks.reduce((best, b) => !best || b.price > best.price ? b : best, null as typeof overBooks[0] | null);
+                      const bestUnderBook = underBooks.reduce((best, b) => !best || b.price > best.price ? b : best, null as typeof underBooks[0] | null);
+                      
+                      // Create paired rows sorted by over price (best first)
+                      const pairedBooks = Array.from(allBookIds).map(bookId => ({
+                        bookId,
+                        over: overBooks.find(b => b.bookId === bookId),
+                        under: underBooks.find(b => b.bookId === bookId),
+                      })).sort((a, b) => {
+                        const aPrice = a.over?.price ?? -9999;
+                        const bPrice = b.over?.price ?? -9999;
+                        return bPrice - aPrice;
+                      });
+                      
+                      return pairedBooks.map((pair, idx) => {
+                        const bookInfo = getSportsbookById(pair.bookId);
+                        const bookLogo = getBookLogo(pair.bookId);
+                        const isBestOver = pair.over && bestOverBook && pair.over.price === bestOverBook.price;
+                        const isBestUnder = pair.under && bestUnderBook && pair.under.price === bestUnderBook.price;
+                        
+                        return (
+                          <div 
+                            key={`${pair.bookId}-${idx}`}
+                            className="flex items-center gap-1"
+                          >
+                            {/* Over Side */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const link = pair.over?.mobileLink || pair.over?.link;
+                                if (link) window.open(link, "_blank");
+                              }}
+                              disabled={!pair.over}
+                              className={cn(
+                                "flex-1 flex items-center justify-end px-2 py-1.5 rounded-lg",
+                                "transition-all duration-100 active:scale-[0.98]",
+                                !pair.over && "opacity-40 cursor-not-allowed",
+                                isBestOver 
+                                  ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300/60 dark:border-emerald-800/60"
+                                  : "bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800"
+                              )}
+                            >
+                              <span className={cn(
+                                "text-[12px] font-bold tabular-nums",
+                                isBestOver ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
+                              )}>
+                                {pair.over ? formatOdds(pair.over.price) : "—"}
+                              </span>
+                            </button>
+                            
+                            {/* Center Logo */}
+                            <div className="w-7 h-7 flex items-center justify-center shrink-0">
+                              {bookLogo ? (
+                                <img 
+                                  src={bookLogo} 
+                                  alt={bookInfo?.name || pair.bookId} 
+                                  className="w-6 h-6 rounded object-contain"
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+                                  <span className="text-[8px] font-bold text-neutral-500">{pair.bookId.slice(0, 2).toUpperCase()}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Under Side */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const link = pair.under?.mobileLink || pair.under?.link;
+                                if (link) window.open(link, "_blank");
+                              }}
+                              disabled={!pair.under}
+                              className={cn(
+                                "flex-1 flex items-center justify-start px-2 py-1.5 rounded-lg",
+                                "transition-all duration-100 active:scale-[0.98]",
+                                !pair.under && "opacity-40 cursor-not-allowed",
+                                isBestUnder 
+                                  ? "bg-blue-50 dark:bg-blue-950/40 border border-blue-300/60 dark:border-blue-800/60"
+                                  : "bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800"
+                              )}
+                            >
+                              <span className={cn(
+                                "text-[12px] font-bold tabular-nums",
+                                isBestUnder ? "text-blue-600 dark:text-blue-400" : "text-neutral-900 dark:text-white"
+                              )}>
+                                {pair.under ? formatOdds(pair.under.price) : "—"}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Single Side Grid (for yes/no markets or missing opposite side) */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                      Compare Odds
+                    </span>
+                    <span className="text-[9px] text-neutral-400">
+                      {opp.allBooks.length} book{opp.allBooks.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-1">
-                    {opp.oppositeBooks.slice(0, 4).map((book, idx) => {
+                    {opp.allBooks.map((book, idx) => {
                       const bookInfo = getSportsbookById(book.bookId);
                       const bookLogo = getBookLogo(book.bookId);
+                      const isBest = book.bookId === opp.book.bookId;
                       
                       return (
                         <button
-                          key={`opp-${book.bookId}-${idx}`}
+                          key={`${book.bookId}-${idx}`}
                           type="button"
                           onClick={() => {
                             const link = book.mobileLink || book.link;
                             if (link) window.open(link, "_blank");
                           }}
-                          className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 transition-all duration-100 active:scale-[0.98]"
+                          className={cn(
+                            "flex items-center justify-between px-2 py-1.5 rounded-lg",
+                            "transition-all duration-100 active:scale-[0.98]",
+                            isBest 
+                              ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300/60 dark:border-emerald-800/60"
+                              : "bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800"
+                          )}
                         >
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             {bookLogo ? (
@@ -681,18 +751,31 @@ export function MobileEVCard({
                             ) : (
                               <div className="w-4 h-4 rounded bg-neutral-300 dark:bg-neutral-600 shrink-0" />
                             )}
-                            <span className="text-[10px] font-medium truncate text-neutral-600 dark:text-neutral-300">
+                            <span className={cn(
+                              "text-[10px] font-medium truncate",
+                              isBest ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-600 dark:text-neutral-300"
+                            )}>
                               {bookInfo?.name || book.bookId}
                             </span>
                           </div>
-                          <span className="text-[11px] font-bold tabular-nums text-neutral-900 dark:text-white shrink-0 ml-1">
-                            {formatOdds(book.price)}
-                          </span>
+                          <div className="flex flex-col items-end shrink-0 ml-1">
+                            <span className={cn(
+                              "text-[11px] font-bold tabular-nums",
+                              isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
+                            )}>
+                              {formatOdds(book.price)}
+                            </span>
+                            {book.limits?.max && (
+                              <span className="text-[8px] text-neutral-400">
+                                Max ${book.limits.max >= 1000 ? `${(book.limits.max / 1000).toFixed(0)}k` : book.limits.max}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
                   </div>
-                </div>
+                </>
               )}
             </div>
           </motion.div>

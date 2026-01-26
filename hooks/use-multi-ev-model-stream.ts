@@ -1,42 +1,63 @@
 "use client";
 
 /**
- * usePositiveEVStream Hook
+ * useMultiEvModelStream Hook
  * 
- * Real-time SSE streaming hook for Positive EV opportunities.
+ * Real-time SSE streaming hook for Positive EV opportunities with multi-model support.
  * Uses signal-based refreshing via the odds_updates pub/sub infrastructure.
  * 
  * Features:
  * - SSE connection to odds_updates channels
  * - Signal-based refresh (only fetches when odds change)
+ * - Multi-model support (parallel fetches, merged results)
+ * - Model metadata tagging (modelId, modelName on each opportunity)
  * - Debounced updates to prevent request storms
  * - Stale/unavailable row tracking for expanded rows
- * - Auto-refresh toggle
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PositiveEVOpportunity, PositiveEVResponse, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
-import { SHARP_PRESETS, DEFAULT_DEVIG_METHODS, POSITIVE_EV_DEFAULTS } from "@/lib/ev/constants";
+import { SHARP_PRESETS, DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
+import { type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { useSSE } from "@/hooks/use-sse";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-interface PositiveEVFilters {
-  sports: string[];
-  markets?: string[] | null;
+export interface MultiEvModelStreamPrefs {
+  selectedSports: string[];
   sharpPreset: SharpPreset;
-  devigMethods?: DevigMethod[];
-  minEV: number;
-  maxEV?: number;
-  books?: string[] | null;
-  limit?: number;
-  search?: string;
-  mode?: EVMode;
-  minBooksPerSide?: number;
-  customSharpBooks?: string[] | null;
-  customBookWeights?: Record<string, number> | null;
+  devigMethods: DevigMethod[];
+  minEv: number;
+  maxEv?: number;
+  selectedBooks: string[];
+  selectedMarkets: string[];
+  mode: EVMode;
+  minBooksPerSide: number;
+  searchQuery?: string;
+}
+
+interface ModelConfig {
+  filters: {
+    sports: string[];
+    sharpPreset: SharpPreset | null;
+    customSharpBooks: string[] | null;
+    customBookWeights: Record<string, number> | null;
+    devigMethods: DevigMethod[];
+    minEV: number;
+    maxEV?: number;
+    markets: string[] | null;
+    marketType: "all" | "player" | "game";
+    mode: EVMode;
+    minBooksPerSide: number;
+    limit: number;
+  };
+  metadata: {
+    modelId: string;
+    modelName: string;
+    isCustom: boolean;
+  };
 }
 
 type Cache = Map<string, PositiveEVOpportunity>;
@@ -44,7 +65,6 @@ type Direction = "up" | "down";
 type Change = { ev?: Direction; price?: Direction };
 type ChangeMap = Map<string, Change>;
 
-// SSE message format from odds_updates channel
 interface OddsUpdateMessage {
   type: "update";
   keys: string[];
@@ -52,8 +72,9 @@ interface OddsUpdateMessage {
   timestamp?: string;
 }
 
-const FLASH_MS = 5000; // Highlight duration for changes
-const DEBOUNCE_MS = 1000; // Debounce refresh requests
+const ALL_SPORTS = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const FLASH_MS = 5000;
+const DEBOUNCE_MS = 1000;
 
 // =============================================================================
 // Helpers
@@ -66,69 +87,200 @@ function dir(a: number | undefined, b: number | undefined): Direction | undefine
   return undefined;
 }
 
-function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearchParams {
+function getOpportunityEV(opp: PositiveEVOpportunity): number {
+  return opp.evCalculations?.evWorst ?? opp.evCalculations?.evBest ?? -Infinity;
+}
+
+function buildModelConfigs(
+  prefs: MultiEvModelStreamPrefs,
+  activeModels: EvModel[],
+  isPro: boolean,
+  limit: number
+): ModelConfig[] {
+  if (activeModels.length === 0) {
+    return [{
+      filters: {
+        sports: prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS,
+        sharpPreset: prefs.sharpPreset,
+        customSharpBooks: null,
+        customBookWeights: null,
+        devigMethods: prefs.devigMethods,
+        minEV: prefs.minEv,
+        maxEV: prefs.maxEv,
+        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        marketType: "all",
+        mode: prefs.mode,
+        minBooksPerSide: prefs.minBooksPerSide,
+        limit,
+      },
+      metadata: {
+        modelId: "default",
+        modelName: prefs.sharpPreset,
+        isCustom: false,
+      },
+    }];
+  }
+
+  const configs: ModelConfig[] = [];
+  
+  for (const model of activeModels) {
+    const modelSports = parseEvSports(model.sport);
+    const sports = modelSports.length > 0 
+      ? modelSports 
+      : (prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS);
+
+    configs.push({
+      filters: {
+        sports,
+        sharpPreset: null,
+        customSharpBooks: model.sharp_books,
+        customBookWeights: model.book_weights,
+        devigMethods: prefs.devigMethods,
+        minEV: prefs.minEv,
+        maxEV: prefs.maxEv,
+        markets: model.markets,
+        marketType: model.market_type,
+        mode: prefs.mode,
+        minBooksPerSide: model.min_books_reference || prefs.minBooksPerSide,
+        limit: Math.ceil(limit / activeModels.length),
+      },
+      metadata: {
+        modelId: model.id,
+        modelName: model.name,
+        isCustom: true,
+      },
+    });
+  }
+  
+  return configs;
+}
+
+function buildQueryParams(config: ModelConfig, isPro: boolean): URLSearchParams {
   const params = new URLSearchParams();
+  const { filters } = config;
   
   if (filters.sports.length > 0) {
     params.set("sports", filters.sports.join(","));
   }
+  
   if (filters.markets && filters.markets.length > 0) {
     params.set("markets", filters.markets.join(","));
   }
   
-  // Sharp preset (only set if not using custom sharp books)
-  if (!filters.customSharpBooks || filters.customSharpBooks.length === 0) {
-    params.set("sharpPreset", filters.sharpPreset);
+  if (filters.marketType && filters.marketType !== "all") {
+    params.set("marketType", filters.marketType);
   }
   
-  // Custom sharp books (for user's custom EV models)
   if (filters.customSharpBooks && filters.customSharpBooks.length > 0) {
     params.set("customSharpBooks", filters.customSharpBooks.join(","));
-    
-    // Custom book weights (JSON encoded)
     if (filters.customBookWeights && Object.keys(filters.customBookWeights).length > 0) {
       params.set("customBookWeights", JSON.stringify(filters.customBookWeights));
     }
+  } else if (filters.sharpPreset) {
+    params.set("sharpPreset", filters.sharpPreset);
   }
   
   if (filters.devigMethods && filters.devigMethods.length > 0) {
     params.set("devigMethods", filters.devigMethods.join(","));
   }
+  
   if (filters.minEV > 0) {
     params.set("minEV", String(filters.minEV));
   }
   if (filters.maxEV) {
     params.set("maxEV", String(filters.maxEV));
   }
-  if (filters.books && filters.books.length > 0) {
-    params.set("books", filters.books.join(","));
-  }
+  
   if (filters.mode) {
     params.set("mode", filters.mode);
   }
+  
   if (filters.minBooksPerSide !== undefined) {
     params.set("minBooksPerSide", String(filters.minBooksPerSide));
   }
-  const limit = filters.limit || (isPro ? 200 : 50);
-  params.set("limit", String(limit));
+  
+  params.set("limit", String(filters.limit));
   
   return params;
 }
 
-/**
- * Check if an odds update key is relevant to our current filters
- * Key format: odds:{sport}:{eventId}:{market}:{book}
- */
+async function fetchModelOpportunities(
+  config: ModelConfig,
+  isPro: boolean
+): Promise<{
+  opportunities: PositiveEVOpportunity[];
+  totalFound: number;
+  totalReturned: number;
+  config: ModelConfig;
+}> {
+  const params = buildQueryParams(config, isPro);
+  const url = `/api/v2/positive-ev?${params.toString()}`;
+  
+  const response = await fetch(url, { cache: "no-store" });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch: ${response.statusText}`);
+  }
+  
+  const data: PositiveEVResponse = await response.json();
+  
+  // Tag opportunities with model metadata
+  const opportunities = (data.opportunities || []).map((opp) => ({
+    ...opp,
+    modelId: config.metadata.modelId,
+    modelName: config.metadata.modelName,
+  }));
+  
+  return {
+    opportunities,
+    totalFound: data.meta?.totalFound || 0,
+    totalReturned: data.meta?.returned || 0,
+    config,
+  };
+}
+
+function mergeOpportunities(
+  results: Array<{
+    opportunities: PositiveEVOpportunity[];
+    config: ModelConfig;
+  }>
+): PositiveEVOpportunity[] {
+  const oppMap = new Map<string, PositiveEVOpportunity>();
+  
+  for (const result of results) {
+    for (const opp of result.opportunities) {
+      const key = `${opp.eventId}:${opp.playerName || 'game'}:${opp.market}:${opp.line}:${opp.side}:${opp.book?.bookId || 'unknown'}`;
+      
+      const existing = oppMap.get(key);
+      
+      if (!existing) {
+        oppMap.set(key, opp);
+      } else {
+        const existingEV = getOpportunityEV(existing);
+        const newEV = getOpportunityEV(opp);
+        
+        if (newEV > existingEV) {
+          oppMap.set(key, opp);
+        }
+      }
+    }
+  }
+  
+  return Array.from(oppMap.values()).sort((a, b) => {
+    const evA = getOpportunityEV(a);
+    const evB = getOpportunityEV(b);
+    return evB - evA;
+  });
+}
+
 function isRelevantUpdate(key: string, sports: string[], markets?: string[] | null): boolean {
   const parts = key.split(":");
   if (parts.length < 4) return false;
   
   const [, keySport, , keyMarket] = parts;
   
-  // Check if sport matches
   if (!sports.includes(keySport)) return false;
   
-  // If we have market filters, check if market matches
   if (markets && markets.length > 0) {
     if (!markets.includes(keyMarket)) return false;
   }
@@ -140,58 +292,47 @@ function isRelevantUpdate(key: string, sports: string[], markets?: string[] | nu
 // Main Hook
 // =============================================================================
 
-export interface UsePositiveEVStreamOptions {
-  filters: PositiveEVFilters;
+export interface UseMultiEvModelStreamOptions {
+  prefs: MultiEvModelStreamPrefs;
+  activeModels: EvModel[];
   isPro: boolean;
+  limit?: number;
   autoRefresh: boolean;
   enabled?: boolean;
 }
 
-export interface UsePositiveEVStreamResult {
-  /** Current opportunities */
+export interface UseMultiEvModelStreamResult {
   rows: PositiveEVOpportunity[];
-  /** All row IDs */
   ids: string[];
-  /** Change indicators for animation */
   changes: ChangeMap;
-  /** Newly added row IDs for highlight */
   added: Set<string>;
-  /** Stale/unavailable row IDs */
   stale: Set<string>;
-  /** Data version */
   version: number;
-  /** Loading state (initial) */
   loading: boolean;
-  /** SSE connected */
   connected: boolean;
-  /** Reconnecting */
   isReconnecting: boolean;
-  /** Connection failed after max retries */
   hasFailed: boolean;
-  /** Last updated timestamp */
   lastUpdated: number;
-  /** Error message */
   error: string | null;
-  /** Refetch function */
   refresh: () => Promise<boolean>;
-  /** Manual reconnect */
   reconnect: () => void;
-  /** Meta information */
   meta: {
     totalFound: number;
     returned: number;
     minBooksPerSide?: number;
   };
-  /** Sharp preset config */
-  sharpPresetConfig: typeof SHARP_PRESETS[SharpPreset];
+  isCustomMode: boolean;
+  activeConfigs: ModelConfig[];
 }
 
-export function usePositiveEVStream({
-  filters,
+export function useMultiEvModelStream({
+  prefs,
+  activeModels,
   isPro,
+  limit = 200,
   autoRefresh,
   enabled = true,
-}: UsePositiveEVStreamOptions): UsePositiveEVStreamResult {
+}: UseMultiEvModelStreamOptions): UseMultiEvModelStreamResult {
   // State
   const [version, setVersion] = useState(0);
   const [ids, setIds] = useState<string[]>([]);
@@ -212,6 +353,26 @@ export function usePositiveEVStream({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<Map<string, number>>(new Map());
   
+  // Computed
+  const isCustomMode = activeModels.length > 0;
+  const effectiveLimit = limit ?? (isPro ? 200 : 50);
+  
+  const modelConfigs = useMemo(
+    () => buildModelConfigs(prefs, activeModels, isPro, effectiveLimit),
+    [prefs, activeModels, isPro, effectiveLimit]
+  );
+  
+  // Get all sports from all active configs for SSE filtering
+  const allSports = useMemo(() => {
+    const sports = new Set<string>();
+    for (const config of modelConfigs) {
+      for (const sport of config.filters.sports) {
+        sports.add(sport);
+      }
+    }
+    return Array.from(sports);
+  }, [modelConfigs]);
+  
   // Register changes for animations
   const registerDiffs = useCallback((changedIds: string[]) => {
     if (!changedIds.length) return;
@@ -229,7 +390,6 @@ export function usePositiveEVStream({
       c.ev = dir(was.evCalculations?.evWorst, now.evCalculations?.evWorst);
       c.price = dir(was.book?.price, now.book?.price);
       
-      // Clean up undefined values
       for (const k of Object.keys(c) as (keyof Change)[]) {
         if (!c[k]) delete c[k];
       }
@@ -248,14 +408,12 @@ export function usePositiveEVStream({
       }, FLASH_MS);
     }
     
-    // Update prev cache
     for (const id of changedIds) {
       const now = cache.get(id);
       if (now) prev.set(id, now);
     }
   }, [changes]);
 
-  // Mark rows as added for highlight
   const markForHighlight = useCallback((newIds: string[]) => {
     if (!newIds || newIds.length === 0) return;
     setAdded((prev) => {
@@ -272,7 +430,7 @@ export function usePositiveEVStream({
     }, 10000);
   }, []);
 
-  // Fetch data with diffing logic
+  // Multi-model fetch with diffing
   const fetchData = useCallback(async (isInitial: boolean = false) => {
     if (!enabled) return;
     
@@ -282,26 +440,23 @@ export function usePositiveEVStream({
     setError(null);
     
     try {
-      const params = buildQueryParams(filters, isPro);
-      const response = await fetch(`/api/v2/positive-ev?${params.toString()}`, { 
-        cache: "no-store" 
-      });
+      // Fetch all models in parallel
+      const results = await Promise.all(
+        modelConfigs.map(config => fetchModelOpportunities(config, isPro))
+      );
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.statusText}`);
-      }
+      // Merge and deduplicate
+      const merged = mergeOpportunities(results);
       
-      const data: PositiveEVResponse = await response.json();
       const cache = cacheRef.current;
       const prev = prevRef.current;
       
       if (isInitial) {
-        // Initial load - just populate cache
         cache.clear();
         prev.clear();
         
         const newIds: string[] = [];
-        for (const opp of data.opportunities) {
+        for (const opp of merged) {
           cache.set(opp.id, opp);
           prev.set(opp.id, opp);
           newIds.push(opp.id);
@@ -311,20 +466,17 @@ export function usePositiveEVStream({
         setIds(newIds);
         setStale(new Set());
       } else {
-        // Signal-triggered refresh - track diffs
         const newIdSet = new Set<string>();
         const addedIds: string[] = [];
         const updatedIds: string[] = [];
         const deletedIds: string[] = [];
         
-        // Process new data
-        for (const opp of data.opportunities) {
+        for (const opp of merged) {
           newIdSet.add(opp.id);
           
           const existed = cache.has(opp.id);
           const prevOpp = prev.get(opp.id);
           
-          // Check if this is an update (odds changed)
           if (existed && prevOpp) {
             const priceChanged = prevOpp.book?.price !== opp.book?.price;
             const evChanged = Math.abs((prevOpp.evCalculations?.evWorst || 0) - (opp.evCalculations?.evWorst || 0)) > 0.01;
@@ -340,14 +492,12 @@ export function usePositiveEVStream({
           lastUpdateTimeRef.current.set(opp.id, Date.now());
         }
         
-        // Find deleted IDs (existed before but not in new data)
         for (const [id] of cache) {
           if (!newIdSet.has(id)) {
             deletedIds.push(id);
           }
         }
         
-        // Handle deletions - mark as stale
         if (deletedIds.length > 0) {
           setStale((prevStale) => {
             const next = new Set(prevStale);
@@ -355,17 +505,14 @@ export function usePositiveEVStream({
             return next;
           });
           
-          // Remove from cache
           for (const id of deletedIds) {
             cache.delete(id);
             prev.delete(id);
           }
         }
         
-        // Update IDs list
         setIds(Array.from(newIdSet));
         
-        // Remove stale status for rows that are back
         if (addedIds.length > 0 || updatedIds.length > 0) {
           setStale((prevStale) => {
             const next = new Set(prevStale);
@@ -374,7 +521,6 @@ export function usePositiveEVStream({
           });
         }
         
-        // Trigger animations
         if (updatedIds.length > 0) {
           registerDiffs(updatedIds);
         }
@@ -382,89 +528,67 @@ export function usePositiveEVStream({
           markForHighlight(addedIds);
         }
         
-        // Update prev cache for next comparison
-        for (const opp of data.opportunities) {
+        for (const opp of merged) {
           prev.set(opp.id, opp);
         }
         
         if (process.env.NODE_ENV === "development" && (addedIds.length > 0 || updatedIds.length > 0 || deletedIds.length > 0)) {
-          console.log(`[positive-ev-stream] 📊 +${addedIds.length} ~${updatedIds.length} -${deletedIds.length}`);
+          console.log(`[multi-ev-stream] 📊 +${addedIds.length} ~${updatedIds.length} -${deletedIds.length}`);
         }
       }
       
-      // Update version and timestamp
       setVersion((v) => v + 1);
       setLastUpdated(Date.now());
       setMeta({
-        totalFound: data.meta.totalFound,
-        returned: data.meta.returned,
-        minBooksPerSide: data.meta.minBooksPerSide,
+        totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
+        returned: merged.length,
       });
       
     } catch (e: any) {
       setError(e.message || "Failed to fetch");
-      console.error("[positive-ev-stream] Fetch error:", e);
+      console.error("[multi-ev-stream] Fetch error:", e);
     } finally {
       if (isInitial) {
         setLoading(false);
       }
     }
-  }, [filters, isPro, enabled, registerDiffs, markForHighlight]);
+  }, [modelConfigs, isPro, enabled, registerDiffs, markForHighlight]);
 
-  // Initial load and filter changes
+  // Initial load and config changes
   useEffect(() => {
+    if (!enabled) return;
     fetchData(true);
-  }, [fetchData]);
+  }, [enabled, JSON.stringify(modelConfigs)]);
 
   // Build SSE URL for multi-sport subscription
   const sseUrl = useMemo(() => {
-    if (filters.sports.length === 0) return "";
-    return `/api/v2/sse/props?sports=${filters.sports.join(",")}`;
-  }, [filters.sports]);
-
+    if (!autoRefresh || !enabled || allSports.length === 0) return "";
+    return `/api/v2/sse/props?sports=${allSports.join(",")}`;
+  }, [allSports, autoRefresh, enabled]);
+  
   // Handle SSE message - debounced refresh
   const handleSSEMessage = useCallback((message: OddsUpdateMessage) => {
-    // Only process update messages
-    if (message.type !== "update" || !Array.isArray(message.keys) || message.keys.length === 0) {
-      return;
-    }
+    if (message.type !== "update" || !message.keys?.length) return;
     
-    // Filter keys to see if any are relevant to our current view
-    const relevantKeys = message.keys.filter((key) => 
-      isRelevantUpdate(key, filters.sports, filters.markets)
+    // Check if any keys are relevant
+    const hasRelevant = message.keys.some(key => 
+      isRelevantUpdate(key, allSports, prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null)
     );
     
-    if (relevantKeys.length === 0) {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[positive-ev-stream] Skipping ${message.count} updates (no match)`);
-      }
-      return;
-    }
+    if (!hasRelevant) return;
     
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[positive-ev-stream] 📡 ${relevantKeys.length}/${message.count} relevant updates`);
-    }
-    
-    // Debounce the refresh to prevent request storms
+    // Debounce refresh
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
     
     debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
       fetchData(false);
     }, DEBOUNCE_MS);
-  }, [filters.sports, filters.markets, fetchData]);
-
-  // Handle SSE error
-  const handleSSEError = useCallback((error: Event) => {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[positive-ev-stream] SSE error:", error);
-    }
-  }, []);
-
-  // SSE connection - only when autoRefresh is enabled and we're Pro
-  const sseEnabled = isPro && autoRefresh && enabled && sseUrl !== "";
+  }, [allSports, prefs.selectedMarkets, fetchData]);
+  
+  // SSE connection - only when autoRefresh is enabled
+  const sseEnabled = autoRefresh && enabled && sseUrl !== "";
   
   const {
     isConnected: sseConnected,
@@ -474,17 +598,7 @@ export function usePositiveEVStream({
   } = useSSE(sseUrl, {
     enabled: sseEnabled,
     onMessage: handleSSEMessage,
-    onError: handleSSEError,
   });
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
 
   // Manual refresh
   const refresh = useCallback(async () => {
@@ -492,22 +606,11 @@ export function usePositiveEVStream({
     return true;
   }, [fetchData]);
 
-  // Manual reconnect
-  const reconnect = useCallback(() => {
-    sseReconnect();
-    // Also refresh data
-    fetchData(false);
-  }, [sseReconnect, fetchData]);
-
-  // Build rows from cache
+  // Get rows from cache
   const rows = useMemo(() => {
-    return ids
-      .map((id) => cacheRef.current.get(id))
-      .filter(Boolean) as PositiveEVOpportunity[];
-  }, [ids]);
-
-  // Sharp preset config
-  const sharpPresetConfig = SHARP_PRESETS[filters.sharpPreset];
+    const cache = cacheRef.current;
+    return ids.map(id => cache.get(id)!).filter(Boolean);
+  }, [ids, version]);
 
   return {
     rows,
@@ -517,14 +620,15 @@ export function usePositiveEVStream({
     stale,
     version,
     loading,
-    connected: sseEnabled ? sseConnected : false,
-    isReconnecting: sseEnabled ? sseReconnecting : false,
-    hasFailed: sseEnabled ? sseFailed : false,
+    connected: sseConnected,
+    isReconnecting: sseReconnecting,
+    hasFailed: sseFailed,
     lastUpdated,
     error,
     refresh,
-    reconnect,
+    reconnect: sseReconnect,
     meta,
-    sharpPresetConfig,
+    isCustomMode,
+    activeConfigs: modelConfigs,
   };
 }

@@ -1,4 +1,5 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
+@import "tw-animate-css";
 @plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -116,7 +117,7 @@
 @theme {
   /* Ultra-wide breakpoint for power users */
   --breakpoint-3xl: 1920px;
-  
+
   --font-primary: var(--font-inter), Inter, Inter Display, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono: DM Mono, monospace;
   --color-brand: #38BDF8;
@@ -134,7 +135,7 @@
   --color-border: var(--border);
   --color-input: var(--border);
   --color-ring: var(--ring);
-  
+
   /* Sidebar colors - These create utility classes like bg-sidebar, text-sidebar-foreground */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -172,7 +173,7 @@
    --color-secondary-light: #5EEAD4; /* tint */
    --color-secondary-dark:  #0F766E; /* shade */
    --color-on-secondary:    #051210; /* readable on teal surfaces */
- 
+
 /* Accent – Profit / Uptick (Emerald family) */
 --color-accent:          #22C55E; /* main emerald – balanced, money-like */
 --color-accent-light:    #34D399; /* lighter glow for hover or highlights */
@@ -182,7 +183,7 @@
 --color-loss-light: #FCA5A5;  /* tint / hover on light BGs */
 --color-loss-dark:  #DC2626;  /* pressed/active */
 --color-on-loss:    #FEF2F2;
- 
+
    /* Tertiary – Violet (premium/pro) */
    --color-tertiary:        #A78BFA;
    --color-tertiary-light:  #C4B5FD;
@@ -302,7 +303,7 @@
   /* Premium, polished odds change animations - visible for ~6 seconds */
   /* Pattern: Quick flash in (5%) → Hold visible (80%) → Gentle fade out (15%) */
   /* Optimized for both light and dark modes with better contrast */
-  
+
   @keyframes odds-flash-bg-positive {
     0% { 
       background: color-mix(in oklab, var(--accent) 18%, transparent);
@@ -359,26 +360,26 @@
       box-shadow: 0 0 0 0 transparent inset;
     }
   }
-  
+
   /* Text color pulse for odds changes - subtle pulse effect */
   @keyframes odds-text-positive {
     0%, 5% { color: var(--color-green-600); }
     80% { color: var(--color-green-500); }
     100% { color: inherit; }
   }
-  
+
   @keyframes odds-text-negative {
     0%, 5% { color: var(--color-red-600); }
     80% { color: var(--color-red-500); }
     100% { color: inherit; }
   }
-  
+
   @keyframes odds-text-line {
     0%, 5% { color: var(--color-blue-600); }
     80% { color: var(--color-blue-500); }
     100% { color: inherit; }
   }
-  
+
   @keyframes odds-arrow-fade {
     0% { opacity: 1; transform: scale(1); }
     5% { opacity: 1; transform: scale(1.1); }
@@ -399,10 +400,10 @@
   --sidebar-ring: oklch(0.708 0 0);
   /* Surfaces & text */
   --bg: var(--color-neutral-50);
-  --card: #FFFFFF;
+  --card: oklch(1 0 0);
   --text: #111827;
   --text-muted: #4B5563;
-  --border: var(--color-neutral-200);
+  --border: oklch(0.922 0 0);
   /* surfaces */
   --surface-1: var(--card);              /* main card surface */
   --surface-2: color-mix(in oklab, var(--card) 85%, var(--bg)); /* row strip */
@@ -412,11 +413,11 @@
   --text-secondary: var(--text-muted);
 
   /* accents (make sure these exist; emerald for $/ROI) */
-  --accent: var(--color-accent, #22C55E);
+  --accent: oklch(0.97 0 0);
   --accent-strong: var(--color-accent-dark, #16A34A);
 
   /* Primary (action) tuned for light */
-  --primary: var(--color-primary);         /* #0EA5E9 */
+  --primary: oklch(0.205 0 0);         /* #0EA5E9 */
   --primary-weak: var(--color-primary-light); /* #7DD3FC */
   --primary-strong: var(--color-primary-dark); /* #0284C7 */
   --on-primary: var(--color-on-primary);   /* #07131A */
@@ -425,7 +426,7 @@
   --success: var(--color-success);
   --warning: var(--color-warning);
   --error:   var(--color-error);
-  --ring: var(--color-brand);
+  --ring: oklch(0.708 0 0);
   --selection: color-mix(in oklab, var(--color-brand) 25%, transparent);
 
   /* App-specific tokens you already use */
@@ -438,7 +439,7 @@
   --footer-link: #676767;
 
   /* Secondary */
-  --secondary: var(--color-secondary);            /* #14B8A6 */
+  --secondary: oklch(0.97 0 0);            /* #14B8A6 */
   --secondary-weak: var(--color-secondary-light); /* #5EEAD4 */
   --secondary-strong: var(--color-secondary-dark);/* #0F766E */
   --on-secondary: var(--color-on-secondary);
@@ -458,14 +459,12 @@
   --roi-br: color-mix(in oklab, var(--accent) 42%, var(--border));  /* crisp outline */
   --roi-ink: color-mix(in oklab, var(--accent) 90%, #0a0a0a);       /* rich green text */
   --roi-gloss: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,0));
-  
+
   /* Edge Finder specific badge */
   --edge-bg: transparent;    /* outline style, no fill */
   --edge-br: color-mix(in oklab, var(--accent) 28%, var(--border));  /* muted outline */
-  --edge-ink: color-mix(in oklab, var(--accent) 65%, #0a0a0a);       /* softer green text */
+  --edge-ink: color-mix(in oklab, var(--accent) 65%, #0a0a0a);       /* softer green text */       --radius: 0.625rem;       --background: oklch(1 0 0);       --foreground: oklch(0.145 0 0);       --card-foreground: oklch(0.145 0 0);       --popover: oklch(1 0 0);       --popover-foreground: oklch(0.145 0 0);       --primary-foreground: oklch(0.985 0 0);       --secondary-foreground: oklch(0.205 0 0);       --muted: oklch(0.97 0 0);       --muted-foreground: oklch(0.556 0 0);       --accent-foreground: oklch(0.205 0 0);       --destructive: oklch(0.577 0.245 27.325);       --input: oklch(0.922 0 0);       --chart-1: oklch(0.646 0.222 41.116);       --chart-2: oklch(0.6 0.118 184.704);       --chart-3: oklch(0.398 0.07 227.392);       --chart-4: oklch(0.828 0.189 84.429);       --chart-5: oklch(0.769 0.188 70.08);
 }
-
-
 
 /* 3) Dark theme (single source of truth via .dark) */
 .dark {
@@ -476,16 +475,16 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.439 0 0);
-  
+  --sidebar-ring: oklch(0.556 0 0);
+
   --bg: #0B1014;        /* your tuned charcoal */
-  --card: #12181F;
+  --card: oklch(0.205 0 0);
   --text: #E5E7EB;
   --text-muted: #94A3B8;
-  --border: #1F2937;
+  --border: oklch(1 0 0 / 10%);
 
   /* Primary tuned for dark (lighter to avoid neon glare) */
-  --primary: #7DD3FC;         /* main action */
+  --primary: oklch(0.922 0 0);         /* main action */
   --primary-weak: #38BDF8;    /* brand tint badges */
   --primary-strong: #38BDF8;  /* hover/active */
   --on-primary: #07131A;      /* keeps text legible on light-blue buttons */
@@ -498,7 +497,7 @@
   --color-loss-light: #FCA5A5;
   --color-loss-dark:  #EF4444;
 
-  --ring: var(--color-brand);
+  --ring: oklch(0.556 0 0);
   --selection: color-mix(in oklab, #7DD3FC 25%, transparent);
 
   /* App tokens */
@@ -511,17 +510,16 @@
   --footer-link: var(--color-neutral-300);
 
   /* Secondary (Teal) */
-  --secondary: #5EEAD4;         /* lighter teal reads better on dark */
+  --secondary: oklch(0.269 0 0);         /* lighter teal reads better on dark */
   --secondary-weak: #99F6E4;    /* chip/tint */
   --secondary-strong: #14B8A6;  /* hover/active */
   --on-secondary: #051210;
 
   /* Accent – Profit / Uptick (Emerald family) */
---accent: #34D399;          /* main accent – readable, confident money tone */
+--accent: oklch(0.269 0 0);          /* main accent – readable, confident money tone */
 --accent-weak: #6EE7B7;     /* tint for backgrounds, badges */
 --accent-strong: #059669;   /* pressed / hover state */
 --on-accent: #F0FDF4;       /* text on green surfaces (minty off-white) */
-
 
   /* Tertiary (Violet) */
   --tertiary: #C4B5FD;          /* lighter main on dark */
@@ -532,12 +530,29 @@
   --roi-br: color-mix(in oklab, var(--accent) 35%, #0b1014);
   --roi-ink: color-mix(in oklab, var(--accent) 95%, #eafdf3);
   --roi-gloss: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
-  
+
   /* Edge Finder specific badge */
   --edge-bg: transparent;
   --edge-br: color-mix(in oklab, var(--accent) 25%, #0b1014);
   --edge-ink: color-mix(in oklab, var(--accent) 70%, #eafdf3);
-  
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+
 }
 
 /* 4) Map your inline theme variables (unchanged API, now backed by unified tokens) */
@@ -549,6 +564,43 @@
   --color-dots: var(--dots);
   --color-line: var(--line);
   --color-footer-link: var(--footer-link);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 }
 
 /* 5) Components using tokens */
@@ -818,16 +870,10 @@ code .line::before {
 .edge-badge.up .caret   { border-bottom: 6px solid var(--edge-ink); }
 .edge-badge.down .caret { border-top:    6px solid var(--color-loss, #EF4444); }
 
-
-
-
-
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .dual-bet-btn { transition: none; }
 }
-
-
 
 /* Utility shorthands for common animations (Tailwind v4 custom utilities) */
 @utility animate-infinite-scroll {
@@ -1901,5 +1947,12 @@ thead .books th {
   background: var(--color-neutral-800);
 }
 
-
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
 

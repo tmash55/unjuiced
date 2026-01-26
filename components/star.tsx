@@ -1,6 +1,10 @@
 import { SVGProps } from "react";
 
-export function Star(props: SVGProps<SVGSVGElement>) {
+interface StarProps extends SVGProps<SVGSVGElement> {
+  filled?: boolean;
+}
+
+export function Star({ filled, ...props }: StarProps) {
   return (
     <svg
       height="18"
@@ -11,7 +15,7 @@ export function Star(props: SVGProps<SVGSVGElement>) {
     >
       <g fill="currentColor">
         <polygon
-          fill="none"
+          fill={filled ? "currentColor" : "none"}
           points="9 1.75 11.24 6.289 16.25 7.017 12.625 10.551 13.481 15.54 9 13.185 4.519 15.54 5.375 10.551 1.75 7.017 6.76 6.289 9 1.75"
           stroke="currentColor"
           strokeLinecap="round"

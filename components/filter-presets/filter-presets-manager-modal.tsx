@@ -484,13 +484,13 @@ export function FilterPresetsManagerModal({
           showCloseButton={false}
           className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl"
         >
-          {/* Premium Header with gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+          {/* Premium Header with gradient accent bar - YELLOW/ORANGE theme */}
+          <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500" />
           
-          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 bg-gradient-to-r from-white via-purple-50/20 to-pink-50/20 dark:from-neutral-900 dark:via-purple-950/10 dark:to-pink-950/10">
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 bg-gradient-to-r from-white via-amber-50/20 to-orange-50/20 dark:from-neutral-900 dark:via-amber-950/10 dark:to-orange-950/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/25">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25">
                   <Layers className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -536,7 +536,7 @@ export function FilterPresetsManagerModal({
                 {/* New Model button */}
                 <button
                   onClick={onCreateNew}
-                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02]"
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02]"
                 >
                   <Plus className="w-4 h-4" />
                   New Model
@@ -557,11 +557,11 @@ export function FilterPresetsManagerModal({
           <div className="flex-1 overflow-y-auto">
             {/* Active Models Section - Always visible when there are active models */}
             {selectedCount > 0 && (
-              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-purple-50/60 via-pink-50/40 to-rose-50/30 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-rose-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-md">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-md">
                         <Check className="h-3.5 w-3.5 text-white" />
                       </div>
                       <span className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -580,9 +580,9 @@ export function FilterPresetsManagerModal({
                     {presets.filter(p => localSelection.has(p.id)).map((preset) => (
                       <div
                         key={preset.id}
-                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-purple-200 dark:border-purple-800 shadow-sm"
+                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-amber-200 dark:border-amber-800 shadow-sm"
                       >
-                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
                           {preset.name}
                         </span>
                         <button
@@ -689,14 +689,141 @@ export function FilterPresetsManagerModal({
               </div>
             )}
             
+            {/* Favorites Section - Always at the top when there are favorites */}
+            {presets.some(p => p.is_favorite) && (
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
+                        <Star className="h-5 w-5 text-white fill-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-neutral-900 dark:text-white">Favorites</h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">Quick access to your favorite models</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const favoriteIds = new Set(presets.filter(p => p.is_favorite).map(p => p.id));
+                        // Check if all favorites are already selected
+                        const allSelected = presets.filter(p => p.is_favorite).every(p => localSelection.has(p.id));
+                        if (allSelected) {
+                          // Deselect all favorites
+                          setLocalSelection(prev => {
+                            const next = new Set(prev);
+                            favoriteIds.forEach(id => next.delete(id));
+                            return next;
+                          });
+                        } else {
+                          // Select all favorites
+                          setLocalSelection(prev => new Set([...prev, ...favoriteIds]));
+                        }
+                      }}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                    >
+                      {presets.filter(p => p.is_favorite).every(p => localSelection.has(p.id)) ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {presets.filter(p => p.is_favorite).map((preset) => {
+                      const sports = parseSports(preset.sport);
+                      const isSelected = localSelection.has(preset.id);
+                      const bookWeights = preset.book_weights || {};
+                      const sharpBooks = preset.sharp_books || [];
+                      
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={(e) => handleCardClick(preset, e)}
+                          className={cn(
+                            "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
+                            isSelected
+                              ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
+                              : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md"
+                          )}
+                        >
+                          {/* Selection indicator bar */}
+                          <div className={cn(
+                            "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
+                            isSelected ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
+                          )} />
+
+                          <div className="flex items-start gap-3 p-4">
+                            {sharpBooks.length > 0 ? (
+                              <MiniPieChart books={sharpBooks} weights={bookWeights} size={44} />
+                            ) : (
+                              <div className="w-11 h-11 rounded-full flex items-center justify-center bg-neutral-100 dark:bg-neutral-700">
+                                <SportIcon sport={sports[0] || 'nba'} className="w-5 h-5 text-neutral-400" />
+                              </div>
+                            )}
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />
+                                <h4 className={cn(
+                                  "font-medium truncate transition-colors",
+                                  isSelected ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
+                                )}>
+                                  {preset.name}
+                                </h4>
+                                {isSelected && (
+                                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-2">
+                                <BookLogosRow books={sharpBooks} weights={bookWeights} maxDisplay={5} />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Stats footer */}
+                          <div className={cn(
+                            "flex items-center justify-between px-4 py-2.5 border-t text-[11px]",
+                            isSelected 
+                              ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20" 
+                              : "border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30"
+                          )}>
+                            <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+                              <div className="flex items-center gap-1">
+                                {sports.slice(0, 2).map((s, i) => (
+                                  <SportIcon key={i} sport={s} className={cn("w-3.5 h-3.5", isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400")} />
+                                ))}
+                                {sports.length > 2 && <span className="text-[10px] font-medium">+{sports.length - 2}</span>}
+                              </div>
+                              <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                              <span>{formatOddsRange(preset.min_odds, preset.max_odds)}</span>
+                            </div>
+                            {preset.market_type && preset.market_type !== 'all' && (
+                              <span className={cn(
+                                "text-[10px] font-medium px-1.5 py-0.5 rounded capitalize",
+                                isSelected 
+                                  ? "bg-emerald-200/50 dark:bg-emerald-800/30 text-emerald-700 dark:text-emerald-300" 
+                                  : "bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300"
+                              )}>
+                                {preset.market_type === 'player' ? 'Props' : 'Lines'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {presets.length === 0 ? (
               /* Premium Empty state */
               <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 flex items-center justify-center shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03]">
-                    <Layers className="w-9 h-9 text-purple-500 dark:text-purple-400" />
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03]">
+                    <Layers className="w-9 h-9 text-amber-500 dark:text-amber-400" />
                   </div>
-                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg flex items-center justify-center">
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg flex items-center justify-center">
                     <Plus className="w-4 h-4 text-white" />
                   </div>
                 </div>
@@ -708,7 +835,7 @@ export function FilterPresetsManagerModal({
                 </p>
                 <button
                   onClick={onCreateNew}
-                  className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02] flex items-center gap-2"
+                  className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02] flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Create Model
@@ -751,7 +878,7 @@ export function FilterPresetsManagerModal({
                             return next;
                           });
                         }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
                       >
                         {presetsBySport[sport].every(p => localSelection.has(p.id)) ? "Deselect All" : "Select All"}
                       </button>
@@ -972,7 +1099,7 @@ export function FilterPresetsManagerModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                    <div className="w-2 h-2 rounded-full bg-purple-500" />
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
                     <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                       {selectedCount} selected
                     </span>
