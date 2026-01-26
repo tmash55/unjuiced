@@ -400,10 +400,10 @@
   --sidebar-ring: oklch(0.708 0 0);
   /* Surfaces & text */
   --bg: var(--color-neutral-50);
-  --card: oklch(1 0 0);
+  --card: #FFFFFF;
   --text: #111827;
   --text-muted: #4B5563;
-  --border: oklch(0.922 0 0);
+  --border: var(--color-neutral-200);
   /* surfaces */
   --surface-1: var(--card);              /* main card surface */
   --surface-2: color-mix(in oklab, var(--card) 85%, var(--bg)); /* row strip */
@@ -413,11 +413,11 @@
   --text-secondary: var(--text-muted);
 
   /* accents (make sure these exist; emerald for $/ROI) */
-  --accent: oklch(0.97 0 0);
+  --accent: var(--color-accent, #22C55E);
   --accent-strong: var(--color-accent-dark, #16A34A);
 
   /* Primary (action) tuned for light */
-  --primary: oklch(0.205 0 0);         /* #0EA5E9 */
+  --primary: var(--color-primary);         /* #0EA5E9 */
   --primary-weak: var(--color-primary-light); /* #7DD3FC */
   --primary-strong: var(--color-primary-dark); /* #0284C7 */
   --on-primary: var(--color-on-primary);   /* #07131A */
@@ -426,7 +426,7 @@
   --success: var(--color-success);
   --warning: var(--color-warning);
   --error:   var(--color-error);
-  --ring: oklch(0.708 0 0);
+  --ring: var(--color-brand);
   --selection: color-mix(in oklab, var(--color-brand) 25%, transparent);
 
   /* App-specific tokens you already use */
@@ -439,15 +439,15 @@
   --footer-link: #676767;
 
   /* Secondary */
-  --secondary: oklch(0.97 0 0);            /* #14B8A6 */
+  --secondary: var(--color-secondary);            /* #14B8A6 */
   --secondary-weak: var(--color-secondary-light); /* #5EEAD4 */
   --secondary-strong: var(--color-secondary-dark);/* #0F766E */
   --on-secondary: var(--color-on-secondary);
 
   /* Accent */
-  --accent: var(--color-accent);                  /* #84CC16 */
-  --accent-weak: var(--color-accent-light);       /* #BEF264 */
-  --accent-strong: var(--color-accent-dark);      /* #4D7C0F */
+  --accent: var(--color-accent);                  /* #22C55E */
+  --accent-weak: var(--color-accent-light);       /* #34D399 */
+  --accent-strong: var(--color-accent-dark);      /* #16A34A */
   --on-accent: var(--color-on-accent);
 
   /* Tertiary */
@@ -463,7 +463,27 @@
   /* Edge Finder specific badge */
   --edge-bg: transparent;    /* outline style, no fill */
   --edge-br: color-mix(in oklab, var(--accent) 28%, var(--border));  /* muted outline */
-  --edge-ink: color-mix(in oklab, var(--accent) 65%, #0a0a0a);       /* softer green text */       --radius: 0.625rem;       --background: oklch(1 0 0);       --foreground: oklch(0.145 0 0);       --card-foreground: oklch(0.145 0 0);       --popover: oklch(1 0 0);       --popover-foreground: oklch(0.145 0 0);       --primary-foreground: oklch(0.985 0 0);       --secondary-foreground: oklch(0.205 0 0);       --muted: oklch(0.97 0 0);       --muted-foreground: oklch(0.556 0 0);       --accent-foreground: oklch(0.205 0 0);       --destructive: oklch(0.577 0.245 27.325);       --input: oklch(0.922 0 0);       --chart-1: oklch(0.646 0.222 41.116);       --chart-2: oklch(0.6 0.118 184.704);       --chart-3: oklch(0.398 0.07 227.392);       --chart-4: oklch(0.828 0.189 84.429);       --chart-5: oklch(0.769 0.188 70.08);
+  --edge-ink: color-mix(in oklab, var(--accent) 65%, #0a0a0a);       /* softer green text */
+  
+  /* Shadcn UI compatibility */
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --input: oklch(0.922 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
 }
 
 /* 3) Dark theme (single source of truth via .dark) */
@@ -475,16 +495,16 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-
+  --sidebar-ring: oklch(0.439 0 0);
+  
   --bg: #0B1014;        /* your tuned charcoal */
-  --card: oklch(0.205 0 0);
+  --card: #12181F;
   --text: #E5E7EB;
   --text-muted: #94A3B8;
-  --border: oklch(1 0 0 / 10%);
+  --border: #1F2937;
 
   /* Primary tuned for dark (lighter to avoid neon glare) */
-  --primary: oklch(0.922 0 0);         /* main action */
+  --primary: #7DD3FC;         /* main action */
   --primary-weak: #38BDF8;    /* brand tint badges */
   --primary-strong: #38BDF8;  /* hover/active */
   --on-primary: #07131A;      /* keeps text legible on light-blue buttons */
@@ -497,7 +517,7 @@
   --color-loss-light: #FCA5A5;
   --color-loss-dark:  #EF4444;
 
-  --ring: oklch(0.556 0 0);
+  --ring: var(--color-brand);
   --selection: color-mix(in oklab, #7DD3FC 25%, transparent);
 
   /* App tokens */
@@ -510,16 +530,16 @@
   --footer-link: var(--color-neutral-300);
 
   /* Secondary (Teal) */
-  --secondary: oklch(0.269 0 0);         /* lighter teal reads better on dark */
+  --secondary: #5EEAD4;         /* lighter teal reads better on dark */
   --secondary-weak: #99F6E4;    /* chip/tint */
   --secondary-strong: #14B8A6;  /* hover/active */
   --on-secondary: #051210;
 
   /* Accent – Profit / Uptick (Emerald family) */
---accent: oklch(0.269 0 0);          /* main accent – readable, confident money tone */
---accent-weak: #6EE7B7;     /* tint for backgrounds, badges */
---accent-strong: #059669;   /* pressed / hover state */
---on-accent: #F0FDF4;       /* text on green surfaces (minty off-white) */
+  --accent: #34D399;          /* main accent – readable, confident money tone */
+  --accent-weak: #6EE7B7;     /* tint for backgrounds, badges */
+  --accent-strong: #059669;   /* pressed / hover state */
+  --on-accent: #F0FDF4;       /* text on green surfaces (minty off-white) */
 
   /* Tertiary (Violet) */
   --tertiary: #C4B5FD;          /* lighter main on dark */
@@ -535,6 +555,8 @@
   --edge-bg: transparent;
   --edge-br: color-mix(in oklab, var(--accent) 25%, #0b1014);
   --edge-ink: color-mix(in oklab, var(--accent) 70%, #eafdf3);
+  
+  /* Shadcn UI compatibility */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card-foreground: oklch(0.985 0 0);
