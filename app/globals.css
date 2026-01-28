@@ -1148,69 +1148,69 @@ code .line::before {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    RELAXED VIEW VARIANTS
-   Larger, more comfortable cell sizes for casual users who prefer bigger text
+   Comfortable cell sizes that balance readability with data density
    These use --relaxed suffix to distinguish from compact (power user) view
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Relaxed sportsbook cell - significantly larger for readability */
+/* Relaxed sportsbook cell - balanced size for readability */
 .sportsbook-cell--relaxed {
-  padding: 6px 10px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
 /* Relaxed single-line variant */
 .sportsbook-cell--relaxed-single-line {
-  padding: 6px 10px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Relaxed best line cell - larger with better visual hierarchy */
+/* Relaxed best line cell - balanced size with good visual hierarchy */
 .best-line--relaxed {
-  padding: 6px 10px;
-  gap: 6px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  gap: 5px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
 /* Relaxed single-line best line */
 .best-line--relaxed-single-line {
-  padding: 6px 10px;
-  gap: 6px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  gap: 5px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Relaxed average line cell - larger for better readability */
+/* Relaxed average line cell - balanced for better readability */
 .avg-line--relaxed {
-  padding: 6px 10px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
 /* Relaxed single-line average line */
 .avg-line--relaxed-single-line {
-  padding: 6px 10px;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  min-height: 30px;
+  font-size: 0.75rem;
   font-weight: 500;
   display: inline-flex;
   align-items: center;

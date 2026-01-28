@@ -95,7 +95,7 @@ export default function EdgeFinderPage() {
   const { filters: evPrefs, updateFilters: updateEvPrefs } = useEvPreferences();
   
   // Get active filter presets
-  const { activePresets, isLoading: presetsLoading, togglePreset } = useFilterPresets();
+  const { activePresets, isLoading: presetsLoading, togglePreset, deactivateAll: deactivateAllPresets } = useFilterPresets();
   
   // Dynamically fetch available markets from the API
   // This ensures we always show markets that actually exist in the data feed
@@ -394,9 +394,16 @@ export default function EdgeFinderPage() {
     </div>
   );
 
-  // Context bar - filter bar
+  // Context bar - filter bar with timestamp above
   const contextBar = (
-    <UnifiedFilterBar
+    <>
+      {/* Timestamp indicator - above filter bar */}
+      {headerActions && (
+        <div className="flex justify-end mb-2">
+          {headerActions}
+        </div>
+      )}
+      <UnifiedFilterBar
         tool="edge-finder"
         className="mb-6"
         // Mode (using scope for Edge Finder)
@@ -460,6 +467,7 @@ export default function EdgeFinderPage() {
         // Custom Models
         activePresets={activePresets}
         onManageModels={() => setShowPresetManager(true)}
+        onClearPresets={deactivateAllPresets}
         // Refresh
         onRefresh={refetch}
         isRefreshing={isFetching}
@@ -483,6 +491,7 @@ export default function EdgeFinderPage() {
         locked={locked}
         isPro={effectiveIsPro}
       />
+    </>
   );
 
   // Desktop View
@@ -490,7 +499,6 @@ export default function EdgeFinderPage() {
     <AppPageLayout
       title="Edge Finder"
       subtitle={subtitle}
-      headerActions={headerActions}
       contextBar={contextBar}
       stickyContextBar={true}
     >
@@ -501,32 +509,48 @@ export default function EdgeFinderPage() {
         </div>
       )}
 
-      {/* Table */}
-      <OpportunitiesTable
-        opportunities={filteredOpportunities}
-        isLoading={isLoading}
-        isFetching={isFetching || refreshing}
-        isPro={effectiveIsPro}
-        showEV={false}
-        showHidden={prefs.showHidden}
-        onHideEdge={hideEdge}
-        onUnhideEdge={unhideEdge}
-        isHidden={isHidden}
-        onPlayerClick={setSelectedPlayer}
-        comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
-        comparisonLabel={
-          isCustomMode 
-            ? undefined 
-            : prefs.comparisonMode === "book" && prefs.comparisonBook
-              ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
-              : undefined
-        }
-        excludedBooks={prefs.selectedBooks}
-        isCustomMode={isCustomMode}
-        bankroll={evPrefs.bankroll}
-        kellyPercent={evPrefs.kellyPercent || 25}
-        boostPercent={boostPercent}
-      />
+      {/* Table with animated border when in custom mode */}
+      <div className={cn(
+        "rounded-2xl",
+        isCustomMode 
+          ? "relative p-[2px] overflow-hidden shadow-[0_0_20px_rgba(251,191,36,0.15)]" 
+          : ""
+      )}>
+        {/* Animated gradient border for custom mode */}
+        {isCustomMode && (
+          <span className="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FBBF24_0%,#F97316_20%,#DC2626_40%,#F97316_60%,#FBBF24_80%,#FDE68A_100%)]" />
+        )}
+        <div className={cn(
+          "relative",
+          isCustomMode ? "rounded-[14px] overflow-hidden" : ""
+        )}>
+          <OpportunitiesTable
+            opportunities={filteredOpportunities}
+            isLoading={isLoading}
+            isFetching={isFetching || refreshing}
+            isPro={effectiveIsPro}
+            showEV={false}
+            showHidden={prefs.showHidden}
+            onHideEdge={hideEdge}
+            onUnhideEdge={unhideEdge}
+            isHidden={isHidden}
+            onPlayerClick={setSelectedPlayer}
+            comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
+            comparisonLabel={
+              isCustomMode 
+                ? undefined 
+                : prefs.comparisonMode === "book" && prefs.comparisonBook
+                  ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
+                  : undefined
+            }
+            excludedBooks={prefs.selectedBooks}
+            isCustomMode={isCustomMode}
+            bankroll={evPrefs.bankroll}
+            kellyPercent={evPrefs.kellyPercent || 25}
+            boostPercent={boostPercent}
+          />
+        </div>
+      </div>
 
       {/* Load more button */}
       {limit < 500 && (

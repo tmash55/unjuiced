@@ -93,19 +93,34 @@ export function SportsbooksDropdown({
   // Toggle sportsbook selection - update LOCAL state only
   const toggleBook = (bookId: string) => {
     if (isExcludeMode) {
+      // Edge Finder: selectedBooks = books to EXCLUDE
       if (localSelectedBooks.includes(bookId)) {
+        // Book is excluded, remove from exclusion list (include it)
         setLocalSelectedBooks(localSelectedBooks.filter((b) => b !== bookId));
       } else {
+        // Book is included, add to exclusion list (exclude it)
         setLocalSelectedBooks([...localSelectedBooks, bookId]);
       }
     } else {
-      if (localSelectedBooks.length === 0) {
-        setLocalSelectedBooks([bookId]);
-      } else if (localSelectedBooks.includes(bookId)) {
-        const newSelected = localSelectedBooks.filter((b) => b !== bookId);
-        setLocalSelectedBooks(newSelected);
+      // Positive EV / Arbitrage: selectedBooks = books to INCLUDE (empty = all)
+      const currentlyIncluded = localSelectedBooks.length === 0 ? allBookIds : localSelectedBooks;
+      const isCurrentlyIncluded = currentlyIncluded.includes(bookId);
+      
+      if (isCurrentlyIncluded) {
+        // Deselect this book
+        const newIncluded = currentlyIncluded.filter((b) => b !== bookId);
+        // Don't allow zero books selected - need at least one
+        if (newIncluded.length === 0) return;
+        setLocalSelectedBooks(newIncluded);
       } else {
-        setLocalSelectedBooks([...localSelectedBooks, bookId]);
+        // Select this book
+        const newIncluded = [...currentlyIncluded, bookId];
+        // If all books are now selected, use empty array (shorthand for "all")
+        if (newIncluded.length === allBookIds.length) {
+          setLocalSelectedBooks([]);
+        } else {
+          setLocalSelectedBooks(newIncluded);
+        }
       }
     }
   };

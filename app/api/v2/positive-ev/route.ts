@@ -871,20 +871,26 @@ async function fetchPositiveEVOpportunities(
 }
 
 /**
- * Filter out Polymarket odds that are too extreme (-1000 or worse)
+ * Prediction market books that can have extreme odds
+ * These need special filtering to avoid skewing calculations
+ */
+const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+
+/**
+ * Filter out prediction market odds that are too extreme (-1000 or worse)
  * These extreme odds can skew market average and blend calculations
  */
-function filterExtremePolymarketOdds(books: BookOffer[]): BookOffer[] {
-  const POLYMARKET_EXTREME_THRESHOLD = -1000; // -1000 or worse (more negative)
+function filterExtremePredictionMarketOdds(books: BookOffer[]): BookOffer[] {
+  const EXTREME_THRESHOLD = -1000; // -1000 or worse (more negative)
   
   return books.filter((book) => {
-    const isPolymarket = book.bookId.toLowerCase() === "polymarket";
-    if (!isPolymarket) return true; // Keep all non-Polymarket books
+    const isPredictionMarket = PREDICTION_MARKET_BOOKS.has(book.bookId.toLowerCase());
+    if (!isPredictionMarket) return true; // Keep all non-prediction market books
     
-    // Filter out Polymarket odds that are -1000 or worse (heavy favorites)
+    // Filter out prediction market odds that are -1000 or worse (heavy favorites)
     // Note: -1000 means you bet $1000 to win $100, which is 90.9% implied prob
-    if (book.price <= POLYMARKET_EXTREME_THRESHOLD) {
-      console.log(`[positive-ev] Filtering extreme Polymarket odds: ${book.price}`);
+    if (book.price <= EXTREME_THRESHOLD) {
+      console.log(`[positive-ev] Filtering extreme ${book.bookId} odds: ${book.price}`);
       return false;
     }
     
@@ -909,8 +915,8 @@ function getSharpOddsForPreset(
 
   // Market Average: Use ALL available books for this market
   if (preset === "market_average") {
-    // Filter out extreme Polymarket odds that could skew the average
-    const filteredBooks = filterExtremePolymarketOdds(books);
+    // Filter out extreme prediction market odds that could skew the average
+    const filteredBooks = filterExtremePredictionMarketOdds(books);
     
     if (filteredBooks.length === 0) return null;
     
@@ -984,8 +990,8 @@ function getSharpOddsForCustomConfig(
     return null;
   }
 
-  // Filter out extreme Polymarket odds that could skew the blend
-  const filteredBooks = filterExtremePolymarketOdds(books);
+  // Filter out extreme prediction market odds that could skew the blend
+  const filteredBooks = filterExtremePredictionMarketOdds(books);
 
   // Single book in custom config
   if (config.books.length === 1) {

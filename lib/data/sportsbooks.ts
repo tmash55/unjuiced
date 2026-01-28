@@ -371,7 +371,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/thescore_long.png"
     },
     brandColor: "#003778",
-    priority: 4,
+    priority: 7,
     isActive: true,
     requiresState: false
   },
@@ -507,7 +507,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     },
     brandColor: "#A92629",
     priority: 4,
-    isActive: true,
+    isActive: false,
     requiresState: false
   },
   "polymarket": {
@@ -522,6 +522,24 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     image: {
       light: "/images/sports-books/polymarket.png",
       long: "/images/sports-books/polymarket_long.png"
+    },
+    brandColor: "#000000",
+    priority: 5,
+    isActive: true,
+    requiresState: false
+  },
+  "kalshi": {
+    id: "kalshi",
+    name: "Kalshi",
+    sgp: false,
+    legalStates: ["US"],
+    links: {
+      desktop: "https://www.kalshi.com/",
+      mobile: "https://www.kalshi.com/"
+    },
+    image: {
+      light: "/images/sports-books/kalshi.png",
+      long: "/images/sports-books/kalshi_long.png"
     },
     brandColor: "#000000",
     priority: 5,

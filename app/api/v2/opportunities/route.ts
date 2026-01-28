@@ -1214,9 +1214,9 @@ const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
 
 /**
  * Books that can have extreme outlier odds that would skew averages.
- * Polymarket especially can have very heavy odds (e.g., -1567) on certain markets.
+ * Prediction markets (Polymarket, Kalshi) can have very heavy odds (e.g., -1567) on certain markets.
  */
-const OUTLIER_PRONE_BOOKS = new Set(["polymarket"]);
+const OUTLIER_PRONE_BOOKS = new Set(["polymarket", "kalshi"]);
 
 /**
  * Thresholds for outlier detection (in decimal odds).
@@ -1251,7 +1251,7 @@ function isOutlierOdds(
     const otherAvg = otherBooks.reduce((sum, b) => sum + b.decimal, 0) / otherBooks.length;
     const deviation = Math.abs(decimal - otherAvg) / otherAvg;
     
-    // If Polymarket deviates by more than 50% from the average of other books, exclude it
+    // If prediction market deviates by more than 50% from the average of other books, exclude it
     if (deviation > 0.5) {
       return true;
     }
@@ -1263,7 +1263,7 @@ function isOutlierOdds(
 /**
  * Deduplicate and filter books for average calculation.
  * - RSI books with identical odds are counted once
- * - Outlier-prone books (Polymarket) with extreme odds are excluded
+ * - Outlier-prone books (Polymarket, Kalshi) with extreme odds are excluded
  * - Non-RSI/non-outlier books are always included normally
  */
 function deduplicateBooksForAverage(

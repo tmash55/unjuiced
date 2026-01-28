@@ -72,6 +72,9 @@ const KELLY_PERCENT_OPTIONS = [
   { value: 100, label: "100% (Full Kelly)" },
 ];
 
+// Check if a value is a preset
+const isKellyPreset = (value: number) => KELLY_PERCENT_OPTIONS.some(opt => opt.value === value);
+
 interface GlobalSettingsDropdownProps {
   tool: FilterTool;
   
@@ -179,6 +182,14 @@ export function GlobalSettingsDropdown({
     maxOdds !== undefined && maxOdds !== 100000 ? formatOddsDisplay(maxOdds) : ""
   );
   
+  // Local state for custom kelly input
+  const [kellyInput, setKellyInput] = useState<string>(
+    kellyPercent !== undefined ? kellyPercent.toString() : "25"
+  );
+  const [showCustomKelly, setShowCustomKelly] = useState<boolean>(
+    kellyPercent !== undefined && !isKellyPreset(kellyPercent)
+  );
+  
   // Sync local state when bankroll prop changes externally
   React.useEffect(() => {
     if (bankroll !== undefined) {
@@ -199,6 +210,14 @@ export function GlobalSettingsDropdown({
     }
   }, [maxOdds]);
   
+  // Sync local state when kellyPercent prop changes externally
+  React.useEffect(() => {
+    if (kellyPercent !== undefined) {
+      setKellyInput(kellyPercent.toString());
+      setShowCustomKelly(!isKellyPreset(kellyPercent));
+    }
+  }, [kellyPercent]);
+  
   const handleBankrollChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setBankrollInput(value);
@@ -217,6 +236,34 @@ export function GlobalSettingsDropdown({
       setBankrollInput("1000");
       onBankrollChange?.(1000);
     }
+  };
+  
+  // Handlers for custom kelly input
+  const handleKellyInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setKellyInput(value);
+    
+    // Only call onChange if we have a valid number
+    const numValue = parseInt(value, 10);
+    if (!isNaN(numValue) && numValue >= 1 && numValue <= 100) {
+      onKellyPercentChange?.(numValue);
+    }
+  };
+  
+  const handleKellyInputBlur = () => {
+    // On blur, if empty or invalid, reset to default
+    const numValue = parseInt(kellyInput, 10);
+    if (isNaN(numValue) || numValue < 1 || numValue > 100) {
+      setKellyInput("25");
+      onKellyPercentChange?.(25);
+      setShowCustomKelly(false);
+    }
+  };
+  
+  const handleKellyPresetSelect = (value: number) => {
+    setKellyInput(value.toString());
+    setShowCustomKelly(false);
+    onKellyPercentChange?.(value);
   };
   
   // Handlers for min odds input
@@ -760,22 +807,58 @@ export function GlobalSettingsDropdown({
 
                   {/* Kelly Percent */}
                   {onKellyPercentChange && (
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
-                        <Percent className="w-3 h-3" />
-                        Kelly %
-                      </label>
-                      <select
-                        value={kellyPercent ?? 25}
-                        onChange={(e) => onKellyPercentChange(Number(e.target.value))}
-                        className="h-7 px-2 rounded text-xs bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
-                      >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
+                          <Percent className="w-3 h-3" />
+                          Kelly
+                        </label>
+                        {showCustomKelly && (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={kellyInput}
+                              onChange={handleKellyInputChange}
+                              onBlur={handleKellyInputBlur}
+                              className="w-16 h-7 px-2 text-xs text-right rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                              placeholder="1-100"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400">%</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
                         {KELLY_PERCENT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
+                          <button
+                            key={opt.value}
+                            onClick={() => handleKellyPresetSelect(opt.value)}
+                            className={cn(
+                              "px-2 py-1 rounded text-[10px] font-medium transition-all",
+                              !showCustomKelly && (kellyPercent ?? 25) === opt.value
+                                ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            )}
+                          >
+                            {opt.value}%
+                          </button>
                         ))}
-                      </select>
+                        <button
+                          onClick={() => {
+                            setShowCustomKelly(true);
+                            setKellyInput(kellyPercent?.toString() ?? "25");
+                          }}
+                          className={cn(
+                            "px-2 py-1 rounded text-[10px] font-medium transition-all",
+                            showCustomKelly
+                              ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          Custom
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

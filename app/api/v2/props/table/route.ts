@@ -631,6 +631,15 @@ const MARKET_SCAN_ALIASES: Record<string, string[]> = {
   "anytime_goalscorer": ["anytime_goal_scorer", "anytime_goal"],
   // Note: player_goals is over/under (e.g., Over 0.5 goals) - do NOT alias to anytime_goalscorer
   // They are different market types and should not be mixed
+  
+  // NBA Combo markets - Redis uses long form, we use short form
+  "player_pra": ["player_points_rebounds_assists", "player_pts_rebs_asts", "pra"],
+  "player_pr": ["player_points_rebounds", "player_pts_rebs", "pr"],
+  "player_pa": ["player_points_assists", "player_pts_asts", "pa"],
+  "player_ra": ["player_rebounds_assists", "player_rebs_asts", "ra"],
+  
+  // Steals + Blocks combo
+  "player_steals_blocks": ["player_sb", "sb", "steals_blocks"],
 };
 
 /**

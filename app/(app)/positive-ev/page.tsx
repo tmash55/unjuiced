@@ -44,7 +44,7 @@ import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
 import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
 import { shortenPeriodPrefix } from "@/lib/types/opportunities";
 import { getLeagueName } from "@/lib/data/sports";
@@ -314,6 +314,7 @@ export default function PositiveEVPage() {
     activeModels: activeEvModels,
     isLoading: evModelsLoading,
     toggleModel: toggleEvModel,
+    deactivateAll: deactivateAllEvModels,
     refetch: refetchEvModels,
   } = useEvModels();
   
@@ -332,9 +333,9 @@ export default function PositiveEVPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
   
-  // Sorting state for table columns
-  const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Sorting state for table columns - default to sorting by EV % descending
+  const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>("ev");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   
   // Toggle sort column
   const handleSort = useCallback((column: "ev" | "time" | "stake") => {
@@ -600,6 +601,16 @@ export default function PositiveEVPage() {
       filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
     
+    // Filter by selected books (if any books are selected, only show those)
+    // Note: empty selectedBooks array means "show all books"
+    if (savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0) {
+      filtered = filtered.filter((opp) => {
+        const bookId = opp.book?.bookId || "";
+        const normalizedBook = normalizeSportsbookId(bookId);
+        return savedFilters.selectedBooks.includes(normalizedBook);
+      });
+    }
+    
     // Min liquidity filter - filter out opportunities where best book's max stake is below threshold
     const minLiquidity = savedFilters.minLiquidity ?? 0;
     if (minLiquidity > 0) {
@@ -670,7 +681,7 @@ export default function PositiveEVPage() {
     }
     
     return result;
-  }, [data, searchQuery, expandedRows, pinnedPositions, showHidden, isHidden, savedFilters.minLiquidity]);
+  }, [data, searchQuery, expandedRows, pinnedPositions, showHidden, isHidden, savedFilters.minLiquidity, savedFilters.selectedBooks]);
   
   // Apply sorting to filtered opportunities
   const sortedOpportunities = useMemo(() => {
@@ -959,9 +970,15 @@ export default function PositiveEVPage() {
     </div>
   ) : null;
 
-  // Context bar - filter bar
+  // Context bar - filter bar with timestamp above
   const contextBar = (
     <>
+      {/* Timestamp indicator - above filter bar */}
+      {headerActions && (
+        <div className="flex justify-end mb-2">
+          {headerActions}
+        </div>
+      )}
       <UnifiedFilterBar
         tool="positive-ev"
         className=""
@@ -999,6 +1016,7 @@ export default function PositiveEVPage() {
         // Custom EV models
         activeEvModels={activeEvModels.map(m => ({ id: m.id, name: m.name }))}
         onManageEvModels={() => refetchEvModels()}
+        onClearEvModels={deactivateAllEvModels}
         // De-vig methods
         devigMethods={savedFilters.devigMethods as DevigMethod[]}
         onDevigMethodsChange={(methods) => updateSavedFilters({ devigMethods: methods })}
@@ -1060,7 +1078,6 @@ export default function PositiveEVPage() {
     <AppPageLayout
       title="Positive EV"
       subtitle={subtitle}
-      headerActions={headerActions}
       contextBar={contextBar}
       stickyContextBar={true}
     >
@@ -1173,9 +1190,25 @@ export default function PositiveEVPage() {
       )}
 
       {/* Results Table - Premium Design */}
-      <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-[5]">
+      {/* Animated border wrapper when in custom mode */}
+      <div className={cn(
+        "rounded-2xl",
+        activeEvModels.length > 0 
+          ? "relative p-[2px] overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.15)]" 
+          : ""
+      )}>
+        {/* Animated gradient border for custom mode */}
+        {activeEvModels.length > 0 && (
+          <span className="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#34D399_0%,#10B981_20%,#047857_40%,#10B981_60%,#34D399_80%,#A7F3D0_100%)]" />
+        )}
+        <div className={cn(
+          "relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900",
+          activeEvModels.length > 0 
+            ? "rounded-[14px]" 
+            : "rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm"
+        )}>
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-[5]">
             <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
               <th 
                 className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none whitespace-nowrap"
@@ -2470,7 +2503,8 @@ export default function PositiveEVPage() {
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       {/* Load More */}

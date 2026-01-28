@@ -161,59 +161,148 @@ export function ComparingDropdown({
           </span>
         </div>
 
-        {/* Positive EV: Sharp presets */}
+        {/* Positive EV: Sharp presets - organized by category */}
         {tool === "positive-ev" && (
-          <div className="p-1.5 space-y-0.5">
-            {Object.entries(SHARP_PRESETS)
-              .filter(([key]) => key !== "custom" && key !== "hardrock_thescore")
-              .map(([key, preset]) => {
-                const bookId = SHARP_PRESET_TO_BOOK[key];
-                const book = bookId ? getSportsbookById(bookId) : null;
-                const logo = book?.image?.light;
-                const isSelected = sharpPreset === key;
+          <div className="p-1.5 space-y-0.5 max-h-80 overflow-y-auto">
+            {/* Sharp Books Section */}
+            <div className="px-2 py-1.5">
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Sharp Books (Recommended)
+              </span>
+            </div>
 
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handlePositiveEVPresetChange(key as SharpPreset)}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
-                      isSelected
-                        ? "bg-neutral-100 dark:bg-neutral-800"
-                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+            {/* Sharp book options */}
+            {(["pinnacle", "circa", "prophetx", "pinnacle_circa"] as const).map((key) => {
+              const preset = SHARP_PRESETS[key];
+              const bookId = SHARP_PRESET_TO_BOOK[key];
+              const book = bookId ? getSportsbookById(bookId) : null;
+              const logo = book?.image?.light;
+              const isSelected = sharpPreset === key;
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => handlePositiveEVPresetChange(key as SharpPreset)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
+                    isSelected
+                      ? "bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800"
+                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {logo ? (
+                      <img src={logo} alt={preset.label} className="max-w-full max-h-full object-contain" />
+                    ) : key === "pinnacle_circa" ? (
+                      <div className="flex -space-x-1">
+                        <img src={getSportsbookById("pinnacle")?.image?.light} alt="" className="w-3.5 h-3.5 object-contain" />
+                        <img src={getSportsbookById("circa")?.image?.light} alt="" className="w-3.5 h-3.5 object-contain" />
+                      </div>
+                    ) : (
+                      <TrendingUp className="w-4 h-4 text-neutral-400" />
                     )}
-                  >
-                    {/* Logo or icon */}
-                    <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                      {logo ? (
-                        <img src={logo} alt={preset.label} className="max-w-full max-h-full object-contain" />
-                      ) : key === "pinnacle_circa" ? (
-                        <div className="flex -space-x-1">
-                          <img src={getSportsbookById("pinnacle")?.image?.light} alt="" className="w-3.5 h-3.5 object-contain" />
-                          <img src={getSportsbookById("circa")?.image?.light} alt="" className="w-3.5 h-3.5 object-contain" />
-                        </div>
-                      ) : (
-                        <TrendingUp className="w-4 h-4 text-neutral-400" />
-                      )}
-                    </div>
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium flex-1",
+                    isSelected
+                      ? "text-emerald-700 dark:text-emerald-300"
+                      : "text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {preset.label}
+                  </span>
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
 
-                    {/* Label */}
-                    <span className={cn(
-                      "text-sm font-medium flex-1",
-                      isSelected
-                        ? "text-neutral-900 dark:text-white"
-                        : "text-neutral-700 dark:text-neutral-300"
-                    )}>
-                      {preset.label}
-                    </span>
+            <DropdownMenuSeparator className="my-1.5" />
 
-                    {/* Check */}
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+            {/* Market Average */}
+            <div className="px-2 py-1.5">
+              <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+                Market Consensus
+              </span>
+            </div>
+
+            <button
+              onClick={() => handlePositiveEVPresetChange("market_average")}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
+                sharpPreset === "market_average"
+                  ? "bg-neutral-100 dark:bg-neutral-800"
+                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+              )}
+            >
+              <TrendingUp className="w-4 h-4 text-neutral-400 shrink-0" />
+              <div className="flex-1">
+                <span className={cn(
+                  "text-sm font-medium",
+                  sharpPreset === "market_average"
+                    ? "text-neutral-900 dark:text-white"
+                    : "text-neutral-700 dark:text-neutral-300"
+                )}>
+                  Market Average
+                </span>
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                  Averages all books
+                </p>
+              </div>
+              {sharpPreset === "market_average" && (
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+              )}
+            </button>
+
+            <DropdownMenuSeparator className="my-1.5" />
+
+            {/* Retail Books */}
+            <div className="px-2 py-1.5">
+              <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide">
+                Retail Books
+              </span>
+            </div>
+
+            {(["draftkings", "fanduel", "betmgm", "caesars", "hardrock", "bet365"] as const).map((key) => {
+              const preset = SHARP_PRESETS[key];
+              const bookId = SHARP_PRESET_TO_BOOK[key];
+              const book = bookId ? getSportsbookById(bookId) : null;
+              const logo = book?.image?.light;
+              const isSelected = sharpPreset === key;
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => handlePositiveEVPresetChange(key as SharpPreset)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
+                    isSelected
+                      ? "bg-neutral-100 dark:bg-neutral-800"
+                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                  )}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    {logo ? (
+                      <img src={logo} alt={preset.label} className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <div className="w-4 h-4 rounded bg-neutral-200 dark:bg-neutral-700" />
                     )}
-                  </button>
-                );
-              })}
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium flex-1",
+                    isSelected
+                      ? "text-neutral-900 dark:text-white"
+                      : "text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {preset.label}
+                  </span>
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 

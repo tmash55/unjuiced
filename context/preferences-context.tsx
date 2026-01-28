@@ -734,7 +734,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         columnHighlighting: guestOdds.columnHighlighting ?? true,
         showBestLine: guestOdds.showBestLine ?? true,
         showAverageLine: guestOdds.showAverageLine ?? true,
-        tableView: guestOdds.tableView ?? 'compact',
+        tableView: guestOdds.tableView ?? 'relaxed',
       };
     }
 
@@ -746,7 +746,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       columnHighlighting: (preferences.odds_column_highlighting ?? true),
       showBestLine: (preferences.odds_show_best_line ?? true),
       showAverageLine: (preferences.odds_show_average_line ?? true),
-      tableView: (preferences.odds_table_view ?? 'compact') as 'compact' | 'relaxed',
+      tableView: (preferences.odds_table_view ?? 'relaxed') as 'compact' | 'relaxed',
     };
   }, [preferences, activeSportsbooks, guestOdds]);
 

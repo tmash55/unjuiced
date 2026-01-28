@@ -1127,7 +1127,7 @@ export function OddsTable({
   const { preferences, updatePreferences, isLoading } = useOddsPreferences()
   
   // Use prop if provided, otherwise use from preferences
-  const tableView = tableViewProp ?? preferences.tableView ?? 'compact'
+  const tableView = tableViewProp ?? preferences.tableView ?? 'relaxed'
   const isRelaxedView = tableView === 'relaxed'
   
   // Line selector state - persisted per market in localStorage
@@ -1970,8 +1970,8 @@ export function OddsTable({
             </div>
           )
         },
-        // Entity/Player column width - much wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 180 : 280) : (isSmallScreen ? 110 : 160),
+        // Entity/Player column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 140 : 200) : (isSmallScreen ? 110 : 160),
         cell: (info) => {
           const item = info.row.original
           if (item.entity.type === 'game') {
@@ -1981,7 +1981,7 @@ export function OddsTable({
             return (
               <div className={cn(
                 "flex items-center gap-1.5",
-                isRelaxedView ? "min-w-[180px] sm:min-w-[280px]" : "min-w-[120px] sm:min-w-[160px]"
+                isRelaxedView ? "min-w-[140px] sm:min-w-[200px]" : "min-w-[120px] sm:min-w-[160px]"
               )}>
                 <ExpandButton hide={true} />
                 <div className="flex-1 min-w-0">
@@ -2299,10 +2299,10 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Best line column width - much wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 110 : 140) : (isSmallScreen ? 56 : 64),
-        minSize: isRelaxedView ? 100 : 56,
-        maxSize: isRelaxedView ? 180 : 72,
+        // Best line column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 72 : 88) : (isSmallScreen ? 56 : 64),
+        minSize: isRelaxedView ? 64 : 56,
+        maxSize: isRelaxedView ? 100 : 72,
         cell: (info) => {
           const item = info.row.original
             const isMoneyline = item.entity.type === 'game' && (
@@ -2379,10 +2379,10 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Average line column width - much wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 105 : 135) : (isSmallScreen ? 48 : 56),
-        minSize: isRelaxedView ? 95 : 48,
-        maxSize: isRelaxedView ? 170 : 64,
+        // Average line column width - wider for relaxed view
+        size: isRelaxedView ? (isSmallScreen ? 64 : 80) : (isSmallScreen ? 48 : 56),
+        minSize: isRelaxedView ? 56 : 48,
+        maxSize: isRelaxedView ? 96 : 64,
         cell: (info) => {
           const item = info.row.original
           const isMoneyline = item.entity.type === 'game' && (
@@ -2489,9 +2489,9 @@ export function OddsTable({
               </div>
             )
           },
-          // Column widths - much wider for relaxed view
+          // Column widths - wider for relaxed view
           size: isRelaxedView
-            ? (isSmallScreen ? 110 : 140)
+            ? (isSmallScreen ? 80 : 100)
             : (isSingleLineMarket 
                 ? (isSmallScreen ? 56 : 72) 
                 : (isSmallScreen ? 72 : 96)),
@@ -3130,7 +3130,7 @@ export function OddsTable({
                             "bg-transparent border-b border-r border-neutral-100 dark:border-neutral-800/50 text-left font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider",
                             // Header padding and text size - larger for relaxed view
                             isRelaxedView 
-                              ? "px-2 py-3 sm:px-3 sm:py-4 text-xs" 
+                              ? "px-1.5 py-2 sm:px-2 sm:py-2.5 text-[11px]" 
                               : "px-1 py-2 sm:px-2 sm:py-2.5 text-[11px]",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
                             header.column.id === 'entity' && 'sticky left-0 z-40 !bg-gradient-to-r !from-neutral-50 !to-neutral-50 dark:!from-neutral-900 dark:!to-neutral-900',
@@ -3322,9 +3322,9 @@ export function OddsTable({
                           key={cell.id}
                           className={cn(
                             'border-b border-r border-neutral-100 dark:border-neutral-800/50',
-                            // Padding - much larger for relaxed view
+                            // Padding - slightly larger for relaxed view
                             isRelaxedView 
-                              ? 'px-2 py-2.5 sm:px-3 sm:py-3 text-base' 
+                              ? 'px-1.5 py-1.5 sm:px-2 sm:py-2 text-sm' 
                               : 'px-1 py-1 sm:px-2 sm:py-1.5 text-sm',
                             // Center sportsbook columns for single-line markets, otherwise left-align
                             isBookColumn && isSingleLineMarket ? 'text-center' : 'text-left',

@@ -222,6 +222,26 @@ export function useFilterPresets() {
     },
   });
 
+  // Deactivate all presets
+  const deactivateAllMutation = useMutation({
+    mutationFn: async () => {
+      // Deactivate each active preset
+      const activeIds = activePresets.map((p) => p.id);
+      await Promise.all(
+        activeIds.map((id) =>
+          fetch(`/api/user/filter-presets/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_active: false }),
+          })
+        )
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+
   // Helper functions
   const createPreset = (preset: FilterPresetCreate) => createMutation.mutateAsync(preset);
   const updatePreset = (id: string, updates: FilterPresetUpdate) => 
@@ -232,6 +252,7 @@ export function useFilterPresets() {
     toggleMutation.mutateAsync({ id, is_active });
   const toggleFavorite = (id: string, is_favorite: boolean) =>
     toggleFavoriteMutation.mutateAsync({ id, is_favorite });
+  const deactivateAll = () => deactivateAllMutation.mutateAsync();
 
   // Get presets grouped by sport (multi-sport presets go under "multi")
   const presetsBySport = presets.reduce((acc, preset) => {
@@ -265,6 +286,7 @@ export function useFilterPresets() {
     deletePreset,
     togglePreset,
     toggleFavorite,
+    deactivateAll,
     refetch,
     
     // Mutation states
@@ -273,6 +295,7 @@ export function useFilterPresets() {
     isDeleting: deleteMutation.isPending,
     isToggling: toggleMutation.isPending,
     isTogglingFavorite: toggleFavoriteMutation.isPending,
+    isDeactivatingAll: deactivateAllMutation.isPending,
   };
 }
 
