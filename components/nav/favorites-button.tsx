@@ -38,7 +38,7 @@ export function FavoritesButton({ className }: FavoritesButtonProps) {
   return (
     <Tooltip content={hasItems ? `${count} saved pick${count !== 1 ? 's' : ''}` : "Your saved picks"} side="bottom">
       <Link
-        href="/favorites"
+        href="/saved-plays"
         className={cn(
           "relative flex h-8 w-8 items-center justify-center rounded-full border transition-colors",
           "border-neutral-200 bg-white hover:bg-neutral-50",
@@ -92,7 +92,7 @@ export function MobileFavoritesButton({ className }: FavoritesButtonProps) {
   
   return (
     <Link
-      href="/favorites"
+      href="/saved-plays"
       className={cn(
         "relative flex size-8 items-center justify-center rounded-md transition-colors",
         "text-neutral-700 hover:bg-neutral-100",

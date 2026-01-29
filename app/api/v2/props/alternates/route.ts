@@ -160,6 +160,7 @@ interface AlternateLine {
       decimal: number;
       u: string | null;    // Desktop link
       m: string | null;    // Mobile link
+      sgp: string | null;  // SGP token
       limit_max?: number | null;
     };
     under?: {
@@ -167,6 +168,7 @@ interface AlternateLine {
       decimal: number;
       u: string | null;    // Desktop link
       m: string | null;    // Mobile link
+      sgp: string | null;  // SGP token
       limit_max?: number | null;
     };
   }>;
@@ -303,7 +305,8 @@ async function buildAlternates(
           price,
           decimal: data.over.price_decimal,
           u: data.over.link || null,  // Desktop link
-          m: data.over.link || null,  // Mobile link (same as desktop for now)
+          m: data.over.mobile_link || null,  // Mobile link
+          sgp: data.over.sgp || null,  // SGP token
           limit_max: data.over.limits?.max || null,
         };
 
@@ -318,7 +321,8 @@ async function buildAlternates(
           price,
           decimal: data.under.price_decimal,
           u: data.under.link || null,  // Desktop link
-          m: data.under.link || null,  // Mobile link (same as desktop for now)
+          m: data.under.mobile_link || null,  // Mobile link
+          sgp: data.under.sgp || null,  // SGP token
           limit_max: data.under.limits?.max || null,
         };
 

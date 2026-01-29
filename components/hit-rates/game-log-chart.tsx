@@ -1074,6 +1074,52 @@ export function GameLogChart({
                   </div>
                 </div>
 
+                {/* ═══ ACTIVE FILTER RANKS ═══ */}
+                {activeMatchupFilters.length > 0 && (
+                  <div className="px-4 py-3 border-t border-neutral-800/50">
+                    <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-2 block">
+                      {game.opponentAbbr} Defense Ranks
+                    </span>
+                    <div className="space-y-1.5">
+                      {activeMatchupFilters.map((filter) => {
+                        // Look up the opponent's rank for this filter
+                        const ranksMap = filter.type === "playType" ? playTypeRanksMap : shotZoneRanksMap;
+                        const teamRanks = ranksMap?.get(filter.key);
+                        const opponentRank = teamRanks?.get(game.opponentAbbr);
+                        
+                        if (!opponentRank) return null;
+                        
+                        const getRankColor = (rank: number) => {
+                          if (rank <= 10) return "text-red-400"; // Tough
+                          if (rank >= 21) return "text-emerald-400"; // Favorable
+                          return "text-yellow-400"; // Neutral
+                        };
+                        
+                        const getRankBg = (rank: number) => {
+                          if (rank <= 10) return "bg-red-500/20";
+                          if (rank >= 21) return "bg-emerald-500/20";
+                          return "bg-yellow-500/20";
+                        };
+                        
+                        return (
+                          <div key={`${filter.type}-${filter.key}`} className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-neutral-300 truncate">
+                              {filter.displayName}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums",
+                              getRankBg(opponentRank),
+                              getRankColor(opponentRank)
+                            )}>
+                              #{opponentRank}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* ═══ TEAMMATES OUT FOOTER ═══ */}
                 {teammatesOut.length > 0 && (
                   <div className="px-4 py-3 bg-neutral-950/50 dark:bg-black/30 border-t border-[#ffffff0d]">

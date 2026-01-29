@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   X,
   Link2,
-  Info
+  Info,
+  Heart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
@@ -51,6 +52,7 @@ import { usePlayerCorrelations, TeammateCorrelation, StatCorrelation, TeammateGa
 import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-filters";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { useMobileNav } from "@/contexts/mobile-nav-context";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
 
@@ -3464,6 +3466,105 @@ export function MobilePlayerDrilldown({
       isAltLine: false,
     };
   }, [fullOddsData, customLine, profile.line]);
+
+  // Favorites hook for adding to My Plays
+  const { isFavorited, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
+
+  // Build favorite params helper
+  const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
+    if (!profile.gameId) return null;
+    
+    const activeLine = customLine ?? profile.line;
+    const bestOdds = side === "over" ? odds?.bestOver : odds?.bestUnder;
+    
+    // Build books_snapshot for this specific side
+    let booksSnapshot: Record<string, BookSnapshot> | null = null;
+    if (fullOddsData?.allLines) {
+      const lineData = fullOddsData.allLines.find((l: any) => l.line === activeLine);
+      if (lineData?.books) {
+        const snapshot: Record<string, BookSnapshot> = {};
+        for (const [bookId, bookOdds] of Object.entries(lineData.books as Record<string, any>)) {
+          const sideOdds = side === "over" ? bookOdds.over : bookOdds.under;
+          if (sideOdds) {
+            snapshot[bookId] = {
+              price: sideOdds.price,
+              u: sideOdds.url || sideOdds.u || null,
+              m: sideOdds.mobileUrl || sideOdds.m || null,
+              sgp: sideOdds.sgp || null,
+            };
+          }
+        }
+        if (Object.keys(snapshot).length > 0) {
+          booksSnapshot = snapshot;
+        }
+      }
+    }
+    
+    // Build odds_key from gameId and market
+    const oddsKey = profile.gameId ? `odds:nba:${profile.gameId}:${profile.market}` : null;
+    
+    // Build odds_selection_id
+    const oddsSelectionId = profile.oddsSelectionId 
+      ? `${profile.oddsSelectionId}:${activeLine}:${side}`
+      : null;
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: profile.gameId,
+      game_date: profile.gameDate,
+      home_team: profile.homeTeamName?.split(" ").pop() || null,
+      away_team: profile.awayTeamName?.split(" ").pop() || null,
+      start_time: null,
+      player_id: String(profile.playerId),
+      player_name: profile.playerName,
+      player_team: profile.teamAbbr,
+      player_position: profile.position,
+      market: profile.market,
+      line: activeLine,
+      side,
+      odds_key: oddsKey,
+      odds_selection_id: oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestOdds?.price ?? null,
+      best_book_at_save: bestOdds?.book ?? null,
+      source: "hit_rates",
+    };
+  }, [profile, customLine, odds, fullOddsData]);
+
+  // Check if current selection is favorited
+  const isOverFavorited = useMemo(() => {
+    const params = buildFavoriteParams("over");
+    if (!params) return false;
+    return isFavorited({
+      event_id: params.event_id,
+      type: params.type,
+      market: params.market,
+      side: params.side,
+      player_id: params.player_id,
+      line: params.line,
+    });
+  }, [buildFavoriteParams, isFavorited]);
+
+  const isUnderFavorited = useMemo(() => {
+    const params = buildFavoriteParams("under");
+    if (!params) return false;
+    return isFavorited({
+      event_id: params.event_id,
+      type: params.type,
+      market: params.market,
+      side: params.side,
+      player_id: params.player_id,
+      line: params.line,
+    });
+  }, [buildFavoriteParams, isFavorited]);
+
+  // Handle favorite toggle
+  const handleToggleFavorite = useCallback(async (side: "over" | "under") => {
+    const params = buildFavoriteParams(side);
+    if (!params) return;
+    await toggleFavorite(params);
+  }, [buildFavoriteParams, toggleFavorite]);
   
   // Process game logs for chart
   const chartGames = useMemo(() => {
@@ -4755,54 +4856,90 @@ export function MobilePlayerDrilldown({
                 )}
               </div>
               
-              {/* Best Odds - Compact Row */}
+              {/* Best Odds - Compact Row with Favorite Hearts */}
               <div className="px-4 pb-3">
                 <div className="flex items-center gap-2">
-                  {/* Over */}
-                  <button
-                    type="button"
-                    onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
-                    disabled={!odds?.bestOver}
-                    className={cn(
-                      "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
-                      odds?.bestOver 
-                        ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/30" 
-                        : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O {effectiveLine}</span>
-                      {odds?.bestOver?.book && getBookLogo(odds.bestOver.book) && (
-                        <img src={getBookLogo(odds.bestOver.book)!} alt="" className="h-4 w-4 rounded" />
+                  {/* Over + Heart */}
+                  <div className="flex-1 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                      disabled={!odds?.bestOver}
+                      className={cn(
+                        "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
+                        odds?.bestOver 
+                          ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/30" 
+                          : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
                       )}
-                    </div>
-                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                      {odds?.bestOver ? `${odds.bestOver.price > 0 ? "+" : ""}${odds.bestOver.price}` : "—"}
-                    </span>
-                  </button>
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O {effectiveLine}</span>
+                        {odds?.bestOver?.book && getBookLogo(odds.bestOver.book) && (
+                          <img src={getBookLogo(odds.bestOver.book)!} alt="" className="h-4 w-4 rounded" />
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                        {odds?.bestOver ? `${odds.bestOver.price > 0 ? "+" : ""}${odds.bestOver.price}` : "—"}
+                      </span>
+                    </button>
+                    {isLoggedIn && profile.gameId && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite("over")}
+                        disabled={isToggling}
+                        className={cn(
+                          "p-2 rounded-lg border transition-all active:scale-95",
+                          isOverFavorited
+                            ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
+                            : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400",
+                          isToggling && "opacity-50"
+                        )}
+                      >
+                        <Heart className={cn("h-4 w-4", isOverFavorited && "fill-current")} />
+                      </button>
+                    )}
+                  </div>
                   
-                  {/* Under */}
-                  <button
-                    type="button"
-                    onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
-                    disabled={!odds?.bestUnder}
-                    className={cn(
-                      "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
-                      odds?.bestUnder 
-                        ? "bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-700/30" 
-                        : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-red-500 dark:text-red-400">U {effectiveLine}</span>
-                      {odds?.bestUnder?.book && getBookLogo(odds.bestUnder.book) && (
-                        <img src={getBookLogo(odds.bestUnder.book)!} alt="" className="h-4 w-4 rounded" />
+                  {/* Under + Heart */}
+                  <div className="flex-1 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                      disabled={!odds?.bestUnder}
+                      className={cn(
+                        "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
+                        odds?.bestUnder 
+                          ? "bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-700/30" 
+                          : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
                       )}
-                    </div>
-                    <span className="text-sm font-bold text-red-500 dark:text-red-400">
-                      {odds?.bestUnder ? `${odds.bestUnder.price > 0 ? "+" : ""}${odds.bestUnder.price}` : "—"}
-                    </span>
-                  </button>
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-red-500 dark:text-red-400">U {effectiveLine}</span>
+                        {odds?.bestUnder?.book && getBookLogo(odds.bestUnder.book) && (
+                          <img src={getBookLogo(odds.bestUnder.book)!} alt="" className="h-4 w-4 rounded" />
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-red-500 dark:text-red-400">
+                        {odds?.bestUnder ? `${odds.bestUnder.price > 0 ? "+" : ""}${odds.bestUnder.price}` : "—"}
+                      </span>
+                    </button>
+                    {isLoggedIn && profile.gameId && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite("under")}
+                        disabled={isToggling}
+                        className={cn(
+                          "p-2 rounded-lg border transition-all active:scale-95",
+                          isUnderFavorited
+                            ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
+                            : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400",
+                          isToggling && "opacity-50"
+                        )}
+                      >
+                        <Heart className={cn("h-4 w-4", isUnderFavorited && "fill-current")} />
+                      </button>
+                    )}
+                  </div>
                   
                   {/* View All */}
                   {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (

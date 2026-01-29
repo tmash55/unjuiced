@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
-import { useBetslips, Betslip, getColorClass } from "@/hooks/use-betslips";
+import { useBetslips, Betslip, getColorClass, calculateLegsHash, SgpOddsResponse } from "@/hooks/use-betslips";
+import { useFavoritesStream, type FavoriteChange } from "@/hooks/use-favorites-stream";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { MaxWidthWrapper } from "@/components/max-width-wrapper";
 import { cn } from "@/lib/utils";
@@ -154,6 +155,11 @@ interface DragState {
 // FAVORITE ROW COMPONENT
 // ============================================================================
 
+interface RefreshedFavoriteOdds {
+  best: { price: number; book: string } | null;
+  allBooks: Record<string, { price: number; link: string | null; sgp: string | null }>;
+}
+
 interface FavoriteRowProps {
   favorite: Favorite;
   isSelected: boolean;
@@ -165,6 +171,8 @@ interface FavoriteRowProps {
   isDragging?: boolean;
   isMobile?: boolean;
   dragPreviewRef?: React.RefObject<HTMLDivElement | null>;
+  refreshedOdds?: RefreshedFavoriteOdds | null;
+  priceChange?: FavoriteChange | null;
 }
 
 function FavoriteRow({ 
@@ -178,13 +186,52 @@ function FavoriteRow({
   isDragging,
   isMobile,
   dragPreviewRef,
+  refreshedOdds,
+  priceChange,
 }: FavoriteRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const bestOdds = getBestOdds(favorite.books_snapshot);
-  const sortedBooks = getSortedBooks(favorite.books_snapshot, 4);
-  const totalBooks = favorite.books_snapshot ? Object.keys(favorite.books_snapshot).filter(k => favorite.books_snapshot![k].price).length : 0;
+  const savedBestOdds = getBestOdds(favorite.books_snapshot);
+  // Use refreshed odds if available, otherwise fall back to saved snapshot
+  const bestOdds = refreshedOdds?.best 
+    ? { bookId: refreshedOdds.best.book, price: refreshedOdds.best.price }
+    : savedBestOdds;
+  // Use stream price change if available, otherwise check if odds different from saved
+  const oddsChanged = priceChange?.priceDirection || (refreshedOdds?.best && savedBestOdds && refreshedOdds.best.price !== savedBestOdds.price);
+  const priceDirection = priceChange?.priceDirection;
+  
+  // Get sorted books - use refreshed odds if available, otherwise saved snapshot
+  // Returns same structure as getSortedBooks: { bookId: string; data: BookSnapshot }[]
+  const getEffectiveBookOdds = (): { bookId: string; data: BookSnapshot }[] => {
+    if (refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0) {
+      // Use refreshed odds - convert to BookSnapshot format
+      return Object.entries(refreshedOdds.allBooks)
+        .map(([bookId, oddsData]) => ({ 
+          bookId, 
+          data: { 
+            price: oddsData.price, 
+            u: oddsData.link, 
+            m: null, 
+            sgp: oddsData.sgp 
+          } as BookSnapshot 
+        }))
+        .sort((a, b) => {
+          const aPrice = a.data.price || 0;
+          const bPrice = b.data.price || 0;
+          if (aPrice >= 0 && bPrice >= 0) return bPrice - aPrice;
+          if (aPrice < 0 && bPrice < 0) return bPrice - aPrice;
+          return bPrice - aPrice;
+        });
+    }
+    // Fall back to saved snapshot
+    return getSortedBooks(favorite.books_snapshot, 999);
+  };
+  
+  const allBookOdds = getEffectiveBookOdds();
+  const sortedBooks = allBookOdds.slice(0, 4);
+  const totalBooks = allBookOdds.length;
   const remainingBooks = totalBooks - sortedBooks.length;
+  const hasRefreshedOdds = refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0;
   
   const playerOrTeam = favorite.player_name || favorite.home_team || "Unknown";
   const marketDisplay = formatMarketLabelShort(favorite.market) || favorite.market;
@@ -280,11 +327,29 @@ function FavoriteRow({
               e.stopPropagation();
               openBetLink(favorite.books_snapshot?.[bestOdds.bookId]);
             }}
-            className="flex flex-col items-end shrink-0 hover:opacity-80 transition-opacity"
+            className={cn(
+              "flex flex-col items-end shrink-0 hover:opacity-80 transition-all",
+              // Flash animation when price changes
+              priceDirection === "up" && "animate-pulse-green",
+              priceDirection === "down" && "animate-pulse-amber"
+            )}
           >
-            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-              {formatOdds(bestOdds.price)}
-            </span>
+            <div className="flex items-center gap-1">
+              {/* Only show arrows briefly when price changes (from stream), then fade */}
+              {priceDirection && (
+                <span className={cn(
+                  "text-[9px] font-medium px-1 py-0.5 rounded animate-fade-out",
+                  priceDirection === "up"
+                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                    : "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                )}>
+                  {priceDirection === "up" ? "↑" : "↓"}
+                </span>
+              )}
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                {formatOdds(bestOdds.price)}
+              </span>
+            </div>
             <div className="flex items-center gap-1 mt-0.5">
               {getBookLogo(bestOdds.bookId) && (
                 <img 
@@ -332,8 +397,15 @@ function FavoriteRow({
           >
             <div className={cn("px-4 pb-3", isMobile ? "pl-11" : "pl-14")}>
               <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-2 space-y-1">
-                <div className="px-2 pt-1 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                  Best available odds
+                <div className="px-2 pt-1 flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Best available odds
+                  </span>
+                  {hasRefreshedOdds && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                      LIVE
+                    </span>
+                  )}
                 </div>
                 {sortedBooks.map(({ bookId, data }) => (
                   <button
@@ -502,6 +574,10 @@ const formatTimeSince = (dateStr: string | null): string | null => {
   return `${Math.floor(diffSeconds / 3600)}h ago`;
 };
 
+// Constants for passive refresh
+const PASSIVE_REFRESH_MIN_INTERVAL_MS = 20000; // 20 seconds between refreshes
+const PASSIVE_REFRESH_STALE_THRESHOLD_MS = 30000; // Consider stale after 30s for passive refresh
+
 // ============================================================================
 // BETSLIP CARD COMPONENT
 // ============================================================================
@@ -512,12 +588,31 @@ interface BetslipCardProps {
   onRename: (name: string) => void;
   onQuickCompare: () => void;
   onRemoveLeg: (favoriteId: string) => void;
+  onFetchOdds: (forceRefresh?: boolean) => Promise<SgpOddsResponse | void>;
+  isFetchingOdds?: boolean;
   onDrop?: (favoriteIds: string[]) => void;
   isDropTarget?: boolean;
   dragCount?: number;
+  /** Map of favorite ID to refreshed odds (for leg-level "market moved" detection) */
+  refreshedOddsMap?: Map<string, RefreshedFavoriteOdds | null>;
+  /** Map of favorite ID to price change direction */
+  changesMap?: Map<string, FavoriteChange>;
 }
 
-function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg, onDrop, isDropTarget, dragCount = 1 }: BetslipCardProps) {
+function BetslipCard({ 
+  betslip, 
+  onDelete, 
+  onRename, 
+  onQuickCompare, 
+  onRemoveLeg, 
+  onFetchOdds, 
+  isFetchingOdds, 
+  onDrop, 
+  isDropTarget, 
+  dragCount = 1,
+  refreshedOddsMap,
+  changesMap,
+}: BetslipCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(betslip.name);
@@ -525,6 +620,11 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAllBooks, setShowAllBooks] = useState(false);
+  
+  // Track legs hash for detecting when legs are added/removed
+  const [lastFetchedLegsHash, setLastFetchedLegsHash] = useState<string | null>(null);
+  const lastPassiveRefreshRef = useRef<number>(0);
+  const cardRef = useRef<HTMLDivElement>(null);
   
   const items = betslip.items || [];
   const legCount = items.length || betslip.legs_count || 0;
@@ -534,6 +634,27 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
   // Get up to 2 leg previews
   const previewLegs = favorites.slice(0, 2);
   const remainingLegs = legCount - previewLegs.length;
+  
+  // Calculate current legs hash
+  const currentLegsHash = useMemo(() => calculateLegsHash(items), [items]);
+  
+  // Detect if legs changed since last fetch
+  const legsChanged = lastFetchedLegsHash !== null && lastFetchedLegsHash !== currentLegsHash;
+  
+  // Detect if any individual leg's odds moved (from SSE stream)
+  const legsWithMovement = useMemo(() => {
+    if (!changesMap) return new Set<string>();
+    const moved = new Set<string>();
+    for (const item of items) {
+      const favId = item.favorite?.id;
+      if (favId && changesMap.has(favId)) {
+        moved.add(favId);
+      }
+    }
+    return moved;
+  }, [items, changesMap]);
+  
+  const hasMarketMovement = legsWithMovement.size > 0;
   
   // Calculate odds
   const sgpOdds = useMemo(() => getSortedSgpOdds(betslip.sgp_odds_cache), [betslip.sgp_odds_cache]);
@@ -554,9 +675,67 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
     return calculateEdge(bestOdds.odds, bookOdds.map(b => b.odds));
   }, [bookOdds, bestOdds]);
   
-  // Check if odds are stale
-  const oddsStale = isOddsStale(betslip.sgp_odds_updated_at, 10);
+  // Check staleness
+  const oddsAgeMs = betslip.sgp_odds_updated_at 
+    ? Date.now() - new Date(betslip.sgp_odds_updated_at).getTime()
+    : null;
+  const oddsStale = oddsAgeMs !== null && oddsAgeMs > PASSIVE_REFRESH_STALE_THRESHOLD_MS;
   const oddsUpdatedAgo = formatTimeSince(betslip.sgp_odds_updated_at);
+  
+  // Determine if price may have changed (show warning badge)
+  const priceUncertain = legsChanged || hasMarketMovement || oddsStale;
+  
+  // Passive refresh with Intersection Observer + rate limiting
+  useEffect(() => {
+    if (!cardRef.current || !hasMultipleLegs) return;
+    
+    const observer = new IntersectionObserver(
+      async ([entry]) => {
+        if (!entry.isIntersecting) return;
+        if (isFetchingOdds) return;
+        
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastPassiveRefreshRef.current;
+        
+        // Rate limit: min interval between passive refreshes
+        if (timeSinceLastRefresh < PASSIVE_REFRESH_MIN_INTERVAL_MS) return;
+        
+        // Only refresh if something changed (legs changed, market moved, or stale)
+        const needsRefresh = legsChanged || hasMarketMovement || oddsStale || !betslip.sgp_odds_cache;
+        if (!needsRefresh) return;
+        
+        // Passive refresh (not forced - can use short Redis cache)
+        lastPassiveRefreshRef.current = now;
+        try {
+          const result = await onFetchOdds(false);
+          if (result?.legs_hash) {
+            setLastFetchedLegsHash(result.legs_hash);
+          }
+        } catch (e) {
+          console.warn("[BetslipCard] Passive refresh failed:", e);
+        }
+      },
+      { threshold: 0.5 } // 50% visible
+    );
+    
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [hasMultipleLegs, isFetchingOdds, legsChanged, hasMarketMovement, oddsStale, betslip.sgp_odds_cache, onFetchOdds]);
+
+  // Handle manual refresh (user-triggered, force refresh)
+  const handleRefreshOdds = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const result = await onFetchOdds(true);
+      if (result?.legs_hash) {
+        setLastFetchedLegsHash(result.legs_hash);
+      }
+      lastPassiveRefreshRef.current = Date.now();
+      toast.success("Price confirmed");
+    } catch (err) {
+      toast.error("Failed to refresh odds");
+    }
+  };
   
   const handleSaveName = () => {
     if (editName.trim() && editName !== betslip.name) {
@@ -629,6 +808,7 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
   
   return (
     <div 
+      ref={cardRef}
       className={cn(
         "border rounded-xl overflow-hidden bg-white dark:bg-neutral-900 transition-all",
         isDragOver 
@@ -689,9 +869,14 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
                 </span>
               )}
               
-              {/* Stale indicator */}
-              {oddsStale && !isEditing && (
-                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="Odds may be outdated" />
+              {/* Price uncertainty indicator */}
+              {priceUncertain && hasMultipleLegs && !isEditing && (
+                <span 
+                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                  title={hasMarketMovement ? "Market moved - price may have changed" : legsChanged ? "Legs changed - price needs update" : "Price may be outdated"}
+                >
+                  {isFetchingOdds ? "Confirming..." : hasMarketMovement ? "Market moved" : legsChanged ? "Legs changed" : "Refresh"}
+                </span>
               )}
             </div>
             
@@ -844,15 +1029,43 @@ function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg,
                           +{edge.toFixed(0)}% edge
                         </span>
                       )}
+                      {/* Price uncertainty badge */}
+                      {priceUncertain && (
+                        <span 
+                          className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+                          title="Price may have changed since last confirmation"
+                        >
+                          {hasMarketMovement ? "Market moved" : legsChanged ? "Legs changed" : "May have changed"}
+                        </span>
+                      )}
                     </div>
-                    {oddsUpdatedAgo && (
-                      <span className={cn(
-                        "text-[10px]",
-                        oddsStale ? "text-amber-500" : "text-neutral-400 dark:text-neutral-500"
-                      )}>
-                        {oddsStale && "⚠ "}Updated {oddsUpdatedAgo}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* Last confirmed time */}
+                      {oddsUpdatedAgo && (
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                          Confirmed {oddsUpdatedAgo}
+                        </span>
+                      )}
+                      {/* Refresh button */}
+                      {isFetchingOdds ? (
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Confirming...
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleRefreshOdds}
+                          className={cn(
+                            "text-[10px] font-medium transition-colors",
+                            priceUncertain 
+                              ? "text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300" 
+                              : "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                          )}
+                        >
+                          {priceUncertain ? "Confirm price" : "Refresh"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   {bookOdds.length > 0 ? (
@@ -1082,7 +1295,7 @@ function FavoritesEmptyState() {
         <Heart className="h-6 w-6 text-neutral-400" />
       </div>
       <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-2">
-        No favorites yet
+        No saved plays yet
       </h3>
       <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 max-w-[220px]">
         Tap the heart on any play to save it here
@@ -1108,7 +1321,7 @@ function BetslipsEmptyState() {
         No betslips yet
       </h3>
       <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-[220px]">
-        Select favorites to create your first one
+        Select plays to create your first one
       </p>
     </div>
   );
@@ -1280,7 +1493,7 @@ function AddToBetslipModal({
 // ============================================================================
 
 export default function FavoritesPage() {
-  const { favorites, removeFavorite, isLoading: favoritesLoading } = useFavorites();
+  const { favorites, removeFavorite, refreshOdds, isRefreshingOdds, isLoading: favoritesLoading } = useFavorites();
   const { 
     betslips, 
     isLoading: betslipsLoading, 
@@ -1291,6 +1504,8 @@ export default function FavoritesPage() {
     addToBetslip,
     isAddingItems,
     removeFromBetslip,
+    fetchSgpOdds,
+    isFetchingSgpOdds,
   } = useBetslips();
   const isMobile = useIsMobile();
   
@@ -1302,9 +1517,47 @@ export default function FavoritesPage() {
   const [mobileTab, setMobileTab] = useState<"favorites" | "betslips">("favorites");
   const [showAddModal, setShowAddModal] = useState(false);
   const [dragState, setDragState] = useState<DragState>({ favoriteIds: [], isDragging: false });
+  const [fetchingBetslipId, setFetchingBetslipId] = useState<string | null>(null);
   
   const selectedCount = selectedIds.size;
   const hasSelection = selectedCount > 0;
+  
+  // Handler for fetching SGP odds for a specific betslip
+  const handleFetchSgpOdds = useCallback(async (betslipId: string, forceRefresh = false): Promise<SgpOddsResponse | void> => {
+    setFetchingBetslipId(betslipId);
+    try {
+      const result = await fetchSgpOdds({ betslipId, forceRefresh });
+      return result;
+    } finally {
+      setFetchingBetslipId(null);
+    }
+  }, [fetchSgpOdds]);
+  
+  // Live streaming odds via SSE (auto-refresh in background)
+  const {
+    refreshedOdds: streamRefreshedOdds,
+    changes: streamChanges,
+  } = useFavoritesStream({
+    favorites,
+    refreshOdds,
+    enabled: true,
+  });
+  
+  // Convert stream data to the format expected by FavoriteRow
+  const refreshedOddsMap = useMemo(() => {
+    const map = new Map<string, RefreshedFavoriteOdds | null>();
+    for (const [id, data] of streamRefreshedOdds) {
+      if (data) {
+        map.set(id, {
+          best: data.best ? { price: data.best.price, book: data.best.book } : null,
+          allBooks: data.allBooks,
+        });
+      } else {
+        map.set(id, null);
+      }
+    }
+    return map;
+  }, [streamRefreshedOdds]);
   
   // Handlers
   const toggleSelect = useCallback((id: string) => {
@@ -1341,17 +1594,32 @@ export default function FavoritesPage() {
     toast.success(`Added ${selectedCount} play${selectedCount !== 1 ? "s" : ""} to ${slip?.name || "betslip"}`);
     setSelectedIds(new Set());
     setShowAddModal(false);
-  }, [selectedIds, selectedCount, betslips, addToBetslip]);
+    
+    // Fetch SGP odds for the updated betslip (if it now has 2+ legs)
+    const newLegCount = (slip?.items?.length || 0) + selectedCount;
+    if (newLegCount >= 2) {
+      setTimeout(() => {
+        handleFetchSgpOdds(betslipId, true).catch(console.error);
+      }, 500);
+    }
+  }, [selectedIds, selectedCount, betslips, addToBetslip, handleFetchSgpOdds]);
   
   const handleCreateNew = useCallback(async (name: string) => {
-    await createBetslip({
+    const newBetslip = await createBetslip({
       name,
       favorite_ids: Array.from(selectedIds),
     });
     toast.success(`Created "${name}" with ${selectedCount} play${selectedCount !== 1 ? "s" : ""}`);
     setSelectedIds(new Set());
     setShowAddModal(false);
-  }, [selectedIds, selectedCount, createBetslip]);
+    
+    // Fetch SGP odds for the new betslip (if it has 2+ legs)
+    if (selectedCount >= 2 && newBetslip?.id) {
+      setTimeout(() => {
+        handleFetchSgpOdds(newBetslip.id, true).catch(console.error);
+      }, 500);
+    }
+  }, [selectedIds, selectedCount, createBetslip, handleFetchSgpOdds]);
   
   const handleDeleteBetslip = useCallback(async (id: string) => {
     const slip = betslips.find(b => b.id === id);
@@ -1392,7 +1660,16 @@ export default function FavoritesPage() {
     
     // Clear selection after drop
     setSelectedIds(new Set());
-  }, [betslips, favorites, addToBetslip]);
+    
+    // Fetch SGP odds for the updated betslip (if it now has 2+ legs)
+    const newLegCount = (slip?.items?.length || 0) + favoriteIds.length;
+    if (newLegCount >= 2) {
+      // Small delay to let the query cache invalidate first
+      setTimeout(() => {
+        handleFetchSgpOdds(betslipId, true).catch(console.error);
+      }, 500);
+    }
+  }, [betslips, favorites, addToBetslip, handleFetchSgpOdds]);
   
   const handleQuickCompare = useCallback((betslipId: string) => {
     // TODO: Open Quick Compare panel with betslip items
@@ -1412,7 +1689,7 @@ export default function FavoritesPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
         <div>
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Favorites</h2>
+          <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Saved Plays</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             {favorites.length} saved play{favorites.length !== 1 ? "s" : ""}
           </p>
@@ -1446,6 +1723,8 @@ export default function FavoritesPage() {
               isDragging={dragState.favoriteIds.includes(favorite.id)}
               isMobile={isMobile}
               dragPreviewRef={dragPreviewRef}
+              refreshedOdds={refreshedOddsMap.get(favorite.id)}
+              priceChange={streamChanges.get(favorite.id)}
             />
           ))}
         </div>
@@ -1493,9 +1772,13 @@ export default function FavoritesPage() {
               onRename={(name) => handleRenameBetslip(betslip.id, name)}
               onQuickCompare={() => handleQuickCompare(betslip.id)}
               onRemoveLeg={(favoriteId) => handleRemoveLegFromBetslip(betslip.id, favoriteId)}
+              onFetchOdds={(forceRefresh) => handleFetchSgpOdds(betslip.id, forceRefresh)}
+              isFetchingOdds={fetchingBetslipId === betslip.id}
               onDrop={(favoriteIds) => handleDropOnBetslip(betslip.id, favoriteIds)}
               isDropTarget={dragState.isDragging}
               dragCount={dragState.favoriteIds.length}
+              refreshedOddsMap={refreshedOddsMap}
+              changesMap={streamChanges}
             />
           ))}
         </div>
@@ -1517,7 +1800,7 @@ export default function FavoritesPage() {
                 : "text-neutral-500 dark:text-neutral-400"
             )}
           >
-            Favorites
+            Saved Plays
           </button>
           <button
             onClick={() => setMobileTab("betslips")}

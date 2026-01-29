@@ -66,6 +66,62 @@ export interface Betslip {
   items?: BetslipItem[];
 }
 
+// Response from SGP odds API
+export interface SgpOddsResponse {
+  odds: SgpOddsCache;
+  bet_type: BetType;
+  updated_at: string | null;
+  from_cache: boolean;
+  legs_hash?: string;
+  cache_age_seconds?: number;
+  cache_stats?: {
+    redis_hits: number;
+    vendor_calls: number;
+  };
+}
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+/**
+ * Generate a stable hash for betslip legs
+ * Used to detect when legs were added/removed
+ */
+export function calculateLegsHash(items: BetslipItem[]): string {
+  const favoriteIds = items
+    .map(item => item.favorite?.id)
+    .filter(Boolean)
+    .sort() as string[];
+  
+  // Simple djb2 hash (matches backend)
+  let hash = 5381;
+  const str = favoriteIds.join("|");
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Check if SGP odds are stale
+ * Returns time since last update in ms, or null if no cache
+ */
+export function getSgpOddsAge(betslip: Betslip): number | null {
+  if (!betslip.sgp_odds_updated_at) return null;
+  return Date.now() - new Date(betslip.sgp_odds_updated_at).getTime();
+}
+
+/**
+ * Check if betslip legs changed since last SGP fetch
+ * (legs added or removed)
+ */
+export function didLegsChange(betslip: Betslip, lastLegsHash: string | null): boolean {
+  if (!lastLegsHash) return false;
+  const currentHash = calculateLegsHash(betslip.items || []);
+  return currentHash !== lastLegsHash;
+}
+
 export interface CreateBetslipParams {
   name: string;
   color?: string;
@@ -293,12 +349,7 @@ export function useBetslips() {
       betslipId: string;
       forceRefresh?: boolean;
       sportsbooks?: string[];
-    }): Promise<{
-      odds: SgpOddsCache;
-      bet_type: BetType;
-      updated_at: string | null;
-      from_cache: boolean;
-    }> => {
+    }): Promise<SgpOddsResponse> => {
       if (!user) throw new Error("Not authenticated");
 
       const response = await fetch("/api/v2/sgp-odds", {

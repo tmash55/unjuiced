@@ -11,9 +11,15 @@ import { Button, ButtonProps, buttonVariants } from "@/components/button";
 import { nFormatter } from "@/lib/nformatter";
 import { timeAgo } from "@/lib/time-ago";
 
-export function TooltipProvider({ children }: { children: ReactNode }) {
+export function TooltipProvider({
+  children,
+  delayDuration = 150,
+}: {
+  children: ReactNode;
+  delayDuration?: number;
+}) {
   return (
-    <TooltipPrimitive.Provider delayDuration={150}>
+    <TooltipPrimitive.Provider delayDuration={delayDuration}>
       {children}
     </TooltipPrimitive.Provider>
   );

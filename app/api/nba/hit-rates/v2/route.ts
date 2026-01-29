@@ -8,7 +8,7 @@ import { redis } from "@/lib/redis";
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
  * 
- * Uses the new `get_nba_hit_rate_profiles_fast` RPC which:
+ * Uses the new `get_nba_hit_rate_profiles_fast_v2` RPC which:
  * 1. Has NO JOINs (all data denormalized in the table)
  * 2. Pre-computed DvP ranks (no separate matchup call needed)
  * 3. Filters by has_live_odds for actionable profiles first
@@ -294,7 +294,7 @@ export async function GET(request: Request) {
       const dbStartTime = Date.now();
       
       // Call the new optimized RPC function
-      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast", {
+      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast_v2", {
         p_dates: datesToFetch,
         p_market: market || null,
         p_has_odds: hasOdds,

@@ -39,7 +39,7 @@ interface OddsBlazeResponse {
 // =============================================================================
 
 const ODDSBLAZE_API_KEY = process.env.ODDSBLAZE_API_KEY;
-const TIME_BUDGET_MS = 2500; // Max wait time before returning partial results
+const TIME_BUDGET_MS = 5000; // Max wait time before returning partial results (5s to allow slower books like Caesars, Bet365)
 const PING_INTERVAL_MS = 15000;
 
 // Map our book IDs to OddsBlaze's expected subdomain IDs
@@ -385,7 +385,12 @@ export async function POST(req: NextRequest) {
         }
 
       } catch (error) {
-        console.error("[SGP SSE] Stream error:", error);
+        // Only log unexpected errors, not client disconnections
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg !== "closed") {
+          console.error("[SGP SSE] Stream error:", error);
+        }
+        // "closed" errors are expected when client navigates away or closes tab
       } finally {
         if (pingInterval) clearInterval(pingInterval);
         try {

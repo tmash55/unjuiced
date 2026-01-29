@@ -6,6 +6,17 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+// Shared tracking of manually deleted favorites across hook instances
+const manuallyDeletedByUserId = new Map<string, Set<string>>();
+
+function getManualDeletedSet(userId: string): Set<string> {
+  const existing = manuallyDeletedByUserId.get(userId);
+  if (existing) return existing;
+  const created = new Set<string>();
+  manuallyDeletedByUserId.set(userId, created);
+  return created;
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -184,8 +195,8 @@ export function useFavorites() {
   // Track previous favorite IDs to detect expirations (excludes temp IDs from optimistic updates)
   const prevFavoriteIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
-  // Track IDs that were manually deleted so we don't show "expired" toast for them
-  const manuallyDeletedIdsRef = useRef<Set<string>>(new Set());
+  // Shared manual deletion tracking across hook instances
+  const manualDeletedIds = user?.id ? getManualDeletedSet(user.id) : null;
   
   // ─────────────────────────────────────────────────────────────────────────
   // QUERY: Get all active favorites for the current user
@@ -216,7 +227,8 @@ export function useFavorites() {
   });
   
   // ─────────────────────────────────────────────────────────────────────────
-  // EFFECT: Detect expired favorites and show toast
+  // EFFECT: Track favorite IDs for cache management
+  // (Expiration toast removed - auto-expiration is silent)
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isLoading) return;
@@ -235,22 +247,15 @@ export function useFavorites() {
       return;
     }
     
-    // Count how many favorites disappeared that weren't manually deleted
-    const expiredIds = [...prevFavoriteIdsRef.current].filter(
-      id => !currentIds.has(id) && !manuallyDeletedIdsRef.current.has(id)
+    // Find IDs that disappeared and clean up manual deletion tracking
+    const missingIds = [...prevFavoriteIdsRef.current].filter(
+      id => !currentIds.has(id)
     );
-    const expiredCount = expiredIds.length;
     
-    // Clear any manually deleted IDs that are no longer relevant
-    manuallyDeletedIdsRef.current.clear();
-    
-    // Show toast if any favorites expired (and we had previous favorites)
-    if (expiredCount > 0 && prevFavoriteIdsRef.current.size > 0) {
-      toast.info(
-        `${expiredCount} favorite${expiredCount > 1 ? "s" : ""} expired (game started)`,
-        { duration: 4000 }
-      );
-    }
+    // Clean up tracking for IDs that are now gone
+    missingIds.forEach(id => {
+      manualDeletedIds?.delete(id);
+    });
     
     prevFavoriteIdsRef.current = currentIds;
   }, [favorites, isLoading]);
@@ -324,9 +329,6 @@ export function useFavorites() {
     mutationFn: async (favoriteId: string) => {
       if (!user?.id) throw new Error("Must be logged in to remove favorites");
       
-      // Track this ID as manually deleted so we don't show "expired" toast
-      manuallyDeletedIdsRef.current.add(favoriteId);
-      
       const { error } = await supabase
         .from("user_favorites")
         .delete()
@@ -334,8 +336,37 @@ export function useFavorites() {
         .eq("user_id", user.id); // RLS should handle this, but be explicit
       
       if (error) throw error;
+      return favoriteId;
     },
-    onSuccess: () => {
+    onMutate: async (favoriteId: string) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["favorites", user?.id] });
+      
+      // Snapshot the previous value
+      const previousFavorites = queryClient.getQueryData<Favorite[]>(["favorites", user?.id]);
+      
+      // Track this ID as manually deleted BEFORE updating cache
+      // This prevents the "expired" toast from firing
+      manualDeletedIds?.add(favoriteId);
+      
+      // Optimistically remove from cache
+      queryClient.setQueryData<Favorite[]>(
+        ["favorites", user?.id],
+        (old) => old?.filter(f => f.id !== favoriteId) ?? []
+      );
+      
+      return { previousFavorites };
+    },
+    onError: (err, favoriteId, context) => {
+      // Rollback on error
+      if (context?.previousFavorites) {
+        queryClient.setQueryData(["favorites", user?.id], context.previousFavorites);
+      }
+      // Remove from manually deleted since it wasn't actually deleted
+      manualDeletedIds?.delete(favoriteId);
+    },
+    onSettled: () => {
+      // Always refetch to ensure we're in sync with the server
       queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
     },
   });
@@ -376,7 +407,7 @@ export function useFavorites() {
       
       if (existingData) {
         // Remove - it already exists
-        // Note: manuallyDeletedIdsRef is updated in onMutate (before cache update)
+        // Note: manualDeletedIds is updated in onMutate (before cache update)
         // to prevent the "expired" toast from firing
         
         const { error } = await supabase
@@ -443,7 +474,7 @@ export function useFavorites() {
         // Track this ID as manually deleted BEFORE updating cache
         // This prevents the "expired" toast from firing
         if (!existingFavorite.id.startsWith("temp-")) {
-          manuallyDeletedIdsRef.current.add(existingFavorite.id);
+          manualDeletedIds?.add(existingFavorite.id);
         }
         
         // Remove from cache

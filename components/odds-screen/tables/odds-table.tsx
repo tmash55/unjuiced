@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, memo, useRef,} from 'react'
 import { motion } from 'framer-motion'
-import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown, ChevronsUpDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, GripVertical, Plus, HeartPulse, ArrowDown, TrendingUp, TrendingDown, ChevronsUpDown, Heart } from 'lucide-react'
 import { Star } from '@/components/star'
 import Chart from '@/icons/chart'
 import { PlayerQuickViewModal } from '@/components/player-quick-view-modal'
@@ -48,6 +48,7 @@ import { ProGateModal } from '../pro-gate-modal'
 import Lock from '@/icons/lock'
 import { usePlayerInjuries, hasInjuryStatus, getInjuryIconColorClass, isGLeagueAssignment } from '@/hooks/use-player-injuries'
 import { usePrefetchPlayerByOddsId } from '@/hooks/use-prefetch-player'
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from '@/hooks/use-favorites'
 
 const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
@@ -1201,6 +1202,60 @@ export function OddsTable({
   // VC-Grade: Use centralized, cached Pro status
   const { isPro, isLoading: isLoadingPro } = useIsPro()
   
+  // Favorites functionality
+  const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites()
+  
+  // Helper to build favorite params from an odds table item
+  const buildFavoriteParams = useCallback((
+    item: OddsTableItem,
+    side: 'over' | 'under' = 'over',
+    bestOddsOverride?: OddsPrice | null
+  ): AddFavoriteParams => {
+    // Build books_snapshot from item.odds.books
+    const booksSnapshot: Record<string, BookSnapshot> = {};
+    for (const [bookId, bookOdds] of Object.entries(item.odds?.books || {})) {
+      const sideOdds = side === 'over' ? bookOdds.over : bookOdds.under;
+      if (sideOdds) {
+        booksSnapshot[bookId] = {
+          price: sideOdds.price,
+          u: sideOdds.link || null,
+          m: sideOdds.mobileLink || null,
+          sgp: sideOdds.sgp || null,
+        };
+      }
+    }
+
+    const isPlayer = item.entity?.type === 'player';
+    const fallbackLine = side === 'over' 
+      ? item.odds?.best?.over?.line ?? item.odds?.best?.under?.line
+      : item.odds?.best?.under?.line ?? item.odds?.best?.over?.line;
+    const bestOdds = bestOddsOverride ?? (side === 'over' ? item.odds?.best?.over : item.odds?.best?.under);
+    const line = bestOdds?.line ?? fallbackLine;
+    
+    return {
+      type: isPlayer ? 'player' : 'game',
+      sport,
+      event_id: item.event?.id || '',
+      game_date: item.event?.startTime?.split('T')[0] || null,
+      home_team: item.event?.homeTeam || null,
+      away_team: item.event?.awayTeam || null,
+      start_time: item.event?.startTime || null,
+      player_id: isPlayer ? item.entity?.id || null : null,
+      player_name: isPlayer ? item.entity?.name || null : null,
+      player_team: item.entity?.team || null,
+      player_position: item.entity?.details || null,
+      market: marketStr,
+      line: line ?? null,
+      side,
+      odds_key: `odds:${sport}:${item.event?.id}:${marketStr}`,
+      odds_selection_id: item.id,
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: bestOdds?.price || null,
+      best_book_at_save: bestOdds?.book || null,
+      source: 'odds_screen',
+    };
+  }, [sport, marketStr])
+  
   // Prefetch player data on hover for faster modal loading
   const prefetchPlayer = usePrefetchPlayerByOddsId()
   
@@ -1376,8 +1431,9 @@ export function OddsTable({
   // IMPORTANT: Visibility is controlled by showBestLine/showAverageLine separately
   // NOTE: 'event' column removed - date/time is already shown in game row headers
   // NOTE: 'line' column is only shown for single-line markets
+  // NOTE: 'favorites' column is shown after best-line for saving props
   React.useEffect(() => {
-    const requiredColumns = ['entity', 'best-line', 'average-line']
+    const requiredColumns = ['entity', 'best-line', 'favorites', 'average-line']
     const missingColumns = requiredColumns.filter(col => !columnOrder.includes(col))
     
     if (missingColumns.length > 0) {
@@ -1413,14 +1469,29 @@ export function OddsTable({
     // Remove any existing 'line' column (we'll add it conditionally below)
     columns = columns.filter(col => col !== 'line')
     
+    // Remove old action column if it exists (deprecated)
+    columns = columns.filter(col => col !== 'action')
+    
     // Remove best-line column if user has it disabled
     if (!preferences?.showBestLine) {
       columns = columns.filter(col => col !== 'best-line')
+      // Also hide favorites when best-line is hidden (they go together)
+      columns = columns.filter(col => col !== 'favorites')
     }
     
     // Remove average-line column if user has it disabled
     if (!preferences?.showAverageLine) {
       columns = columns.filter(col => col !== 'average-line')
+    }
+    
+    // Ensure 'favorites' column is after 'best-line' if both exist
+    if (columns.includes('best-line') && !columns.includes('favorites')) {
+      const bestLineIndex = columns.indexOf('best-line')
+      columns = [
+        ...columns.slice(0, bestLineIndex + 1),
+        'favorites',
+        ...columns.slice(bestLineIndex + 1)
+      ]
     }
     
     // Add 'line' column after 'entity' for single-line markets only
@@ -2339,6 +2410,34 @@ export function OddsTable({
           )
         }
       }),
+      'favorites': columnHelper.display({
+        id: 'favorites',
+        header: () => (
+          <Tooltip content="Save to favorites for quick access and SGP building">
+            <div className="flex items-center justify-center">
+              <Heart className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
+            </div>
+          </Tooltip>
+        ),
+        size: 44,
+        minSize: 36,
+        maxSize: 52,
+        cell: (info) => {
+          const item = info.row.original
+          const marketStr = typeof market === 'string' ? market : ''
+          const isSingleLine = SINGLE_LINE_MARKETS.has(marketStr)
+          
+          return (
+            <div className={cn(
+              "flex items-center justify-center",
+              isSingleLine ? "" : "flex-col gap-0.5"
+            )}>
+              {renderFavoriteButton(item, 'over', effectiveVisibleSportsbooks)}
+              {!isSingleLine && renderFavoriteButton(item, 'under', effectiveVisibleSportsbooks)}
+            </div>
+          )
+        }
+      }),
       'average-line': columnHelper.display({
         id: 'average-line',
         header: () => {
@@ -2935,6 +3034,53 @@ export function OddsTable({
     )
   }
 
+  // Render a heart button for favoriting
+  const renderFavoriteButton = (
+    rowItem: OddsTableItem,
+    side: 'over' | 'under',
+    visibleSportsbooks: string[]
+  ) => {
+    const marketStr = typeof market === 'string' ? market : ''
+    const { userBest, globalBest } = calculateUserBestOdds(rowItem, side, visibleSportsbooks)
+    const displayOdds = userBest || globalBest
+    const isPlayer = rowItem.entity?.type === 'player'
+    
+    const isFavoritedSide = isFavorited({
+      event_id: rowItem.event?.id || '',
+      type: isPlayer ? 'player' : 'game',
+      market: marketStr,
+      side,
+      line: displayOdds?.line ?? null,
+      player_id: isPlayer ? rowItem.entity?.id || null : null,
+    })
+
+    const isDisabled = !displayOdds
+
+    return (
+      <Tooltip content={isFavoritedSide ? "Remove from favorites" : "Add to favorites"}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!isLoggedIn) return
+            if (!displayOdds) return
+            const params = buildFavoriteParams(rowItem, side, displayOdds)
+            toggleFavorite(params)
+          }}
+          disabled={isToggling || isDisabled}
+          className={cn(
+            "p-1 rounded transition-colors",
+            isFavoritedSide 
+              ? "text-red-500" 
+              : "text-neutral-400 hover:text-red-400 dark:text-neutral-500 dark:hover:text-red-400",
+            (isToggling || isDisabled) && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          <Heart className={cn("w-4 h-4", isFavoritedSide && "fill-current")} />
+        </button>
+      </Tooltip>
+    )
+  }
+
   // Helper function to get team logo URL efficiently
   const getTeamLogoUrl = (teamName: string): string => {
     if (!teamName) return ''
@@ -3376,6 +3522,11 @@ export function OddsTable({
                         // Player info for modal
                         playerName={item.entity?.name}
                         team={item.entity?.team}
+                        playerPosition={item.entity?.details}
+                        // Event info for favorites
+                        homeTeam={item.event?.homeTeam}
+                        awayTeam={item.event?.awayTeam}
+                        startTime={item.event?.startTime}
                         // Callback to view player profile (NBA/WNBA only)
                         onViewProfile={(sport === 'nba' || sport === 'wnba') && item.entity?.id && item.entity?.name ? () => {
                           setSelectedPlayer({

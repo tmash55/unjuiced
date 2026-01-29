@@ -746,8 +746,8 @@ interface PropsRow {
   };
   avg?: { over?: number; under?: number };
   books?: Record<string, {
-    over?: { price: number; line: number; u: string; m?: string; limit_max?: number | null; locked?: boolean };
-    under?: { price: number; line: number; u: string; m?: string; limit_max?: number | null; locked?: boolean };
+    over?: { price: number; line: number; u: string; m?: string; sgp?: string | null; limit_max?: number | null; locked?: boolean };
+    under?: { price: number; line: number; u: string; m?: string; sgp?: string | null; limit_max?: number | null; locked?: boolean };
   }>;
   ts?: number;
 }
@@ -1272,6 +1272,8 @@ async function buildPropsRows(
           price,
           line: bookData.over.line,
           u: bookData.over.link || "",
+          m: bookData.over.mobile_link || undefined,
+          sgp: bookData.over.sgp ?? null,
           limit_max: limitMax,
           locked: isLocked,
         };
@@ -1299,6 +1301,8 @@ async function buildPropsRows(
           price,
           line: bookData.under.line,
           u: bookData.under.link || "",
+          m: bookData.under.mobile_link || undefined,
+          sgp: bookData.under.sgp ?? null,
           limit_max: limitMax,
           locked: isLocked,
         };

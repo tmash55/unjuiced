@@ -136,6 +136,7 @@ export interface OddsScreenParams {
     book?: string                    // Sportsbook identifier
     link?: string | null             // Deep link to sportsbook
     mobileLink?: string | null       // Mobile deep link (if available)
+    sgp?: string | null              // SGP token for same-game parlay API calls
     limit_max?: number | null        // Maximum bet limit (e.g., 250, 500)
     locked?: boolean                 // Whether the line is currently locked
   }

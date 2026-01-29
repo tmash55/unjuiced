@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Redirects for renamed routes
+  async redirects() {
+    return [
+      {
+        source: "/favorites",
+        destination: "/saved-plays",
+        permanent: true,
+      },
+    ];
+  },
   // Dub Analytics reverse proxy support
   async rewrites() {
     return [

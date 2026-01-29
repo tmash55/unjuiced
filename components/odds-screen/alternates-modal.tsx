@@ -2,19 +2,20 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, User, ChevronRight } from "lucide-react";
+import { X, User, ChevronRight, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSportsbookById, sportsbooks } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
 import { motion, AnimatePresence } from "motion/react";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
 import { usePlayerLookup } from "@/hooks/use-player-lookup";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
 
 interface AlternateLine {
   ln: number;
   books: Record<string, {
-    over?: { price: number; u?: string; m?: string };
-    under?: { price: number; u?: string; m?: string };
+    over?: { price: number; u?: string; m?: string; sgp?: string };
+    under?: { price: number; u?: string; m?: string; sgp?: string };
   }>;
 }
 
@@ -33,6 +34,11 @@ interface AlternatesModalProps {
   eventId?: string;
   onMarketChange?: (market: string) => void;
   onViewProfile?: () => void;
+  // Additional props for favorites
+  homeTeam?: string;
+  awayTeam?: string;
+  startTime?: string;
+  playerPosition?: string;
 }
 
 type ViewMode = 'over' | 'under' | 'both';
@@ -105,9 +111,72 @@ export function AlternatesModal({
   eventId,
   onMarketChange,
   onViewProfile,
+  // Additional props for favorites
+  homeTeam,
+  awayTeam,
+  startTime,
+  playerPosition,
 }: AlternatesModalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('over');
   const [selectedMarket, setSelectedMarket] = useState(market);
+  
+  // Favorites functionality
+  const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
+  
+  // Helper to build favorite params for an alternate line
+  const buildAlternateFavoriteParams = React.useCallback((
+    line: number,
+    side: 'over' | 'under',
+    alternateData: AlternateLine
+  ): AddFavoriteParams => {
+    // Build books_snapshot from alternate line data
+    const booksSnapshot: Record<string, BookSnapshot> = {};
+    for (const [bookId, bookOdds] of Object.entries(alternateData.books)) {
+      const sideOdds = side === 'over' ? bookOdds.over : bookOdds.under;
+      if (sideOdds) {
+        booksSnapshot[bookId] = {
+          price: sideOdds.price,
+          u: sideOdds.u || null,
+          m: sideOdds.m || null,
+          sgp: sideOdds.sgp || null,
+        };
+      }
+    }
+
+    // Find best price for this side
+    let bestPrice: number | null = null;
+    let bestBook: string | null = null;
+    for (const [bookId, bookOdds] of Object.entries(alternateData.books)) {
+      const sideOdds = side === 'over' ? bookOdds.over : bookOdds.under;
+      if (sideOdds?.price !== undefined && (bestPrice === null || sideOdds.price > bestPrice)) {
+        bestPrice = sideOdds.price;
+        bestBook = bookId;
+      }
+    }
+
+    return {
+      type: 'player',
+      sport,
+      event_id: eventId || '',
+      game_date: startTime?.split('T')[0] || null,
+      home_team: homeTeam || null,
+      away_team: awayTeam || null,
+      start_time: startTime || null,
+      player_id: playerId || null,
+      player_name: playerName || null,
+      player_team: team || null,
+      player_position: playerPosition || null,
+      market: selectedMarket,
+      line,
+      side,
+      odds_key: `odds:${sport}:${eventId}:${selectedMarket}`,
+      odds_selection_id: `${eventId}:${playerId}:${selectedMarket}:${line}:${side}`,
+      books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+      best_price_at_save: bestPrice,
+      best_book_at_save: bestBook,
+      source: 'alternates_modal',
+    };
+  }, [sport, eventId, startTime, homeTeam, awayTeam, playerId, playerName, team, playerPosition, selectedMarket]);
 
   // Lookup the NBA player ID from the odds player ID (only for NBA/WNBA)
   const { data: playerLookupData, isLoading: isLookingUpPlayer } = usePlayerLookup({
@@ -379,6 +448,10 @@ export function AlternatesModal({
                         <th className="sticky left-0 z-20 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-left text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-800 min-w-[80px]">
                           {viewMode === 'both' ? 'Line' : viewMode.toUpperCase()}
                         </th>
+                        {/* Favorite button column header */}
+                        <th className="px-2 py-3 text-center border-b border-neutral-200 dark:border-neutral-800 min-w-[44px]">
+                          <span className="sr-only">Favorite</span>
+                        </th>
                         {availableSportsbooks.map((bookId: string) => {
                           const sb = getSportsbookById(bookId);
                           const logoUrl = sb?.image?.square || sb?.image?.light;
@@ -441,6 +514,40 @@ export function AlternatesModal({
                                     {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">o</span>}
                                     <span>{alt.ln}</span>
                                   </div>
+                                </td>
+                                {/* Favorite button for Over */}
+                                <td className="px-2 py-2.5 text-center">
+                                  {(() => {
+                                    const favorited = isFavorited({
+                                      event_id: eventId || '',
+                                      type: 'player',
+                                      market: selectedMarket,
+                                      side: 'over',
+                                      line: alt.ln,
+                                      player_id: playerId || null,
+                                    });
+                                    return (
+                                      <Tooltip content={favorited ? "Remove from favorites" : "Add to favorites"}>
+                                        <button
+                                          onClick={() => {
+                                            if (!isLoggedIn) return;
+                                            const params = buildAlternateFavoriteParams(alt.ln, 'over', alt);
+                                            toggleFavorite(params);
+                                          }}
+                                          disabled={isToggling}
+                                          className={cn(
+                                            "p-1 rounded-md transition-colors",
+                                            favorited 
+                                              ? "text-red-500 bg-red-50 dark:bg-red-950/30" 
+                                              : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                                            isToggling && "opacity-50 cursor-not-allowed"
+                                          )}
+                                        >
+                                          <Heart className={cn("w-3.5 h-3.5", favorited && "fill-current")} />
+                                        </button>
+                                      </Tooltip>
+                                    );
+                                  })()}
                                 </td>
                                 {availableSportsbooks.map((bookId: string) => {
                                   const bookData = alt.books[bookId];
@@ -505,6 +612,43 @@ export function AlternatesModal({
                                     {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">u</span>}
                                     <span>{alt.ln}</span>
                                   </div>
+                                </td>
+                                {/* Favorite button for Under */}
+                                <td className={cn(
+                                  "px-2 py-2.5 text-center",
+                                  viewMode === 'both' && "bg-neutral-50/30 dark:bg-neutral-800/20"
+                                )}>
+                                  {(() => {
+                                    const favorited = isFavorited({
+                                      event_id: eventId || '',
+                                      type: 'player',
+                                      market: selectedMarket,
+                                      side: 'under',
+                                      line: alt.ln,
+                                      player_id: playerId || null,
+                                    });
+                                    return (
+                                      <Tooltip content={favorited ? "Remove from favorites" : "Add to favorites"}>
+                                        <button
+                                          onClick={() => {
+                                            if (!isLoggedIn) return;
+                                            const params = buildAlternateFavoriteParams(alt.ln, 'under', alt);
+                                            toggleFavorite(params);
+                                          }}
+                                          disabled={isToggling}
+                                          className={cn(
+                                            "p-1 rounded-md transition-colors",
+                                            favorited 
+                                              ? "text-red-500 bg-red-50 dark:bg-red-950/30" 
+                                              : "text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                                            isToggling && "opacity-50 cursor-not-allowed"
+                                          )}
+                                        >
+                                          <Heart className={cn("w-3.5 h-3.5", favorited && "fill-current")} />
+                                        </button>
+                                      </Tooltip>
+                                    );
+                                  })()}
                                 </td>
                                 {availableSportsbooks.map((bookId: string) => {
                                   const bookData = alt.books[bookId];

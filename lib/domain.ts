@@ -42,7 +42,7 @@ export const APP_ROUTES = [
   '/edge-finder',
   '/hit-rates',
   '/cheatsheets',
-  '/favorites',
+  '/saved-plays',
   '/account',
   '/ladders',
   '/plans',

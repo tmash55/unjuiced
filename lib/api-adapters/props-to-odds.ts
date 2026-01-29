@@ -52,6 +52,7 @@ export interface PropsRow {
         line: number
         u: string // URL
         m?: string // Mobile URL
+        sgp?: string // SGP token for same-game parlay API
         limit_max?: number | null
         locked?: boolean // Whether the line is currently locked
       }
@@ -60,6 +61,7 @@ export interface PropsRow {
         line: number
         u: string // URL
         m?: string // Mobile URL
+        sgp?: string // SGP token for same-game parlay API
         limit_max?: number | null
         locked?: boolean // Whether the line is currently locked
       }
@@ -206,6 +208,7 @@ export function transformPropsRowToOddsItem(
             line: isMoneyline ? 0 : bookData.over.line, 
             link: bookData.over.u || bookData.over.m || null,
             mobileLink: bookData.over.m || null,
+            sgp: bookData.over.sgp || null,
             limit_max: bookData.over.limit_max,
             locked: bookData.over.locked
           }
@@ -216,6 +219,7 @@ export function transformPropsRowToOddsItem(
             line: isMoneyline ? 0 : bookData.under.line, 
             link: bookData.under.u || bookData.under.m || null,
             mobileLink: bookData.under.m || null,
+            sgp: bookData.under.sgp || null,
             limit_max: bookData.under.limit_max,
             locked: bookData.under.locked
           }

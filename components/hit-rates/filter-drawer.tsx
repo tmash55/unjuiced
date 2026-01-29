@@ -718,11 +718,28 @@ export function FilterDrawer({
           {/* MATCHUP CONTEXT TAB */}
           {activeTab === "matchup" && (
             <div className="p-4 space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Info className="h-3.5 w-3.5 text-neutral-400" />
-                <p className="text-[10px] text-neutral-500">
-                  Filter games by opponent defensive rankings{opponentTeamAbbr ? ` (today vs ${opponentTeamAbbr})` : ""}
-                </p>
+              {/* Ranking Scale Legend */}
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/60">
+                <span className="text-[9px] font-semibold text-neutral-500 uppercase tracking-wide">
+                  {opponentTeamAbbr ? `vs ${opponentTeamAbbr}` : "Rank Scale"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20">
+                    <div className="w-1.5 h-1.5 rounded-sm bg-red-500" />
+                    <span className="text-[9px] font-semibold text-red-600 dark:text-red-400">1-10</span>
+                    <span className="text-[8px] text-neutral-400">Tough</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="w-1.5 h-1.5 rounded-sm bg-yellow-500" />
+                    <span className="text-[9px] font-semibold text-yellow-600 dark:text-yellow-400">11-20</span>
+                    <span className="text-[8px] text-neutral-400">Avg</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="w-1.5 h-1.5 rounded-sm bg-emerald-500" />
+                    <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">21-30</span>
+                    <span className="text-[8px] text-neutral-400">Soft</span>
+                  </div>
+                </div>
               </div>
 
               {/* Play Type Filters Section */}
@@ -730,7 +747,7 @@ export function FilterDrawer({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      Play Type Defense Filters
+                      Play Type Defense
                     </h4>
                     {playTypeFilters.length > 0 && (
                       <button
@@ -793,49 +810,45 @@ export function FilterDrawer({
                             )}
                           </div>
                           
-                          {/* Filter buttons */}
+                          {/* Filter buttons - ordered Tough → Avg → Soft to match rank order */}
                           {onPlayTypeFiltersChange && (
-                            <div className="flex gap-0.5 shrink-0">
-                              {(["favorable", "neutral", "tough"] as const).map(label => {
+                            <div className="flex gap-px shrink-0 bg-neutral-200 dark:bg-neutral-700 rounded-lg overflow-hidden">
+                              {(["tough", "neutral", "favorable"] as const).map(label => {
                                 const isActive = activeFilter?.label === label;
-                                const colors = {
-                                  favorable: isActive 
-                                    ? "bg-emerald-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-600",
-                                  neutral: isActive 
-                                    ? "bg-amber-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-amber-600",
-                                  tough: isActive 
-                                    ? "bg-red-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-600",
+                                const config = {
+                                  tough: { 
+                                    bg: isActive ? "bg-red-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20",
+                                    text: "1-10"
+                                  },
+                                  neutral: { 
+                                    bg: isActive ? "bg-yellow-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20",
+                                    text: "11-20"
+                                  },
+                                  favorable: { 
+                                    bg: isActive ? "bg-emerald-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
+                                    text: "21-30"
+                                  },
                                 };
                                 return (
-                                  <Tooltip key={label} content={
-                                    label === "favorable" ? "Games vs teams ranked 21-30 (weak defense)" :
-                                    label === "neutral" ? "Games vs teams ranked 11-20 (average defense)" :
-                                    "Games vs teams ranked 1-10 (strong defense)"
-                                  }>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (isActive) {
-                                          onPlayTypeFiltersChange(playTypeFilters.filter(f => f.playType !== pt.playType));
-                                        } else {
-                                          const newFilters = playTypeFilters.filter(f => f.playType !== pt.playType);
-                                          newFilters.push({ playType: pt.playType, label });
-                                          onPlayTypeFiltersChange(newFilters);
-                                        }
-                                      }}
-                                      className={cn(
-                                        "px-1.5 py-1 text-[8px] font-bold rounded transition-all",
-                                        colors[label],
-                                        label === "favorable" && "rounded-l",
-                                        label === "tough" && "rounded-r"
-                                      )}
-                                    >
-                                      {label === "favorable" ? "Soft" : label === "neutral" ? "Mid" : "Tough"}
-                                    </button>
-                                  </Tooltip>
+                                  <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isActive) {
+                                        onPlayTypeFiltersChange(playTypeFilters.filter(f => f.playType !== pt.playType));
+                                      } else {
+                                        const newFilters = playTypeFilters.filter(f => f.playType !== pt.playType);
+                                        newFilters.push({ playType: pt.playType, label });
+                                        onPlayTypeFiltersChange(newFilters);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "px-2 py-1 text-[8px] font-bold tabular-nums transition-all",
+                                      config[label].bg
+                                    )}
+                                  >
+                                    {config[label].text}
+                                  </button>
                                 );
                               })}
                             </div>
@@ -844,9 +857,6 @@ export function FilterDrawer({
                       );
                     })}
                   </div>
-                  <p className="text-[9px] text-neutral-400 mt-2">
-                    Filter to show games vs teams with specific defensive rankings for each play type
-                  </p>
                 </div>
               ) : playTypeMatchup?.play_types && playTypeMatchup.play_types.length > 0 ? (
                 // Fallback to current opponent display if no filter data
@@ -916,7 +926,7 @@ export function FilterDrawer({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      Shot Zone Defense Filters
+                      Shot Zone Defense
                     </h4>
                     {shotZoneFilters.length > 0 && (
                       <button
@@ -978,49 +988,45 @@ export function FilterDrawer({
                             )}
                           </div>
                           
-                          {/* Filter buttons */}
+                          {/* Filter buttons - ordered Tough → Avg → Soft to match rank order */}
                           {onShotZoneFiltersChange && (
-                            <div className="flex gap-0.5 shrink-0">
-                              {(["favorable", "neutral", "tough"] as const).map(label => {
+                            <div className="flex gap-px shrink-0 bg-neutral-200 dark:bg-neutral-700 rounded-lg overflow-hidden">
+                              {(["tough", "neutral", "favorable"] as const).map(label => {
                                 const isActive = activeFilter?.label === label;
-                                const colors = {
-                                  favorable: isActive 
-                                    ? "bg-emerald-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-600",
-                                  neutral: isActive 
-                                    ? "bg-amber-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-amber-600",
-                                  tough: isActive 
-                                    ? "bg-red-500 text-white" 
-                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-600",
+                                const config = {
+                                  tough: { 
+                                    bg: isActive ? "bg-red-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20",
+                                    text: "1-10"
+                                  },
+                                  neutral: { 
+                                    bg: isActive ? "bg-yellow-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20",
+                                    text: "11-20"
+                                  },
+                                  favorable: { 
+                                    bg: isActive ? "bg-emerald-500 text-white" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
+                                    text: "21-30"
+                                  },
                                 };
                                 return (
-                                  <Tooltip key={label} content={
-                                    label === "favorable" ? "Games vs teams ranked 21-30 (weak defense)" :
-                                    label === "neutral" ? "Games vs teams ranked 11-20 (average defense)" :
-                                    "Games vs teams ranked 1-10 (strong defense)"
-                                  }>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (isActive) {
-                                          onShotZoneFiltersChange(shotZoneFilters.filter(f => f.zone !== zone.zone));
-                                        } else {
-                                          const newFilters = shotZoneFilters.filter(f => f.zone !== zone.zone);
-                                          newFilters.push({ zone: zone.zone, label });
-                                          onShotZoneFiltersChange(newFilters);
-                                        }
-                                      }}
-                                      className={cn(
-                                        "px-1.5 py-1 text-[8px] font-bold rounded transition-all",
-                                        colors[label],
-                                        label === "favorable" && "rounded-l",
-                                        label === "tough" && "rounded-r"
-                                      )}
-                                    >
-                                      {label === "favorable" ? "Soft" : label === "neutral" ? "Mid" : "Tough"}
-                                    </button>
-                                  </Tooltip>
+                                  <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isActive) {
+                                        onShotZoneFiltersChange(shotZoneFilters.filter(f => f.zone !== zone.zone));
+                                      } else {
+                                        const newFilters = shotZoneFilters.filter(f => f.zone !== zone.zone);
+                                        newFilters.push({ zone: zone.zone, label });
+                                        onShotZoneFiltersChange(newFilters);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "px-2 py-1 text-[8px] font-bold tabular-nums transition-all",
+                                      config[label].bg
+                                    )}
+                                  >
+                                    {config[label].text}
+                                  </button>
                                 );
                               })}
                             </div>
@@ -1029,9 +1035,6 @@ export function FilterDrawer({
                       );
                     })}
                   </div>
-                  <p className="text-[9px] text-neutral-400 mt-2">
-                    Filter to show games vs teams with specific defensive rankings for each shot zone
-                  </p>
                 </div>
               ) : shotZoneMatchup?.zones && shotZoneMatchup.zones.length > 0 ? (
                 // Fallback to current opponent display if no filter data
@@ -1095,13 +1098,6 @@ export function FilterDrawer({
                 </div>
               )}
 
-              {/* Info note about filtering */}
-              <div className="p-3 bg-brand/5 dark:bg-brand/10 rounded-lg border border-brand/20">
-                <p className="text-[9px] text-neutral-600 dark:text-neutral-400">
-                  <strong className="text-brand">How it works:</strong> Select "Soft" to show games where the player faced teams with weak defense (rank 21-30), 
-                  "Mid" for average (11-20), or "Tough" for strong defense (1-10) in that specific play type or zone.
-                </p>
-              </div>
             </div>
           )}
         </div>

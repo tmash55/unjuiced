@@ -64,7 +64,7 @@ const PROTECTED_PREFIXES = [
   '/account',
   '/billing',
   '/today',
-  '/favorites',
+  '/saved-plays',
   '/ladders',
   '/cheatsheets',
   '/hit-rates',

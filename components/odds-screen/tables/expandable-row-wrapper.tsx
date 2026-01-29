@@ -117,6 +117,11 @@ interface ExpandableRowWrapperProps {
   // Player info for modal
   playerName?: string;
   team?: string;
+  playerPosition?: string;
+  // Event info for favorites
+  homeTeam?: string;
+  awayTeam?: string;
+  startTime?: string;
   // Callback to open player profile
   onViewProfile?: () => void;
   // Data attribute for scroll-to functionality
@@ -150,6 +155,10 @@ export function ExpandableRowWrapper({
   playerKey,
   playerName,
   team,
+  playerPosition,
+  homeTeam,
+  awayTeam,
+  startTime,
   onViewProfile,
   'data-event-id': dataEventId,
 }: ExpandableRowWrapperProps & { rowClassName?: string }) {
@@ -291,6 +300,11 @@ export function ExpandableRowWrapper({
         eventId={eventId}
         onMarketChange={handleMarketChange}
         onViewProfile={onViewProfile}
+        // Additional props for favorites
+        homeTeam={homeTeam}
+        awayTeam={awayTeam}
+        startTime={startTime}
+        playerPosition={playerPosition}
       />
     </ExpandContext.Provider>
   );

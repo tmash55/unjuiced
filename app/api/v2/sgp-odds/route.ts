@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
+import { redis } from "@/lib/redis";
 
 // =============================================================================
 // TYPES
@@ -10,6 +11,12 @@ interface SgpOddsRequest {
   betslip_id: string;
   sportsbooks?: string[]; // Optional: specific books to fetch, defaults to all SGP books
   force_refresh?: boolean; // Force refresh even if cache is fresh
+}
+
+// Cached SGP quote from Redis (short TTL to dedupe requests)
+interface CachedSgpQuote {
+  odds: SgpBookOdds;
+  timestamp: number;
 }
 
 interface SgpBookOdds {
@@ -43,12 +50,23 @@ interface OddsBlazeResponse {
   message?: string;
 }
 
+// Betslip item structure from joined query
+interface BetslipItemWithFavorite {
+  id: string;
+  favorite?: {
+    id?: string;
+    event_id?: string | null;
+    books_snapshot?: Record<string, { sgp?: string }>;
+  } | null;
+}
+
 // =============================================================================
 // CONSTANTS
 // =============================================================================
 
 const ODDSBLAZE_API_KEY = process.env.ODDSBLAZE_API_KEY;
-const SGP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SGP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (database cache)
+const SGP_REDIS_CACHE_TTL_SECONDS = 8; // 8 seconds (Redis dedup cache)
 
 // Log API key status on startup (masked)
 if (!ODDSBLAZE_API_KEY) {
@@ -97,6 +115,30 @@ console.log("[SGP API] SGP-supporting books:", SGP_SUPPORTING_BOOKS);
 // =============================================================================
 
 /**
+ * Generate a stable hash for a set of SGP tokens
+ * Used for Redis caching to dedupe identical requests
+ */
+function generateLegsHash(tokens: string[]): string {
+  // Sort tokens for consistent hash regardless of order
+  const sorted = [...tokens].sort();
+  // Simple djb2 hash
+  let hash = 5381;
+  const str = sorted.join("|");
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
+  }
+  // Convert to base36 for shorter string
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Generate Redis cache key for SGP quote
+ */
+function getSgpCacheKey(bookId: string, legsHash: string): string {
+  return `sgp:${bookId}:${legsHash}`;
+}
+
+/**
  * Classify bet type based on event IDs
  */
 function classifyBetType(items: Array<{ favorite?: { event_id?: string | null } | null }>): 'individual' | 'parlay' | 'sgp' | 'sgp_plus' {
@@ -129,23 +171,54 @@ function classifyBetType(items: Array<{ favorite?: { event_id?: string | null } 
 
 /**
  * Fetch SGP odds from OddsBlaze for a single sportsbook
+ * Includes Redis caching to dedupe identical requests across users
  */
 async function fetchOddsBlazeOdds(
   bookId: string,
-  sgpTokens: string[]
-): Promise<SgpBookOdds> {
+  sgpTokens: string[],
+  forceRefresh: boolean = false
+): Promise<{ odds: SgpBookOdds; fromCache: boolean; legsHash: string }> {
+  const legsHash = generateLegsHash(sgpTokens);
+  const cacheKey = getSgpCacheKey(bookId, legsHash);
+
   if (!ODDSBLAZE_API_KEY) {
     console.error("[SGP API] ODDSBLAZE_API_KEY is not set in environment variables");
-    return { error: "API key not configured - check ODDSBLAZE_API_KEY env var" };
+    return { 
+      odds: { error: "API key not configured - check ODDSBLAZE_API_KEY env var" },
+      fromCache: false,
+      legsHash,
+    };
   }
 
   if (sgpTokens.length === 0) {
-    return { error: "No SGP tokens available for this book" };
+    return { 
+      odds: { error: "No SGP tokens available for this book" },
+      fromCache: false,
+      legsHash,
+    };
   }
 
   // Some legs might be missing SGP tokens for this book
   if (sgpTokens.length < 2) {
-    return { error: "Not enough legs have odds at this book" };
+    return { 
+      odds: { error: "Not enough legs have odds at this book" },
+      fromCache: false,
+      legsHash,
+    };
+  }
+
+  // Check Redis cache first (unless force refresh)
+  if (!forceRefresh) {
+    try {
+      const cached = await redis.get<CachedSgpQuote>(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < SGP_REDIS_CACHE_TTL_SECONDS * 1000) {
+        console.log(`[SGP API] Cache hit for ${bookId} (hash: ${legsHash})`);
+        return { odds: cached.odds, fromCache: true, legsHash };
+      }
+    } catch (e) {
+      // Redis error - continue to fetch from vendor
+      console.warn(`[SGP API] Redis get error for ${bookId}:`, e);
+    }
   }
 
   try {
@@ -153,7 +226,7 @@ async function fetchOddsBlazeOdds(
     const oddsBlazeBookId = getOddsBlazeBookId(bookId);
     const url = `https://${oddsBlazeBookId}.sgp.oddsblaze.com/?key=${ODDSBLAZE_API_KEY}`;
     
-    console.log(`[SGP API] Fetching odds for ${bookId} -> ${oddsBlazeBookId} with ${sgpTokens.length} tokens`);
+    console.log(`[SGP API] Fetching odds for ${bookId} -> ${oddsBlazeBookId} with ${sgpTokens.length} tokens (hash: ${legsHash})`);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -169,29 +242,59 @@ async function fetchOddsBlazeOdds(
       
       // Check for specific error types
       if (errorText.includes("Invalid key")) {
-        return { error: "Invalid API key - verify ODDSBLAZE_API_KEY" };
+        return { 
+          odds: { error: "Invalid API key - verify ODDSBLAZE_API_KEY" },
+          fromCache: false,
+          legsHash,
+        };
       }
-      return { error: `API error: ${response.status}` };
+      return { 
+        odds: { error: `API error: ${response.status}` },
+        fromCache: false,
+        legsHash,
+      };
     }
 
     const data: OddsBlazeResponse = await response.json();
 
     if (data.error || data.message) {
-      return { error: data.error || data.message };
+      return { 
+        odds: { error: data.error || data.message },
+        fromCache: false,
+        legsHash,
+      };
     }
 
     if (!data.price) {
-      return { error: "No price available for this combination" };
+      return { 
+        odds: { error: "No price available for this combination" },
+        fromCache: false,
+        legsHash,
+      };
     }
 
-    return {
+    const odds: SgpBookOdds = {
       price: data.price,
       links: data.links,
       limits: data.limits,
     };
+
+    // Cache the result in Redis
+    try {
+      const cacheData: CachedSgpQuote = { odds, timestamp: Date.now() };
+      await redis.set(cacheKey, cacheData, { ex: SGP_REDIS_CACHE_TTL_SECONDS });
+    } catch (e) {
+      console.warn(`[SGP API] Redis set error for ${bookId}:`, e);
+    }
+
+    return { odds, fromCache: false, legsHash };
   } catch (error) {
     console.error(`[SGP API] Fetch error for ${bookId}:`, error);
-    return { error: "Failed to fetch odds" };
+    return { 
+      odds: { error: "Failed to fetch odds" },
+      fromCache: false,
+      legsHash,
+    };
   }
 }
 
@@ -265,7 +368,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const items = betslip.items || [];
+    const items = (betslip.items || []) as BetslipItemWithFavorite[];
     
     // Classify bet type
     const betType = classifyBetType(items);
@@ -283,6 +386,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Compute current legs hash to detect if betslip changed since last cache
+    const currentFavoriteIds = items
+      .map(item => item.favorite?.id)
+      .filter(Boolean)
+      .sort() as string[];
+    const currentLegsHash = generateLegsHash(currentFavoriteIds);
+
     // Check if we have fresh cached odds
     const cachedOdds = betslip.sgp_odds_cache as SgpOddsCache | null;
     const cacheTime = betslip.sgp_odds_updated_at 
@@ -298,6 +408,7 @@ export async function POST(request: NextRequest) {
         updated_at: betslip.sgp_odds_updated_at,
         from_cache: true,
         cache_age_seconds: Math.round(cacheAge / 1000),
+        legs_hash: currentLegsHash,
       });
     }
 
@@ -306,8 +417,16 @@ export async function POST(request: NextRequest) {
       ? sportsbooks.filter(b => SGP_SUPPORTING_BOOKS.includes(b))
       : SGP_SUPPORTING_BOOKS;
 
-    // Collect SGP tokens for each book
+    // Collect SGP tokens for each book AND compute global legs hash
     const bookTokensMap = new Map<string, string[]>();
+    
+    // Collect all favorite IDs to compute betslip legs hash
+    // This helps frontend detect when legs were added/removed
+    const favoriteIds = items
+      .map(item => item.favorite?.id)
+      .filter(Boolean)
+      .sort() as string[];
+    const betslipLegsHash = generateLegsHash(favoriteIds);
     
     for (const bookId of booksToFetch) {
       const tokens: string[] = [];
@@ -328,20 +447,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fetch odds from OddsBlaze in parallel
+    // Fetch odds from OddsBlaze in parallel (with Redis deduplication)
     const oddsPromises = Array.from(bookTokensMap.entries()).map(
       async ([bookId, tokens]) => {
-        const result = await fetchOddsBlazeOdds(bookId, tokens);
-        return [bookId, result] as [string, SgpBookOdds];
+        const result = await fetchOddsBlazeOdds(bookId, tokens, force_refresh);
+        return { bookId, ...result };
       }
     );
 
     const oddsResults = await Promise.all(oddsPromises);
     
-    // Build the odds cache object
+    // Build the odds cache object and track cache statistics
     const newOddsCache: SgpOddsCache = {};
-    for (const [bookId, odds] of oddsResults) {
-      newOddsCache[bookId] = odds;
+    let redisCacheHits = 0;
+    let vendorCalls = 0;
+    
+    for (const result of oddsResults) {
+      newOddsCache[result.bookId] = result.odds;
+      if (result.fromCache) {
+        redisCacheHits++;
+      } else {
+        vendorCalls++;
+      }
     }
 
     // Also include books that didn't have enough tokens
@@ -351,7 +478,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update the cache in the database
+    // Update the cache in the database (with legs hash for staleness tracking)
     const now = new Date().toISOString();
     const { error: updateError } = await supabase
       .from("user_betslips")
@@ -368,12 +495,19 @@ export async function POST(request: NextRequest) {
       // Don't fail the request, just log
     }
 
+    console.log(`[SGP API] Completed: ${redisCacheHits} Redis hits, ${vendorCalls} vendor calls, legs_hash: ${betslipLegsHash}`);
+
     return NextResponse.json({
       odds: newOddsCache,
       bet_type: betType,
       updated_at: now,
       from_cache: false,
       books_fetched: Array.from(bookTokensMap.keys()),
+      legs_hash: betslipLegsHash,
+      cache_stats: {
+        redis_hits: redisCacheHits,
+        vendor_calls: vendorCalls,
+      },
     });
   } catch (error) {
     console.error("[SGP API] Unexpected error:", error);

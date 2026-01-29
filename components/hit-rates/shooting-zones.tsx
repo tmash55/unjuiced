@@ -342,20 +342,20 @@ export function ShootingZones({
 
       {/* Court View */}
       {!collapsed && (
-        <div className="px-2 pt-2 pb-3">
+        <div className="px-4 pt-3 pb-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+            <div className="flex items-center justify-center h-64 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
               <div className="flex flex-col items-center gap-3">
                 <div className="h-8 w-8 border-2 border-orange-200/30 border-t-orange-500 rounded-full animate-spin" />
                 <span className="text-xs text-neutral-400 font-medium">Loading zones...</span>
               </div>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+            <div className="flex items-center justify-center h-64 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
               <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : zones.length === 0 ? (
-            <div className="flex items-center justify-center h-48 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
+            <div className="flex items-center justify-center h-64 bg-gradient-to-b from-neutral-900/20 to-neutral-900/40 rounded-xl">
               <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : (
@@ -363,7 +363,7 @@ export function ShootingZones({
               {/* Chart - full width when no side table, constrained when side table shown */}
               <div className={cn(
                 "relative",
-                showSideTable ? "flex-1 max-w-[340px]" : "max-w-md mx-auto"
+                showSideTable ? "flex-1 max-w-[400px]" : "max-w-2xl mx-auto"
               )}>
               {/* 
                 NBA Court Dimensions (1 foot = 10 units):

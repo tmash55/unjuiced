@@ -139,7 +139,7 @@ const resourcesLinks: NavItem[] = [
   { label: "Sportsbooks", href: "/sportsbooks", icon: IconBuildingBank },
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
-  { label: "Favorites", href: "/favorites", icon: IconStar },
+  { label: "Saved Plays", href: "/saved-plays", icon: IconStar },
 ]
 
 const accountLinks: NavItem[] = [

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList, ArrowDown } from "lucide-react";
+import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList, ArrowDown, Heart } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ import { useShotZoneMatchup } from "@/hooks/use-shot-zone-matchup";
 import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
 import { useTeamShotZoneRanks } from "@/hooks/use-team-shot-zone-ranks";
 import { Tooltip } from "@/components/tooltip";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
 
 // Injury status color helpers
 const getInjuryIconColor = (status: string | null): string => {
@@ -589,6 +590,9 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
   // Quick filters (can be combined)
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
   
+  // Favorites hook for adding to My Plays
+  const { isFavorited, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
+  
   // Scroll to top when player changes
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -898,6 +902,102 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       isClosestLine: closestLine !== null && closestLine !== activeLine,
     };
   }, [oddsData, customLine, profile.line]);
+
+  // Build favorite params helper
+  const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
+    if (!profile.gameId) return null;
+    
+    const activeLine = customLine ?? profile.line;
+    const bestOdds = side === "over" ? oddsForChart?.bestOver : oddsForChart?.bestUnder;
+    
+    // Build books_snapshot for this specific side
+    let booksSnapshot: Record<string, BookSnapshot> | null = null;
+    if (oddsData?.allLines) {
+      const lineData = oddsData.allLines.find((l: any) => l.line === activeLine);
+      if (lineData?.books) {
+        const snapshot: Record<string, BookSnapshot> = {};
+        for (const [bookId, bookOdds] of Object.entries(lineData.books as Record<string, any>)) {
+          const sideOdds = side === "over" ? bookOdds.over : bookOdds.under;
+          if (sideOdds) {
+            snapshot[bookId] = {
+              price: sideOdds.price,
+              u: sideOdds.url || null,
+              m: sideOdds.mobileUrl || null,
+              sgp: sideOdds.sgp || null,
+            };
+          }
+        }
+        if (Object.keys(snapshot).length > 0) {
+          booksSnapshot = snapshot;
+        }
+      }
+    }
+    
+    // Build odds_key from gameId and market
+    const oddsKey = profile.gameId ? `odds:nba:${profile.gameId}:${profile.market}` : null;
+    
+    // Build odds_selection_id
+    const oddsSelectionId = profile.oddsSelectionId 
+      ? `${profile.oddsSelectionId}:${activeLine}:${side}`
+      : null;
+    
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: profile.gameId,
+      game_date: profile.gameDate,
+      home_team: profile.homeTeamName?.split(" ").pop() || null, // Extract team abbr from name
+      away_team: profile.awayTeamName?.split(" ").pop() || null,
+      start_time: null, // Not available in profile
+      player_id: String(profile.playerId),
+      player_name: profile.playerName,
+      player_team: profile.teamAbbr,
+      player_position: profile.position,
+      market: profile.market,
+      line: activeLine,
+      side,
+      odds_key: oddsKey,
+      odds_selection_id: oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestOdds?.price ?? null,
+      best_book_at_save: bestOdds?.book ?? null,
+      source: "hit_rates",
+    };
+  }, [profile, customLine, oddsForChart, oddsData]);
+
+  // Check if current selection is favorited
+  const isOverFavorited = useMemo(() => {
+    const params = buildFavoriteParams("over");
+    if (!params) return false;
+    return isFavorited({
+      event_id: params.event_id,
+      type: params.type,
+      market: params.market,
+      side: params.side,
+      player_id: params.player_id,
+      line: params.line,
+    });
+  }, [buildFavoriteParams, isFavorited]);
+
+  const isUnderFavorited = useMemo(() => {
+    const params = buildFavoriteParams("under");
+    if (!params) return false;
+    return isFavorited({
+      event_id: params.event_id,
+      type: params.type,
+      market: params.market,
+      side: params.side,
+      player_id: params.player_id,
+      line: params.line,
+    });
+  }, [buildFavoriteParams, isFavorited]);
+
+  // Handle favorite toggle
+  const handleToggleFavorite = useCallback(async (side: "over" | "under") => {
+    const params = buildFavoriteParams(side);
+    if (!params) return;
+    await toggleFavorite(params);
+  }, [buildFavoriteParams, toggleFavorite]);
 
   // Get total available games
   const totalGamesAvailable = boxScoreGames.length;
@@ -1737,71 +1837,113 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
                   </div>
                 </Tooltip>
                 
-                {/* Odds Section */}
+                {/* Odds Section with Favorite Hearts */}
                 <div className="flex items-center gap-2">
-                  {/* Over Odds */}
-                  {oddsForChart?.bestOver ? (
-                    <button
-                      type="button"
-                      onClick={() => oddsForChart.bestOver?.mobileUrl && window.open(oddsForChart.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
-                    >
-                      {(() => {
-                        const sb = getSportsbookById(oddsForChart.bestOver.book);
-                        return sb?.image?.light ? (
-                          <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
-                        ) : (
-                          <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestOver.book}</span>
-                        );
-                      })()}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">O</span>
-                        <span className={cn(
-                          "text-sm font-bold tabular-nums",
-                          oddsForChart.bestOver.price > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
-                        )}>
-                          {oddsForChart.bestOver.price > 0 ? `+${oddsForChart.bestOver.price}` : oddsForChart.bestOver.price}
-                </span>
-              </div>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                      <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">O</span>
-                      <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
-                    </div>
-                  )}
-                  
-                  {/* Under Odds */}
-                  {oddsForChart?.bestUnder ? (
-                    <button
-                      type="button"
-                      onClick={() => oddsForChart.bestUnder?.mobileUrl && window.open(oddsForChart.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
-                    >
-                      {(() => {
-                        const sb = getSportsbookById(oddsForChart.bestUnder.book);
-                        return sb?.image?.light ? (
-                          <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
-                        ) : (
-                          <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestUnder.book}</span>
-                        );
-                      })()}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">U</span>
-                        <span className={cn(
-                          "text-sm font-bold tabular-nums",
-                          oddsForChart.bestUnder.price > 0 ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300"
-                        )}>
-                          {oddsForChart.bestUnder.price > 0 ? `+${oddsForChart.bestUnder.price}` : oddsForChart.bestUnder.price}
-                        </span>
+                  {/* Over Odds + Heart */}
+                  <div className="flex items-center gap-1">
+                    {oddsForChart?.bestOver ? (
+                      <button
+                        type="button"
+                        onClick={() => oddsForChart.bestOver?.mobileUrl && window.open(oddsForChart.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
+                      >
+                        {(() => {
+                          const sb = getSportsbookById(oddsForChart.bestOver.book);
+                          return sb?.image?.light ? (
+                            <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
+                          ) : (
+                            <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestOver.book}</span>
+                          );
+                        })()}
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">O</span>
+                          <span className={cn(
+                            "text-sm font-bold tabular-nums",
+                            oddsForChart.bestOver.price > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
+                          )}>
+                            {oddsForChart.bestOver.price > 0 ? `+${oddsForChart.bestOver.price}` : oddsForChart.bestOver.price}
+                          </span>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                        <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">O</span>
+                        <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
                       </div>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                      <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">U</span>
-                      <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
-                    </div>
-                  )}
+                    )}
+                    {/* Over Heart Button */}
+                    {isLoggedIn && profile.gameId && (
+                      <Tooltip content={isOverFavorited ? "Remove from My Plays" : "Add Over to My Plays"} side="bottom">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFavorite("over")}
+                          disabled={isToggling}
+                          className={cn(
+                            "p-2 rounded-lg border transition-all",
+                            isOverFavorited
+                              ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
+                              : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-700",
+                            isToggling && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <Heart className={cn("h-4 w-4", isOverFavorited && "fill-current")} />
+                        </button>
+                      </Tooltip>
+                    )}
+                  </div>
+                  
+                  {/* Under Odds + Heart */}
+                  <div className="flex items-center gap-1">
+                    {oddsForChart?.bestUnder ? (
+                      <button
+                        type="button"
+                        onClick={() => oddsForChart.bestUnder?.mobileUrl && window.open(oddsForChart.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
+                      >
+                        {(() => {
+                          const sb = getSportsbookById(oddsForChart.bestUnder.book);
+                          return sb?.image?.light ? (
+                            <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
+                          ) : (
+                            <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestUnder.book}</span>
+                          );
+                        })()}
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">U</span>
+                          <span className={cn(
+                            "text-sm font-bold tabular-nums",
+                            oddsForChart.bestUnder.price > 0 ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300"
+                          )}>
+                            {oddsForChart.bestUnder.price > 0 ? `+${oddsForChart.bestUnder.price}` : oddsForChart.bestUnder.price}
+                          </span>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                        <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">U</span>
+                        <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
+                      </div>
+                    )}
+                    {/* Under Heart Button */}
+                    {isLoggedIn && profile.gameId && (
+                      <Tooltip content={isUnderFavorited ? "Remove from My Plays" : "Add Under to My Plays"} side="bottom">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFavorite("under")}
+                          disabled={isToggling}
+                          className={cn(
+                            "p-2 rounded-lg border transition-all",
+                            isUnderFavorited
+                              ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
+                              : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-700",
+                            isToggling && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <Heart className={cn("h-4 w-4", isUnderFavorited && "fill-current")} />
+                        </button>
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
           </div>
 

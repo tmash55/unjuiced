@@ -392,7 +392,7 @@ export function FavoritesDropdown() {
               {/* Footer */}
               <div className="border-t border-neutral-100 dark:border-white/5 p-3">
                   <Link
-                    href="/favorites"
+                    href="/saved-plays"
                     onClick={() => setIsOpen(false)}
                     className={cn(
                     "flex items-center justify-center gap-2 w-full py-3 rounded-lg",
