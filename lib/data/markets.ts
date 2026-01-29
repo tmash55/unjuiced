@@ -1861,11 +1861,26 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     }
     
     // Convert underscores to spaces and capitalize
-    const formatted = market
+    let formatted = market
       .replace(/_/g, ' ')
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
+    
+    // Normalize period prefixes to consistent abbreviated format
+    formatted = formatted
+      .replace(/^1st Quarter /i, '1Q ')
+      .replace(/^2nd Quarter /i, '2Q ')
+      .replace(/^3rd Quarter /i, '3Q ')
+      .replace(/^4th Quarter /i, '4Q ')
+      .replace(/^1st Half /i, '1H ')
+      .replace(/^2nd Half /i, '2H ')
+      .replace(/^1st Period /i, '1P ')
+      .replace(/^2nd Period /i, '2P ')
+      .replace(/^3rd Period /i, '3P ')
+      .replace(/^Game 1h /i, '1H ')
+      .replace(/^Game 1q /i, '1Q ')
+      .replace(/^Game 1p /i, '1P ');
     
     // Clean up common prefixes
     return formatted

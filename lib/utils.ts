@@ -37,3 +37,31 @@ export function formatGameTime(gameTime: string | null | undefined): string {
   if (!gameTime) return '-';
   return gameTime;
 }
+
+/**
+ * Check if a market is selected for a specific sport.
+ * Supports both composite keys (nba:player_points) and plain keys (player_points).
+ * 
+ * @param selectedMarkets - Array of selected market keys (can be composite or plain)
+ * @param sport - The sport to check (e.g., "nba", "nfl")
+ * @param market - The market key to check (e.g., "player_points")
+ * @returns true if the market is selected for this sport
+ */
+export function isMarketSelected(
+  selectedMarkets: string[],
+  sport: string,
+  market: string
+): boolean {
+  // Empty array means "all markets selected"
+  if (selectedMarkets.length === 0) return true;
+  
+  const compositeKey = `${sport}:${market}`;
+  
+  // Check if composite key is selected (sport-specific)
+  if (selectedMarkets.includes(compositeKey)) return true;
+  
+  // Check if plain key is selected (backwards compat / global)
+  if (selectedMarkets.includes(market)) return true;
+  
+  return false;
+}

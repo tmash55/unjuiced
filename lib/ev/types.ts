@@ -59,6 +59,7 @@ export interface MultiDevigResult {
 export type SharpPreset = 
   | "pinnacle" 
   | "circa" 
+  | "betonline"
   | "prophetx" 
   | "pinnacle_circa" 
   | "hardrock_thescore" 
@@ -69,6 +70,8 @@ export type SharpPreset =
   | "caesars"
   | "hardrock"
   | "bet365"
+  | "polymarket"
+  | "kalshi"
   | "custom";
 
 /**

@@ -100,6 +100,13 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
     description: "Uses Circa as the sole sharp reference. Top US-based sharp book.",
     books: [{ bookId: "circa", weight: 1.0 }],
   },
+  betonline: {
+    id: "betonline",
+    name: "BetOnline",
+    label: "BetOnline",
+    description: "Uses BetOnline as the sole sharp reference. Offshore sharp book with high limits.",
+    books: [{ bookId: "betonline", weight: 1.0 }],
+  },
   prophetx: {
     id: "prophetx",
     name: "ProphetX",
@@ -168,6 +175,20 @@ export const SHARP_PRESETS: Record<SharpPreset, SharpPresetConfig> = {
     label: "Bet365",
     description: "Uses Bet365 as reference. Global sportsbook with broad coverage.",
     books: [{ bookId: "bet365", weight: 1.0 }],
+  },
+  polymarket: {
+    id: "polymarket",
+    name: "Polymarket",
+    label: "Polymarket",
+    description: "Uses Polymarket as reference. Decentralized prediction market with high liquidity.",
+    books: [{ bookId: "polymarket", weight: 1.0 }],
+  },
+  kalshi: {
+    id: "kalshi",
+    name: "Kalshi",
+    label: "Kalshi",
+    description: "Uses Kalshi as reference. CFTC-regulated prediction market.",
+    books: [{ bookId: "kalshi", weight: 1.0 }],
   },
   market_average: {
     id: "market_average",

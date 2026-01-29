@@ -32,7 +32,7 @@ import { useBestOddsPreferences, useEvPreferences } from "@/context/preferences-
 import { UnifiedFilters, type EdgeFinderSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabel } from "@/lib/data/markets";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
@@ -100,12 +100,23 @@ export default function EdgeFinderPage() {
   // Dynamically fetch available markets from the API
   // This ensures we always show markets that actually exist in the data feed
   const { data: marketsData } = useAvailableMarkets(AVAILABLE_LEAGUES);
-  const availableMarkets = useMemo(() => {
-    // Use dynamic markets if available, otherwise fall back to static list
-    return marketsData?.markets && marketsData.markets.length > 0 
-      ? marketsData.markets 
-      : FALLBACK_MARKETS;
-  }, [marketsData?.markets]);
+  const availableMarketOptions = useMemo(() => {
+    if (marketsData?.aggregatedMarkets && marketsData.aggregatedMarkets.length > 0) {
+      return marketsData.aggregatedMarkets.map((market) => ({
+        key: market.key,
+        label: market.display && market.display.length > 3 ? market.display : formatMarketLabel(market.key),
+        sports: market.sports,
+      }));
+    }
+    return FALLBACK_MARKETS.map((market) => ({
+      key: market,
+      label: formatMarketLabel(market),
+    }));
+  }, [marketsData?.aggregatedMarkets]);
+  const availableMarkets = useMemo(
+    () => availableMarketOptions.map((market) => market.key),
+    [availableMarketOptions]
+  );
   
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
@@ -422,7 +433,7 @@ export default function EdgeFinderPage() {
         // Markets
         selectedMarkets={prefs.selectedMarkets}
         onMarketsChange={(markets) => updatePrefs({ selectedMarkets: markets })}
-        availableMarkets={availableMarkets.map(m => ({ key: m, label: formatMarketLabelShort(m) }))}
+        availableMarkets={availableMarketOptions}
         // Sportsbooks
         selectedBooks={prefs.selectedBooks}
         onBooksChange={(books) => updatePrefs({ selectedBooks: books })}
@@ -509,21 +520,8 @@ export default function EdgeFinderPage() {
         </div>
       )}
 
-      {/* Table with animated border when in custom mode */}
-      <div className={cn(
-        "rounded-2xl",
-        isCustomMode 
-          ? "relative p-[2px] overflow-hidden shadow-[0_0_20px_rgba(251,191,36,0.15)]" 
-          : ""
-      )}>
-        {/* Animated gradient border for custom mode */}
-        {isCustomMode && (
-          <span className="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FBBF24_0%,#F97316_20%,#DC2626_40%,#F97316_60%,#FBBF24_80%,#FDE68A_100%)]" />
-        )}
-        <div className={cn(
-          "relative",
-          isCustomMode ? "rounded-[14px] overflow-hidden" : ""
-        )}>
+      {/* Results Table */}
+      <div className="rounded-2xl">
           <OpportunitiesTable
             opportunities={filteredOpportunities}
             isLoading={isLoading}
@@ -549,7 +547,6 @@ export default function EdgeFinderPage() {
             kellyPercent={evPrefs.kellyPercent || 25}
             boostPercent={boostPercent}
           />
-        </div>
       </div>
 
       {/* Load more button */}

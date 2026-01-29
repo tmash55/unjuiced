@@ -425,6 +425,16 @@ async function fetchPositiveEVOpportunities(
     const eventIdSet = new Set(eventIds);
     const filteredKeys: string[] = [];
 
+    // Helper to check if market is allowed (supports composite keys like "nba:player_points")
+    const isMarketAllowed = (market: string): boolean => {
+      if (!markets) return true; // No filter = all allowed
+      // Check composite key (sport-specific)
+      if (markets.includes(`${sport}:${market}`)) return true;
+      // Check plain key (global / backwards compat)
+      if (markets.includes(market)) return true;
+      return false;
+    };
+
     for (const key of allOddsKeys) {
       const parts = key.split(":");
       const eventId = parts[2];
@@ -433,7 +443,7 @@ async function fetchPositiveEVOpportunities(
 
       if (!eventId || !market || !book) continue;
       if (!eventIdSet.has(eventId)) continue;
-      if (markets && !markets.includes(market)) continue;
+      if (!isMarketAllowed(market)) continue;
 
       filteredKeys.push(key);
     }

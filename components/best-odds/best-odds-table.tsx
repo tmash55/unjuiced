@@ -5,7 +5,7 @@ import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
 import { ExternalLink, TrendingUp, ChevronRight, ChevronUp, ChevronDown, EyeOff, Eye } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { getAllLeagues } from "@/lib/data/sports";

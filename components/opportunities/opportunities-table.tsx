@@ -33,6 +33,8 @@ import { HeartFill } from "@/components/icons/heart-fill";
 import { getKellyStakeDisplay } from "@/lib/utils/kelly";
 import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
 import { useFavorites } from "@/hooks/use-favorites";
+import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
+import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 
 // dnd-kit imports
 import {
@@ -491,9 +493,12 @@ export function OpportunitiesTable({
       if (col === 'fair' && comparisonMode === 'next_best') return false;
       // Hide 'stake' column if no bankroll
       if (col === 'stake' && !showStakeColumn) return false;
+      // Hide 'filter' column when using comparison presets (not custom mode)
+      // The comparison book is shown inline with the reference odds
+      if (col === 'filter' && comparisonMode === 'book' && !isCustomMode) return false;
       return true;
     });
-  }, [localColumnOrder, comparisonMode, showStakeColumn]);
+  }, [localColumnOrder, comparisonMode, showStakeColumn, isCustomMode]);
   
   // Setup drag sensors
   const sensors = useSensors(
@@ -1066,6 +1071,30 @@ export function OpportunitiesTable({
                 comparisonMode === "next_best" || 
                 (isCustomMode && sharpBooksCount <= 3 && sharpBooksCount > 0);
               
+              // For single book comparison (comparisonMode === "book"), show logo inline with odds
+              if (comparisonMode === "book" && opp.sharpBooks && opp.sharpBooks.length === 1) {
+                const book = opp.sharpBooks[0];
+                const bookLogo = getBookLogo(book);
+                const bookName = getBookName(book);
+                return (
+                  <div className="flex items-center justify-center gap-2">
+                    {bookLogo && (
+                      <Tooltip content={bookName || book}>
+                        <img 
+                          src={bookLogo} 
+                          alt={bookName || book} 
+                          className="h-6 w-6 object-contain rounded"
+                        />
+                      </Tooltip>
+                    )}
+                    <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
+                      {opp.sharpPrice || "—"}
+                    </span>
+                  </div>
+                );
+              }
+              
+              // For multiple books or other modes, show stacked layout
               return (
                 <div className="flex flex-col items-center">
                   <span className="text-[15px] font-bold text-neutral-700 dark:text-neutral-300 tabular-nums">
@@ -1225,16 +1254,13 @@ export function OpportunitiesTable({
                           openLink(opp.bestBook, opp.bestLink);
                         }}
                         className={cn(
-                          "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
-                          "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
-                          "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
-                          "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
-                          "transition-all duration-200",
-                          "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
+                          "p-1 lg:p-1.5 rounded-lg",
+                          "bg-amber-500 hover:bg-amber-600 text-white",
+                          "hover:scale-110 active:scale-95",
+                          "transition-all duration-200"
                         )}
                       >
-                        <span>Bet</span>
-                        <ExternalLink className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
+                        <ExternalLink className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                       </button>
                     </Tooltip>
                   ) : (
@@ -1246,16 +1272,14 @@ export function OpportunitiesTable({
                           setOpenBetDropdown(openBetDropdown === opp.id ? null : opp.id);
                         }}
                         className={cn(
-                          "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
-                          "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700",
-                          "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
-                          "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
-                          "transition-all duration-200",
-                          "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-1"
+                          "inline-flex items-center justify-center gap-0.5 p-1 lg:p-1.5 rounded-lg",
+                          "bg-amber-500 hover:bg-amber-600 text-white",
+                          "hover:scale-110 active:scale-95",
+                          "transition-all duration-200"
                         )}
                       >
-                        <span>Bet</span>
-                        <ChevronDown className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
+                        <ExternalLink className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+                        <ChevronDown className="h-3 w-3" />
                       </button>
                       
                       {openBetDropdown === opp.id && (
@@ -1290,12 +1314,43 @@ export function OpportunitiesTable({
                 </>
               )}
               
+              <ShareOddsButton
+                shareText={buildShareText(opp)}
+                shareContent={
+                  <ShareOddsCard
+                    playerName={formatSelectionDisplay(opp.player, opp.marketDisplay)}
+                    market={opp.marketDisplay || opp.market || ""}
+                    sport={opp.sport.toUpperCase()}
+                    line={opp.line}
+                    side={opp.side}
+                    bestBookId={opp.bestBook}
+                    bestOdds={opp.bestPrice || "—"}
+                    edgePercent={opp.edgePct ?? 0}
+                    fairOdds={opp.fairAmerican}
+                    sharpOdds={opp.sharpPrice}
+                    referenceLabel={isCustomMode && opp.filterName ? opp.filterName : referenceColumnLabel}
+                    eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                    timeLabel={opp.gameStart}
+                    overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeSide?.allBooks || []).map((b) => ({
+                      bookId: b.book,
+                      price: b.price,
+                    }))}
+                    underBooks={(opp.side === "under" ? opp.allBooks : opp.oppositeSide?.allBooks || []).map((b) => ({
+                      bookId: b.book,
+                      price: b.price,
+                    }))}
+                    accent="amber"
+                  />
+                }
+              />
+
               {/* Add to Betslip Button - hidden on small screens */}
               {!isLoggedIn ? (
                 <Tooltip content="Sign in to save to betslip" side="left">
                   <button
                     type="button"
                     disabled
+                    data-no-row-toggle="true"
                     className="hidden lg:block p-1 lg:p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
                   >
                     <Heart className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-neutral-400" />
@@ -1305,6 +1360,7 @@ export function OpportunitiesTable({
                 <Tooltip content={isOppFavorited(opp) ? "Remove from betslip" : "Add to betslip"} side="left">
                   <button
                     type="button"
+                    data-no-row-toggle="true"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleFavorite(opp);
@@ -1333,6 +1389,7 @@ export function OpportunitiesTable({
                 <Tooltip content={isHidden?.(opp.id) ? "Unhide this edge" : "Hide this edge"}>
                   <button
                     type="button"
+                    data-no-row-toggle="true"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (isHidden?.(opp.id)) {
@@ -1389,6 +1446,38 @@ export function OpportunitiesTable({
     : comparisonMode === "average"
     ? "Average odds across all sharp books"
     : "Sharp reference odds used for edge calculation";
+
+  const buildShareText = (opp: Opportunity) => {
+    const selection = formatSelectionDisplay(opp.player, opp.marketDisplay);
+    const bestBookName = getBookName(opp.bestBook) || opp.bestBook;
+    const bestOdds = opp.bestPrice || "—";
+    let referenceLabel =
+      isCustomMode && opp.filterName ? opp.filterName : referenceColumnLabel;
+    // Strip leading "vs " from filter names that already include it
+    if (referenceLabel.toLowerCase().startsWith("vs ")) {
+      referenceLabel = referenceLabel.slice(3);
+    }
+    
+    // Format line and side (e.g., "Over 15.5")
+    const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
+    const lineDisplay = opp.line !== undefined && opp.line !== null ? ` ${opp.line}` : "";
+    const selectionLine = `${sideLabel}${lineDisplay}`;
+    
+    // Market display (e.g., "Points", "Rebounds")
+    const marketLabel = opp.marketDisplay || opp.market || "";
+    
+    // Format: "DraftKings +1760 vs +1000 (Pinnacle)"
+    const oddsComparison = opp.sharpPrice 
+      ? `${bestBookName} ${bestOdds} vs ${opp.sharpPrice} (${referenceLabel})`
+      : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+    
+    return [
+      `${selection}`,
+      `${selectionLine} ${marketLabel}`,
+      oddsComparison,
+      "via @Unjuiced",
+    ].join("\n");
+  };
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [pinnedPositions, setPinnedPositions] = useState<Map<string, number>>(new Map());
@@ -1463,6 +1552,13 @@ export function OpportunitiesTable({
       }
       return next;
     });
+  };
+
+  const shouldIgnoreRowToggle = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return false;
+    return !!target.closest(
+      'button, a, input, select, textarea, [role="button"], [data-no-row-toggle="true"]'
+    );
   };
 
   const handleSort = (field: SortField) => {
@@ -1648,24 +1744,28 @@ export function OpportunitiesTable({
           </div>
         </td>
       )}
-      {/* Stake */}
+      {/* Stake - hidden if no bankroll */}
+      {showStakeColumn && (
+        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
+          <div className="flex justify-center">
+            <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          </div>
+        </td>
+      )}
+      {/* Filter - hidden when using comparison presets */}
+      {!(comparisonMode === 'book' && !isCustomMode) && (
+        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
+          <div className="flex justify-center">
+            <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          </div>
+        </td>
+      )}
+      {/* Action - Bet button + Share + Favorite */}
       <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-      </div>
-      </td>
-      {/* Filter */}
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-        </div>
-      </td>
-      {/* Action */}
-      <td className="p-2 border-b border-neutral-200/50 dark:border-neutral-800/50">
-        <div className="flex justify-center gap-2">
-          <div className="w-12 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        <div className="flex items-center justify-center gap-1.5">
+          <div className="w-14 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
         </div>
       </td>
     </tr>
@@ -1681,7 +1781,7 @@ export function OpportunitiesTable({
             ))}
           </colgroup>
           <thead className="sticky top-0 z-[5]">
-            <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-amber-50/30 dark:from-neutral-900 dark:via-neutral-900 dark:to-amber-950/20">
+            <tr className="bg-neutral-50 dark:bg-neutral-900">
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Edge %</th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
               <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Time</th>
@@ -1771,7 +1871,7 @@ export function OpportunitiesTable({
         </colgroup>
         <thead className="sticky top-0 z-[5]">
           <SortableContext items={filteredColumnOrder} strategy={horizontalListSortingStrategy}>
-          <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-amber-50/30 dark:from-neutral-900 dark:via-neutral-900 dark:to-amber-950/20">
+          <tr className="bg-neutral-50 dark:bg-neutral-900">
             {filteredColumnOrder.map(colId => renderColumnHeader(colId))}
           </tr>
           </SortableContext>
@@ -1858,7 +1958,10 @@ export function OpportunitiesTable({
             return (
               <React.Fragment key={opp.id}>
                 <tr
-                  onClick={() => toggleRow(opp.id, index)}
+                  onClickCapture={(e) => {
+                    if (shouldIgnoreRowToggle(e.target)) return;
+                    toggleRow(opp.id, index);
+                  }}
                   className={cn(
                     "group/row transition-all duration-200 cursor-pointer border-l-4",
                     // Edge-based left accent border for quick visual scanning
@@ -1963,19 +2066,28 @@ export function OpportunitiesTable({
                           >
                             {/* Full Width Container */}
                             <div className="w-full flex flex-col items-center">
-                              {/* Header Row with Gradient Accent */}
-                              <div className="w-full flex items-center gap-3 px-4 py-2.5 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/50 dark:bg-neutral-900/50">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                                    Market Odds Comparison
+                              {/* Header Row with Player Info */}
+                              <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-900 dark:bg-neutral-950">
+                                {/* Player & Market */}
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                                  <span className="text-sm font-bold text-white truncate">
+                                    {formatSelectionDisplay(opp.player, opp.marketDisplay)}
+                                  </span>
+                                  <span className="text-xs text-neutral-400 shrink-0">
+                                    {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
+                                  </span>
+                                  <span className="hidden sm:inline text-xs text-neutral-500 truncate">
+                                    {opp.marketDisplay || opp.market}
                                   </span>
                                 </div>
-                                <div className="flex-1 h-px bg-gradient-to-r from-neutral-200 dark:from-neutral-700 to-transparent" />
-                                <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-500">
-                                  <span>Line: <strong className="text-neutral-700 dark:text-neutral-300">{opp.line}</strong></span>
-                                  <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
-                                  <span>Fair: <strong className="text-amber-600 dark:text-amber-400">{opp.fairAmerican || opp.sharpPrice}</strong></span>
+                                {/* Odds & Fair */}
+                                <div className="flex items-center gap-3 text-xs text-neutral-400 shrink-0">
+                                  <span className="font-bold text-amber-500">{opp.bestPrice}</span>
+                                  <span className="text-neutral-600">@</span>
+                                  <span className="text-neutral-300">{getBookName(opp.bestBook)}</span>
+                                  <span className="w-px h-3 bg-neutral-700" />
+                                  <span>Fair: <strong className="text-amber-400">{opp.fairAmerican || opp.sharpPrice}</strong></span>
                                 </div>
                               </div>
 
@@ -2085,8 +2197,11 @@ export function OpportunitiesTable({
                                         const underOffer = underMap.get(bookId);
                                         const isOverBest = overOffer && overOffer.decimal === bestOver;
                                         const isUnderBest = underOffer && underOffer.decimal === bestUnder;
-                                        // Check if this book is a reference book (used in custom model calculation)
-                                        const isReferenceBook = excludedBooks.includes(normalizeSportsbookId(bookId));
+                                        // Check if this book is a reference book (used in custom filter calculation)
+                                        const normalizedSharpBooks = new Set(
+                                          (opp.sharpBooks || []).map((book) => normalizeSportsbookId(book))
+                                        );
+                                        const isReferenceBook = isCustomMode && normalizedSharpBooks.has(normalizeSportsbookId(bookId));
                                         
                                         return (
                                           <div 

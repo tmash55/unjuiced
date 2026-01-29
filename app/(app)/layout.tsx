@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/nav/side-nav/app-sidebar"
 import { useAuth } from "@/components/auth/auth-provider"
 import { LoadingSpinner } from "@/components/icons/loading-spinner"
-import { FavoritesModal } from "@/components/nav/favorites-modal"
+import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer"
 import { ModeToggle } from "@/components/mode-toggle"
 import {
   Tooltip,
@@ -62,7 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           
           {/* Right side - My Plays, Theme Toggle, Help */}
           <div className="flex items-center gap-1">
-            <FavoritesModal />
+            <MobileFavoritesDrawerTrigger />
             <ModeToggle />
             <button
               className={cn(
@@ -127,11 +127,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             
             {/* Right side - My Plays, Theme Toggle, Help */}
             <div className="flex items-center gap-1">
-              {/* My Plays Modal */}
+              {/* My Plays Drawer */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div>
-                    <FavoritesModal />
+                    <FavoritesDrawerTrigger />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">

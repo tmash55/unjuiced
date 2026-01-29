@@ -77,6 +77,7 @@ const isKellyPreset = (value: number) => KELLY_PERCENT_OPTIONS.some(opt => opt.v
 
 interface GlobalSettingsDropdownProps {
   tool: FilterTool;
+  disableOddsRange?: boolean;
   
   // EV thresholds (Positive EV)
   minEv?: number;
@@ -132,6 +133,7 @@ interface GlobalSettingsDropdownProps {
 
 export function GlobalSettingsDropdown({
   tool,
+  disableOddsRange = false,
   minEv,
   onMinEvChange,
   maxEv,
@@ -612,21 +614,40 @@ export function GlobalSettingsDropdown({
             <div className="border-b border-neutral-200 dark:border-neutral-700">
               <button
                 onClick={() => toggleSection("odds")}
-                className="w-full flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2 transition-colors",
+                  disableOddsRange
+                    ? "cursor-not-allowed text-neutral-400 dark:text-neutral-600"
+                    : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                )}
+                disabled={disableOddsRange}
               >
-                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                <span className={cn(
+                  "text-sm font-medium",
+                  disableOddsRange ? "text-neutral-400 dark:text-neutral-600" : "text-neutral-700 dark:text-neutral-300"
+                )}>
                   Odds Range
                 </span>
-                <ChevronRight
-                  className={cn(
-                    "w-4 h-4 text-neutral-400 transition-transform",
-                    expandedSections.has("odds") && "rotate-90"
+                <div className="flex items-center gap-2">
+                  {disableOddsRange && (
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                      Custom model odds in effect
+                    </span>
                   )}
-                />
+                  <ChevronRight
+                    className={cn(
+                      "w-4 h-4 text-neutral-400 transition-transform",
+                      expandedSections.has("odds") && "rotate-90"
+                    )}
+                  />
+                </div>
               </button>
 
               {expandedSections.has("odds") && (
-                <div className="px-3 pb-3 space-y-4">
+                <div className={cn(
+                  "px-3 pb-3 space-y-4",
+                  disableOddsRange && "opacity-50 pointer-events-none"
+                )}>
                   {/* Min Odds */}
                   {onMinOddsChange && (
                     <div className="space-y-2">

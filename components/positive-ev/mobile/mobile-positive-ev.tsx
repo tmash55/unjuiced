@@ -87,6 +87,8 @@ interface MobilePositiveEVProps {
   autoRefresh?: boolean;
   onAutoRefreshChange?: (auto: boolean) => void;
   streamConnected?: boolean;
+  // Selected books filter
+  selectedBooks?: string[];
 }
 
 export function MobilePositiveEV({
@@ -121,6 +123,7 @@ export function MobilePositiveEV({
   autoRefresh = false,
   onAutoRefreshChange,
   streamConnected = false,
+  selectedBooks = [],
 }: MobilePositiveEVProps) {
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -524,6 +527,7 @@ export function MobilePositiveEV({
                 boostPercent={boostPercent}
                 evCase={evCase}
                 selectedDevigMethods={devigMethods}
+                selectedBooks={selectedBooks}
               />
             ))}
             

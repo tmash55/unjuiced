@@ -277,15 +277,19 @@ function applyClientFilters(
     }
     
     // Min edge filter (client-side)
-    if (prefs.minImprovement && prefs.minImprovement > 0) {
+    // Skip for custom mode - custom presets handle their own filtering server-side
+    if (!isCustomMode && prefs.minImprovement && prefs.minImprovement > 0) {
       if ((opp.edgePct || 0) < prefs.minImprovement) return false;
     }
     
     // Odds range filter (client-side)
-    const minOdds = prefs.minOdds ?? -10000;
-    const maxOdds = prefs.maxOdds ?? 20000;
-    const oppOdds = parsePrice(opp.bestPrice);
-    if (oppOdds < minOdds || oppOdds > maxOdds) return false;
+    // Skip for custom mode - custom presets have their own min/max odds that were applied server-side
+    if (!isCustomMode) {
+      const minOdds = prefs.minOdds ?? -10000;
+      const maxOdds = prefs.maxOdds ?? 20000;
+      const oppOdds = parsePrice(opp.bestPrice);
+      if (oppOdds < minOdds || oppOdds > maxOdds) return false;
+    }
     
     // Markets filter (client-side for preset mode)
     if (!isCustomMode && prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {

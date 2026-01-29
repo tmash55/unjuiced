@@ -16,6 +16,8 @@ import {
   IconSettings,
   IconLogout,
   IconSparkles,
+  IconSearch,
+  IconBulb,
   IconCreditCard,
   IconBell,
   IconUser,
@@ -98,11 +100,6 @@ const hitRatesSports: NavChildItem[] = [
 ]
 
 // Navigation links - icons will inherit colors from parent
-
-// Overview section
-const overviewLinks: NavItem[] = [
-  { label: "Today", href: "/today", icon: IconHome },
-]
 
 // Edge Tools - Money-making tools (Arbitrage, EV, Edge Finder)
 const edgeToolsLinks: NavItem[] = [
@@ -503,10 +500,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
 
 // Logo component - full version when open
 function Logo() {
-  const { data: entitlements } = useEntitlements()
   const { setOpen } = useSidebar()
-  const isPro = entitlements?.entitlement_source === 'subscription' || 
-                entitlements?.entitlement_source === 'grant'
   
   const closeMobileSidebar = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -518,7 +512,7 @@ function Logo() {
     <Link
       href="/today"
       onClick={closeMobileSidebar}
-      className="relative z-20 flex items-center gap-2.5 px-1 py-1 text-sm font-normal rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+      className="relative z-20 flex items-end gap-2.5 px-1 py-1 text-sm font-normal rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
     >
       {/* Logo image */}
       <Image 
@@ -531,22 +525,72 @@ function Logo() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex items-end gap-1"
       >
-        <span className="font-semibold whitespace-pre text-neutral-900 dark:text-white text-base tracking-tight leading-none">
+        <span className="font-semibold whitespace-pre text-neutral-900 dark:text-white text-lg tracking-tight leading-none">
           Unjuiced
-        </span>
-        <span className={cn(
-          "text-[8px] whitespace-pre font-bold uppercase tracking-wide px-1 py-px rounded mb-px",
-          isPro 
-            ? "text-[#0EA5E9] dark:text-[#7DD3FC] bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10" 
-            : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
-        )}>
-          {isPro ? 'Pro' : 'Free'}
         </span>
       </motion.div>
     </Link>
   )
+}
+
+// Prominent CTA Button - "Find a Play"
+function FindPlayButton() {
+  const { open, setOpen } = useSidebar()
+  const pathname = usePathname()
+  const isActive = pathname === "/today"
+  
+  const closeMobileSidebar = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setOpen(false)
+    }
+  }
+  
+  const buttonContent = (
+    <Link
+      href="/today"
+      onClick={closeMobileSidebar}
+      className={cn(
+        "flex items-center rounded-lg transition-all duration-200",
+        isActive
+          ? "bg-brand hover:bg-brand/90 text-white"
+          : "bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900",
+        "shadow-sm hover:shadow-md",
+        open 
+          ? "gap-2 py-2 px-3 w-full justify-center" 
+          : "w-10 h-10 justify-center",
+        isActive && "shadow-md"
+      )}
+    >
+      <IconSearch className="w-4 h-4 shrink-0" />
+      {open && (
+        <motion.span
+          initial={{ opacity: 0, width: 0 }}
+          animate={{ opacity: 1, width: "auto" }}
+          exit={{ opacity: 0, width: 0 }}
+          transition={smoothTransition}
+          className="text-xs font-semibold whitespace-pre overflow-hidden"
+        >
+          Find a Play
+        </motion.span>
+      )}
+    </Link>
+  )
+  
+  if (!open) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          {buttonContent}
+        </TooltipTrigger>
+        <TooltipContent side="right" className="font-medium">
+          Find a Play
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+  
+  return buttonContent
 }
 
 // Logo icon only - collapsed version
@@ -583,6 +627,145 @@ function LogoIcon() {
   )
 }
 
+// Tips for Pro users
+const PRO_TIPS = [
+  "Use keyboard shortcuts: Press 'F' to favorite a play",
+  "Set up custom filters to find your edge faster",
+  "Check hit rates before placing player props",
+  "Compare odds across all books for best value",
+  "Use Kelly criterion for optimal bet sizing",
+]
+
+// Status card - shows trial info or pro tips
+function StatusCard() {
+  const { open } = useSidebar()
+  const { data: entitlements } = useEntitlements()
+  const [currentTip, setCurrentTip] = React.useState(0)
+  
+  const isTrial = entitlements?.entitlement_source === 'trial'
+  const isPro = entitlements?.entitlement_source === 'subscription' || 
+                entitlements?.entitlement_source === 'grant'
+  
+  // Calculate trial days
+  const trialDaysRemaining = React.useMemo(() => {
+    if (!isTrial || !entitlements?.trial?.trial_ends_at) return 0
+    const endDate = new Date(entitlements.trial.trial_ends_at)
+    const now = new Date()
+    const diffTime = endDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(0, diffDays)
+  }, [isTrial, entitlements?.trial?.trial_ends_at])
+  
+  const trialTotalDays = 14 // Assuming 14 day trial
+  const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
+  
+  // Rotate tips for pro users
+  React.useEffect(() => {
+    if (!isPro) return
+    const interval = setInterval(() => {
+      setCurrentTip(prev => (prev + 1) % PRO_TIPS.length)
+    }, 10000) // Change tip every 10 seconds
+    return () => clearInterval(interval)
+  }, [isPro])
+  
+  // Don't show when collapsed - must be after all hooks
+  if (!open) return null
+  
+  // Show trial card
+  if (isTrial) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mx-3 mb-3 p-3 rounded-xl bg-gradient-to-br from-[#0EA5E9]/5 to-[#7DD3FC]/10 dark:from-[#0EA5E9]/10 dark:to-[#7DD3FC]/5 border border-[#0EA5E9]/20 dark:border-[#7DD3FC]/20"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-neutral-900 dark:text-white">
+            Pro Trial
+          </span>
+          <Link 
+            href="/pricing" 
+            className="text-[10px] font-medium text-[#0EA5E9] dark:text-[#7DD3FC] hover:underline"
+          >
+            Upgrade
+          </Link>
+        </div>
+        
+        {/* Progress bar */}
+        <div className="h-1.5 w-full bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden mb-2">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${trialProgress}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="h-full bg-gradient-to-r from-[#0EA5E9] to-[#7DD3FC] rounded-full"
+          />
+        </div>
+        
+        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining
+        </span>
+      </motion.div>
+    )
+  }
+  
+  // Show tips for Pro users
+  if (isPro) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mx-3 mb-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700"
+      >
+        <div className="flex items-start gap-2">
+          <IconBulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 block mb-1">
+              Pro Tip
+            </span>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={currentTip}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.2 }}
+                className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed"
+              >
+                {PRO_TIPS[currentTip]}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+  
+  // Free users - show upgrade prompt
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-3 mb-3 p-3 rounded-xl bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200 dark:border-neutral-700"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <IconSparkles className="w-4 h-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
+        <span className="text-xs font-semibold text-neutral-900 dark:text-white">
+          Unlock Pro Features
+        </span>
+      </div>
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+        Get unlimited access to all edge tools and features.
+      </p>
+      <Link 
+        href="/pricing" 
+        className="inline-flex items-center justify-center w-full py-1.5 px-3 rounded-lg bg-[#0EA5E9] dark:bg-[#7DD3FC] text-white dark:text-neutral-900 text-xs font-semibold hover:opacity-90 transition-opacity"
+      >
+        Upgrade to Pro
+      </Link>
+    </motion.div>
+  )
+}
+
 // User section at bottom with dropdown
 function UserSection() {
   const { user, signOut } = useAuth()
@@ -595,6 +778,7 @@ function UserSection() {
   const avatarUrl = user?.user_metadata?.avatar_url || ''
   const isPro = entitlements?.entitlement_source === 'subscription' || 
                 entitlements?.entitlement_source === 'grant'
+  const isTrial = entitlements?.entitlement_source === 'trial'
   
   const closeMobileSidebar = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -659,7 +843,19 @@ function UserSection() {
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium text-neutral-900 dark:text-white">{displayName}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-medium text-neutral-900 dark:text-white">{displayName}</span>
+                <span className={cn(
+                  "text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                  isPro 
+                    ? "text-[#0EA5E9] dark:text-[#7DD3FC] bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10" 
+                    : isTrial
+                      ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                      : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
+                )}>
+                  {isPro ? 'Pro' : isTrial ? 'Trial' : 'Free'}
+                </span>
+              </div>
               <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">{email}</span>
             </div>
           </div>
@@ -760,16 +956,13 @@ export function AppSidebar() {
           "flex flex-1 flex-col overflow-x-hidden overflow-y-auto py-4 scrollbar-hide",
           open ? "px-3" : "px-2"
         )}>
+          {/* Prominent CTA Button */}
+          <div className="mb-6">
+            <FindPlayButton />
+          </div>
+          
           {/* Navigation sections */}
           <div className="flex flex-col gap-6">
-            {/* Overview */}
-            <div className="flex flex-col gap-0.5">
-              <SectionLabel>Overview</SectionLabel>
-              {overviewLinks.map((link, idx) => (
-                <NavLink key={idx} link={link} expandedHref={expandedHref} onToggleExpand={handleToggleExpand} />
-              ))}
-            </div>
-            
             {/* Edge Tools */}
             <div className="flex flex-col gap-0.5">
               <SectionLabel>Edge Tools</SectionLabel>
@@ -804,12 +997,15 @@ export function AppSidebar() {
           </div>
         </div>
       
-        {/* User section at bottom */}
-        <div className={cn(
-          "border-t border-neutral-200 dark:border-neutral-800 py-3",
-          open ? "px-3" : "px-2"
-        )}>
-          <UserSection />
+        {/* Status card + User section at bottom */}
+        <div className="pt-3">
+          <StatusCard />
+          <div className={cn(
+            "border-t border-neutral-200 dark:border-neutral-800 pb-3 pt-3",
+            open ? "px-3" : "px-2"
+          )}>
+            <UserSection />
+          </div>
         </div>
       </SidebarBody>
     </TooltipProvider>

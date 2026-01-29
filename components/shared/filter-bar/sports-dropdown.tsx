@@ -2,8 +2,9 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Search, Check, X } from "lucide-react";
+import { ChevronDown, Search, Check, X, Info } from "lucide-react";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { Tooltip } from "@/components/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,29 +24,56 @@ const SPORT_LABELS: Record<string, string> = {
   soccer_epl: "EPL",
 };
 
-// Market category mapping
-const MARKET_CATEGORIES: Record<string, { label: string; keywords: string[] }> = {
-  game: {
-    label: "Game Lines",
-    keywords: ["game_", "moneyline", "spread", "total", "team_"],
-  },
-  basketball: {
-    label: "Basketball Props",
-    keywords: ["points", "rebounds", "assists", "threes", "blocks", "steals", "double", "triple"],
-  },
-  football: {
-    label: "Football Props",
-    keywords: ["pass", "rush", "receiving", "receptions", "touchdown", "_td", "yards"],
-  },
-  hockey: {
-    label: "Hockey Props",
-    keywords: ["goal", "shots", "saves", "hockey", "anytime_goal"],
-  },
-  baseball: {
-    label: "Baseball Props",
-    keywords: ["hits", "home_run", "strikeout", "bases", "rbi", "batter", "pitcher", "runs"],
-  },
-};
+const PROP_MARKET_HINTS = [
+  "player_",
+  "batter_",
+  "pitcher_",
+  "goalscorer",
+  "shots_on_goal",
+  "shots_on_target",
+  "player_shots",
+  "yellow_cards",
+  "to_be_carded",
+  "fouls_committed",
+];
+
+// Period detection patterns and their sort order
+const PERIOD_PATTERNS: { pattern: RegExp; label: string; order: number }[] = [
+  { pattern: /^1st_quarter|^1q_|_1q_|_1q$|game_1q/, label: "1st Quarter", order: 2 },
+  { pattern: /^2nd_quarter|^2q_|_2q_|_2q$/, label: "2nd Quarter", order: 3 },
+  { pattern: /^3rd_quarter|^3q_|_3q_|_3q$/, label: "3rd Quarter", order: 4 },
+  { pattern: /^4th_quarter|^4q_|_4q_|_4q$/, label: "4th Quarter", order: 5 },
+  { pattern: /^1st_half|^1h_|_1h_|_1h$|game_1h/, label: "1st Half", order: 6 },
+  { pattern: /^2nd_half|^2h_|_2h_|_2h$/, label: "2nd Half", order: 7 },
+  { pattern: /^1st_period|^1p_|_1p_|_1p$|game_1p/, label: "1st Period", order: 2 },
+  { pattern: /^2nd_period|^2p_|_2p_|_2p$/, label: "2nd Period", order: 3 },
+  { pattern: /^3rd_period|^3p_|_3p_|_3p$/, label: "3rd Period", order: 4 },
+  { pattern: /^1st_drive|^1d_/, label: "1st Drive", order: 8 },
+  { pattern: /^1st_3_minutes/, label: "1st 3 Minutes", order: 9 },
+  { pattern: /^1st_5_minutes/, label: "1st 5 Minutes", order: 9 },
+  { pattern: /^1st_10_minutes/, label: "1st 10 Minutes", order: 9 },
+];
+
+function getMarketPeriod(marketKey: string): { label: string; order: number } {
+  const lower = marketKey.toLowerCase();
+  for (const { pattern, label, order } of PERIOD_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { label, order };
+    }
+  }
+  return { label: "Full Game", order: 1 };
+}
+
+interface MarketOption {
+  key: string;
+  label: string;
+  sports?: string[];
+}
+
+interface MarketWithPeriod extends MarketOption {
+  period: string;
+  periodOrder: number;
+}
 
 interface SportsDropdownProps {
   tool: FilterTool;
@@ -63,7 +91,7 @@ interface SportsDropdownProps {
   // Markets (shared)
   selectedMarkets: string[];
   onMarketsChange: (markets: string[]) => void;
-  availableMarkets: { key: string; label: string }[];
+  availableMarkets: MarketOption[];
   
   disabled?: boolean;
 }
@@ -187,105 +215,123 @@ export function SportsDropdown({
     setLocalSelected([available[0]]);
   };
 
-  // Group markets by category
-  const groupedMarkets = useMemo(() => {
-    const groups: Record<string, { key: string; label: string }[]> = {};
-    
-    Object.keys(MARKET_CATEGORIES).forEach(cat => {
-      groups[cat] = [];
-    });
-    groups.other = [];
+  const allMarketKeys = useMemo(() => availableMarkets.map(m => m.key), [availableMarkets]);
 
-    const searchLower = marketSearch.toLowerCase();
-    
+  const isPropMarket = useCallback((marketKey: string) => {
+    const lower = marketKey.toLowerCase();
+    return PROP_MARKET_HINTS.some((hint) => lower.includes(hint));
+  }, []);
+
+  const marketsBySport = useMemo(() => {
+    const grouped: Record<string, { game: MarketWithPeriod[]; props: MarketWithPeriod[] }> = {};
+    const searchLower = marketSearch.trim().toLowerCase();
+
+    const matchesSearch = (market: MarketOption) => {
+      if (!searchLower) return true;
+      return (
+        market.label.toLowerCase().includes(searchLower) ||
+        market.key.toLowerCase().includes(searchLower)
+      );
+    };
+
     availableMarkets.forEach((market) => {
-      // Apply search filter
-      if (marketSearch && !market.label.toLowerCase().includes(searchLower)) {
-        return;
-      }
-      
-      const key = market.key.toLowerCase();
-      let matched = false;
-      
-      for (const [catKey, cat] of Object.entries(MARKET_CATEGORIES)) {
-        if (cat.keywords.some(kw => key.includes(kw))) {
-          groups[catKey].push(market);
-          matched = true;
-          break;
+      if (!matchesSearch(market)) return;
+
+      const marketSports = market.sports && market.sports.length > 0 ? market.sports : ["other"];
+      const target = isPropMarket(market.key) ? "props" : "game";
+      const { label: period, order: periodOrder } = getMarketPeriod(market.key);
+
+      const marketWithPeriod: MarketWithPeriod = {
+        ...market,
+        period,
+        periodOrder,
+      };
+
+      marketSports.forEach((sport) => {
+        if (!grouped[sport]) {
+          grouped[sport] = { game: [], props: [] };
         }
-      }
-      
-      if (!matched) {
-        groups.other.push(market);
-      }
+        grouped[sport][target].push(marketWithPeriod);
+      });
     });
 
-    return groups;
-  }, [availableMarkets, marketSearch]);
+    // Sort markets within each category by period order, then alphabetically
+    Object.values(grouped).forEach((sportGroup) => {
+      sportGroup.game.sort((a, b) => a.periodOrder - b.periodOrder || a.label.localeCompare(b.label));
+      sportGroup.props.sort((a, b) => a.periodOrder - b.periodOrder || a.label.localeCompare(b.label));
+    });
 
-  // Get markets for a category
-  const getMarketsForCategory = (category: string) => groupedMarkets[category] || [];
+    return grouped;
+  }, [availableMarkets, marketSearch, isPropMarket]);
 
-  // Check if all markets in category are selected - use LOCAL state
-  const isCategoryAllSelected = (category: string) => {
-    const markets = getMarketsForCategory(category);
-    if (markets.length === 0) return false;
+  const sportsWithMarkets = useMemo(() => {
+    const marketSports = new Set<string>();
+    availableMarkets.forEach((market) => {
+      (market.sports && market.sports.length > 0 ? market.sports : ["other"]).forEach((sport) => {
+        marketSports.add(sport);
+      });
+    });
+    const ordered = [...available, ...Array.from(marketSports)];
+    return Array.from(new Set(ordered));
+  }, [available, availableMarkets]);
+
+  // Helper to create composite key for sport-specific market selection
+  const makeCompositeKey = useCallback((sport: string, marketKey: string) => {
+    return `${sport}:${marketKey}`;
+  }, []);
+
+  // Helper to check if a market is selected for a specific sport
+  // Checks both sport-specific key (nba:player_points) and global key (player_points)
+  const isMarketSelectedForSport = useCallback((sport: string, marketKey: string) => {
     if (localMarkets.length === 0) return true; // All selected
-    return markets.every(m => localMarkets.includes(m.key));
-  };
+    const compositeKey = makeCompositeKey(sport, marketKey);
+    // Selected if: composite key is in list, OR plain key is in list (backwards compat)
+    return localMarkets.includes(compositeKey) || localMarkets.includes(marketKey);
+  }, [localMarkets, makeCompositeKey]);
 
-  // Check if some markets in category are selected - use LOCAL state
-  const isCategorySomeSelected = (category: string) => {
-    const markets = getMarketsForCategory(category);
-    if (markets.length === 0) return false;
-    if (localMarkets.length === 0) return true;
-    return markets.some(m => localMarkets.includes(m.key));
-  };
+  // Get selected count for a sport's markets
+  const getSelectedCount = useCallback((sport: string, marketKeys: string[]) => {
+    if (marketKeys.length === 0) return 0;
+    if (localMarkets.length === 0) return marketKeys.length;
+    return marketKeys.filter((key) => isMarketSelectedForSport(sport, key)).length;
+  }, [localMarkets, isMarketSelectedForSport]);
 
-  // Toggle all markets in a category - update LOCAL state only
-  const toggleCategoryMarkets = (category: string) => {
-    const categoryMarkets = getMarketsForCategory(category);
-    const categoryKeys = categoryMarkets.map(m => m.key);
+  // Toggle individual market for a specific sport - update LOCAL state only
+  const toggleMarket = useCallback((sport: string, marketKey: string) => {
+    const compositeKey = makeCompositeKey(sport, marketKey);
     
-    if (isCategoryAllSelected(category)) {
-      // Deselect all in category
-      if (localMarkets.length === 0) {
-        // Currently all markets selected, so select all EXCEPT this category
-        const allOtherMarkets = availableMarkets
-          .filter(m => !categoryKeys.includes(m.key))
-          .map(m => m.key);
-        setLocalMarkets(allOtherMarkets);
-      } else {
-        // Remove this category's markets
-        setLocalMarkets(localMarkets.filter(m => !categoryKeys.includes(m)));
-      }
-    } else {
-      // Select all in category
-      if (localMarkets.length === 0) {
-        // Currently showing all, just select this category
-        setLocalMarkets(categoryKeys);
-      } else {
-        // Add this category's markets
-        const newSelected = [...new Set([...localMarkets, ...categoryKeys])];
-        setLocalMarkets(newSelected);
-      }
-    }
-  };
-
-  // Toggle individual market - update LOCAL state only
-  const toggleMarket = (marketKey: string) => {
     if (localMarkets.length === 0) {
-      // Currently all selected, select all EXCEPT this one
-      const allOther = availableMarkets.filter(m => m.key !== marketKey).map(m => m.key);
-      setLocalMarkets(allOther);
+      // Currently all selected - user wants to deselect this sport:market combo
+      // Build list of all composite keys EXCEPT this one
+      const allCompositeKeys: string[] = [];
+      availableMarkets.forEach((m) => {
+        const sports = m.sports && m.sports.length > 0 ? m.sports : ["other"];
+        sports.forEach((s) => {
+          const key = makeCompositeKey(s, m.key);
+          if (key !== compositeKey) {
+            allCompositeKeys.push(key);
+          }
+        });
+      });
+      setLocalMarkets(allCompositeKeys);
+    } else if (localMarkets.includes(compositeKey)) {
+      // Deselect this composite key
+      const newSelected = localMarkets.filter(m => m !== compositeKey);
+      setLocalMarkets(newSelected);
     } else if (localMarkets.includes(marketKey)) {
-      const newSelected = localMarkets.filter(m => m !== marketKey);
-      // If removing leaves empty, that means all selected
+      // Has global key, need to convert to sport-specific
+      // Remove global key, add composite keys for all OTHER sports
+      const otherSports = (availableMarkets.find(m => m.key === marketKey)?.sports || [])
+        .filter(s => s !== sport);
+      const newSelected = localMarkets
+        .filter(m => m !== marketKey)
+        .concat(otherSports.map(s => makeCompositeKey(s, marketKey)));
       setLocalMarkets(newSelected);
     } else {
-      setLocalMarkets([...localMarkets, marketKey]);
+      // Add this composite key
+      setLocalMarkets([...localMarkets, compositeKey]);
     }
-  };
+  }, [localMarkets, makeCompositeKey, availableMarkets]);
 
   // Select all markets - update LOCAL state only
   const selectAllMarkets = () => {
@@ -294,17 +340,9 @@ export function SportsDropdown({
 
   // Clear all markets (select none - but we'll just select the first category) - update LOCAL state only
   const clearAllMarkets = () => {
-    const firstCategoryWithMarkets = Object.entries(groupedMarkets).find(([_, markets]) => markets.length > 0);
-    if (firstCategoryWithMarkets) {
-      setLocalMarkets(firstCategoryWithMarkets[1].map(m => m.key));
+    if (allMarketKeys.length > 0) {
+      setLocalMarkets([allMarketKeys[0]]);
     }
-  };
-
-  // Count selected in category - use LOCAL state
-  const getSelectedCount = (category: string) => {
-    const markets = getMarketsForCategory(category);
-    if (localMarkets.length === 0) return markets.length;
-    return markets.filter(m => localMarkets.includes(m.key)).length;
   };
 
   // Summary text for button - use PROP state (not local) for the button display
@@ -327,6 +365,26 @@ export function SportsDropdown({
   };
 
   const { sportsText, marketsText } = getSummaryText();
+
+  const formatSportLabel = useCallback((sportId: string) => {
+    if (sportId === "other") return "Other / Multi-Sport";
+    return SPORT_LABELS[sportId] || sportId.toUpperCase();
+  }, []);
+
+  const formatSportsList = useCallback((sports?: string[]) => {
+    if (!sports || sports.length === 0) return "All supported sports";
+    return sports.map((sport) => formatSportLabel(sport)).join(", ");
+  }, [formatSportLabel]);
+
+  const getMarketTooltip = useCallback((market: MarketOption, currentSport: string) => {
+    const sportLabel = formatSportLabel(currentSport);
+    const otherSports = (market.sports || []).filter(s => s !== currentSport);
+    if (otherSports.length > 0) {
+      const otherSportsText = otherSports.map(s => formatSportLabel(s)).join(", ");
+      return `${market.label} for ${sportLabel} • Also available in: ${otherSportsText}`;
+    }
+    return `${market.label} for ${sportLabel}`;
+  }, [formatSportLabel]);
 
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange}>
@@ -370,15 +428,15 @@ export function SportsDropdown({
         align="start" 
         className={cn(
           "p-0 overflow-hidden",
-          tool === "arbitrage" ? "w-[220px]" : "w-[520px]"
+          tool === "arbitrage" ? "w-[220px]" : "w-[800px]"
         )}
         sideOffset={4}
       >
-        <div className={cn("flex", tool === "arbitrage" ? "h-[300px]" : "h-[400px]")}>
+        <div className={cn("flex", tool === "arbitrage" ? "h-[300px]" : "h-[600px]")}>
           {/* Left Column - Sports/Leagues */}
           <div className={cn(
             "border-r border-neutral-200 dark:border-neutral-700 flex flex-col",
-            tool === "arbitrage" ? "w-full border-r-0" : "w-[180px]"
+            tool === "arbitrage" ? "w-full border-r-0" : "w-[200px]"
           )}>
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between">
@@ -454,9 +512,16 @@ export function SportsDropdown({
           <div className="flex-1 flex flex-col">
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                  Markets
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                    Markets
+                  </span>
+                  <Tooltip content="Game Lines are team markets (spread, total, moneyline). Player Props are individual player stats.">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 bg-white dark:bg-neutral-900">
+                      <Info className="w-3 h-3" />
+                    </span>
+                  </Tooltip>
+                </div>
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                   {allMarketsSelected ? "All" : localMarkets.length} selected
                 </span>
@@ -504,131 +569,127 @@ export function SportsDropdown({
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {Object.entries(MARKET_CATEGORIES).map(([catKey, cat]) => {
-                const markets = getMarketsForCategory(catKey);
-                if (markets.length === 0) return null;
+              {sportsWithMarkets.map((sportId) => {
+                const sportMarkets = marketsBySport[sportId];
+                if (!sportMarkets || (sportMarkets.game.length === 0 && sportMarkets.props.length === 0)) {
+                  return null;
+                }
 
-                const allSelected = isCategoryAllSelected(catKey);
-                const someSelected = isCategorySomeSelected(catKey);
-                const selectedCount = getSelectedCount(catKey);
+                const isSportSelected = sportId === "other" || selected.length === 0 || selected.includes(sportId);
+                const sportLabel = formatSportLabel(sportId);
 
-                return (
-                  <div key={catKey} className="border-b border-neutral-100 dark:border-neutral-800 last:border-b-0">
-                    {/* Category Header */}
-                    <button
-                      onClick={() => toggleCategoryMarkets(catKey)}
-                      className="w-full flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className={cn(
-                          "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
-                          allSelected
-                            ? "bg-emerald-500 border-emerald-500"
-                            : someSelected
-                              ? "bg-emerald-500/30 border-emerald-500"
-                              : "border-neutral-300 dark:border-neutral-600"
-                        )}>
-                          {allSelected && <Check className="w-3 h-3 text-white" />}
-                          {someSelected && !allSelected && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-sm" />}
-                        </div>
-                        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                          {cat.label}
+                const gameKeys = sportMarkets.game.map((m) => m.key);
+                const propKeys = sportMarkets.props.map((m) => m.key);
+
+                const gameSelectedCount = getSelectedCount(sportId, gameKeys);
+                const propSelectedCount = getSelectedCount(sportId, propKeys);
+
+                const renderMarketGroup = (title: string, markets: MarketWithPeriod[], selectedCount: number) => {
+                  if (markets.length === 0) return null;
+                  
+                  // Group markets by period
+                  const periodGroups: Record<string, MarketWithPeriod[]> = {};
+                  markets.forEach((market) => {
+                    if (!periodGroups[market.period]) {
+                      periodGroups[market.period] = [];
+                    }
+                    periodGroups[market.period].push(market);
+                  });
+                  
+                  // Sort periods by order
+                  const sortedPeriods = Object.entries(periodGroups).sort(
+                    ([, a], [, b]) => (a[0]?.periodOrder ?? 99) - (b[0]?.periodOrder ?? 99)
+                  );
+                  
+                  return (
+                    <div className="px-3 pb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                          {title}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 tabular-nums">
+                          {selectedCount}/{markets.length}
                         </span>
                       </div>
-                      <span className="text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
-                        {selectedCount}/{markets.length}
-                      </span>
-                    </button>
-
-                    {/* Markets in category */}
-                    <div className="px-3 pb-2 grid grid-cols-2 gap-1">
-                      {markets.map((market) => {
-                        const isSelected = selectedMarkets.length === 0 || selectedMarkets.includes(market.key);
-                        return (
-                          <button
-                            key={market.key}
-                            onClick={() => toggleMarket(market.key)}
-                            className={cn(
-                              "flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left",
-                              isSelected
-                                ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
-                                : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                      <div className="space-y-2">
+                        {sortedPeriods.map(([periodLabel, periodMarkets]) => (
+                          <div key={periodLabel}>
+                            {sortedPeriods.length > 1 && (
+                              <div className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500 mb-1 pl-0.5">
+                                {periodLabel}
+                              </div>
                             )}
-                          >
-                            <div className={cn(
-                              "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors",
-                              isSelected
-                                ? "bg-emerald-500 border-emerald-500"
-                                : "border-neutral-300 dark:border-neutral-600"
-                            )}>
-                              {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {periodMarkets.map((market) => {
+                                const isSelected = isMarketSelectedForSport(sportId, market.key);
+                                return (
+                                  <Tooltip key={market.key} content={getMarketTooltip(market, sportId)}>
+                                    <button
+                                      onClick={() => toggleMarket(sportId, market.key)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left",
+                                        isSelected
+                                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
+                                          : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                                      )}
+                                      disabled={!isSportSelected}
+                                    >
+                                      <div className={cn(
+                                        "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors",
+                                        isSelected
+                                          ? "bg-emerald-500 border-emerald-500"
+                                          : "border-neutral-300 dark:border-neutral-600"
+                                      )}>
+                                        {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                                      </div>
+                                      <span className="truncate">{market.label}</span>
+                                    </button>
+                                  </Tooltip>
+                                );
+                              })}
                             </div>
-                            <span className="truncate">{market.label}</span>
-                          </button>
-                        );
-                      })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div key={sportId} className="border-b border-neutral-100 dark:border-neutral-800 last:border-b-0">
+                    <Tooltip content={isSportSelected ? `${sportLabel} markets` : "Select this sport on the left to enable its markets"}>
+                      <div className={cn(
+                        "flex items-center justify-between px-3 py-2",
+                        isSportSelected ? "bg-white dark:bg-neutral-900" : "bg-neutral-50/60 dark:bg-neutral-900/40"
+                      )}>
+                        <div className="flex items-center gap-2.5">
+                          {sportId === "other" ? (
+                            <span className={cn("inline-flex h-4 w-4 rounded-full bg-neutral-300 dark:bg-neutral-700", !isSportSelected && "opacity-40")} />
+                          ) : (
+                            <SportIcon sport={sportId} className={cn("w-4 h-4", !isSportSelected && "opacity-40")} />
+                          )}
+                          <span className={cn(
+                            "text-sm font-semibold",
+                            isSportSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-500"
+                          )}>
+                            {sportLabel}
+                          </span>
+                        </div>
+                        {!isSportSelected && (
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                            Disabled
+                          </span>
+                        )}
+                      </div>
+                    </Tooltip>
+
+                    <div className={cn(!isSportSelected && "opacity-40 pointer-events-none")}>
+                      {renderMarketGroup("Game Lines", sportMarkets.game, gameSelectedCount)}
+                      {renderMarketGroup("Player Props", sportMarkets.props, propSelectedCount)}
                     </div>
                   </div>
                 );
               })}
-
-              {/* Other markets */}
-              {groupedMarkets.other.length > 0 && (
-                <div className="border-b border-neutral-100 dark:border-neutral-800 last:border-b-0">
-                  <button
-                    onClick={() => toggleCategoryMarkets("other")}
-                    className="w-full flex items-center justify-between px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className={cn(
-                        "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
-                        isCategoryAllSelected("other")
-                          ? "bg-emerald-500 border-emerald-500"
-                          : isCategorySomeSelected("other")
-                            ? "bg-emerald-500/30 border-emerald-500"
-                            : "border-neutral-300 dark:border-neutral-600"
-                      )}>
-                        {isCategoryAllSelected("other") && <Check className="w-3 h-3 text-white" />}
-                        {isCategorySomeSelected("other") && !isCategoryAllSelected("other") && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-sm" />}
-                      </div>
-                      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                        Other
-                      </span>
-                    </div>
-                    <span className="text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
-                      {getSelectedCount("other")}/{groupedMarkets.other.length}
-                    </span>
-                  </button>
-
-                  <div className="px-3 pb-2 grid grid-cols-2 gap-1">
-                    {groupedMarkets.other.map((market) => {
-                      const isSelected = selectedMarkets.length === 0 || selectedMarkets.includes(market.key);
-                      return (
-                        <button
-                          key={market.key}
-                          onClick={() => toggleMarket(market.key)}
-                          className={cn(
-                            "flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left",
-                            isSelected
-                              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
-                              : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                          )}
-                        >
-                          <div className={cn(
-                            "w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors",
-                            isSelected
-                              ? "bg-emerald-500 border-emerald-500"
-                              : "border-neutral-300 dark:border-neutral-600"
-                          )}>
-                            {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
-                          </div>
-                          <span className="truncate">{market.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Footer */}

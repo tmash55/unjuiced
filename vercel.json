@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/compute-best-bets",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/expire-favorites",
+      "schedule": "* * * * *"
     }
   ]
 }

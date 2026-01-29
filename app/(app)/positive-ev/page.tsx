@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
+import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 
 // Hooks and types
 import { usePositiveEV } from "@/hooks/use-positive-ev";
@@ -320,11 +322,19 @@ export default function PositiveEVPage() {
   
   // Dynamically fetch available markets
   const { data: marketsData } = useAvailableMarkets(AVAILABLE_SPORTS);
-  const availableMarkets = useMemo(() => {
-    return marketsData?.markets && marketsData.markets.length > 0 
-      ? marketsData.markets 
-      : FALLBACK_MARKETS;
-  }, [marketsData?.markets]);
+  const availableMarketOptions = useMemo(() => {
+    if (marketsData?.aggregatedMarkets && marketsData.aggregatedMarkets.length > 0) {
+      return marketsData.aggregatedMarkets.map((market) => ({
+        key: market.key,
+        label: market.display && market.display.length > 3 ? market.display : formatMarketLabel(market.key),
+        sports: market.sports,
+      }));
+    }
+    return FALLBACK_MARKETS.map((market) => ({
+      key: market,
+      label: formatMarketLabel(market),
+    }));
+  }, [marketsData?.aggregatedMarkets]);
 
   // Local UI state
   const [searchQuery, setSearchQuery] = useState("");
@@ -796,6 +806,62 @@ export default function PositiveEVPage() {
       return next;
     });
   }, []);
+
+  // Helper to check if click target should prevent row toggle
+  const shouldIgnoreRowToggle = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof Element)) return false;
+    return !!target.closest(
+      'button, a, input, select, textarea, [role="button"], [data-no-row-toggle="true"]'
+    );
+  }, []);
+
+  const buildShareText = useCallback((opp: PositiveEVOpportunity) => {
+    const bestBookName = getBookName(opp.book.bookId) || opp.book.bookName || opp.book.bookId;
+    const bestOdds = formatOdds(opp.book.price);
+    const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
+    const sharpPreset = savedFilters.sharpPreset;
+    const sharpPresetLabel =
+      sharpPreset && sharpPreset in SHARP_PRESETS
+        ? SHARP_PRESETS[sharpPreset as keyof typeof SHARP_PRESETS].label
+        : sharpPreset;
+    let referenceLabel = modelName || sharpPresetLabel || "Market Average";
+    // Strip leading "vs " from model names that already include it
+    if (referenceLabel.toLowerCase().startsWith("vs ")) {
+      referenceLabel = referenceLabel.slice(3);
+    }
+    const selection = formatSelectionDisplay(opp.playerName, opp.marketDisplay);
+    
+    // Format line and side (e.g., "Over 15.5")
+    const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
+    const lineDisplay = opp.line !== undefined && opp.line !== null ? ` ${opp.line}` : "";
+    const selectionLine = `${sideLabel}${lineDisplay}`;
+    
+    // Get fair odds from devigResults (use power method as primary, fallback to others)
+    let fairOdds = "";
+    const devigResult = opp.devigResults?.power || opp.devigResults?.multiplicative || opp.devigResults?.additive;
+    if (devigResult?.success) {
+      const fairProb = opp.side === "over" || opp.side === "yes" ? devigResult.fairProbOver : devigResult.fairProbUnder;
+      if (fairProb > 0 && fairProb < 1) {
+        const fairAmerican = impliedProbToAmerican(fairProb);
+        fairOdds = `${fairAmerican > 0 ? "+" : ""}${Math.round(fairAmerican)}`;
+      }
+    }
+    
+    // Market display (e.g., "Points", "Rebounds")
+    const marketLabel = opp.marketDisplay || opp.market || "";
+    
+    // Format: "DraftKings +1760 vs +1000 (Market Average)"
+    const oddsComparison = fairOdds 
+      ? `${bestBookName} ${bestOdds} vs ${fairOdds} (${referenceLabel})`
+      : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+    
+    return [
+      `${selection}`,
+      `${selectionLine} ${marketLabel}`,
+      oddsComparison,
+      "via @Unjuiced",
+    ].join("\n");
+  }, [savedFilters.sharpPreset]);
   
   // Dismiss odds changed state without collapsing
   const dismissOddsChanged = useCallback((id: string) => {
@@ -925,6 +991,7 @@ export default function PositiveEVPage() {
           autoRefresh={autoRefresh}
           onAutoRefreshChange={setAutoRefresh}
           streamConnected={streamConnected}
+          selectedBooks={savedFilters.selectedBooks}
         />
         
         {/* Player Quick View Modal (NBA Hit Rates) - Mobile */}
@@ -998,7 +1065,7 @@ export default function PositiveEVPage() {
         // Markets
         selectedMarkets={savedFilters.selectedMarkets}
         onMarketsChange={(markets) => updateSavedFilters({ selectedMarkets: markets })}
-        availableMarkets={availableMarkets.map(m => ({ key: m, label: formatMarketLabelShort(m) }))}
+        availableMarkets={availableMarketOptions}
         // Sportsbooks
         selectedBooks={savedFilters.selectedBooks}
         onBooksChange={(books) => updateSavedFilters({ selectedBooks: books })}
@@ -1190,26 +1257,11 @@ export default function PositiveEVPage() {
       )}
 
       {/* Results Table - Premium Design */}
-      {/* Animated border wrapper when in custom mode */}
-      <div className={cn(
-        "rounded-2xl",
-        activeEvModels.length > 0 
-          ? "relative p-[2px] overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.15)]" 
-          : ""
-      )}>
-        {/* Animated gradient border for custom mode */}
-        {activeEvModels.length > 0 && (
-          <span className="absolute inset-[-1000%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#34D399_0%,#10B981_20%,#047857_40%,#10B981_60%,#34D399_80%,#A7F3D0_100%)]" />
-        )}
-        <div className={cn(
-          "relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900",
-          activeEvModels.length > 0 
-            ? "rounded-[14px]" 
-            : "rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm"
-        )}>
+      <div className="rounded-2xl">
+        <div className="relative overflow-auto max-h-[calc(100vh-300px)] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-sm">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-[5]">
-            <tr className="bg-gradient-to-r from-neutral-50 via-neutral-50 to-neutral-100/50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800/50">
+            <tr className="bg-neutral-50 dark:bg-neutral-900">
               <th 
                 className="font-semibold text-[10px] lg:text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-10 lg:h-12 px-2 lg:px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors select-none whitespace-nowrap"
                 onClick={() => handleSort("ev")}
@@ -1560,7 +1612,10 @@ export default function PositiveEVPage() {
                   )}
                   
                   <tr
-                    onClick={() => toggleRow(opp.id, index)}
+                    onClick={(e) => {
+                      if (shouldIgnoreRowToggle(e.target)) return;
+                      toggleRow(opp.id, index);
+                    }}
                     className={cn(
                       "group/row transition-all duration-200 cursor-pointer border-l-4",
                       // EV-based left accent border for quick visual scanning
@@ -1883,12 +1938,24 @@ export default function PositiveEVPage() {
                     {/* Best Book */}
                     <td className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
-                        // Find all books with the same best EV (ties)
+                        // Find all books with the same best EV (ties), filtered by selected books
                         const bestEV = opp.book.evPercent ?? opp.evCalculations.evWorst;
-                        const tiedBooks = opp.allBooks
-                          .filter(b => !b.isSharpRef && Math.abs((b.evPercent ?? 0) - bestEV) < 0.01)
-                          .slice(0, 4); // Max 4 for display
-                        const extraCount = opp.allBooks.filter(b => !b.isSharpRef && Math.abs((b.evPercent ?? 0) - bestEV) < 0.01).length - 4;
+                        const selectedBooksSet = savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0 
+                          ? new Set(savedFilters.selectedBooks.map(b => normalizeSportsbookId(b)))
+                          : null;
+                        const allTiedBooks = opp.allBooks
+                          .filter(b => {
+                            if (b.isSharpRef) return false;
+                            if (Math.abs((b.evPercent ?? 0) - bestEV) >= 0.01) return false;
+                            // Filter by selected books if any are selected
+                            if (selectedBooksSet) {
+                              const normalizedId = normalizeSportsbookId(b.bookId);
+                              if (!selectedBooksSet.has(normalizedId)) return false;
+                            }
+                            return true;
+                          });
+                        const tiedBooks = allTiedBooks.slice(0, 4); // Max 4 for display
+                        const extraCount = allTiedBooks.length - 4;
                         
                         return (
                           <div className="flex items-center justify-center gap-1.5 lg:gap-2">
@@ -2106,23 +2173,69 @@ export default function PositiveEVPage() {
                               openLink(opp.book.bookId, opp.book.link, opp.book.mobileLink);
                             }}
                             className={cn(
-                              "inline-flex items-center justify-center gap-1 lg:gap-1.5 h-7 lg:h-8 px-2 lg:px-3 rounded-lg",
-                              "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700",
-                              "text-white font-semibold text-[10px] lg:text-xs shadow-sm",
-                              "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]",
-                              "transition-all duration-200",
-                              "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-1"
+                              "p-1 lg:p-1.5 rounded-lg",
+                              "bg-emerald-500 hover:bg-emerald-600 text-white",
+                              "hover:scale-110 active:scale-95",
+                              "transition-all duration-200"
                             )}
                           >
-                            <span>Bet</span>
-                            <ExternalLink className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
+                            <ExternalLink className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
                         </Tooltip>
+
+                        <ShareOddsButton
+                          shareText={buildShareText(opp)}
+                          shareContent={
+                            <ShareOddsCard
+                              playerName={formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
+                              market={opp.marketDisplay || opp.market || ""}
+                              sport={opp.sport.toUpperCase()}
+                              line={opp.line}
+                              side={opp.side}
+                              bestBookId={opp.book.bookId}
+                              bestOdds={formatOdds(opp.book.price)}
+                              edgePercent={(() => {
+                                const evCalc = opp.evCalculations?.power || opp.evCalculations?.multiplicative;
+                                return evCalc?.evPercent ?? 0;
+                              })()}
+                              fairOdds={(() => {
+                                const devigResult = opp.devigResults?.power || opp.devigResults?.multiplicative || opp.devigResults?.additive;
+                                if (!devigResult?.success) return null;
+                                const fairProb = opp.side === "over" || opp.side === "yes" ? devigResult.fairProbOver : devigResult.fairProbUnder;
+                                if (!fairProb || fairProb <= 0 || fairProb >= 1) return null;
+                                const fairAmerican = impliedProbToAmerican(fairProb);
+                                return `${fairAmerican > 0 ? "+" : ""}${Math.round(fairAmerican)}`;
+                              })()}
+                              sharpOdds={formatOdds(opp.sharpReference?.overOdds)}
+                              referenceLabel={(() => {
+                                const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
+                                const sharpPreset = savedFilters.sharpPreset;
+                                const sharpPresetLabel =
+                                  sharpPreset && sharpPreset in SHARP_PRESETS
+                                    ? SHARP_PRESETS[sharpPreset as keyof typeof SHARP_PRESETS].label
+                                    : sharpPreset;
+                                return modelName || sharpPresetLabel || "Market Average";
+                              })()}
+                              eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                              timeLabel={opp.startTime || opp.gameDate || undefined}
+                              overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
+                                bookId: b.bookId,
+                                price: b.price,
+                              }))}
+                              underBooks={(opp.side === "under" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
+                                bookId: b.bookId,
+                                price: b.price,
+                              }))}
+                              accent="emerald"
+                            />
+                          }
+                        />
                         
                         {/* Add to Betslip Button - hidden on small screens */}
                         <Tooltip content={isFav ? "Remove from betslip" : "Add to betslip"} side="left">
                           <button
                             type="button"
+                            data-no-row-toggle="true"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleToggleFavorite(opp);
@@ -2150,6 +2263,7 @@ export default function PositiveEVPage() {
                         <Tooltip content={isHidden(opp.id) ? "Unhide this opportunity" : "Hide this opportunity"}>
                           <button
                             type="button"
+                            data-no-row-toggle="true"
                             onClick={(e) => {
                               e.stopPropagation();
                               if (isHidden(opp.id)) {
@@ -2247,22 +2361,36 @@ export default function PositiveEVPage() {
                             >
                               {/* Full Width Container */}
                               <div className="w-full flex flex-col items-center">
-                                {/* Header Row with Gradient Accent */}
-                                <div className="w-full flex items-center gap-3 px-4 py-2.5 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/50 dark:bg-neutral-900/50">
-                                  <div className="flex items-center gap-2">
+                                {/* Header Row with Player Info */}
+                                <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-900 dark:bg-neutral-950">
+                                  {/* Player & Market */}
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
                                     <div className={cn(
-                                      "w-1.5 h-1.5 rounded-full",
+                                      "w-1.5 h-1.5 rounded-full shrink-0",
                                       isOddsChanged ? "bg-amber-500" : "bg-emerald-500 animate-pulse"
                                     )} />
-                                    <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                                      {isOddsChanged ? "Odds Changed" : "Market Odds Comparison"}
+                                    <span className="text-sm font-bold text-white truncate">
+                                      {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                                     </span>
+                                    <span className="text-xs text-neutral-400 shrink-0">
+                                      {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
+                                    </span>
+                                    <span className="hidden sm:inline text-xs text-neutral-500 truncate">
+                                      {opp.marketDisplay || opp.market}
+                                    </span>
+                                    {isOddsChanged && (
+                                      <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                        ODDS CHANGED
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className="flex-1 h-px bg-gradient-to-r from-neutral-200 dark:from-neutral-700 to-transparent" />
-                                  <div className="flex items-center gap-3 text-[11px] text-neutral-500 dark:text-neutral-500">
-                                    <span>Line: <strong className="text-neutral-700 dark:text-neutral-300">{opp.line}</strong></span>
-                                    <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
-                                    <span>Fair: <strong className="text-emerald-600 dark:text-emerald-400">{fairOdds}</strong></span>
+                                  {/* Odds & Fair */}
+                                  <div className="flex items-center gap-3 text-xs text-neutral-400 shrink-0">
+                                    <span className="font-bold text-emerald-500">{formatOdds(opp.book.price)}</span>
+                                    <span className="text-neutral-600">@</span>
+                                    <span className="text-neutral-300">{getBookName(opp.book.bookId) || opp.book.bookName}</span>
+                                    <span className="w-px h-3 bg-neutral-700" />
+                                    <span>Fair: <strong className="text-emerald-400">{fairOdds}</strong></span>
                                   </div>
                                 </div>
 

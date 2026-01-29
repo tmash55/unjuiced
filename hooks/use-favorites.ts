@@ -3,6 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/libs/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 // ============================================================================
 // TYPES
@@ -98,6 +100,11 @@ export interface Favorite {
   
   // Timestamps
   created_at: string;
+  
+  // Expiry status
+  status: "active" | "expired";
+  expired_at: string | null;
+  expire_reason: "live" | "start_time" | "manual" | null;
 }
 
 /**
@@ -174,8 +181,14 @@ export function useFavorites() {
   const supabase = createClient();
   const { user } = useAuth();
   
+  // Track previous favorite IDs to detect expirations (excludes temp IDs from optimistic updates)
+  const prevFavoriteIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadRef = useRef(true);
+  // Track IDs that were manually deleted so we don't show "expired" toast for them
+  const manuallyDeletedIdsRef = useRef<Set<string>>(new Set());
+  
   // ─────────────────────────────────────────────────────────────────────────
-  // QUERY: Get all favorites for the current user
+  // QUERY: Get all active favorites for the current user
   // ─────────────────────────────────────────────────────────────────────────
   const {
     data: favorites = [],
@@ -191,16 +204,56 @@ export function useFavorites() {
         .from("user_favorites")
         .select("*")
         .eq("user_id", user.id)
-        // Note: Removed start_time filter - we'll handle cleanup separately
-        // since start_time is often null when saving from cheat sheets
+        .eq("status", "active") // Only fetch active favorites
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Favorite[];
     },
     enabled: !!user?.id,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 15 * 1000, // 15 seconds - faster detection of expired favorites
+    refetchInterval: 60 * 1000, // Poll every 60 seconds to detect expirations
   });
+  
+  // ─────────────────────────────────────────────────────────────────────────
+  // EFFECT: Detect expired favorites and show toast
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isLoading) return;
+    
+    // Only track real IDs (not temp- IDs from optimistic updates)
+    const currentIds = new Set(
+      favorites
+        .filter(f => !f.id.startsWith("temp-"))
+        .map(f => f.id)
+    );
+    
+    // Skip on initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      prevFavoriteIdsRef.current = currentIds;
+      return;
+    }
+    
+    // Count how many favorites disappeared that weren't manually deleted
+    const expiredIds = [...prevFavoriteIdsRef.current].filter(
+      id => !currentIds.has(id) && !manuallyDeletedIdsRef.current.has(id)
+    );
+    const expiredCount = expiredIds.length;
+    
+    // Clear any manually deleted IDs that are no longer relevant
+    manuallyDeletedIdsRef.current.clear();
+    
+    // Show toast if any favorites expired (and we had previous favorites)
+    if (expiredCount > 0 && prevFavoriteIdsRef.current.size > 0) {
+      toast.info(
+        `${expiredCount} favorite${expiredCount > 1 ? "s" : ""} expired (game started)`,
+        { duration: 4000 }
+      );
+    }
+    
+    prevFavoriteIdsRef.current = currentIds;
+  }, [favorites, isLoading]);
   
   // ─────────────────────────────────────────────────────────────────────────
   // Create a Set of favorite keys for fast lookup
@@ -271,6 +324,9 @@ export function useFavorites() {
     mutationFn: async (favoriteId: string) => {
       if (!user?.id) throw new Error("Must be logged in to remove favorites");
       
+      // Track this ID as manually deleted so we don't show "expired" toast
+      manuallyDeletedIdsRef.current.add(favoriteId);
+      
       const { error } = await supabase
         .from("user_favorites")
         .delete()
@@ -320,6 +376,9 @@ export function useFavorites() {
       
       if (existingData) {
         // Remove - it already exists
+        // Track this ID as manually deleted so we don't show "expired" toast
+        manuallyDeletedIdsRef.current.add(existingData.id);
+        
         const { error } = await supabase
           .from("user_favorites")
           .delete()
@@ -421,6 +480,9 @@ export function useFavorites() {
           source: params.source ?? null,
           notes: params.notes ?? null,
           created_at: new Date().toISOString(),
+          status: "active",
+          expired_at: null,
+          expire_reason: null,
         };
         queryClient.setQueryData<Favorite[]>(
           ["favorites", user?.id],

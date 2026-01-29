@@ -93,7 +93,7 @@ export interface UnifiedFilterBarProps {
   // Markets
   selectedMarkets: string[];
   onMarketsChange: (markets: string[]) => void;
-  availableMarkets: { key: string; label: string }[];
+  availableMarkets: { key: string; label: string; sports?: string[] }[];
   
   // Sportsbooks
   selectedBooks: string[];
@@ -431,6 +431,7 @@ export function UnifiedFilterBar({
           {/* Global Settings Dropdown */}
           <GlobalSettingsDropdown
             tool={tool}
+            disableOddsRange={tool === "edge-finder" && !!(activePresets && activePresets.length > 0)}
             minEv={minEv}
             onMinEvChange={onMinEvChange}
             maxEv={maxEv}

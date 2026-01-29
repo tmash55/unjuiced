@@ -1,67 +1,63 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useFavorites, Favorite, BookSnapshot, RefreshedOdds, RefreshOddsResponse } from "@/hooks/use-favorites";
-import { useBetslips, Betslip, BETSLIP_COLORS, getColorClass } from "@/hooks/use-betslips";
-import { MaxWidthWrapper } from "@/components/max-width-wrapper";
-import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { 
-  Heart, 
-  Trash2, 
-  Loader2, 
-  ChevronRight,
+import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
+import { useBetslips, Betslip, getColorClass } from "@/hooks/use-betslips";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { MaxWidthWrapper } from "@/components/max-width-wrapper";
+import { cn } from "@/lib/utils";
+import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { formatMarketLabelShort } from "@/lib/data/markets";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import {
+  Heart,
+  Trash2,
+  Loader2,
   ChevronDown,
   ChevronUp,
-  Share2,
+  ChevronRight,
+  Plus,
+  MoreHorizontal,
+  Layers,
+  BarChart3,
+  Search,
+  X,
+  Edit3,
+  GripVertical,
   Copy,
   Check,
-  Zap,
-  ArrowUpRight,
-  X,
-  Plus,
-  Calculator,
-  Layers,
-  MoreHorizontal,
-  Edit3,
-  FolderPlus,
-  Filter,
-  TrendingUp,
-  Calendar,
-  Trophy,
-  Sparkles,
-  ArrowRight,
   ExternalLink,
-  Twitter,
-  MessageCircle,
-  RefreshCw,
+  Eye,
+  Share2,
 } from "lucide-react";
-import { HeartFill } from "@/components/icons/heart-fill";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { SportIcon } from "@/components/icons/sport-icons";
-import { formatMarketLabelShort } from "@/lib/data/markets";
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-const formatOdds = (price: number | null | undefined): string => {
+const formatOdds = (price: number | string | null | undefined): string => {
   if (price === null || price === undefined) return "—";
-  return price >= 0 ? `+${price}` : `${price}`;
+  const num = typeof price === "string" ? parseInt(price, 10) : price;
+  if (isNaN(num)) return "—";
+  return num >= 0 ? `+${num}` : `${num}`;
 };
 
 const formatSide = (side: string): string => {
-  if (side === "over" || side === "o") return "o";
-  if (side === "under" || side === "u") return "u";
-  return side.charAt(0).toLowerCase();
+  if (side === "over" || side === "o") return "O";
+  if (side === "under" || side === "u") return "U";
+  if (side === "yes") return "Yes";
+  if (side === "no") return "No";
+  return side.charAt(0).toUpperCase();
 };
 
 const getBookLogo = (bookId?: string | null): string | null => {
@@ -76,2234 +72,750 @@ const getBookName = (bookId?: string | null): string => {
   return sb?.name || bookId;
 };
 
-const getUniqueBooks = (favorites: Favorite[]): string[] => {
-  const books = new Set<string>();
-  favorites.forEach((fav) => {
-    if (fav.books_snapshot) {
-      Object.keys(fav.books_snapshot).forEach((book) => books.add(book));
+const formatFavoriteTime = (value?: string | null): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  const dayLabel = isToday
+    ? "Today"
+    : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  const timeLabel = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+  return `${dayLabel} ${timeLabel}`;
+};
+
+const getBestOdds = (snapshot: Record<string, BookSnapshot> | null): { bookId: string; price: number } | null => {
+  if (!snapshot) return null;
+  let best: { bookId: string; price: number } | null = null;
+  Object.entries(snapshot).forEach(([bookId, data]) => {
+    if (data.price && (!best || data.price > best.price)) {
+      best = { bookId, price: data.price };
     }
   });
-  return Array.from(books);
+  return best;
 };
 
-const calculateParlayOdds = (
-  favorites: Favorite[],
-  bookId: string
-): { odds: number; legCount: number; missingLegs: number } | null => {
-  let totalDecimal = 1;
-  let legCount = 0;
-  let missingLegs = 0;
-
-  for (const fav of favorites) {
-    const bookData = fav.books_snapshot?.[bookId];
-    if (bookData?.price) {
-      const american = bookData.price;
-      const decimal = american > 0 ? 1 + american / 100 : 1 + 100 / Math.abs(american);
-      totalDecimal *= decimal;
-      legCount++;
-    } else {
-      missingLegs++;
-    }
-  }
-
-  if (legCount === 0) return null;
-
-  const americanOdds = totalDecimal >= 2
-    ? Math.round((totalDecimal - 1) * 100)
-    : Math.round(-100 / (totalDecimal - 1));
-
-  return { odds: americanOdds, legCount, missingLegs };
+const getSortedBooks = (snapshot: Record<string, BookSnapshot> | null, limit = 5): { bookId: string; data: BookSnapshot }[] => {
+  if (!snapshot) return [];
+  return Object.entries(snapshot)
+    .filter(([, data]) => data.price)
+    .sort((a, b) => (b[1].price || 0) - (a[1].price || 0))
+    .slice(0, limit)
+    .map(([bookId, data]) => ({ bookId, data }));
 };
 
-const getInitials = (name: string | null): string => {
-  if (!name) return "?";
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
+const openBetLink = (snapshot?: BookSnapshot | null) => {
+  if (!snapshot) return;
+  const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const link = isMobile ? (snapshot.m || snapshot.u) : (snapshot.u || snapshot.m);
+  if (link) window.open(link, "_blank");
 };
 
-const getAvatarColor = (name: string | null): string => {
-  const colors = [
-    "from-violet-500 to-purple-600",
-    "from-blue-500 to-cyan-500",
-    "from-emerald-500 to-teal-500",
-    "from-orange-500 to-amber-500",
-    "from-pink-500 to-rose-500",
-    "from-indigo-500 to-blue-600",
-  ];
-  if (!name) return colors[0];
-  const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+const formatRelativeTime = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  return `${diffDays}d ago`;
 };
 
-const normalizeSport = (sport: string | null): string => {
-  if (!sport) return "nba";
-  const sportMap: Record<string, string> = {
-    nba: "basketball_nba",
-    nfl: "americanfootball_nfl",
-    nhl: "icehockey_nhl",
-    mlb: "baseball_mlb",
-  };
-  return sportMap[sport.toLowerCase()] || sport;
+const formatLegPreview = (fav: Favorite): string => {
+  const player = fav.player_name || fav.home_team || "Unknown";
+  const side = formatSide(fav.side);
+  const line = fav.line !== null ? fav.line : "";
+  const market = formatMarketLabelShort(fav.market) || fav.market;
+  return `${player} ${side} ${line} ${market}`.trim();
 };
 
 // ============================================================================
-// PLAY CARD WITH EXPANDABLE ODDS - PREMIUM VERSION
+// DRAG & DROP CONTEXT
 // ============================================================================
 
-function PlayCard({
-  favorite,
-  isSelected,
-  onToggle,
-  onRemove,
-  isRemoving,
-  selectedBook,
-  liveOdds,
-}: {
+interface DragState {
+  favoriteIds: string[];
+  isDragging: boolean;
+}
+
+// ============================================================================
+// FAVORITE ROW COMPONENT
+// ============================================================================
+
+interface FavoriteRowProps {
   favorite: Favorite;
   isSelected: boolean;
-  onToggle: () => void;
+  selectedIds: Set<string>;
+  onToggleSelect: () => void;
   onRemove: () => void;
-  isRemoving: boolean;
-  selectedBook: string | null;
-  liveOdds?: RefreshedOdds | null;
-}) {
+  onDragStart?: (ids: string[]) => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
+  isMobile?: boolean;
+  dragPreviewRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+function FavoriteRow({ 
+  favorite, 
+  isSelected, 
+  selectedIds,
+  onToggleSelect, 
+  onRemove, 
+  onDragStart,
+  onDragEnd,
+  isDragging,
+  isMobile,
+  dragPreviewRef,
+}: FavoriteRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const initials = getInitials(favorite.player_name);
-  const avatarColor = getAvatarColor(favorite.player_name);
-  const lastName = favorite.player_name?.split(" ").pop() || "Unknown";
-  const fullName = favorite.player_name || "Unknown";
-  const side = formatSide(favorite.side);
-  const hasLine = favorite.line !== null && favorite.line !== undefined;
-  const marketLabel = formatMarketLabelShort(favorite.market);
-  const normalizedSport = normalizeSport(favorite.sport);
-
-  // Use live odds if available, otherwise saved odds
-  const savedPrice = favorite.best_price_at_save;
-  const livePrice = liveOdds?.current_best_price;
-  const liveBestBook = liveOdds?.current_best_book;
-  const hasLiveOdds = liveOdds?.is_available && livePrice !== null && livePrice !== undefined;
+  const bestOdds = getBestOdds(favorite.books_snapshot);
+  const sortedBooks = getSortedBooks(favorite.books_snapshot, 4);
+  const totalBooks = favorite.books_snapshot ? Object.keys(favorite.books_snapshot).filter(k => favorite.books_snapshot![k].price).length : 0;
+  const remainingBooks = totalBooks - sortedBooks.length;
   
-  // Calculate odds movement
-  const oddsMovement = hasLiveOdds && savedPrice 
-    ? livePrice - savedPrice 
-    : null;
-  const oddsImproved = oddsMovement !== null && oddsMovement > 0;
-  const oddsDeclined = oddsMovement !== null && oddsMovement < 0;
-
-  const displayBook = selectedBook || (hasLiveOdds ? liveBestBook : favorite.best_book_at_save);
-  const displayPrice = selectedBook && favorite.books_snapshot?.[selectedBook]?.price
-    ? favorite.books_snapshot[selectedBook].price
-    : (hasLiveOdds ? livePrice : savedPrice);
-  const bookLogo = getBookLogo(displayBook);
+  const playerOrTeam = favorite.player_name || favorite.home_team || "Unknown";
+  const marketDisplay = formatMarketLabelShort(favorite.market) || favorite.market;
+  const lineDisplay = favorite.line !== null ? favorite.line : "";
+  const sideDisplay = formatSide(favorite.side);
+  const timeLabel = formatFavoriteTime(favorite.start_time || favorite.game_date);
   
-  const bookData = displayBook ? favorite.books_snapshot?.[displayBook] : null;
-  const betLink = bookData?.u || null;
-  const hasOddsAtBook = !selectedBook || favorite.books_snapshot?.[selectedBook];
-
-  // Sort books by odds for expanded view - prefer live odds when available
-  const sortedBooks = useMemo(() => {
-    // If we have live odds, use those as they're more current
-    if (liveOdds?.all_books && liveOdds.all_books.length > 0) {
-      return liveOdds.all_books
-        .filter(book => book.price)
-        .sort((a, b) => (b.price || 0) - (a.price || 0))
-        .map(book => [book.book, { 
-          price: book.price, 
-          u: book.link, 
-          sgp: book.sgp 
-        }] as [string, BookSnapshot]);
-    }
-    // Fall back to saved snapshot
-    if (!favorite.books_snapshot) return [];
-    return Object.entries(favorite.books_snapshot)
-      .filter(([_, data]) => data.price)
-      .sort((a, b) => (b[1].price || 0) - (a[1].price || 0));
-  }, [favorite.books_snapshot, liveOdds]);
-
-  const bookCount = sortedBooks.length;
-  const bestBook = sortedBooks[0];
-  const oddsSpread = sortedBooks.length >= 2 
-    ? (sortedBooks[0][1].price || 0) - (sortedBooks[sortedBooks.length - 1][1].price || 0)
-    : 0;
-
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+    <div 
       className={cn(
-        "group relative rounded-2xl transition-all overflow-hidden",
-        "bg-white dark:bg-neutral-900/80 backdrop-blur-sm",
-        "border shadow-sm",
-        isSelected
-          ? "border-brand ring-2 ring-brand/20 shadow-brand/10"
-          : "border-neutral-200/80 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-md",
-        !hasOddsAtBook && selectedBook && "opacity-50"
+        "border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 group/row transition-opacity",
+        isDragging && "opacity-50 bg-emerald-50/50 dark:bg-emerald-900/10"
       )}
+      draggable={!isMobile}
+      onDragStart={(e) => {
+        // If this row is selected, drag all selected items; otherwise just this one
+        const idsToTransfer = isSelected && selectedIds.size > 1 
+          ? Array.from(selectedIds) 
+          : [favorite.id];
+        e.dataTransfer.setData("favoriteIds", JSON.stringify(idsToTransfer));
+        e.dataTransfer.effectAllowed = "copy";
+        
+        // Set custom drag image for multi-select
+        if (idsToTransfer.length > 1 && dragPreviewRef?.current) {
+          // Update the preview content
+          const countEl = dragPreviewRef.current.querySelector('[data-drag-count]');
+          const labelEl = dragPreviewRef.current.querySelector('[data-drag-label]');
+          if (countEl) countEl.textContent = String(idsToTransfer.length);
+          if (labelEl) labelEl.textContent = `${idsToTransfer.length} plays`;
+          
+          e.dataTransfer.setDragImage(dragPreviewRef.current, 100, 30);
+        }
+        
+        onDragStart?.(idsToTransfer);
+      }}
+      onDragEnd={() => onDragEnd?.()}
     >
-      {/* Selection indicator bar */}
-      {isSelected && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-brand to-brand/70" />
-      )}
-      
-      {/* Main Row */}
-      <div className="flex items-center gap-3 md:gap-4 p-4">
-        {/* Checkbox with animation */}
-        <motion.button
-          onClick={onToggle}
-          whileTap={{ scale: 0.9 }}
+      <div
         className={cn(
-            "shrink-0 w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all",
-          isSelected
-              ? "bg-brand border-brand text-white shadow-sm shadow-brand/30"
-              : "border-neutral-300 dark:border-neutral-600 hover:border-brand hover:bg-brand/5"
+          "flex items-start gap-3 px-4 py-3.5 transition-colors",
+          isExpanded && "bg-neutral-50/60 dark:bg-neutral-800/30"
         )}
       >
-          <AnimatePresence mode="wait">
-        {isSelected && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-              >
-                <Check className="w-4 h-4" strokeWidth={3} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.button>
-
-        {/* Sport Icon Badge */}
-        <div className={cn(
-          "shrink-0 w-9 h-9 rounded-xl flex items-center justify-center",
-          "bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50",
-          "ring-1 ring-neutral-200/50 dark:ring-neutral-700/50"
-        )}>
-          <SportIcon sport={normalizedSport} className="w-4.5 h-4.5 text-neutral-600 dark:text-neutral-400" />
-        </div>
-
-        {/* Player Avatar with glow effect when selected */}
-        <div className="relative shrink-0">
-          {isSelected && (
-            <div className={cn("absolute inset-0 rounded-full blur-md opacity-50 bg-gradient-to-br", avatarColor)} />
-          )}
-          <div className={cn(
-            "relative w-11 h-11 rounded-full flex items-center justify-center",
-            "bg-gradient-to-br shadow-md ring-2 ring-white/20",
-            avatarColor
-          )}>
-            <span className="text-sm font-bold text-white tracking-tight">{initials}</span>
+        {/* Drag handle (desktop only) */}
+        {!isMobile && (
+          <div className="pt-0.5 cursor-grab active:cursor-grabbing text-neutral-300 dark:text-neutral-600 opacity-0 group-hover/row:opacity-100 transition-opacity">
+            <GripVertical className="h-4 w-4" />
           </div>
-        </div>
-
-        {/* Player + Bet Info */}
-      <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[15px] font-semibold text-neutral-900 dark:text-white truncate">
-              {fullName}
-          </span>
-          {favorite.player_team && (
-              <span className="hidden sm:inline-flex text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wide px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800">
-              {favorite.player_team}
-            </span>
-          )}
-        </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-600 dark:text-neutral-400">
-              {marketLabel}
-          </span>
-            {hasLine && (
-              <span className={cn(
-                "text-sm font-bold px-1.5 py-0.5 rounded-md",
-                side === "o" 
-                  ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" 
-                  : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
-              )}>
-                {side}{favorite.line}
-            </span>
-          )}
-        </div>
-      </div>
-
-        {/* Best Odds Display */}
-        <div className="hidden md:flex flex-col items-end gap-1">
-          <div className="flex items-center gap-2">
-        {bookLogo && (
-              <div className="w-5 h-5 rounded overflow-hidden bg-white dark:bg-neutral-800 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                <Image src={bookLogo} alt={displayBook || ""} width={20} height={20} className="w-full h-full object-contain" />
-              </div>
-            )}
-            <span className={cn(
-              "text-lg font-bold tabular-nums",
-              displayPrice && displayPrice >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-            )}>
-              {formatOdds(displayPrice)}
-            </span>
-            {/* Odds Movement Indicator */}
-            {oddsMovement !== null && oddsMovement !== 0 && (
-              <span className={cn(
-                "text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5",
-                oddsImproved 
-                  ? "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-500/20"
-                  : "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/20"
-              )}>
-                {oddsImproved ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5 rotate-180" />}
-                {oddsImproved ? "+" : ""}{oddsMovement}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {hasLiveOdds && (
-              <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
-                Live
-              </span>
-            )}
-            {oddsSpread > 10 && (
-              <span className="text-[10px] text-neutral-400">
-                {bookCount} books • {oddsSpread}pt spread
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Expand Button */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className={cn(
-            "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all text-xs font-medium",
-            isExpanded
-              ? "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400 ring-1 ring-violet-200/50 dark:ring-violet-500/30"
-              : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-400"
-          )}
+        )}
+        
+        {/* Checkbox */}
+        <div 
+          className="pt-0.5"
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onToggleSelect();
+            }
+          }}
         >
-          <span>{bookCount}</span>
-          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
-
-        {/* Bet Link */}
-        {betLink && (
-          <a
-            href={betLink}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onToggleSelect}
             onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all text-xs font-semibold",
-              "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/25",
-              "md:hidden"
-            )}
+            className="h-4 w-4"
+          />
+        </div>
+        
+        {/* Play info */}
+        <div 
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+            {playerOrTeam}
+          </div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {sideDisplay} {lineDisplay} {marketDisplay}
+            {timeLabel ? ` · ${timeLabel}` : ""}
+          </div>
+        </div>
+        
+        {/* Best odds + book */}
+        {bestOdds && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openBetLink(favorite.books_snapshot?.[bestOdds.bookId]);
+            }}
+            className="flex flex-col items-end shrink-0 hover:opacity-80 transition-opacity"
           >
-            <span>{formatOdds(displayPrice)}</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </a>
+            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+              {formatOdds(bestOdds.price)}
+            </span>
+            <div className="flex items-center gap-1 mt-0.5">
+              {getBookLogo(bestOdds.bookId) && (
+                <img 
+                  src={getBookLogo(bestOdds.bookId)!} 
+                  alt={getBookName(bestOdds.bookId)} 
+                  className="h-3.5 w-3.5 object-contain"
+                />
+              )}
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                {getBookName(bestOdds.bookId)}
+              </span>
+            </div>
+          </button>
         )}
-
-        {/* Desktop Bet Button */}
-        {betLink && (
-          <a
-            href={betLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "hidden md:flex shrink-0 items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold",
-              "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700",
-              "text-white shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30"
-            )}
-          >
-            Bet
-            <ArrowRight className="w-4 h-4" />
-          </a>
-        )}
-
-        {/* Remove Button */}
+        
+        {/* Trash icon - visible on hover */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          disabled={isRemoving}
-          className={cn(
-            "shrink-0 p-2 rounded-xl transition-all",
-            "opacity-0 group-hover:opacity-100 focus:opacity-100",
-            "text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10",
-            isRemoving && "opacity-100"
-          )}
+          className="p-1 text-neutral-300 dark:text-neutral-600 opacity-0 group-hover/row:opacity-100 hover:text-red-500 dark:hover:text-red-400 transition-all"
         >
-          {isRemoving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash2 className="w-4 h-4" />
-          )}
+          <Trash2 className="h-4 w-4" />
+        </button>
+        
+        {/* Expand chevron */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1 -mr-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+        >
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
-
-      {/* Expanded Odds View - Premium Grid */}
+      
+      {/* Expanded state */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 pt-0">
-              <div className="bg-gradient-to-br from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30 rounded-xl p-4 ring-1 ring-neutral-200/50 dark:ring-neutral-700/30">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                      All Sportsbook Odds
-                    </span>
-                    {hasLiveOdds && (
-                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded-md uppercase">
-                        Live
+            <div className={cn("px-4 pb-3", isMobile ? "pl-11" : "pl-14")}>
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-2 space-y-1">
+                <div className="px-2 pt-1 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                  Best available odds
+                </div>
+                {sortedBooks.map(({ bookId, data }) => (
+                  <button
+                    key={bookId}
+                    onClick={() => openBetLink(data)}
+                    className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {getBookLogo(bookId) && (
+                        <img 
+                          src={getBookLogo(bookId)!} 
+                          alt={getBookName(bookId)} 
+                          className="h-4 w-4 object-contain"
+                        />
+                      )}
+                      <span className="text-xs text-neutral-600 dark:text-neutral-300">
+                        {getBookName(bookId)}
                       </span>
-                    )}
-    </div>
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                    Best to worst →
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                  {sortedBooks.map(([bookId, data], index) => {
-                    const logo = getBookLogo(bookId);
-                    const link = data.u;
-                    const isBest = index === 0;
-                    const bookName = getBookName(bookId);
-                    
-                    return (
-                      <a
-                        key={bookId}
-                        href={link || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={cn(
-                          "group/book flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all",
-                          "border",
-                          isBest
-                            ? "bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-500/15 dark:to-emerald-500/5 border-emerald-200/80 dark:border-emerald-500/30 ring-1 ring-emerald-100 dark:ring-emerald-500/10"
-                            : "bg-white dark:bg-neutral-900/50 border-neutral-200/80 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
-                          !link && "cursor-default opacity-75"
-                        )}
-                      >
-                        {logo ? (
-                          <div className="shrink-0 w-6 h-6 rounded-lg overflow-hidden bg-white dark:bg-neutral-800 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50">
-                            <Image src={logo} alt={bookId} width={24} height={24} className="w-full h-full object-contain" />
-                          </div>
-                        ) : (
-                          <div className="shrink-0 w-6 h-6 rounded-lg bg-neutral-200 dark:bg-neutral-700" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className={cn(
-                            "block text-sm font-bold tabular-nums",
-                            isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-800 dark:text-neutral-200"
-                          )}>
-                            {formatOdds(data.price)}
-                          </span>
-                          <span className="block text-[10px] text-neutral-500 dark:text-neutral-500 truncate">
-                            {bookName}
-                          </span>
-                        </div>
-                        {isBest && (
-                          <span className="shrink-0 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded-md uppercase">
-                            Best
-                          </span>
-                        )}
-                        {link && !isBest && (
-                          <ExternalLink className="shrink-0 w-3 h-3 text-neutral-400 opacity-0 group-hover/book:opacity-100 transition-opacity" />
-                        )}
-                      </a>
-                    );
-                  })}
-                </div>
+                    </div>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      data.price === bestOdds?.price 
+                        ? "text-emerald-600 dark:text-emerald-400" 
+                        : "text-neutral-600 dark:text-neutral-300"
+                    )}>
+                      {formatOdds(data.price)}
+                    </span>
+                  </button>
+                ))}
+                {remainingBooks > 0 && (
+                  <div className="text-[10px] text-neutral-400 dark:text-neutral-500 text-center pt-1">
+                    +{remainingBooks} more book{remainingBooks !== 1 ? "s" : ""}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// ============================================================================
-// LEGS CAROUSEL - Arrow navigation for selected legs
-// ============================================================================
-
-function LegsCarousel({ 
-  favorites, 
-  liveOddsCache 
-}: { 
-  favorites: Favorite[]; 
-  liveOddsCache?: Record<string, RefreshedOdds>;
-}) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const visibleCount = 3; // Show 3 legs at a time
-  
-  const canGoBack = currentIndex > 0;
-  const canGoForward = currentIndex + visibleCount < favorites.length;
-  
-  const visibleFavorites = favorites.slice(currentIndex, currentIndex + visibleCount);
-  
-  const goBack = () => {
-    if (canGoBack) setCurrentIndex(prev => Math.max(0, prev - 1));
-  };
-  
-  const goForward = () => {
-    if (canGoForward) setCurrentIndex(prev => Math.min(favorites.length - visibleCount, prev + 1));
-  };
-
-  // Reset index if favorites change
-  useEffect(() => {
-    setCurrentIndex(0);
-  }, [favorites.length]);
-
-  if (favorites.length === 0) return null;
-
-  return (
-    <div className="border-b border-neutral-100 dark:border-neutral-800/50">
-      {/* Header with count and arrows */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-neutral-50 dark:border-neutral-800/30">
-        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-          {favorites.length} Leg{favorites.length !== 1 ? 's' : ''}
-        </span>
-        {favorites.length > visibleCount && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={goBack}
-              disabled={!canGoBack}
-        className={cn(
-                "w-5 h-5 rounded flex items-center justify-center transition-colors",
-                canGoBack 
-                  ? "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" 
-                  : "text-neutral-300 dark:text-neutral-700 cursor-not-allowed"
-              )}
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[9px] text-neutral-400 tabular-nums min-w-[32px] text-center">
-              {currentIndex + 1}-{Math.min(currentIndex + visibleCount, favorites.length)}
-            </span>
-            <button
-              onClick={goForward}
-              disabled={!canGoForward}
-              className={cn(
-                "w-5 h-5 rounded flex items-center justify-center transition-colors",
-                canGoForward 
-                  ? "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" 
-                  : "text-neutral-300 dark:text-neutral-700 cursor-not-allowed"
-              )}
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-      
-      {/* Visible legs */}
-      <AnimatePresence mode="popLayout">
-        {visibleFavorites.map((fav, localIndex) => {
-          const globalIndex = currentIndex + localIndex;
-          const side = formatSide(fav.side);
-          const initials = getInitials(fav.player_name);
-          const avatarColor = getAvatarColor(fav.player_name);
-          
-          // Get live odds for this favorite
-          const liveData = liveOddsCache?.[fav.id];
-          const livePrice = liveData?.current_best_price;
-          const savedPrice = fav.best_price_at_save;
-          const displayPrice = livePrice ?? savedPrice;
-          const hasLive = liveData?.is_available && livePrice !== null && livePrice !== undefined;
-          
-          return (
-            <motion.div 
-              key={fav.id}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.15 }}
-              className="flex items-center gap-2 px-3 py-2 border-b border-neutral-50 dark:border-neutral-800/30 last:border-0 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors"
-            >
-              <span className="w-4 h-4 rounded-full bg-neutral-200 dark:bg-neutral-700/80 flex items-center justify-center text-[9px] font-bold text-neutral-500 shrink-0">
-                {globalIndex + 1}
-              </span>
-              <div className={cn("w-5 h-5 rounded-full flex items-center justify-center bg-gradient-to-br text-[8px] font-bold text-white shrink-0", avatarColor)}>
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-medium text-neutral-700 dark:text-neutral-200 truncate block">
-                  {fav.player_name || "Unknown"}
-                </span>
-                <span className="text-[10px] text-neutral-400">
-                  {formatMarketLabelShort(fav.market)} <span className={side === 'o' ? 'text-emerald-500' : 'text-red-500'}>{side}{fav.line}</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className={cn(
-                  "text-[11px] font-semibold tabular-nums",
-                  hasLive ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-300"
-                )}>
-                  {formatOdds(displayPrice)}
-                </span>
-                {hasLive && (
-                  <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">•</span>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
     </div>
   );
 }
 
 // ============================================================================
-// LIVE PARLAY BUILDER PANEL - PREMIUM VERSION WITH SGP DETECTION
+// BETSLIP CARD HELPERS
 // ============================================================================
 
-type BetType = 'single' | 'parlay' | 'sgp' | 'sgp_plus';
-
-function classifyBetType(favorites: Favorite[]): BetType {
-  if (favorites.length === 0 || favorites.length === 1) return 'single';
-  
-  // Group legs by event_id
-  const eventGroups: Record<string, number> = {};
-  for (const fav of favorites) {
-    const eventId = fav.event_id;
-    eventGroups[eventId] = (eventGroups[eventId] || 0) + 1;
-  }
-  
-  const eventIds = Object.keys(eventGroups);
-  const sgpEvents = eventIds.filter(id => eventGroups[id] >= 2);
-  
-  if (sgpEvents.length === 0) {
-    // No event has 2+ legs - it's a regular parlay
-    return 'parlay';
-  } else if (sgpEvents.length === 1 && eventIds.length === 1) {
-    // All legs are from the same game - it's a pure SGP
-    return 'sgp';
-  } else {
-    // Multiple events with at least one having 2+ legs - it's SGP+
-    return 'sgp_plus';
-  }
+interface BookOddsData {
+  bookId: string;
+  odds: number;
+  hasDeepLink: boolean;
 }
 
-function getBetTypeInfo(betType: BetType): { label: string; color: string; bg: string; icon: string } {
-  switch (betType) {
-    case 'single':
-      return { label: 'Single', color: 'text-neutral-600 dark:text-neutral-400', bg: 'bg-neutral-100 dark:bg-neutral-800', icon: '1' };
-    case 'parlay':
-      return { label: 'Parlay', color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-500/20', icon: '×' };
-    case 'sgp':
-      return { label: 'SGP', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-500/20', icon: '⚡' };
-    case 'sgp_plus':
-      return { label: 'SGP+', color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-500/20', icon: '🔥' };
-  }
-}
-
-// SGP odds cache type for ParlayBuilder
-interface ParlayBuilderSgpCache {
-  [bookId: string]: {
-    price: number | null;
-    link: string | null;
-    limits?: {
-      max?: number;
-      min?: number;
-    };
-    error?: string;
-  };
-}
-
-function ParlayBuilder({
-  selectedFavorites,
-  allBooks,
-  selectedBook,
-  onBookChange,
-  onClearSelection,
-  onDeleteSelected,
-  isDeletingSelected,
-  onCreateSlip,
-  isCreatingSlip,
-  onCopyParlay,
-  sharedSgpCache,
-  onUpdateSgpCache,
-  liveOddsCache,
-}: {
-  selectedFavorites: Favorite[];
-  allBooks: string[];
-  selectedBook: string | null;
-  onBookChange: (book: string | null) => void;
-  onClearSelection: () => void;
-  onDeleteSelected: () => void;
-  isDeletingSelected: boolean;
-  onCreateSlip: () => void;
-  isCreatingSlip: boolean;
-  onCopyParlay?: () => void;
-  sharedSgpCache?: ParlayBuilderSgpCache | null;
-  onUpdateSgpCache?: (favoriteIds: string[], cache: ParlayBuilderSgpCache) => void;
-  liveOddsCache?: Record<string, RefreshedOdds>;
-}) {
-  const [stake, setStake] = useState<string>("25");
-  const [copied, setCopied] = useState(false);
-  const [localSgpCache, setLocalSgpCache] = useState<ParlayBuilderSgpCache>({});
-  const [isFetchingSgp, setIsFetchingSgp] = useState(false);
-  const [hasFetchedSgp, setHasFetchedSgp] = useState(false);
-  const [isFetchingDeeplink, setIsFetchingDeeplink] = useState(false);
-  const [fetchedDeeplinks, setFetchedDeeplinks] = useState<Record<string, { desktop?: string; mobile?: string } | null>>({});
-
-  // Use shared cache if available, otherwise use local
-  const sgpOddsCache = sharedSgpCache && Object.keys(sharedSgpCache).length > 0 
-    ? sharedSgpCache 
-    : localSgpCache;
-
-  // Classify bet type
-  const betType = useMemo(() => classifyBetType(selectedFavorites), [selectedFavorites]);
-  const betTypeInfo = getBetTypeInfo(betType);
-  const needsSgpOdds = betType === 'sgp' || betType === 'sgp_plus';
+// Calculate parlay odds from individual favorites for ALL books
+const calculateAllParlayOdds = (favorites: Favorite[]): BookOddsData[] => {
+  if (favorites.length < 2) return [];
   
-  // Parse SGP price string to number (handles "+2755", "-150", "+2666.98", etc.)
-  const parseSgpPrice = (priceStr: string | undefined): number | null => {
-    if (!priceStr) return null;
-    // Keep digits, minus sign, and decimal point
-    const cleaned = priceStr.replace(/[^0-9.\-]/g, '');
-    const num = parseFloat(cleaned);
-    if (isNaN(num)) return null;
-    // Round to nearest integer for American odds
-    return priceStr.startsWith('-') ? -Math.abs(Math.round(num)) : Math.round(num);
-  };
+  // Get all books that have odds for ALL legs
+  const allBooks = new Set<string>();
+  favorites.forEach(fav => {
+    if (fav.books_snapshot) {
+      Object.keys(fav.books_snapshot).forEach(book => allBooks.add(book));
+    }
+  });
   
-  // Fetch SGP odds from vendor for selected favorites
-  const fetchSgpOddsForFavorites = useCallback(async () => {
-    if (!needsSgpOdds || selectedFavorites.length < 2) return;
+  const results: BookOddsData[] = [];
+  
+  allBooks.forEach(bookId => {
+    let parlayDecimal = 1;
+    let hasAllLegs = true;
     
-    setIsFetchingSgp(true);
-    setHasFetchedSgp(true);
-    
-    try {
-      // Collect SGP tokens for each book
-      const bookTokensMap = new Map<string, string[]>();
-      const sgpBooks = allBooks.filter(book => {
-        // Check if this book supports SGP (has sgp tokens in at least 2 favorites)
-        const tokensCount = selectedFavorites.filter(f => f.books_snapshot?.[book]?.sgp).length;
-        return tokensCount >= 2;
-      });
-      
-      for (const book of sgpBooks) {
-        const tokens: string[] = [];
-        for (const fav of selectedFavorites) {
-          const sgpToken = fav.books_snapshot?.[book]?.sgp;
-          if (sgpToken) tokens.push(sgpToken);
-        }
-        if (tokens.length >= 2) {
-          bookTokensMap.set(book, tokens);
-        }
-      }
-      
-      // Fetch from API for each book
-      const results: ParlayBuilderSgpCache = {};
-      
-      await Promise.all(
-        Array.from(bookTokensMap.entries()).map(async ([bookId, tokens]) => {
-          try {
-            const response = await fetch(`/api/v2/sgp-odds-direct`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ book_id: bookId, sgp_tokens: tokens }),
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              results[bookId] = {
-                price: parseSgpPrice(data.price),
-                link: data.links?.desktop || data.links?.mobile || null,
-                limits: data.limits,
-              };
-            } else {
-              results[bookId] = { price: null, link: null, error: 'Failed to fetch' };
-            }
-          } catch {
-            results[bookId] = { price: null, link: null, error: 'Network error' };
-          }
-        })
-      );
-      
-      // Update local cache
-      setLocalSgpCache(results);
-      
-      // Update shared cache if callback provided
-      if (onUpdateSgpCache) {
-        onUpdateSgpCache(selectedFavorites.map(f => f.id), results);
-      }
-    } catch (error) {
-      console.error('[ParlayBuilder] SGP fetch error:', error);
-    } finally {
-      setIsFetchingSgp(false);
-    }
-  }, [needsSgpOdds, selectedFavorites, allBooks, onUpdateSgpCache]);
-  
-  // Auto-fetch SGP odds when needed
-  useEffect(() => {
-    if (needsSgpOdds && selectedFavorites.length >= 2 && !hasFetchedSgp && !isFetchingSgp) {
-      fetchSgpOddsForFavorites();
-    }
-  }, [needsSgpOdds, selectedFavorites.length, hasFetchedSgp, isFetchingSgp, fetchSgpOddsForFavorites]);
-  
-  // Reset local SGP cache when favorites change (but check shared cache first)
-  useEffect(() => {
-    // If we have valid shared cache, mark as fetched
-    if (sharedSgpCache && Object.keys(sharedSgpCache).length > 0) {
-      setHasFetchedSgp(true);
-    } else {
-      setLocalSgpCache({});
-      setHasFetchedSgp(false);
-    }
-    setFetchedDeeplinks({});
-  }, [selectedFavorites.map(f => f.id).join(','), sharedSgpCache]);
-
-  // Fetch deeplink on-demand when user clicks Bet (for regular parlays or missing links)
-  const fetchDeeplinkAndRedirect = useCallback(async (bookId: string) => {
-    // Check if we already have the deeplink cached (from SGP fetch or previous click)
-    const cachedSgpLink = sgpOddsCache[bookId]?.link;
-    if (cachedSgpLink) {
-      window.open(cachedSgpLink, '_blank');
-      return;
-    }
-    
-    if (fetchedDeeplinks[bookId]) {
-      const links = fetchedDeeplinks[bookId];
-      const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const link = isMobile ? (links?.mobile || links?.desktop) : (links?.desktop || links?.mobile);
-      if (link) {
-        window.open(link, '_blank');
+    favorites.forEach(fav => {
+      const bookData = fav.books_snapshot?.[bookId];
+      if (!bookData?.price) {
+        hasAllLegs = false;
         return;
       }
-    }
+      const american = bookData.price;
+      const decimal = american > 0 ? (american / 100) + 1 : (100 / Math.abs(american)) + 1;
+      parlayDecimal *= decimal;
+    });
     
-    // Get SGP tokens from the favorites - try both sgp field and odds_selection_id
-    const sgpTokens = selectedFavorites
-      .map(fav => {
-        // First try the sgp field in books_snapshot
-        const sgpToken = fav.books_snapshot?.[bookId]?.sgp;
-        if (sgpToken) return sgpToken;
-        // Fall back to odds_selection_id if available
-        return fav.odds_selection_id;
-      })
-      .filter(Boolean) as string[];
-    
-    console.log('[ParlayBuilder] SGP tokens for', bookId, ':', sgpTokens);
-    
-    if (sgpTokens.length === 0 || sgpTokens.length < selectedFavorites.length) {
-      console.log('[ParlayBuilder] Missing SGP tokens, falling back to homepage');
-      // No SGP tokens available, fall back to sportsbook homepage
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
-      return;
-    }
-    
-    setIsFetchingDeeplink(true);
-    try {
-      console.log('[ParlayBuilder] Fetching SGP odds for', bookId, 'with tokens:', sgpTokens);
-      const response = await fetch('/api/v2/sgp-odds-direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          book_id: bookId,
-          sgp_tokens: sgpTokens,
-        }),
-      });
+    if (hasAllLegs && parlayDecimal > 1) {
+      const american = parlayDecimal >= 2 
+        ? Math.round((parlayDecimal - 1) * 100)
+        : Math.round(-100 / (parlayDecimal - 1));
       
-      console.log('[ParlayBuilder] API response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[ParlayBuilder] API response data:', data);
-        const links = data.links || null;
-        
-        // Cache the fetched links
-        setFetchedDeeplinks(prev => ({ ...prev, [bookId]: links }));
-        
-        if (links) {
-          const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          const link = isMobile ? (links.mobile || links.desktop) : (links.desktop || links.mobile);
-          if (link) {
-            window.open(link, '_blank');
-            return;
-          }
-        }
+      results.push({ bookId, odds: american, hasDeepLink: false });
+    }
+  });
+  
+  return results.sort((a, b) => b.odds - a.odds);
+};
+
+// Get SGP odds sorted by best odds
+const getSortedSgpOdds = (cache: Record<string, { price?: string; links?: { desktop: string; mobile: string }; error?: string }> | null): BookOddsData[] => {
+  if (!cache) return [];
+  
+  return Object.entries(cache)
+    .filter(([, data]) => data.price && !data.error)
+    .map(([bookId, data]) => ({
+      bookId,
+      odds: parseInt(data.price!.replace("+", ""), 10),
+      hasDeepLink: !!(data.links?.desktop || data.links?.mobile),
+    }))
+    .filter(item => !isNaN(item.odds))
+    .sort((a, b) => b.odds - a.odds);
+};
+
+// Get unavailable books from SGP cache
+const getUnavailableBooks = (cache: Record<string, { price?: string; error?: string }> | null): string[] => {
+  if (!cache) return [];
+  return Object.entries(cache)
+    .filter(([, data]) => data.error || !data.price)
+    .map(([bookId]) => bookId);
+};
+
+// Get bet type label
+const getBetTypeLabel = (betType: string | null, legCount: number): { label: string; tooltip: string } | null => {
+  if (legCount < 2) return null;
+  
+  if (betType === "sgp") {
+    return { label: "SGP", tooltip: "Same Game Parlay – all legs from one game" };
+  }
+  if (betType === "sgp_plus") {
+    return { label: "SGP+", tooltip: "SGP+ – legs from multiple games" };
+  }
+  
+  return null;
+};
+
+// Calculate edge percentage (best odds vs average)
+const calculateEdge = (bestOdds: number, allOdds: number[]): number | null => {
+  if (allOdds.length < 2) return null;
+  
+  // Convert to implied probabilities
+  const toProb = (american: number) => 
+    american > 0 ? 100 / (american + 100) : Math.abs(american) / (Math.abs(american) + 100);
+  
+  const bestProb = toProb(bestOdds);
+  const avgProb = allOdds.reduce((sum, o) => sum + toProb(o), 0) / allOdds.length;
+  
+  // Edge = how much better best is vs average
+  const edge = ((avgProb - bestProb) / avgProb) * 100;
+  return edge > 0 ? edge : null;
+};
+
+// Check if odds are stale
+const isOddsStale = (updatedAt: string | null, thresholdMinutes = 10): boolean => {
+  if (!updatedAt) return false;
+  const updated = new Date(updatedAt);
+  const now = new Date();
+  const diffMinutes = (now.getTime() - updated.getTime()) / 60000;
+  return diffMinutes > thresholdMinutes;
+};
+
+// Format time since update
+const formatTimeSince = (dateStr: string | null): string | null => {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+  return `${Math.floor(diffSeconds / 3600)}h ago`;
+};
+
+// ============================================================================
+// BETSLIP CARD COMPONENT
+// ============================================================================
+
+interface BetslipCardProps {
+  betslip: Betslip;
+  onDelete: () => void;
+  onRename: (name: string) => void;
+  onQuickCompare: () => void;
+  onRemoveLeg: (favoriteId: string) => void;
+  onDrop?: (favoriteIds: string[]) => void;
+  isDropTarget?: boolean;
+  dragCount?: number;
+}
+
+function BetslipCard({ betslip, onDelete, onRename, onQuickCompare, onRemoveLeg, onDrop, isDropTarget, dragCount = 1 }: BetslipCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(betslip.name);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showAllBooks, setShowAllBooks] = useState(false);
+  
+  const items = betslip.items || [];
+  const legCount = items.length || betslip.legs_count || 0;
+  const lastUpdated = formatRelativeTime(betslip.updated_at);
+  const favorites = items.map(item => item.favorite).filter(Boolean) as Favorite[];
+  
+  // Get up to 2 leg previews
+  const previewLegs = favorites.slice(0, 2);
+  const remainingLegs = legCount - previewLegs.length;
+  
+  // Calculate odds
+  const sgpOdds = useMemo(() => getSortedSgpOdds(betslip.sgp_odds_cache), [betslip.sgp_odds_cache]);
+  const parlayOdds = useMemo(() => calculateAllParlayOdds(favorites), [favorites]);
+  const unavailableBooks = useMemo(() => getUnavailableBooks(betslip.sgp_odds_cache), [betslip.sgp_odds_cache]);
+  const betTypeInfo = getBetTypeLabel(betslip.bet_type, legCount);
+  
+  // Determine which odds to use
+  const hasMultipleLegs = legCount >= 2;
+  const bookOdds = sgpOdds.length > 0 ? sgpOdds : parlayOdds;
+  const bestOdds = bookOdds[0] || null;
+  const top3Books = bookOdds.slice(0, 3);
+  const totalAvailableBooks = bookOdds.length;
+  
+  // Calculate edge (best vs average)
+  const edge = useMemo(() => {
+    if (bookOdds.length < 2 || !bestOdds) return null;
+    return calculateEdge(bestOdds.odds, bookOdds.map(b => b.odds));
+  }, [bookOdds, bestOdds]);
+  
+  // Check if odds are stale
+  const oddsStale = isOddsStale(betslip.sgp_odds_updated_at, 10);
+  const oddsUpdatedAgo = formatTimeSince(betslip.sgp_odds_updated_at);
+  
+  const handleSaveName = () => {
+    if (editName.trim() && editName !== betslip.name) {
+      onRename(editName.trim());
+    }
+    setIsEditing(false);
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  };
+  
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+  
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const favoriteIdsJson = e.dataTransfer.getData("favoriteIds");
+    if (favoriteIdsJson && onDrop) {
+      try {
+        const favoriteIds = JSON.parse(favoriteIdsJson) as string[];
+        onDrop(favoriteIds);
+      } catch {
+        // Fallback
       }
-      
-      // Fallback to sportsbook homepage if no deeplink available
-      console.log('[ParlayBuilder] No deeplink in response, falling back to homepage');
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
-    } catch (error) {
-      console.error('[ParlayBuilder] Failed to fetch deeplink:', error);
-      // Fallback to sportsbook homepage
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
-    } finally {
-      setIsFetchingDeeplink(false);
     }
-  }, [selectedFavorites, sgpOddsCache, fetchedDeeplinks]);
-
-  const parlayByBook = useMemo(() => {
-    if (selectedFavorites.length < 2) return [];
-    
-    return allBooks
-      .map(book => {
-        const result = calculateParlayOdds(selectedFavorites, book);
-        if (!result) return null;
-        return { book, ...result };
-      })
-      .filter((x): x is { book: string; odds: number; legCount: number; missingLegs: number } => 
-        x !== null && x.legCount === selectedFavorites.length
-      )
-      .sort((a, b) => b.odds - a.odds);
-  }, [selectedFavorites, allBooks]);
-
-  const currentParlay = useMemo(() => {
-    if (!selectedBook) return parlayByBook[0] || null;
-    return parlayByBook.find(p => p.book === selectedBook) || null;
-  }, [parlayByBook, selectedBook]);
-
-  const stakeNum = parseFloat(stake) || 0;
-  const payout = useMemo(() => {
-    if (!currentParlay || stakeNum <= 0) return 0;
-    const decimal = currentParlay.odds > 0 
-      ? 1 + currentParlay.odds / 100 
-      : 1 + 100 / Math.abs(currentParlay.odds);
-    return stakeNum * decimal;
-  }, [currentParlay, stakeNum]);
-
-  const handleCopy = () => {
-    const text = selectedFavorites.map(f => {
-      const side = formatSide(f.side);
-      return `${f.player_name} ${formatMarketLabelShort(f.market)} ${side}${f.line || ""}`;
+  };
+  
+  const handleCopySlip = async () => {
+    const betTypeText = betTypeInfo ? ` ${betTypeInfo.label}` : "";
+    const legsText = favorites.map(fav => {
+      const player = fav.player_name || fav.home_team || "Unknown";
+      const side = formatSide(fav.side);
+      const line = fav.line !== null ? fav.line : "";
+      const market = formatMarketLabelShort(fav.market) || fav.market;
+      return `${player} ${side}${line} ${market}`;
     }).join("\n");
     
-    const parlayText = currentParlay 
-      ? `\n\n${betTypeInfo.label}: ${formatOdds(currentParlay.odds)} @ ${getBookName(currentParlay.book)}`
-      : "";
+    const oddsText = bestOdds ? `\nBest odds: ${formatOdds(bestOdds.odds)} (${getBookName(bestOdds.bookId)})` : "";
+    const edgeText = edge !== null && edge >= 5 ? `\n+${edge.toFixed(0)}% vs market` : "";
+    const text = `${betslip.name}${betTypeText} (${legCount} legs)\n\n${legsText}${oddsText}${edgeText}\n\nunjuiced.bet`;
     
-    navigator.clipboard.writeText(text + parlayText);
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    onCopyParlay?.();
   };
-
-  const bestBook = parlayByBook[0];
-  const displayBook = selectedBook || bestBook?.book;
-
-  // Empty state - clean version
-  if (selectedFavorites.length < 2) {
-  return (
-      <div className="h-full flex flex-col">
-        {/* Header */}
-        <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
-          <div className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-brand" />
-            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 uppercase tracking-wide">
-              Parlay Builder
-            </span>
-          </div>
-        </div>
-        
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-          <div className="w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-3">
-            <Calculator className="w-5 h-5 text-neutral-400" />
-          </div>
-          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-            Select 2+ plays
-          </p>
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
-            to build a parlay and compare odds
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header with bet type badge */}
-      <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5 text-brand" />
-            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 uppercase tracking-wide">
-              Parlay Builder
-              </span>
-          </div>
-          <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide", betTypeInfo.bg, betTypeInfo.color)}>
-            <span>{betTypeInfo.icon}</span>
-            <span>{betTypeInfo.label}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Selected Legs - With arrow navigation */}
-      <LegsCarousel 
-        favorites={selectedFavorites} 
-        liveOddsCache={liveOddsCache} 
-      />
-
-      {/* Book Selector - Compact chips */}
-      <div className="px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-              Compare Books
-            </span>
-            {needsSgpOdds && isFetchingSgp && (
-              <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {needsSgpOdds && Object.keys(sgpOddsCache).length > 0 && (
-              <button
-                onClick={fetchSgpOddsForFavorites}
-                disabled={isFetchingSgp}
-                className="text-[9px] text-brand hover:underline"
-              >
-                Refresh
-              </button>
-            )}
-            <span className="text-[9px] text-neutral-400">{parlayByBook.length} available</span>
-        </div>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {parlayByBook.slice(0, 8).map(({ book, odds }, index) => {
-            const logo = getBookLogo(book);
-            const isSelected = book === displayBook;
-            const isBest = index === 0;
-            
-            // Use SGP odds from cache if available
-            const sgpData = needsSgpOdds ? sgpOddsCache[book] : null;
-            const displayOddsValue = sgpData?.price ?? odds;
-            const hasSgpLink = !!sgpData?.link;
-            const maxLimit = sgpData?.limits?.max;
-            
-            // Build tooltip
-            const tooltipText = `${getBookName(book)}: ${formatOdds(displayOddsValue)}${hasSgpLink ? ' (SGP)' : ''}${maxLimit ? ` • Max: $${maxLimit.toLocaleString()}` : ''}`;
-            
-            return (
-              <button
-                key={book}
-                onClick={() => onBookChange(book === selectedBook ? null : book)}
-                className={cn(
-                  "flex items-center gap-1 px-1.5 py-1 rounded-md transition-all text-[10px]",
-                  "border",
-                  isSelected
-                    ? "bg-brand/10 border-brand"
-                    : isBest
-                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/80 dark:border-emerald-500/30"
-                      : "bg-white dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600"
-                )}
-                title={tooltipText}
-              >
-                {logo && (
-                  <div className="w-3.5 h-3.5 rounded overflow-hidden bg-white dark:bg-neutral-900">
-                    <Image src={logo} alt={book} width={14} height={14} className="w-full h-full object-contain" />
-                  </div>
-                )}
-                <span className={cn(
-                  "font-bold tabular-nums",
-                  isSelected ? "text-brand" : isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
-                )}>
-                  {formatOdds(displayOddsValue)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Live Odds Display - Compact */}
-      <div className="flex-1 px-3 py-3">
-        {currentParlay ? (() => {
-          // Get SGP data for current book
-          const sgpData = needsSgpOdds ? sgpOddsCache[currentParlay.book] : null;
-          const displayOdds = sgpData?.price ?? currentParlay.odds;
-          const sgpLink = sgpData?.link;
-          const betLink = sgpLink;
-          const bookMeta = getSportsbookById(currentParlay.book);
-          const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-          const bookName = getBookName(currentParlay.book);
-          
-          const effectivePayout = stakeNum <= 0 ? 0 : (() => {
-            const decimal = displayOdds > 0 
-              ? 1 + displayOdds / 100 
-              : 1 + 100 / Math.abs(displayOdds);
-            return stakeNum * decimal;
-          })();
-          
-          return (
-            <div className="space-y-3">
-              {/* Odds display - Compact */}
-              <div className="text-center py-2">
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 mb-1.5">
-                  {(() => {
-                    const logo = getBookLogo(currentParlay.book);
-                    return logo ? (
-                      <div className="w-3.5 h-3.5 rounded overflow-hidden">
-                        <Image src={logo} alt={currentParlay.book} width={14} height={14} className="w-full h-full object-contain" />
-                      </div>
-                    ) : null;
-                  })()}
-                  <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-400">
-                    {bookName}
-                  </span>
-                  {needsSgpOdds && sgpLink && (
-                    <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-1 rounded">
-                      SGP
-                    </span>
-                  )}
-                </div>
-                <motion.div
-                  key={displayOdds}
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className={cn(
-                    "text-4xl font-black tabular-nums tracking-tight",
-                    displayOdds >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-                  )}
-                >
-                  {formatOdds(displayOdds)}
-                </motion.div>
-                
-                {/* SGP status */}
-                {needsSgpOdds && !sgpLink && (
-                  <p className="text-[9px] text-amber-600/80 dark:text-amber-400/80 mt-1 flex items-center justify-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5" />
-                    Estimated odds
-                  </p>
-                )}
-                {needsSgpOdds && sgpLink && (
-                  <div className="mt-1 flex items-center justify-center gap-1">
-                    <p className="text-[9px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <Check className="w-2.5 h-2.5" />
-                      Live SGP odds from {bookName}
-                    </p>
-                    {sgpData?.limits?.max && (
-                      <span className="text-[9px] text-neutral-400">• Max: ${sgpData.limits.max.toLocaleString()}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Stake & Payout - Compact */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1 block">
-                    Stake
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
-                    <input
-                      type="number"
-                      value={stake}
-                      onChange={(e) => setStake(e.target.value)}
-                      className={cn(
-                        "w-full pl-6 pr-2 py-2 rounded-lg text-sm font-bold",
-                        "bg-neutral-100 dark:bg-neutral-800",
-                        "border border-neutral-200/60 dark:border-neutral-700/50",
-                        "focus:outline-none focus:ring-1 focus:ring-brand focus:border-transparent",
-                        "text-neutral-900 dark:text-white"
-                      )}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-1 block">
-                    To Win
-                  </label>
-                  <div className="px-2.5 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200/50 dark:ring-emerald-500/20">
-                    <motion.span
-                      key={effectivePayout}
-                      initial={{ scale: 0.95 }}
-                      animate={{ scale: 1 }}
-                      className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums"
-                    >
-                      ${effectivePayout.toFixed(2)}
-                    </motion.span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Bet Button - Compact */}
-              {betLink ? (
-                <a
-                  href={betLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                >
-                  Bet on {bookName}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
-              ) : selectedFavorites.length >= 2 ? (
-                <button
-                  onClick={() => fetchDeeplinkAndRedirect(currentParlay.book)}
-                  disabled={isFetchingDeeplink}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-500 text-white transition-colors"
-                >
-                  {isFetchingDeeplink ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      Bet on {bookName}
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
-              ) : homeLink ? (
-                <a
-                  href={homeLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                >
-                  Visit {bookName}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              ) : null}
-
-              {/* Better odds hint - Compact */}
-              {bestBook && bestBook.book !== currentParlay.book && (
-                <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
-                  <Trophy className="w-3 h-3 text-amber-500 shrink-0" />
-                  <p className="text-[10px] text-amber-700 dark:text-amber-400">
-                    <span className="font-semibold">{getBookName(bestBook.book)}</span>: {formatOdds(needsSgpOdds && sgpOddsCache[bestBook.book]?.price ? sgpOddsCache[bestBook.book].price : bestBook.odds)}
-                  </p>
-                </div>
-              )}
-            </div>
-          );
-        })() : (
-          <div className="text-center py-4">
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">No book has all {selectedFavorites.length} legs</p>
-          </div>
-        )}
-      </div>
-
-      {/* Actions - Compact */}
-      <div className="px-3 py-2.5 border-t border-neutral-100 dark:border-neutral-800/50 space-y-2">
-        <button
-          onClick={onCreateSlip}
-          disabled={isCreatingSlip}
-          className={cn(
-            "w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors",
-            "bg-brand hover:bg-brand/90 text-white",
-            isCreatingSlip && "opacity-50 cursor-not-allowed"
-          )}
-        >
-          {isCreatingSlip ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <FolderPlus className="w-3.5 h-3.5" />
-          )}
-          Save as Slip
-        </button>
-        <div className="flex gap-1.5">
-          <button
-            onClick={handleCopy}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-          >
-            {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
-          <button
-            onClick={onClearSelection}
-            className="flex-1 py-1.5 rounded-md text-[11px] font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          >
-            Clear
-          </button>
-          <button
-            onClick={onDeleteSelected}
-            disabled={isDeletingSelected}
-            className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
-          >
-            {isDeletingSelected ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Trash2 className="w-3 h-3" />
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// BETSLIP CARD - WITH SGP API INTEGRATION
-// ============================================================================
-
-function BetslipCard({
-  slip,
-  onDelete,
-  onRemoveItem,
-  isDeleting,
-  onFetchSgpOdds,
-  isFetchingSgpOdds,
-  sharedSgpCache,
-}: {
-  slip: Betslip;
-  onDelete: () => void;
-  onRemoveItem: (favoriteId: string) => void;
-  isDeleting: boolean;
-  onFetchSgpOdds?: (betslipId: string, forceRefresh?: boolean) => Promise<void>;
-  isFetchingSgpOdds?: boolean;
-  sharedSgpCache?: ParlayBuilderSgpCache | null;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedBook, setSelectedBook] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [hasFetchedSgp, setHasFetchedSgp] = useState(false);
-  const [isFetchingDeeplink, setIsFetchingDeeplink] = useState(false);
-  const [fetchedDeeplinks, setFetchedDeeplinks] = useState<Record<string, { desktop?: string; mobile?: string } | null>>({});
-  const items = slip.items || [];
-  const colorClass = getColorClass(slip.color);
   
-  // Classify bet type
-  const betType = useMemo((): BetType => {
-    const favorites = items.map(i => i.favorite).filter(Boolean) as Favorite[];
-    return classifyBetType(favorites);
-  }, [items]);
-  const betTypeInfo = getBetTypeInfo(betType);
+  const handleShare = async () => {
+    // TODO: Generate share image
+    toast.info("Share image coming soon");
+  };
   
-  // Check if we need SGP odds
-  const needsSgpOdds = betType === 'sgp' || betType === 'sgp_plus';
-  
-  // Use shared cache if available and matches this slip's items, otherwise use slip's own cache
-  const hasSharedCache = sharedSgpCache && Object.keys(sharedSgpCache).length > 0;
-  const effectiveSgpCache = hasSharedCache ? sharedSgpCache : slip.sgp_odds_cache;
-  
-  const hasSgpCache = !!effectiveSgpCache && Object.keys(effectiveSgpCache).length > 0;
-  const sgpCacheAge = hasSharedCache 
-    ? 0 // Shared cache is always fresh (managed by parent)
-    : slip.sgp_odds_updated_at 
-      ? Date.now() - new Date(slip.sgp_odds_updated_at).getTime()
-      : Infinity;
-  const isSgpCacheStale = sgpCacheAge > 5 * 60 * 1000; // 5 minutes
-  
-  // Auto-fetch SGP odds when needed
-  useEffect(() => {
-    if (needsSgpOdds && onFetchSgpOdds && !isFetchingSgpOdds && !hasFetchedSgp && (!hasSgpCache || isSgpCacheStale)) {
-      setHasFetchedSgp(true);
-      onFetchSgpOdds(slip.id, false).catch(console.error);
-    }
-  }, [needsSgpOdds, onFetchSgpOdds, isFetchingSgpOdds, hasFetchedSgp, hasSgpCache, isSgpCacheStale, slip.id]);
-  
-  // Fetch deeplink on-demand for regular parlays (when user clicks Bet)
-  const fetchDeeplinkAndRedirect = useCallback(async (bookId: string) => {
-    // Check if we already have the deeplink cached
-    if (fetchedDeeplinks[bookId]) {
-      const links = fetchedDeeplinks[bookId];
-      const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const link = isMobile ? (links?.mobile || links?.desktop) : (links?.desktop || links?.mobile);
-      if (link) {
-        window.open(link, '_blank');
-        return;
-      }
-    }
-    
-    // Get SGP tokens from the items - try both sgp field and odds_selection_id
-    const sgpTokens = items
-      .map(item => {
-        const fav = item.favorite;
-        if (!fav) return null;
-        // First try the sgp field in books_snapshot
-        const sgpToken = fav.books_snapshot?.[bookId]?.sgp;
-        if (sgpToken) return sgpToken;
-        // Fall back to odds_selection_id if available
-        return fav.odds_selection_id;
-      })
-      .filter(Boolean) as string[];
-    
-    console.log('[BetslipCard] SGP tokens for', bookId, ':', sgpTokens);
-    
-    if (sgpTokens.length === 0 || sgpTokens.length < items.length) {
-      console.log('[BetslipCard] Missing SGP tokens, falling back to homepage');
-      // No SGP tokens available, fall back to sportsbook homepage
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
+  const openBookLink = (bookId: string) => {
+    const bookData = betslip.sgp_odds_cache?.[bookId];
+    if (!bookData?.links) {
+      // Fallback to sportsbook site
+      const sb = getSportsbookById(bookId);
+      const link = sb?.links?.desktop || sb?.links?.mobile;
+      if (link) window.open(link, "_blank");
       return;
     }
-    
-    setIsFetchingDeeplink(true);
-    try {
-      console.log('[BetslipCard] Fetching SGP odds for', bookId, 'with tokens:', sgpTokens);
-      const response = await fetch('/api/v2/sgp-odds-direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          book_id: bookId,
-          sgp_tokens: sgpTokens,
-        }),
-      });
-      
-      console.log('[BetslipCard] API response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[BetslipCard] API response data:', data);
-        const links = data.links || null;
-        
-        // Cache the fetched links
-        setFetchedDeeplinks(prev => ({ ...prev, [bookId]: links }));
-        
-        if (links) {
-          const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          const link = isMobile ? (links.mobile || links.desktop) : (links.desktop || links.mobile);
-          if (link) {
-            window.open(link, '_blank');
-            return;
-          }
-        }
-      }
-      
-      // Fallback to sportsbook homepage if no deeplink available
-      console.log('[BetslipCard] No deeplink in response, falling back to homepage');
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
-    } catch (error) {
-      console.error('[BetslipCard] Failed to fetch deeplink:', error);
-      // Fallback to sportsbook homepage
-      const bookMeta = getSportsbookById(bookId);
-      const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-      if (homeLink) window.open(homeLink, '_blank');
-    } finally {
-      setIsFetchingDeeplink(false);
-    }
-  }, [items, fetchedDeeplinks]);
-
-  // Calculate parlay odds per book with leg counts
-  const bookOddsData = useMemo(() => {
-    if (items.length === 0) return [];
-    
-    const allBooks = new Set<string>();
-    items.forEach(item => {
-      if (item.favorite?.books_snapshot) {
-        Object.keys(item.favorite.books_snapshot).forEach(b => allBooks.add(b));
-      }
-    });
-
-    const results: { book: string; odds: number | null; legCount: number; hasAll: boolean }[] = [];
-    allBooks.forEach(book => {
-      let totalDecimal = 1;
-      let legCount = 0;
-      
-      items.forEach(item => {
-        const price = item.favorite?.books_snapshot?.[book]?.price;
-        if (price) {
-          const decimal = price > 0 ? 1 + price / 100 : 1 + 100 / Math.abs(price);
-          totalDecimal *= decimal;
-          legCount++;
-        }
-      });
-
-      if (legCount > 0) {
-        const american = totalDecimal >= 2
-          ? Math.round((totalDecimal - 1) * 100)
-          : Math.round(-100 / (totalDecimal - 1));
-        results.push({ 
-          book, 
-          odds: american, 
-          legCount, 
-          hasAll: legCount === items.length 
-        });
-      }
-    });
-
-    // Sort: complete books first (by odds), then partial books (by leg count)
-    return results.sort((a, b) => {
-      if (a.hasAll && !b.hasAll) return -1;
-      if (!a.hasAll && b.hasAll) return 1;
-      if (a.hasAll && b.hasAll) return (b.odds || 0) - (a.odds || 0);
-      return b.legCount - a.legCount;
-    });
-  }, [items]);
-
-  // Get current display book (selected or best)
-  const displayBook = selectedBook || bookOddsData.find(b => b.hasAll)?.book || bookOddsData[0]?.book || null;
-  const currentBookData = bookOddsData.find(b => b.book === displayBook);
-
-  // Get odds for display book
-  const getOddsForBook = (bookId: string | null, fav: Favorite | null | undefined) => {
-    if (!bookId || !fav?.books_snapshot) return fav?.best_price_at_save || null;
-    return fav.books_snapshot[bookId]?.price || null;
+    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
+    const link = isMobile ? (bookData.links.mobile || bookData.links.desktop) : (bookData.links.desktop || bookData.links.mobile);
+    if (link) window.open(link, "_blank");
   };
   
-  // Get SGP odds and link for display book (if available from cache)
-  const sgpOddsForBook = needsSgpOdds ? effectiveSgpCache?.[displayBook || ''] : null;
-  // Handle both cache formats: shared cache has 'link', database cache has 'links'
-  const sgpLinkForBook = sgpOddsForBook 
-    ? ('link' in sgpOddsForBook && sgpOddsForBook.link) 
-      || ('links' in sgpOddsForBook && (sgpOddsForBook.links?.desktop || sgpOddsForBook.links?.mobile)) 
-      || null
-    : null;
-  // Parse SGP price - handles both number (from shared cache) and string (from database cache)
-  const parseSgpPrice = (price: string | number | null | undefined): number | null => {
-    if (price === null || price === undefined) return null;
-    if (typeof price === 'number') return price;
-    // Keep digits, minus sign, and decimal point
-    const cleaned = price.replace(/[^0-9.\-]/g, '');
-    const num = parseFloat(cleaned);
-    if (isNaN(num)) return null;
-    // Round to nearest integer for American odds
-    return price.startsWith('-') ? -Math.abs(Math.round(num)) : Math.round(num);
-  };
-  const sgpPriceForBook = parseSgpPrice(sgpOddsForBook?.price);
-  
-  // Copy slip to clipboard
-  const handleCopy = useCallback(() => {
-    const text = items.map((item, i) => {
-      const fav = item.favorite;
-      if (!fav) return '';
-      const side = formatSide(fav.side);
-      return `${i + 1}. ${fav.player_name} ${formatMarketLabelShort(fav.market)} ${side}${fav.line || ''}`;
-    }).filter(Boolean).join('\n');
-    
-    const oddsText = currentBookData ? `\n\n${betTypeInfo.label}: ${formatOdds(sgpPriceForBook ?? currentBookData.odds)} @ ${getBookName(displayBook || '')}` : '';
-    
-    navigator.clipboard.writeText(`${slip.name}\n${text}${oddsText}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [items, slip.name, betTypeInfo.label, currentBookData, displayBook, sgpOddsForBook]);
-
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+    <div 
       className={cn(
-        "rounded-2xl border overflow-hidden transition-all h-full flex flex-col",
-        "bg-white dark:bg-neutral-900/80 backdrop-blur-sm",
-        isExpanded 
-          ? "border-neutral-300 dark:border-neutral-700 shadow-lg" 
-          : "border-neutral-200/80 dark:border-neutral-800/80 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-md"
+        "border rounded-xl overflow-hidden bg-white dark:bg-neutral-900 transition-all",
+        isDragOver 
+          ? "border-emerald-500 ring-2 ring-emerald-500/20 scale-[1.01]" 
+          : "border-neutral-200 dark:border-neutral-800",
+        isDropTarget && !isDragOver && "border-dashed"
       )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      {/* Color accent bar */}
-      <div className={cn("h-1 shrink-0", colorClass)} />
-      
-      {/* Header */}
-      <div className="p-3 pb-2 shrink-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
-                {slip.name}
-              </span>
-              <span className={cn(
-                "shrink-0 text-[8px] font-bold px-1 py-0.5 rounded uppercase",
-                betTypeInfo.bg, betTypeInfo.color
-              )}>
-                {items.length > 1 ? betTypeInfo.label : items.length === 1 ? '1' : '0'}
-              </span>
-            </div>
-            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              {items.length} {items.length === 1 ? "leg" : "legs"}
-            </span>
-          </div>
-          
-          {/* Actions */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              disabled={isDeleting}
-              className="p-1 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-            >
-              {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Sportsbook Selector with Odds */}
-      {items.length > 0 && (
-        <div className="px-3 pb-2 shrink-0">
-          <div className="flex flex-wrap gap-1">
-            {bookOddsData.slice(0, 6).map(({ book, odds, legCount, hasAll }) => {
-              const logo = getBookLogo(book);
-              const isSelected = book === displayBook;
-              const isBest = bookOddsData.findIndex(b => b.hasAll) === bookOddsData.findIndex(b => b.book === book);
-              
-              // Use SGP odds from cache if available for this book
-              const sgpOddsForThisBook = needsSgpOdds ? effectiveSgpCache?.[book] : null;
-              const sgpPriceForThisBook = parseSgpPrice(sgpOddsForThisBook?.price);
-              const displayOddsValue = sgpPriceForThisBook ?? odds;
-              // Check for link in either format (shared cache uses 'link', database uses 'links')
-              const hasSgpLink = sgpOddsForThisBook 
-                ? (('link' in sgpOddsForThisBook && !!sgpOddsForThisBook.link) || ('links' in sgpOddsForThisBook && !!sgpOddsForThisBook.links))
-                : false;
-              const maxLimit = sgpOddsForThisBook?.limits?.max;
-              
-              // Build tooltip text
-              const tooltipText = hasAll 
-                ? `${getBookName(book)}: ${formatOdds(displayOddsValue)}${hasSgpLink ? ' (SGP)' : ''}${maxLimit ? ` • Max: $${maxLimit.toLocaleString()}` : ''}`
-                : `${getBookName(book)}: ${legCount}/${items.length} legs`;
-              
-              return (
-                <button
-                  key={book}
-                  onClick={() => setSelectedBook(book === selectedBook ? null : book)}
-                  className={cn(
-                    "flex items-center gap-1 px-1.5 py-1 rounded-lg transition-all text-[10px]",
-                    isSelected
-                      ? "bg-brand/10 ring-1 ring-brand"
-                      : hasAll
-                        ? isBest 
-                          ? "bg-emerald-50 dark:bg-emerald-500/15 ring-1 ring-emerald-200/50 dark:ring-emerald-500/20"
-                          : "bg-neutral-100 dark:bg-neutral-800"
-                        : "bg-neutral-100/50 dark:bg-neutral-800/30 opacity-50"
-                  )}
-                  title={tooltipText}
-                >
-                  {logo && (
-                    <div className="w-4 h-4 rounded overflow-hidden bg-white dark:bg-neutral-900">
-                      <Image src={logo} alt={book} width={16} height={16} className="w-full h-full object-contain" />
-                    </div>
-                  )}
-                  <span className={cn(
-                    "font-bold tabular-nums",
-                    isSelected ? "text-brand" : hasAll ? (isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400") : "text-neutral-400"
-                  )}>
-                    {hasAll ? formatOdds(displayOddsValue) : `${legCount}/${items.length}`}
-                  </span>
-                  {isBest && hasAll && <Trophy className="w-2.5 h-2.5 text-emerald-500" />}
-                </button>
-              );
-            })}
-            {bookOddsData.length > 6 && (
-              <span className="flex items-center px-1.5 py-1 text-[10px] text-neutral-400">
-                +{bookOddsData.length - 6}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {/* Leg List */}
-      <div className="flex-1 px-3 pb-2 overflow-hidden">
-        {items.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-800/20">
-            <Layers className="w-6 h-6 text-neutral-300 dark:text-neutral-600 mb-1" />
-            <p className="text-[11px] text-neutral-400">Empty slip</p>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {items.slice(0, isExpanded ? items.length : 4).map((item, index) => {
-              const fav = item.favorite;
-              if (!fav) return null;
-              
-              const initials = getInitials(fav.player_name);
-              const avatarColor = getAvatarColor(fav.player_name);
-              const side = formatSide(fav.side);
-              const lastName = fav.player_name?.split(" ").pop() || "";
-              const bookOdds = getOddsForBook(displayBook, fav);
-              const hasOddsAtBook = bookOdds !== null;
-              
-              return (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "group flex items-center gap-2 p-2 rounded-lg transition-all",
-                    "bg-neutral-50/80 dark:bg-neutral-800/40",
-                    !hasOddsAtBook && "opacity-50"
-                  )}
-                >
-                  <div className={cn(
-                    "shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-                    "bg-gradient-to-br text-[9px] font-bold text-white",
-                    avatarColor
-                  )}>
-                    {initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[12px] font-semibold text-neutral-800 dark:text-neutral-100 truncate block">
-                      {lastName}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
-                        {formatMarketLabelShort(fav.market)}
-                      </span>
-                      <span className={cn(
-                        "text-[10px] font-semibold",
-                        side === 'o' ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-                      )}>
-                        {side}{fav.line}
-                    </span>
-                  </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className={cn(
-                      "text-[11px] font-bold tabular-nums block",
-                      hasOddsAtBook ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 line-through"
-                    )}>
-                      {hasOddsAtBook ? formatOdds(bookOdds) : formatOdds(fav.best_price_at_save)}
-                    </span>
-                    {!hasOddsAtBook && (
-                      <span className="text-[9px] text-amber-500">N/A</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveItem(item.favorite_id);
-                    }}
-                    className="shrink-0 p-1 rounded text-neutral-400 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
-                    title="Remove leg"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+      {/* Card header */}
+      <div
+        className={cn(
+          "px-4 py-3 cursor-pointer transition-colors",
+          isExpanded && "border-b border-neutral-100 dark:border-neutral-800"
         )}
-      </div>
-      
-      {/* Footer */}
-      {items.length > 0 && (
-        <div className="px-3 pb-3 pt-1 shrink-0 space-y-2">
-          {/* Expand/Collapse for more than 4 legs */}
-          {items.length > 4 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/30 text-neutral-500 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50 transition-colors"
-            >
-              {isExpanded ? (
-                <>
-                  <ChevronUp className="w-3 h-3" />
-                  <span className="text-[10px] font-medium">Show less</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-3 h-3" />
-                  <span className="text-[10px] font-medium">+{items.length - 4} more</span>
-                </>
-              )}
-            </button>
-          )}
-          
-          {/* Total Odds Display with Bet Button */}
-          {currentBookData && (() => {
-            // Only use SGP link for direct bet - don't fall back to individual leg link for parlays
-            // Individual leg links would only add one leg, not the full parlay
-            const betLink = sgpLinkForBook;
-            const displayOdds = sgpPriceForBook ?? currentBookData.odds;
-            
-            return (
-              <div className={cn(
-                "flex items-center gap-2 p-2.5 rounded-xl",
-                currentBookData.hasAll
-                  ? "bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-500/15 dark:to-emerald-500/5 ring-1 ring-emerald-200/50 dark:ring-emerald-500/20"
-                  : "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200/50 dark:ring-amber-500/20"
-              )}>
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {(() => {
-                    const logo = getBookLogo(displayBook || '');
-                    return logo ? (
-                      <div className="w-6 h-6 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 ring-1 ring-neutral-200/50 dark:ring-neutral-700/50 shrink-0">
-                        <Image src={logo} alt={displayBook || ''} width={24} height={24} className="w-full h-full object-contain" />
-                      </div>
-                    ) : null;
-                  })()}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                        {currentBookData.hasAll ? betTypeInfo.label : `${currentBookData.legCount}/${items.length}`}
-                      </span>
-                      {needsSgpOdds && isFetchingSgpOdds && (
-                        <Loader2 className="w-2.5 h-2.5 animate-spin text-neutral-400" />
-                      )}
-                      {needsSgpOdds && sgpLinkForBook && (
-                        <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-1 rounded">
-                          SGP
-                        </span>
-                      )}
-                      {/* Max Limit Display */}
-                      {sgpOddsForBook?.limits?.max && (
-                        <span className="text-[8px] font-medium text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1 rounded">
-                          Max ${sgpOddsForBook.limits.max.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </span>
-                      )}
-                    </div>
-                    <span className={cn(
-                      "text-base font-black tabular-nums",
-                      currentBookData.hasAll ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-                    )}>
-                      {formatOdds(displayOdds)}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Partial Badge or Bet Button */}
-                {!currentBookData.hasAll ? (
-                  <span className="shrink-0 text-[9px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">
-                    Partial
-                  </span>
-                ) : betLink ? (
-                  // SGP/SGP+ with cached deeplink
-                  <a
-                    href={betLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
-                  >
-                    Bet
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
-                ) : items.length >= 2 ? (
-                  // Parlay/SGP without cached link - fetch on click
-                  <button
-                    onClick={() => displayBook && fetchDeeplinkAndRedirect(displayBook)}
-                    disabled={isFetchingDeeplink}
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:from-emerald-400 disabled:to-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
-                  >
-                    {isFetchingDeeplink ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        Bet
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </>
-                    )}
-                  </button>
-                ) : (() => {
-                  // Single bet or no link - fallback to homepage
-                  const bookMeta = getSportsbookById(displayBook || '');
-                  const homeLink = bookMeta?.links?.desktop || bookMeta?.links?.mobile || bookMeta?.affiliateLink;
-                  const bookName = getBookName(displayBook || '');
-                  
-                  // For single bets, try to use the leg's direct link first
-                  const singleBetLink = items.length === 1 
-                    ? items[0]?.favorite?.books_snapshot?.[displayBook || '']?.u 
-                    : null;
-                  
-                  return singleBetLink ? (
-                    <a
-                      href={singleBetLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
-                    >
-                      Bet
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  ) : homeLink ? (
-                    <a
-                      href={homeLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-medium hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors"
-                      title={`No deeplink available for ${bookName}. Opens ${bookName} homepage.`}
-                    >
-                      Visit
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : (
-                    <span className="shrink-0 text-[9px] text-neutral-400 px-2">
-                      No link
-                    </span>
-                  );
-                })()}
-              </div>
-            );
-          })()}
-          
-          {/* Action Buttons Row */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleCopy}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors text-xs font-medium"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-            <button
-              className="flex items-center justify-center gap-1 p-2 rounded-lg text-neutral-400 hover:text-[#1DA1F2] hover:bg-[#1DA1F2]/10 transition-colors"
-              title="Share on Twitter"
-            >
-              <Twitter className="w-3.5 h-3.5" />
-            </button>
-            <button
-              className="flex items-center justify-center gap-1 p-2 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              title="Share"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-// ============================================================================
-// CREATE SLIP MODAL
-// ============================================================================
-
-function CreateSlipModal({
-  isOpen,
-  onClose,
-  onCreate,
-  isCreating,
-  selectedCount,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (name: string, color: string) => void;
-  isCreating: boolean;
-  selectedCount: number;
-}) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState("yellow");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onCreate(name.trim(), color);
-    setName("");
-    setColor("yellow");
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="relative w-full max-w-md mx-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl overflow-hidden"
+        onClick={() => !isEditing && setIsExpanded(!isExpanded)}
       >
-        <form onSubmit={handleSubmit}>
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1">
-              Create New Slip
-            </h3>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-              {selectedCount} plays will be added
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                  Slip Name
-                </label>
+        <div className="flex items-start gap-3">
+          {/* Color indicator */}
+          <div className={cn("w-1 min-h-[56px] rounded-full self-stretch", getColorClass(betslip.color))} />
+          
+          {/* Slip info */}
+          <div className="flex-1 min-w-0">
+            {/* Title row with badge */}
+            <div className="flex items-center gap-2">
+              {isEditing ? (
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Monday Night Picks"
-                  className={cn(
-                    "w-full px-4 py-2.5 rounded-lg text-sm",
-                    "bg-neutral-100 dark:bg-neutral-800",
-                    "border border-neutral-200 dark:border-neutral-700",
-                    "focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent",
-                    "text-neutral-900 dark:text-white placeholder:text-neutral-400"
-                  )}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={handleSaveName}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") {
+                      setEditName(betslip.name);
+                      setIsEditing(false);
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   autoFocus
+                  className="flex-1 px-2 py-1 -mx-2 -my-1 text-sm font-medium bg-neutral-100 dark:bg-neutral-800 rounded border-none outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5 block">
-                  Color
-                </label>
-                <div className="flex gap-2">
-                  {BETSLIP_COLORS.map((c) => (
-              <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setColor(c.id)}
-                className={cn(
-                        "w-8 h-8 rounded-full transition-all",
-                        c.class,
-                        color === c.id && "ring-2 ring-offset-2 ring-neutral-900 dark:ring-white dark:ring-offset-neutral-900"
-                      )}
-                    />
-                  ))}
+              ) : (
+                <span className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+                  {betslip.name}
+                </span>
+              )}
+              
+              {/* SGP/SGP+ Badge */}
+              {betTypeInfo && !isEditing && (
+                <span 
+                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                  title={betTypeInfo.tooltip}
+                >
+                  {betTypeInfo.label}
+                </span>
+              )}
+              
+              {/* Stale indicator */}
+              {oddsStale && !isEditing && (
+                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="Odds may be outdated" />
+              )}
+            </div>
+            
+            {/* Meta row */}
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              {legCount} play{legCount !== 1 ? "s" : ""} · Updated {lastUpdated}
+            </div>
+            
+            {/* Inline leg previews (collapsed state only) */}
+            {!isExpanded && previewLegs.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {previewLegs.map((fav, i) => (
+                  <div key={i} className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
+                    <span className="text-neutral-400 dark:text-neutral-500">•</span>{" "}
+                    {formatLegPreview(fav)}
                   </div>
+                ))}
+                {remainingLegs > 0 && (
+                  <div className="text-xs text-neutral-400 dark:text-neutral-500">
+                    +{remainingLegs} more
+                  </div>
+                )}
               </div>
+            )}
+          </div>
+          
+          {/* Right side: Odds + Actions */}
+          <div className="flex items-start gap-2 shrink-0">
+            {/* Odds display (collapsed only) */}
+            {!isExpanded && bestOdds && (
+              <div className="text-right">
+                <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  {formatOdds(bestOdds.odds)}
+                </div>
+                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 flex items-center justify-end gap-1">
+                  {getBookLogo(bestOdds.bookId) && (
+                    <img 
+                      src={getBookLogo(bestOdds.bookId)!} 
+                      alt="" 
+                      className="h-3 w-3 object-contain"
+                    />
+                  )}
+                  {getBookName(bestOdds.bookId)}
+                </div>
+                {/* Edge indicator */}
+                {edge !== null && edge >= 5 && (
+                  <div className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5">
+                    ▲ +{edge.toFixed(0)}% vs avg
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* CTA button (collapsed only) */}
+            {!isExpanded && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(true);
+                }}
+                className="px-2.5 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors flex items-center gap-1"
+              >
+                Open
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            )}
+            
+            {/* Actions */}
+            <div className="flex items-center gap-0.5">
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <button className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    setMenuOpen(false);
+                    setIsEditing(true);
+                  }}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete();
+                    }} 
+                    className="text-red-500 focus:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Expand chevron with rotation */}
+              <motion.button 
+                className="p-1 text-neutral-400"
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </motion.button>
             </div>
           </div>
-
-          <div className="flex gap-3 p-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || isCreating}
-              className={cn(
-                "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all",
-                "bg-brand text-white hover:bg-brand/90",
-                (!name.trim() || isCreating) && "opacity-50 cursor-not-allowed"
-                )}
-              >
-              {isCreating ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Create Slip"}
-              </button>
-              </div>
-        </form>
-      </motion.div>
-    </div>
-  );
-}
-
-// ============================================================================
-// ADD TO SLIP DROPDOWN
-// ============================================================================
-
-function AddToSlipDropdown({
-  betslips,
-  onAddToSlip,
-  onCreateNew,
-  selectedCount,
-}: {
-  betslips: Betslip[];
-  onAddToSlip: (slipId: string) => void;
-  onCreateNew: () => void;
-  selectedCount: number;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-      >
-        <Plus className="w-4 h-4" />
-        Add to Slip
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute top-full mt-2 right-0 z-50 w-56 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
-            >
-              <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
-                <button
-                  onClick={() => {
-                    onCreateNew();
-                    setIsOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-brand hover:bg-brand/10 transition-colors"
-                >
-                  <FolderPlus className="w-4 h-4" />
-                  Create New Slip
-                </button>
-              </div>
-              {betslips.length > 0 && (
-                <div className="p-2 max-h-48 overflow-y-auto">
-                  <p className="text-xs text-neutral-500 px-3 py-1">Add to existing</p>
-                  {betslips.map((slip) => (
-                    <button
-                      key={slip.id}
-                      onClick={() => {
-                        onAddToSlip(slip.id);
-                        setIsOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                    >
-                      <div className={cn("w-2.5 h-2.5 rounded-full", getColorClass(slip.color))} />
-                      <span className="truncate flex-1">{slip.name}</span>
-                      <span className="text-xs text-neutral-400">{slip.items?.length || 0}</span>
-                    </button>
-                  ))}
-            </div>
-          )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
         </div>
-  );
-}
-
-// ============================================================================
-// MOBILE PARLAY SHEET - PREMIUM VERSION WITH SGP SUPPORT
-// ============================================================================
-
-function MobileParlaySheet({
-  selectedFavorites,
-  allBooks,
-  selectedBook,
-  onBookChange,
-  onClearSelection,
-  onDeleteSelected,
-  isDeletingSelected,
-  isExpanded,
-  onToggle,
-  onCreateSlip,
-  isCreatingSlip,
-}: {
-  selectedFavorites: Favorite[];
-  allBooks: string[];
-  selectedBook: string | null;
-  onBookChange: (book: string | null) => void;
-  onClearSelection: () => void;
-  onDeleteSelected: () => void;
-  isDeletingSelected: boolean;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onCreateSlip: () => void;
-  isCreatingSlip: boolean;
-}) {
-  const [stake, setStake] = useState<string>("25");
-  const [copied, setCopied] = useState(false);
-
-  // Classify bet type
-  const betType = useMemo(() => classifyBetType(selectedFavorites), [selectedFavorites]);
-  const betTypeInfo = getBetTypeInfo(betType);
-
-  const parlayByBook = useMemo(() => {
-    if (selectedFavorites.length < 2) return [];
-    
-    return allBooks
-      .map(book => {
-        const result = calculateParlayOdds(selectedFavorites, book);
-        if (!result) return null;
-        return { book, ...result };
-      })
-      .filter((x): x is { book: string; odds: number; legCount: number; missingLegs: number } => 
-        x !== null && x.legCount === selectedFavorites.length
-      )
-      .sort((a, b) => b.odds - a.odds);
-  }, [selectedFavorites, allBooks]);
-
-  const currentParlay = useMemo(() => {
-    if (!selectedBook) return parlayByBook[0] || null;
-    return parlayByBook.find(p => p.book === selectedBook) || null;
-  }, [parlayByBook, selectedBook]);
-
-  const stakeNum = parseFloat(stake) || 0;
-  const payout = useMemo(() => {
-    if (!currentParlay || stakeNum <= 0) return 0;
-    const decimal = currentParlay.odds > 0 
-      ? 1 + currentParlay.odds / 100 
-      : 1 + 100 / Math.abs(currentParlay.odds);
-    return stakeNum * decimal;
-  }, [currentParlay, stakeNum]);
-
-  const handleCopy = () => {
-    const text = selectedFavorites.map(f => {
-      const side = formatSide(f.side);
-      return `${f.player_name} ${formatMarketLabelShort(f.market)} ${side}${f.line || ""}`;
-    }).join("\n");
-    const parlayText = currentParlay 
-      ? `\n\n${betTypeInfo.label}: ${formatOdds(currentParlay.odds)} @ ${getBookName(currentParlay.book)}`
-      : "";
-    navigator.clipboard.writeText(text + parlayText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  if (selectedFavorites.length < 2) return null;
-
-  const bestBook = parlayByBook[0];
-
-  return (
-    <motion.div
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      exit={{ y: 100 }}
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-neutral-900 border-t border-neutral-200/80 dark:border-neutral-800/80 rounded-t-3xl shadow-2xl shadow-black/20"
-    >
-      {/* Drag handle */}
-      <div className="flex justify-center pt-2 pb-1">
-        <div className="w-10 h-1 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+        
+        {/* Book availability (collapsed only, when we have data) */}
+        {!isExpanded && totalAvailableBooks > 0 && (
+          <div className="mt-2 ml-4 text-[10px] text-neutral-400 dark:text-neutral-500">
+            Available at{" "}
+            {top3Books.slice(0, 3).map((book, i) => (
+              <span key={book.bookId}>
+                {i > 0 && " · "}
+                {getBookName(book.bookId)}
+              </span>
+            ))}
+            {totalAvailableBooks > 3 && ` +${totalAvailableBooks - 3} more`}
+          </div>
+        )}
       </div>
       
-      {/* Header - always visible */}
-      <button onClick={onToggle} className="w-full px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-brand to-brand/70 rounded-xl blur-md opacity-50" />
-            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-brand to-brand/80 shadow-lg shadow-brand/25">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-          </div>
-          <div className="text-left">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-neutral-900 dark:text-white">
-                {selectedFavorites.length} Legs
-              </span>
-              <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase", betTypeInfo.bg, betTypeInfo.color)}>
-                {betTypeInfo.label}
-                  </span>
-            </div>
-            {currentParlay && (
-              <div className="text-[11px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                {(() => {
-                  const logo = getBookLogo(currentParlay.book);
-                  return logo ? (
-                    <div className="w-3.5 h-3.5 rounded overflow-hidden">
-                      <Image src={logo} alt="" width={14} height={14} className="w-full h-full object-contain" />
-                    </div>
-                  ) : null;
-                })()}
-                {getBookName(currentParlay.book)}
-                </div>
-              )}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {currentParlay && (
-            <motion.span 
-              key={currentParlay.odds}
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              className={cn(
-                "text-xl font-black tabular-nums tracking-tight",
-                currentParlay.odds >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-              )}
-            >
-              {formatOdds(currentParlay.odds)}
-            </motion.span>
-          )}
-          <div className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
-            isExpanded ? "bg-neutral-200 dark:bg-neutral-700" : "bg-neutral-100 dark:bg-neutral-800"
-          )}>
-            {isExpanded ? <ChevronDown className="w-4 h-4 text-neutral-600 dark:text-neutral-400" /> : <ChevronUp className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />}
-          </div>
-        </div>
-      </button>
-
       {/* Expanded content */}
       <AnimatePresence>
         {isExpanded && (
@@ -2311,357 +823,492 @@ function MobileParlaySheet({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-6 space-y-4">
-              {/* Legs preview */}
-              <div className="flex flex-wrap gap-1.5">
-                {selectedFavorites.slice(0, 4).map((fav, i) => {
-                  const initials = getInitials(fav.player_name);
-                  const avatarColor = getAvatarColor(fav.player_name);
-                  return (
-                    <div key={fav.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center bg-gradient-to-br text-[8px] font-bold text-white", avatarColor)}>
-                        {initials}
-                      </div>
-                      <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300 truncate max-w-[60px]">
-                        {fav.player_name?.split(" ").pop()}
+            <div className="px-4 py-4 space-y-5">
+              
+              {/* ═══════════════════════════════════════════════════════════════
+                  ZONE 1: PARLAY ODDS
+                  ═══════════════════════════════════════════════════════════════ */}
+              {hasMultipleLegs && (
+                <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-xl p-4">
+                  {/* Section header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
+                        Parlay Odds
                       </span>
+                      {edge !== null && edge >= 5 && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                          +{edge.toFixed(0)}% edge
+                        </span>
+                      )}
                     </div>
-                  );
-                })}
-                {selectedFavorites.length > 4 && (
-                  <div className="flex items-center px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                    <span className="text-[11px] font-medium text-neutral-500">+{selectedFavorites.length - 4}</span>
+                    {oddsUpdatedAgo && (
+                      <span className={cn(
+                        "text-[10px]",
+                        oddsStale ? "text-amber-500" : "text-neutral-400 dark:text-neutral-500"
+                      )}>
+                        {oddsStale && "⚠ "}Updated {oddsUpdatedAgo}
+                      </span>
+                    )}
                   </div>
+                  
+                  {bookOdds.length > 0 ? (
+                    <>
+                      {/* Book rows */}
+                      <div className="space-y-1">
+                        {(showAllBooks ? bookOdds : top3Books).map((book, i) => {
+                          const isBest = i === 0;
+                          const isAfterTop3 = i === 3;
+                          return (
+                            <div key={book.bookId}>
+                              {/* Divider after top 3 when showing all */}
+                              {isAfterTop3 && (
+                                <div className="border-t border-neutral-200 dark:border-neutral-700 my-2" />
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openBookLink(book.bookId);
+                                }}
+                                className={cn(
+                                  "flex items-center justify-between w-full px-3 py-2.5 rounded-lg transition-all group",
+                                  isBest 
+                                    ? "bg-emerald-100/80 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-sm" 
+                                    : "hover:bg-neutral-100 dark:hover:bg-neutral-700/50"
+                                )}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  {getBookLogo(book.bookId) ? (
+                                    <img 
+                                      src={getBookLogo(book.bookId)!} 
+                                      alt="" 
+                                      className={cn("object-contain", isBest ? "h-6 w-6" : "h-5 w-5")}
+                                    />
+                                  ) : (
+                                    <div className={cn("rounded bg-neutral-200 dark:bg-neutral-700", isBest ? "h-6 w-6" : "h-5 w-5")} />
+                                  )}
+                                  <span className={cn(
+                                    "text-neutral-900 dark:text-white",
+                                    isBest ? "text-sm font-medium" : "text-sm"
+                                  )}>
+                                    {getBookName(book.bookId)}
+                                  </span>
+                                  {isBest && (
+                                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500 text-white uppercase">
+                                      Best
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={cn(
+                                    "font-semibold tabular-nums",
+                                    isBest ? "text-base text-emerald-600 dark:text-emerald-400" : "text-sm text-neutral-600 dark:text-neutral-300"
+                                  )}>
+                                    {formatOdds(book.odds)}
+                                  </span>
+                                  <ExternalLink className={cn(
+                                    "transition-opacity",
+                                    isBest ? "h-4 w-4 text-emerald-500 opacity-60 group-hover:opacity-100" : "h-3.5 w-3.5 text-neutral-400 opacity-0 group-hover:opacity-100"
+                                  )} />
+                                </div>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Footer: View all / Not available */}
+                      <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+                        {totalAvailableBooks > 3 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAllBooks(!showAllBooks);
+                            }}
+                            className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                          >
+                            {showAllBooks ? "Show less" : `View all (${totalAvailableBooks})`}
+                          </button>
+                        )}
+                        {unavailableBooks.length > 0 && (
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 ml-auto">
+                            Not available: {unavailableBooks.slice(0, 2).map(b => getBookName(b)).join(", ")}
+                            {unavailableBooks.length > 2 && ` +${unavailableBooks.length - 2}`}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                        No parlay odds available
+                      </p>
+                      <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+                        Try refreshing or check individual leg odds
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* ═══════════════════════════════════════════════════════════════
+                  ZONE 2: LEGS
+                  ═══════════════════════════════════════════════════════════════ */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
+                    Legs ({legCount})
+                  </span>
+                </div>
+                {items.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {items.map((item) => {
+                      const fav = item.favorite;
+                      if (!fav) return null;
+                      return (
+                        <div 
+                          key={item.id} 
+                          className="flex items-center justify-between py-2.5 px-3 -mx-3 rounded-lg group hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-neutral-900 dark:text-white">
+                              {fav.player_name || fav.home_team || "Unknown"}
+                            </span>
+                            <span className="text-sm text-neutral-500 dark:text-neutral-400 ml-2">
+                              {formatSide(fav.side)}{fav.line} {formatMarketLabelShort(fav.market) || fav.market}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveLeg(fav.id);
+                            }}
+                            className="p-1.5 text-neutral-300 dark:text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center py-6">
+                    No plays in this betslip
+                  </p>
                 )}
               </div>
               
-              {/* Book chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {parlayByBook.slice(0, 6).map(({ book, odds }, index) => {
-                  const logo = getBookLogo(book);
-                  const isSelected = book === (selectedBook || bestBook?.book);
-                  const isBest = index === 0;
+              {/* ═══════════════════════════════════════════════════════════════
+                  ZONE 3: ACTIONS
+                  ═══════════════════════════════════════════════════════════════ */}
+              <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+                <div className="flex gap-2">
+                  {/* Primary: Compare (disabled if no odds) */}
+                  {hasMultipleLegs && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (bookOdds.length > 0) onQuickCompare();
+                      }}
+                      disabled={bookOdds.length === 0}
+                      title={bookOdds.length === 0 ? "No parlay odds available" : undefined}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all",
+                        bookOdds.length > 0 
+                          ? "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm" 
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed"
+                      )}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      Compare odds
+                    </button>
+                  )}
                   
-                  return (
-              <button
-                      key={book}
-                      onClick={() => onBookChange(book === selectedBook ? null : book)}
-                className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-2 rounded-xl transition-all",
-                        isSelected 
-                          ? "bg-brand/10 ring-2 ring-brand" 
-                          : isBest
-                            ? "bg-emerald-50 dark:bg-emerald-500/15 ring-1 ring-emerald-200 dark:ring-emerald-500/30"
-                            : "bg-neutral-100 dark:bg-neutral-800"
-                      )}
-                    >
-                      {logo && (
-                        <div className="w-5 h-5 rounded-lg overflow-hidden bg-white dark:bg-neutral-900">
-                          <Image src={logo} alt={book} width={20} height={20} className="w-full h-full object-contain" />
-                        </div>
-                      )}
-                      <span className={cn(
-                        "text-xs font-bold tabular-nums",
-                        isSelected ? "text-brand" : isBest ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"
-                      )}>
-                        {formatOdds(odds)}
-                      </span>
-                      {isBest && <Trophy className="w-3 h-3 text-emerald-500" />}
-              </button>
-                  );
-                })}
-            </div>
-
-              {/* Stake & Payout */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5 block">Stake</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm font-medium">$</span>
-                    <input
-                      type="number"
-                      value={stake}
-                      onChange={(e) => setStake(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold bg-neutral-100 dark:bg-neutral-800 border-0 focus:ring-2 focus:ring-brand text-neutral-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-1.5 block">To Win</label>
-                  <div className="px-3 py-2.5 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-500/15 dark:to-emerald-500/5 ring-1 ring-emerald-200/50 dark:ring-emerald-500/20">
-                    <motion.span 
-                      key={payout}
-                      initial={{ scale: 0.95 }}
-                      animate={{ scale: 1 }}
-                      className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums"
-                    >
-                      ${payout.toFixed(2)}
-                    </motion.span>
-                  </div>
+                  {/* Secondary: Copy */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopySlip();
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-700 transition-all",
+                      !hasMultipleLegs && "flex-1"
+                    )}
+                  >
+                    {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                  
+                  {/* Secondary: Share */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare();
+                    }}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-700 transition-all"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Share
+                  </button>
                 </div>
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <button
-                  onClick={onCreateSlip}
-                  disabled={isCreatingSlip}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all",
-                    "bg-gradient-to-r from-brand to-brand/90 text-white shadow-lg shadow-brand/25",
-                    isCreatingSlip && "opacity-50"
-                  )}
-                >
-                  {isCreatingSlip ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                  Save Slip
-                </button>
-                <button
-                  onClick={handleCopy}
-                  className="w-12 flex items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                </button>
-                <button 
-                  onClick={onClearSelection} 
-                  className="w-12 flex items-center justify-center rounded-xl text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  title="Clear selection"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={onDeleteSelected}
-                  disabled={isDeletingSelected}
-                  className="w-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
-                  title="Delete selected"
-                >
-                  {isDeletingSelected ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                </button>
-        </div>
               
-              {/* Share buttons */}
-              <div className="flex items-center justify-center gap-2 pt-1">
-                <span className="text-[10px] text-neutral-400 uppercase tracking-wide">Share</span>
-                <button className="p-1.5 rounded-lg text-neutral-400 hover:text-[#1DA1F2] hover:bg-[#1DA1F2]/10 transition-colors">
-                  <Twitter className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded-lg text-neutral-400 hover:text-[#5865F2] hover:bg-[#5865F2]/10 transition-colors">
-                  <MessageCircle className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-                  <Share2 className="w-4 h-4" />
-                </button>
-      </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// ============================================================================
-// EMPTY STATES - PREMIUM VERSION
-// ============================================================================
-
-function EmptyPlaysState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-4">
-      <div className="relative mb-8">
-        <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 to-pink-500/20 rounded-3xl blur-2xl" />
-        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-rose-100 to-pink-100 dark:from-rose-500/20 dark:to-pink-500/20 ring-1 ring-rose-200/50 dark:ring-rose-500/30 flex items-center justify-center">
-          <HeartFill className="w-10 h-10 text-rose-500" />
-        </div>
-      </div>
-      <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2 tracking-tight">
-        No saved plays yet
-      </h2>
-      <p className="text-neutral-500 dark:text-neutral-400 text-center max-w-sm mb-8">
-        Save plays from the Edge Finder, Odds Screen, or Cheat Sheets to start building parlays
-      </p>
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-          <Link
-          href="/edge-finder"
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-brand to-brand/90 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all"
-          >
-          <TrendingUp className="w-4 h-4" />
-          Edge Finder
-          <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-          href="/positive-ev"
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-1 ring-neutral-200 dark:ring-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all"
-          >
-          <Zap className="w-4 h-4 text-amber-500" />
-          Positive EV
-          </Link>
-        </div>
-    </div>
-  );
-}
-
-function EmptySlipsState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-4">
-      <div className="relative mb-8">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-purple-500/20 rounded-3xl blur-2xl" />
-        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-500/20 dark:to-purple-500/20 ring-1 ring-violet-200/50 dark:ring-violet-500/30 flex items-center justify-center">
-          <Layers className="w-10 h-10 text-violet-500" />
-        </div>
-      </div>
-      <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2 tracking-tight">
-        No slips yet
-      </h2>
-      <p className="text-neutral-500 dark:text-neutral-400 text-center max-w-sm mb-8">
-        Create slips to organize your plays into parlays and track your bets
-      </p>
-      <button
-        onClick={onCreate}
-        className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 transition-all"
-      >
-        <Plus className="w-4 h-4" />
-        Create First Slip
-      </button>
       
-      {/* Tip */}
-      <div className="mt-8 p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200/50 dark:ring-amber-500/20 max-w-sm">
-        <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
-          Pro Tip
-        </p>
-        <p className="text-xs text-amber-600 dark:text-amber-400/80">
-          Save plays from different games together to create multi-game parlays, or from the same game for SGP bets
-        </p>
-      </div>
+      {/* Drop hint when not expanded */}
+      {!isExpanded && isDragOver && (
+        <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-xs text-emerald-600 dark:text-emerald-400 text-center">
+          Drop to add {dragCount > 1 ? `${dragCount} plays` : "play"} to {betslip.name}
+        </div>
+      )}
     </div>
   );
 }
 
 // ============================================================================
-// MAIN PAGE
+// EMPTY STATES
+// ============================================================================
+
+function FavoritesEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
+        <Heart className="h-6 w-6 text-neutral-400" />
+      </div>
+      <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-2">
+        No favorites yet
+      </h3>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 max-w-[220px]">
+        Tap the heart on any play to save it here
+      </p>
+      <Link
+        href="/positive-ev"
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        <Search className="h-4 w-4" />
+        Browse +EV
+      </Link>
+    </div>
+  );
+}
+
+function BetslipsEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-4">
+        <Layers className="h-6 w-6 text-neutral-400" />
+      </div>
+      <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-2">
+        No betslips yet
+      </h3>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-[220px]">
+        Select favorites to create your first one
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+// ADD TO BETSLIP MODAL
+// ============================================================================
+
+interface AddToBetslipModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedCount: number;
+  betslips: Betslip[];
+  onAddToExisting: (betslipId: string) => void;
+  onCreateNew: (name: string) => void;
+  isLoading: boolean;
+}
+
+function AddToBetslipModal({
+  isOpen,
+  onClose,
+  selectedCount,
+  betslips,
+  onAddToExisting,
+  onCreateNew,
+  isLoading,
+}: AddToBetslipModalProps) {
+  const [view, setView] = useState<"choose" | "new">("choose");
+  const [newName, setNewName] = useState("");
+  const [selectedBetslip, setSelectedBetslip] = useState<string | null>(null);
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-sm mx-4 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+          <div>
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-white">
+              {view === "choose" ? "Add to betslip" : "New betslip"}
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              {selectedCount} play{selectedCount !== 1 ? "s" : ""} selected
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="p-4">
+          {view === "choose" ? (
+            <div className="space-y-2">
+              {/* Create new option */}
+              <button
+                onClick={() => setView("new")}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+              >
+                <Plus className="h-5 w-5 text-neutral-400" />
+                <span className="text-sm font-medium text-neutral-900 dark:text-white">
+                  Create new betslip
+                </span>
+              </button>
+              
+              {/* Existing betslips */}
+              {betslips.length > 0 && (
+                <>
+                  <div className="text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mt-4 mb-2">
+                    Or add to existing
+                  </div>
+                  {betslips.map((slip) => (
+                    <button
+                      key={slip.id}
+                      onClick={() => setSelectedBetslip(slip.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors",
+                        selectedBetslip === slip.id
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10"
+                          : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                      )}
+                    >
+                      <div className={cn("w-2 h-6 rounded-full", getColorClass(slip.color))} />
+                      <div className="flex-1 text-left">
+                        <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                          {slip.name}
+                        </div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                          {slip.legs_count} play{slip.legs_count !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                      {selectedBetslip === slip.id && (
+                        <Check className="h-4 w-4 text-emerald-500" />
+                      )}
+                    </button>
+                  ))}
+                </>
+              )}
+              
+              {/* Add button */}
+              {selectedBetslip && (
+                <button
+                  onClick={() => onAddToExisting(selectedBetslip)}
+                  disabled={isLoading}
+                  className="w-full mt-4 px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-400 text-white text-sm font-semibold transition-colors"
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Add to betslip"}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+                  Betslip name
+                </label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="My Betslip"
+                  autoFocus
+                  className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setView("choose")}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => onCreateNew(newName || "My Betslip")}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-400 text-white text-sm font-semibold transition-colors"
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Create"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN PAGE COMPONENT
 // ============================================================================
 
 export default function FavoritesPage() {
-  const { favorites, isLoading: loadingFavorites, removeFavorite, refreshOdds, isRefreshingOdds } = useFavorites();
-  const {
-    betslips,
-    isLoading: loadingBetslips,
-    createBetslip,
+  const { favorites, removeFavorite, isLoading: favoritesLoading } = useFavorites();
+  const { 
+    betslips, 
+    isLoading: betslipsLoading, 
+    createBetslip, 
     isCreating,
+    updateBetslip,
     deleteBetslip,
-    isDeleting,
     addToBetslip,
+    isAddingItems,
     removeFromBetslip,
-    fetchSgpOdds,
-    isFetchingSgpOdds,
   } = useBetslips();
-
-  const [activeTab, setActiveTab] = useState<"plays" | "slips">("plays");
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  
+  // Refs
+  const dragPreviewRef = useRef<HTMLDivElement>(null);
+  
+  // State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedBook, setSelectedBook] = useState<string | null>(null);
-  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [deletingSlipId, setDeletingSlipId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<"favorites" | "betslips">("favorites");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [dragState, setDragState] = useState<DragState>({ favoriteIds: [], isDragging: false });
   
-  // Live odds cache - stores refreshed odds by favorite ID
-  const [liveOddsCache, setLiveOddsCache] = useState<Record<string, RefreshedOdds>>({});
-  const [liveOddsLastRefreshed, setLiveOddsLastRefreshed] = useState<number | null>(null);
+  const selectedCount = selectedIds.size;
+  const hasSelection = selectedCount > 0;
   
-  // Shared SGP odds cache - keyed by sorted favorite IDs to share across components
-  const [sharedSgpCache, setSharedSgpCache] = useState<{
-    key: string;
-    cache: ParlayBuilderSgpCache;
-    fetchedAt: number;
-  } | null>(null);
-  
-  // Generate a stable cache key from favorite IDs
-  const getCacheKey = useCallback((favoriteIds: string[]) => {
-    return [...favoriteIds].sort().join('|');
-  }, []);
-  
-  // Check if cache is valid for given favorites (max 5 min staleness)
-  const getValidCache = useCallback((favoriteIds: string[]) => {
-    if (!sharedSgpCache) return null;
-    const key = getCacheKey(favoriteIds);
-    if (sharedSgpCache.key !== key) return null;
-    // Cache is valid for 5 minutes
-    if (Date.now() - sharedSgpCache.fetchedAt > 5 * 60 * 1000) return null;
-    return sharedSgpCache.cache;
-  }, [sharedSgpCache, getCacheKey]);
-  
-  // Update the shared cache
-  const updateSharedCache = useCallback((favoriteIds: string[], cache: ParlayBuilderSgpCache) => {
-    const key = getCacheKey(favoriteIds);
-    setSharedSgpCache({ key, cache, fetchedAt: Date.now() });
-  }, [getCacheKey]);
-  
-  // Filter & Sort state
-  const [sportFilter, setSportFilter] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'date' | 'odds' | 'game_time'>('date');
-  const [showFilters, setShowFilters] = useState(false);
-
-  const uniqueBooks = useMemo(() => getUniqueBooks(favorites), [favorites]);
-  
-  // Get unique sports from favorites
-  const uniqueSports = useMemo(() => {
-    const sports = new Set<string>();
-    favorites.forEach(f => {
-      if (f.sport) sports.add(f.sport);
-    });
-    return Array.from(sports);
-  }, [favorites]);
-  
-  // Filter and sort favorites
-  const filteredFavorites = useMemo(() => {
-    let result = [...favorites];
-    
-    // Apply sport filter
-    if (sportFilter) {
-      result = result.filter(f => f.sport === sportFilter);
-    }
-    
-    // Apply sorting
-    switch (sortBy) {
-      case 'odds':
-        result.sort((a, b) => (b.best_price_at_save || -9999) - (a.best_price_at_save || -9999));
-        break;
-      case 'game_time':
-        result.sort((a, b) => {
-          const dateA = a.game_date ? new Date(a.game_date).getTime() : 0;
-          const dateB = b.game_date ? new Date(b.game_date).getTime() : 0;
-          return dateA - dateB;
-        });
-        break;
-      case 'date':
-      default:
-        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        break;
-    }
-    
-    return result;
-  }, [favorites, sportFilter, sortBy]);
-
-  const handleRemove = useCallback(async (id: string) => {
-    setRemovingId(id);
-    try {
-      await removeFavorite(id);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    } finally {
-      setRemovingId(null);
-    }
-  }, [removeFavorite]);
-
-  const handleToggle = useCallback((id: string) => {
-    setSelectedIds((prev) => {
+  // Handlers
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -2671,560 +1318,307 @@ export default function FavoritesPage() {
       return next;
     });
   }, []);
-
-  const handleSelectAll = useCallback(() => {
-    const filtered = filteredFavorites;
-    const allFilteredSelected = filtered.every(f => selectedIds.has(f.id));
-    if (allFilteredSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map((f) => f.id)));
-    }
-  }, [filteredFavorites, selectedIds]);
-
-  const handleClearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  const handleCreateSlip = useCallback(async (name: string, color: string) => {
-    try {
-      await createBetslip({
-        name,
-        color,
-        favorite_ids: Array.from(selectedIds),
-      });
-      setShowCreateModal(false);
-      setSelectedIds(new Set());
-      setActiveTab("slips");
-    } catch (error) {
-      console.error("Failed to create slip:", error);
-    }
-  }, [createBetslip, selectedIds]);
-
-  const handleAddToExistingSlip = useCallback(async (slipId: string) => {
-    try {
-      await addToBetslip({
-        betslip_id: slipId,
-        favorite_ids: Array.from(selectedIds),
-      });
-      setSelectedIds(new Set());
-    } catch (error) {
-      console.error("Failed to add to slip:", error);
-    }
-  }, [addToBetslip, selectedIds]);
-
-  // Refresh live odds for all favorites (or selected ones)
-  const handleRefreshOdds = useCallback(async (favoriteIds?: string[]) => {
-    try {
-      const response = await refreshOdds(favoriteIds) as RefreshOddsResponse;
-      if (response?.refreshed) {
-        const newCache: Record<string, RefreshedOdds> = {};
-        response.refreshed.forEach(odds => {
-          newCache[odds.favorite_id] = odds;
-        });
-        setLiveOddsCache(prev => ({ ...prev, ...newCache }));
-        setLiveOddsLastRefreshed(Date.now());
-      }
-    } catch (error) {
-      console.error("Failed to refresh odds:", error);
-    }
-  }, [refreshOdds]);
-
-  const handleDeleteSlip = useCallback(async (slipId: string) => {
-    setDeletingSlipId(slipId);
-    try {
-      await deleteBetslip(slipId);
-    } finally {
-      setDeletingSlipId(null);
-    }
-  }, [deleteBetslip]);
-
-  const handleRemoveFromSlip = useCallback(async (slipId: string, favoriteId: string) => {
-    try {
-      await removeFromBetslip({ betslipId: slipId, favoriteId });
-    } catch (error) {
-      console.error("Failed to remove from slip:", error);
-    }
-  }, [removeFromBetslip]);
-
-  // Delete selected favorites
-  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   
-  const handleDeleteSelected = useCallback(async () => {
-    if (selectedIds.size === 0) return;
+  const handleRemove = useCallback(async (id: string) => {
+    const fav = favorites.find(f => f.id === id);
+    const playerName = fav?.player_name || fav?.home_team || "Play";
     
-    setIsDeletingSelected(true);
-    try {
-      // Delete each selected favorite
-      const deletePromises = Array.from(selectedIds).map(id => removeFavorite(id));
-      await Promise.all(deletePromises);
-      setSelectedIds(new Set());
-      setShowDeleteConfirmation(false);
-    } catch (error) {
-      console.error("Failed to delete favorites:", error);
-    } finally {
-      setIsDeletingSelected(false);
+    await removeFavorite(id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    toast.success(`Removed ${playerName}`);
+  }, [removeFavorite, favorites]);
+  
+  const handleAddToExisting = useCallback(async (betslipId: string) => {
+    const slip = betslips.find(b => b.id === betslipId);
+    await addToBetslip({
+      betslip_id: betslipId,
+      favorite_ids: Array.from(selectedIds),
+    });
+    toast.success(`Added ${selectedCount} play${selectedCount !== 1 ? "s" : ""} to ${slip?.name || "betslip"}`);
+    setSelectedIds(new Set());
+    setShowAddModal(false);
+  }, [selectedIds, selectedCount, betslips, addToBetslip]);
+  
+  const handleCreateNew = useCallback(async (name: string) => {
+    await createBetslip({
+      name,
+      favorite_ids: Array.from(selectedIds),
+    });
+    toast.success(`Created "${name}" with ${selectedCount} play${selectedCount !== 1 ? "s" : ""}`);
+    setSelectedIds(new Set());
+    setShowAddModal(false);
+  }, [selectedIds, selectedCount, createBetslip]);
+  
+  const handleDeleteBetslip = useCallback(async (id: string) => {
+    const slip = betslips.find(b => b.id === id);
+    await deleteBetslip(id);
+    toast.success(`Deleted "${slip?.name}"`);
+  }, [betslips, deleteBetslip]);
+  
+  const handleRenameBetslip = useCallback(async (id: string, name: string) => {
+    await updateBetslip({ id, name });
+    toast.success("Betslip renamed");
+  }, [updateBetslip]);
+  
+  // Drag & drop handlers
+  const handleDragStart = useCallback((favoriteIds: string[]) => {
+    setDragState({ favoriteIds, isDragging: true });
+  }, []);
+  
+  const handleDragEnd = useCallback(() => {
+    setDragState({ favoriteIds: [], isDragging: false });
+  }, []);
+  
+  const handleDropOnBetslip = useCallback(async (betslipId: string, favoriteIds: string[]) => {
+    const slip = betslips.find(b => b.id === betslipId);
+    
+    await addToBetslip({
+      betslip_id: betslipId,
+      favorite_ids: favoriteIds,
+    });
+    
+    const count = favoriteIds.length;
+    if (count === 1) {
+      const fav = favorites.find(f => f.id === favoriteIds[0]);
+      const playerName = fav?.player_name || fav?.home_team || "Play";
+      toast.success(`Added ${playerName} to ${slip?.name || "betslip"}`);
+    } else {
+      toast.success(`Added ${count} plays to ${slip?.name || "betslip"}`);
     }
-  }, [selectedIds, removeFavorite]);
-
-  const selectedFavorites = useMemo(
-    () => favorites.filter((f) => selectedIds.has(f.id)),
-    [favorites, selectedIds]
-  );
-
-  const allSelected = filteredFavorites.length > 0 && filteredFavorites.every(f => selectedIds.has(f.id));
-  const isLoading = loadingFavorites || loadingBetslips;
-
-  // Calculate stats for the header
-  const stats = useMemo(() => {
-    const bestOdds = favorites.reduce((best, fav) => {
-      const price = fav.best_price_at_save;
-      if (price && (!best || price > best)) return price;
-      return best;
-    }, null as number | null);
     
-    const uniqueSports = new Set(favorites.map(f => f.sport)).size;
-    const todayCount = favorites.filter(f => {
-      if (!f.game_date) return false;
-      const gameDate = new Date(f.game_date);
-      const today = new Date();
-      return gameDate.toDateString() === today.toDateString();
-    }).length;
-    
-    return { bestOdds, uniqueSports, todayCount };
-  }, [favorites]);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-neutral-100 via-neutral-50 to-white dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-900">
-      {/* Compact Header */}
-      <div className="border-b border-neutral-200/50 dark:border-neutral-800/50 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900 dark:to-neutral-900">
-        <MaxWidthWrapper className="pt-4 pb-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Title Section */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/20">
-                <HeartFill className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white tracking-tight">
-                  My Plays
-            </h1>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:block">
-                  Build parlays and track your selections
-                </p>
-              </div>
-            </div>
-
-            {/* Stats Pills - Inline */}
-            {favorites.length > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/20">
-                  <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {stats.bestOdds ? formatOdds(stats.bestOdds) : "—"}
-              </span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-200/50 dark:border-violet-500/20">
-                  <Layers className="w-3 h-3 text-violet-600 dark:text-violet-400" />
-                  <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 tabular-nums">
-                    {favorites.length}
-                  </span>
-                </div>
-                {stats.todayCount > 0 && (
-                  <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200/50 dark:border-amber-500/20">
-                    <Calendar className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
-                      {stats.todayCount}
-                    </span>
-                  </div>
-            )}
-          </div>
-            )}
-          </div>
-        </MaxWidthWrapper>
-      </div>
-
-      <div className="mx-auto w-full max-w-screen-2xl px-3 lg:px-10 pt-4 pb-32 lg:pb-16">
-        {/* Compact Tabs */}
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50">
-            <button
-              onClick={() => setActiveTab("plays")}
-              className={cn(
-                "relative px-4 py-2 rounded-md text-sm font-semibold transition-all",
-                activeTab === "plays"
-                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-            >
-              <span className="flex items-center gap-1.5">
-                <Heart className="w-3.5 h-3.5" />
-                All Plays
-              </span>
-              {favorites.length > 0 && (
-                <span className={cn(
-                  "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center",
-                  activeTab === "plays"
-                    ? "bg-rose-500 text-white"
-                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300"
-                )}>
-                  {favorites.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("slips")}
-              className={cn(
-                "relative px-4 py-2 rounded-md text-sm font-semibold transition-all",
-                activeTab === "slips"
-                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              )}
-            >
-              <span className="flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" />
-                My Slips
-              </span>
-              {betslips.length > 0 && (
-                <span className={cn(
-                  "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center",
-                  activeTab === "slips"
-                    ? "bg-violet-500 text-white"
-                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300"
-                )}>
-                  {betslips.length}
-                </span>
-              )}
-            </button>
-          </div>
-          
-          {/* Selection indicator */}
-          {activeTab === "plays" && selectedIds.size > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-brand/10 dark:bg-brand/20 border border-brand/20"
-            >
-              <Check className="w-3.5 h-3.5 text-brand" />
-              <span className="text-xs font-semibold text-brand">{selectedIds.size} selected</span>
-            </motion.div>
-          )}
+    // Clear selection after drop
+    setSelectedIds(new Set());
+  }, [betslips, favorites, addToBetslip]);
+  
+  const handleQuickCompare = useCallback((betslipId: string) => {
+    // TODO: Open Quick Compare panel with betslip items
+    toast.info("Quick Compare coming soon");
+  }, []);
+  
+  const handleRemoveLegFromBetslip = useCallback(async (betslipId: string, favoriteId: string) => {
+    await removeFromBetslip({ betslipId, favoriteId });
+    toast.success("Leg removed from betslip");
+  }, [removeFromBetslip]);
+  
+  const isLoading = favoritesLoading || betslipsLoading;
+  
+  // Render favorites list
+  const renderFavorites = () => (
+    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
+        <div>
+          <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Favorites</h2>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            {favorites.length} saved play{favorites.length !== 1 ? "s" : ""}
+          </p>
         </div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-neutral-400 animate-spin" />
-          </div>
-        ) : activeTab === "plays" ? (
-          favorites.length === 0 ? (
-            <EmptyPlaysState />
-          ) : (
-            <div className="flex gap-6">
-              {/* Left: Plays List */}
-              <div className="flex-1 min-w-0">
-                {/* Filter Bar */}
-                <div className="flex flex-wrap items-center gap-2 mb-3 px-2.5 py-2 rounded-lg bg-white/50 dark:bg-neutral-900/50 border border-neutral-200/50 dark:border-neutral-800/50">
-                  {/* Sport Filter Pills */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setSportFilter(null)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                        !sportFilter
-                          ? "bg-brand text-white shadow-sm"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                      )}
-                    >
-                      All
-                    </button>
-                    {uniqueSports.map(sport => (
-                      <button
-                        key={sport}
-                        onClick={() => setSportFilter(sport === sportFilter ? null : sport)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                          sport === sportFilter
-                            ? "bg-brand text-white shadow-sm"
-                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                        )}
-                      >
-                        <SportIcon sport={normalizeSport(sport)} className="w-3.5 h-3.5" />
-                        {sport.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700" />
-                  
-                  {/* Sort Dropdown */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wide">Sort</span>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as 'date' | 'odds' | 'game_time')}
-                      className={cn(
-                        "px-2.5 py-1.5 rounded-lg text-xs font-medium",
-                        "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300",
-                        "border-none focus:ring-2 focus:ring-brand cursor-pointer"
-                      )}
-                    >
-                      <option value="date">Date Added</option>
-                      <option value="odds">Best Odds</option>
-                      <option value="game_time">Game Time</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex-1" />
-                  
-                  {/* Refresh Odds Button */}
-                  <button
-                    onClick={() => handleRefreshOdds()}
-                    disabled={isRefreshingOdds || favorites.length === 0}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-                      "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300",
-                      "hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200/60 dark:border-neutral-700/60",
-                      "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                    title={liveOddsLastRefreshed ? `Last refreshed: ${new Date(liveOddsLastRefreshed).toLocaleTimeString()}` : "Refresh all odds"}
-                  >
-                    <RefreshCw className={cn("w-3 h-3", isRefreshingOdds && "animate-spin")} />
-                    {isRefreshingOdds ? "Refreshing..." : "Refresh Odds"}
-                  </button>
-                  
-                  {/* Results count */}
-                  <span className="text-xs text-neutral-500">
-                    {filteredFavorites.length} of {favorites.length} plays
-                  </span>
-                </div>
-                
-              {/* Actions Bar */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSelectAll}
-                      className="text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-brand transition-colors"
-                >
-                  {allSelected ? "Deselect All" : "Select All"}
-                </button>
-                {selectedIds.size > 0 && (
-                      <span className="text-xs text-neutral-400">{selectedIds.size} selected</span>
-                    )}
-                  </div>
-                  {selectedIds.size > 0 && (
-                    <div className="flex items-center gap-2">
-                      <AddToSlipDropdown
-                        betslips={betslips}
-                        onAddToSlip={handleAddToExistingSlip}
-                        onCreateNew={() => setShowCreateModal(true)}
-                        selectedCount={selectedIds.size}
-                      />
-                  <button
-                        onClick={() => setShowDeleteConfirmation(true)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800/50 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                        Delete
-                  </button>
-                    </div>
-                )}
-              </div>
-
-                {/* Plays */}
-              <div className="space-y-3">
-                  <AnimatePresence mode="popLayout">
-                    {filteredFavorites.map((favorite) => (
-                      <PlayCard
-                    key={favorite.id}
-                    favorite={favorite}
-                        isSelected={selectedIds.has(favorite.id)}
-                        onToggle={() => handleToggle(favorite.id)}
-                    onRemove={() => handleRemove(favorite.id)}
-                    isRemoving={removingId === favorite.id}
-                        selectedBook={selectedBook}
-                        liveOdds={liveOddsCache[favorite.id]}
-                  />
-                ))}
-                  </AnimatePresence>
-                  
-                  {/* Empty filter state */}
-                  {filteredFavorites.length === 0 && favorites.length > 0 && (
-                    <div className="text-center py-12">
-                      <Filter className="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto mb-3" />
-                      <p className="text-sm text-neutral-500 dark:text-neutral-400">No plays match your filters</p>
-                      <button
-                        onClick={() => {
-                          setSportFilter(null);
-                          setSortBy('date');
-                        }}
-                        className="mt-2 text-xs font-medium text-brand hover:underline"
-                      >
-                        Clear filters
-                      </button>
-                    </div>
-                  )}
-              </div>
-            </div>
-
-              {/* Right: Parlay Builder (Desktop) */}
-              <div className="hidden lg:block w-[360px] shrink-0">
-                <div className="sticky top-20 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60 bg-white dark:bg-neutral-900 overflow-hidden shadow-sm">
-                  <ParlayBuilder
-                selectedFavorites={selectedFavorites}
-                    allBooks={uniqueBooks}
-                    selectedBook={selectedBook}
-                    onBookChange={setSelectedBook}
-                    onClearSelection={handleClearSelection}
-                    onDeleteSelected={() => setShowDeleteConfirmation(true)}
-                    isDeletingSelected={isDeletingSelected}
-                    onCreateSlip={() => setShowCreateModal(true)}
-                    isCreatingSlip={isCreating}
-                    sharedSgpCache={getValidCache(selectedFavorites.map(f => f.id))}
-                    onUpdateSgpCache={updateSharedCache}
-                    liveOddsCache={liveOddsCache}
-              />
-            </div>
-          </div>
-            </div>
-          )
-        ) : (
-          /* Slips Tab */
-          betslips.length === 0 ? (
-            <EmptySlipsState onCreate={() => setShowCreateModal(true)} />
-          ) : (
-            <div>
-              {/* Slips Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 p-4 rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50/50 dark:from-violet-500/10 dark:to-purple-500/5 ring-1 ring-violet-200/50 dark:ring-violet-500/20">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
-                    <Layers className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                      {betslips.length} Betslip{betslips.length !== 1 && "s"}
-                    </h3>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {betslips.reduce((sum, slip) => sum + (slip.items?.length || 0), 0)} total legs across all slips
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  New Slip
-                </button>
-              </div>
-              
-              {/* Slips Grid - 2 columns */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <AnimatePresence mode="popLayout">
-                  {betslips.map((slip) => (
-                    <BetslipCard
-                      key={slip.id}
-                      slip={slip}
-                      onDelete={() => handleDeleteSlip(slip.id)}
-                      onRemoveItem={(favId) => handleRemoveFromSlip(slip.id, favId)}
-                      isDeleting={deletingSlipId === slip.id}
-                      onFetchSgpOdds={async (betslipId, forceRefresh) => {
-                        await fetchSgpOdds({ betslipId, forceRefresh });
-                      }}
-                      isFetchingSgpOdds={isFetchingSgpOdds}
-                      sharedSgpCache={getValidCache(slip.items?.map(i => i.favorite_id) || [])}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          )
+        {!isMobile && favorites.length > 0 && (
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Drag to add to betslip
+          </p>
         )}
       </div>
-
-      {/* Mobile Parlay Sheet */}
-      {activeTab === "plays" && (
-        <div className="lg:hidden">
-          <AnimatePresence>
-            {selectedFavorites.length >= 2 && (
-              <MobileParlaySheet
-                selectedFavorites={selectedFavorites}
-                allBooks={uniqueBooks}
-                selectedBook={selectedBook}
-                onBookChange={setSelectedBook}
-                onClearSelection={handleClearSelection}
-                onDeleteSelected={() => setShowDeleteConfirmation(true)}
-                isDeletingSelected={isDeletingSelected}
-                isExpanded={mobileSheetExpanded}
-                onToggle={() => setMobileSheetExpanded(!mobileSheetExpanded)}
-                onCreateSlip={() => setShowCreateModal(true)}
-                isCreatingSlip={isCreating}
-              />
-            )}
-          </AnimatePresence>
+      
+      {/* List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+        </div>
+      ) : favorites.length === 0 ? (
+        <FavoritesEmptyState />
+      ) : (
+        <div>
+          {favorites.map((favorite) => (
+            <FavoriteRow
+              key={favorite.id}
+              favorite={favorite}
+              isSelected={selectedIds.has(favorite.id)}
+              selectedIds={selectedIds}
+              onToggleSelect={() => toggleSelect(favorite.id)}
+              onRemove={() => handleRemove(favorite.id)}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              isDragging={dragState.favoriteIds.includes(favorite.id)}
+              isMobile={isMobile}
+              dragPreviewRef={dragPreviewRef}
+            />
+          ))}
         </div>
       )}
-
-      {/* Create Slip Modal */}
+    </div>
+  );
+  
+  // Render betslips list
+  const renderBetslips = () => (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Betslips</h2>
+        <button
+          onClick={() => setShowAddModal(true)}
+          disabled={!hasSelection}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+            hasSelection
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed"
+          )}
+        >
+          <Plus className="h-4 w-4" />
+          New
+        </button>
+      </div>
+      
+      {/* List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+        </div>
+      ) : betslips.length === 0 ? (
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <BetslipsEmptyState />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {betslips.map((betslip) => (
+            <BetslipCard
+              key={betslip.id}
+              betslip={betslip}
+              onDelete={() => handleDeleteBetslip(betslip.id)}
+              onRename={(name) => handleRenameBetslip(betslip.id, name)}
+              onQuickCompare={() => handleQuickCompare(betslip.id)}
+              onRemoveLeg={(favoriteId) => handleRemoveLegFromBetslip(betslip.id, favoriteId)}
+              onDrop={(favoriteIds) => handleDropOnBetslip(betslip.id, favoriteIds)}
+              isDropTarget={dragState.isDragging}
+              dragCount={dragState.favoriteIds.length}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  
+  return (
+    <MaxWidthWrapper className="py-6">
+      {/* Mobile: Segmented control */}
+      {isMobile && (
+        <div className="flex p-1 mb-6 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
+          <button
+            onClick={() => setMobileTab("favorites")}
+            className={cn(
+              "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
+              mobileTab === "favorites"
+                ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                : "text-neutral-500 dark:text-neutral-400"
+            )}
+          >
+            Favorites
+          </button>
+          <button
+            onClick={() => setMobileTab("betslips")}
+            className={cn(
+              "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
+              mobileTab === "betslips"
+                ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                : "text-neutral-500 dark:text-neutral-400"
+            )}
+          >
+            Betslips
+          </button>
+        </div>
+      )}
+      
+      {/* Desktop: Two columns / Mobile: Single column */}
+      {isMobile ? (
+        <div>
+          {mobileTab === "favorites" ? renderFavorites() : renderBetslips()}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Left: Favorites */}
+          <div>{renderFavorites()}</div>
+          
+          {/* Right: Betslips */}
+          <div>{renderBetslips()}</div>
+        </div>
+      )}
+      
+      {/* Sticky action bar */}
       <AnimatePresence>
-        {showCreateModal && (
-          <CreateSlipModal
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            onCreate={handleCreateSlip}
-            isCreating={isCreating}
-            selectedCount={selectedIds.size}
+        {hasSelection && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40"
+          >
+            <div className="flex items-center gap-3 px-4 py-3 bg-neutral-900 dark:bg-white rounded-full shadow-lg">
+              <span className="text-sm text-white dark:text-neutral-900">
+                {selectedCount} selected
+              </span>
+              <div className="w-px h-4 bg-neutral-700 dark:bg-neutral-300" />
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add to betslip
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="p-1.5 text-neutral-400 hover:text-white dark:hover:text-neutral-900 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Add to betslip modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddToBetslipModal
+            isOpen={showAddModal}
+            onClose={() => setShowAddModal(false)}
+            selectedCount={selectedCount}
+            betslips={betslips}
+            onAddToExisting={handleAddToExisting}
+            onCreateNew={handleCreateNew}
+            isLoading={isCreating || isAddingItems}
           />
         )}
       </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <DialogContent className="sm:max-w-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl overflow-hidden">
-          {/* Red accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-red-500 to-rose-600" />
+      
+      {/* Custom drag preview for multi-select */}
+      <div
+        ref={dragPreviewRef}
+        className="fixed -left-[9999px] -top-[9999px] pointer-events-none"
+        aria-hidden="true"
+      >
+        <div className="relative">
+          {/* Stacked cards effect */}
+          <div className="absolute top-1 left-1 w-[200px] h-[52px] bg-neutral-200 dark:bg-neutral-700 rounded-lg opacity-60" />
+          <div className="absolute top-0.5 left-0.5 w-[200px] h-[52px] bg-neutral-100 dark:bg-neutral-800 rounded-lg opacity-80" />
           
-          <div className="p-6">
-            {/* Icon */}
-            <div className="flex justify-center mb-5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-100 to-rose-100 dark:from-red-900/40 dark:to-rose-900/40 shadow-lg ring-1 ring-red-200/50 dark:ring-red-800/50">
-                <Trash2 className="h-7 w-7 text-red-600 dark:text-red-400" />
+          {/* Main card */}
+          <div className="relative w-[200px] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700 shadow-lg px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold" data-drag-count>
+                3
               </div>
-            </div>
-
-            {/* Content */}
-            <div className="text-center">
-              <DialogTitle className="mb-2 text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
-                Delete {selectedIds.size} Play{selectedIds.size === 1 ? '' : 's'}?
-              </DialogTitle>
-              <DialogDescription className="mb-6 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                {selectedIds.size === 1 
-                  ? "This play will be permanently removed from your favorites."
-                  : `These ${selectedIds.size} plays will be permanently removed from your favorites.`
-                } This action cannot be undone.
-              </DialogDescription>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirmation(false)}
-                className="flex-1 h-11 rounded-xl text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteSelected}
-                disabled={isDeletingSelected}
-                className="flex-1 h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/25 transition-all hover:shadow-red-500/40 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isDeletingSelected && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isDeletingSelected ? "Deleting..." : `Delete ${selectedIds.size} Play${selectedIds.size === 1 ? '' : 's'}`}
-              </button>
+              <span className="text-sm font-medium text-neutral-900 dark:text-white" data-drag-label>
+                3 plays
+              </span>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </div>
+      </div>
+    </MaxWidthWrapper>
   );
 }

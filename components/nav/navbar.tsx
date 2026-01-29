@@ -21,7 +21,7 @@ import { RESOURCES } from "@/lib/resources";
 import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
-import { FavoritesModal } from "@/components/nav/favorites-modal";
+import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountDropdown } from "./account-dropdown";
@@ -262,7 +262,7 @@ export function Nav({
                   <>
                     {user ? (
                       <>
-                        <FavoritesModal />
+                        <FavoritesDrawerTrigger />
                         <AccountDropdown user={user} />
                       </>
                     ) : (
@@ -396,7 +396,7 @@ function MobileNav({ domain }: { domain: string }) {
 
   return (
     <div className="flex items-center gap-2 lg:hidden">
-      {user && <FavoritesModal />}
+      {user && <MobileFavoritesDrawerTrigger />}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex size-8 items-center justify-center rounded-md text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-800"

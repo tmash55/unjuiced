@@ -6,7 +6,7 @@ import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
 import type { PositiveEVOpportunity, DevigMethod } from "@/lib/ev/types";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
@@ -86,6 +86,7 @@ interface MobileEVCardProps {
   boostPercent?: number;
   evCase?: "worst" | "best";
   selectedDevigMethods?: DevigMethod[];
+  selectedBooks?: string[];
 }
 
 export function MobileEVCard({
@@ -102,6 +103,7 @@ export function MobileEVCard({
   boostPercent = 0,
   evCase = "worst",
   selectedDevigMethods = ["power", "multiplicative"],
+  selectedBooks = [],
 }: MobileEVCardProps) {
   const opp = opportunity;
   
@@ -320,6 +322,7 @@ export function MobileEVCard({
               type="button"
               onClick={handleToggleFavorite}
               disabled={!isLoggedIn || isToggling}
+              data-no-row-toggle="true"
               className={cn(
                 "p-1.5 rounded-lg transition-all",
                 !isLoggedIn && "opacity-50 cursor-not-allowed",
@@ -412,10 +415,22 @@ export function MobileEVCard({
             {/* Overlapping logos for tied books */}
             {(() => {
               const bestEV = opp.book.evPercent ?? displayEV;
-              const tiedBooks = opp.allBooks
-                .filter(b => !b.isSharpRef && Math.abs((b.evPercent ?? 0) - bestEV) < 0.01)
-                .slice(0, 3); // Max 3 for mobile
-              const extraCount = opp.allBooks.filter(b => !b.isSharpRef && Math.abs((b.evPercent ?? 0) - bestEV) < 0.01).length - 3;
+              const selectedBooksSet = selectedBooks && selectedBooks.length > 0 
+                ? new Set(selectedBooks.map(b => normalizeSportsbookId(b)))
+                : null;
+              const allTiedBooks = opp.allBooks
+                .filter(b => {
+                  if (b.isSharpRef) return false;
+                  if (Math.abs((b.evPercent ?? 0) - bestEV) >= 0.01) return false;
+                  // Filter by selected books if any are selected
+                  if (selectedBooksSet) {
+                    const normalizedId = normalizeSportsbookId(b.bookId);
+                    if (!selectedBooksSet.has(normalizedId)) return false;
+                  }
+                  return true;
+                });
+              const tiedBooks = allTiedBooks.slice(0, 3); // Max 3 for mobile
+              const extraCount = allTiedBooks.length - 3;
               
               if (tiedBooks.length <= 1) {
                 // Single book - show as before

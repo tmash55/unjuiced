@@ -466,19 +466,23 @@ function applyGlobalFilters(
     }
     
     // HYBRID: Min edge filter (client-side)
-    if (prefs.minImprovement && prefs.minImprovement > 0) {
+    // Skip for custom mode - custom presets handle their own filtering server-side
+    if (!isCustomMode && prefs.minImprovement && prefs.minImprovement > 0) {
       if ((opp.edgePct || 0) < prefs.minImprovement) return false;
     }
     
     // HYBRID: Odds range filter (client-side)
-    // Default to very permissive range if user hasn't set preferences
-    const minOdds = prefs.minOdds ?? -10000;
-    const maxOdds = prefs.maxOdds ?? 20000;
-    const oppOdds =
-      typeof opp.bestPrice === "string"
-        ? Number.parseInt(opp.bestPrice, 10) || 0
-        : 0;
-    if (oppOdds < minOdds || oppOdds > maxOdds) return false;
+    // Skip for custom mode - custom presets have their own min/max odds that were applied server-side
+    if (!isCustomMode) {
+      // Default to very permissive range if user hasn't set preferences
+      const minOdds = prefs.minOdds ?? -10000;
+      const maxOdds = prefs.maxOdds ?? 20000;
+      const oppOdds =
+        typeof opp.bestPrice === "string"
+          ? Number.parseInt(opp.bestPrice, 10) || 0
+          : 0;
+      if (oppOdds < minOdds || oppOdds > maxOdds) return false;
+    }
     
     // HYBRID: Selected markets filter (client-side)
     // Only filter if user has selected specific markets

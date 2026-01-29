@@ -328,6 +328,7 @@ export function MobileEdgeCard({
               type="button"
               onClick={handleToggleFavorite}
               disabled={!isLoggedIn || isToggling}
+              data-no-row-toggle="true"
               className={cn(
                 "p-1.5 rounded-lg transition-all",
                 !isLoggedIn && "opacity-50 cursor-not-allowed",

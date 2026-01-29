@@ -660,6 +660,16 @@ async function fetchSportOpportunities(
     const filteredKeys: string[] = [];
     const keysByEventMarket = new Map<string, string[]>(); // "eventId:market" -> keys
     
+    // Helper to check if market is allowed (supports composite keys like "nba:player_points")
+    const isMarketAllowed = (market: string): boolean => {
+      if (!markets) return true; // No filter = all allowed
+      // Check composite key (sport-specific)
+      if (markets.includes(`${sport}:${market}`)) return true;
+      // Check plain key (global / backwards compat)
+      if (markets.includes(market)) return true;
+      return false;
+    };
+    
     let marketsSkipped = 0;
     for (const key of allOddsKeys) {
       const parts = key.split(":");
@@ -670,7 +680,7 @@ async function fetchSportOpportunities(
       
       if (!eventId || !market || !book) continue;
       if (!eventIdSet.has(eventId)) continue;
-      if (markets && !markets.includes(market)) {
+      if (!isMarketAllowed(market)) {
         marketsSkipped++;
         continue;
       }
