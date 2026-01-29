@@ -45,14 +45,13 @@ const redis = new Redis({
 const SCAN_COUNT = 2000;      // Larger scan batches
 const MGET_CHUNK_SIZE = 500;  // Reduced to prevent connection issues
 
-// Response-level caching (prevents redundant processing)
-// IMPORTANT: Different TTLs for different modes to balance freshness vs speed
-const RESPONSE_CACHE_TTL = {
-  pregame: 15_000, // 15 seconds - pregame odds don't change as fast
-  live: 0,         // NO CACHE for live - every second matters!
-  all: 5_000,      // 5 seconds - compromise when mixing modes
-};
-const responseCache = new Map<string, { data: unknown; timestamp: number; mode: string }>();
+// =============================================================================
+// Redis Response Cache (shared across all instances)
+// =============================================================================
+
+const RESPONSE_CACHE_PREFIX = "ev:response:";
+const RESPONSE_CACHE_TTL_PRESET = 15;  // 15 seconds for standard presets
+const RESPONSE_CACHE_TTL_CUSTOM = 30;  // 30 seconds for custom models (configs rarely change)
 
 /**
  * Build cache key from request parameters
@@ -63,48 +62,49 @@ function buildResponseCacheKey(params: URLSearchParams): string {
 }
 
 /**
- * Get cache TTL based on mode
+ * Check if request is using a custom model (has customSharpBooks)
  */
-function getCacheTTL(mode: string): number {
-  return RESPONSE_CACHE_TTL[mode as keyof typeof RESPONSE_CACHE_TTL] ?? RESPONSE_CACHE_TTL.pregame;
+function isCustomModelRequest(params: URLSearchParams): boolean {
+  const customBooks = params.get("customSharpBooks");
+  return !!customBooks && customBooks.length > 0;
 }
 
 /**
- * Check response cache
+ * Get hash of cache key for shorter Redis keys
  */
-function getFromResponseCache(key: string, mode: string): unknown | null {
-  const ttl = getCacheTTL(mode);
-  
-  // Live mode = NO CACHING (freshness is critical)
-  if (ttl === 0) {
+function hashCacheKey(key: string): string {
+  // Simple hash function for shorter keys
+  let hash = 5381;
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) + hash) ^ key.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Check Redis response cache
+ */
+async function getFromResponseCache(key: string): Promise<unknown | null> {
+  try {
+    const redisKey = `${RESPONSE_CACHE_PREFIX}${hashCacheKey(key)}`;
+    const cached = await redis.get(redisKey);
+    return cached;
+  } catch (error) {
+    console.error("[positive-ev] Redis cache read error:", error);
     return null;
   }
-  
-  const entry = responseCache.get(key);
-  if (entry && Date.now() - entry.timestamp < ttl) {
-    return entry.data;
-  }
-  responseCache.delete(key);
-  return null;
 }
 
 /**
- * Store in response cache (only for non-live modes)
+ * Store in Redis response cache with tiered TTL
  */
-function setInResponseCache(key: string, data: unknown, mode: string): void {
-  const ttl = getCacheTTL(mode);
-  
-  // Don't cache live mode
-  if (ttl === 0) {
-    return;
-  }
-  
-  responseCache.set(key, { data, timestamp: Date.now(), mode });
-  
-  // Clean up old entries (simple LRU-like behavior)
-  if (responseCache.size > 20) {
-    const oldest = responseCache.keys().next().value;
-    if (oldest) responseCache.delete(oldest);
+async function setInResponseCache(key: string, data: unknown, isCustom: boolean): Promise<void> {
+  try {
+    const ttl = isCustom ? RESPONSE_CACHE_TTL_CUSTOM : RESPONSE_CACHE_TTL_PRESET;
+    const redisKey = `${RESPONSE_CACHE_PREFIX}${hashCacheKey(key)}`;
+    await redis.set(redisKey, data, { ex: ttl });
+  } catch (error) {
+    console.error("[positive-ev] Redis cache write error:", error);
   }
 }
 
@@ -249,16 +249,17 @@ export async function GET(req: NextRequest) {
     // Cache bypass: ?fresh=true skips cache (use after SSE updates)
     const bypassCache = params.get("fresh") === "true";
     
-    // Check response cache first (fast path) - SKIP for live mode or cache bypass!
+    // Check Redis response cache first (fast path)
     const cacheKey = buildResponseCacheKey(params);
     if (!bypassCache) {
-      const cachedResponse = getFromResponseCache(cacheKey, mode);
+      const cachedResponse = await getFromResponseCache(cacheKey);
       if (cachedResponse) {
-        console.log(`[positive-ev] Cache HIT (${mode}, ${Date.now() - startTime}ms)`);
+        console.log(`[positive-ev] Cache HIT (Redis, ${Date.now() - startTime}ms)`);
         return NextResponse.json(cachedResponse, {
           headers: {
-            "Cache-Control": mode === "live" ? "no-store" : "private, max-age=15",
+            "Cache-Control": "private, max-age=15",
             "X-Cache": "HIT",
+            "X-Cache-Source": "redis",
             "X-Mode": mode,
           },
         });
@@ -372,16 +373,21 @@ export async function GET(req: NextRequest) {
       console.warn(`[positive-ev] ⚠️  Large response (${(responseSize / 1024 / 1024).toFixed(2)} MB)`);
     }
 
-    // Store in response cache for quick subsequent requests (skip for live mode)
-    setInResponseCache(cacheKey, response, mode);
-    const cacheStatus = mode === "live" ? "LIVE (no cache)" : "MISS - stored";
-    console.log(`[positive-ev] Cache ${cacheStatus} (${mode}, total time: ${Date.now() - startTime}ms)`);
+    // Store in Redis response cache for quick subsequent requests
+    // Fire and forget - don't await to avoid slowing down response
+    const isCustom = isCustomModelRequest(params);
+    setInResponseCache(cacheKey, response, isCustom).catch(err => {
+      console.error("[positive-ev] Failed to cache response:", err);
+    });
+    const ttlUsed = isCustom ? RESPONSE_CACHE_TTL_CUSTOM : RESPONSE_CACHE_TTL_PRESET;
+    console.log(`[positive-ev] Cache MISS - storing in Redis (TTL: ${ttlUsed}s, total time: ${Date.now() - startTime}ms)`);
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": mode === "live" ? "no-store" : "private, max-age=15",
+        "Cache-Control": "private, max-age=15",
         "Content-Type": "application/json",
-        "X-Cache": mode === "live" ? "DISABLED" : "MISS",
+        "X-Cache": "MISS",
+        "X-Cache-Source": "redis",
         "X-Mode": mode,
       },
     });
@@ -948,11 +954,14 @@ function getSharpOddsForPreset(
   }
 
   const presetBooks = presetConfig.books;
+  
+  // Build lookup map for O(1) lookups instead of O(n) .find() calls
+  const bookMap = buildBookLookupMap(books);
 
   if (presetBooks.length === 1) {
-    // Single book preset
+    // Single book preset - O(1) lookup
     const targetBook = presetBooks[0].bookId;
-    const match = books.find((b) => b.bookId === targetBook || b.bookId === normalizeBookIdForSharp(targetBook));
+    const match = bookMap.get(targetBook.toLowerCase()) || bookMap.get(normalizeBookIdForSharp(targetBook.toLowerCase()));
     if (match) {
       return { price: match.price, source: targetBook };
     }
@@ -964,7 +973,8 @@ function getSharpOddsForPreset(
   const blendedFrom: string[] = [];
 
   for (const { bookId, weight } of presetBooks) {
-    const match = books.find((b) => b.bookId === bookId || b.bookId === normalizeBookIdForSharp(bookId));
+    // O(1) lookup instead of O(n) .find()
+    const match = bookMap.get(bookId.toLowerCase()) || bookMap.get(normalizeBookIdForSharp(bookId.toLowerCase()));
     if (match) {
       blendInputs.push({ bookId, odds: match.price, weight });
       blendedFrom.push(bookId);
@@ -992,6 +1002,25 @@ function getSharpOddsForPreset(
  * Get sharp odds using a custom configuration (user's custom EV model)
  * Supports weighted blending of multiple sharp books
  */
+/**
+ * Build a lookup map for fast book matching
+ * Maps all possible book ID variations to the BookOffer
+ */
+function buildBookLookupMap(books: BookOffer[]): Map<string, BookOffer> {
+  const map = new Map<string, BookOffer>();
+  for (const book of books) {
+    const lower = book.bookId.toLowerCase();
+    // Add the original lowercased ID
+    map.set(lower, book);
+    // Add the normalized version too
+    const normalized = normalizeBookIdForSharp(lower);
+    if (normalized !== lower) {
+      map.set(normalized, book);
+    }
+  }
+  return map;
+}
+
 function getSharpOddsForCustomConfig(
   books: BookOffer[],
   config: CustomSharpConfig
@@ -1002,15 +1031,14 @@ function getSharpOddsForCustomConfig(
 
   // Filter out extreme prediction market odds that could skew the blend
   const filteredBooks = filterExtremePredictionMarketOdds(books);
+  
+  // Build lookup map once for O(1) lookups instead of O(n) .find() calls
+  const bookMap = buildBookLookupMap(filteredBooks);
 
   // Single book in custom config
   if (config.books.length === 1) {
     const targetBook = config.books[0].toLowerCase();
-    const match = filteredBooks.find((b) => 
-      b.bookId.toLowerCase() === targetBook || 
-      normalizeBookIdForSharp(b.bookId) === targetBook ||
-      b.bookId.toLowerCase() === normalizeBookIdForSharp(targetBook)
-    );
+    const match = bookMap.get(targetBook) || bookMap.get(normalizeBookIdForSharp(targetBook));
     if (match) {
       return { price: match.price, source: targetBook };
     }
@@ -1026,11 +1054,8 @@ function getSharpOddsForCustomConfig(
 
   for (const bookId of config.books) {
     const normalizedBookId = bookId.toLowerCase();
-    const match = filteredBooks.find((b) => 
-      b.bookId.toLowerCase() === normalizedBookId || 
-      normalizeBookIdForSharp(b.bookId) === normalizedBookId ||
-      b.bookId.toLowerCase() === normalizeBookIdForSharp(normalizedBookId)
-    );
+    // O(1) lookup instead of O(n) .find()
+    const match = bookMap.get(normalizedBookId) || bookMap.get(normalizeBookIdForSharp(normalizedBookId));
     
     if (match) {
       // Get weight from config, default to equal weight if not specified

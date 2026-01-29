@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
 import { useBetslips, Betslip } from "@/hooks/use-betslips";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { useSgpQuoteStream, favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort } from "@/lib/data/markets";
@@ -39,6 +40,7 @@ import {
   Copy,
   Check,
   Image as ImageIcon,
+  RefreshCw,
 } from "lucide-react";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,6 +67,7 @@ type ActionView =
 interface SgpOddsResult {
   price?: string;
   links?: { desktop: string; mobile: string };
+  limits?: { max?: number; min?: number };
   error?: string;
   legsSupported?: number;
   totalLegs?: number;
@@ -754,10 +757,23 @@ interface QuickComparePanelProps {
   selectedFavorites: Favorite[];
   compareOdds: Record<string, SgpOddsResult>;
   isLoading: boolean;
+  isStreaming: boolean;
+  booksPending: string[];
   onBack: () => void;
+  onRetry?: () => void;
+  fromCache?: boolean;
 }
 
-function QuickComparePanel({ selectedFavorites, compareOdds, isLoading, onBack }: QuickComparePanelProps) {
+function QuickComparePanel({ 
+  selectedFavorites, 
+  compareOdds, 
+  isLoading, 
+  isStreaming,
+  booksPending,
+  onBack,
+  onRetry,
+  fromCache,
+}: QuickComparePanelProps) {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showLegs, setShowLegs] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -922,12 +938,15 @@ function QuickComparePanel({ selectedFavorites, compareOdds, isLoading, onBack }
       
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          // Loading state with skeleton
+        {isLoading && !isStreaming && Object.keys(compareOdds).length === 0 ? (
+          // Initial loading state with skeleton
           <div className="px-4 py-6">
-            <div className="h-5 w-48 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse mb-6" />
+            <div className="flex items-center gap-2 mb-6">
+              <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+              <span className="text-sm text-neutral-500">Fetching parlay odds...</span>
+            </div>
             <div className="space-y-2">
-              {[1, 2, 3].map(i => (
+              {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="flex items-center justify-between px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
                   <div className="flex items-center gap-3">
                     <div className="h-6 w-6 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />
@@ -938,7 +957,7 @@ function QuickComparePanel({ selectedFavorites, compareOdds, isLoading, onBack }
               ))}
             </div>
           </div>
-        ) : validBooks.length === 0 ? (
+        ) : validBooks.length === 0 && !isStreaming && booksPending.length === 0 ? (
           // No books available
           <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-3">
@@ -1074,11 +1093,90 @@ function QuickComparePanel({ selectedFavorites, compareOdds, isLoading, onBack }
               </div>
             )}
             
+            {/* Pending books skeleton (streaming state) */}
+            {booksPending.length > 0 && (
+              <div className="space-y-2 mt-2">
+                {validBooks.length > 0 && (
+                  <div className="my-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {isStreaming ? (
+                        <Loader2 className="h-3 w-3 animate-spin text-neutral-400" />
+                      ) : (
+                        <div className="h-2 w-2 rounded-full bg-amber-400" />
+                      )}
+                      <span className="text-xs text-neutral-400">
+                        {isStreaming 
+                          ? `Still loading ${booksPending.length} book${booksPending.length !== 1 ? "s" : ""}...`
+                          : `${booksPending.length} book${booksPending.length !== 1 ? "s" : ""} timed out`
+                        }
+                      </span>
+                    </div>
+                    {!isStreaming && onRetry && (
+                      <button 
+                        onClick={onRetry}
+                        className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+                {booksPending.map(bookId => (
+                  <div
+                    key={bookId}
+                    className={cn(
+                      "flex items-center justify-between px-4 py-3 rounded-lg border bg-neutral-50/50 dark:bg-neutral-800/30",
+                      isStreaming 
+                        ? "border-neutral-200 dark:border-neutral-700" 
+                        : "border-amber-200 dark:border-amber-800/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      {getBookLogo(bookId) ? (
+                        <img 
+                          src={getBookLogo(bookId)!} 
+                          alt={getBookName(bookId)} 
+                          className="h-6 w-6 object-contain opacity-50"
+                        />
+                      ) : (
+                        <div className="h-6 w-6 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />
+                      )}
+                      <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+                        {getBookName(bookId)}
+                      </span>
+                    </div>
+                    {isStreaming ? (
+                      <div className="h-8 w-20 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">Timed out</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {/* Collapsed error footer */}
-            {errorBooks.length > 0 && (
+            {errorBooks.length > 0 && !isStreaming && (
               <p className="mt-4 text-xs text-neutral-400 dark:text-neutral-500">
                 No odds found at: {errorBooks.map(b => getBookName(b.bookId)).join(" · ")}
               </p>
+            )}
+            
+            {/* Cache indicator */}
+            {fromCache && !isStreaming && (
+              <div className="mt-4 flex items-center justify-between text-xs text-neutral-400">
+                <span>Cached result</span>
+                {onRetry && (
+                  <button 
+                    onClick={onRetry}
+                    className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Refresh
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1118,9 +1216,16 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Compare state
-  const [compareOdds, setCompareOdds] = useState<Record<string, SgpOddsResult>>({});
-  const [isLoadingCompare, setIsLoadingCompare] = useState(false);
+  // SGP Quote streaming hook
+  const {
+    quotes: compareOdds,
+    isLoading: isLoadingCompare,
+    isStreaming,
+    booksPending,
+    fromCache,
+    fetchQuotes,
+    reset: resetCompareOdds,
+  } = useSgpQuoteStream();
   
   // Get selected favorites
   const selectedFavorites = useMemo(() => {
@@ -1132,10 +1237,41 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     if (!newOpen) {
       setSelectedIds(new Set());
       setActionView("list");
-      setCompareOdds({});
+      resetCompareOdds();
     }
     onOpenChange(newOpen);
-  }, [onOpenChange]);
+  }, [onOpenChange, resetCompareOdds]);
+  
+  // Pre-warm cache when 2+ favorites are selected
+  const preWarmRef = useRef<boolean>(false);
+  const prevSelectedCountRef = useRef<number>(0);
+  
+  useEffect(() => {
+    const currentCount = selectedFavorites.length;
+    const prevCount = prevSelectedCountRef.current;
+    prevSelectedCountRef.current = currentCount;
+    
+    // Pre-warm when selection grows to 2 or more
+    if (currentCount >= 2 && prevCount < 2 && !preWarmRef.current) {
+      preWarmRef.current = true;
+      
+      const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites);
+      if (booksWithFullSupport.length > 0) {
+        // Convert to legs and fetch in background (prefetch mode)
+        const legs = favoritesToSgpLegs(selectedFavorites);
+        // Only fetch top 5 priority books for pre-warming
+        const priorityBooks = booksWithFullSupport.slice(0, 5);
+        fetchQuotes(legs, priorityBooks, true).catch(() => {
+          // Ignore prefetch errors
+        });
+      }
+    }
+    
+    // Reset prewarm flag when selection drops below 2
+    if (currentCount < 2) {
+      preWarmRef.current = false;
+    }
+  }, [selectedFavorites, fetchQuotes]);
   
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -1223,72 +1359,26 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     }
   }, [selectedIds, createBetslip, handleOpenChange, router]);
   
-  // Fetch SGP odds for compare
+  // Fetch SGP odds for compare using streaming endpoint
   const fetchCompareOdds = useCallback(async () => {
     if (selectedFavorites.length < 2) {
       toast.error("Select at least 2 plays to compare parlay odds");
       return;
     }
     
-    setIsLoadingCompare(true);
-    setCompareOdds({});
+    const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites);
     
-    try {
-      const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites);
-      
-      if (booksWithFullSupport.length === 0) {
-        toast.error("No sportsbooks support all selected legs as a parlay");
-        setIsLoadingCompare(false);
-        return;
-      }
-      
-      // Fetch odds for each book
-      const results: Record<string, SgpOddsResult> = {};
-      
-      await Promise.all(
-        booksWithFullSupport.map(async (bookId) => {
-          try {
-            // Get SGP tokens for this book from all selected favorites
-            const tokens = selectedFavorites
-              .map(f => f.books_snapshot?.[bookId]?.sgp)
-              .filter((t): t is string => !!t);
-            
-            if (tokens.length !== selectedFavorites.length) {
-              results[bookId] = { error: "Missing legs" };
-              return;
-            }
-            
-            const response = await fetch("/api/v2/sgp-odds-direct", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                book_id: bookId,
-                sgp_tokens: tokens,
-              }),
-            });
-            
-            if (!response.ok) {
-              results[bookId] = { error: "Failed to fetch" };
-              return;
-            }
-            
-            const data = await response.json();
-            results[bookId] = data;
-          } catch (err) {
-            console.error(`Failed to fetch SGP odds for ${bookId}:`, err);
-            results[bookId] = { error: "Error" };
-          }
-        })
-      );
-      
-      setCompareOdds(results);
-    } catch (err) {
-      console.error("Failed to fetch compare odds:", err);
-      toast.error("Failed to fetch parlay odds");
-    } finally {
-      setIsLoadingCompare(false);
+    if (booksWithFullSupport.length === 0) {
+      toast.error("No sportsbooks support all selected legs as a parlay");
+      return;
     }
-  }, [selectedFavorites]);
+    
+    // Convert favorites to SGP legs format
+    const legs = favoritesToSgpLegs(selectedFavorites);
+    
+    // Fetch using streaming hook
+    await fetchQuotes(legs, booksWithFullSupport);
+  }, [selectedFavorites, fetchQuotes]);
   
   // Handle compare view navigation
   const handleGoToCompare = useCallback(() => {
@@ -1367,7 +1457,14 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
             selectedFavorites={selectedFavorites}
             compareOdds={compareOdds}
             isLoading={isLoadingCompare}
-            onBack={() => setActionView("action-chooser")}
+            isStreaming={isStreaming}
+            booksPending={booksPending}
+            fromCache={fromCache}
+            onBack={() => {
+              resetCompareOdds();
+              setActionView("action-chooser");
+            }}
+            onRetry={fetchCompareOdds}
           />
         );
       

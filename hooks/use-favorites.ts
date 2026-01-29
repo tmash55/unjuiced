@@ -376,8 +376,8 @@ export function useFavorites() {
       
       if (existingData) {
         // Remove - it already exists
-        // Track this ID as manually deleted so we don't show "expired" toast
-        manuallyDeletedIdsRef.current.add(existingData.id);
+        // Note: manuallyDeletedIdsRef is updated in onMutate (before cache update)
+        // to prevent the "expired" toast from firing
         
         const { error } = await supabase
           .from("user_favorites")
@@ -426,7 +426,8 @@ export function useFavorites() {
         side: params.side,
       });
       
-      const isCurrentlyFavorited = previousFavorites?.some(f => 
+      // Find the existing favorite if it exists
+      const existingFavorite = previousFavorites?.find(f => 
         createFavoriteKey({
           event_id: f.event_id,
           type: f.type,
@@ -438,20 +439,17 @@ export function useFavorites() {
       );
       
       // Optimistically update the cache
-      if (isCurrentlyFavorited) {
+      if (existingFavorite) {
+        // Track this ID as manually deleted BEFORE updating cache
+        // This prevents the "expired" toast from firing
+        if (!existingFavorite.id.startsWith("temp-")) {
+          manuallyDeletedIdsRef.current.add(existingFavorite.id);
+        }
+        
         // Remove from cache
         queryClient.setQueryData<Favorite[]>(
           ["favorites", user?.id],
-          (old) => old?.filter(f => 
-            createFavoriteKey({
-              event_id: f.event_id,
-              type: f.type,
-              player_id: f.player_id,
-              market: f.market,
-              line: f.line,
-              side: f.side,
-            }) !== key
-          ) ?? []
+          (old) => old?.filter(f => f.id !== existingFavorite.id) ?? []
         );
       } else {
         // Add to cache (with temporary ID)

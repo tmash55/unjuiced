@@ -17,8 +17,24 @@ const redis = new Redis({
 });
 
 // OPTIMIZATION: Cache settings balanced for freshness + efficiency
-const SPORT_CACHE_TTL = 20; // 20 seconds - fresh for SSE "Light Payload" strategy
+// Tiered TTLs: longer TTL for custom blends since configurations rarely change
+const SPORT_CACHE_TTL_DEFAULT = 20;  // 20 seconds for default/preset requests
+const SPORT_CACHE_TTL_CUSTOM = 30;   // 30 seconds for custom blend requests (1.5x longer)
 const ENABLE_CACHE = true; // Set to false to disable caching for debugging
+
+/**
+ * Determine if this is a custom blend request (user-defined blend configuration)
+ */
+function isCustomBlendRequest(blend: { book: string; weight: number }[] | null): boolean {
+  return blend !== null && blend.length > 0;
+}
+
+/**
+ * Get the appropriate cache TTL based on request type
+ */
+function getCacheTTL(blend: { book: string; weight: number }[] | null): number {
+  return isCustomBlendRequest(blend) ? SPORT_CACHE_TTL_CUSTOM : SPORT_CACHE_TTL_DEFAULT;
+}
 const SCAN_COUNT = 1000; // Higher = fewer round trips to Redis
 const MGET_CHUNK_SIZE = 500; // Upstash limit per MGET
 
@@ -580,7 +596,7 @@ function stripForCache(opp: Opportunity): Opportunity {
 
 /**
  * Cached wrapper for fetchSportOpportunities
- * Caches raw opportunities per-sport for SPORT_CACHE_TTL seconds
+ * Caches raw opportunities per-sport with tiered TTL (default vs custom blend)
  */
 async function fetchSportOpportunitiesCached(
   sport: string,
@@ -592,12 +608,13 @@ async function fetchSportOpportunitiesCached(
   useNextBest: boolean = false
 ): Promise<{ opportunities: Opportunity[]; cacheHit: boolean }> {
   const cacheKey = getSportCacheKey(sport, markets, minBooksPerSide, marketType, blend, useAverage, useNextBest);
+  const cacheTTL = getCacheTTL(blend);
   
   if (ENABLE_CACHE) {
     try {
       const cached = await redis.get<{ opportunities: Opportunity[]; timestamp: number }>(cacheKey);
       // Use same TTL for read check as we do for write - ensures consistency
-      if (cached && (Date.now() - cached.timestamp) < SPORT_CACHE_TTL * 1000) {
+      if (cached && (Date.now() - cached.timestamp) < cacheTTL * 1000) {
         return { opportunities: cached.opportunities, cacheHit: true };
       }
     } catch (e) {
@@ -611,7 +628,7 @@ async function fetchSportOpportunitiesCached(
   
   // Cache the results - limit count AND strip large fields to avoid size limits
   // Upstash has a 1MB limit per item
-  // Use consistent TTL (SPORT_CACHE_TTL seconds) - don't multiply by 2 to avoid stale reads
+  // Use tiered TTL: longer for custom blends (configs rarely change)
   if (ENABLE_CACHE && opportunities.length > 0) {
     try {
       // Sort before caching to ensure consistent order when returned from cache
@@ -624,7 +641,7 @@ async function fetchSportOpportunitiesCached(
         return getKey(a).localeCompare(getKey(b));
       });
       const toCache = sorted.slice(0, 500).map(stripForCache); // Increased to 500 for more coverage
-      await redis.set(cacheKey, { opportunities: toCache, timestamp: Date.now() }, { ex: SPORT_CACHE_TTL });
+      await redis.set(cacheKey, { opportunities: toCache, timestamp: Date.now() }, { ex: cacheTTL });
     } catch (e) {
       // Cache write failed - likely size issue, ignore
       console.warn("[Cache] Write failed (size?):", e);
@@ -1323,7 +1340,20 @@ function deduplicateBooksForAverage(
 }
 
 /**
+ * Build a lookup map for fast book matching
+ * Maps book names to their odds data for O(1) lookups
+ */
+function buildBookOddsMap(books: { book: string; decimal: number }[]): Map<string, { book: string; decimal: number }> {
+  const map = new Map<string, { book: string; decimal: number }>();
+  for (const book of books) {
+    map.set(book.book.toLowerCase(), book);
+  }
+  return map;
+}
+
+/**
  * Get sharp odds from a list of book prices (using blend, average, or default)
+ * Optimized with O(1) lookups using pre-built Map
  */
 function getSharpOdds(
   books: { book: string; decimal: number }[],
@@ -1356,13 +1386,17 @@ function getSharpOdds(
     books.forEach(b => sharpBooks.push(b.book));
   } else if (blend && blend.length > 0) {
     // Custom blend of specific books
+    // Build lookup map once for O(1) lookups instead of O(n) .find() calls
+    const bookMap = buildBookOddsMap(books);
+    
     let weightedSum = 0;
     let totalWeight = 0;
     const requestedWeight = blend.reduce((sum, b) => sum + b.weight, 0);
     let matchedBooks = 0;
 
     for (const { book, weight } of blend) {
-      const bookOdds = books.find((b) => b.book === book);
+      // O(1) lookup instead of O(n) .find()
+      const bookOdds = bookMap.get(book.toLowerCase());
       if (bookOdds) {
         weightedSum += bookOdds.decimal * weight;
         totalWeight += weight;
@@ -1382,8 +1416,10 @@ function getSharpOdds(
     }
   } else {
     // Default: Pinnacle, then Circa, then average
-    const pinnacle = books.find((b) => b.book === "pinnacle");
-    const circa = books.find((b) => b.book === "circa");
+    // Build lookup map once for O(1) lookups
+    const bookMap = buildBookOddsMap(books);
+    const pinnacle = bookMap.get("pinnacle");
+    const circa = bookMap.get("circa");
 
     if (pinnacle) {
       sharpDecimal = pinnacle.decimal;

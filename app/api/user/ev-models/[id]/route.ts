@@ -1,7 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
-import type { EvModelUpdate } from "@/lib/types/ev-models";
+import type { EvModelUpdate, EvModel } from "@/lib/types/ev-models";
 import { EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+
+// =============================================================================
+// Pre-warming Helper
+// =============================================================================
+
+/**
+ * Pre-warm the positive-ev cache for a model
+ * Fire-and-forget: doesn't block the response
+ */
+function preWarmModelCache(model: EvModel, baseUrl: string): void {
+  // Only pre-warm active models
+  if (!model.is_active) return;
+  
+  // Build query params
+  const params = new URLSearchParams();
+  
+  // Sports: use model's sport or default to common sports
+  const sports = model.sport || "nba,nfl,nhl,ncaab,ncaaf";
+  params.set("sports", sports);
+  
+  // Custom sharp books
+  if (model.sharp_books && model.sharp_books.length > 0) {
+    params.set("customSharpBooks", model.sharp_books.join(","));
+    
+    // Custom book weights
+    if (model.book_weights) {
+      params.set("customBookWeights", JSON.stringify(model.book_weights));
+    }
+  }
+  
+  // Other params with defaults
+  params.set("minEV", "0");
+  params.set("limit", "200");
+  params.set("minBooksPerSide", String(model.min_books_reference || 2));
+  
+  const url = `${baseUrl}/api/v2/positive-ev?${params.toString()}`;
+  
+  console.log(`[EV Models] Pre-warming cache for model "${model.name}" (${model.id})`);
+  
+  // Fire and forget - don't await
+  fetch(url, { 
+    method: "GET",
+    headers: { "X-Cache-Prewarm": "true" },
+  }).then(res => {
+    if (res.ok) {
+      console.log(`[EV Models] Cache pre-warmed for model "${model.name}"`);
+    } else {
+      console.warn(`[EV Models] Pre-warm failed for model "${model.name}": ${res.status}`);
+    }
+  }).catch(err => {
+    console.warn(`[EV Models] Pre-warm error for model "${model.name}":`, err.message);
+  });
+}
+
+/**
+ * Get base URL from request headers
+ */
+function getBaseUrl(request: NextRequest): string {
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("host") || request.headers.get("x-forwarded-host");
+  
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  
+  // Fallback for Vercel
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  return "http://localhost:3000";
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -131,6 +203,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { error: "Model not found" },
         { status: 404 }
       );
+    }
+
+    // Pre-warm cache when model is updated (especially when activated or config changed)
+    // Only pre-warm if the model is active
+    if (model.is_active) {
+      const baseUrl = getBaseUrl(request);
+      preWarmModelCache(model as EvModel, baseUrl);
     }
 
     return NextResponse.json({ model });

@@ -1,6 +1,78 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
-import type { FilterPresetUpdate } from "@/lib/types/filter-presets";
+import type { FilterPreset, FilterPresetUpdate } from "@/lib/types/filter-presets";
+
+// =============================================================================
+// Pre-warming Helper
+// =============================================================================
+
+/**
+ * Pre-warm the opportunities cache for a filter preset
+ * Fire-and-forget: doesn't block the response
+ */
+function preWarmPresetCache(preset: FilterPreset, baseUrl: string): void {
+  // Only pre-warm active presets
+  if (!preset.is_active) return;
+  
+  // Build query params for the opportunities endpoint
+  const params = new URLSearchParams();
+  
+  // Sports: use preset's sport or default to common sports
+  const sports = preset.sport || "nba,nfl,nhl,ncaab,ncaaf";
+  params.set("sports", sports);
+  
+  // Build blend from sharp_books and book_weights
+  if (preset.sharp_books && preset.sharp_books.length > 0) {
+    const blend = preset.sharp_books.map(book => {
+      const weight = preset.book_weights?.[book] ?? (100 / preset.sharp_books.length);
+      return `${book}:${weight / 100}`;
+    }).join(",");
+    params.set("blend", blend);
+  }
+  
+  // Other params
+  params.set("minBooksPerSide", String(preset.min_books_reference || 2));
+  if (preset.market_type && preset.market_type !== "all") {
+    params.set("marketType", preset.market_type);
+  }
+  
+  const url = `${baseUrl}/api/v2/opportunities?${params.toString()}`;
+  
+  console.log(`[Filter Presets] Pre-warming cache for preset "${preset.name}" (${preset.id})`);
+  
+  // Fire and forget - don't await
+  fetch(url, { 
+    method: "GET",
+    headers: { "X-Cache-Prewarm": "true" },
+  }).then(res => {
+    if (res.ok) {
+      console.log(`[Filter Presets] Cache pre-warmed for preset "${preset.name}"`);
+    } else {
+      console.warn(`[Filter Presets] Pre-warm failed for preset "${preset.name}": ${res.status}`);
+    }
+  }).catch(err => {
+    console.warn(`[Filter Presets] Pre-warm error for preset "${preset.name}":`, err.message);
+  });
+}
+
+/**
+ * Get base URL from request headers
+ */
+function getBaseUrl(request: NextRequest): string {
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("host") || request.headers.get("x-forwarded-host");
+  
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  
+  // Fallback for Vercel
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  return "http://localhost:3000";
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -116,6 +188,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { error: "Preset not found" },
         { status: 404 }
       );
+    }
+
+    // Pre-warm cache when preset is updated (especially when activated or config changed)
+    // Only pre-warm if the preset is active
+    if (preset.is_active) {
+      const baseUrl = getBaseUrl(request);
+      preWarmPresetCache(preset as FilterPreset, baseUrl);
     }
 
     return NextResponse.json({ preset });
