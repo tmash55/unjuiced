@@ -32,6 +32,9 @@ export interface SgpBookOdds {
     min?: number;
   };
   error?: string; // Error message if this book doesn't support the combo
+  legs_supported?: number; // Number of legs this book has odds for
+  total_legs?: number; // Total number of legs in the betslip
+  has_all_legs?: boolean; // True if book has odds for all legs
 }
 
 export type SgpOddsCache = Record<string, SgpBookOdds>;
@@ -144,6 +147,37 @@ export interface UpdateBetslipParams {
 export interface AddToBetslipParams {
   betslip_id: string;
   favorite_ids: string[];
+}
+
+export interface AddToBetslipResult {
+  added: string[];
+  skipped: Array<{
+    favoriteId: string;
+    reason: string;
+    conflictingFavoriteId?: string;
+    playerName?: string;
+    market?: string;
+  }>;
+  replaced: Array<{
+    oldFavoriteId: string;
+    newFavoriteId: string;
+    playerName?: string;
+    market?: string;
+    reason: string;
+  }>;
+}
+
+/**
+ * Creates a unique key for detecting duplicate player/event/market combinations
+ */
+function getSelectionKey(fav: {
+  player_id?: string | null;
+  event_id?: string;
+  market?: string;
+}): string | null {
+  // Only applies to player props
+  if (!fav.player_id || !fav.event_id || !fav.market) return null;
+  return `${fav.player_id}:${fav.event_id}:${fav.market}`;
 }
 
 // ============================================================================
@@ -283,32 +317,192 @@ export function useBetslips() {
     },
   });
 
-  // Add favorites to a betslip
+  // Add favorites to a betslip with duplicate detection
   const addItemsMutation = useMutation({
-    mutationFn: async (params: AddToBetslipParams): Promise<void> => {
+    mutationFn: async (params: AddToBetslipParams): Promise<AddToBetslipResult> => {
       if (!user) throw new Error("Not authenticated");
 
+      const result: AddToBetslipResult = {
+        added: [],
+        skipped: [],
+        replaced: [],
+      };
+
+      // Fetch the favorites being added
+      const { data: newFavorites, error: fetchError } = await supabase
+        .from("user_favorites")
+        .select("id, player_id, player_name, event_id, market, line, side")
+        .in("id", params.favorite_ids);
+
+      if (fetchError) throw fetchError;
+      if (!newFavorites || newFavorites.length === 0) {
+        return result;
+      }
+
+      // Fetch existing favorites in this betslip
+      const { data: existingItems } = await supabase
+        .from("user_betslip_items")
+        .select(`
+          id,
+          favorite_id,
+          position,
+          favorite:user_favorites(id, player_id, player_name, event_id, market, line, side)
+        `)
+        .eq("betslip_id", params.betslip_id);
+
+      // Build a map of existing selection keys -> existing favorite
+      const existingSelectionMap = new Map<string, {
+        favoriteId: string;
+        itemId: string;
+        line: number | null;
+        playerName: string | null;
+        market: string;
+      }>();
+
+      if (existingItems) {
+        for (const item of existingItems) {
+          const fav = item.favorite as any;
+          if (!fav) continue;
+          const key = getSelectionKey(fav);
+          if (key) {
+            existingSelectionMap.set(key, {
+              favoriteId: fav.id,
+              itemId: item.id,
+              line: fav.line,
+              playerName: fav.player_name,
+              market: fav.market,
+            });
+          }
+        }
+      }
+
+      // Also check for duplicates within the new favorites being added
+      const newSelectionMap = new Map<string, typeof newFavorites[0]>();
+      const favoritesToAdd: string[] = [];
+      const favoritesToReplace: Array<{ oldFavoriteId: string; newFavoriteId: string; oldItemId: string }> = [];
+
+      for (const fav of newFavorites) {
+        const key = getSelectionKey(fav);
+
+        // Check if this conflicts with an existing selection in the betslip
+        if (key && existingSelectionMap.has(key)) {
+          const existing = existingSelectionMap.get(key)!;
+          const newLine = fav.line ?? 0;
+          const existingLine = existing.line ?? 0;
+
+          // Prefer higher line (e.g., 25 points over 10 points)
+          if (newLine > existingLine) {
+            // Replace existing with new (higher line)
+            favoritesToReplace.push({
+              oldFavoriteId: existing.favoriteId,
+              newFavoriteId: fav.id,
+              oldItemId: existing.itemId,
+            });
+            result.replaced.push({
+              oldFavoriteId: existing.favoriteId,
+              newFavoriteId: fav.id,
+              playerName: fav.player_name,
+              market: fav.market,
+              reason: `Replaced ${existing.line} line with ${fav.line} line`,
+            });
+          } else {
+            // Skip new, keep existing (existing has higher or equal line)
+            result.skipped.push({
+              favoriteId: fav.id,
+              reason: existingLine === newLine 
+                ? `Already in betslip` 
+                : `Lower line than existing (${existingLine})`,
+              conflictingFavoriteId: existing.favoriteId,
+              playerName: fav.player_name,
+              market: fav.market,
+            });
+          }
+          continue;
+        }
+
+        // Check if this conflicts with another new selection being added
+        if (key && newSelectionMap.has(key)) {
+          const other = newSelectionMap.get(key)!;
+          const newLine = fav.line ?? 0;
+          const otherLine = other.line ?? 0;
+
+          if (newLine > otherLine) {
+            // Replace the other one with this one (higher line)
+            const otherKey = getSelectionKey(other)!;
+            // Remove the other from favoritesToAdd if it was added
+            const otherIndex = favoritesToAdd.indexOf(other.id);
+            if (otherIndex !== -1) {
+              favoritesToAdd.splice(otherIndex, 1);
+            }
+            result.skipped.push({
+              favoriteId: other.id,
+              reason: `Lower line than ${fav.line}`,
+              conflictingFavoriteId: fav.id,
+              playerName: other.player_name,
+              market: other.market,
+            });
+            newSelectionMap.set(key, fav);
+            favoritesToAdd.push(fav.id);
+            result.added.push(fav.id);
+          } else {
+            // Skip this one (other has higher or equal line)
+            result.skipped.push({
+              favoriteId: fav.id,
+              reason: otherLine === newLine 
+                ? `Duplicate selection` 
+                : `Lower line than ${otherLine}`,
+              conflictingFavoriteId: other.id,
+              playerName: fav.player_name,
+              market: fav.market,
+            });
+          }
+          continue;
+        }
+
+        // No conflict, add it
+        if (key) {
+          newSelectionMap.set(key, fav);
+        }
+        favoritesToAdd.push(fav.id);
+        result.added.push(fav.id);
+      }
+
+      // Execute replacements (delete old, add new)
+      for (const replacement of favoritesToReplace) {
+        await supabase
+          .from("user_betslip_items")
+          .delete()
+          .eq("id", replacement.oldItemId);
+        
+        favoritesToAdd.push(replacement.newFavoriteId);
+      }
+
       // Get current max position
-      const { data: existing } = await supabase
+      const { data: existingPositions } = await supabase
         .from("user_betslip_items")
         .select("position")
         .eq("betslip_id", params.betslip_id)
         .order("position", { ascending: false })
         .limit(1);
 
-      const startPosition = existing?.[0]?.position ?? -1;
+      const startPosition = existingPositions?.[0]?.position ?? -1;
 
-      const items = params.favorite_ids.map((fav_id, index) => ({
-        betslip_id: params.betslip_id,
-        favorite_id: fav_id,
-        position: startPosition + 1 + index,
-      }));
+      // Insert new items
+      if (favoritesToAdd.length > 0) {
+        const items = favoritesToAdd.map((fav_id, index) => ({
+          betslip_id: params.betslip_id,
+          favorite_id: fav_id,
+          position: startPosition + 1 + index,
+        }));
 
-      const { error } = await supabase
-        .from("user_betslip_items")
-        .upsert(items, { onConflict: "betslip_id,favorite_id" });
+        const { error } = await supabase
+          .from("user_betslip_items")
+          .upsert(items, { onConflict: "betslip_id,favorite_id" });
 
-      if (error) throw error;
+        if (error) throw error;
+      }
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["betslips", user?.id] });

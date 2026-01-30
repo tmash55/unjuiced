@@ -13,6 +13,7 @@ import {
   IconTable,
   IconFileText,
   IconStar,
+  IconHeart,
   IconSettings,
   IconLogout,
   IconSparkles,
@@ -139,7 +140,7 @@ const resourcesLinks: NavItem[] = [
   { label: "Sportsbooks", href: "/sportsbooks", icon: IconBuildingBank },
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
-  { label: "Saved Plays", href: "/saved-plays", icon: IconStar },
+  { label: "My Plays", href: "/saved-plays", icon: IconHeart },
 ]
 
 const accountLinks: NavItem[] = [

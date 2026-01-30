@@ -9,6 +9,7 @@ import {
   type SgpLeg,
   type SgpBookOdds,
 } from "@/lib/sgp/cache";
+import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
 
 // =============================================================================
 // TYPES
@@ -80,20 +81,10 @@ const BOOK_PRIORITY: string[] = [
   'pinnacle',
 ];
 
-// Default SGP-supporting books
-const DEFAULT_SGP_BOOKS = [
-  'draftkings',
-  'fanduel',
-  'betmgm',
-  'betrivers',
-  'caesars',
-  'fanatics',
-  'hard-rock',
-  'betparx',
-  'bally-bet',
-  'thescore',
-  'prophetx',
-];
+// Get SGP-supporting books dynamically from sportsbooks config (same as v2/sgp-odds)
+const DEFAULT_SGP_BOOKS = Object.entries(SPORTSBOOKS_META)
+  .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
+  .map(([id]) => id);
 
 function getOddsBlazeBookId(bookId: string): string {
   return ODDSBLAZE_BOOK_ID_MAP[bookId] || bookId;

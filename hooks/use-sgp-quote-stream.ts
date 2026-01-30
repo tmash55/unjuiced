@@ -324,30 +324,58 @@ export function useSgpQuoteStream(options: UseSgpQuoteStreamOptions = {}) {
 // HELPER: Convert favorites to SgpLegs format
 // =============================================================================
 
+// Type for refreshed odds data (from useFavoritesStream)
+interface RefreshedBookOdds {
+  price: number;
+  link: string | null;
+  sgp: string | null;
+}
+
 export function favoritesToSgpLegs(
   favorites: Array<{
+    id?: string;
     event_id: string;
     player_id?: string | null;
     market: string;
     line: number | null;
     side: string;
     books_snapshot?: Record<string, { sgp?: string | null }> | null;
-  }>
+  }>,
+  /** Optional: Map of favorite ID to refreshed odds with live SGP tokens */
+  refreshedOddsMap?: Map<string, { allBooks: Record<string, RefreshedBookOdds> } | null>
 ): SgpLeg[] {
-  return favorites.map(fav => ({
-    event_id: fav.event_id,
-    player_id: fav.player_id,
-    market: fav.market,
-    line: fav.line,
-    side: fav.side,
-    sgp_tokens: Object.entries(fav.books_snapshot || {}).reduce(
-      (acc, [bookId, data]) => {
+  return favorites.map(fav => {
+    // Start with tokens from books_snapshot
+    const sgp_tokens: Record<string, string> = {};
+    
+    // Add tokens from saved snapshot
+    if (fav.books_snapshot) {
+      for (const [bookId, data] of Object.entries(fav.books_snapshot)) {
         if (data?.sgp) {
-          acc[bookId] = data.sgp;
+          sgp_tokens[bookId] = data.sgp;
         }
-        return acc;
-      },
-      {} as Record<string, string>
-    ),
-  }));
+      }
+    }
+    
+    // Override/augment with refreshed tokens if available (live data takes priority)
+    if (fav.id && refreshedOddsMap) {
+      const refreshedData = refreshedOddsMap.get(fav.id);
+      if (refreshedData?.allBooks) {
+        for (const [bookId, data] of Object.entries(refreshedData.allBooks)) {
+          if (data?.sgp) {
+            sgp_tokens[bookId] = data.sgp;
+          }
+        }
+      }
+    }
+    
+    return {
+      event_id: fav.event_id,
+      player_id: fav.player_id,
+      market: fav.market,
+      line: fav.line,
+      side: fav.side,
+      sgp_tokens,
+    };
+  });
 }

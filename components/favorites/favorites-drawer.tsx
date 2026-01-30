@@ -8,6 +8,7 @@ import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
 import { useBetslips, Betslip } from "@/hooks/use-betslips";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useSgpQuoteStream, favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
+import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } from "@/hooks/use-favorites-stream";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort } from "@/lib/data/markets";
@@ -102,10 +103,37 @@ const formatFavoriteTime = (value?: string | null): string | null => {
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
+  
+  // Check if tomorrow
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const isTomorrow = 
+    date.getFullYear() === tomorrow.getFullYear() &&
+    date.getMonth() === tomorrow.getMonth() &&
+    date.getDate() === tomorrow.getDate();
+  
+  // Check if more than 6 days away (show date instead of weekday)
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const isMoreThanWeekAway = diffDays > 6;
 
-  const dayLabel = isToday
-    ? "Today"
-    : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  let dayLabel: string;
+  if (isToday) {
+    dayLabel = "Today";
+  } else if (isTomorrow) {
+    dayLabel = "Tomorrow";
+  } else if (isMoreThanWeekAway) {
+    // Show "Mon, Feb 2" format for games more than a week away
+    dayLabel = new Intl.DateTimeFormat("en-US", { 
+      weekday: "short",
+      month: "short", 
+      day: "numeric" 
+    }).format(date);
+  } else {
+    // Show just weekday for games within the next week
+    dayLabel = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  }
+  
   const timeLabel = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -169,6 +197,40 @@ const getBestOdds = (snapshot: Record<string, BookSnapshot> | null): { bookId: s
   return best;
 };
 
+// Get odds for a specific book from snapshot
+const getBookOdds = (snapshot: Record<string, BookSnapshot> | null, bookId: string): { bookId: string; price: number } | null => {
+  if (!snapshot || !bookId || !snapshot[bookId]) return null;
+  const data = snapshot[bookId];
+  if (!data.price) return null;
+  return { bookId, price: data.price };
+};
+
+// Get all unique books across all favorites with price data
+const getAllBooksFromFavorites = (favorites: Favorite[]): string[] => {
+  const bookSet = new Set<string>();
+  favorites.forEach(f => {
+    if (f.books_snapshot) {
+      Object.entries(f.books_snapshot).forEach(([bookId, data]) => {
+        if (data.price) bookSet.add(bookId);
+      });
+    }
+  });
+  // Sort by common sportsbook order
+  const BOOK_ORDER = [
+    "draftkings", "fanduel", "betmgm", "caesars", "espnbet",
+    "fanatics", "bet365", "betrivers", "pointsbet", "hard-rock",
+    "bally-bet", "betparx", "fliff"
+  ];
+  return [...bookSet].sort((a, b) => {
+    const aIdx = BOOK_ORDER.indexOf(a);
+    const bIdx = BOOK_ORDER.indexOf(b);
+    if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+};
+
 // Get sorted books by price (best first)
 const getSortedBooks = (snapshot: Record<string, BookSnapshot> | null, limit = 4): Array<{ bookId: string; data: BookSnapshot }> => {
   if (!snapshot) return [];
@@ -180,17 +242,35 @@ const getSortedBooks = (snapshot: Record<string, BookSnapshot> | null, limit = 4
 };
 
 // Get books that have SGP tokens for all selected favorites
-const getBooksWithSgpSupport = (favorites: Favorite[]): { full: string[]; partial: Map<string, number> } => {
+// Now also checks refreshed odds data for live SGP tokens
+const getBooksWithSgpSupport = (
+  favorites: Favorite[],
+  refreshedOddsMap?: Map<string, RefreshedFavoriteOdds | null>
+): { full: string[]; partial: Map<string, number> } => {
   if (favorites.length === 0) return { full: [], partial: new Map() };
   
   // Get all books that have SGP tokens for each favorite
+  // Check both saved snapshot AND refreshed data (live tokens)
   const bookSets = favorites.map(f => {
     const books = new Set<string>();
+    
+    // Check saved snapshot
     if (f.books_snapshot) {
       Object.entries(f.books_snapshot).forEach(([bookId, data]) => {
         if (data.sgp) books.add(bookId);
       });
     }
+    
+    // Also check refreshed odds for live SGP tokens (these take priority)
+    if (refreshedOddsMap) {
+      const refreshedData = refreshedOddsMap.get(f.id);
+      if (refreshedData?.allBooks) {
+        Object.entries(refreshedData.allBooks).forEach(([bookId, data]) => {
+          if (data.sgp) books.add(bookId);
+        });
+      }
+    }
+    
     return books;
   });
   
@@ -222,23 +302,149 @@ const suggestBetslipName = (favorites: Favorite[]): string => {
 };
 
 // ============================================================================
+// BOOK FILTER STRIP COMPONENT
+// ============================================================================
+
+interface BookFilterStripProps {
+  books: string[];
+  selectedBook: string | null; // null = "best"
+  onSelectBook: (bookId: string | null) => void;
+}
+
+function BookFilterStrip({ books, selectedBook, onSelectBook }: BookFilterStripProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  if (books.length === 0) return null;
+  
+  return (
+    <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+      <div 
+        ref={scrollRef}
+        className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto scrollbar-hide"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {/* Best Price option */}
+        <button
+          onClick={() => onSelectBook(null)}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all shrink-0",
+            selectedBook === null
+              ? "bg-emerald-500 text-white shadow-sm"
+              : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+          )}
+        >
+          <span className="text-sm">🏆</span>
+          Best
+        </button>
+        
+        {/* Book filters */}
+        {books.map((bookId) => {
+          const logo = getBookLogo(bookId);
+          const name = getBookName(bookId);
+          const isActive = selectedBook === bookId;
+          
+          return (
+            <button
+              key={bookId}
+              onClick={() => onSelectBook(bookId)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all shrink-0",
+                isActive
+                  ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
+                  : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+              )}
+            >
+              {logo ? (
+                <img 
+                  src={logo} 
+                  alt={name} 
+                  className={cn(
+                    "h-4 w-4 object-contain rounded-sm",
+                    !isActive && "opacity-70"
+                  )}
+                />
+              ) : null}
+              <span className="hidden sm:inline">{name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // FAVORITE ROW COMPONENT
 // ============================================================================
+
+// Refreshed odds format for the drawer
+interface RefreshedFavoriteOdds {
+  best: { price: number; book: string } | null;
+  allBooks: Record<string, { price: number; link: string | null; sgp: string | null }>;
+}
 
 interface FavoriteRowProps {
   favorite: Favorite;
   isSelected: boolean;
   onToggleSelect: () => void;
   onRemove: () => void;
+  selectedBook: string | null; // null = show best odds
+  refreshedOdds?: RefreshedFavoriteOdds | null; // Live odds from stream
+  priceChange?: FavoriteChange | null; // Price direction indicator
 }
 
-function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove }: FavoriteRowProps) {
+function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedBook, refreshedOdds, priceChange }: FavoriteRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const bestOdds = getBestOdds(favorite.books_snapshot);
-  const sortedBooks = getSortedBooks(favorite.books_snapshot, 4);
-  const totalBooks = favorite.books_snapshot ? Object.keys(favorite.books_snapshot).filter(k => favorite.books_snapshot![k].price).length : 0;
+  // Use refreshed odds if available, otherwise fall back to saved snapshot
+  const savedBestOdds = getBestOdds(favorite.books_snapshot);
+  const bestOdds = refreshedOdds?.best 
+    ? { bookId: refreshedOdds.best.book, price: refreshedOdds.best.price }
+    : savedBestOdds;
+  
+  // Get effective book odds - prefer refreshed data
+  const getEffectiveBookOdds = (): { bookId: string; data: BookSnapshot }[] => {
+    if (refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0) {
+      return Object.entries(refreshedOdds.allBooks)
+        .map(([bookId, oddsData]) => ({ 
+          bookId, 
+          data: { 
+            price: oddsData.price, 
+            u: oddsData.link, 
+            m: null,
+            sgp: oddsData.sgp,
+          } as BookSnapshot 
+        }))
+        .filter(item => item.data.price)
+        .sort((a, b) => b.data.price - a.data.price);
+    }
+    return getSortedBooks(favorite.books_snapshot, 100);
+  };
+  
+  const effectiveBooks = getEffectiveBookOdds();
+  
+  // Get filtered odds based on selected book (using effective/refreshed data)
+  const displayOdds = useMemo(() => {
+    if (selectedBook) {
+      // If filtering by book, try refreshed data first
+      if (refreshedOdds?.allBooks?.[selectedBook]) {
+        const bookData = refreshedOdds.allBooks[selectedBook];
+        return { bookId: selectedBook, price: bookData.price };
+      }
+      // Fall back to snapshot
+      return getBookOdds(favorite.books_snapshot, selectedBook);
+    }
+    // Default: best odds
+    return bestOdds;
+  }, [selectedBook, refreshedOdds, favorite.books_snapshot, bestOdds]);
+  
+  const sortedBooks = effectiveBooks.slice(0, 4);
+  const totalBooks = effectiveBooks.length;
   const remainingBooks = totalBooks - sortedBooks.length;
+  
+  // Detect if price changed
+  const priceDirection = priceChange?.priceDirection;
+  const hasRefreshedOdds = refreshedOdds?.allBooks && Object.keys(refreshedOdds.allBooks).length > 0;
   
   // Format display
   const playerOrTeam = favorite.player_name || favorite.home_team || "Unknown";
@@ -294,32 +500,65 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove }: Favorit
           </div>
         </div>
         
-        {/* Best odds + book */}
-        {bestOdds && (
+        {/* Odds display - filtered by selected book or best */}
+        {displayOdds ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              openBetLink(favorite.books_snapshot?.[bestOdds.bookId]);
+              // Use refreshed link if available
+              const bookData = refreshedOdds?.allBooks?.[displayOdds.bookId];
+              if (bookData?.link) {
+                window.open(bookData.link, "_blank");
+              } else {
+                openBetLink(favorite.books_snapshot?.[displayOdds.bookId]);
+              }
             }}
-            className="flex flex-col items-end shrink-0 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition-opacity"
           >
-            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-              {formatOdds(bestOdds.price)}
+            {getBookLogo(displayOdds.bookId) ? (
+              <img 
+                src={getBookLogo(displayOdds.bookId)!} 
+                alt={getBookName(displayOdds.bookId)} 
+                className="h-4 w-4 object-contain"
+              />
+            ) : null}
+            <span className={cn(
+              "text-sm font-semibold transition-colors",
+              // Highlight if this is the best price (even when filtering by book)
+              !selectedBook || displayOdds.price === bestOdds?.price
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-neutral-700 dark:text-neutral-300",
+              // Price change flash
+              priceDirection === "up" && "animate-pulse text-emerald-500",
+              priceDirection === "down" && "animate-pulse text-red-500"
+            )}>
+              {formatOdds(displayOdds.price)}
             </span>
-            <div className="flex items-center gap-1 mt-0.5">
-              {getBookLogo(bestOdds.bookId) ? (
-                <img 
-                  src={getBookLogo(bestOdds.bookId)!} 
-                  alt={getBookName(bestOdds.bookId)} 
-                  className="h-3.5 w-3.5 object-contain"
-                />
-              ) : null}
-              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                {getBookName(bestOdds.bookId)}
+            {/* Price direction indicator */}
+            {priceDirection && (
+              <span className={cn(
+                "text-xs transition-opacity",
+                priceDirection === "up" ? "text-emerald-500" : "text-red-500"
+              )}>
+                {priceDirection === "up" ? "↑" : "↓"}
               </span>
-            </div>
+            )}
           </button>
-        )}
+        ) : selectedBook ? (
+          // No odds for selected book - show dash
+          <div className="flex items-center gap-1.5 shrink-0 opacity-50">
+            {getBookLogo(selectedBook) ? (
+              <img 
+                src={getBookLogo(selectedBook)!} 
+                alt={getBookName(selectedBook)} 
+                className="h-4 w-4 object-contain grayscale"
+              />
+            ) : null}
+            <span className="text-sm font-semibold text-neutral-300 dark:text-neutral-600">
+              —
+            </span>
+          </div>
+        ) : null}
         
         {/* Trash icon - visible on hover */}
         <button
@@ -357,13 +596,28 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove }: Favorit
           >
             <div className="px-4 pb-3 pl-11">
               <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-2 space-y-1">
-                <div className="px-2 pt-1 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                  Best available odds
+                <div className="flex items-center justify-between px-2 pt-1">
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    Best available odds
+                  </span>
+                  {hasRefreshedOdds && (
+                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400">
+                      Live
+                    </span>
+                  )}
                 </div>
                 {sortedBooks.map(({ bookId, data }) => (
                   <button
                     key={bookId}
-                    onClick={() => openBetLink(data)}
+                    onClick={() => {
+                      // Use refreshed link if available
+                      const refreshedLink = refreshedOdds?.allBooks?.[bookId]?.link;
+                      if (refreshedLink) {
+                        window.open(refreshedLink, "_blank");
+                      } else {
+                        openBetLink(data);
+                      }
+                    }}
                     className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
                   >
                     <div className="flex items-center gap-2">
@@ -423,10 +677,10 @@ function EmptyState({ onClose }: { onClose: () => void }) {
         <Heart className="h-6 w-6 text-neutral-400" />
       </div>
       <h3 className="text-base font-semibold text-neutral-900 dark:text-white mb-2">
-        No favorites yet
+        No saved plays yet
       </h3>
       <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 max-w-[200px]">
-        Tap the heart on any play to save it here
+        Tap the star on any play to save it here
       </p>
       <Link
         href="/today"
@@ -1207,7 +1461,7 @@ interface FavoritesDrawerProps {
 
 export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   const router = useRouter();
-  const { favorites, removeFavorite, isLoading } = useFavorites();
+  const { favorites, removeFavorite, refreshOdds, isLoading } = useFavorites();
   const { betslips, addToBetslip, createBetslip } = useBetslips();
   const isMobile = useIsMobile();
   
@@ -1215,6 +1469,36 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   const [actionView, setActionView] = useState<ActionView>("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedBookFilter, setSelectedBookFilter] = useState<string | null>(null); // null = best odds
+  
+  // Live streaming odds via SSE (same as saved-plays page)
+  const {
+    refreshedOdds: streamRefreshedOdds,
+    changes: streamChanges,
+  } = useFavoritesStream({
+    favorites,
+    refreshOdds,
+    enabled: open, // Only stream when drawer is open
+  });
+  
+  // Convert stream data to the format expected by FavoriteRow
+  const refreshedOddsMap = useMemo(() => {
+    const map = new Map<string, RefreshedFavoriteOdds | null>();
+    for (const [id, data] of streamRefreshedOdds) {
+      if (data) {
+        map.set(id, {
+          best: data.best ? { price: data.best.price, book: data.best.book } : null,
+          allBooks: data.allBooks,
+        });
+      } else {
+        map.set(id, null);
+      }
+    }
+    return map;
+  }, [streamRefreshedOdds]);
+  
+  // Get all unique books from favorites for the filter
+  const allBooks = useMemo(() => getAllBooksFromFavorites(favorites), [favorites]);
   
   // SGP Quote streaming hook
   const {
@@ -1237,6 +1521,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     if (!newOpen) {
       setSelectedIds(new Set());
       setActionView("list");
+      setSelectedBookFilter(null);
       resetCompareOdds();
     }
     onOpenChange(newOpen);
@@ -1255,10 +1540,12 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     if (currentCount >= 2 && prevCount < 2 && !preWarmRef.current) {
       preWarmRef.current = true;
       
-      const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites);
+      // Use refreshed odds data for live SGP tokens
+      const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
       if (booksWithFullSupport.length > 0) {
         // Convert to legs and fetch in background (prefetch mode)
-        const legs = favoritesToSgpLegs(selectedFavorites);
+        // Pass refreshedOddsMap for live SGP tokens
+        const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
         // Only fetch top 5 priority books for pre-warming
         const priorityBooks = booksWithFullSupport.slice(0, 5);
         fetchQuotes(legs, priorityBooks, true).catch(() => {
@@ -1271,7 +1558,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     if (currentCount < 2) {
       preWarmRef.current = false;
     }
-  }, [selectedFavorites, fetchQuotes]);
+  }, [selectedFavorites, fetchQuotes, refreshedOddsMap]);
   
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -1366,19 +1653,20 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       return;
     }
     
-    const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites);
+    // Use refreshed odds data for live SGP tokens (this finds more books)
+    const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
     
     if (booksWithFullSupport.length === 0) {
       toast.error("No sportsbooks support all selected legs as a parlay");
       return;
     }
     
-    // Convert favorites to SGP legs format
-    const legs = favoritesToSgpLegs(selectedFavorites);
+    // Convert favorites to SGP legs format with live tokens
+    const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
     
     // Fetch using streaming hook
     await fetchQuotes(legs, booksWithFullSupport);
-  }, [selectedFavorites, fetchQuotes]);
+  }, [selectedFavorites, fetchQuotes, refreshedOddsMap]);
   
   // Handle compare view navigation
   const handleGoToCompare = useCallback(() => {
@@ -1471,6 +1759,15 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       default:
         return (
           <>
+            {/* Book Filter Strip - only show when we have favorites with multiple books */}
+            {!isLoading && favorites.length > 0 && allBooks.length > 1 && (
+              <BookFilterStrip 
+                books={allBooks}
+                selectedBook={selectedBookFilter}
+                onSelectBook={setSelectedBookFilter}
+              />
+            )}
+            
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
               {isLoading ? (
@@ -1488,6 +1785,9 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
                       isSelected={selectedIds.has(favorite.id)}
                       onToggleSelect={() => toggleSelect(favorite.id)}
                       onRemove={() => handleRemove(favorite.id)}
+                      selectedBook={selectedBookFilter}
+                      refreshedOdds={refreshedOddsMap.get(favorite.id)}
+                      priceChange={streamChanges.get(favorite.id)}
                     />
                   ))}
                 </div>
@@ -1559,7 +1859,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
           )}>
             <div className="flex items-center justify-between">
               <div>
-                <SheetTitle className="text-lg font-semibold">Favorites</SheetTitle>
+                <SheetTitle className="text-lg font-semibold">My Plays</SheetTitle>
                 {favorites.length > 0 && (
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                     {favorites.length} saved play{favorites.length !== 1 ? "s" : ""}
