@@ -516,9 +516,20 @@ export async function POST(req: NextRequest) {
         const actualLine = thresholdToLineMap.get(lookupKey); // Get the actual sportsbook line
         
         // Collect ALL book prices for this threshold (for edge calculation)
+        // Exclude prediction markets and books with extreme outlier odds
+        const EXCLUDED_BOOKS_FOR_EDGE = new Set([
+          'polymarket',
+          'kalshi',
+          'predictit',
+        ]);
+        const MAX_ODDS_MAGNITUDE = 5000; // Exclude odds like -9900 or +9900
+        
         const bookPrices: { book: string; american: number; decimal: number; link: string | null }[] = [];
         
         for (const book of booksForLine) {
+          // Skip excluded books (prediction markets)
+          if (EXCLUDED_BOOKS_FOR_EDGE.has(book.toLowerCase())) continue;
+          
           const oddsBlob = oddsMap.get(`${result.eventId}:${market}:${book}`);
           if (!oddsBlob) continue;
           
@@ -530,6 +541,9 @@ export async function POST(req: NextRequest) {
             if (entry.player_id === result.playerUuid && entry.line === actualLine && entry.side === 'over') {
               const price = parsePrice(entry.price);
               if (price !== null) {
+                // Skip extreme outlier odds (e.g., -9900, +9900)
+                if (Math.abs(price) > MAX_ODDS_MAGNITUDE) continue;
+                
                 bookPrices.push({
                   book,
                   american: price,
