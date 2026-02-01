@@ -454,7 +454,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                     className="sticky left-0 z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-3 py-2.5 text-left w-[160px] min-w-[160px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("player")}
                   >
-                    <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                    <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                       Player
                       <SortIcon field="player" sortField={sortField} sortDirection={sortDirection} />
                     </div>
@@ -464,7 +464,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                     className="sticky left-[160px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[50px] min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("dvp")}
                   >
-                    <div className="flex items-center justify-center gap-0.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                    <div className="flex items-center justify-center gap-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                       DvP
                       <SortIcon field="dvp" sortField={sortField} sortDirection={sortDirection} />
                     </div>
@@ -474,7 +474,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                     className="sticky left-[210px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[50px] min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("line")}
                   >
-                    <div className="flex items-center justify-center gap-0.5 text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                    <div className="flex items-center justify-center gap-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                       Line
                       <SortIcon field="line" sortField={sortField} sortDirection={sortDirection} />
                     </div>
@@ -482,7 +482,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
 
                   {/* Best Line column - sticky left - subtle separator */}
                   <th className="sticky left-[260px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[80px] min-w-[80px]">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    <div className="text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                       Best
                     </div>
                   </th>
@@ -491,10 +491,10 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                   {thresholdLines.map((line) => (
                     <th
                       key={line}
-                      className="p-0 text-center min-w-[58px] cursor-pointer hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors"
+                      className="p-0 text-center min-w-[62px] cursor-pointer hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors"
                       onClick={() => handleSort(line)}
                     >
-                      <div className="flex items-center justify-center gap-0.5 py-2.5 px-1 text-[9px] font-medium tracking-wider text-neutral-400 dark:text-neutral-500">
+                      <div className="flex items-center justify-center gap-0.5 py-2.5 px-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
                         {line}+
                         <SortIcon field={line} sortField={sortField} sortDirection={sortDirection} />
                       </div>
