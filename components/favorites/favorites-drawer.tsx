@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
 import { useBetslips, Betslip } from "@/hooks/use-betslips";
 import { useIsMobile } from "@/hooks/use-media-query";
-import { useSgpQuoteStream, favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
+import { favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
 import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } from "@/hooks/use-favorites-stream";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -1500,16 +1500,20 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   // Get all unique books from favorites for the filter
   const allBooks = useMemo(() => getAllBooksFromFavorites(favorites), [favorites]);
   
-  // SGP Quote streaming hook
-  const {
-    quotes: compareOdds,
-    isLoading: isLoadingCompare,
-    isStreaming,
-    booksPending,
-    fromCache,
-    fetchQuotes,
-    reset: resetCompareOdds,
-  } = useSgpQuoteStream();
+  // SGP Compare state (using same API as saved-plays page)
+  const [compareOdds, setCompareOdds] = useState<Record<string, SgpBookOdds>>({});
+  const [isLoadingCompare, setIsLoadingCompare] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  
+  // For backwards compatibility with QuickComparePanel
+  const isStreaming = false;
+  const booksPending: string[] = [];
+  const fromCache = false;
+  
+  const resetCompareOdds = useCallback(() => {
+    setCompareOdds({});
+    setCompareError(null);
+  }, []);
   
   // Get selected favorites
   const selectedFavorites = useMemo(() => {
@@ -1526,39 +1530,6 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
     }
     onOpenChange(newOpen);
   }, [onOpenChange, resetCompareOdds]);
-  
-  // Pre-warm cache when 2+ favorites are selected
-  const preWarmRef = useRef<boolean>(false);
-  const prevSelectedCountRef = useRef<number>(0);
-  
-  useEffect(() => {
-    const currentCount = selectedFavorites.length;
-    const prevCount = prevSelectedCountRef.current;
-    prevSelectedCountRef.current = currentCount;
-    
-    // Pre-warm when selection grows to 2 or more
-    if (currentCount >= 2 && prevCount < 2 && !preWarmRef.current) {
-      preWarmRef.current = true;
-      
-      // Use refreshed odds data for live SGP tokens
-      const { full: booksWithFullSupport } = getBooksWithSgpSupport(selectedFavorites, refreshedOddsMap);
-      if (booksWithFullSupport.length > 0) {
-        // Convert to legs and fetch in background (prefetch mode)
-        // Pass refreshedOddsMap for live SGP tokens
-        const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
-        // Only fetch top 5 priority books for pre-warming
-        const priorityBooks = booksWithFullSupport.slice(0, 5);
-        fetchQuotes(legs, priorityBooks, true).catch(() => {
-          // Ignore prefetch errors
-        });
-      }
-    }
-    
-    // Reset prewarm flag when selection drops below 2
-    if (currentCount < 2) {
-      preWarmRef.current = false;
-    }
-  }, [selectedFavorites, fetchQuotes, refreshedOddsMap]);
   
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -1661,12 +1632,43 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       return;
     }
     
-    // Convert favorites to SGP legs format with live tokens
-    const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
+    setIsLoadingCompare(true);
+    setCompareError(null);
     
-    // Fetch using streaming hook
-    await fetchQuotes(legs, booksWithFullSupport);
-  }, [selectedFavorites, fetchQuotes, refreshedOddsMap]);
+    try {
+      // Convert favorites to SGP legs format with live tokens
+      const legs = favoritesToSgpLegs(selectedFavorites, refreshedOddsMap);
+      
+      // Fetch using same API as saved-plays page
+      const response = await fetch("/api/v2/sgp-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          legs,
+          sportsbooks: booksWithFullSupport,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        setCompareError(data.error);
+        toast.error(data.error);
+      } else {
+        setCompareOdds(data.odds || {});
+      }
+    } catch (error) {
+      console.error("[Quick Compare] Error fetching odds:", error);
+      setCompareError("Failed to fetch odds");
+      toast.error("Failed to fetch parlay odds");
+    } finally {
+      setIsLoadingCompare(false);
+    }
+  }, [selectedFavorites, refreshedOddsMap]);
   
   // Handle compare view navigation
   const handleGoToCompare = useCallback(() => {

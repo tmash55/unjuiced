@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { 
   BarChart3, 
   TrendingUp, 
-  UserMinus 
+  UserMinus,
+  LayoutGrid 
 } from "lucide-react";
 
 interface CheatSheetTab {
@@ -24,6 +25,13 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "Hit Rates",
     icon: BarChart3,
     description: "High-confidence props",
+  },
+  {
+    slug: "hit-rate-matrix",
+    label: "Hit Rate Matrix",
+    shortLabel: "Matrix",
+    icon: LayoutGrid,
+    description: "Compare thresholds",
   },
   {
     slug: "alt-hit-matrix",

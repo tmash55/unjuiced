@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { FileText, UserMinus, Grid3X3 } from "lucide-react";
+import { FileText, UserMinus, Grid3X3, LayoutGrid } from "lucide-react";
 
 const cheatsheets = [
   {
@@ -17,6 +17,19 @@ const cheatsheets = [
     description: "Today's best props ranked by hit rate and confidence score.",
     href: "/cheatsheets/nba/hit-rates",
     color: "#34d399", // Emerald
+    comingSoon: false,
+    badge: "NEW",
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-cyan-400">
+        <LayoutGrid className="size-2.5 text-cyan-900" />
+      </div>
+    ),
+    title: "Hit Rate Matrix",
+    description: "Compare hit rates across all point thresholds with live odds.",
+    href: "/cheatsheets/nba/hit-rate-matrix",
+    color: "#06b6d4", // Cyan
     comingSoon: false,
     badge: "NEW",
   },

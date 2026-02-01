@@ -23,6 +23,7 @@ export interface RawHitRateProfile {
   line: number | null;
   game_id: string | null;
   game_date: string | null;
+  event_id: string | null;
   last_5_pct: number | null;
   last_10_pct: number | null;
   last_20_pct: number | null;
@@ -46,6 +47,14 @@ export interface RawHitRateProfile {
   national_broadcast: string | null;
   home_away: string | null; // "H" or "A"
   odds_selection_id: string | null;
+  sel_key: string | null; // Key used for Redis odds lookup (linesidx, booksidx, bestodds)
+  // Best odds from Redis (returned by v2 API)
+  best_odds?: {
+    book: string;
+    price: number;
+    updated_at: number;
+  } | null;
+  books?: number; // Number of books with odds
   // Matchup data (merged from RPC)
   matchup?: MatchupRank | null;
   nba_players_hr?: {
@@ -81,6 +90,7 @@ export interface HitRateProfile {
   market: string;
   line: number | null;
   gameId: string | null;
+  eventId: string | null;
   hitStreak: number | null;
   last5Pct: number | null;
   last10Pct: number | null;
@@ -112,11 +122,19 @@ export interface HitRateProfile {
   nationalBroadcast: string | null;
   homeAway: string | null; // "H" or "A"
   oddsSelectionId: string | null;
+  selKey: string | null; // Key used for Redis odds lookup (linesidx, booksidx, bestodds)
   // Matchup data
   matchupRank: number | null;
   matchupRankLabel: string | null;
   matchupAvgAllowed: number | null;
   matchupQuality: "favorable" | "neutral" | "unfavorable" | null;
+  // Best odds from Redis (returned by v2 API)
+  bestOdds: {
+    book: string;
+    price: number;
+    updated_at: number;
+  } | null;
+  books: number; // Number of books with odds
 }
 
 export interface HitRateResponse {

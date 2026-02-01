@@ -91,6 +91,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     market: profile.market,
     line: profile.line,
     gameId: profile.game_id ?? null,
+    eventId: profile.event_id ?? null,
     hitStreak: profile.hit_streak,
     last5Pct: profile.last_5_pct,
     last10Pct: profile.last_10_pct,
@@ -122,19 +123,35 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     nationalBroadcast: profile.national_broadcast ?? null,
     homeAway: profile.home_away ?? null,
     oddsSelectionId: profile.odds_selection_id ?? null,
+    selKey: profile.sel_key ?? null,
     // Matchup data
     matchupRank: matchup?.matchup_rank ?? null,
     matchupRankLabel: matchup?.rank_label ?? null,
     matchupAvgAllowed: matchup?.avg_allowed ?? null,
     matchupQuality: matchup?.matchup_quality ?? null,
+    // Best odds from Redis
+    bestOdds: profile.best_odds ?? null,
+    books: profile.books ?? 0,
   };
 }
 
+// Get today's date in YYYY-MM-DD format for comparison
+function getTodayDateString(): string {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+}
+
+// Check if a game date is today
+function isToday(gameDate: string | null): boolean {
+  if (!gameDate) return false;
+  const today = getTodayDateString();
+  return gameDate.startsWith(today);
+}
+
 // Client-side sort function for instant UI response
+// Always prioritizes today's games first, then sorts by the specified field
 function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir: "asc" | "desc"): HitRateProfile[] {
-  if (!sort || rows.length === 0) return rows;
-  
-  const multiplier = sortDir === "asc" ? 1 : -1;
+  if (rows.length === 0) return rows;
   
   const fieldMap: Record<HitRateSortField, keyof HitRateProfile> = {
     line: "line",
@@ -150,9 +167,21 @@ function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir
     matchupRank: "matchupRank",
   };
   
-  const field = fieldMap[sort];
+  // Default to L5 percentage descending if no sort specified
+  const effectiveSort = sort ?? "l5Pct";
+  const effectiveDir = sortDir ?? "desc";
+  const multiplier = effectiveDir === "asc" ? 1 : -1;
+  const field = fieldMap[effectiveSort];
   
   return [...rows].sort((a, b) => {
+    // FIRST: Prioritize today's games over tomorrow's
+    const aIsToday = isToday(a.gameDate);
+    const bIsToday = isToday(b.gameDate);
+    
+    if (aIsToday && !bIsToday) return -1; // a (today) comes first
+    if (!aIsToday && bIsToday) return 1;  // b (today) comes first
+    
+    // SECOND: Sort by the specified field within the same day group
     const aVal = a[field] as number | null;
     const bVal = b[field] as number | null;
     
@@ -186,9 +215,9 @@ export function useHitRateTable(options: UseHitRateTableOptions = {}) {
   const availableDates = meta?.availableDates ?? [];
 
   // Client-side sorting - instant response, no refetch
+  // Always applies sorting: prioritizes today's games, then sorts by field (default: L5 desc)
   const rows = useMemo(() => {
-    if (!sort || !sortDir) return rawRows;
-    return sortRows(rawRows, sort, sortDir);
+    return sortRows(rawRows, sort ?? null, sortDir ?? "desc");
   }, [rawRows, sort, sortDir]);
 
   return useMemo(

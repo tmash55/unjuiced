@@ -17,12 +17,15 @@ import { MobileConfidenceGlossary } from "@/components/cheat-sheet/mobile/mobile
 import { MobileCheatSheet } from "@/components/cheat-sheet/mobile/mobile-cheat-sheet";
 import { MobileInjuryImpact } from "@/components/cheat-sheet/mobile/mobile-injury-impact";
 import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
+import { HitRateMatrix } from "@/components/hit-rate-matrix";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { InjuryImpactGlossary } from "@/components/cheat-sheet/injury-impact-glossary";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
-import { Lock, ArrowRight, ChevronDown } from "lucide-react";
+import { AppPageLayout } from "@/components/layout/app-page-layout";
+import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import { Lock, ArrowRight, ChevronDown, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Gating constants
@@ -85,7 +88,7 @@ function MobileUpgradeBanner() {
 }
 
 const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -95,6 +98,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "hit-rates": {
     title: "Hit Rate Cheat Sheet",
     description: "High-confidence props ranked by our scoring system",
+  },
+  "hit-rate-matrix": {
+    title: "Hit Rate Matrix",
+    description: "Compare hit rates across all point thresholds with live odds",
   },
   "alt-hit-matrix": {
     title: "Alt Hit Matrix",
@@ -136,6 +143,10 @@ export default function CheatSheetPage({
     return <AltHitMatrixSheet sport={sport} sheet={sheet} />;
   }
   
+  if (sheet === "hit-rate-matrix") {
+    return <HitRateMatrixSheet sport={sport} sheet={sheet} />;
+  }
+  
   if (sheet === "injury-impact") {
     return <InjuryImpactSheet sport={sport} sheet={sheet} />;
   }
@@ -153,34 +164,75 @@ function ComingSoonSheet({
   sheet: SupportedSheet; 
   sheetInfo: { title: string; description: string } 
 }) {
-  const isMobile = useMediaQuery("(max-width: 767px)");
-
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className={isMobile ? "px-4 py-6" : "container mx-auto px-4 py-6"}>
-        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-            <p className="text-lg font-bold text-neutral-900 dark:text-white">{sheetInfo.title}</p>
-            <p className="text-sm mt-1 text-center px-4">{sheetInfo.description}</p>
-            <span className="mt-4 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold">
-              Coming Soon
-            </span>
-          </div>
-        </div>
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
+        <span className="px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold">
+          Coming Soon
+        </span>
       </div>
-    </div>
+    </AppPageLayout>
   );
 }
 
 function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  const sheetInfo = SHEET_INFO[sheet];
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className={isMobile ? "px-2 py-4" : "container mx-auto px-4 py-6"}>
-        <AltHitMatrix sport={sport} />
-      </div>
-    </div>
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <AltHitMatrix sport={sport} />
+    </AppPageLayout>
+  );
+}
+
+function HitRateMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  const [showHelp, setShowHelp] = useState(false);
+
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      headerActions={
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setShowHelp(!showHelp)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              How It Works
+            </button>
+            {showHelp && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-[300px] p-3 rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                <p className="font-semibold text-sm text-neutral-900 dark:text-white mb-2">How to read this matrix</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  Each cell shows the hit rate % for that player at the given threshold.
+                  Green = high hit rate (80%+), Neutral = medium (50%+), Red = low.
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-2">
+                  Click cells with odds to compare sportsbooks.
+                </p>
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="mt-3 w-full px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-700 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      }
+    >
+      <HitRateMatrix sport={sport} />
+    </AppPageLayout>
   );
 }
 
@@ -198,6 +250,15 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
   const [hideNoOdds, setHideNoOdds] = useState(true);
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const marketDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Player quick view modal state
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    nba_player_id: number;
+    player_name: string;
+    market: string;
+    event_id: string;
+    line?: number;
+  } | null>(null);
   
   // Close market dropdown on outside click
   useEffect(() => {
@@ -278,224 +339,214 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
   }
 
   // Desktop Layout
+  const sheetInfo = SHEET_INFO[sheet];
+  
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className="container mx-auto px-4 py-6">
-        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-          {/* Header Row */}
-          <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
-            <div>
-              <h1 className="text-lg font-bold text-neutral-900 dark:text-white">
-                NBA Injury Impact
-              </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Props boosted when key teammates are out
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <a
-                href="https://official.nba.com/nba-injury-report-2025-26-season/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-red-500/10 to-blue-500/10 border border-red-500/20 text-neutral-600 dark:text-neutral-300 hover:from-red-500/20 hover:to-blue-500/20 hover:border-red-500/30 transition-all"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor" opacity="0.6"/>
-                </svg>
-                <span>Official Injury Report</span>
-                <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </a>
-              <span className="text-xs text-neutral-400">
-                {rows.length} {rows.length === 1 ? "prop" : "props"}
-              </span>
-              <button
-                onClick={() => setIsGlossaryOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <circle cx="12" cy="17" r="1" fill="currentColor"/>
-                </svg>
-                How It Works
-              </button>
-            </div>
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      headerActions={
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-neutral-500">
+            <span className="font-bold text-neutral-900 dark:text-white">{rows.length}</span> props
           </div>
-
-          {/* Filter Bar */}
-          <div className="px-4 py-2.5 flex items-center gap-4 border-b border-neutral-200 dark:border-neutral-800">
-            {/* Date Filter */}
-            {isGated ? (
-              <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 opacity-50 cursor-not-allowed">
-                <div className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-neutral-400">
-                  <Lock className="w-3 h-3" />
-                  <span>Today</span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-                {[
-                  { value: "today" as const, label: "Today" },
-                  { value: "tomorrow" as const, label: "Tomorrow" },
-                  { value: "all" as const, label: "All" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setFilters(prev => ({ ...prev, dateFilter: opt.value }))}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
-                      filters.dateFilter === opt.value
-                        ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Divider */}
-            <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-700" />
-
-            {/* Market Filter Dropdown */}
-            {isGated ? (
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
+          <a
+            href="https://official.nba.com/nba-injury-report-2025-26-season/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-red-500/10 to-blue-500/10 border border-red-500/20 text-neutral-600 dark:text-neutral-300 hover:from-red-500/20 hover:to-blue-500/20 hover:border-red-500/30 transition-all"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor" opacity="0.6"/>
+            </svg>
+            <span>Official Injury Report</span>
+            <svg className="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </a>
+          <button
+            onClick={() => setIsGlossaryOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            How It Works
+          </button>
+        </div>
+      }
+      contextBar={
+        <div className="flex items-center gap-4 px-4 py-2.5 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          {/* Date Filter */}
+          {isGated ? (
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5 opacity-50 cursor-not-allowed">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-neutral-400">
                 <Lock className="w-3 h-3" />
-                <span>Points Only</span>
+                <span>Today</span>
               </div>
-            ) : (
-              <div ref={marketDropdownRef} className="relative">
+            </div>
+          ) : (
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+              {[
+                { value: "today" as const, label: "Today" },
+                { value: "tomorrow" as const, label: "Tomorrow" },
+                { value: "all" as const, label: "All" },
+              ].map((opt) => (
                 <button
-                  type="button"
-                  onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
+                  key={opt.value}
+                  onClick={() => setFilters(prev => ({ ...prev, dateFilter: opt.value }))}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                    "bg-brand/10 text-brand"
+                    "px-2.5 py-1 rounded-md text-xs font-semibold transition-all",
+                    filters.dateFilter === opt.value
+                      ? "bg-white dark:bg-neutral-700 text-brand shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
                   )}
                 >
-                  <span>
-                    {INJURY_IMPACT_MARKETS.find(m => m.value === filters.markets[0])?.label ?? "Points"}
-                  </span>
-                  <ChevronDown className={cn("h-3 w-3 transition-transform", marketDropdownOpen && "rotate-180")} />
+                  {opt.label}
                 </button>
-
-                {marketDropdownOpen && (
-                  <div className="absolute left-0 top-full z-[100] mt-1 w-[180px] rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-                    <div className="flex flex-col gap-0.5">
-                      {INJURY_IMPACT_MARKETS.map((market) => {
-                        const isSelected = filters.markets[0] === market.value;
-                        return (
-                          <button
-                            key={market.value}
-                            onClick={() => {
-                              setFilters(prev => ({ ...prev, markets: [market.value] }));
-                              setMarketDropdownOpen(false);
-                            }}
-                            className={cn(
-                              "w-full px-2.5 py-1.5 text-left text-xs font-medium rounded-md transition-colors",
-                              isSelected
-                                ? "bg-brand/10 text-brand"
-                                : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                            )}
-                          >
-                            {market.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Props Count */}
-            <div className="text-xs text-neutral-500">
-              <span className="font-bold text-neutral-900 dark:text-white">{rows.length}</span> props
+              ))}
             </div>
-          </div>
-
-          {/* Grade Legend Row */}
-          <div className="px-4 py-2 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-800/10">
-            <div className="flex items-center gap-4 text-[10px]">
-              <span className="text-neutral-400 font-medium">Grades:</span>
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <span className="w-5 h-4 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-[9px]">A+</span>
-                  <span className="text-neutral-500">90+</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-5 h-4 rounded bg-green-500/20 text-green-600 dark:text-green-400 font-bold flex items-center justify-center text-[9px]">A</span>
-                  <span className="text-neutral-500">80-89</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-5 h-4 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-bold flex items-center justify-center text-[9px]">B+</span>
-                  <span className="text-neutral-500">70-79</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-5 h-4 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold flex items-center justify-center text-[9px]">B</span>
-                  <span className="text-neutral-500">60-69</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-5 h-4 rounded bg-neutral-500/20 text-neutral-500 font-bold flex items-center justify-center text-[9px]">C</span>
-                  <span className="text-neutral-500">&lt;60</span>
-                </span>
-              </div>
-            </div>
-            
-            {/* Hide/Show No Odds Toggle */}
-            <button
-              onClick={() => setHideNoOdds(!hideNoOdds)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                hideNoOdds
-                  ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
-                  : "bg-brand/10 text-brand border border-brand/30"
-              }`}
-            >
-              {hideNoOdds ? (
-                <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                  <span>Show {noOddsCount} without odds</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <span>Hide {noOddsCount} without odds</span>
-                </>
-              )}
-            </button>
-          </div>
-          
-          <InjuryImpactTable
-            rows={rows}
-            isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-            oddsData={oddsData}
-            isLoadingOdds={isLoadingOdds}
-            filters={filters}
-            onFiltersChange={setFilters}
-            onGlossaryOpen={() => setIsGlossaryOpen(true)}
-            sport={sport}
-            hideNoOdds={hideNoOdds}
-            onHideNoOddsChange={setHideNoOdds}
-            isGated={isGated}
-          />
-          
-          {/* Upgrade CTA for gated users */}
-          {isGated && (
-            <CheatSheetUpgradeCTA />
           )}
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-neutral-200 dark:bg-neutral-700" />
+
+          {/* Market Filter Dropdown */}
+          {isGated ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-400 opacity-50 cursor-not-allowed">
+              <Lock className="w-3 h-3" />
+              <span>Points Only</span>
+            </div>
+          ) : (
+            <div ref={marketDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  "bg-brand/10 text-brand"
+                )}
+              >
+                <span>
+                  {INJURY_IMPACT_MARKETS.find(m => m.value === filters.markets[0])?.label ?? "Points"}
+                </span>
+                <ChevronDown className={cn("h-3 w-3 transition-transform", marketDropdownOpen && "rotate-180")} />
+              </button>
+
+              {marketDropdownOpen && (
+                <div className="absolute left-0 top-full z-[100] mt-1 w-[180px] rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                  <div className="flex flex-col gap-0.5">
+                    {INJURY_IMPACT_MARKETS.map((market) => {
+                      const isSelected = filters.markets[0] === market.value;
+                      return (
+                        <button
+                          key={market.value}
+                          onClick={() => {
+                            setFilters(prev => ({ ...prev, markets: [market.value] }));
+                            setMarketDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full px-2.5 py-1.5 text-left text-xs font-medium rounded-md transition-colors",
+                            isSelected
+                              ? "bg-brand/10 text-brand"
+                              : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          {market.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
+      }
+      stickyContextBar
+    >
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+        {/* Grade Legend Row */}
+        <div className="px-4 py-2 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-800/10">
+          <div className="flex items-center gap-4 text-[10px]">
+            <span className="text-neutral-400 font-medium">Grades:</span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <span className="w-5 h-4 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center text-[9px]">A+</span>
+                <span className="text-neutral-500">90+</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-5 h-4 rounded bg-green-500/20 text-green-600 dark:text-green-400 font-bold flex items-center justify-center text-[9px]">A</span>
+                <span className="text-neutral-500">80-89</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-5 h-4 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-bold flex items-center justify-center text-[9px]">B+</span>
+                <span className="text-neutral-500">70-79</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-5 h-4 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold flex items-center justify-center text-[9px]">B</span>
+                <span className="text-neutral-500">60-69</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-5 h-4 rounded bg-neutral-500/20 text-neutral-500 font-bold flex items-center justify-center text-[9px]">C</span>
+                <span className="text-neutral-500">&lt;60</span>
+              </span>
+            </div>
+          </div>
+          
+          {/* Hide/Show No Odds Toggle */}
+          <button
+            onClick={() => setHideNoOdds(!hideNoOdds)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              hideNoOdds
+                ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                : "bg-brand/10 text-brand border border-brand/30"
+            }`}
+          >
+            {hideNoOdds ? (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <span>Show {noOddsCount} without odds</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span>Hide {noOddsCount} without odds</span>
+              </>
+            )}
+          </button>
+        </div>
+        
+        <InjuryImpactTable
+          rows={rows}
+          isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
+          oddsData={oddsData}
+          isLoadingOdds={isLoadingOdds}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onGlossaryOpen={() => setIsGlossaryOpen(true)}
+          onPlayerClick={(row) => setSelectedPlayer({
+            nba_player_id: row.playerId,
+            player_name: row.playerName,
+            market: row.market,
+            event_id: row.eventId ?? "",
+            line: row.line,
+          })}
+          sport={sport}
+          hideNoOdds={hideNoOdds}
+          onHideNoOddsChange={setHideNoOdds}
+          isGated={isGated}
+        />
+        
+        {/* Upgrade CTA for gated users */}
+        {isGated && (
+          <CheatSheetUpgradeCTA />
+        )}
       </div>
 
       {/* Confidence Score Glossary Modal */}
@@ -503,7 +554,22 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
         isOpen={isGlossaryOpen} 
         onClose={() => setIsGlossaryOpen(false)} 
       />
-    </div>
+
+      {/* Player Quick View Modal */}
+      {selectedPlayer && (
+        <PlayerQuickViewModal
+          nba_player_id={selectedPlayer.nba_player_id}
+          player_name={selectedPlayer.player_name}
+          initial_market={selectedPlayer.market}
+          initial_line={selectedPlayer.line}
+          event_id={selectedPlayer.event_id}
+          open={!!selectedPlayer}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPlayer(null);
+          }}
+        />
+      )}
+    </AppPageLayout>
   );
 }
 
@@ -517,6 +583,15 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     dateFilter: getSmartDefaultDateFilter(),
   }));
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+  
+  // Player quick view modal state
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    nba_player_id: number;
+    player_name: string;
+    market: string;
+    event_id: string;
+    line?: number;
+  } | null>(null);
   
   // Gated users are locked to Points market only
   const isGated = !isLoadingAccess && !hasAccess;
@@ -634,49 +709,73 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
   }
 
   // Desktop Layout
+  const sheetInfo = SHEET_INFO[sheet];
+  
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-          {/* Filter Bar - Inside Card */}
-          <CheatSheetFilterBar
-            filters={filters}
-            onFiltersChange={setFilters}
-            resultCount={displayRows.length}
-            onGlossaryOpen={() => setIsGlossaryOpen(true)}
-            hideNoOdds={filters.hideNoOdds}
-            onHideNoOddsChange={(value) => setFilters({ ...filters, hideNoOdds: value })}
-            noOddsCount={noOddsCount}
-            isGated={isGated}
-          />
-
-          {/* Table with Scroll Area */}
-          {error ? (
-            <div className="flex flex-col items-center justify-center py-20 text-red-500">
-              <p className="text-lg font-medium">Failed to load data</p>
-              <p className="text-sm mt-1">Please try again later</p>
-            </div>
-          ) : (
-            <>
-              <CheatSheetTable 
-                rows={displayRows}
-                isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-                oddsData={oddsData}
-                isLoadingOdds={isLoadingOdds}
-                timeWindow={filters.timeWindow}
-                onRowClick={handleRowClick}
-                onGlossaryOpen={() => setIsGlossaryOpen(true)}
-                hideNoOdds={filters.hideNoOdds}
-              />
-              
-              {/* Upgrade CTA for gated users */}
-              {isGated && (
-                <CheatSheetUpgradeCTA />
-              )}
-            </>
-          )}
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      headerActions={
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-neutral-500">
+            <span className="font-bold text-neutral-900 dark:text-white">{displayRows.length}</span> props
+          </div>
+          <button
+            onClick={() => setIsGlossaryOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            How It Works
+          </button>
         </div>
+      }
+      contextBar={
+        <CheatSheetFilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          resultCount={displayRows.length}
+          onGlossaryOpen={() => setIsGlossaryOpen(true)}
+          hideNoOdds={filters.hideNoOdds}
+          onHideNoOddsChange={(value) => setFilters({ ...filters, hideNoOdds: value })}
+          noOddsCount={noOddsCount}
+          isGated={isGated}
+        />
+      }
+      stickyContextBar
+    >
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+        {/* Table with Scroll Area */}
+        {error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-red-500">
+            <p className="text-lg font-medium">Failed to load data</p>
+            <p className="text-sm mt-1">Please try again later</p>
+          </div>
+        ) : (
+          <>
+            <CheatSheetTable 
+              rows={displayRows}
+              isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
+              oddsData={oddsData}
+              isLoadingOdds={isLoadingOdds}
+              timeWindow={filters.timeWindow}
+              onRowClick={handleRowClick}
+              onPlayerClick={(row) => setSelectedPlayer({
+                nba_player_id: row.playerId,
+                player_name: row.playerName,
+                market: row.market,
+                event_id: row.eventId ?? "",
+                line: row.line,
+              })}
+              onGlossaryOpen={() => setIsGlossaryOpen(true)}
+              hideNoOdds={filters.hideNoOdds}
+            />
+            
+            {/* Upgrade CTA for gated users */}
+            {isGated && (
+              <CheatSheetUpgradeCTA />
+            )}
+          </>
+        )}
       </div>
 
       {/* Glossary Modal */}
@@ -684,6 +783,21 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
         isOpen={isGlossaryOpen} 
         onClose={() => setIsGlossaryOpen(false)} 
       />
-    </div>
+
+      {/* Player Quick View Modal */}
+      {selectedPlayer && (
+        <PlayerQuickViewModal
+          nba_player_id={selectedPlayer.nba_player_id}
+          player_name={selectedPlayer.player_name}
+          initial_market={selectedPlayer.market}
+          initial_line={selectedPlayer.line}
+          event_id={selectedPlayer.event_id}
+          open={!!selectedPlayer}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPlayer(null);
+          }}
+        />
+      )}
+    </AppPageLayout>
   );
 }

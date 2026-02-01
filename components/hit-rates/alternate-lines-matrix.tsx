@@ -11,8 +11,9 @@ import { Tooltip } from "@/components/tooltip";
 const SHARP_BOOKS = ["pinnacle", "circa", "bookmaker"];
 
 interface AlternateLinesMatrixProps {
-  stableKey: string | null;  // The stable key from odds_selection_id
-  playerId: number | null;
+  eventId: string | null;       // Event/game ID
+  selKey: string | null;        // Player UUID from sel_key
+  playerId: number | null;      // NBA player ID
   market: string | null;
   originalLine: number | null;  // The original line from profile (for fetching, doesn't change)
   activeLine: number | null;    // The currently active line (for highlighting, can change)
@@ -54,7 +55,8 @@ const getBookName = (bookKey: string): string => {
 };
 
 export function AlternateLinesMatrix({
-  stableKey,
+  eventId,
+  selKey,
   playerId,
   market,
   originalLine,
@@ -64,13 +66,14 @@ export function AlternateLinesMatrix({
 }: AlternateLinesMatrixProps) {
   const [collapsed, setCollapsed] = useState(false);
   
-  // Use originalLine for fetching (stable, won't trigger refetch)
+  // Use new Redis keys for fetching alternate lines
   const { lines, isLoading, error } = useAlternateLines({
-    stableKey,
+    eventId,
+    selKey,
     playerId,
     market,
     currentLine: originalLine,
-    enabled: !!stableKey && !!playerId && !!market,
+    enabled: !!eventId && !!selKey && !!playerId && !!market,
   });
   
   // Override isCurrentLine based on activeLine for highlighting

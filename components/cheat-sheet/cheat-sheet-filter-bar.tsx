@@ -203,34 +203,6 @@ export function CheatSheetFilterBar({
 
   return (
     <div className="border-b border-neutral-200 dark:border-neutral-800">
-      {/* Header Row */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
-        <div>
-          <h1 className="text-lg font-bold text-neutral-900 dark:text-white">
-            NBA Hit Rate Cheat Sheet
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            High-confidence props ranked by our scoring system
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {resultCount !== undefined && (
-            <div className="text-xs text-neutral-500">
-              <span className="font-bold text-neutral-900 dark:text-white">{resultCount}</span> props
-            </div>
-          )}
-          {onGlossaryOpen && (
-            <button
-              onClick={onGlossaryOpen}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              How It Works
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Primary Filters Row */}
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-4">
         {/* Date Filter */}

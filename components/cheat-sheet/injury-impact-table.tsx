@@ -989,11 +989,11 @@ function InjuryImpactRow({
       isPinned && "border-l-2 border-l-brand bg-brand/5 dark:bg-brand/10"
     )}>
       {/* Player Column */}
-      <td className="px-3 py-2">
-        <div className="flex items-center gap-2.5">
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-3">
           {/* Player headshot with team color gradient */}
           <div 
-            className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg shadow-sm"
+            className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]"
             style={{ 
               background: row.primaryColor && row.secondaryColor 
                 ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor} 100%)`
@@ -1003,7 +1003,7 @@ function InjuryImpactRow({
             <PlayerHeadshot
               nbaPlayerId={row.playerId}
               name={row.playerName}
-              size="tiny"
+              size="small"
               className="h-full w-full object-cover"
             />
           </div>

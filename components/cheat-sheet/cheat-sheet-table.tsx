@@ -613,8 +613,8 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
               onClick={() => onRowClick?.(row)}
             >
               {/* Player Column */}
-              <td className="px-3 py-2">
-                <div className="flex items-center gap-2.5">
+              <td className="px-3 py-3">
+                <div className="flex items-center gap-3">
                   {/* Player headshot with team color gradient */}
                   {(() => {
                     const hasInjury = hasInjuryStatus(row.injuryStatus);
@@ -628,7 +628,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                     const headshotElement = (
                       <div 
                         className={cn(
-                          "relative h-10 w-10 shrink-0 overflow-hidden rounded-lg shadow-sm",
+                          "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]",
                           hasInjury && "cursor-pointer",
                           getStatusBorderClass(row.injuryStatus)
                         )}
@@ -641,7 +641,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                         <PlayerHeadshot
                           nbaPlayerId={row.playerId}
                           name={row.playerName}
-                          size="tiny"
+                          size="small"
                           className="h-full w-full object-cover"
                         />
                       </div>

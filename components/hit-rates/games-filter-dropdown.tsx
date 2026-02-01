@@ -14,8 +14,8 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
-// Normalize game IDs for comparison
-const normalizeGameId = (id: string | number | null | undefined): string => {
+// Normalize game IDs for comparison - exported for use in filtering
+export const normalizeGameId = (id: string | number | null | undefined): string => {
   if (id === null || id === undefined) return "";
   return String(id).replace(/^0+/, "") || "0";
 };
@@ -79,18 +79,32 @@ const getDayLabel = (gameDate: string): string => {
 
 interface GamesFilterDropdownProps {
   games: NbaGame[];
-  selectedGameIds: string[];
-  onToggleGame: (gameId: string) => void;
-  onSelectAll: () => void;
   className?: string;
+  // Multi-select mode (default)
+  selectedGameIds?: string[];
+  onToggleGame?: (gameId: string) => void;
+  onSelectAll?: () => void;
+  // Single-select mode
+  singleSelect?: boolean;
+  selectedGameId?: string | null;
+  onGameSelect?: (gameId: string | null) => void;
+  // Compact mode for smaller filter rows (matrix, etc.)
+  compact?: boolean;
 }
 
 export function GamesFilterDropdown({
   games,
-  selectedGameIds,
+  className,
+  // Multi-select props
+  selectedGameIds = [],
   onToggleGame,
   onSelectAll,
-  className,
+  // Single-select props
+  singleSelect = false,
+  selectedGameId = null,
+  onGameSelect,
+  // Compact mode
+  compact = false,
 }: GamesFilterDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -105,34 +119,66 @@ export function GamesFilterDropdown({
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
   }, [games]);
 
+  // For single-select mode, determine if a game is selected
   const isSelected = (gameId: string) => {
+    if (singleSelect) {
+      return selectedGameId === gameId;
+    }
     if (selectedGameIds.length === 0) return false; // All games = nothing specifically selected
     return selectedGameIds.includes(normalizeGameId(gameId));
   };
 
-  const allGamesSelected = selectedGameIds.length === 0;
-  const selectedCount = selectedGameIds.length;
+  // Determine "all games" state
+  const allGamesSelected = singleSelect 
+    ? selectedGameId === null 
+    : selectedGameIds.length === 0;
+  const selectedCount = singleSelect ? (selectedGameId ? 1 : 0) : selectedGameIds.length;
+
+  // Handle clearing selection (select all games)
+  const handleSelectAll = () => {
+    if (singleSelect) {
+      onGameSelect?.(null);
+    } else {
+      onSelectAll?.();
+    }
+  };
+
+  // Handle game click
+  const handleGameClick = (gameId: string) => {
+    if (singleSelect) {
+      onGameSelect?.(gameId);
+      setIsOpen(false); // Close dropdown on single-select
+    } else {
+      onToggleGame?.(gameId);
+    }
+  };
 
   // Get display text for the trigger
   const triggerText = useMemo(() => {
     if (allGamesSelected) return "All Games";
-    if (selectedCount === 1) {
+    if (singleSelect && selectedGameId) {
+      const game = games.find(g => normalizeGameId(g.game_id) === selectedGameId);
+      if (game) return `${game.away_team_tricode} @ ${game.home_team_tricode}`;
+    }
+    if (selectedCount === 1 && selectedGameIds.length > 0) {
       const game = games.find(g => normalizeGameId(g.game_id) === selectedGameIds[0]);
       if (game) return `${game.away_team_tricode} @ ${game.home_team_tricode}`;
     }
     return `${selectedCount} Games`;
-  }, [allGamesSelected, selectedCount, selectedGameIds, games]);
+  }, [allGamesSelected, selectedCount, selectedGameIds, selectedGameId, games, singleSelect]);
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex items-center gap-2 px-3 py-2 h-10 rounded-lg",
+            "flex items-center gap-2 rounded-lg",
             "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700",
             "border border-neutral-200 dark:border-neutral-700",
-            "text-sm font-medium text-neutral-700 dark:text-neutral-300",
+            "font-medium text-neutral-700 dark:text-neutral-300",
             "transition-colors",
+            // Compact mode for smaller filter rows
+            compact ? "px-3 py-1.5 text-xs" : "px-3 py-2 h-10 text-sm",
             !allGamesSelected && "border-[#0EA5E9]/50 dark:border-[#7DD3FC]/50 bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5",
             className
           )}
@@ -145,13 +191,13 @@ export function GamesFilterDropdown({
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                onSelectAll();
+                handleSelectAll();
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.stopPropagation();
                   e.preventDefault();
-                  onSelectAll();
+                  handleSelectAll();
                 }
               }}
               className="p-0.5 rounded hover:bg-neutral-300 dark:hover:bg-neutral-600 cursor-pointer"
@@ -171,7 +217,7 @@ export function GamesFilterDropdown({
         {/* All Games Option */}
         <DropdownMenuItem
           onClick={() => {
-            onSelectAll();
+            handleSelectAll();
             setIsOpen(false);
           }}
           className={cn(
@@ -210,7 +256,7 @@ export function GamesFilterDropdown({
                     key={game.game_id}
                     onClick={(e) => {
                       e.preventDefault();
-                      onToggleGame(gameId);
+                      handleGameClick(gameId);
                     }}
                     className={cn(
                       "flex items-center justify-between px-3 py-2 cursor-pointer",

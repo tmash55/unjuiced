@@ -8,18 +8,90 @@ import { redis } from "@/lib/redis";
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
  * 
- * Uses the new `get_nba_hit_rate_profiles_fast_v2` RPC which:
+ * Uses the new `get_nba_hit_rate_profiles_fast_v3` RPC which:
  * 1. Has NO JOINs (all data denormalized in the table)
  * 2. Pre-computed DvP ranks (no separate matchup call needed)
  * 3. Filters by has_live_odds for actionable profiles first
  * 4. No COUNT(*) query overhead
+ * 5. Includes sel_key for Redis best odds lookup
+ * 
+ * Also merges live best odds from Redis for "card-ready" data.
  * 
  * Expected performance: <500ms vs 8-12s before
  */
 
 // Cache configuration
 const CACHE_TTL_SECONDS = 60; // 1 minute cache
-const CACHE_KEY_PREFIX = "hitrates:nba:v3"; // New cache key for new format
+const CACHE_KEY_PREFIX = "hitrates:nba:v4"; // Incremented for v3 RPC + best odds integration
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface BestOddsData {
+  best_book: string;
+  best_price: number;
+  line: number;
+  side: string;
+  player_id: string;
+  player_name: string;
+  book_count: number;
+  updated_at: number;
+}
+
+// =============================================================================
+// REDIS BEST ODDS HELPERS
+// =============================================================================
+
+/**
+ * Batch fetch best odds from Redis for all rows with valid keys
+ */
+async function fetchBestOddsForRows(
+  rows: Array<{ event_id?: string; market?: string; sel_key?: string }>
+): Promise<Map<string, BestOddsData | null>> {
+  const result = new Map<string, BestOddsData | null>();
+  
+  // Filter rows that have all required fields for Redis lookup
+  const validRows = rows.filter(r => r.event_id && r.market && r.sel_key);
+  
+  if (validRows.length === 0) {
+    return result;
+  }
+  
+  // Build Redis keys
+  const keys = validRows.map(r => `bestodds:nba:${r.event_id}:${r.market}:${r.sel_key}`);
+  
+  try {
+    // Batch fetch all keys in one round trip
+    const values = await redis.mget<(BestOddsData | null)[]>(...keys);
+    
+    // Map results back to composite keys for easy lookup
+    validRows.forEach((row, i) => {
+      const compositeKey = `${row.event_id}:${row.market}:${row.sel_key}`;
+      const value = values[i];
+      
+      // Handle both string and object responses from Redis
+      if (value) {
+        if (typeof value === 'string') {
+          try {
+            result.set(compositeKey, JSON.parse(value));
+          } catch {
+            result.set(compositeKey, null);
+          }
+        } else {
+          result.set(compositeKey, value);
+        }
+      } else {
+        result.set(compositeKey, null);
+      }
+    });
+  } catch (e) {
+    console.error("[Hit Rates v2] Redis best odds fetch error:", e);
+    // Return empty map on error - gracefully degrade
+  }
+  
+  return result;
+}
 
 // Valid sort fields for hit rates
 const VALID_SORT_FIELDS = [
@@ -71,7 +143,7 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
 }
 
 // Transform RPC response to frontend format
-function transformProfile(row: any) {
+function transformProfile(row: any, bestOdds: BestOddsData | null) {
   // Determine matchup quality from dvp_rank
   let matchupQuality: "favorable" | "neutral" | "unfavorable" | null = null;
   if (row.dvp_rank) {
@@ -121,6 +193,15 @@ function transformProfile(row: any) {
     odds_selection_id: row.odds_selection_id,
     event_id: row.event_id,
     is_back_to_back: row.is_back_to_back,
+    // New field from v3 RPC - needed for Redis lookup
+    sel_key: row.sel_key,
+    // Live best odds from Redis
+    best_odds: bestOdds ? {
+      book: bestOdds.best_book,
+      price: bestOdds.best_price,
+      updated_at: bestOdds.updated_at,
+    } : null,
+    books: bestOdds?.book_count ?? 0,
     // Player info (now denormalized)
     nba_players_hr: row.player_name ? {
       nba_player_id: row.player_id,
@@ -293,8 +374,8 @@ export async function GET(request: Request) {
       const supabase = createServerSupabaseClient();
       const dbStartTime = Date.now();
       
-      // Call the new optimized RPC function
-      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast_v2", {
+      // Call the new optimized RPC function (v3 includes sel_key for Redis lookup)
+      const { data, error } = await supabase.rpc("get_nba_hit_rate_profiles_fast_v3", {
         p_dates: datesToFetch,
         p_market: market || null,
         p_has_odds: hasOdds,
@@ -344,8 +425,21 @@ export async function GET(request: Request) {
     // Apply pagination
     const paginatedData = filteredData.slice(offset, offset + limit);
     
-    // Transform to frontend format (matchup data is now included!)
-    const transformedData = paginatedData.map(transformProfile);
+    // Fetch live best odds from Redis for paginated rows
+    const bestOddsStartTime = Date.now();
+    const bestOddsMap = await fetchBestOddsForRows(paginatedData);
+    const bestOddsTime = Date.now() - bestOddsStartTime;
+    console.log(`[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${bestOddsTime}ms`);
+    
+    // Transform to frontend format with best odds merged
+    const transformedData = paginatedData.map(row => {
+      // Build composite key for lookup
+      const compositeKey = row.event_id && row.market && row.sel_key 
+        ? `${row.event_id}:${row.market}:${row.sel_key}` 
+        : null;
+      const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
+      return transformProfile(row, bestOdds);
+    });
     
     // Get unique dates from response
     const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();

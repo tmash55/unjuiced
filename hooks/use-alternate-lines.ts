@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 /**
- * Alternate Lines Hook - Updated for new stable key system
+ * Alternate Lines Hook - Updated for new Redis key system
+ * Uses linesidx, booksidx, and odds keys instead of hitrate:nba:v2
  */
 
 export interface BookOdds {
@@ -48,15 +49,17 @@ export interface AlternateLinesResponse {
 }
 
 export interface UseAlternateLinesOptions {
-  stableKey: string | null;  // The stable key from odds_selection_id
-  playerId: number | null;
+  eventId: string | null;     // Event/game ID
+  selKey: string | null;      // Player UUID from sel_key
+  playerId: number | null;    // NBA player ID for game logs
   market: string | null;
   currentLine?: number | null;
   enabled?: boolean;
 }
 
 async function fetchAlternateLines(
-  stableKey: string,
+  eventId: string,
+  selKey: string,
   playerId: number,
   market: string,
   currentLine?: number | null
@@ -65,7 +68,8 @@ async function fetchAlternateLines(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      stableKey,
+      eventId,
+      selKey,
       playerId,
       market,
       currentLine: currentLine ?? undefined,
@@ -81,13 +85,13 @@ async function fetchAlternateLines(
 }
 
 export function useAlternateLines(options: UseAlternateLinesOptions) {
-  const { stableKey, playerId, market, currentLine, enabled = true } = options;
+  const { eventId, selKey, playerId, market, currentLine, enabled = true } = options;
 
-  const isValid = !!stableKey && !!playerId && !!market;
+  const isValid = !!eventId && !!selKey && !!playerId && !!market;
 
   const query = useQuery<AlternateLinesResponse>({
-    queryKey: ["alternate-lines", stableKey, playerId, market, currentLine],
-    queryFn: () => fetchAlternateLines(stableKey!, playerId!, market!, currentLine),
+    queryKey: ["alternate-lines", eventId, selKey, playerId, market, currentLine],
+    queryFn: () => fetchAlternateLines(eventId!, selKey!, playerId!, market!, currentLine),
     enabled: enabled && isValid,
     staleTime: 30_000,
     gcTime: 5 * 60_000,

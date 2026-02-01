@@ -31,6 +31,7 @@ import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
 import { useTeamShotZoneRanks } from "@/hooks/use-team-shot-zone-ranks";
 import { Tooltip } from "@/components/tooltip";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useOddsLine } from "@/hooks/use-odds-line";
 
 // Injury status color helpers
 const getInjuryIconColor = (status: string | null): string => {
@@ -814,131 +815,94 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     return map;
   }, [dvpTeams, profile.market]);
 
-  // Fetch odds for current profile
-  const { data: oddsData } = useQuery({
-    queryKey: ["profile-odds", profile.oddsSelectionId, profile.line],
-    queryFn: async () => {
-      if (!profile.oddsSelectionId) return null;
-      const res = await fetch("/api/nba/hit-rates/odds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selections: [{ stableKey: profile.oddsSelectionId, line: profile.line }]
-        }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.odds?.[profile.oddsSelectionId] || null;
-    },
-    enabled: !!profile.oddsSelectionId,
-    staleTime: 30_000,
+  // Fetch odds for current profile using new Redis keys
+  const activeLine = customLine ?? profile.line;
+  const { data: oddsLineData } = useOddsLine({
+    eventId: profile.eventId,
+    market: profile.market,
+    playerId: profile.selKey, // Player UUID from selKey
+    line: activeLine,
+    enabled: !!profile.eventId && !!profile.market && !!profile.selKey && activeLine !== null,
   });
 
-  // Memoize the allBooks extraction from odds data
-  // When custom line is set, find the closest available line
+  // Transform odds line data to format expected by the header
   const oddsForChart = useMemo(() => {
-    if (!oddsData) return null;
+    if (!oddsLineData) return null;
     
-    const activeLine = customLine ?? profile.line;
-    const allLines = oddsData.allLines || [];
+    // Extract best over/under from the books list
+    const overBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
+    const underBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
     
-    // Find exact line or closest line that's <= the active line (for over odds)
-    let lineData = allLines.find((l: any) => l.line === activeLine);
-    let closestLine: number | null = null;
-    
-    if (!lineData && allLines.length > 0 && activeLine !== null) {
-      // Find the closest line that's <= activeLine (best for "over" bets)
-      const sortedLines = [...allLines].sort((a: any, b: any) => b.line - a.line);
-      const closestLineData = sortedLines.find((l: any) => l.line <= activeLine);
-      
-      // If no line below, get the lowest available line
-      lineData = closestLineData || sortedLines[sortedLines.length - 1];
-      closestLine = lineData?.line ?? null;
-    }
-    
-    let allBooks: { over: any[]; under: any[] } | undefined;
-    let bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
-    let bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null = null;
-    
-    if (lineData?.books) {
-      const overBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
-      const underBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
-      
-      for (const [bookId, bookOdds] of Object.entries(lineData.books as Record<string, any>)) {
-        if (bookOdds.over) {
-          overBooks.push({
-            book: bookId,
-            price: bookOdds.over.price,
-            url: bookOdds.over.url || null,
-            mobileUrl: bookOdds.over.mobileUrl || null,
-          });
-        }
-        if (bookOdds.under) {
-          underBooks.push({
-            book: bookId,
-            price: bookOdds.under.price,
-            url: bookOdds.under.url || null,
-            mobileUrl: bookOdds.under.mobileUrl || null,
-          });
-        }
+    for (const book of oddsLineData.books || []) {
+      if (book.over !== null) {
+        overBooks.push({
+          book: book.book,
+          price: book.over,
+          url: book.link_over || null,
+          mobileUrl: book.link_over || null, // Use same link for both
+        });
       }
-      
-      // Sort by price (better odds first)
-      overBooks.sort((a, b) => b.price - a.price);
-      underBooks.sort((a, b) => b.price - a.price);
-      
-      allBooks = { over: overBooks, under: underBooks };
-      bestOver = overBooks[0] || null;
-      bestUnder = underBooks[0] || null;
+      if (book.under !== null) {
+        underBooks.push({
+          book: book.book,
+          price: book.under,
+          url: book.link_under || null,
+          mobileUrl: book.link_under || null, // Use same link for both
+        });
+      }
     }
     
-    // Use line-specific best odds, or fall back to primary line odds
+    // Sort by price (better odds first)
+    overBooks.sort((a, b) => b.price - a.price);
+    underBooks.sort((a, b) => b.price - a.price);
+    
+    const bestOver = overBooks[0] || null;
+    const bestUnder = underBooks[0] || null;
+    
     return {
-      bestOver: bestOver || oddsData.bestOver,
-      bestUnder: bestUnder || oddsData.bestUnder,
-      allBooks,
-      // Include the actual line we found odds for (for display purposes)
-      oddsLine: closestLine ?? (lineData?.line as number | undefined) ?? null,
-      isClosestLine: closestLine !== null && closestLine !== activeLine,
+      bestOver,
+      bestUnder,
+      allBooks: { over: overBooks, under: underBooks },
+      oddsLine: oddsLineData.line,
+      isClosestLine: false,
     };
-  }, [oddsData, customLine, profile.line]);
+  }, [oddsLineData]);
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
     if (!profile.gameId) return null;
     
-    const activeLine = customLine ?? profile.line;
+    const currentLine = customLine ?? profile.line;
     const bestOdds = side === "over" ? oddsForChart?.bestOver : oddsForChart?.bestUnder;
     
-    // Build books_snapshot for this specific side
+    // Build books_snapshot for this specific side from oddsLineData
     let booksSnapshot: Record<string, BookSnapshot> | null = null;
-    if (oddsData?.allLines) {
-      const lineData = oddsData.allLines.find((l: any) => l.line === activeLine);
-      if (lineData?.books) {
-        const snapshot: Record<string, BookSnapshot> = {};
-        for (const [bookId, bookOdds] of Object.entries(lineData.books as Record<string, any>)) {
-          const sideOdds = side === "over" ? bookOdds.over : bookOdds.under;
-          if (sideOdds) {
-            snapshot[bookId] = {
-              price: sideOdds.price,
-              u: sideOdds.url || null,
-              m: sideOdds.mobileUrl || null,
-              sgp: sideOdds.sgp || null,
-            };
-          }
+    if (oddsLineData?.books) {
+      const snapshot: Record<string, BookSnapshot> = {};
+      for (const book of oddsLineData.books) {
+        const price = side === "over" ? book.over : book.under;
+        const link = side === "over" ? book.link_over : book.link_under;
+        const sgp = side === "over" ? book.sgp_over : book.sgp_under;
+        if (price !== null) {
+          snapshot[book.book] = {
+            price,
+            u: link || null,
+            m: link || null, // Use same link for both
+            sgp: sgp || null,
+          };
         }
-        if (Object.keys(snapshot).length > 0) {
-          booksSnapshot = snapshot;
-        }
+      }
+      if (Object.keys(snapshot).length > 0) {
+        booksSnapshot = snapshot;
       }
     }
     
-    // Build odds_key from gameId and market
-    const oddsKey = profile.gameId ? `odds:nba:${profile.gameId}:${profile.market}` : null;
+    // Build odds_key from eventId and market (new key format)
+    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
     
-    // Build odds_selection_id
-    const oddsSelectionId = profile.oddsSelectionId 
-      ? `${profile.oddsSelectionId}:${activeLine}:${side}`
+    // Build odds_selection_id using selKey
+    const oddsSelectionId = profile.selKey 
+      ? `${profile.selKey}:${currentLine}:${side}`
       : null;
     
     return {
@@ -954,7 +918,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       player_team: profile.teamAbbr,
       player_position: profile.position,
       market: profile.market,
-      line: activeLine,
+      line: currentLine,
       side,
       odds_key: oddsKey,
       odds_selection_id: oddsSelectionId,
@@ -963,7 +927,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       best_book_at_save: bestOdds?.book ?? null,
       source: "hit_rates",
     };
-  }, [profile, customLine, oddsForChart, oddsData]);
+  }, [profile, customLine, oddsForChart, oddsLineData]);
 
   // Check if current selection is favorited
   const isOverFavorited = useMemo(() => {
@@ -1294,9 +1258,6 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       default: return game.pts;
     }
   };
-
-  // The active line (custom or profile default)
-  const activeLine = customLine ?? profile.line;
 
   // Calculate dynamic hit rates for L5, L10, L20, Season, H2H based on activeLine
   // This recalculates when the user changes the line
@@ -2535,7 +2496,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="mt-6">
         <AlternateLinesMatrix
-          stableKey={profile.oddsSelectionId}
+          eventId={profile.eventId}
+          selKey={profile.selKey}
           playerId={profile.playerId}
           market={profile.market}
           originalLine={profile.line}

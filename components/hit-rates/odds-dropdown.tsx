@@ -1,36 +1,76 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { ChevronDown, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
-import type { LineOdds } from "@/hooks/use-hit-rate-odds";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+// Simple best odds structure from the main API
+interface SimpleBestOdds {
+  book: string;
+  price: number;
+  updated_at: number;
+}
+
+// Book odds from the API
+interface BookOddsDetail {
+  book: string;
+  over: number | null;
+  under: number | null;
+  link_over?: string | null;
+  link_under?: string | null;
+}
+
+interface OddsLineResponse {
+  line: number;
+  best: {
+    book: string;
+    over: number | null;
+    under: number | null;
+  } | null;
+  books: BookOddsDetail[];
+  book_count: number;
+  updated_at: number;
+}
 
 interface OddsDropdownProps {
-  odds: LineOdds | null;
+  // Row data for fetching odds
+  eventId?: string | null;
+  market?: string | null;
+  selKey?: string | null;
+  line?: number | null;
+  // Fallback: simple best odds from the main API when full odds aren't loaded
+  bestOdds?: SimpleBestOdds | null;
+  // Loading state for initial data
   loading?: boolean;
 }
 
-const formatOdds = (price: number): string => {
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+const formatOdds = (price: number | null): string => {
+  if (price === null) return "—";
   if (price >= 0) return `+${price}`;
   return String(price);
 };
 
-// Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
   if (!bookId) return null;
   const sb = getSportsbookById(bookId);
   return sb?.image?.light || null;
 };
 
-// Helper to get sportsbook name
 const getBookName = (bookId?: string): string => {
   if (!bookId) return "";
   const sb = getSportsbookById(bookId);
   return sb?.name || bookId;
 };
 
-// Helper to get the fallback URL from sportsbook metadata
 const getBookFallbackUrl = (bookId?: string): string | null => {
   if (!bookId) return null;
   const sb = getSportsbookById(bookId);
@@ -38,32 +78,24 @@ const getBookFallbackUrl = (bookId?: string): string | null => {
   return sb.affiliateLink || sb.links?.desktop || null;
 };
 
-// Book odds structure for display
-interface BookOddsDisplay {
-  book: string;
-  price: number;
-  url: string | null;       // Desktop deep link
-  mobileUrl: string | null; // Mobile deep link
-}
+// =============================================================================
+// COMPONENT
+// =============================================================================
 
-// Choose the best link based on device type
-const chooseBookLink = (
-  bookId: string,
-  desktopUrl: string | null,
-  mobileUrl: string | null,
-  isMobile: boolean
-): string | null => {
-  const fallback = getBookFallbackUrl(bookId);
-  
-  if (isMobile) {
-    return mobileUrl || desktopUrl || fallback;
-  }
-  return desktopUrl || mobileUrl || fallback;
-};
-
-export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
+export function OddsDropdown({ 
+  eventId, 
+  market, 
+  selKey, 
+  line, 
+  bestOdds, 
+  loading: initialLoading 
+}: OddsDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [oddsData, setOddsData] = useState<OddsLineResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const hasFetched = useRef(false);
 
   // Detect if user is on mobile device
   const isMobile = useMemo(() => {
@@ -82,46 +114,75 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Build the list of books with odds for the current line
-  const booksForCurrentLine = useMemo((): BookOddsDisplay[] => {
-    if (!odds) return [];
+  // Extract player UUID from selKey (e.g., "uuid:over:20.5" -> "uuid")
+  const playerId = useMemo(() => {
+    if (!selKey) return null;
+    return selKey.includes(':') ? selKey.split(':')[0] : selKey;
+  }, [selKey]);
 
-    // Find the current line in allLines
-    const lineData = odds.allLines.find((l) => l.line === odds.currentLine);
+  // Fetch odds when dropdown is opened
+  const fetchOdds = useCallback(async () => {
+    if (!eventId || !market || !playerId || line === null || line === undefined) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({
+        event_id: eventId,
+        market: market,
+        player_id: playerId,
+        line: String(line),
+      });
+
+      const response = await fetch(`/api/nba/props/odds-line?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch odds");
+      }
+
+      const data: OddsLineResponse = await response.json();
+      setOddsData(data);
+      hasFetched.current = true;
+    } catch (err) {
+      setError("Failed to load odds");
+      console.error("[OddsDropdown] Error fetching odds:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [eventId, market, playerId, line]);
+
+  // Handle toggle
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     
-    if (!lineData?.books) {
-      // Fall back to bestOver if we have it
-      if (odds.bestOver) {
-        return [{
-          book: odds.bestOver.book,
-          price: odds.bestOver.price,
-          url: odds.bestOver.url,
-          mobileUrl: odds.bestOver.mobileUrl,
-        }];
-      }
-      return [];
-    }
-
-    // Extract all books with over odds, sorted by price (best first)
-    const books: BookOddsDisplay[] = [];
-    for (const [bookId, bookOdds] of Object.entries(lineData.books)) {
-      if (bookOdds.over !== undefined) {
-        books.push({
-          book: bookId,
-          price: bookOdds.over.price,
-          url: bookOdds.over.url,
-          mobileUrl: bookOdds.over.mobileUrl,
-        });
+    if (!isOpen) {
+      // Opening - fetch odds if we haven't yet
+      if (!hasFetched.current && !isLoading) {
+        fetchOdds();
       }
     }
+    
+    setIsOpen(!isOpen);
+  }, [isOpen, isLoading, fetchOdds]);
 
-    // Sort by price descending (higher/better odds first)
-    books.sort((a, b) => b.price - a.price);
-    return books;
-  }, [odds]);
+  // Handle book click - open link
+  const handleBookClick = useCallback((book: BookOddsDetail, side: "over" | "under", e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const link = side === "over" 
+      ? (book.link_over || getBookFallbackUrl(book.book))
+      : (book.link_under || getBookFallbackUrl(book.book));
+    
+    if (link) {
+      window.open(link, "_blank", "noopener,noreferrer");
+    }
+  }, []);
 
-  // Loading state
-  if (loading) {
+  // Loading state (initial)
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center">
         <div className="h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
@@ -129,34 +190,25 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
     );
   }
 
-  // No odds available
-  if (!odds || booksForCurrentLine.length === 0) {
+  // No best odds available at all
+  if (!bestOdds?.book || !bestOdds?.price) {
     return (
       <span className="text-sm text-neutral-400 dark:text-neutral-500">—</span>
     );
   }
 
-  const bestBook = booksForCurrentLine[0];
-  const bestBookLogo = getBookLogo(bestBook.book);
-  const bestBookName = getBookName(bestBook.book);
+  const bestBookLogo = getBookLogo(bestOdds.book);
+  const bestBookName = getBookName(bestOdds.book);
 
-  // Get the appropriate link for a book based on device
-  const getBookLink = (book: BookOddsDisplay): string | null => {
-    return chooseBookLink(book.book, book.url, book.mobileUrl, isMobile);
-  };
-
-  const handleBookClick = (book: BookOddsDisplay, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link = getBookLink(book);
-    if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
-    }
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsOpen(!isOpen);
-  };
+  // Sort books by best over price
+  const sortedBooks = useMemo(() => {
+    if (!oddsData?.books) return [];
+    return [...oddsData.books].sort((a, b) => {
+      const aPrice = a.over ?? a.under ?? -Infinity;
+      const bPrice = b.over ?? b.under ?? -Infinity;
+      return bPrice - aPrice;
+    });
+  }, [oddsData?.books]);
 
   return (
     <div ref={dropdownRef} className="relative inline-flex">
@@ -176,68 +228,170 @@ export function OddsDropdown({ odds, loading }: OddsDropdownProps) {
             className="h-4 w-4 rounded object-contain"
           />
         )}
-        <span>{formatOdds(bestBook.price)}</span>
-        {booksForCurrentLine.length > 1 && (
+        <span>{formatOdds(bestOdds.price)}</span>
         <ChevronDown className={cn(
           "h-3.5 w-3.5 opacity-50 transition-transform",
           isOpen && "rotate-180"
         )} />
-        )}
       </button>
 
-      {isOpen && booksForCurrentLine.length > 1 && (
-        <div className="absolute left-1/2 top-full z-[70] mt-1 -translate-x-1/2 min-w-[180px] rounded-lg border border-neutral-200 bg-white p-1.5 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
-            {booksForCurrentLine.map((book, idx) => {
-              const bookLogo = getBookLogo(book.book);
-              const bookName = getBookName(book.book);
-              const isBest = idx === 0;
-              
-              const bookLink = getBookLink(book);
-              return (
-                <button
-                  key={book.book}
-                  onClick={(e) => handleBookClick(book, e)}
-                  disabled={!bookLink}
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
-                    bookLink 
-                      ? "cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700" 
-                      : "cursor-default opacity-60",
-                    isBest && "bg-emerald-50 dark:bg-emerald-900/20"
-                  )}
-                >
+      {isOpen && (
+        <div className="absolute right-0 top-full z-[70] mt-1 min-w-[320px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+          {/* Header */}
+          <div className="mb-2 px-1 text-xs font-medium text-neutral-500 dark:text-neutral-400 flex items-center justify-between">
+            <span>Line: {line}</span>
+            {oddsData && (
+              <span>{oddsData.book_count} books</span>
+            )}
+          </div>
+
+          {/* Loading state */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
+            </div>
+          )}
+
+          {/* Error state */}
+          {error && !isLoading && (
+            <div className="py-4 text-center text-sm text-neutral-500">
+              {error}
+            </div>
+          )}
+
+          {/* Books list */}
+          {!isLoading && !error && sortedBooks.length > 0 && (
+            <div className="flex flex-col gap-1 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
+              {/* Column headers */}
+              <div className="flex items-center justify-between px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500 border-b border-neutral-100 dark:border-neutral-700 mb-1">
+                <span>Sportsbook</span>
+                <div className="flex gap-2">
+                  <span className="min-w-[60px] text-center">Over</span>
+                  <span className="min-w-[60px] text-center">Under</span>
+                </div>
+              </div>
+
+              {sortedBooks.map((book, idx) => {
+                const bookLogo = getBookLogo(book.book);
+                const bookName = getBookName(book.book);
+                const isBest = idx === 0;
+                const hasOverLink = book.over !== null && (book.link_over || getBookFallbackUrl(book.book));
+                const hasUnderLink = book.under !== null && (book.link_under || getBookFallbackUrl(book.book));
+                
+                return (
+                  <div
+                    key={book.book}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2 py-1.5 transition-colors",
+                      isBest && "bg-emerald-50 dark:bg-emerald-900/20"
+                    )}
+                  >
+                    {/* Book info */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {bookLogo ? (
+                        <img
+                          src={bookLogo}
+                          alt={bookName}
+                          className="h-5 w-5 rounded object-contain flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700 flex-shrink-0" />
+                      )}
+                      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                        {bookName}
+                      </span>
+                      {isBest && (
+                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                          Best
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Over/Under prices */}
+                    <div className="flex gap-2">
+                      {/* Over */}
+                      <button
+                        onClick={(e) => handleBookClick(book, "over", e)}
+                        disabled={book.over === null || !hasOverLink}
+                        className={cn(
+                          "min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1",
+                          book.over !== null && hasOverLink
+                            ? "hover:bg-emerald-100 dark:hover:bg-emerald-900/30 cursor-pointer"
+                            : "opacity-40 cursor-default",
+                          book.over !== null && book.over >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-neutral-700 dark:text-neutral-300"
+                        )}
+                        title={hasOverLink ? "Click to place bet" : undefined}
+                      >
+                        {formatOdds(book.over)}
+                        {hasOverLink && <ExternalLink className="w-3 h-3 opacity-60" />}
+                      </button>
+
+                      {/* Under */}
+                      <button
+                        onClick={(e) => handleBookClick(book, "under", e)}
+                        disabled={book.under === null || !hasUnderLink}
+                        className={cn(
+                          "min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1",
+                          book.under !== null && hasUnderLink
+                            ? "hover:bg-rose-100 dark:hover:bg-rose-900/30 cursor-pointer"
+                            : "opacity-40 cursor-default",
+                          book.under !== null && book.under >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-neutral-700 dark:text-neutral-300"
+                        )}
+                        title={hasUnderLink ? "Click to place bet" : undefined}
+                      >
+                        {formatOdds(book.under)}
+                        {hasUnderLink && <ExternalLink className="w-3 h-3 opacity-60" />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty state - show best odds as fallback */}
+          {!isLoading && !error && sortedBooks.length === 0 && oddsData && (
+            <div className="py-3 px-2">
+              {bestOdds ? (
+                <div className="flex items-center justify-between rounded-md px-2 py-2 bg-emerald-50 dark:bg-emerald-900/20">
                   <div className="flex items-center gap-2">
-                    {bookLogo ? (
+                    {getBookLogo(bestOdds.book) ? (
                       <img
-                        src={bookLogo}
-                        alt={bookName}
+                        src={getBookLogo(bestOdds.book)!}
+                        alt={getBookName(bestOdds.book)}
                         className="h-5 w-5 rounded object-contain"
                       />
                     ) : (
                       <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700" />
                     )}
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                      {bookName}
+                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      {getBookName(bestOdds.book)}
+                    </span>
+                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                      Best
                     </span>
                   </div>
-                  <span className={cn(
-                    "font-semibold",
-                    book.price >= 0 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {formatOdds(book.price)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          
-          {booksForCurrentLine.length > 1 && (
-            <div className="mt-1.5 border-t border-neutral-200 dark:border-neutral-700 pt-1.5">
-              <p className="px-2 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                {booksForCurrentLine.length} books • Best: {formatOdds(bestBook.price)}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const link = getBookFallbackUrl(bestOdds.book);
+                      if (link) window.open(link, "_blank", "noopener,noreferrer");
+                    }}
+                    className="min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 cursor-pointer text-emerald-600 dark:text-emerald-400"
+                  >
+                    {formatOdds(bestOdds.price)}
+                    <ExternalLink className="w-3 h-3 opacity-60" />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-center text-sm text-neutral-500">No odds available</p>
+              )}
+              <p className="mt-2 text-center text-[10px] text-neutral-400">
+                Full book comparison unavailable
               </p>
             </div>
           )}

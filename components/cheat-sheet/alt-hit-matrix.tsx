@@ -260,13 +260,13 @@ function AltHitMatrixTableRow({ row, isEven }: { row: AltHitMatrixRow; isEven: b
       "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40"
     )}>
       {/* Player */}
-      <td className="sticky left-0 z-10 px-4 py-2 bg-inherit">
-        <div className="flex items-center gap-2">
+      <td className="sticky left-0 z-10 px-4 py-3 bg-inherit">
+        <div className="flex items-center gap-3">
           <div 
-            className="w-8 h-8 rounded-full overflow-hidden shrink-0"
+            className="h-14 w-14 rounded-xl overflow-hidden shrink-0 shadow-sm transition-transform duration-150 hover:scale-[1.03]"
             style={{
               background: row.primaryColor 
-                ? `linear-gradient(135deg, ${row.primaryColor} 0%, ${row.secondaryColor || row.primaryColor} 100%)`
+                ? `linear-gradient(180deg, ${row.primaryColor} 0%, ${row.primaryColor} 55%, ${row.secondaryColor || row.primaryColor} 100%)`
                 : '#374151'
             }}
           >
@@ -278,11 +278,18 @@ function AltHitMatrixTableRow({ row, isEven }: { row: AltHitMatrixRow; isEven: b
             />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+            <div className="text-sm font-bold text-neutral-900 dark:text-white truncate leading-tight">
               {row.playerName}
             </div>
-            <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
-              {row.position} • {row.teamAbbr}
+            <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
+              {row.teamAbbr && (
+                <img
+                  src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                  alt={row.teamAbbr}
+                  className="h-4 w-4 object-contain"
+                />
+              )}
+              <span>{row.position}</span>
             </div>
           </div>
         </div>

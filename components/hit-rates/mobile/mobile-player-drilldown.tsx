@@ -44,6 +44,7 @@ const getBookLogo = (bookId?: string): string | null => {
   return sb?.image?.light || null;
 };
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
+import { useOddsLine } from "@/hooks/use-odds-line";
 import { usePositionVsTeam } from "@/hooks/use-position-vs-team";
 import { useMatchupRanks } from "@/hooks/use-matchup-ranks";
 import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
@@ -3396,7 +3397,17 @@ export function MobilePlayerDrilldown({
     enabled: (injuryFilters.length > 0 || activeTab === "injuries" || activeTab === "chart") && !!profile.teamId && !!profile.opponentTeamId,
   });
   
-  // Fetch odds
+  // Fetch odds for current line using new Redis keys
+  const currentLine = customLine ?? profile.line;
+  const { data: oddsLineData } = useOddsLine({
+    eventId: profile.eventId,
+    market: profile.market,
+    playerId: profile.selKey, // Player UUID from selKey
+    line: currentLine,
+    enabled: !!profile.eventId && !!profile.market && !!profile.selKey && currentLine !== null,
+  });
+  
+  // Legacy odds fetch - still needed for "all lines" modal
   const { getOdds } = useHitRateOdds({
     rows: [{ oddsSelectionId: profile.oddsSelectionId, line: profile.line }],
     enabled: !!profile.oddsSelectionId,
@@ -3404,9 +3415,49 @@ export function MobilePlayerDrilldown({
   
   const fullOddsData = getOdds(profile.oddsSelectionId);
   
-  // Get odds for the current line (custom or original)
-  // Note: We use profile.line here since baseLine depends on avg which isn't computed yet
+  // Get odds for the current line using new Redis keys
+  // Falls back to legacy data if new data not available
   const odds = useMemo(() => {
+    // Use new Redis key data when available
+    if (oddsLineData) {
+      // Extract best over/under from the books list
+      const overBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
+      const underBooks: { book: string; price: number; url: string | null; mobileUrl: string | null }[] = [];
+      
+      for (const book of oddsLineData.books || []) {
+        if (book.over !== null) {
+          overBooks.push({
+            book: book.book,
+            price: book.over,
+            url: book.link_over || null,
+            mobileUrl: book.link_over || null,
+          });
+        }
+        if (book.under !== null) {
+          underBooks.push({
+            book: book.book,
+            price: book.under,
+            url: book.link_under || null,
+            mobileUrl: book.link_under || null,
+          });
+        }
+      }
+      
+      // Sort by price (better odds first)
+      overBooks.sort((a, b) => b.price - a.price);
+      underBooks.sort((a, b) => b.price - a.price);
+      
+      const bestOver = overBooks[0] || null;
+      const bestUnder = underBooks[0] || null;
+      
+      return {
+        bestOver,
+        bestUnder,
+        isAltLine: customLine !== null && customLine !== profile.line,
+      };
+    }
+    
+    // Fall back to legacy data
     if (!fullOddsData) return null;
     
     // If using a custom line different from the profile line, try to find odds for that line
@@ -3465,7 +3516,7 @@ export function MobilePlayerDrilldown({
       bestUnder: fullOddsData.bestUnder,
       isAltLine: false,
     };
-  }, [fullOddsData, customLine, profile.line]);
+  }, [oddsLineData, fullOddsData, customLine, profile.line]);
 
   // Favorites hook for adding to My Plays
   const { isFavorited, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
@@ -3478,8 +3529,28 @@ export function MobilePlayerDrilldown({
     const bestOdds = side === "over" ? odds?.bestOver : odds?.bestUnder;
     
     // Build books_snapshot for this specific side
+    // Prefer new Redis key data when available
     let booksSnapshot: Record<string, BookSnapshot> | null = null;
-    if (fullOddsData?.allLines) {
+    if (oddsLineData?.books) {
+      const snapshot: Record<string, BookSnapshot> = {};
+      for (const book of oddsLineData.books) {
+        const price = side === "over" ? book.over : book.under;
+        const link = side === "over" ? book.link_over : book.link_under;
+        const sgp = side === "over" ? book.sgp_over : book.sgp_under;
+        if (price !== null) {
+          snapshot[book.book] = {
+            price,
+            u: link || null,
+            m: link || null,
+            sgp: sgp || null,
+          };
+        }
+      }
+      if (Object.keys(snapshot).length > 0) {
+        booksSnapshot = snapshot;
+      }
+    } else if (fullOddsData?.allLines) {
+      // Fall back to legacy data
       const lineData = fullOddsData.allLines.find((l: any) => l.line === activeLine);
       if (lineData?.books) {
         const snapshot: Record<string, BookSnapshot> = {};
@@ -3500,12 +3571,12 @@ export function MobilePlayerDrilldown({
       }
     }
     
-    // Build odds_key from gameId and market
-    const oddsKey = profile.gameId ? `odds:nba:${profile.gameId}:${profile.market}` : null;
+    // Build odds_key from eventId and market (new key format)
+    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
     
-    // Build odds_selection_id
-    const oddsSelectionId = profile.oddsSelectionId 
-      ? `${profile.oddsSelectionId}:${activeLine}:${side}`
+    // Build odds_selection_id using selKey
+    const oddsSelectionId = profile.selKey 
+      ? `${profile.selKey}:${activeLine}:${side}`
       : null;
     
     return {
@@ -3530,7 +3601,7 @@ export function MobilePlayerDrilldown({
       best_book_at_save: bestOdds?.book ?? null,
       source: "hit_rates",
     };
-  }, [profile, customLine, odds, fullOddsData]);
+  }, [profile, customLine, odds, oddsLineData, fullOddsData]);
 
   // Check if current selection is favorited
   const isOverFavorited = useMemo(() => {
