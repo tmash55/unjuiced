@@ -29,7 +29,7 @@ const stats = [
     ),
     title: "NBA • Defense vs Position",
     description: "Team defensive rankings by position. Find the best matchups.",
-    href: "/stats/nba/defense-vs-position",
+    href: "/cheatsheets/nba/dvp",
     color: "#60a5fa", // Blue
     comingSoon: false,
     badge: "NEW",

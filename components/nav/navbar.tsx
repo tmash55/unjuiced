@@ -373,7 +373,7 @@ function MobileNav({ domain }: { domain: string }) {
       group: "NBA Stats",
       items: [
         { title: "King of the Court", href: "/stats/nba/king-of-the-court" },
-        { title: "Defense vs Position", href: "/stats/nba/defense-vs-position", badge: "NEW" },
+        { title: "Defense vs Position", href: "/cheatsheets/nba/dvp", badge: "NEW" },
       ],
     },
     {

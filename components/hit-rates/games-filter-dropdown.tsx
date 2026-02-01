@@ -172,13 +172,13 @@ export function GamesFilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex items-center gap-2 rounded-lg",
-            "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700",
-            "border border-neutral-200 dark:border-neutral-700",
+            "flex items-center gap-2 rounded-lg shrink-0",
+            "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200/70 dark:hover:bg-neutral-700",
+            "border border-neutral-200/60 dark:border-neutral-700/60",
             "font-medium text-neutral-700 dark:text-neutral-300",
             "transition-colors",
-            // Compact mode for smaller filter rows
-            compact ? "px-3 py-1.5 text-xs" : "px-3 py-2 h-10 text-sm",
+            // Compact mode for smaller filter rows - match other filter buttons
+            compact ? "px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs gap-1 md:gap-2" : "px-3 py-2 h-10 text-sm",
             !allGamesSelected && "border-[#0EA5E9]/50 dark:border-[#7DD3FC]/50 bg-[#0EA5E9]/5 dark:bg-[#7DD3FC]/5",
             className
           )}
@@ -212,7 +212,7 @@ export function GamesFilterDropdown({
       <DropdownMenuContent
         align="start"
         sideOffset={8}
-        className="w-[280px] max-h-[400px] overflow-hidden p-0"
+        className="w-[280px] max-h-[400px] overflow-hidden p-0 z-[100]"
       >
         {/* All Games Option */}
         <DropdownMenuItem

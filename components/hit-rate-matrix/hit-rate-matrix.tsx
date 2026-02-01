@@ -53,11 +53,26 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
+  const [showTimeWindowDropdown, setShowTimeWindowDropdown] = useState(false);
+  const [showEdgeDropdown, setShowEdgeDropdown] = useState(false);
   
   // NEW: Search, game filter, min edge filter
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGame, setSelectedGame] = useState<string | null>(null); // null = all games
+  const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]); // empty = all games
   const [minEdge, setMinEdge] = useState<number>(0); // 0 = show all edges, 5 = only show edge strip if ≥5%
+  
+  // Game filter handlers
+  const handleToggleGame = useCallback((gameId: string) => {
+    setSelectedGameIds(prev => 
+      prev.includes(gameId) 
+        ? prev.filter(id => id !== gameId)
+        : [...prev, gameId]
+    );
+  }, []);
+  
+  const handleSelectAllGames = useCallback(() => {
+    setSelectedGameIds([]);
+  }, []);
   
   // Player quick view modal state
   const [selectedPlayer, setSelectedPlayer] = useState<{
@@ -75,6 +90,8 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
   // Refs for click outside handling
   const marketDropdownRef = useRef<HTMLDivElement>(null);
   const positionDropdownRef = useRef<HTMLDivElement>(null);
+  const timeWindowDropdownRef = useRef<HTMLDivElement>(null);
+  const edgeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -84,6 +101,12 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
       }
       if (positionDropdownRef.current && !positionDropdownRef.current.contains(event.target as Node)) {
         setShowPositionDropdown(false);
+      }
+      if (timeWindowDropdownRef.current && !timeWindowDropdownRef.current.contains(event.target as Node)) {
+        setShowTimeWindowDropdown(false);
+      }
+      if (edgeDropdownRef.current && !edgeDropdownRef.current.contains(event.target as Node)) {
+        setShowEdgeDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -142,10 +165,10 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
         if (!matchesName && !matchesTeam) return false;
       }
       // Game filter - compare using numeric gameId (matches useNbaGames)
-      if (selectedGame && normalizeGameId(row.gameId) !== selectedGame) return false;
+      if (selectedGameIds.length > 0 && !selectedGameIds.includes(normalizeGameId(row.gameId))) return false;
       return true;
     });
-  }, [rawRows, searchQuery, selectedGame]);
+  }, [rawRows, searchQuery, selectedGameIds]);
 
   // Handle sort click
   const handleSort = useCallback((field: SortField) => {
@@ -248,25 +271,25 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
   return (
     <div
       className={cn(
-        "rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-900 overflow-hidden shadow-sm",
+        "rounded-xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-900 shadow-sm",
         className
       )}
     >
-      {/* Header with Filters */}
-      <div className="px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-700/60">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Search & Help */}
-          <div className="flex items-center gap-2">
+      {/* Header with Filters - needs high z-index for dropdowns to appear above sticky table header */}
+      <div className="px-2 md:px-4 py-2 md:py-3 border-b border-neutral-200/60 dark:border-neutral-700/60 relative z-50">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-3">
+          {/* Row 1 on mobile: Search + Player Count */}
+          <div className="flex items-center gap-2 justify-between md:justify-start">
             {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+            <div className="relative flex-1 md:flex-none">
+              <Search className="absolute left-2 md:left-2.5 top-1/2 -translate-y-1/2 h-3 md:h-3.5 w-3 md:w-3.5 text-neutral-400" />
               <input
                 type="text"
-                placeholder="Search player..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
-                  "w-[160px] pl-8 pr-3 py-1.5 rounded-lg text-xs transition-all",
+                  "w-full md:w-[160px] pl-7 md:pl-8 pr-3 py-1.5 rounded-lg text-xs transition-all",
                   "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60",
                   "placeholder:text-neutral-400 dark:placeholder:text-neutral-500",
                   "focus:outline-none focus:ring-1 focus:ring-brand/50 focus:border-brand/50"
@@ -281,10 +304,14 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                 </button>
               )}
             </div>
+            {/* Player Count - visible on mobile in row 1 */}
+            <div className="md:hidden text-[10px] text-neutral-500 dark:text-neutral-400 font-medium tabular-nums whitespace-nowrap">
+              {rows.length} players
+            </div>
           </div>
 
-          {/* Right: Filters */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Row 2 on mobile / Right side on desktop: Filters */}
+          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap overflow-x-auto scrollbar-hide">
             {/* Market Dropdown */}
             <div className="relative" ref={marketDropdownRef}>
               <button
@@ -294,19 +321,24 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                   setShowPositionDropdown(false);
                 }}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  "flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all shrink-0",
                   "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60",
                   "hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
                 )}
               >
                 {selectedMarketLabel}
                 <ChevronDown
-                  className={cn("h-3.5 w-3.5 text-neutral-400 transition-transform", showMarketDropdown && "rotate-180")}
+                  className={cn("h-3 md:h-3.5 w-3 md:w-3.5 text-neutral-400 transition-transform", showMarketDropdown && "rotate-180")}
                 />
               </button>
 
               {showMarketDropdown && (
-                <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                <div className="fixed left-0 top-auto z-[100] mt-1 min-w-[140px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                  style={{
+                    top: marketDropdownRef.current ? marketDropdownRef.current.getBoundingClientRect().bottom + 4 : undefined,
+                    left: marketDropdownRef.current ? marketDropdownRef.current.getBoundingClientRect().left : undefined,
+                  }}
+                >
                   {HIT_RATE_MATRIX_MARKETS.map((m) => (
                     <button
                       key={m.value}
@@ -333,14 +365,66 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
             {/* Game Filter Dropdown - Using shared component */}
             <GamesFilterDropdown
               games={filteredGames}
-              singleSelect
-              selectedGameId={selectedGame}
-              onGameSelect={setSelectedGame}
+              selectedGameIds={selectedGameIds}
+              onToggleGame={handleToggleGame}
+              onSelectAll={handleSelectAllGames}
               compact
             />
 
-            {/* Time Window Toggle */}
-            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
+            {/* Time Window - Dropdown on mobile, Toggle on desktop */}
+            {/* Mobile: Dropdown */}
+            <div className="md:hidden relative" ref={timeWindowDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimeWindowDropdown(!showTimeWindowDropdown);
+                  setShowMarketDropdown(false);
+                  setShowPositionDropdown(false);
+                }}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all shrink-0",
+                  "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60",
+                  "hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
+                )}
+              >
+                {TIME_WINDOW_OPTIONS.find(opt => opt.value === timeWindow)?.shortLabel || "L10"}
+                <ChevronDown
+                  className={cn("h-3 w-3 text-neutral-400 transition-transform", showTimeWindowDropdown && "rotate-180")}
+                />
+              </button>
+
+              {showTimeWindowDropdown && (
+                <div className="fixed left-0 top-auto z-[100] mt-1 min-w-[100px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                  style={{
+                    top: timeWindowDropdownRef.current ? timeWindowDropdownRef.current.getBoundingClientRect().bottom + 4 : undefined,
+                    left: timeWindowDropdownRef.current ? timeWindowDropdownRef.current.getBoundingClientRect().left : undefined,
+                  }}
+                >
+                  {TIME_WINDOW_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setTimeWindow(opt.value);
+                        setShowTimeWindowDropdown(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
+                        timeWindow === opt.value
+                          ? "bg-brand/10 text-brand font-medium"
+                          : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {opt.label}
+                      {timeWindow === opt.value && <Check className="h-3 w-3" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop: Toggle buttons */}
+            <div className="hidden md:flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 shrink-0">
               {TIME_WINDOW_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -367,22 +451,28 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                   setShowMarketDropdown(false);
                 }}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  "flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all shrink-0",
                   selectedPositions.length > 0
                     ? "bg-brand/10 text-brand border border-brand/30"
                     : "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60",
                   "hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
                 )}
               >
-                <Filter className="h-3 w-3" />
-                {selectedPositions.length > 0 ? selectedPositions.join(", ") : "Position"}
+                <Filter className="h-2.5 md:h-3 w-2.5 md:w-3" />
+                <span className="hidden md:inline">{selectedPositions.length > 0 ? selectedPositions.join(", ") : "Position"}</span>
+                <span className="md:hidden">{selectedPositions.length > 0 ? selectedPositions.join(",") : "Pos"}</span>
                 <ChevronDown
-                  className={cn("h-3.5 w-3.5 text-neutral-400 transition-transform", showPositionDropdown && "rotate-180")}
+                  className={cn("h-3 md:h-3.5 w-3 md:w-3.5 text-neutral-400 transition-transform", showPositionDropdown && "rotate-180")}
                 />
               </button>
 
               {showPositionDropdown && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+                <div className="fixed right-auto top-auto z-[100] mt-1 min-w-[140px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                  style={{
+                    top: positionDropdownRef.current ? positionDropdownRef.current.getBoundingClientRect().bottom + 4 : undefined,
+                    left: positionDropdownRef.current ? positionDropdownRef.current.getBoundingClientRect().right - 140 : undefined,
+                  }}
+                >
                   {selectedPositions.length > 0 && (
                     <button
                       type="button"
@@ -414,22 +504,65 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
             </div>
 
             {/* Min Edge Filter */}
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
-              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Edge</span>
-              <select
-                value={minEdge}
-                onChange={(e) => setMinEdge(Number(e.target.value))}
-                className="bg-transparent text-xs font-medium text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
+            <div className="relative" ref={edgeDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEdgeDropdown(!showEdgeDropdown);
+                  setShowMarketDropdown(false);
+                  setShowPositionDropdown(false);
+                  setShowTimeWindowDropdown(false);
+                }}
+                className={cn(
+                  "flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all shrink-0",
+                  "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60",
+                  "hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
+                )}
               >
-                <option value={0}>All</option>
-                <option value={3}>≥3%</option>
-                <option value={5}>≥5%</option>
-                <option value={10}>≥10%</option>
-              </select>
+                <span className="hidden md:inline">Edge</span>
+                {minEdge === 0 ? "All" : `≥${minEdge}%`}
+                <ChevronDown
+                  className={cn("h-3 md:h-3.5 w-3 md:w-3.5 text-neutral-400 transition-transform", showEdgeDropdown && "rotate-180")}
+                />
+              </button>
+
+              {showEdgeDropdown && (
+                <div className="fixed right-auto top-auto z-[100] mt-1 min-w-[120px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800"
+                  style={{
+                    top: edgeDropdownRef.current ? edgeDropdownRef.current.getBoundingClientRect().bottom + 4 : undefined,
+                    left: edgeDropdownRef.current ? edgeDropdownRef.current.getBoundingClientRect().left : undefined,
+                  }}
+                >
+                  {[
+                    { value: 0, label: "All" },
+                    { value: 3, label: "≥3%" },
+                    { value: 5, label: "≥5%" },
+                    { value: 10, label: "≥10%" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setMinEdge(opt.value);
+                        setShowEdgeDropdown(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
+                        minEdge === opt.value
+                          ? "bg-brand/10 text-brand font-medium"
+                          : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      {opt.label}
+                      {minEdge === opt.value && <Check className="h-3 w-3" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Player Count */}
-            <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium tabular-nums">
+            {/* Player Count - hidden on mobile, shown in row 1 */}
+            <div className="hidden md:block text-[10px] text-neutral-500 dark:text-neutral-400 font-medium tabular-nums">
               {rows.length} players
             </div>
           </div>
@@ -444,44 +577,46 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
       ) : (
         <div className="relative">
           {/* Scrollable container with max height */}
-          <div className="max-h-[calc(100vh-280px)] overflow-auto">
+          <div className="max-h-[calc(100vh-260px)] md:max-h-[calc(100vh-280px)] overflow-auto">
             <table className="w-full border-collapse">
               {/* Sticky header - no vertical borders */}
               <thead className="sticky top-0 z-30">
                 <tr className="bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm border-b border-neutral-200/50 dark:border-neutral-700/50">
                   {/* Player column - sticky left */}
                   <th 
-                    className="sticky left-0 z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-3 py-2.5 text-left w-[160px] min-w-[160px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
+                    className="sticky left-0 z-40 bg-neutral-50 dark:bg-neutral-800 px-1.5 md:px-3 py-2 md:py-2.5 text-left w-[100px] md:w-[160px] min-w-[100px] md:min-w-[160px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("player")}
                   >
-                    <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                    <div className="flex items-center gap-0.5 md:gap-1 text-[10px] md:text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                       Player
                       <SortIcon field="player" sortField={sortField} sortDirection={sortDirection} />
                     </div>
                   </th>
-                  {/* DvP column - sticky left */}
+                  {/* DvP column - sticky on desktop only */}
                   <th 
-                    className="sticky left-[160px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[50px] min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
+                    className="md:sticky md:left-[160px] z-40 bg-neutral-50 dark:bg-neutral-800 px-1 md:px-2 py-2 md:py-2.5 text-center w-[40px] md:w-[50px] min-w-[40px] md:min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("dvp")}
                   >
-                    <div className="flex items-center justify-center gap-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                      DvP
+                    <div className="flex items-center justify-center gap-0.5 text-[10px] md:text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                      <span className="hidden md:inline">DvP</span>
+                      <span className="md:hidden">D</span>
                       <SortIcon field="dvp" sortField={sortField} sortDirection={sortDirection} />
                     </div>
                   </th>
-                  {/* Line column - sticky left */}
+                  {/* Line column - sticky on desktop only */}
                   <th 
-                    className="sticky left-[210px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[50px] min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
+                    className="md:sticky md:left-[210px] z-40 bg-neutral-50 dark:bg-neutral-800 px-1 md:px-2 py-2 md:py-2.5 text-center w-[40px] md:w-[50px] min-w-[40px] md:min-w-[50px] cursor-pointer hover:bg-neutral-100/80 dark:hover:bg-neutral-700/80 transition-colors"
                     onClick={() => handleSort("line")}
                   >
-                    <div className="flex items-center justify-center gap-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                      Line
+                    <div className="flex items-center justify-center gap-0.5 text-[10px] md:text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                      <span className="hidden md:inline">Line</span>
+                      <span className="md:hidden">L</span>
                       <SortIcon field="line" sortField={sortField} sortDirection={sortDirection} />
                     </div>
                   </th>
 
-                  {/* Best Line column - sticky left - subtle separator */}
-                  <th className="sticky left-[260px] z-40 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm px-2 py-2.5 text-center w-[80px] min-w-[80px]">
+                  {/* Best Line column - sticky on desktop only, hidden on mobile */}
+                  <th className="hidden md:table-cell sticky left-[260px] z-40 bg-neutral-50 dark:bg-neutral-800 px-2 py-2.5 text-center w-[80px] min-w-[80px]">
                     <div className="text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                       Best
                     </div>
@@ -491,10 +626,10 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                   {thresholdLines.map((line) => (
                     <th
                       key={line}
-                      className="p-0 text-center min-w-[62px] cursor-pointer hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors"
+                      className="p-0 text-center min-w-[52px] md:min-w-[62px] cursor-pointer hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors"
                       onClick={() => handleSort(line)}
                     >
-                      <div className="flex items-center justify-center gap-0.5 py-2.5 px-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                      <div className="flex items-center justify-center gap-0.5 py-2 md:py-2.5 px-0.5 md:px-1 text-[10px] md:text-xs font-medium text-neutral-500 dark:text-neutral-400">
                         {line}+
                         <SortIcon field={line} sortField={sortField} sortDirection={sortDirection} />
                       </div>
@@ -526,34 +661,34 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
       )}
 
       {/* Legend - Premium, minimal */}
-      <div className="px-4 py-2.5 border-t border-neutral-100/30 dark:border-neutral-800/30">
-        <div className="flex items-center justify-center gap-8 text-[9px]">
+      <div className="px-2 md:px-4 py-2 md:py-2.5 border-t border-neutral-100/30 dark:border-neutral-800/30">
+        <div className="flex items-center justify-center gap-3 md:gap-8 text-[8px] md:text-[9px] flex-wrap">
           {/* Hit Rate Legend */}
-          <div className="flex items-center gap-3">
-            <span className="text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">Hit Rate</span>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-sm bg-emerald-600 dark:bg-emerald-700" />
+          <div className="flex items-center gap-2 md:gap-3">
+            <span className="hidden md:inline text-neutral-400 dark:text-neutral-500 uppercase tracking-wider font-medium">Hit Rate</span>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-sm bg-emerald-600 dark:bg-emerald-700" />
                 <span className="text-neutral-500 dark:text-neutral-400">80%+</span>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-sm bg-emerald-500/65 dark:bg-emerald-600/65" />
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-sm bg-emerald-500/65 dark:bg-emerald-600/65" />
                 <span className="text-neutral-500 dark:text-neutral-400">60%+</span>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-sm bg-neutral-500/55 dark:bg-neutral-600/55" />
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-sm bg-neutral-500/55 dark:bg-neutral-600/55" />
                 <span className="text-neutral-500 dark:text-neutral-400">50%+</span>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-sm bg-red-600/60 dark:bg-red-700/60" />
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-sm bg-red-600/60 dark:bg-red-700/60" />
                 <span className="text-neutral-500 dark:text-neutral-400">&lt;50%</span>
               </div>
             </div>
           </div>
           
           {/* Edge Strip Legend */}
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-4 rounded-sm bg-neutral-500/40 dark:bg-neutral-600/40 relative overflow-hidden">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <div className="w-2.5 h-3 md:w-3 md:h-4 rounded-sm bg-neutral-500/40 dark:bg-neutral-600/40 relative overflow-hidden">
               <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-amber-400/50 dark:bg-amber-300/40" />
             </div>
             <span className="text-neutral-400 dark:text-neutral-500">Edge ≥5%</span>
@@ -612,13 +747,18 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
   const bestLine = useMemo(() => getBestLineFromRow(row.thresholds), [row.thresholds]);
   const bestBook = bestLine?.bestBook ? getSportsbookById(bestLine.bestBook) : null;
 
+  // Solid backgrounds for sticky columns (fixes see-through issue)
+  const stickyBgClass = isEven 
+    ? "bg-white dark:bg-neutral-900" 
+    : "bg-neutral-50 dark:bg-neutral-900";
+
   return (
     <tr className={cn("group transition-colors", bgClass, "hover:bg-neutral-100/40 dark:hover:bg-neutral-800/40")}>
       {/* Player Info - Sticky, no vertical borders */}
-      <td className="sticky left-0 z-20 px-3 py-3 bg-inherit border-b border-neutral-100/30 dark:border-neutral-800/30">
-        <div className="flex items-center gap-3">
+      <td className={cn("sticky left-0 z-20 px-1.5 md:px-3 py-1.5 md:py-3 border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
+        <div className="flex items-center gap-1.5 md:gap-3">
           <div
-            className="h-14 w-14 rounded-xl overflow-hidden shrink-0 shadow-sm transition-transform duration-150 group-hover:scale-[1.03]"
+            className="h-8 w-8 md:h-14 md:w-14 rounded-md md:rounded-xl overflow-hidden shrink-0 shadow-sm transition-transform duration-150 group-hover:scale-[1.03]"
             style={{
               background:
                 row.primaryColor
@@ -629,7 +769,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
             <PlayerHeadshot
               nbaPlayerId={row.playerId}
               name={row.playerName}
-              size="small"
+              size="tiny"
               className="w-full h-full object-cover"
             />
           </div>
@@ -637,21 +777,23 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
             <button
               type="button"
               onClick={() => onPlayerClick(row)}
-              className="text-sm font-bold text-neutral-900 dark:text-white truncate leading-tight hover:text-brand hover:underline cursor-pointer text-left block max-w-full"
+              className="text-[11px] md:text-sm font-bold text-neutral-900 dark:text-white truncate leading-tight hover:text-brand hover:underline cursor-pointer text-left block max-w-full"
             >
-              {row.playerName}
+              {/* Show abbreviated name on mobile (e.g., "A. Wiggins") */}
+              <span className="md:hidden">{row.playerName.split(' ').map((n, i) => i === 0 ? n.charAt(0) + '.' : n).join(' ')}</span>
+              <span className="hidden md:inline">{row.playerName}</span>
             </button>
-            <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
+            <div className="flex items-center gap-1 text-[9px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
               {row.teamAbbr && (
                 <img
                   src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
                   alt={row.teamAbbr}
-                  className="h-4 w-4 object-contain"
+                  className="h-3 w-3 md:h-4 md:w-4 object-contain"
                 />
               )}
               <span>{row.position}</span>
-              <span className="text-neutral-300 dark:text-neutral-600">•</span>
-              <span>
+              <span className="hidden md:inline text-neutral-300 dark:text-neutral-600">•</span>
+              <span className="hidden md:inline">
                 {row.homeAway === "H" ? "vs" : "@"} {row.opponentAbbr}
               </span>
             </div>
@@ -659,8 +801,8 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
         </div>
       </td>
 
-      {/* DvP Rank - Sticky */}
-      <td className="sticky left-[160px] z-20 px-1.5 py-2.5 text-center bg-inherit border-b border-neutral-100/30 dark:border-neutral-800/30">
+      {/* DvP Rank - Sticky on desktop only */}
+      <td className={cn("md:sticky md:left-[160px] z-20 px-1 md:px-1.5 py-2 md:py-2.5 text-center border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
         {row.dvpRank !== null ? (
           <Tooltip
             content={
@@ -674,7 +816,7 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
           >
             <span
               className={cn(
-                "inline-flex items-center justify-center w-8 h-6 rounded text-xs font-semibold cursor-help tabular-nums",
+                "inline-flex items-center justify-center w-6 h-5 md:w-8 md:h-6 rounded text-[10px] md:text-xs font-semibold cursor-help tabular-nums",
                 getDvpColor(row.dvpQuality)
               )}
             >
@@ -682,19 +824,19 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
             </span>
           </Tooltip>
         ) : (
-          <span className="text-xs text-neutral-300 dark:text-neutral-600">—</span>
+          <span className="text-[10px] md:text-xs text-neutral-300 dark:text-neutral-600">—</span>
         )}
       </td>
 
-      {/* Primary Line - Sticky */}
-      <td className="sticky left-[210px] z-20 px-1.5 py-2.5 text-center bg-inherit border-b border-neutral-100/30 dark:border-neutral-800/30">
-        <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 tabular-nums">
+      {/* Primary Line - Sticky on desktop only */}
+      <td className={cn("md:sticky md:left-[210px] z-20 px-1 md:px-1.5 py-2 md:py-2.5 text-center border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
+        <span className="text-xs md:text-sm font-semibold text-neutral-700 dark:text-neutral-200 tabular-nums">
           {row.primaryLine !== null ? row.primaryLine : "—"}
         </span>
       </td>
 
-      {/* Best Line Column - shows best edge opportunity */}
-      <td className="sticky left-[260px] z-20 px-2 py-2.5 text-center bg-inherit border-b border-neutral-100/30 dark:border-neutral-800/30">
+      {/* Best Line Column - shows best edge opportunity - hidden on mobile */}
+      <td className={cn("hidden md:table-cell sticky left-[260px] z-20 px-2 py-2.5 text-center border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
         {bestLine && bestLine.edgePct !== null && bestLine.edgePct > 0 ? (
           <Tooltip
             content={
@@ -723,22 +865,22 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
           >
             <div className="flex flex-col items-center gap-0.5 cursor-help">
               {/* Line value - primary */}
-              <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 tabular-nums">
+              <span className="text-xs md:text-sm font-semibold text-neutral-700 dark:text-neutral-200 tabular-nums">
                 {bestLine.actualLine ?? bestLine.line}+
               </span>
               {/* Odds + Edge - secondary */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 md:gap-1">
                 {bestBook?.image?.light && (
-                  <img src={bestBook.image.light} alt={bestBook.name} className="w-3.5 h-3.5 rounded-sm opacity-80" />
+                  <img src={bestBook.image.light} alt={bestBook.name} className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm opacity-80" />
                 )}
-                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums font-medium">
+                <span className="text-[9px] md:text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums font-medium">
                   {formatOdds(bestLine.bestOdds)}
                 </span>
               </div>
             </div>
           </Tooltip>
         ) : (
-          <span className="text-xs text-neutral-300 dark:text-neutral-600">—</span>
+          <span className="text-[10px] md:text-xs text-neutral-300 dark:text-neutral-600">—</span>
         )}
       </td>
 
@@ -1050,7 +1192,7 @@ function ThresholdCell({
       >
         <div
           className={cn(
-            "w-full h-full tabular-nums transition-all flex flex-col items-center justify-center min-h-[72px] relative",
+            "w-full h-full tabular-nums transition-all flex flex-col items-center justify-center min-h-[56px] md:min-h-[72px] relative",
             // Background = HIT RATE ONLY (heat map)
             getHitRateBackground(threshold.hitRate),
             // Dead zone fading
@@ -1071,18 +1213,18 @@ function ThresholdCell({
 
           {/* Hit Rate % - PRIMARY (centered, hero number) */}
           {threshold.hitRate !== null ? (
-            <span className="text-sm font-medium leading-none text-white dark:text-white drop-shadow-sm">
+            <span className="text-xs md:text-sm font-medium leading-none text-white dark:text-white drop-shadow-sm">
               {threshold.hitRate}%
             </span>
           ) : (
-            <span className="text-neutral-400 dark:text-neutral-500 text-[10px]">—</span>
+            <span className="text-neutral-400 dark:text-neutral-500 text-[9px] md:text-[10px]">—</span>
           )}
 
           {/* Odds - SECONDARY (more visible, below hit rate) */}
           {hasOdds && !isDead && (
-            <div className="flex items-center gap-1 mt-1">
-              {bookLogo && <img src={bookLogo} alt={threshold.bestBook || ""} className="w-3.5 h-3.5 rounded-sm" />}
-              <span className="text-[10px] text-white/80 dark:text-white/75 font-medium tabular-nums">
+            <div className="flex items-center gap-0.5 md:gap-1 mt-0.5 md:mt-1">
+              {bookLogo && <img src={bookLogo} alt={threshold.bestBook || ""} className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm" />}
+              <span className="text-[9px] md:text-[10px] text-white/80 dark:text-white/75 font-medium tabular-nums">
                 {formatOdds(threshold.bestOdds)}
               </span>
             </div>
@@ -1095,7 +1237,9 @@ function ThresholdCell({
         <div 
           ref={dropdownRef}
           className={cn(
-            "absolute left-1/2 -translate-x-1/2 z-[60] min-w-[280px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            "absolute z-[60] min-w-[240px] md:min-w-[280px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800",
+            // Position: center on desktop, right-aligned on mobile to avoid overflow
+            "left-auto right-0 md:left-1/2 md:-translate-x-1/2 md:right-auto",
             dropdownPosition === "below" ? "top-full mt-1" : "bottom-full mb-1"
           )}
         >

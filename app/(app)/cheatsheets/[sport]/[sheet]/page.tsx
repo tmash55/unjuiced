@@ -20,12 +20,15 @@ import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
 import { HitRateMatrix } from "@/components/hit-rate-matrix";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { InjuryImpactGlossary } from "@/components/cheat-sheet/injury-impact-glossary";
+import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from "@/components/nba/dvp-table/dvp-filters";
+import { DvpTable } from "@/components/nba/dvp-table/dvp-table";
+import { useDvpRankings, DvpSampleSize } from "@/hooks/use-dvp-rankings";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
-import { Lock, ArrowRight, ChevronDown, HelpCircle } from "lucide-react";
+import { Lock, ArrowRight, ChevronDown, HelpCircle, LayoutGrid, BarChart3, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Gating constants
@@ -88,7 +91,7 @@ function MobileUpgradeBanner() {
 }
 
 const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -110,6 +113,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "injury-impact": {
     title: "Injury Impact",
     description: "Props affected by injuries and lineup changes",
+  },
+  "dvp": {
+    title: "Defense vs Position",
+    description: "Team defensive rankings by position - Find the best matchups",
   },
 };
 
@@ -150,6 +157,10 @@ export default function CheatSheetPage({
   if (sheet === "injury-impact") {
     return <InjuryImpactSheet sport={sport} sheet={sheet} />;
   }
+  
+  if (sheet === "dvp") {
+    return <DvpSheet sport={sport} sheet={sheet} />;
+  }
 
   // Other sheets coming soon
   return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
@@ -187,6 +198,139 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
       subtitle={sheetInfo.description}
     >
       <AltHitMatrix sport={sport} />
+    </AppPageLayout>
+  );
+}
+
+type DvpDisplayMode = "values" | "ranks";
+
+// View mode options for DvP
+const DVP_VIEW_MODES: { value: DvpViewMode; label: string; icon: React.ReactNode }[] = [
+  { value: "basic", label: "Basic", icon: <LayoutGrid className="w-4 h-4" /> },
+  { value: "advanced", label: "Advanced", icon: <BarChart3 className="w-4 h-4" /> },
+  { value: "trends", label: "Trends", icon: <TrendingUp className="w-4 h-4" /> },
+];
+
+function DvpSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  const [selectedPosition, setSelectedPosition] = useState<Position>('PG');
+  const [viewMode, setViewMode] = useState<DvpViewMode>('basic');
+  const [sampleSize, setSampleSize] = useState<DvpSampleSize>('season');
+  const [displayMode, setDisplayMode] = useState<DvpDisplayMode>('values');
+  const [trendBaseline, setTrendBaseline] = useState<TrendCompareBaseline>('season');
+  const [trendStat, setTrendStat] = useState<TrendStat>('pts');
+  const [season, setSeason] = useState('2025-26');
+
+  // Fetch data using the hook
+  const { teams, isLoading } = useDvpRankings({
+    position: selectedPosition,
+    season: season,
+  });
+
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+        {/* Mobile View Mode Tabs - shown above filters on mobile only */}
+        <div className="md:hidden flex items-center justify-center p-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
+          <div className="flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            {DVP_VIEW_MODES.map((mode) => (
+              <button
+                key={mode.value}
+                onClick={() => setViewMode(mode.value)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                  viewMode === mode.value
+                    ? "bg-white dark:bg-neutral-700 text-brand shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                )}
+              >
+                {mode.icon}
+                <span>{mode.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filters Bar */}
+        <DvpFilters 
+          position={selectedPosition}
+          onPositionChange={setSelectedPosition}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          sampleSize={sampleSize}
+          onSampleSizeChange={setSampleSize}
+          trendBaseline={trendBaseline}
+          onTrendBaselineChange={setTrendBaseline}
+          trendStat={trendStat}
+          onTrendStatChange={setTrendStat}
+          season={season}
+          onSeasonChange={setSeason}
+        />
+        
+        {/* Legend & Display Mode Bar */}
+        <div className="px-4 py-2.5 border-b border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-neutral-50 to-neutral-100/50 dark:from-neutral-800/50 dark:to-neutral-800/30">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-[10px]">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                <span className="text-neutral-600 dark:text-neutral-400">Tough <span className="text-neutral-400 dark:text-neutral-500">(1-10)</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm bg-neutral-400" />
+                <span className="text-neutral-600 dark:text-neutral-400">Neutral <span className="text-neutral-400 dark:text-neutral-500">(11-20)</span></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                <span className="text-neutral-600 dark:text-neutral-400">Good <span className="text-neutral-400 dark:text-neutral-500">(21-30)</span></span>
+              </div>
+            </div>
+
+            {/* Display Mode Toggle */}
+            <div className="flex items-center gap-1 bg-neutral-200 dark:bg-neutral-700 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setDisplayMode("values")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                  displayMode === "values"
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                )}
+              >
+                Averages
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode("ranks")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                  displayMode === "ranks"
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                )}
+              >
+                Ranks
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Table Content */}
+        <DvpTable 
+          data={teams}
+          viewMode={viewMode}
+          sampleSize={sampleSize}
+          displayMode={displayMode}
+          trendBaseline={trendBaseline}
+          trendStat={trendStat}
+          isLoading={isLoading}
+          onTeamClick={(teamId) => console.log("Clicked team:", teamId)}
+        />
+      </div>
     </AppPageLayout>
   );
 }

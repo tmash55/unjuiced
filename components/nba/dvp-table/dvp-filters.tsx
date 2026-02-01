@@ -233,8 +233,8 @@ export function DvpFilters({
           )}
         </div>
 
-        {/* Right Side: View Modes */}
-        <div className="flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-x-auto">
+        {/* Right Side: View Modes - hidden on mobile (shown separately above) */}
+        <div className="hidden md:flex items-center p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-x-auto">
           {VIEW_MODES.map((mode) => (
             <button
               key={mode.value}

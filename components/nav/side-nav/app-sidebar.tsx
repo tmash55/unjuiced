@@ -131,7 +131,7 @@ const researchLinks: NavItem[] = [
       { label: "Hit Rates", href: "/cheatsheets/nba/hit-rates" },
       { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
       { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
-      { label: "Defense vs Position", href: "/stats/nba/defense-vs-position" },
+      { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
   },
 ]
