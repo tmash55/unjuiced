@@ -24,9 +24,9 @@ function formatOdds(price: number | undefined | null): string {
   return price >= 0 ? `+${price}` : `${price}`;
 }
 
-// Format line (e.g., o4.5, u4.5)
+// Format line (e.g., o4.5, u4.5) - returns empty for moneyline/yes-no (line = 0)
 function formatLine(side: "over" | "under", line: number | undefined): string {
-  if (line === undefined) return "";
+  if (line === undefined || line === 0) return "";
   const prefix = side === "over" ? "o" : "u";
   return `${prefix}${line}`;
 }
@@ -207,7 +207,11 @@ export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }:
                     {item.entity.name}
                   </h3>
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {side === "over" ? "Over" : "Under"} {bestOdds?.line} • {bookOddsList.length} sportsbook{bookOddsList.length !== 1 ? "s" : ""}
+                    {/* Hide "Over/Under 0" for moneyline/yes-no markets */}
+                    {bestOdds?.line !== 0 && bestOdds?.line !== undefined && (
+                      <>{side === "over" ? "Over" : "Under"} {bestOdds.line} • </>
+                    )}
+                    {bookOddsList.length} sportsbook{bookOddsList.length !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -296,19 +300,21 @@ export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }:
                               </span>
                             )}
                           </div>
-                          {book.link && (
-                            <span className="text-xs text-neutral-400 flex items-center gap-1">
-                              <ExternalLink className="w-3 h-3" />
-                              Open in app
-                            </span>
-                          )}
+                          {/* Always reserve space for "Open in app" to maintain alignment */}
+                          <span className={cn(
+                            "text-xs flex items-center gap-1 h-4",
+                            (book.link || book.mobileLink) ? "text-neutral-400" : "text-transparent"
+                          )}>
+                            <ExternalLink className="w-3 h-3" />
+                            Open in app
+                          </span>
                         </div>
                       </div>
 
                       {/* Right: Odds */}
                       <div className="flex items-center gap-2">
                         <div className={cn(
-                          "px-3 py-2 rounded-xl text-right",
+                          "px-3 py-2 rounded-xl text-right min-w-[72px]",
                           book.isBest
                             ? "bg-emerald-100 dark:bg-emerald-900/30"
                             : "bg-neutral-100 dark:bg-neutral-800"
@@ -321,14 +327,18 @@ export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }:
                           )}>
                             {formatOdds(book.price)}
                           </div>
-                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                            {formatLine(side, book.line)}
-                          </div>
+                          {formatLine(side, book.line) && (
+                            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                              {formatLine(side, book.line)}
+                            </div>
+                          )}
                         </div>
 
-                        {(book.link || book.mobileLink) && (
-                          <ChevronRight className="w-5 h-5 text-neutral-400" />
-                        )}
+                        {/* Always render chevron to maintain alignment, but invisible when no link */}
+                        <ChevronRight className={cn(
+                          "w-5 h-5",
+                          (book.link || book.mobileLink) ? "text-neutral-400" : "text-transparent"
+                        )} />
                       </div>
                     </button>
                   ))}

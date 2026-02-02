@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { X, ChevronRight, RefreshCw } from "lucide-react";
+import React, { useMemo, useState, useCallback } from "react";
+import { X, ChevronRight, RefreshCw, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
-import type { OddsScreenItem } from "../types/odds-screen-types";
+import type { OddsScreenItem, OddsScreenEvent } from "../types/odds-screen-types";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
 
 interface AlternatesSheetProps {
   item: OddsScreenItem;
   sport: string;
   market: string;
+  event?: OddsScreenEvent;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -89,13 +91,16 @@ function getMarketLabel(market: string): string {
   return labels[market] || market.replace("player_", "").replace(/_/g, " ");
 }
 
-export function AlternatesSheet({ item, sport, market, isOpen, onClose }: AlternatesSheetProps) {
+export function AlternatesSheet({ item, sport, market, event, isOpen, onClose }: AlternatesSheetProps) {
   const [selectedLine, setSelectedLine] = useState<{ line: AlternateLine; side: "over" | "under" } | null>(null);
   const showLogos = hasTeamLogos(sport);
 
   // Get player ID from entity
   const playerId = item.entity?.id;
-  const eventId = item.event?.id;
+  const eventId = item.event?.id || event?.id;
+
+  // Favorites hook
+  const { toggleFavorite, isFavorited, isToggling } = useFavorites();
 
   // Fetch alternates data
   const { data, isLoading, error } = useQuery<AlternatesResponse>({
@@ -121,6 +126,67 @@ export function AlternatesSheet({ item, sport, market, isOpen, onClose }: Altern
   }, [data]);
 
   const primaryLine = data?.primary_ln;
+
+  // Build favorite params for a specific line and side
+  const buildFavoriteParams = useCallback((line: AlternateLine, side: "over" | "under"): AddFavoriteParams | null => {
+    if (!eventId || !item.entity?.name) return null;
+
+    const best = side === "over" ? line.best?.over : line.best?.under;
+    if (!best) return null;
+
+    // Build books snapshot from the line's books data
+    const booksSnapshot: Record<string, BookSnapshot> = {};
+    Object.entries(line.books).forEach(([bookId, bookData]) => {
+      const sideData = bookData[side];
+      if (sideData) {
+        booksSnapshot[bookId] = {
+          price: sideData.price,
+          u: sideData.u,
+          m: sideData.m,
+          sgp: sideData.sgp,
+        };
+      }
+    });
+
+    return {
+      type: "player",
+      sport,
+      event_id: eventId,
+      home_team: event?.homeTeam || item.event?.homeTeam || null,
+      away_team: event?.awayTeam || item.event?.awayTeam || null,
+      player_id: playerId || null,
+      player_name: item.entity.name,
+      player_team: item.entity.team || null,
+      market,
+      side,
+      line: line.ln,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: best.price,
+      best_book_at_save: best.bk,
+      source: "alternates-sheet",
+    };
+  }, [eventId, item, sport, market, playerId, event]);
+
+  // Check if a specific line/side is favorited
+  const checkIsFavorited = useCallback((line: AlternateLine, side: "over" | "under"): boolean => {
+    return isFavorited({
+      event_id: eventId || "",
+      type: "player",
+      player_id: playerId,
+      market,
+      line: line.ln,
+      side,
+    });
+  }, [eventId, market, playerId, isFavorited]);
+
+  // Handle favorite toggle
+  const handleFavoriteToggle = useCallback((e: React.MouseEvent, line: AlternateLine, side: "over" | "under") => {
+    e.stopPropagation();
+    const params = buildFavoriteParams(line, side);
+    if (params) {
+      toggleFavorite(params);
+    }
+  }, [buildFavoriteParams, toggleFavorite]);
 
   // Handle clicking on a line's odds
   const handleLineClick = (line: AlternateLine, side: "over" | "under") => {
@@ -243,79 +309,117 @@ export function AlternatesSheet({ item, sport, market, isOpen, onClose }: Altern
                             )}
                           </div>
 
-                          {/* Over/Under Buttons */}
+                          {/* Over/Under Buttons with Hearts on Left */}
                           <div className="flex gap-2">
-                            {/* Over Button */}
-                            <button
-                              onClick={() => handleLineClick(line, "over")}
-                              disabled={!bestOver}
-                              className={cn(
-                                "flex-1 flex items-center justify-between px-4 py-3 rounded-xl transition-all active:scale-[0.98]",
-                                bestOver
-                                  ? isExpanded && selectedLine?.side === "over"
-                                    ? "bg-emerald-100 dark:bg-emerald-900/40 ring-2 ring-emerald-500"
-                                    : "bg-emerald-50 dark:bg-emerald-900/20"
-                                  : "bg-neutral-50 dark:bg-neutral-800/50 opacity-50"
-                              )}
-                            >
-                              <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                Over
-                              </span>
+                            {/* Favorite + Over Button */}
+                            <div className="flex-1 flex items-center gap-1.5">
                               {bestOver && (
-                                <div className="flex items-center gap-1.5">
-                                  {getBookLogo(bestOver.bk) && (
-                                    <img
-                                      src={getBookLogo(bestOver.bk)!}
-                                      alt={bestOver.bk}
-                                      className="w-4 h-4 object-contain opacity-60"
-                                    />
+                                <button
+                                  onClick={(e) => handleFavoriteToggle(e, line, "over")}
+                                  disabled={isToggling}
+                                  className={cn(
+                                    "p-2 transition-all active:scale-[0.95]",
+                                    checkIsFavorited(line, "over")
+                                      ? "text-red-500"
+                                      : "text-neutral-300 dark:text-neutral-600 hover:text-red-400"
                                   )}
-                                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                                    {formatOdds(bestOver.price)}
-                                  </span>
-                                  <ChevronRight className={cn(
-                                    "w-4 h-4 text-emerald-400 transition-transform",
-                                    isExpanded && selectedLine?.side === "over" && "rotate-90"
+                                >
+                                  <Heart className={cn(
+                                    "w-5 h-5",
+                                    checkIsFavorited(line, "over") && "fill-current"
                                   )} />
-                                </div>
+                                </button>
                               )}
-                            </button>
+                              <button
+                                onClick={() => handleLineClick(line, "over")}
+                                disabled={!bestOver}
+                                className={cn(
+                                  "flex-1 flex items-center justify-between px-3 py-3 rounded-xl transition-all active:scale-[0.98]",
+                                  bestOver
+                                    ? isExpanded && selectedLine?.side === "over"
+                                      ? "bg-emerald-100 dark:bg-emerald-900/40 ring-2 ring-emerald-500"
+                                      : "bg-emerald-50 dark:bg-emerald-900/20"
+                                    : "bg-neutral-50 dark:bg-neutral-800/50 opacity-50"
+                                )}
+                              >
+                                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                                  O
+                                </span>
+                                {bestOver && (
+                                  <div className="flex items-center gap-1.5">
+                                    {getBookLogo(bestOver.bk) && (
+                                      <img
+                                        src={getBookLogo(bestOver.bk)!}
+                                        alt={bestOver.bk}
+                                        className="w-4 h-4 object-contain"
+                                      />
+                                    )}
+                                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                                      {formatOdds(bestOver.price)}
+                                    </span>
+                                    <ChevronRight className={cn(
+                                      "w-4 h-4 text-emerald-400 transition-transform",
+                                      isExpanded && selectedLine?.side === "over" && "rotate-90"
+                                    )} />
+                                  </div>
+                                )}
+                              </button>
+                            </div>
 
-                            {/* Under Button */}
-                            <button
-                              onClick={() => handleLineClick(line, "under")}
-                              disabled={!bestUnder}
-                              className={cn(
-                                "flex-1 flex items-center justify-between px-4 py-3 rounded-xl transition-all active:scale-[0.98]",
-                                bestUnder
-                                  ? isExpanded && selectedLine?.side === "under"
-                                    ? "bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500"
-                                    : "bg-blue-50 dark:bg-blue-900/20"
-                                  : "bg-neutral-50 dark:bg-neutral-800/50 opacity-50"
-                              )}
-                            >
-                              <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                Under
-                              </span>
+                            {/* Under Button + Favorite (heart on right) */}
+                            <div className="flex-1 flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleLineClick(line, "under")}
+                                disabled={!bestUnder}
+                                className={cn(
+                                  "flex-1 flex items-center justify-between px-3 py-3 rounded-xl transition-all active:scale-[0.98]",
+                                  bestUnder
+                                    ? isExpanded && selectedLine?.side === "under"
+                                      ? "bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500"
+                                      : "bg-blue-50 dark:bg-blue-900/20"
+                                    : "bg-neutral-50 dark:bg-neutral-800/50 opacity-50"
+                                )}
+                              >
+                                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                                  U
+                                </span>
+                                {bestUnder && (
+                                  <div className="flex items-center gap-1.5">
+                                    {getBookLogo(bestUnder.bk) && (
+                                      <img
+                                        src={getBookLogo(bestUnder.bk)!}
+                                        alt={bestUnder.bk}
+                                        className="w-4 h-4 object-contain"
+                                      />
+                                    )}
+                                    <span className="text-sm font-bold text-blue-700 dark:text-blue-400 tabular-nums">
+                                      {formatOdds(bestUnder.price)}
+                                    </span>
+                                    <ChevronRight className={cn(
+                                      "w-4 h-4 text-blue-400 transition-transform",
+                                      isExpanded && selectedLine?.side === "under" && "rotate-90"
+                                    )} />
+                                  </div>
+                                )}
+                              </button>
                               {bestUnder && (
-                                <div className="flex items-center gap-1.5">
-                                  {getBookLogo(bestUnder.bk) && (
-                                    <img
-                                      src={getBookLogo(bestUnder.bk)!}
-                                      alt={bestUnder.bk}
-                                      className="w-4 h-4 object-contain opacity-60"
-                                    />
+                                <button
+                                  onClick={(e) => handleFavoriteToggle(e, line, "under")}
+                                  disabled={isToggling}
+                                  className={cn(
+                                    "p-2 transition-all active:scale-[0.95]",
+                                    checkIsFavorited(line, "under")
+                                      ? "text-red-500"
+                                      : "text-neutral-300 dark:text-neutral-600 hover:text-red-400"
                                   )}
-                                  <span className="text-sm font-bold text-blue-700 dark:text-blue-400 tabular-nums">
-                                    {formatOdds(bestUnder.price)}
-                                  </span>
-                                  <ChevronRight className={cn(
-                                    "w-4 h-4 text-blue-400 transition-transform",
-                                    isExpanded && selectedLine?.side === "under" && "rotate-90"
+                                >
+                                  <Heart className={cn(
+                                    "w-5 h-5",
+                                    checkIsFavorited(line, "under") && "fill-current"
                                   )} />
-                                </div>
+                                </button>
                               )}
-                            </button>
+                            </div>
                           </div>
                         </div>
 

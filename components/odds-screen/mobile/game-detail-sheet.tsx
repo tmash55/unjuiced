@@ -158,33 +158,37 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
               <div className="w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-700" />
             </div>
 
-            {/* Game Header */}
+            {/* Game Header - Enhanced design */}
             <div className="px-5 pb-4 border-b border-neutral-200 dark:border-neutral-800">
               <div className="flex items-center justify-between">
-                {/* Teams */}
-                <div className="flex items-center gap-3">
+                {/* Teams - Improved hierarchy */}
+                <div className="flex items-center gap-4">
                   {showLogos && (
-                    <div className="flex items-center gap-1">
-                      <img
-                        src={getTeamLogoUrl(game.awayTeam, sport)}
-                        alt={game.awayTeam}
-                        className="w-8 h-8 object-contain"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
-                      <span className="text-neutral-400 dark:text-neutral-500 text-sm">@</span>
-                      <img
-                        src={getTeamLogoUrl(game.homeTeam, sport)}
-                        alt={game.homeTeam}
-                        className="w-8 h-8 object-contain"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={getTeamLogoUrl(game.awayTeam, sport)}
+                          alt={game.awayTeam}
+                          className="w-7 h-7 object-contain"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </div>
+                      <span className="text-neutral-400 dark:text-neutral-500 text-xs font-medium">@</span>
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={getTeamLogoUrl(game.homeTeam, sport)}
+                          alt={game.homeTeam}
+                          className="w-7 h-7 object-contain"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </div>
                     </div>
                   )}
                   <div>
-                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                    <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
                       {game.awayTeam} @ {game.homeTeam}
                     </h3>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
                       {formatDate(game.startTime)} • {formatTime(game.startTime)}
                     </p>
                   </div>
@@ -289,6 +293,7 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
               item={selectedAlternates}
               sport={sport}
               market={selectedMarket}
+              event={game}
               isOpen={!!selectedAlternates}
               onClose={() => setSelectedAlternates(null)}
             />
@@ -692,39 +697,58 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
 
         return (
           <div key={item.id} className="p-4">
-            {/* Player Header */}
+            {/* Player Header - Enhanced hierarchy */}
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {showLogos && playerTeam && (
-                  <img
-                    src={getTeamLogoUrl(playerTeam, sport)}
-                    alt={playerTeam}
-                    className="w-5 h-5 object-contain"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
+                  <div className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={getTeamLogoUrl(playerTeam, sport)}
+                      alt={playerTeam}
+                      className="w-6 h-6 object-contain"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
                 )}
-                <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                  {item.entity.name}
-                </span>
-                {item.entity.details && (
-                  <span className="text-sm text-neutral-400">
-                    {item.entity.details}
+                <div className="flex flex-col">
+                  <span className="text-base font-bold text-neutral-900 dark:text-white leading-tight">
+                    {item.entity.name}
                   </span>
-                )}
+                  {item.entity.details && (
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {item.entity.details}
+                    </span>
+                  )}
+                </div>
               </div>
               {/* Alt Lines Button */}
               <button
                 onClick={() => onAltTap(item)}
-                className="px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors active:scale-[0.95]"
+                className="px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-full hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors active:scale-[0.95]"
               >
                 Alt Lines
               </button>
             </div>
 
-            {/* Odds Buttons with Favorite Hearts */}
+            {/* Odds Buttons with Favorite Hearts on Left */}
             <div className="flex gap-2">
-              {/* Over Button + Heart */}
+              {/* Heart + Over Button */}
               <div className="flex-1 flex items-center gap-1.5">
+                {overOdds && (
+                  <button
+                    onClick={(e) => handleFavoriteToggle(item, "over", e)}
+                    disabled={isToggling}
+                    className={cn(
+                      "p-2 transition-all active:scale-[0.95]",
+                      isOverFavorited
+                        ? "text-red-500"
+                        : "text-neutral-300 dark:text-neutral-600 hover:text-red-400",
+                      isToggling && "opacity-50"
+                    )}
+                  >
+                    <Heart className={cn("w-5 h-5", isOverFavorited && "fill-current")} />
+                  </button>
+                )}
                 <button
                   onClick={() => onOddsTap(item, "over")}
                   disabled={!overOdds}
@@ -739,7 +763,7 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
                     O {overOdds?.line ?? primaryOverLine ?? "—"}
                   </span>
                   {overOdds && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {overOdds.book && getBookLogo(overOdds.book) && (
                         <img
                           src={getBookLogo(overOdds.book)!}
@@ -753,24 +777,9 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
                     </div>
                   )}
                 </button>
-                {overOdds && (
-                  <button
-                    onClick={(e) => handleFavoriteToggle(item, "over", e)}
-                    disabled={isToggling}
-                    className={cn(
-                      "p-2 rounded-lg transition-all active:scale-[0.95]",
-                      isOverFavorited
-                        ? "text-red-500"
-                        : "text-neutral-300 dark:text-neutral-600 hover:text-red-400",
-                      isToggling && "opacity-50"
-                    )}
-                  >
-                    <Heart className={cn("w-4 h-4", isOverFavorited && "fill-current")} />
-                  </button>
-                )}
               </div>
 
-              {/* Under Button + Heart */}
+              {/* Under Button + Heart (heart on right) */}
               <div className="flex-1 flex items-center gap-1.5">
                 <button
                   onClick={() => onOddsTap(item, "under")}
@@ -786,7 +795,7 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
                     U {underOdds?.line ?? primaryUnderLine ?? "—"}
                   </span>
                   {underOdds && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {underOdds.book && getBookLogo(underOdds.book) && (
                         <img
                           src={getBookLogo(underOdds.book)!}
@@ -805,14 +814,14 @@ function PlayerPropsContent({ items, game, sport, selectedMarket, onOddsTap, onA
                     onClick={(e) => handleFavoriteToggle(item, "under", e)}
                     disabled={isToggling}
                     className={cn(
-                      "p-2 rounded-lg transition-all active:scale-[0.95]",
+                      "p-2 transition-all active:scale-[0.95]",
                       isUnderFavorited
                         ? "text-red-500"
                         : "text-neutral-300 dark:text-neutral-600 hover:text-red-400",
                       isToggling && "opacity-50"
                     )}
                   >
-                    <Heart className={cn("w-4 h-4", isUnderFavorited && "fill-current")} />
+                    <Heart className={cn("w-5 h-5", isUnderFavorited && "fill-current")} />
                   </button>
                 )}
               </div>

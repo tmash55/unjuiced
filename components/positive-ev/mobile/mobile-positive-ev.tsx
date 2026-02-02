@@ -259,9 +259,8 @@ export function MobilePositiveEV({
         <div className="px-4 py-2.5 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-5 h-5 text-brand" />
               <h1 className="text-lg font-bold text-neutral-900 dark:text-white">
-                +EV Finder
+                Positive EV
               </h1>
             </div>
             {/* Last Updated - Compact */}

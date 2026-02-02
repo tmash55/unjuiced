@@ -53,9 +53,9 @@ const benefits: ToolBenefit[] = [
 export default function PositiveEvPreview() {
   return (
     <ToolPreviewLayout
-      title="Positive EV"
+      title="Positive Expected Value (EV)"
       tagline="Data-driven edges with expected ROI on every bet"
-      description="Make smarter bets with mathematically proven edges. Our Positive EV tool compares every line against sharp books to show you exactly how much value you're getting—and where to find the best prices."
+      description="Make smarter bets with mathematically proven edges. Our Positive Expected Value tool compares every line against sharp books to show you exactly how much value you're getting—and where to find the best prices."
       features={features}
       benefits={benefits}
       ctaText="Find +EV Bets"

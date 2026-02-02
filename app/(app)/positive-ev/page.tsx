@@ -931,7 +931,7 @@ export default function PositiveEVPage() {
   if (planLoading) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <LoadingState message="Loading Positive EV Finder..." />
+        <LoadingState message="Loading Positive Expected Value (EV) Finder..." />
       </div>
     );
   }
@@ -1143,7 +1143,7 @@ export default function PositiveEVPage() {
 
   return (
     <AppPageLayout
-      title="Positive EV"
+      title="Positive Expected Value (EV)"
       subtitle={subtitle}
       contextBar={contextBar}
       stickyContextBar={true}
