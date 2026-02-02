@@ -1,6 +1,7 @@
 "use client";
 
 import { SignUpEmail } from "@/components/auth/signup-email";
+import { GoogleButton } from "@/components/auth/google-button";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -18,6 +19,17 @@ export const SignUpForm = () => {
           Create your Unjuiced account
         </h1>
 
+        {/* Google OAuth */}
+        <GoogleButton />
+
+        {/* Divider */}
+        <div className="relative flex items-center">
+          <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
+          <span className="mx-4 flex-shrink text-sm text-neutral-500 dark:text-neutral-400">or</span>
+          <div className="flex-grow border-t border-neutral-200 dark:border-neutral-700" />
+        </div>
+
+        {/* Email/Password Form */}
         <SignUpEmail />
 
         {/* Sign in link */}

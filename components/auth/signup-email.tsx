@@ -63,8 +63,8 @@ export const SignUpEmail = () => {
           
           // Build the callback URL - pass redirectTo for cross-subdomain redirect
           const callbackUrl = redirectTo 
-            ? `${window.location.origin}/api/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
-            : `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextUrl)}`;
+            ? `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+            : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`;
           
           const { data: signUpData, error } = await supabase.auth.signUp({
             email: data.email,

@@ -89,8 +89,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   
-  // Game filter state (multi-select)
-  const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]);
+  // Game filter state (multi-select) - null means not yet initialized
+  const [selectedGameIds, setSelectedGameIds] = useState<string[] | null>(null);
   
   // Desktop sort state
   const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>(
@@ -121,30 +121,37 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Get game data
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
   
-  // Default mobile to today's games on first load
+  // Default to today's games on first load (both desktop and mobile)
   useEffect(() => {
-    if (mobileSelectedGameIds === null && allGames && allGames.length > 0) {
+    if (allGames && allGames.length > 0) {
       const now = new Date();
       const etOptions: Intl.DateTimeFormatOptions = { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' };
       const todayET = now.toLocaleDateString('en-CA', etOptions);
       const todayGames = allGames.filter(g => g.game_date === todayET);
+      const todayGameIds = todayGames.length > 0 ? todayGames.map(g => g.game_id) : [];
       
-      if (todayGames.length > 0) {
-        setMobileSelectedGameIds(todayGames.map(g => g.game_id));
-      } else {
-        setMobileSelectedGameIds([]);
+      // Initialize desktop if not yet set
+      if (selectedGameIds === null) {
+        setSelectedGameIds(todayGameIds);
+      }
+      
+      // Initialize mobile if not yet set
+      if (mobileSelectedGameIds === null) {
+        setMobileSelectedGameIds(todayGameIds);
       }
     }
-  }, [allGames, mobileSelectedGameIds]);
+  }, [allGames, selectedGameIds, mobileSelectedGameIds]);
   
+  // Effective game IDs (fallback to empty array if not yet initialized)
+  const effectiveDesktopGameIds = selectedGameIds ?? [];
   const effectiveMobileGameIds = mobileSelectedGameIds ?? [];
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
 
   // Update selectedDate when selectedGameIds changes
   useEffect(() => {
-    if (selectedGameIds.length > 0) {
+    if (effectiveDesktopGameIds.length > 0) {
       const selectedGames = allGames.filter(g => 
-        selectedGameIds.includes(String(g.game_id))
+        effectiveDesktopGameIds.includes(String(g.game_id))
       );
       const uniqueDates = new Set(selectedGames.map(g => g.game_date));
       
@@ -158,7 +165,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     } else {
       setSelectedDate(undefined);
     }
-  }, [selectedGameIds, allGames]);
+  }, [effectiveDesktopGameIds, allGames]);
   
   // Player drill-down state
   const [selectedPlayer, setSelectedPlayer] = useState<HitRateProfile | null>(null);
@@ -171,9 +178,19 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [visibleRowCount, setVisibleRowCount] = useState(TABLE_PAGE_SIZE);
 
   const toggleGame = useCallback((gameId: string) => {
-    setSelectedGameIds((prev) =>
-      prev.includes(gameId) ? prev.filter((id) => id !== gameId) : [...prev, gameId]
-    );
+    const normalizedId = normalizeGameId(gameId);
+    setSelectedGameIds((prev) => {
+      const currentIds = prev ?? [];
+      // Check if already selected (compare normalized)
+      const isCurrentlySelected = currentIds.some(id => normalizeGameId(id) === normalizedId);
+      if (isCurrentlySelected) {
+        // Remove it
+        return currentIds.filter(id => normalizeGameId(id) !== normalizedId);
+      } else {
+        // Add it
+        return [...currentIds, normalizedId];
+      }
+    });
   }, []);
 
   const selectAllGames = useCallback(() => {
@@ -218,7 +235,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Effective state based on viewport
   const effectiveSearch = isMobile ? debouncedMobileSearch : debouncedSearch;
-  const effectiveGameIds = isMobile ? (mobileSelectedGameIds ?? []) : selectedGameIds;
+  const effectiveGameIds = isMobile ? effectiveMobileGameIds : effectiveDesktopGameIds;
   const effectiveSortChanged = isMobile 
     ? mobileSortField !== "l10Pct_desc" 
     : (sortField !== "l10Pct" || sortDirection !== "desc");
@@ -312,8 +329,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Pre-compute normalized selected game IDs
   const normalizedSelectedGameIds = useMemo(() => 
-    selectedGameIds.map(normalizeGameId),
-    [selectedGameIds]
+    effectiveDesktopGameIds.map(normalizeGameId),
+    [effectiveDesktopGameIds]
   );
 
   // Pre-compute Set of started game IDs
@@ -445,7 +462,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         gamesFilter={
           <GamesFilterDropdown
             games={allGames ?? []}
-            selectedGameIds={selectedGameIds}
+            selectedGameIds={effectiveDesktopGameIds}
             onToggleGame={toggleGame}
             onSelectAll={selectAllGames}
           />

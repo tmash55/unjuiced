@@ -59,6 +59,7 @@ export const AUTH_ROUTES = [
   '/register', 
   '/forgot-password',
   '/auth/callback',
+  '/api/auth/callback',
   '/auth/reset-password',
 ];
 

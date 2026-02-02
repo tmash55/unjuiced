@@ -119,20 +119,26 @@ export function GamesFilterDropdown({
     return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
   }, [games]);
 
+  // Normalize selected game IDs for comparison
+  const normalizedSelectedIds = useMemo(() => 
+    selectedGameIds.map(id => normalizeGameId(id)),
+    [selectedGameIds]
+  );
+
   // For single-select mode, determine if a game is selected
   const isSelected = (gameId: string) => {
     if (singleSelect) {
       return selectedGameId === gameId;
     }
-    if (selectedGameIds.length === 0) return false; // All games = nothing specifically selected
-    return selectedGameIds.includes(normalizeGameId(gameId));
+    if (normalizedSelectedIds.length === 0) return false; // All games = nothing specifically selected
+    return normalizedSelectedIds.includes(normalizeGameId(gameId));
   };
 
   // Determine "all games" state
   const allGamesSelected = singleSelect 
     ? selectedGameId === null 
-    : selectedGameIds.length === 0;
-  const selectedCount = singleSelect ? (selectedGameId ? 1 : 0) : selectedGameIds.length;
+    : normalizedSelectedIds.length === 0;
+  const selectedCount = singleSelect ? (selectedGameId ? 1 : 0) : normalizedSelectedIds.length;
 
   // Handle clearing selection (select all games)
   const handleSelectAll = () => {
@@ -160,12 +166,12 @@ export function GamesFilterDropdown({
       const game = games.find(g => normalizeGameId(g.game_id) === selectedGameId);
       if (game) return `${game.away_team_tricode} @ ${game.home_team_tricode}`;
     }
-    if (selectedCount === 1 && selectedGameIds.length > 0) {
-      const game = games.find(g => normalizeGameId(g.game_id) === selectedGameIds[0]);
+    if (selectedCount === 1 && normalizedSelectedIds.length > 0) {
+      const game = games.find(g => normalizeGameId(g.game_id) === normalizedSelectedIds[0]);
       if (game) return `${game.away_team_tricode} @ ${game.home_team_tricode}`;
     }
     return `${selectedCount} Games`;
-  }, [allGamesSelected, selectedCount, selectedGameIds, selectedGameId, games, singleSelect]);
+  }, [allGamesSelected, selectedCount, normalizedSelectedIds, selectedGameId, games, singleSelect]);
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

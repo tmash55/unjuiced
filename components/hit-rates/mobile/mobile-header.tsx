@@ -20,6 +20,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeGameId } from "@/components/hit-rates/games-filter-dropdown";
 
 const MARKET_OPTIONS = [
   { value: "all", label: "All" },
@@ -601,11 +602,25 @@ export function MobileHeader({
 
   const closeDropdown = () => setOpenDropdown(null);
   
+  // Normalize selected game IDs for comparison
+  const normalizedSelectedGameIds = useMemo(() => 
+    selectedGameIds.map(id => normalizeGameId(id)),
+    [selectedGameIds]
+  );
+  
+  // Helper to check if a game is selected
+  const isGameSelected = (gameId: string) => 
+    normalizedSelectedGameIds.includes(normalizeGameId(gameId));
+  
   const toggleGame = (gameId: string) => {
-    if (selectedGameIds.includes(gameId)) {
-      onGamesChange(selectedGameIds.filter(id => id !== gameId));
+    const normalizedId = normalizeGameId(gameId);
+    
+    if (normalizedSelectedGameIds.includes(normalizedId)) {
+      // Remove - filter out matching normalized IDs
+      onGamesChange(selectedGameIds.filter(id => normalizeGameId(id) !== normalizedId));
     } else {
-      onGamesChange([...selectedGameIds, gameId]);
+      // Add the normalized ID
+      onGamesChange([...selectedGameIds, normalizedId]);
     }
   };
 
@@ -629,7 +644,7 @@ export function MobileHeader({
   const gamesLabel = selectedGameIds.length === 0 
     ? "All Games" 
     : selectedGameIds.length === 1 
-      ? games.find(g => g.id === selectedGameIds[0])?.label ?? "1 Game"
+      ? games.find(g => normalizeGameId(g.id) === normalizeGameId(selectedGameIds[0]))?.label ?? "1 Game"
       : `${selectedGameIds.length} Games`;
       
   const marketsLabel = selectedMarkets.length === marketOptions.length
@@ -942,7 +957,7 @@ export function MobileHeader({
                     <GameOptionItem
                       key={game.id}
                       game={game}
-                      selected={selectedGameIds.includes(game.id)}
+                      selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
                     />
                   ))}
@@ -958,7 +973,7 @@ export function MobileHeader({
                     <GameOptionItem
                       key={game.id}
                       game={game}
-                      selected={selectedGameIds.includes(game.id)}
+                      selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
                     />
                   ))}
@@ -974,7 +989,7 @@ export function MobileHeader({
                     <GameOptionItem
                       key={game.id}
                       game={game}
-                      selected={selectedGameIds.includes(game.id)}
+                      selected={isGameSelected(game.id)}
                       onClick={() => toggleGame(game.id)}
                     />
                   ))}

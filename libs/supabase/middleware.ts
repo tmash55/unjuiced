@@ -22,6 +22,7 @@ const PUBLIC_ROUTES = [
   '/changelog',
   '/auth/callback',
   '/auth/auth-code-error',
+  '/api/auth/callback',
   '/tools',
   '/api/billing/webhook',
 ];
