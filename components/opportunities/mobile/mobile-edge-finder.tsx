@@ -268,8 +268,8 @@ export function MobileEdgeFinder({
   
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 overflow-x-hidden">
-      {/* Fixed Header */}
-      <div className="fixed top-14 left-0 right-0 z-40 bg-white dark:bg-neutral-950">
+      {/* Fixed Header - below layout's h-12 mobile header */}
+      <div className="fixed top-12 left-0 right-0 z-40 bg-white dark:bg-neutral-950">
         {/* Title Row with Actions */}
         <div className="px-4 py-2.5 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-2">
@@ -481,8 +481,8 @@ export function MobileEdgeFinder({
         </div>
       </div>
       
-      {/* Spacer for fixed header */}
-      <div style={{ height: "200px" }} />
+      {/* Spacer for fixed header - accounts for top-12 (48px) + header content */}
+      <div style={{ height: "192px" }} />
       
       {/* Edge Cards */}
       <div className="pt-3 pb-24 bg-neutral-100/50 dark:bg-neutral-950">

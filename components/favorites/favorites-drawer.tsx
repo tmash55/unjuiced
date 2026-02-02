@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
-import { useBetslips, Betslip } from "@/hooks/use-betslips";
+import { useBetslips, Betslip, BETSLIP_COLORS } from "@/hooks/use-betslips";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { favoritesToSgpLegs, SgpBookOdds } from "@/hooks/use-sgp-quote-stream";
 import { useFavoritesStream, type FavoriteChange, type RefreshedFavoriteData } from "@/hooks/use-favorites-stream";
@@ -940,13 +940,14 @@ function BetslipSelector({ betslips, selectedCount, onSelect, onBack, isLoading 
 interface NewBetslipFormProps {
   suggestedName: string;
   selectedCount: number;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, color: string) => void;
   onBack: () => void;
   isLoading: boolean;
 }
 
 function NewBetslipForm({ suggestedName, selectedCount, onCreate, onBack, isLoading }: NewBetslipFormProps) {
   const [name, setName] = useState(suggestedName);
+  const [color, setColor] = useState("yellow");
   
   return (
     <div className="flex-1 flex flex-col">
@@ -966,24 +967,48 @@ function NewBetslipForm({ suggestedName, selectedCount, onCreate, onBack, isLoad
           Create new betslip
         </h3>
         
-        <div>
-          <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
-            Slip name (optional)
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="My Betslip"
-            className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-          />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              Slip name (optional)
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="My Betslip"
+              className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              Color
+            </label>
+            <div className="flex gap-2">
+              {BETSLIP_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setColor(c.id)}
+                  className={cn(
+                    "w-7 h-7 rounded-full transition-all",
+                    c.class,
+                    color === c.id 
+                      ? "ring-2 ring-offset-2 ring-neutral-900 dark:ring-white dark:ring-offset-neutral-900" 
+                      : "hover:scale-110"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       
       {/* Footer */}
       <div className="border-t border-neutral-200 dark:border-neutral-800 p-4 bg-white dark:bg-neutral-900">
         <button
-          onClick={() => onCreate(name || "My Betslip")}
+          onClick={() => onCreate(name || "My Betslip", color)}
           disabled={isLoading}
           className={cn(
             "w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
@@ -1591,11 +1616,12 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   }, [selectedIds, betslips, addToBetslip, handleOpenChange, router]);
   
   // Create new betslip
-  const handleCreateNew = useCallback(async (name: string) => {
+  const handleCreateNew = useCallback(async (name: string, color: string) => {
     setIsProcessing(true);
     try {
       await createBetslip({
         name,
+        color,
         favorite_ids: Array.from(selectedIds),
       });
       

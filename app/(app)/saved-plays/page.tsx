@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useFavorites, Favorite, BookSnapshot } from "@/hooks/use-favorites";
-import { useBetslips, Betslip, getColorClass, calculateLegsHash, SgpOddsResponse } from "@/hooks/use-betslips";
+import { useBetslips, Betslip, getColorClass, BETSLIP_COLORS, calculateLegsHash, SgpOddsResponse } from "@/hooks/use-betslips";
 import { useFavoritesStream, type FavoriteChange } from "@/hooks/use-favorites-stream";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { MaxWidthWrapper } from "@/components/max-width-wrapper";
@@ -41,6 +41,9 @@ import {
   RefreshCw,
   Eye,
   Share2,
+  ArrowUpDown,
+  TrendingUp,
+  Clock,
 } from "lucide-react";
 
 // ============================================================================
@@ -293,10 +296,10 @@ function FavoriteRow({
       }}
       onDragEnd={() => onDragEnd?.()}
     >
-      {/* Main row - Hierarchy: 1) Value signal 2) Best odds 3) Context */}
+      {/* Main row - Mobile-optimized with larger touch targets */}
       <div
         className={cn(
-          "flex items-center gap-3 px-4 py-3 transition-colors group/main",
+          "flex items-center gap-3 px-4 py-4 md:py-3 transition-colors group/main",
           isExpanded && "bg-neutral-50/50 dark:bg-neutral-800/20"
         )}
       >
@@ -307,7 +310,7 @@ function FavoriteRow({
           </div>
         )}
         
-        {/* Checkbox */}
+        {/* Checkbox - larger touch target on mobile */}
         <div 
           role="button"
           tabIndex={0}
@@ -321,12 +324,13 @@ function FavoriteRow({
               onToggleSelect();
             }
           }}
+          className="p-1 -m-1"
         >
           <Checkbox
             checked={isSelected}
             onCheckedChange={onToggleSelect}
             onClick={(e) => e.stopPropagation()}
-            className="h-4 w-4"
+            className="h-5 w-5 md:h-4 md:w-4"
           />
         </div>
         
@@ -335,11 +339,11 @@ function FavoriteRow({
           className="flex-1 min-w-0 cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          {/* Context (quiet) - Player + Prop */}
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 truncate">
+          {/* Context - Player + Prop */}
+          <div className="text-base md:text-sm font-medium text-neutral-900 dark:text-white truncate">
             {playerOrTeam}
           </div>
-          <div className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">
+          <div className="text-sm md:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             {sideDisplay} {lineDisplay} {marketDisplay}
             {timeLabel && ` · ${timeLabel}`}
           </div>
@@ -349,10 +353,10 @@ function FavoriteRow({
         {edge !== null && edge >= 3 && (
           <div className="shrink-0 text-right">
             <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-              ▲ +{edge.toFixed(0)}%
+              +{edge.toFixed(0)}%
             </div>
-            <div className="text-[9px] text-neutral-400 dark:text-neutral-500">
-              vs avg ({totalBooks})
+            <div className="text-[10px] md:text-[9px] text-neutral-400 dark:text-neutral-500">
+              edge
             </div>
           </div>
         )}
@@ -370,7 +374,7 @@ function FavoriteRow({
               }
             }}
             className={cn(
-              "relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg shrink-0 transition-all group/chip",
+              "relative flex items-center gap-1.5 px-3 py-2 md:px-2.5 md:py-1.5 rounded-xl md:rounded-lg shrink-0 transition-all active:scale-[0.98] group/chip",
               "bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30",
               priceDirection === "up" && "ring-2 ring-emerald-400/50",
               priceDirection === "down" && "ring-2 ring-amber-400/50"
@@ -385,41 +389,41 @@ function FavoriteRow({
             )}
             {priceDirection && (
               <span className={cn(
-                "text-[9px] font-medium",
+                "text-xs md:text-[9px] font-medium",
                 priceDirection === "up" ? "text-emerald-500" : "text-amber-500"
               )}>
                 {priceDirection === "up" ? "↑" : "↓"}
               </span>
             )}
-            <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            <span className="text-base md:text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
               {formatOdds(bestOdds.price)}
             </span>
             {getBookLogo(bestOdds.bookId) && (
               <img 
                 src={getBookLogo(bestOdds.bookId)!} 
                 alt={getBookName(bestOdds.bookId)} 
-                className="h-3.5 w-3.5 object-contain"
+                className="h-4 w-4 md:h-3.5 md:w-3.5 object-contain"
               />
             )}
-            {/* Subtle "+" affordance on hover */}
-            <Plus className="h-3 w-3 text-emerald-500/0 group-hover/chip:text-emerald-500/70 transition-colors" />
+            {/* External link icon on mobile */}
+            <ExternalLink className="h-3.5 w-3.5 md:hidden text-emerald-500/60" />
           </button>
         )}
         
-        {/* Expand chevron */}
+        {/* Expand chevron - larger touch target */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
           className={cn(
-            "p-1.5 rounded-md transition-colors",
+            "p-2.5 md:p-1.5 -mr-1 rounded-xl md:rounded-md transition-colors active:scale-[0.95]",
             isExpanded 
               ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300" 
               : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           )}
         >
-          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {isExpanded ? <ChevronUp className="h-5 w-5 md:h-4 md:w-4" /> : <ChevronDown className="h-5 w-5 md:h-4 md:w-4" />}
         </button>
       </div>
       
@@ -533,40 +537,42 @@ function FavoriteRow({
                   </button>
                 )}
                 
-                {/* Quick actions strip */}
-                <div className="flex items-center justify-end gap-1 mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-700">
+                {/* Quick actions - full width buttons on mobile */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-end gap-2 md:gap-1 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-700">
                   {onAddToBetslip && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onAddToBetslip();
                       }}
-                      className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded transition-colors"
+                      className="flex items-center justify-center gap-2 px-4 py-3 md:px-2 md:py-1 text-sm md:text-[11px] font-medium text-white md:text-emerald-600 dark:md:text-emerald-400 bg-emerald-500 md:bg-transparent hover:bg-emerald-600 md:hover:bg-emerald-50 dark:md:hover:bg-emerald-900/20 rounded-xl md:rounded transition-all active:scale-[0.98]"
                     >
-                      <Plus className="h-3 w-3" />
+                      <Plus className="h-4 w-4 md:h-3 md:w-3" />
                       Add to betslip
                     </button>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCopy();
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                  >
-                    {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove();
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 dark:text-neutral-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Remove
-                  </button>
+                  <div className="flex gap-2 md:gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopy();
+                      }}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 md:gap-1 px-4 py-3 md:px-2 md:py-1 text-sm md:text-[11px] font-medium text-neutral-600 dark:text-neutral-300 md:text-neutral-500 dark:md:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 md:bg-transparent hover:bg-neutral-200 dark:hover:bg-neutral-700 md:hover:bg-neutral-100 dark:md:hover:bg-neutral-700 rounded-xl md:rounded transition-all active:scale-[0.98]"
+                    >
+                      {copied ? <Check className="h-4 w-4 md:h-3 md:w-3 text-emerald-500" /> : <Copy className="h-4 w-4 md:h-3 md:w-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove();
+                      }}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 md:gap-1 px-4 py-3 md:px-2 md:py-1 text-sm md:text-[11px] font-medium text-red-500 md:text-neutral-500 dark:md:text-neutral-400 bg-red-50 dark:bg-red-900/20 md:bg-transparent hover:bg-red-100 dark:hover:bg-red-900/30 md:hover:bg-red-50 dark:md:hover:bg-red-900/20 md:hover:text-red-500 dark:md:hover:text-red-400 rounded-xl md:rounded transition-all active:scale-[0.98]"
+                    >
+                      <Trash2 className="h-4 w-4 md:h-3 md:w-3" />
+                      Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -735,7 +741,6 @@ interface BetslipCardProps {
   betslip: Betslip;
   onDelete: () => void;
   onRename: (name: string) => void;
-  onQuickCompare: () => void;
   onRemoveLeg: (favoriteId: string) => void;
   onFetchOdds: (forceRefresh?: boolean) => Promise<SgpOddsResponse | void>;
   isFetchingOdds?: boolean;
@@ -752,7 +757,6 @@ function BetslipCard({
   betslip, 
   onDelete, 
   onRename, 
-  onQuickCompare, 
   onRemoveLeg, 
   onFetchOdds, 
   isFetchingOdds, 
@@ -989,11 +993,11 @@ function BetslipCard({
         )}
         onClick={() => !isEditing && setIsExpanded(!isExpanded)}
       >
-        {/* Top bar: Title + Status Tags + Actions */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {/* Color indicator */}
-            <div className={cn("w-1 h-5 rounded-full shrink-0", getColorClass(betslip.color))} />
+        {/* Top bar: Title + Status Tags + Actions - Mobile optimized */}
+        <div className="flex items-center justify-between px-4 pt-4 md:pt-3 pb-2">
+          <div className="flex items-center gap-3 md:gap-2 min-w-0 flex-1">
+            {/* Color indicator - larger on mobile */}
+            <div className={cn("w-1.5 md:w-1 h-8 md:h-5 rounded-full shrink-0", getColorClass(betslip.color))} />
             
             {/* Title */}
             {isEditing ? (
@@ -1011,18 +1015,24 @@ function BetslipCard({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 autoFocus
-                className="flex-1 px-2 py-1 text-sm font-medium bg-neutral-100 dark:bg-neutral-800 rounded border-none outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="flex-1 px-3 py-2 text-base md:text-sm font-medium bg-neutral-100 dark:bg-neutral-800 rounded-lg md:rounded border-none outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             ) : (
-              <span className="font-medium text-sm text-neutral-900 dark:text-white truncate">
-                {betslip.name}
-              </span>
+              <div className="min-w-0">
+                <span className="font-semibold text-base md:text-sm text-neutral-900 dark:text-white truncate block">
+                  {betslip.name}
+                </span>
+                {/* Leg count shown under title on mobile */}
+                <span className="text-xs text-neutral-500 dark:text-neutral-400 md:hidden">
+                  {legCount} play{legCount !== 1 ? "s" : ""}
+                </span>
+              </div>
             )}
             
             {/* SGP/SGP+ Badge - muted status tag */}
             {betTypeInfo && !isEditing && (
               <span 
-                className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+                className="shrink-0 px-2 py-1 md:px-1.5 md:py-0.5 text-xs md:text-[10px] font-medium rounded-lg md:rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
                 title={betTypeInfo.tooltip}
               >
                 {betTypeInfo.label}
@@ -1030,40 +1040,40 @@ function BetslipCard({
             )}
           </div>
           
-          {/* Right actions */}
+          {/* Right actions - larger touch targets */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* Refresh icon button */}
+            {/* Refresh icon button - larger on mobile */}
             {hasMultipleLegs && !isExpanded && (
               <button
                 onClick={handleRefreshOdds}
                 disabled={isFetchingOdds}
                 className={cn(
-                  "p-1.5 rounded transition-colors",
+                  "p-2.5 md:p-1.5 rounded-xl md:rounded transition-colors active:scale-[0.95]",
                   priceUncertain 
-                    ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" 
+                    ? "text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30" 
                     : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 )}
                 title={priceUncertain ? "Price may have changed - click to refresh" : "Refresh odds"}
               >
                 {isFetchingOdds ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-5 w-5 md:h-3.5 md:w-3.5 animate-spin" />
                 ) : (
-                  <RefreshCw className={cn("h-3.5 w-3.5", priceUncertain && "animate-pulse")} />
+                  <RefreshCw className={cn("h-5 w-5 md:h-3.5 md:w-3.5", priceUncertain && "animate-pulse")} />
                 )}
               </button>
             )}
             
             <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <button className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
-                  <MoreHorizontal className="h-4 w-4" />
+                <button className="p-2.5 md:p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl md:rounded transition-colors active:scale-[0.95]">
+                  <MoreHorizontal className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="min-w-[160px]">
                 <DropdownMenuItem onClick={() => {
                   setMenuOpen(false);
                   setIsEditing(true);
-                }}>
+                }} className="py-3 md:py-2">
                   <Edit3 className="h-4 w-4 mr-2" />
                   Rename
                 </DropdownMenuItem>
@@ -1073,7 +1083,7 @@ function BetslipCard({
                     setMenuOpen(false);
                     onDelete();
                   }} 
-                  className="text-red-500 focus:text-red-500"
+                  className="text-red-500 focus:text-red-500 py-3 md:py-2"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
@@ -1082,16 +1092,16 @@ function BetslipCard({
             </DropdownMenu>
             
             <motion.button 
-              className="p-1 text-neutral-400"
+              className="p-2 md:p-1 text-neutral-400"
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-5 w-5 md:h-4 md:w-4" />
             </motion.button>
           </div>
         </div>
         
-        {/* Main content area (collapsed only) - Simplified for "Is this worth opening?" */}
+        {/* Main content area (collapsed only) - Mobile optimized */}
         {!isExpanded && (
           <div className="px-4 pb-4">
             <div className="flex items-center justify-between gap-4">
@@ -1101,11 +1111,11 @@ function BetslipCard({
                   <>
                     {/* Hero Odds + Badge */}
                     <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
+                      <span className="text-3xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
                         {formatOdds(bestOdds.odds)}
                       </span>
                       {edge !== null && edge >= 5 && (
-                        <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
+                        <span className="px-2 py-1 md:px-1.5 md:py-0.5 text-[10px] md:text-[9px] font-semibold rounded-lg md:rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
                           Best Price
                         </span>
                       )}
@@ -1113,52 +1123,52 @@ function BetslipCard({
                     
                     {/* Single value explainer (one line max) */}
                     {edge !== null && edge >= 5 ? (
-                      <div className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
-                        ▲ +{edge.toFixed(0)}% vs Market Avg
+                      <div className="text-sm md:text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-1 md:mt-0.5">
+                        +{edge.toFixed(0)}% vs Market
                       </div>
                     ) : (
-                      <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
-                        Tracked across {bookOdds.filter(b => b.hasAllLegs !== false).length} book{bookOdds.filter(b => b.hasAllLegs !== false).length !== 1 ? 's' : ''}
+                      <div className="text-xs md:text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 md:mt-0.5">
+                        {bookOdds.filter(b => b.hasAllLegs !== false).length} book{bookOdds.filter(b => b.hasAllLegs !== false).length !== 1 ? 's' : ''} tracking
                       </div>
                     )}
                     
-                    {/* Minimal context */}
-                    <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-2">
+                    {/* Minimal context - desktop only, mobile shows in header */}
+                    <div className="hidden md:block text-[11px] text-neutral-400 dark:text-neutral-500 mt-2">
                       {legCount} play{legCount !== 1 ? "s" : ""}
                       {oddsUpdatedAgo && <span> · {oddsUpdatedAgo}</span>}
                     </div>
                   </>
                 ) : hasMultipleLegs ? (
-                  <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {isFetchingOdds ? "Loading odds..." : "Tap to compare odds"}
+                  <div className="text-base md:text-sm text-neutral-500 dark:text-neutral-400">
+                    {isFetchingOdds ? "Loading odds..." : "Tap to view odds"}
                   </div>
                 ) : (
-                  <div className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                  <div className="text-sm md:text-[11px] text-neutral-500 dark:text-neutral-400">
                     {legCount} play{legCount !== 1 ? "s" : ""}
                   </div>
                 )}
               </div>
               
-              {/* RIGHT: Book + Action - Clean and secondary */}
+              {/* RIGHT: Book + Action - Larger touch target on mobile */}
               {bestOdds && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     openBookLink(bestOdds.bookId);
                   }}
-                  className="shrink-0 flex items-center gap-2 px-3 py-2 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors group"
+                  className="shrink-0 flex items-center gap-3 md:gap-2 px-4 py-3 md:px-3 md:py-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl md:rounded-lg transition-colors active:scale-[0.98] group"
                 >
                   {getBookLogo(bestOdds.bookId) && (
                     <img 
                       src={getBookLogo(bestOdds.bookId)!} 
                       alt={getBookName(bestOdds.bookId)} 
-                      className="h-6 w-6 object-contain"
+                      className="h-8 w-8 md:h-6 md:w-6 object-contain"
                     />
                   )}
-                  <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                    Open
+                  <span className="text-sm md:text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    Bet Now
                   </span>
-                  <ExternalLink className="h-3 w-3 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
+                  <ExternalLink className="h-4 w-4 md:h-3 md:w-3 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors" />
                 </button>
               )}
             </div>
@@ -1420,47 +1430,49 @@ function BetslipCard({
               </div>
               
               {/* ═══════════════════════════════════════════════════════════════
-                  ZONE 3: ACTIONS - Compare is the money feature
+                  ZONE 3: ACTIONS - Refresh odds is the primary action
                   ═══════════════════════════════════════════════════════════════ */}
               <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
                 <div className="flex gap-2">
-                  {/* Primary: Compare Odds - THE money feature */}
+                  {/* Primary: Refresh Odds */}
                   {hasMultipleLegs && (
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (bookOdds.length > 0) onQuickCompare();
+                        handleRefreshOdds(e);
                       }}
-                      disabled={bookOdds.length === 0}
-                      title={bookOdds.length === 0 ? "No parlay odds available" : undefined}
+                      disabled={isFetchingOdds}
                       className={cn(
-                        "flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group",
-                        bookOdds.length > 0 
-                          ? "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm hover:shadow-md" 
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed"
+                        "flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]",
+                        isFetchingOdds
+                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-wait"
+                          : priceUncertain
+                            ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm hover:shadow-md"
+                            : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm hover:shadow-md"
                       )}
                     >
-                      <BarChart3 className={cn(
-                        "h-4 w-4 transition-transform",
-                        bookOdds.length > 0 && "group-hover:scale-110"
-                      )} />
-                      Compare Odds
+                      {isFetchingOdds ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className={cn("h-4 w-4", priceUncertain && "animate-pulse")} />
+                      )}
+                      {isFetchingOdds ? "Refreshing..." : priceUncertain ? "Update Odds" : "Refresh Odds"}
                     </button>
                   )}
                   
-                  {/* Secondary actions - muted */}
+                  {/* Secondary actions */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopySlip();
                     }}
                     className={cn(
-                      "flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all",
+                      "flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-[0.98]",
                       !hasMultipleLegs && "flex-1"
                     )}
                   >
                     {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-                    <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+                    <span>{copied ? "Copied" : "Copy"}</span>
                   </button>
                   
                   <button
@@ -1468,10 +1480,10 @@ function BetslipCard({
                       e.stopPropagation();
                       handleShare();
                     }}
-                    className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all"
+                    className="flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-[0.98]"
                   >
                     <Share2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Share</span>
+                    <span>Share</span>
                   </button>
                 </div>
               </div>
@@ -1544,7 +1556,7 @@ interface AddToBetslipModalProps {
   selectedCount: number;
   betslips: Betslip[];
   onAddToExisting: (betslipId: string) => void;
-  onCreateNew: (name: string) => void;
+  onCreateNew: (name: string, color: string) => void;
   isLoading: boolean;
 }
 
@@ -1559,6 +1571,7 @@ function AddToBetslipModal({
 }: AddToBetslipModalProps) {
   const [view, setView] = useState<"choose" | "new">("choose");
   const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("yellow");
   const [selectedBetslip, setSelectedBetslip] = useState<string | null>(null);
   
   if (!isOpen) return null;
@@ -1672,6 +1685,28 @@ function AddToBetslipModal({
                 />
               </div>
               
+              <div>
+                <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+                  Color
+                </label>
+                <div className="flex gap-2">
+                  {BETSLIP_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setNewColor(c.id)}
+                      className={cn(
+                        "w-7 h-7 rounded-full transition-all",
+                        c.class,
+                        newColor === c.id 
+                          ? "ring-2 ring-offset-2 ring-neutral-900 dark:ring-white dark:ring-offset-neutral-900" 
+                          : "hover:scale-110"
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+              
               <div className="flex gap-2">
                 <button
                   onClick={() => setView("choose")}
@@ -1680,7 +1715,7 @@ function AddToBetslipModal({
                   Back
                 </button>
                 <button
-                  onClick={() => onCreateNew(newName || "My Betslip")}
+                  onClick={() => onCreateNew(newName || "My Betslip", newColor)}
                   disabled={isLoading}
                   className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-400 text-white text-sm font-semibold transition-colors"
                 >
@@ -1840,9 +1875,10 @@ export default function FavoritesPage() {
     }
   }, [selectedIds, selectedCount, betslips, addToBetslip, handleFetchSgpOdds]);
   
-  const handleCreateNew = useCallback(async (name: string) => {
+  const handleCreateNew = useCallback(async (name: string, color: string) => {
     const newBetslip = await createBetslip({
       name,
+      color,
       favorite_ids: Array.from(selectedIds),
     });
     toast.success(`Created "${name}" with ${selectedCount} play${selectedCount !== 1 ? "s" : ""}`);
@@ -1932,10 +1968,6 @@ export default function FavoritesPage() {
     }
   }, [betslips, favorites, addToBetslip, handleFetchSgpOdds]);
   
-  const handleQuickCompare = useCallback((betslipId: string) => {
-    // TODO: Open Quick Compare panel with betslip items
-    toast.info("Quick Compare coming soon");
-  }, []);
   
   const handleRemoveLegFromBetslip = useCallback(async (betslipId: string, favoriteId: string) => {
     await removeFromBetslip({ betslipId, favoriteId });
@@ -2025,28 +2057,38 @@ export default function FavoritesPage() {
   
   // Render favorites list
   const renderFavorites = () => (
-    <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+    <div className="bg-white dark:bg-neutral-900 rounded-2xl md:rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
       {/* Header - shows selection mode when 2+ selected */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
-        <div>
+      <div className="flex items-center justify-between px-4 py-4 md:py-3 border-b border-neutral-200 dark:border-neutral-800">
+        <div className="flex items-center gap-3">
           {selectedIds.size >= 2 ? (
             <>
-              <h2 className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
-                {selectedIds.size} selected
-              </h2>
-              <button 
-                onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
-              >
-                Clear selection
-              </button>
+              <div className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 rounded-xl md:rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                <Check className="h-5 w-5 md:h-4 md:w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="text-lg md:text-base font-semibold text-emerald-600 dark:text-emerald-400">
+                  {selectedIds.size} selected
+                </h2>
+                <button 
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-sm md:text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+                >
+                  Clear selection
+                </button>
+              </div>
             </>
           ) : (
             <>
-              <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Saved Plays</h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                {favorites.length} saved play{favorites.length !== 1 ? "s" : ""}
-              </p>
+              <div className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 rounded-xl md:rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                <Heart className="h-5 w-5 md:h-4 md:w-4 text-neutral-600 dark:text-neutral-400" />
+              </div>
+              <div>
+                <h2 className="text-lg md:text-base font-semibold text-neutral-900 dark:text-white">Saved Plays</h2>
+                <p className="text-sm md:text-xs text-neutral-500 dark:text-neutral-400">
+                  {favorites.length} play{favorites.length !== 1 ? "s" : ""}
+                </p>
+              </div>
             </>
           )}
         </div>
@@ -2056,7 +2098,7 @@ export default function FavoritesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-3 py-1.5 text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+              className="px-4 py-2.5 md:px-3 md:py-1.5 text-sm md:text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl md:rounded-lg transition-colors active:scale-[0.98]"
             >
               Add to betslip
             </button>
@@ -2068,16 +2110,44 @@ export default function FavoritesPage() {
                 Drag to add
               </span>
             )}
-            {/* Sort dropdown */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "edge" | "time" | "odds")}
-              className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-transparent border border-neutral-200 dark:border-neutral-700 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-            >
-              <option value="edge">Highest Edge</option>
-              <option value="odds">Best Odds</option>
-              <option value="time">Recently Added</option>
-            </select>
+            {/* Sort dropdown - custom styled */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center gap-2 px-3 py-2.5 md:px-2.5 md:py-1.5 text-sm md:text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl md:rounded-lg transition-colors active:scale-[0.98]">
+                  <ArrowUpDown className="h-4 w-4 md:h-3.5 md:w-3.5 text-neutral-500" />
+                  <span>
+                    {sortBy === "edge" ? "Edge" : sortBy === "odds" ? "Odds" : "Recent"}
+                  </span>
+                  <ChevronDown className="h-4 w-4 md:h-3 md:w-3 text-neutral-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[160px]">
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("edge")}
+                  className={cn("py-3 md:py-2 gap-3", sortBy === "edge" && "bg-neutral-100 dark:bg-neutral-800")}
+                >
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <span className="flex-1">Highest Edge</span>
+                  {sortBy === "edge" && <Check className="h-4 w-4 text-emerald-500" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("odds")}
+                  className={cn("py-3 md:py-2 gap-3", sortBy === "odds" && "bg-neutral-100 dark:bg-neutral-800")}
+                >
+                  <BarChart3 className="h-4 w-4 text-blue-500" />
+                  <span className="flex-1">Best Odds</span>
+                  {sortBy === "odds" && <Check className="h-4 w-4 text-emerald-500" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setSortBy("time")}
+                  className={cn("py-3 md:py-2 gap-3", sortBy === "time" && "bg-neutral-100 dark:bg-neutral-800")}
+                >
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <span className="flex-1">Recently Added</span>
+                  {sortBy === "time" && <Check className="h-4 w-4 text-emerald-500" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
@@ -2118,21 +2188,31 @@ export default function FavoritesPage() {
   // Render betslips list
   const renderBetslips = () => (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Betslips</h2>
+      {/* Header - App-like styling */}
+      <div className="flex items-center justify-between px-1 md:px-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 md:w-8 md:h-8 rounded-xl md:rounded-lg bg-neutral-100 dark:bg-neutral-800">
+            <Layers className="h-5 w-5 md:h-4 md:w-4 text-neutral-600 dark:text-neutral-400" />
+          </div>
+          <div>
+            <h2 className="text-lg md:text-base font-semibold text-neutral-900 dark:text-white">Betslips</h2>
+            <p className="text-sm md:text-xs text-neutral-500 dark:text-neutral-400">
+              {betslips.length} slip{betslips.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
         <button
           onClick={() => setShowAddModal(true)}
           disabled={!hasSelection}
           className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+            "inline-flex items-center gap-2 px-4 py-2.5 md:px-3 md:py-1.5 rounded-xl md:rounded-lg text-sm font-semibold transition-all active:scale-[0.98]",
             hasSelection
-              ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
               : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed"
           )}
         >
-          <Plus className="h-4 w-4" />
-          New
+          <Plus className="h-5 w-5 md:h-4 md:w-4" />
+          New Slip
         </button>
       </div>
       
@@ -2142,18 +2222,17 @@ export default function FavoritesPage() {
           <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
         </div>
       ) : betslips.length === 0 ? (
-        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl md:rounded-xl border border-neutral-200 dark:border-neutral-800">
           <BetslipsEmptyState />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4 md:space-y-3">
           {betslips.map((betslip) => (
             <BetslipCard
               key={betslip.id}
               betslip={betslip}
               onDelete={() => handleDeleteBetslip(betslip.id)}
               onRename={(name) => handleRenameBetslip(betslip.id, name)}
-              onQuickCompare={() => handleQuickCompare(betslip.id)}
               onRemoveLeg={(favoriteId) => handleRemoveLegFromBetslip(betslip.id, favoriteId)}
               onFetchOdds={(forceRefresh) => handleFetchSgpOdds(betslip.id, forceRefresh)}
               isFetchingOdds={fetchingBetslipId === betslip.id}
@@ -2170,38 +2249,62 @@ export default function FavoritesPage() {
   );
   
   return (
-    <MaxWidthWrapper className="py-6">
-      {/* Mobile: Segmented control */}
+    <MaxWidthWrapper className="py-4 md:py-6">
+      {/* Mobile: Segmented control - app-like tabs */}
       {isMobile && (
-        <div className="flex p-1 mb-6 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
-          <button
-            onClick={() => setMobileTab("favorites")}
-            className={cn(
-              "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
-              mobileTab === "favorites"
-                ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 dark:text-neutral-400"
-            )}
-          >
-            Saved Plays
-          </button>
-          <button
-            onClick={() => setMobileTab("betslips")}
-            className={cn(
-              "flex-1 py-2 text-sm font-medium rounded-md transition-colors",
-              mobileTab === "betslips"
-                ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                : "text-neutral-500 dark:text-neutral-400"
-            )}
-          >
-            Betslips
-          </button>
+        <div className="sticky top-0 z-30 -mx-4 px-4 pt-2 pb-4 bg-neutral-50 dark:bg-neutral-950">
+          <div className="flex p-1.5 bg-neutral-200/70 dark:bg-neutral-800 rounded-xl">
+            <button
+              onClick={() => setMobileTab("favorites")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-lg transition-all duration-200",
+                mobileTab === "favorites"
+                  ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-500 dark:text-neutral-400 active:bg-neutral-300/50 dark:active:bg-neutral-700/50"
+              )}
+            >
+              <Heart className={cn("h-4 w-4", mobileTab === "favorites" && "fill-current")} />
+              Saved Plays
+              {favorites.length > 0 && (
+                <span className={cn(
+                  "px-1.5 py-0.5 text-[10px] font-bold rounded-full",
+                  mobileTab === "favorites"
+                    ? "bg-neutral-100 dark:bg-neutral-600 text-neutral-600 dark:text-neutral-200"
+                    : "bg-neutral-300/70 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400"
+                )}>
+                  {favorites.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setMobileTab("betslips")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-lg transition-all duration-200",
+                mobileTab === "betslips"
+                  ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-500 dark:text-neutral-400 active:bg-neutral-300/50 dark:active:bg-neutral-700/50"
+              )}
+            >
+              <Layers className={cn("h-4 w-4", mobileTab === "betslips" && "fill-current")} />
+              Betslips
+              {betslips.length > 0 && (
+                <span className={cn(
+                  "px-1.5 py-0.5 text-[10px] font-bold rounded-full",
+                  mobileTab === "betslips"
+                    ? "bg-neutral-100 dark:bg-neutral-600 text-neutral-600 dark:text-neutral-200"
+                    : "bg-neutral-300/70 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400"
+                )}>
+                  {betslips.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       )}
       
       {/* Desktop: Two columns / Mobile: Single column */}
       {isMobile ? (
-        <div>
+        <div className="pb-24">
           {mobileTab === "favorites" ? renderFavorites() : renderBetslips()}
         </div>
       ) : (
@@ -2214,32 +2317,65 @@ export default function FavoritesPage() {
         </div>
       )}
       
-      {/* Sticky action bar */}
+      {/* Sticky action bar - mobile optimized */}
       <AnimatePresence>
         {hasSelection && (
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className={cn(
+              "fixed z-40",
+              // Mobile: full width 
+              "bottom-0 left-0 right-0",
+              // Desktop: centered floating
+              "md:bottom-6 md:left-1/2 md:-translate-x-1/2 md:right-auto"
+            )}
+            style={{ paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : undefined }}
           >
-            <div className="flex items-center gap-3 px-4 py-3 bg-neutral-900 dark:bg-white rounded-full shadow-lg">
-              <span className="text-sm text-white dark:text-neutral-900">
-                {selectedCount} selected
-              </span>
-              <div className="w-px h-4 bg-neutral-700 dark:bg-neutral-300" />
+            <div className={cn(
+              "flex items-center bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border-neutral-200/60 dark:border-neutral-700/60",
+              // Mobile: bottom bar style
+              "gap-3 px-4 py-4 border-t md:border",
+              // Desktop: floating pill style  
+              "md:gap-2 md:px-2 md:py-2 md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:md:shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            )}>
+              {/* Selection count badge */}
+              <div className="flex items-center gap-2 md:px-3 md:py-2">
+                <div className="flex items-center justify-center w-8 h-8 md:w-6 md:h-6 rounded-full bg-neutral-100 dark:bg-neutral-800 text-sm md:text-xs font-bold text-neutral-900 dark:text-white">
+                  {selectedCount}
+                </div>
+                <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
+                  selected
+                </span>
+              </div>
+              
+              {/* Spacer on mobile, divider on desktop */}
+              <div className="flex-1 md:flex-none md:w-px md:h-8 md:bg-neutral-200 dark:md:bg-neutral-700" />
+              
+              {/* Add to betslip button */}
               <button
                 onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold shadow-sm shadow-emerald-500/25 transition-all duration-200 active:scale-[0.98]",
+                  // Mobile: larger touch target
+                  "flex-1 md:flex-none px-5 py-3.5 text-base",
+                  // Desktop: compact
+                  "md:px-4 md:py-2.5 md:text-sm",
+                  "hover:from-emerald-600 hover:to-emerald-700 hover:shadow-md hover:shadow-emerald-500/30"
+                )}
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-5 w-5 md:h-4 md:w-4" />
                 Add to betslip
               </button>
+              
+              {/* Close button */}
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="p-1.5 text-neutral-400 hover:text-white dark:hover:text-neutral-900 transition-colors"
+                className="p-3 md:p-2 rounded-xl md:rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors active:bg-neutral-200 dark:active:bg-neutral-700"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5 md:h-4 md:w-4" />
               </button>
             </div>
           </motion.div>

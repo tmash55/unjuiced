@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { OddsTable } from "@/components/odds-screen/tables/odds-table";
 import { OddsTableSkeleton } from "@/components/odds-screen/tables/odds-table-skeleton";
 import { OddsFilters } from "@/components/odds-screen/filters/odds-filters";
+import { MobileOddsView } from "@/components/odds-screen/mobile/mobile-odds-view";
 import { useOddsPreferences } from "@/context/preferences-context";
 import { useOddsUtility } from "../odds-utility-context";
 import { fetchOddsWithNewAPI } from "@/lib/api-adapters/props-to-odds";
@@ -12,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getDefaultMarket } from "@/lib/data/markets";
 import { useSSE } from "@/hooks/use-sse";
 import { useIsPro } from "@/hooks/use-entitlements";
+import { useIsMobile } from "@/hooks/use-media-query";
 
 interface OddsPageProps {
   params: Promise<{ sport: string }>;
@@ -47,12 +49,15 @@ export default function OddsPage({ params }: OddsPageProps) {
   // Check if user is Pro for SSE access
   const { isPro } = useIsPro();
   
+  // Check if mobile viewport
+  const isMobile = useIsMobile();
+  
   // SSE state - live updates enabled by default for Pro users
   const [liveUpdatesEnabled] = useState(true);
   const lastRefetchRef = useRef<number>(0);
   const REFETCH_DEBOUNCE_MS = 2000; // Don't refetch more than every 2 seconds
   
-  // Fetch odds data
+  // Fetch odds data (for desktop, or when not mobile)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["odds", sport, market, scope, type],
     queryFn: async () => {
@@ -68,6 +73,26 @@ export default function OddsPage({ params }: OddsPageProps) {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    enabled: !isMobile, // Only fetch on desktop
+  });
+  
+  // Fetch moneyline data for mobile games list
+  const { data: moneylineData, isLoading: isLoadingMoneyline, refetch: refetchMoneyline } = useQuery({
+    queryKey: ["odds-moneyline", sport, scope],
+    queryFn: async () => {
+      const result = await fetchOddsWithNewAPI({
+        sport,
+        market: "game_moneyline",
+        scope,
+        type: "game",
+        limit: 100,
+      });
+      return result.data;
+    },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled: isMobile, // Only fetch on mobile
   });
   
   // SSE URL for live updates
@@ -157,6 +182,36 @@ export default function OddsPage({ params }: OddsPageProps) {
     });
   }, [data, utility?.searchQuery]);
   
+  // Handle sport change for mobile navigation
+  const handleSportChange = useCallback((newSport: string) => {
+    router.push(`/odds/${newSport}?scope=${scope}`);
+  }, [router, scope]);
+
+  // Handle scope change for mobile navigation
+  const handleScopeChange = useCallback((newScope: "pregame" | "live") => {
+    router.push(`/odds/${sport}?scope=${newScope}`);
+  }, [router, sport]);
+
+  // Mobile view
+  if (isMobile) {
+    return (
+      <MobileOddsView
+        moneylineData={moneylineData || []}
+        loading={isLoadingMoneyline}
+        sport={sport}
+        scope={scope}
+        searchQuery={utility?.searchQuery || ""}
+        onSearchChange={utility?.setSearchQuery}
+        onRefresh={refetchMoneyline}
+        isRefreshing={isLoadingMoneyline}
+        onSportChange={handleSportChange}
+        onScopeChange={handleScopeChange}
+        connectionStatus={isPro ? { connected: sseConnected, reconnecting: sseReconnecting } : undefined}
+      />
+    );
+  }
+
+  // Desktop: loading state
   if (isLoading) {
     return (
       <div className="px-4 sm:px-6 pb-6">
@@ -165,6 +220,7 @@ export default function OddsPage({ params }: OddsPageProps) {
     );
   }
   
+  // Desktop: error state
   if (error) {
     return (
       <div className="px-4 sm:px-6 pb-6">
@@ -186,6 +242,7 @@ export default function OddsPage({ params }: OddsPageProps) {
     );
   }
   
+  // Desktop: table view
   return (
     <div className="px-4 sm:px-6 pb-6">
       <OddsTable

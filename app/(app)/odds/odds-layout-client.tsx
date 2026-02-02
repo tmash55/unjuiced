@@ -8,6 +8,7 @@ import { ToolHeading } from "@/components/common/tool-heading";
 import { ToolSubheading } from "@/components/common/tool-subheading";
 import { OddsUtilityProvider, useOddsUtilityOptional } from "./odds-utility-context";
 import { useOddsPreferences } from "@/context/preferences-context";
+import { useIsMobile } from "@/hooks/use-media-query";
 
 interface OddsLayoutClientProps {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
   const router = useRouter();
   const utility = useOddsUtilityOptional();
   const { preferences, updatePreferences } = useOddsPreferences();
+  const isMobile = useIsMobile();
   
   // Extract sport from pathname (e.g., /odds/nba -> nba)
   const sport = useMemo(() => {
@@ -82,8 +84,8 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
     updatePreferences({ tableView: newView });
   }, [updatePreferences]);
   
-  // Only show navigation on sport-specific pages (not /odds main page)
-  const showNavigation = pathname.startsWith("/odds/") && pathname !== "/odds";
+  // Only show navigation on sport-specific pages (not /odds main page) and not on mobile
+  const showNavigation = pathname.startsWith("/odds/") && pathname !== "/odds" && !isMobile;
   const sportName = SPORT_NAMES[sport] || sport.toUpperCase();
   
   return (

@@ -196,8 +196,8 @@ export function MobileArbsView({
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      {/* Fixed Header */}
-      <div className="fixed top-14 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-800">
+      {/* Fixed Header - below layout's h-12 mobile header */}
+      <div className="fixed top-12 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-800">
         {/* Actions Row */}
         <div className="px-4 py-3 flex items-center justify-between">
           {/* Mode Toggle - Left */}
@@ -312,8 +312,8 @@ export function MobileArbsView({
         )}
       </div>
 
-      {/* Spacer for fixed header */}
-      <div className={cn("pt-[72px]", showSearch && "pt-[124px]")} />
+      {/* Spacer for fixed header - accounts for top-12 (48px) + header content */}
+      <div className={cn("pt-[64px]", showSearch && "pt-[116px]")} />
 
       {/* Content */}
       <div className="px-4 pb-24 space-y-3">

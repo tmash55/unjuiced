@@ -293,8 +293,8 @@ export function MobileHitRates({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-50 via-white to-neutral-50 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950 overflow-x-hidden">
-      {/* Fixed Header - stays at top when scrolling - Premium */}
-      <div className="fixed top-14 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg shadow-lg shadow-black/[0.03] dark:shadow-black/20 border-b border-neutral-200/50 dark:border-neutral-800/50">
+      {/* Fixed Header - stays at top when scrolling - below layout's h-12 mobile header */}
+      <div className="fixed top-12 left-0 right-0 z-40 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-lg shadow-lg shadow-black/[0.03] dark:shadow-black/20 border-b border-neutral-200/50 dark:border-neutral-800/50">
         <MobileHeader
           sport="nba"
           selectedGameIds={selectedGameIds}
