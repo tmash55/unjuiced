@@ -226,7 +226,7 @@ export function OddsSheet({ item, side, sport, market, event, isOpen, onClose }:
                         : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 hover:text-red-400",
                       (isToggling || !buildFavoriteParams) && "opacity-50 cursor-not-allowed"
                     )}
-                    title={isCurrentlyFavorited ? "Remove from saved plays" : "Add to saved plays"}
+                    title={isCurrentlyFavorited ? "Remove from My Plays" : "Add to My Plays"}
                   >
                     <Heart className={cn("w-5 h-5", isCurrentlyFavorited && "fill-current")} />
                   </button>

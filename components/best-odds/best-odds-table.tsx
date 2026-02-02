@@ -998,7 +998,7 @@ export function BestOddsTable({
                       
                       {/* Add to Betslip Button */}
                       {!isLoggedIn ? (
-                        <Tooltip content="Sign in to save to betslip" side="left">
+                        <Tooltip content="Sign in to save plays" side="left">
                           <button
                             type="button"
                             disabled
@@ -1008,7 +1008,7 @@ export function BestOddsTable({
                           </button>
                         </Tooltip>
                       ) : (
-                        <Tooltip content={isDealFavorited(deal) ? "Remove from betslip" : "Add to betslip"} side="left">
+                        <Tooltip content={isDealFavorited(deal) ? "Remove from My Plays" : "Add to My Plays"} side="left">
                           <button
                             type="button"
                             onClick={(e) => {

@@ -57,9 +57,13 @@ export default function BillingSettings({ user }: { user: any }) {
     }
   };
 
-  const isPro = entitlements?.plan === "pro" || entitlements?.plan === "admin";
-  const isHitRate = entitlements?.plan === "hit_rate";
-  const hasPaidPlan = isPro || isHitRate;
+  const isEdge = entitlements?.plan === "edge" || entitlements?.plan === "admin";
+  const isSharp = entitlements?.plan === "sharp";
+  const isScout = entitlements?.plan === "scout";
+  const hasPaidPlan = isEdge || isSharp || isScout;
+  // Backward-compatible aliases for UI
+  const isPro = isSharp || isEdge; // Has sharp tools access
+  const isHitRate = isScout; // Has only hit rate access (no sharp tools)
   const isTrial = entitlements?.entitlement_source === "trial";
   const isSubscription = entitlements?.entitlement_source === "subscription";
   const isGrant = entitlements?.entitlement_source === "grant";

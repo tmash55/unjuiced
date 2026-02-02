@@ -41,6 +41,7 @@ export interface ConfigProps {
       description?: string;
       price: number;
       priceAnchor?: number;
+      tier?: "scout" | "sharp" | "edge";
       features: {
         name: string;
       }[];

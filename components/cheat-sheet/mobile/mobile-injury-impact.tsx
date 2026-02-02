@@ -799,31 +799,35 @@ export function MobileInjuryImpact({
                         {/* Favorites */}
                         <td className="text-center px-1 py-2">
                           {!isLoggedIn ? (
-                            <button
-                              disabled
-                              className="p-1.5 rounded-lg opacity-40 cursor-not-allowed"
-                            >
-                              <Heart className="w-4 h-4 text-neutral-400" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => handleToggleFavorite(row, e)}
-                              disabled={isRowToggling(row)}
-                              className={cn(
-                                "p-1.5 rounded-lg transition-colors",
-                                isRowFavorited(row)
-                                  ? "bg-red-500/10"
-                                  : "bg-neutral-100 dark:bg-neutral-800"
-                              )}
-                            >
-                              {isRowToggling(row) ? (
-                                <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
-                              ) : isRowFavorited(row) ? (
-                                <HeartFill className="w-4 h-4 text-red-500" />
-                              ) : (
+                            <Tooltip content="Sign in to save plays" side="left">
+                              <button
+                                disabled
+                                className="p-1.5 rounded-lg opacity-40 cursor-not-allowed"
+                              >
                                 <Heart className="w-4 h-4 text-neutral-400" />
-                              )}
-                            </button>
+                              </button>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip content={isRowFavorited(row) ? "Remove from My Plays" : "Add to My Plays"} side="left">
+                              <button
+                                onClick={(e) => handleToggleFavorite(row, e)}
+                                disabled={isRowToggling(row)}
+                                className={cn(
+                                  "p-1.5 rounded-lg transition-colors",
+                                  isRowFavorited(row)
+                                    ? "bg-red-500/10"
+                                    : "bg-neutral-100 dark:bg-neutral-800"
+                                )}
+                              >
+                                {isRowToggling(row) ? (
+                                  <HeartFill className="w-4 h-4 text-red-400 animate-pulse" />
+                                ) : isRowFavorited(row) ? (
+                                  <HeartFill className="w-4 h-4 text-red-500" />
+                                ) : (
+                                  <Heart className="w-4 h-4 text-neutral-400" />
+                                )}
+                              </button>
+                            </Tooltip>
                           )}
                         </td>
                       </tr>

@@ -330,7 +330,7 @@ export function MobileEVCard({
                   ? "bg-red-500/10 hover:bg-red-500/20" 
                   : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
-              title={!isLoggedIn ? "Sign in to save to betslip" : isFav ? "Remove from betslip" : "Add to betslip"}
+              title={!isLoggedIn ? "Sign in to save plays" : isFav ? "Remove from My Plays" : "Add to My Plays"}
             >
               {isToggling ? (
                 <HeartFill className="w-3.5 h-3.5 text-red-400 animate-pulse" />

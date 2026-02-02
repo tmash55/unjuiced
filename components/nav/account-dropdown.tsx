@@ -87,17 +87,23 @@ export function AccountDropdown({ user }: { user: User }) {
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                        entitlements.plan === "pro" &&
+                        // Edge tier - premium purple
+                        entitlements.plan === "edge" &&
+                          "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400",
+                        // Sharp tier - teal/tertiary
+                        (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "trial" &&
                           "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400",
-                        entitlements.plan === "pro" &&
+                        (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "subscription" &&
                           "bg-[var(--tertiary)]/10 text-[var(--tertiary-strong)] dark:bg-[var(--tertiary)]/20",
-                        entitlements.plan === "pro" &&
+                        (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "grant" &&
                           "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-                        entitlements.plan === "hit_rate" &&
+                        // Scout tier - orange
+                        entitlements.plan === "scout" &&
                           "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400",
+                        // Free tier
                         entitlements.plan === "free" &&
                           "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
@@ -105,11 +111,13 @@ export function AccountDropdown({ user }: { user: User }) {
                       {entitlements.entitlement_source === "trial"
                         ? "Trial"
                         : entitlements.entitlement_source === "grant"
-                        ? "Pro"
-                        : entitlements.plan === "pro"
-                        ? "Pro"
-                        : entitlements.plan === "hit_rate"
-                        ? "Hit Rates"
+                        ? "Edge"
+                        : entitlements.plan === "edge"
+                        ? "Edge"
+                        : entitlements.plan === "sharp"
+                        ? "Sharp"
+                        : entitlements.plan === "scout"
+                        ? "Scout"
                         : "Free"}
                     </span>
                   ) : null}

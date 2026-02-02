@@ -31,7 +31,14 @@ export type BrevoLifecycle =
 /**
  * Human-readable plan names for Brevo
  */
-export type BrevoPlan = 'hit_rates' | 'pro_monthly' | 'pro_yearly' | null;
+export type BrevoPlan =
+  | 'scout_monthly'
+  | 'scout_yearly'
+  | 'sharp_monthly'
+  | 'sharp_yearly'
+  | 'edge_monthly'
+  | 'edge_yearly'
+  | null;
 
 /**
  * Contact source for tracking where signups come from
@@ -81,15 +88,26 @@ export interface BrevoApiError {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Known production Stripe price IDs mapped to plan names
- * 
- * IMPORTANT: Only these price IDs will trigger Brevo updates.
- * Test/development price IDs are intentionally excluded.
+ * Known Stripe price IDs mapped to plan names
+ *
+ * Includes both sandbox and production price IDs.
+ * Add production IDs when you go live.
  */
 export const PRICE_ID_TO_PLAN: Record<string, BrevoPlan> = {
-  'price_1ScAHwDNAgNbsqnmrkM790vG': 'hit_rates',
-  'price_1SMSbxDNAgNbsqnmE0QYhApx': 'pro_monthly',
-  'price_1SMScHDNAgNbsqnmsQw8AaCh': 'pro_yearly',
+  // Sandbox price IDs
+  'price_1SwQGeDHoRr1ai9XaPwfXaSR': 'scout_monthly',
+  'price_1SwQHHDHoRr1ai9XHWAZBHxE': 'scout_yearly',
+  'price_1SwQHpDHoRr1ai9XG5KgYpjq': 'sharp_monthly',
+  'price_1SwQIFDHoRr1ai9XMYYvBaLY': 'sharp_yearly',
+  'price_1SwQIgDHoRr1ai9XaVvzPu5t': 'edge_monthly',
+  'price_1SwQItDHoRr1ai9XFYDFVtuR': 'edge_yearly',
+  // Production price IDs - add when you create them
+  // 'price_PROD_SCOUT_MONTHLY': 'scout_monthly',
+  // 'price_PROD_SCOUT_YEARLY': 'scout_yearly',
+  // 'price_PROD_SHARP_MONTHLY': 'sharp_monthly',
+  // 'price_PROD_SHARP_YEARLY': 'sharp_yearly',
+  // 'price_PROD_EDGE_MONTHLY': 'edge_monthly',
+  // 'price_PROD_EDGE_YEARLY': 'edge_yearly',
 };
 
 /**

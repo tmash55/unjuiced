@@ -4,26 +4,48 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
-import { syncNewSignupToBrevo } from '@/libs/brevo'
+import { syncNewSignupToBeeHiiv } from '@/libs/beehiiv'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, email, fullName, avatarUrl, createdAt } = body
+    const { userId, email, fullName, firstName: bodyFirstName, lastName: bodyLastName, avatarUrl, createdAt } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
 
+    // Extract first/last name - prefer explicit fields, fallback to parsing fullName
+    const firstName = bodyFirstName || fullName?.split(' ')[0] || undefined
+    const lastName = bodyLastName || fullName?.split(' ').slice(1).join(' ') || undefined
+
     const supabase = await createClient()
     const cookieStore = await cookies()
 
     // Check if user was created in the last 10 minutes (new sign up)
-    const isNewUser = createdAt 
+    const isNewUser = createdAt
       ? new Date(createdAt) > new Date(Date.now() - 10 * 60 * 1000)
       : false
 
-    console.log('📊 Post-signup processing:', { userId, email, isNewUser })
+    console.log('📊 Post-signup processing:', { userId, email, firstName, lastName, isNewUser })
+
+    // ═══════════════════════════════════════════════════════════════════
+    // UPDATE PROFILE - Save first/last name to profiles table
+    // ═══════════════════════════════════════════════════════════════════
+    if (firstName || lastName) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            first_name: firstName || null,
+            last_name: lastName || null,
+          })
+          .eq('id', userId)
+        console.log('✅ Updated profile with name for user', userId)
+      } catch (e) {
+        console.warn('⚠️ Could not update profile name:', (e as any)?.message)
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // DUB LEAD TRACKING - Track new sign ups from referral links
@@ -84,26 +106,24 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // BREVO SYNC - Track new sign ups as leads in Brevo
+    // BEEHIIV SYNC - Track new sign ups as leads in BeeHiiv
     // ═══════════════════════════════════════════════════════════════════
     if (isNewUser && email) {
-      console.log('📧 Syncing new user to Brevo as lead:', userId)
+      console.log('📧 Syncing new user to BeeHiiv as lead:', userId)
 
       waitUntil(
-        syncNewSignupToBrevo({
+        syncNewSignupToBeeHiiv({
           email,
-          firstName: fullName?.split(' ')[0] || undefined,
-          lastName: fullName?.split(' ').slice(1).join(' ') || undefined,
-          newsletterOptIn: true,
-          source: 'app_signup',
+          firstName,
+          lastName,
         }).then((success) => {
           if (success) {
-            console.log('✅ Brevo lead sync successful for user', userId)
+            console.log('✅ BeeHiiv lead sync successful for user', userId)
           } else {
-            console.warn('⚠️ Brevo lead sync failed for user', userId)
+            console.warn('⚠️ BeeHiiv lead sync failed for user', userId)
           }
         }).catch((err) => {
-          console.error('❌ Brevo lead sync error:', err)
+          console.error('❌ BeeHiiv lead sync error:', err)
         })
       )
     }

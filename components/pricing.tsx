@@ -23,9 +23,8 @@ export const Pricing = () => {
   const showTrialCTA = !user || (entitlements?.trial?.trial_used === false);
   
   // Build checkout URL with optional partner coupon
-  const getCheckoutUrl = (productType: "pro" | "nba_hit_rates", yearly: boolean, trialDays?: number) => {
-    // Only Pro has yearly pricing
-    const plan = (productType === "pro" && yearly) ? "yearly" : "monthly";
+  const getCheckoutUrl = (productType: "scout" | "sharp" | "edge", yearly: boolean, trialDays?: number) => {
+    const plan = yearly ? "yearly" : "monthly";
     const priceId = getProductPriceId(productType, plan);
     const params = new URLSearchParams({
       priceId,

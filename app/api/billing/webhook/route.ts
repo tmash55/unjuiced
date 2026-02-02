@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
-import { syncSubscriptionToBrevo, isKnownPriceId } from '@/libs/brevo'
+import { syncSubscriptionToBeeHiiv, getPlanFromPriceId } from '@/libs/beehiiv'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-08-16' as any,
@@ -154,64 +154,65 @@ export async function POST(req: NextRequest) {
         }
         
         // ═══════════════════════════════════════════════════════════════════
-        // BREVO SYNC - Update contact lifecycle based on subscription status
+        // BEEHIIV SYNC - Update contact lifecycle based on subscription status
         // ═══════════════════════════════════════════════════════════════════
-        const priceId = typeof (sub as any)?.items?.data?.[0]?.price?.id === 'string' 
-          ? (sub as any).items.data[0].price.id 
+        const priceId = typeof (sub as any)?.items?.data?.[0]?.price?.id === 'string'
+          ? (sub as any).items.data[0].price.id
           : undefined
-        
-        // Only sync to Brevo for known production price IDs
-        if (isKnownPriceId(priceId)) {
-          try {
-            // Get customer email for Brevo sync
-            let customerEmail: string | undefined
-            
-            // First try to get email from our profile
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('email')
-              .eq('id', user_id)
-              .maybeSingle()
-            
-            customerEmail = profileData?.email || undefined
-            
-            // Fallback: fetch from Stripe customer
-            if (!customerEmail && sub.customer) {
-              try {
-                const customer = await stripe.customers.retrieve(String(sub.customer))
-                if (customer && !customer.deleted && 'email' in customer) {
-                  customerEmail = customer.email || undefined
-                }
-              } catch (e) {
-                console.warn('[webhook] Failed to fetch customer email from Stripe:', (e as any)?.message)
+
+        // Sync to BeeHiiv for all subscriptions (will map price to plan)
+        try {
+          // Get customer email and name for BeeHiiv sync
+          let customerEmail: string | undefined
+          let firstName: string | undefined
+          let lastName: string | undefined
+
+          // First try to get email from our profile
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('email, first_name, last_name')
+            .eq('id', user_id)
+            .maybeSingle()
+
+          customerEmail = profileData?.email || undefined
+          firstName = profileData?.first_name || undefined
+          lastName = profileData?.last_name || undefined
+
+          // Fallback: fetch from Stripe customer
+          if (!customerEmail && sub.customer) {
+            try {
+              const customer = await stripe.customers.retrieve(String(sub.customer))
+              if (customer && !customer.deleted && 'email' in customer) {
+                customerEmail = customer.email || undefined
               }
+            } catch (e) {
+              console.warn('[webhook] Failed to fetch customer email from Stripe:', (e as any)?.message)
             }
-            
-            if (customerEmail) {
-              const brevoSuccess = await syncSubscriptionToBrevo({
-                email: customerEmail,
-                priceId,
-                status: normalizedStatus,
-                cancelAtPeriodEnd: cancel_at_period_end,
-                currentPeriodEnd: cpeEpoch,
-                trialEnd: (sub as any)?.trial_end ?? undefined,
-                stripeCustomerId: String(sub.customer),
-              })
-              
-              if (brevoSuccess) {
-                console.log('[webhook] Brevo sync successful for subscription', sub.id)
-              } else {
-                console.warn('[webhook] Brevo sync failed for subscription', sub.id)
-              }
-            } else {
-              console.warn('[webhook] No email found for Brevo sync, subscription:', sub.id)
-            }
-          } catch (e) {
-            // Don't fail the webhook for Brevo errors
-            console.error('[webhook] Brevo sync error:', (e as any)?.message)
           }
-        } else {
-          console.log('[webhook] Skipping Brevo sync for test/unknown price ID:', priceId)
+
+          if (customerEmail) {
+            const beehiivSuccess = await syncSubscriptionToBeeHiiv({
+              email: customerEmail,
+              priceId,
+              status: normalizedStatus,
+              cancelAtPeriodEnd: cancel_at_period_end,
+              currentPeriodEnd: cpeEpoch,
+              trialEnd: (sub as any)?.trial_end ?? undefined,
+              firstName,
+              lastName,
+            })
+
+            if (beehiivSuccess) {
+              console.log('[webhook] BeeHiiv sync successful for subscription', sub.id)
+            } else {
+              console.warn('[webhook] BeeHiiv sync failed for subscription', sub.id)
+            }
+          } else {
+            console.warn('[webhook] No email found for BeeHiiv sync, subscription:', sub.id)
+          }
+        } catch (e) {
+          // Don't fail the webhook for BeeHiiv errors
+          console.error('[webhook] BeeHiiv sync error:', (e as any)?.message)
         }
         
         break
@@ -265,50 +266,53 @@ export async function POST(req: NextRequest) {
               console.log('[webhook] Upserted subscription from checkout.session for user', subUserId)
               
               // ═══════════════════════════════════════════════════════════════════
-              // BREVO SYNC - Update contact lifecycle from checkout completion
+              // BEEHIIV SYNC - Update contact lifecycle from checkout completion
               // ═══════════════════════════════════════════════════════════════════
-              if (isKnownPriceId(priceId)) {
-                try {
-                  // Get customer email - prefer session.customer_email, fallback to Stripe customer
-                  let customerEmail = session.customer_email || undefined
-                  
-                  if (!customerEmail) {
-                    // Try profile
-                    const { data: profileData } = await getServiceClient()
-                      .from('profiles')
-                      .select('email')
-                      .eq('id', subUserId)
-                      .maybeSingle()
-                    customerEmail = profileData?.email || undefined
-                  }
-                  
-                  if (!customerEmail && s.customer) {
-                    const customer = await stripe.customers.retrieve(String(s.customer))
-                    if (customer && !customer.deleted && 'email' in customer) {
-                      customerEmail = customer.email || undefined
-                    }
-                  }
-                  
-                  if (customerEmail) {
-                    const brevoSuccess = await syncSubscriptionToBrevo({
-                      email: customerEmail,
-                      priceId,
-                      status: normalizedStatus,
-                      cancelAtPeriodEnd: cancel_at_period_end,
-                      currentPeriodEnd: cpeRaw,
-                      trialEnd: (s as any)?.trial_end ?? undefined,
-                      stripeCustomerId: String(s.customer),
-                    })
-                    
-                    if (brevoSuccess) {
-                      console.log('[webhook] Brevo sync successful from checkout.session')
-                    } else {
-                      console.warn('[webhook] Brevo sync failed from checkout.session')
-                    }
-                  }
-                } catch (e) {
-                  console.error('[webhook] Brevo sync error from checkout.session:', (e as any)?.message)
+              try {
+                // Get customer email and name - prefer session.customer_email, fallback to Stripe customer
+                let customerEmail = session.customer_email || undefined
+                let firstName: string | undefined
+                let lastName: string | undefined
+
+                if (!customerEmail) {
+                  // Try profile
+                  const { data: profileData } = await getServiceClient()
+                    .from('profiles')
+                    .select('email, first_name, last_name')
+                    .eq('id', subUserId)
+                    .maybeSingle()
+                  customerEmail = profileData?.email || undefined
+                  firstName = profileData?.first_name || undefined
+                  lastName = profileData?.last_name || undefined
                 }
+
+                if (!customerEmail && s.customer) {
+                  const customer = await stripe.customers.retrieve(String(s.customer))
+                  if (customer && !customer.deleted && 'email' in customer) {
+                    customerEmail = customer.email || undefined
+                  }
+                }
+
+                if (customerEmail) {
+                  const beehiivSuccess = await syncSubscriptionToBeeHiiv({
+                    email: customerEmail,
+                    priceId,
+                    status: normalizedStatus,
+                    cancelAtPeriodEnd: cancel_at_period_end,
+                    currentPeriodEnd: cpeRaw,
+                    trialEnd: (s as any)?.trial_end ?? undefined,
+                    firstName,
+                    lastName,
+                  })
+
+                  if (beehiivSuccess) {
+                    console.log('[webhook] BeeHiiv sync successful from checkout.session')
+                  } else {
+                    console.warn('[webhook] BeeHiiv sync failed from checkout.session')
+                  }
+                }
+              } catch (e) {
+                console.error('[webhook] BeeHiiv sync error from checkout.session:', (e as any)?.message)
               }
             }
           }

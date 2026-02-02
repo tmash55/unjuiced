@@ -527,7 +527,7 @@ export function AlternatesModal({
                                       player_id: playerId || null,
                                     });
                                     return (
-                                      <Tooltip content={favorited ? "Remove from favorites" : "Add to favorites"}>
+                                      <Tooltip content={favorited ? "Remove from My Plays" : "Add to My Plays"}>
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;
@@ -628,7 +628,7 @@ export function AlternatesModal({
                                       player_id: playerId || null,
                                     });
                                     return (
-                                      <Tooltip content={favorited ? "Remove from favorites" : "Add to favorites"}>
+                                      <Tooltip content={favorited ? "Remove from My Plays" : "Add to My Plays"}>
                                         <button
                                           onClick={() => {
                                             if (!isLoggedIn) return;

@@ -2232,7 +2232,7 @@ export default function PositiveEVPage() {
                         />
                         
                         {/* Add to Betslip Button - hidden on small screens */}
-                        <Tooltip content={isFav ? "Remove from betslip" : "Add to betslip"} side="left">
+                        <Tooltip content={isFav ? "Remove from My Plays" : "Add to My Plays"} side="left">
                           <button
                             type="button"
                             data-no-row-toggle="true"

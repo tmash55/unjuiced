@@ -11,17 +11,34 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      const supabase = createClient();
+
+      // Get parameters from URL
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const tokenHash = params.get("token_hash");
+      const type = params.get("type");
+      const next = params.get("next") || params.get("redirectTo") || "/today";
+      const errorParam = params.get("error");
+      const errorDescription = params.get("error_description");
+
+      // Prevent double execution - check if we've already processed this code
+      if (code) {
+        const processedKey = `auth_code_processed_${code}`;
+        if (sessionStorage.getItem(processedKey)) {
+          // Already processed this code, check if we have a session and redirect
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setStatus("success");
+            window.location.href = next;
+          }
+          return;
+        }
+        // Mark this code as being processed
+        sessionStorage.setItem(processedKey, "true");
+      }
+
       try {
-        const supabase = createClient();
-        
-        // Get parameters from URL
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
-        const tokenHash = params.get("token_hash");
-        const type = params.get("type");
-        const next = params.get("next") || params.get("redirectTo") || "/today";
-        const errorParam = params.get("error");
-        const errorDescription = params.get("error_description");
 
         // Handle OAuth errors from provider
         if (errorParam) {
@@ -82,6 +99,14 @@ export default function AuthCallbackPage() {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
           if (error) {
+            // Check if user is already authenticated (code was already exchanged)
+            const { data: { session: existingSession } } = await supabase.auth.getSession();
+            if (existingSession) {
+              // Auth succeeded via another path, just redirect
+              setStatus("success");
+              window.location.href = next;
+              return;
+            }
             console.error("Code exchange error:", error);
             setStatus("error");
             setErrorMessage(error.message);
@@ -95,14 +120,24 @@ export default function AuthCallbackPage() {
             // Call server endpoint to handle Stripe/Brevo/Dub tracking for new users
             if (data.user) {
               try {
+                // Extract name from user metadata
+                // Google OAuth provides: given_name, family_name, name, full_name
+                // Email/password signup provides: first_name, last_name, full_name
+                const metadata = data.user.user_metadata || {};
+                const firstName = metadata.first_name || metadata.given_name || undefined;
+                const lastName = metadata.last_name || metadata.family_name || undefined;
+                const fullName = metadata.full_name || metadata.name || undefined;
+
                 await fetch("/api/auth/post-signup", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     userId: data.user.id,
                     email: data.user.email,
-                    fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
-                    avatarUrl: data.user.user_metadata?.avatar_url,
+                    firstName,
+                    lastName,
+                    fullName,
+                    avatarUrl: metadata.avatar_url,
                     createdAt: data.user.created_at,
                   }),
                 });

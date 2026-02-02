@@ -1256,28 +1256,29 @@ function ThresholdCell({
             <div className="flex items-center gap-2">
               {oddsData && <span className="text-[10px] text-neutral-400">{oddsData.book_count} books</span>}
               {/* Favorite heart button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleFavorite();
-                }}
-                disabled={isTogglingFavorite}
-                className={cn(
-                  "p-1 rounded-md transition-colors",
-                  isFav 
-                    ? "text-red-500 hover:text-red-600" 
-                    : "text-neutral-400 hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                )}
-                title={isFav ? "Remove from favorites" : "Add to favorites"}
-              >
-                {isTogglingFavorite ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : isFav ? (
-                  <HeartFill className="w-4 h-4" />
-                ) : (
-                  <Heart className="w-4 h-4" />
-                )}
-              </button>
+              <Tooltip content={isFav ? "Remove from My Plays" : "Add to My Plays"} side="left">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFavorite();
+                  }}
+                  disabled={isTogglingFavorite}
+                  className={cn(
+                    "p-1 rounded-md transition-colors",
+                    isFav
+                      ? "text-red-500 hover:text-red-600"
+                      : "text-neutral-400 hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                  )}
+                >
+                  {isTogglingFavorite ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isFav ? (
+                    <HeartFill className="w-4 h-4" />
+                  ) : (
+                    <Heart className="w-4 h-4" />
+                  )}
+                </button>
+              </Tooltip>
             </div>
           </div>
 

@@ -1230,28 +1230,30 @@ export function HitRateTable({
                   {isBlurred ? (
                     <div className="w-5 h-5 mx-auto rounded bg-neutral-200 dark:bg-neutral-700 opacity-50" />
                   ) : (
-                    <button
-                      onClick={(e) => handleToggleFavorite(row, e)}
-                      disabled={isTogglingThis}
-                      className={cn(
-                        "p-1.5 rounded-lg transition-all duration-200",
-                        isFavorited 
-                          ? "text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20" 
-                          : "text-neutral-300 hover:text-rose-400 hover:bg-neutral-100 dark:text-neutral-600 dark:hover:text-rose-400 dark:hover:bg-neutral-800",
-                        isTogglingThis && "opacity-50"
-                      )}
-                    >
-                      {isTogglingThis ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <Heart 
-                          className={cn(
-                            "h-5 w-5 transition-all",
-                            isFavorited && "fill-current"
-                          )} 
-                        />
-                      )}
-                    </button>
+                    <Tooltip content={isFavorited ? "Remove from My Plays" : "Add to My Plays"} side="left">
+                      <button
+                        onClick={(e) => handleToggleFavorite(row, e)}
+                        disabled={isTogglingThis}
+                        className={cn(
+                          "p-1.5 rounded-lg transition-all duration-200",
+                          isFavorited
+                            ? "text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                            : "text-neutral-300 hover:text-rose-400 hover:bg-neutral-100 dark:text-neutral-600 dark:hover:text-rose-400 dark:hover:bg-neutral-800",
+                          isTogglingThis && "opacity-50"
+                        )}
+                      >
+                        {isTogglingThis ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Heart
+                            className={cn(
+                              "h-5 w-5 transition-all",
+                              isFavorited && "fill-current"
+                            )}
+                          />
+                        )}
+                      </button>
+                    </Tooltip>
                   )}
                 </td>
                 

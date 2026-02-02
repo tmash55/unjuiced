@@ -24,41 +24,84 @@ const config = {
   },
   stripe: {
     plans: [
+      // Scout Tier - Hit Rate Research
       {
-        // Monthly — default
-        priceId:
-          process.env.NODE_ENV === "development"
-            ? "price_1SKiDjDHoRr1ai9XQTH0H9iV" // use your test price here if you have one
-            : "price_1SKiDjDHoRr1ai9XQTH0H9iV",
-        name: "Unjuiced Pro – Monthly",
-        description:
-          "Advanced betting analytics, real-time EV insights, and premium tools for smarter wagers.",
-        price: 39.99,
-        // priceAnchor: 49.99, // optional, remove if not needed
+        priceId: process.env.NEXT_PUBLIC_STRIPE_SCOUT_MONTHLY || "price_1SwQGeDHoRr1ai9XaPwfXaSR",
+        name: "Scout – Monthly",
+        description: "Hit rate research tools to find winning player props.",
+        price: 15,
+        tier: "scout",
         features: [
-          { name: "Real-time EV calculations" },
-          { name: "Hit rate tracking and trends" },
-          { name: "Betslip scanning & comparison" },
-          { name: "Full access to premium tools" },
+          { name: "All hit rate tools" },
+          { name: "Defense vs Position matchups" },
+          { name: "Hit Rate Matrix cheat sheets" },
+          { name: "Player trend analysis" },
         ],
       },
       {
-        // Yearly — featured, 2 months free
-        isFeatured: true,
-        priceId:
-          process.env.NODE_ENV === "development"
-            ? "price_1SKiFTDHoRr1ai9XCF5wywQO"
-            : "price_1SKiFTDHoRr1ai9XCF5wywQO",
-        name: "Unjuiced Pro – Yearly",
-        description:
-          "Get 2 months free when you commit annually. Unlock all premium features for a full year.",
-        price: 399.99,
-        // Optional: show equivalent monthly as an anchor for context in the UI
-        priceAnchor: 39.99,
+        priceId: process.env.NEXT_PUBLIC_STRIPE_SCOUT_YEARLY || "price_1SwQHHDHoRr1ai9XHWAZBHxE",
+        name: "Scout – Yearly",
+        description: "Hit rate research tools. Save 2 months with yearly billing.",
+        price: 150,
+        priceAnchor: 15,
+        tier: "scout",
         features: [
-          { name: "Everything in Pro – Monthly" },
-          { name: "2 months free (save $79.98)" },
-          { name: "Priority access to new features" },
+          { name: "Everything in Scout Monthly" },
+          { name: "2 months free (save $30)" },
+        ],
+      },
+      // Sharp Tier - Hit Rates + Sharp Tools
+      {
+        isFeatured: true,
+        priceId: process.env.NEXT_PUBLIC_STRIPE_SHARP_MONTHLY || "price_1SwQHpDHoRr1ai9XG5KgYpjq",
+        name: "Sharp – Monthly",
+        description: "Everything in Scout plus Positive EV, Arbitrage, and Edge Finder tools.",
+        price: 35,
+        tier: "sharp",
+        features: [
+          { name: "Everything in Scout" },
+          { name: "Positive EV scanner" },
+          { name: "Pregame Arbitrage finder" },
+          { name: "Edge Finder tool" },
+        ],
+      },
+      {
+        isFeatured: true,
+        priceId: process.env.NEXT_PUBLIC_STRIPE_SHARP_YEARLY || "price_1SwQIFDHoRr1ai9XMYYvBaLY",
+        name: "Sharp – Yearly",
+        description: "Full sharp betting toolkit. Save 2 months with yearly billing.",
+        price: 350,
+        priceAnchor: 35,
+        tier: "sharp",
+        features: [
+          { name: "Everything in Sharp Monthly" },
+          { name: "2 months free (save $70)" },
+        ],
+      },
+      // Edge Tier - Everything + Live Arb + Custom Models
+      {
+        priceId: process.env.NEXT_PUBLIC_STRIPE_EDGE_MONTHLY || "price_1SwQIgDHoRr1ai9XaVvzPu5t",
+        name: "Edge – Monthly",
+        description: "Full platform access including Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
+        price: 65,
+        tier: "edge",
+        features: [
+          { name: "Everything in Sharp" },
+          { name: "Live Arbitrage alerts" },
+          { name: "Custom Model builder" },
+          { name: "EV-enhanced hit rates" },
+        ],
+      },
+      {
+        priceId: process.env.NEXT_PUBLIC_STRIPE_EDGE_YEARLY || "price_1SwQItDHoRr1ai9XFYDFVtuR",
+        name: "Edge – Yearly",
+        description: "Every advantage. Every tool. Save 2 months with yearly billing.",
+        price: 650,
+        priceAnchor: 65,
+        tier: "edge",
+        features: [
+          { name: "Everything in Edge Monthly" },
+          { name: "2 months free (save $130)" },
         ],
       },
     ],

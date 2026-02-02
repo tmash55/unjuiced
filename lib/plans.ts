@@ -2,8 +2,28 @@ import { User } from "@supabase/supabase-js";
 
 /**
  * User plan tiers
+ * - anonymous: Not logged in
+ * - free: Logged in, no subscription
+ * - scout: $15/mo - Hit rate research tools
+ * - sharp: $35/mo - Hit rates + EV/Arb tools (no live arb, no custom models)
+ * - edge: $65/mo - Everything including live arb + custom models
  */
-export type UserPlan = "anonymous" | "free" | "hit_rate" | "pro";
+export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "edge";
+
+/**
+ * Legacy plan type aliases for backward compatibility
+ * @deprecated Use UserPlan instead
+ */
+export type LegacyUserPlan = "hit_rate" | "pro";
+
+/**
+ * Map legacy plan names to new plan names
+ */
+export function normalizePlanName(plan: string): UserPlan {
+  if (plan === "hit_rate") return "scout";
+  if (plan === "pro") return "sharp"; // Old pro maps to sharp (not edge)
+  return plan as UserPlan;
+}
 
 /**
  * Feature access limits by plan
@@ -11,10 +31,11 @@ export type UserPlan = "anonymous" | "free" | "hit_rate" | "pro";
 export const PLAN_LIMITS = {
   anonymous: {
     arbitrage: {
-      maxResults: 100, // Increased to show filtered arbs (ROI <= 1%)
+      maxResults: 100, // Limited preview
       refreshRate: 60000, // 60 seconds
       canFilter: false,
       canExport: false,
+      hasLiveArb: false,
     },
     odds: {
       maxLeagues: 1,
@@ -24,17 +45,20 @@ export const PLAN_LIMITS = {
     positiveEV: {
       maxResults: 0, // No access
       refreshRate: 0,
+      hasCustomModels: false,
     },
     hitRates: {
       hasAccess: false,
+      hasEVSignals: false,
     },
   },
   free: {
     arbitrage: {
-      maxResults: 100, // Increased to show filtered arbs (ROI <= 1%)
+      maxResults: 100, // Limited preview
       refreshRate: 10000, // 10 seconds
       canFilter: true,
       canExport: false,
+      hasLiveArb: false,
     },
     odds: {
       maxLeagues: 3,
@@ -44,17 +68,20 @@ export const PLAN_LIMITS = {
     positiveEV: {
       maxResults: 10,
       refreshRate: 30000,
+      hasCustomModels: false,
     },
     hitRates: {
       hasAccess: false,
+      hasEVSignals: false,
     },
   },
-  hit_rate: {
+  scout: {
     arbitrage: {
       maxResults: 100, // Same as free - no arb access
       refreshRate: 10000,
       canFilter: true,
       canExport: false,
+      hasLiveArb: false,
     },
     odds: {
       maxLeagues: 3, // Same as free - limited odds access
@@ -64,17 +91,20 @@ export const PLAN_LIMITS = {
     positiveEV: {
       maxResults: 10, // Same as free - limited EV access
       refreshRate: 30000,
+      hasCustomModels: false,
     },
     hitRates: {
       hasAccess: true, // Full Hit Rates access
+      hasEVSignals: false,
     },
   },
-  pro: {
+  sharp: {
     arbitrage: {
       maxResults: -1, // Unlimited
       refreshRate: 2000, // 2 seconds
       canFilter: true,
       canExport: true,
+      hasLiveArb: false, // No live arb for Sharp
     },
     odds: {
       maxLeagues: -1, // Unlimited
@@ -84,9 +114,34 @@ export const PLAN_LIMITS = {
     positiveEV: {
       maxResults: -1, // Unlimited
       refreshRate: 5000,
+      hasCustomModels: false, // No custom models for Sharp
     },
     hitRates: {
-      hasAccess: true, // Full Hit Rates access
+      hasAccess: true,
+      hasEVSignals: false,
+    },
+  },
+  edge: {
+    arbitrage: {
+      maxResults: -1, // Unlimited
+      refreshRate: 2000, // 2 seconds
+      canFilter: true,
+      canExport: true,
+      hasLiveArb: true, // Live arb for Edge
+    },
+    odds: {
+      maxLeagues: -1, // Unlimited
+      refreshRate: 2000,
+      canCompare: true,
+    },
+    positiveEV: {
+      maxResults: -1, // Unlimited
+      refreshRate: 5000,
+      hasCustomModels: true, // Custom models for Edge
+    },
+    hitRates: {
+      hasAccess: true,
+      hasEVSignals: true, // EV-enhanced hit rates for Edge
     },
   },
 } as const;
@@ -95,14 +150,29 @@ export const PLAN_LIMITS = {
  * Check if a plan has access to Hit Rates
  */
 export function hasHitRateAccess(plan: UserPlan): boolean {
-  return plan === "hit_rate" || plan === "pro";
+  return plan === "scout" || plan === "sharp" || plan === "edge";
+}
+
+/**
+ * Check if a plan has access to sharp tools (EV, Arb, Edge Finder)
+ */
+export function hasSharpAccess(plan: UserPlan): boolean {
+  return plan === "sharp" || plan === "edge";
+}
+
+/**
+ * Check if a plan has access to Edge features (live arb, custom models, EV signals)
+ */
+export function hasEdgeAccess(plan: UserPlan): boolean {
+  return plan === "edge";
 }
 
 /**
  * Check if a plan has full Pro features (arb, EV, etc.)
+ * @deprecated Use hasSharpAccess or hasEdgeAccess instead
  */
 export function hasProAccess(plan: UserPlan): boolean {
-  return plan === "pro";
+  return plan === "sharp" || plan === "edge";
 }
 
 /**
@@ -172,10 +242,18 @@ export function getUpgradeMessage(plan: UserPlan, feature: string): string {
   if (plan === "anonymous") {
     return `Sign up for a free account to unlock more ${feature} opportunities!`;
   }
-  
+
   if (plan === "free") {
-    return `Upgrade to Pro for unlimited ${feature} access with faster updates!`;
+    return `Upgrade to Scout for hit rate research or Sharp for full betting tools!`;
   }
-  
+
+  if (plan === "scout") {
+    return `Upgrade to Sharp for unlimited ${feature} access with EV and arbitrage tools!`;
+  }
+
+  if (plan === "sharp") {
+    return `Upgrade to Edge for live arbitrage, custom models, and EV-enhanced hit rates!`;
+  }
+
   return "";
 }

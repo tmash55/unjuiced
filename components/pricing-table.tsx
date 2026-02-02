@@ -9,14 +9,14 @@ import { SlidingNumber } from "./sliding-number";
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
 import { BuyButton } from "@/components/billing/BuyButton";
-import { getPriceId } from "@/constants/billing";
+import { getProductPriceId } from "@/constants/billing";
 
 
 export const PricingTable = () => {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
 
   const orderedTierNames: TierName[] = useMemo(
-    () => [TierName.HIT_RATES, TierName.PRO],
+    () => [TierName.SCOUT, TierName.SHARP, TierName.EDGE],
     [],
   );
 
@@ -78,19 +78,15 @@ export const PricingTable = () => {
                       /seat billed{" "}
                       {cycle === "monthly" ? "monthly" : "annually"}
                     </div>
-                    {tierName === TierName.HIT_RATES ? (
-                      <BuyButton
-                        priceId={process.env.NEXT_PUBLIC_STRIPE_NBA_HIT_RATES || ""}
-                        label="Get Hit Rates"
-                        className="w-full sm:w-auto mt-2"
-                      />
-                    ) : (
-                      <BuyButton
-                        priceId={getPriceId(cycle)}
-                        label="Unlock Pro Now"
-                        className="w-full sm:w-auto mt-2"
-                      />
-                    )}
+                    <BuyButton
+                      priceId={getProductPriceId(
+                        tierName === TierName.SCOUT ? "scout" :
+                        tierName === TierName.SHARP ? "sharp" : "edge",
+                        cycle
+                      )}
+                      label={`Get ${tierName}`}
+                      className="w-full sm:w-auto mt-2"
+                    />
                   </th>
                 ))}
               </tr>

@@ -19,7 +19,7 @@ export function FavoritesButton({ className }: FavoritesButtonProps) {
   
   if (!isLoggedIn) {
     return (
-      <Tooltip content="Sign in to save favorites" side="bottom">
+      <Tooltip content="Sign in to save plays" side="bottom">
         <button
           disabled
           className={cn(
@@ -36,7 +36,7 @@ export function FavoritesButton({ className }: FavoritesButtonProps) {
   }
   
   return (
-    <Tooltip content={hasItems ? `${count} saved pick${count !== 1 ? 's' : ''}` : "Your saved picks"} side="bottom">
+    <Tooltip content={hasItems ? `${count} saved play${count !== 1 ? 's' : ''}` : "Your saved plays"} side="bottom">
       <Link
         href="/saved-plays"
         className={cn(

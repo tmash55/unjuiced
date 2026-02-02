@@ -30,8 +30,10 @@ const PUBLIC_ROUTES = [
 // Auth routes (exist on both subdomains)
 const AUTH_ROUTES = [
   '/login',
-  '/register', 
+  '/register',
   '/forgot-password',
+  '/auth/callback',
+  '/auth/auth-code-error',
 ];
 
 // Tool preview to actual tool path mappings

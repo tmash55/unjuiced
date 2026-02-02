@@ -53,7 +53,11 @@ export function useFeatureAccess(feature: keyof typeof PLAN_LIMITS.anonymous) {
     upgradeMessage,
     isAnonymous: plan === "anonymous",
     isFree: plan === "free",
-    isPro: plan === "pro",
+    isScout: plan === "scout",
+    isSharp: plan === "sharp",
+    isEdge: plan === "edge",
+    // isPro = has any paid plan (scout, sharp, or edge)
+    isPro: plan === "scout" || plan === "sharp" || plan === "edge",
     isAuthenticated: !!user,
   };
 }

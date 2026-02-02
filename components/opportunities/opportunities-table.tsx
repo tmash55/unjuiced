@@ -1344,9 +1344,9 @@ export function OpportunitiesTable({
                 }
               />
 
-              {/* Add to Betslip Button - hidden on small screens */}
+              {/* Add to My Plays Button - hidden on small screens */}
               {!isLoggedIn ? (
-                <Tooltip content="Sign in to save to betslip" side="left">
+                <Tooltip content="Sign in to save plays" side="left">
                   <button
                     type="button"
                     disabled
@@ -1357,7 +1357,7 @@ export function OpportunitiesTable({
                   </button>
                 </Tooltip>
               ) : (
-                <Tooltip content={isOppFavorited(opp) ? "Remove from betslip" : "Add to betslip"} side="left">
+                <Tooltip content={isOppFavorited(opp) ? "Remove from My Plays" : "Add to My Plays"} side="left">
                   <button
                     type="button"
                     data-no-row-toggle="true"

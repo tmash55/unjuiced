@@ -259,7 +259,7 @@ export function FavoritesDropdown() {
   
   if (!isLoggedIn) {
     return (
-      <Tooltip content="Sign in to save picks" side="bottom">
+      <Tooltip content="Sign in to save plays" side="bottom">
         <button
           disabled
           className={cn(

@@ -14,6 +14,8 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 
 // Zod schema for sign up
 const signUpSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(50, "First name must be less than 50 characters"),
+  lastName: z.string().max(50, "Last name must be less than 50 characters").optional(),
   email: z.string().email("Please enter a valid email address"),
   password: z
     .string()
@@ -40,6 +42,8 @@ export const SignUpEmail = () => {
   } = useForm<SignUpProps>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
+      firstName: "",
+      lastName: "",
       email: contextEmail || "",
       password: "",
     },
@@ -66,11 +70,22 @@ export const SignUpEmail = () => {
             ? `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
             : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`;
           
+          // Clean and trim name fields
+          const firstName = data.firstName?.trim() || undefined;
+          const lastName = data.lastName?.trim() || undefined;
+          const fullName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
+
           const { data: signUpData, error } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
             options: {
               emailRedirectTo: callbackUrl,
+              data: {
+                // Store name in user metadata (same format as Google OAuth)
+                full_name: fullName,
+                first_name: firstName,
+                last_name: lastName,
+              },
             },
           });
 
@@ -106,24 +121,21 @@ export const SignUpEmail = () => {
               console.warn('[Dub] Failed to track lead:', leadError);
             }
             
-            // Sync to Brevo as a lead
+            // Sync to BeeHiiv as a lead
             try {
-              const fullName = signUpData.user.user_metadata?.full_name || signUpData.user.user_metadata?.name || '';
-              const nameParts = fullName.split(' ');
-              const brevoResponse = await fetch('/api/track/brevo', {
+              const beehiivResponse = await fetch('/api/track/beehiiv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   email: data.email,
-                  firstName: nameParts[0] || undefined,
-                  lastName: nameParts.slice(1).join(' ') || undefined,
-                  source: 'app_signup',
+                  firstName,
+                  lastName,
                 }),
               });
-              const brevoResult = await brevoResponse.json();
-              console.log('[Brevo] Lead sync result:', brevoResult);
-            } catch (brevoError) {
-              console.warn('[Brevo] Failed to sync lead:', brevoError);
+              const beehiivResult = await beehiivResponse.json();
+              console.log('[BeeHiiv] Lead sync result:', beehiivResult);
+            } catch (beehiivError) {
+              console.warn('[BeeHiiv] Failed to sync lead:', beehiivError);
             }
             
             // User is automatically signed in - redirect to plans page
@@ -188,6 +200,46 @@ export const SignUpEmail = () => {
   return (
     <form onSubmit={onSubmit}>
       <div className="flex flex-col gap-y-4">
+        {/* Name fields - optional */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              htmlFor="firstName"
+              className="mb-2 block text-sm font-medium text-neutral-900 dark:text-neutral-100"
+            >
+              First Name
+            </label>
+            <Input
+              id="firstName"
+              type="text"
+              placeholder="John"
+              autoComplete="given-name"
+              required
+              disabled={isSubmitting}
+              autoFocus={!isMobile && !lockEmail}
+              {...register("firstName")}
+              error={errors.firstName?.message}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="lastName"
+              className="mb-2 block text-sm font-medium text-neutral-900 dark:text-neutral-100"
+            >
+              Last Name <span className="text-neutral-400 font-normal">(optional)</span>
+            </label>
+            <Input
+              id="lastName"
+              type="text"
+              placeholder="Doe"
+              autoComplete="family-name"
+              disabled={isSubmitting}
+              {...register("lastName")}
+              error={errors.lastName?.message}
+            />
+          </div>
+        </div>
+
         <div>
           <label
             htmlFor="email"
@@ -202,7 +254,6 @@ export const SignUpEmail = () => {
             autoComplete="email"
             required
             readOnly={!errors.email && lockEmail}
-            autoFocus={!isMobile && !lockEmail}
             disabled={isSubmitting}
             {...register("email")}
             error={errors.email?.message}

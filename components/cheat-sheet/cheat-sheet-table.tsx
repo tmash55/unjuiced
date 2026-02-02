@@ -775,7 +775,7 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
               <td className="px-2 py-2">
                 <div className="flex justify-center">
                   {!isLoggedIn ? (
-                    <Tooltip content="Sign in to save favorites" side="left">
+                    <Tooltip content="Sign in to save plays" side="left">
                       <button
                         disabled
                         className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
@@ -785,7 +785,7 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
                     </Tooltip>
                   ) : (
                     <Tooltip 
-                      content={isRowFavorited(row) ? "Remove from favorites" : "Add to favorites"} 
+                      content={isRowFavorited(row) ? "Remove from My Plays" : "Add to My Plays"} 
                       side="left"
                     >
                       <button

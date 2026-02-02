@@ -1446,7 +1446,7 @@ function InjuryImpactRow({
           
           {/* Favorites Button */}
           {!isLoggedIn ? (
-            <Tooltip content="Sign in to save favorites" side="left">
+            <Tooltip content="Sign in to save plays" side="left">
               <button
                 disabled
                 className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 opacity-50 cursor-not-allowed"
@@ -1455,7 +1455,7 @@ function InjuryImpactRow({
               </button>
             </Tooltip>
           ) : (
-            <Tooltip content={isRowFavorited ? "Remove from favorites" : "Add to favorites"} side="left">
+            <Tooltip content={isRowFavorited ? "Remove from My Plays" : "Add to My Plays"} side="left">
               <button
                 onClick={handleToggleFavorite}
                 disabled={isTogglingFavorite}

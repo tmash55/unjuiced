@@ -2413,7 +2413,7 @@ export function OddsTable({
       'favorites': columnHelper.display({
         id: 'favorites',
         header: () => (
-          <Tooltip content="Save to favorites for quick access and SGP building">
+          <Tooltip content="Save to My Plays for quick access and SGP building">
             <div className="flex items-center justify-center">
               <Heart className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
             </div>
@@ -3057,7 +3057,7 @@ export function OddsTable({
     const isDisabled = !displayOdds
 
     return (
-      <Tooltip content={isFavoritedSide ? "Remove from favorites" : "Add to favorites"}>
+      <Tooltip content={isFavoritedSide ? "Remove from My Plays" : "Add to My Plays"}>
         <button
           onClick={(e) => {
             e.stopPropagation()
