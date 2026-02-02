@@ -63,6 +63,10 @@ interface OddsDropdownCellProps {
   isLive?: boolean;
 }
 
+/**
+ * OddsDropdownCell - Used by injury impact components that fetch odds separately
+ * For the main cheat sheet, use OddsDropdown from hit-rates instead
+ */
 export function OddsDropdownCell({ 
   odds, 
   line,
@@ -262,4 +266,3 @@ export function OddsDropdownCell({
     </div>
   );
 }
-

@@ -120,7 +120,7 @@ export function OddsDropdown({
     return selKey.includes(':') ? selKey.split(':')[0] : selKey;
   }, [selKey]);
 
-  // Fetch odds when dropdown is opened
+  // Fetch odds - called on mount to show fresh odds immediately
   const fetchOdds = useCallback(async () => {
     if (!eventId || !market || !playerId || line === null || line === undefined) {
       return;
@@ -154,19 +154,18 @@ export function OddsDropdown({
     }
   }, [eventId, market, playerId, line]);
 
-  // Handle toggle
+  // Fetch odds on mount to show fresh odds in the button immediately
+  useEffect(() => {
+    if (!hasFetched.current && eventId && market && playerId && line !== null && line !== undefined) {
+      fetchOdds();
+    }
+  }, [eventId, market, playerId, line, fetchOdds]);
+
+  // Handle toggle - just open/close, odds already fetched
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (!isOpen) {
-      // Opening - fetch odds if we haven't yet
-      if (!hasFetched.current && !isLoading) {
-        fetchOdds();
-      }
-    }
-    
     setIsOpen(!isOpen);
-  }, [isOpen, isLoading, fetchOdds]);
+  }, [isOpen]);
 
   // Handle book click - open link
   const handleBookClick = useCallback((book: BookOddsDetail, side: "over" | "under", e: React.MouseEvent) => {
@@ -190,16 +189,6 @@ export function OddsDropdown({
     );
   }
 
-  // No best odds available at all
-  if (!bestOdds?.book || !bestOdds?.price) {
-    return (
-      <span className="text-sm text-neutral-400 dark:text-neutral-500">—</span>
-    );
-  }
-
-  const bestBookLogo = getBookLogo(bestOdds.book);
-  const bestBookName = getBookName(bestOdds.book);
-
   // Sort books by best over price
   const sortedBooks = useMemo(() => {
     if (!oddsData?.books) return [];
@@ -210,25 +199,66 @@ export function OddsDropdown({
     });
   }, [oddsData?.books]);
 
+  // Use the actual best odds from detailed data if available, otherwise fall back to summary
+  const displayBestOdds = useMemo(() => {
+    // If we have fetched detailed data, use the actual best from that
+    if (sortedBooks.length > 0) {
+      const actualBest = sortedBooks[0];
+      const bestPrice = actualBest.over ?? actualBest.under;
+      if (bestPrice !== null) {
+        return {
+          book: actualBest.book,
+          price: bestPrice,
+        };
+      }
+    }
+    // Fall back to the summary bestOdds from the API
+    return bestOdds;
+  }, [sortedBooks, bestOdds]);
+
+  // Show loading state while fetching fresh odds
+  const isFetchingFreshOdds = isLoading && !hasFetched.current;
+
+  // No best odds available at all (and not loading)
+  if (!isFetchingFreshOdds && !displayBestOdds?.book && !displayBestOdds?.price) {
+    return (
+      <span className="text-sm text-neutral-400 dark:text-neutral-500">—</span>
+    );
+  }
+
+  const bestBookLogo = displayBestOdds ? getBookLogo(displayBestOdds.book) : null;
+  const bestBookName = displayBestOdds ? getBookName(displayBestOdds.book) : "";
+
   return (
     <div ref={dropdownRef} className="relative inline-flex">
       <button
         type="button"
         onClick={handleToggle}
+        disabled={isFetchingFreshOdds}
         className={cn(
           "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-all",
           "border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700",
-          "text-neutral-900 dark:text-white"
+          "text-neutral-900 dark:text-white",
+          isFetchingFreshOdds && "opacity-70"
         )}
       >
-        {bestBookLogo && (
-          <img
-            src={bestBookLogo}
-            alt={bestBookName}
-            className="h-4 w-4 rounded object-contain"
-          />
+        {isFetchingFreshOdds ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+            <span className="text-neutral-400">...</span>
+          </>
+        ) : (
+          <>
+            {bestBookLogo && (
+              <img
+                src={bestBookLogo}
+                alt={bestBookName}
+                className="h-4 w-4 rounded object-contain"
+              />
+            )}
+            <span>{formatOdds(displayBestOdds?.price ?? null)}</span>
+          </>
         )}
-        <span>{formatOdds(bestOdds.price)}</span>
         <ChevronDown className={cn(
           "h-3.5 w-3.5 opacity-50 transition-transform",
           isOpen && "rotate-180"

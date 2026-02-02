@@ -16,8 +16,8 @@ import {
   getMarketDisplayName,
   formatInjuryStatus,
 } from "@/hooks/use-injury-impact";
-import { getGradeColor, OddsData } from "@/hooks/use-cheat-sheet";
-import { OddsDropdownCell } from "./odds-dropdown-cell";
+import { getGradeColor } from "@/hooks/use-cheat-sheet";
+import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
 import { 
@@ -155,8 +155,6 @@ function initRowState(row: InjuryImpactRowType): RowState {
 interface InjuryImpactTableProps {
   rows: InjuryImpactRowType[];
   isLoading: boolean;
-  oddsData?: Record<string, OddsData>;
-  isLoadingOdds?: boolean;
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
@@ -171,8 +169,6 @@ interface InjuryImpactTableProps {
 export function InjuryImpactTable({
   rows,
   isLoading,
-  oddsData,
-  isLoadingOdds,
   filters,
   onFiltersChange,
   onGlossaryOpen,
@@ -236,27 +232,21 @@ export function InjuryImpactTable({
   const [sortField, setSortField] = useState<string>("hitRate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // Helper to check if a row has live odds in Redis
+  // Helper to check if a row has best odds from Redis
   const hasLiveOdds = (row: InjuryImpactRowType): boolean => {
-    if (!oddsData || !row.oddsSelectionId) return false;
-    const odds = oddsData[row.oddsSelectionId];
-    // Check if odds object exists AND has actual betting odds (bestOver or bestUnder)
-    return odds !== null && 
-           odds !== undefined && 
-           (odds.bestOver !== null || odds.bestUnder !== null);
+    return row.bestOdds !== null && row.bestOdds !== undefined;
   };
 
   // Count rows without odds for the toggle label
   const noOddsCount = useMemo(() => {
-    if (!oddsData) return 0;
     return rows.filter(row => !hasLiveOdds(row)).length;
-  }, [rows, oddsData]);
+  }, [rows]);
 
   // Sort rows - preserve positions of pinned rows (open dropdowns) and modified rows (user customized)
   const sortedRows = useMemo(() => {
     // First filter out rows without odds if hideNoOdds is true
     let filteredRows = rows;
-    if (hideNoOdds && oddsData) {
+    if (hideNoOdds) {
       filteredRows = rows.filter(row => hasLiveOdds(row));
     }
 
@@ -327,9 +317,7 @@ export function InjuryImpactTable({
           break;
         case "odds":
           // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
-          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
-          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
-          comparison = (bOdds?.bestOver?.price ?? -9999) - (aOdds?.bestOver?.price ?? -9999);
+          comparison = (b.bestOdds?.price ?? -9999) - (a.bestOdds?.price ?? -9999);
           break;
         default:
           break;
@@ -345,7 +333,7 @@ export function InjuryImpactTable({
 
     // Final order: Pinned (editing) > Modified (customized) > Normal
     return [...pinnedRowsList, ...modifiedRowsList, ...normalRows];
-  }, [rows, rowStates, sortField, sortDir, oddsData, hideNoOdds, pinnedRows]);
+  }, [rows, rowStates, sortField, sortDir, hideNoOdds, pinnedRows]);
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -466,7 +454,6 @@ export function InjuryImpactTable({
               const rowBg = idx % 2 === 0 
                 ? 'bg-white dark:bg-neutral-900' 
                 : 'bg-neutral-50/50 dark:bg-neutral-800/20';
-              const liveOdds = row.oddsSelectionId && oddsData ? oddsData[row.oddsSelectionId] || null : null;
               
               const isPinned = pinnedRows.has(key) || rowState.isModified;
               
@@ -478,7 +465,6 @@ export function InjuryImpactTable({
                   rowBg={rowBg}
                   onStateChange={(update) => updateRowState(key, update)}
                   onPinChange={(pinned) => setPinned(key, pinned)}
-                  liveOdds={liveOdds}
                   isGated={isGated}
                   isPinned={isPinned}
                   onPlayerClick={onPlayerClick}
@@ -660,7 +646,6 @@ interface InjuryImpactRowProps {
   rowBg: string;
   onStateChange: (update: Partial<RowState>) => void;
   onPinChange: (pinned: boolean) => void;
-  liveOdds: OddsData | null;
   isGated?: boolean;
   isPinned?: boolean;
   /** Click handler for player name to open hit rate modal */
@@ -673,7 +658,6 @@ function InjuryImpactRow({
   rowBg,
   onStateChange,
   onPinChange,
-  liveOdds,
   isGated = false,
   isPinned = false,
   onPlayerClick,
@@ -724,37 +708,19 @@ function InjuryImpactRow({
   
   // Build favorite params for this row
   const buildFavoriteParams = useCallback((): AddFavoriteParams => {
-    // Get best price info from live odds
-    const bestPrice = liveOdds?.bestOver?.price ?? null;
-    const bestBook = liveOdds?.bestOver?.book ?? null;
+    // Use bestOdds from the row (fetched from Redis in the API)
+    const bestPrice = row.bestOdds?.price ?? null;
+    const bestBook = row.bestOdds?.book ?? null;
     
-    // Build books snapshot from allLines if available
+    // Build minimal books snapshot from bestOdds for favorites
     let booksSnapshot: Record<string, any> | null = null;
-    if (liveOdds?.allLines?.length) {
-      const matchingLine = liveOdds.allLines.find(l => l.line === state.selectedLine);
-      if (matchingLine?.books && Object.keys(matchingLine.books).length > 0) {
-        booksSnapshot = {};
-        Object.entries(matchingLine.books).forEach(([bookKey, bookData]) => {
-          if (bookData.over) {
-            booksSnapshot![bookKey] = {
-              price: bookData.over.price,
-              u: bookData.over.url || null,
-              m: bookData.over.mobileUrl || null,
-              sgp: bookData.over.sgp || null, // Include SGP token
-            };
-          }
-        });
-      }
-    }
-    
-    // If we still don't have books snapshot but we have bestOver, save that at minimum
-    if (!booksSnapshot && bestBook && liveOdds?.bestOver) {
+    if (bestBook && bestPrice !== null) {
       booksSnapshot = {
         [bestBook]: {
           price: bestPrice,
-          u: liveOdds.bestOver.url || null,
-          m: liveOdds.bestOver.mobileUrl || null,
-          sgp: liveOdds.bestOver.sgp || null, // Include SGP token
+          u: null,
+          m: null,
+          sgp: null,
         },
       };
     }
@@ -785,7 +751,7 @@ function InjuryImpactRow({
       best_book_at_save: bestBook,
       source: "injury_impact",
     };
-  }, [row, state.selectedMarket, state.selectedLine, liveOdds]);
+  }, [row, state.selectedMarket, state.selectedLine]);
   
   // Check if this row is favorited
   const isRowFavorited = useMemo(() => {
@@ -1453,13 +1419,15 @@ function InjuryImpactRow({
         </div>
       </td>
 
-      {/* Odds Column - Live from Redis */}
+      {/* Odds Column */}
       <td className="px-3 py-2">
         <div className="flex justify-center">
-          <OddsDropdownCell
-            odds={liveOdds}
+          <OddsDropdown
+            eventId={row.eventId}
+            market={row.market}
+            selKey={row.selKey}
             line={row.line}
-            isLive={liveOdds?.live}
+            bestOdds={row.bestOdds}
           />
         </div>
       </td>

@@ -98,6 +98,15 @@ export interface InjuryImpactRow {
   otherInjuredTeammatesCount: number;
   opportunityGrade: string;
   confidenceScore: number;
+  
+  // Best odds from Redis (for immediate display)
+  bestOdds: {
+    book: string;
+    price: number;
+    updated_at: number;
+  } | null;
+  books: number; // Number of sportsbooks with odds
+  selKey: string | null; // Key used for Redis odds lookup
 }
 
 export interface AvailableLine {
@@ -282,41 +291,9 @@ export function useInjuryImpactCheatsheet(options: {
   };
 }
 
-/**
- * Hook 1b: Fetch live odds for injury impact rows
- * Uses the same odds API as the hit rate cheat sheet
- */
-export function useInjuryImpactOdds(rows: InjuryImpactRow[] | undefined) {
-  const selections = (rows || [])
-    .filter((row) => row.oddsSelectionId)
-    .map((row) => ({
-      stableKey: row.oddsSelectionId!,
-      line: row.line,
-    }));
-
-  return useQuery({
-    queryKey: ["injury-impact-odds", selections.map((s) => s.stableKey).sort()],
-    queryFn: async () => {
-      if (!selections.length) return {};
-      
-      const response = await fetch("/api/nba/hit-rates/odds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selections }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch odds");
-      }
-
-      const data = await response.json();
-      return data.odds || {};
-    },
-    enabled: selections.length > 0,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds for live odds
-  });
-}
+// NOTE: useInjuryImpactOdds has been removed.
+// Best odds are now included directly in the API response (via row.bestOdds)
+// Detailed odds are fetched on-demand via /api/nba/props/odds-line when the OddsDropdown is opened.
 
 /**
  * Hook 2: Available lines for a player

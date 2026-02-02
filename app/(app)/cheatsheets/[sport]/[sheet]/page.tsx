@@ -2,8 +2,8 @@
 
 import { use, useState, useMemo, useRef, useEffect } from "react";
 import { notFound } from "next/navigation";
-import { useCheatSheet, useCheatSheetOdds, CheatSheetRow } from "@/hooks/use-cheat-sheet";
-import { useInjuryImpactCheatsheet, useInjuryImpactOdds, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
+import { useCheatSheet, CheatSheetRow } from "@/hooks/use-cheat-sheet";
+import { useInjuryImpactCheatsheet, INJURY_IMPACT_MARKETS } from "@/hooks/use-injury-impact";
 import { 
   CheatSheetFilterState,
   DEFAULT_CHEAT_SHEET_FILTERS,
@@ -427,36 +427,21 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
     minTeammateMinutes: 15,
   });
 
-  // Fetch live odds from Redis (for all rows, so we can filter)
-  const { data: oddsData, isLoading: isLoadingOdds } = useInjuryImpactOdds(allRows);
-
   // For gated users, filter to rows WITH odds first, then limit to 7
   const rows = useMemo(() => {
     if (!isGated) return allRows;
     
-    // Wait for odds to load
-    if (!oddsData) return [];
-    
-    // Filter to rows that have live odds
-    const rowsWithOdds = allRows.filter(row => {
-      if (!row.oddsSelectionId) return false;
-      const odds = oddsData[row.oddsSelectionId];
-      return odds && (odds.bestOver !== null || odds.bestUnder !== null);
-    });
+    // Filter to rows that have odds (using bestOdds from API response)
+    const rowsWithOdds = allRows.filter(row => row.bestOdds !== null && row.bestOdds !== undefined);
     
     // Return top 7 rows with odds
     return rowsWithOdds.slice(0, FREE_USER_MAX_ROWS);
-  }, [allRows, oddsData, isGated]);
+  }, [allRows, isGated]);
 
   // Count rows without odds
   const noOddsCount = useMemo(() => {
-    if (!oddsData) return 0;
-    return allRows.filter(row => {
-      if (!row.oddsSelectionId) return true;
-      const odds = oddsData[row.oddsSelectionId];
-      return !odds || (odds.bestOver === null && odds.bestUnder === null);
-    }).length;
-  }, [allRows, oddsData]);
+    return allRows.filter(row => row.bestOdds === null || row.bestOdds === undefined).length;
+  }, [allRows]);
 
   // Mobile Layout
   if (isMobile) {
@@ -464,8 +449,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
       <>
         <MobileInjuryImpact
           rows={rows}
-          isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-          oddsData={oddsData}
+          isLoading={isLoading || isLoadingAccess}
           filters={filters}
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
@@ -668,9 +652,7 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
         
         <InjuryImpactTable
           rows={rows}
-          isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-          oddsData={oddsData}
-          isLoadingOdds={isLoadingOdds}
+          isLoading={isLoading || isLoadingAccess}
           filters={filters}
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
@@ -790,36 +772,24 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
     return rows;
   }, [data?.rows, filters, isGated]);
 
-  // Fetch live odds from Redis for each row
-  const { data: oddsData, isLoading: isLoadingOdds } = useCheatSheetOdds(filteredRows);
+  // Best odds are now included directly in the API response (from Redis bestodds:nba:* keys)
+  // No separate odds fetch needed
 
   // For gated users, filter to rows WITH odds first, then limit to 7
   const displayRows = useMemo(() => {
     if (!isGated) return filteredRows;
     
-    // Wait for odds to load
-    if (!oddsData) return [];
-    
-    // Filter to rows that have live odds
-    const rowsWithOdds = filteredRows.filter(row => {
-      if (!row.oddsSelectionId) return false;
-      const odds = oddsData[row.oddsSelectionId];
-      return odds && (odds.bestOver !== null || odds.bestUnder !== null);
-    });
+    // Filter to rows that have best odds
+    const rowsWithOdds = filteredRows.filter(row => row.bestOdds !== null);
     
     // Return top 7 rows with odds
     return rowsWithOdds.slice(0, FREE_USER_MAX_ROWS);
-  }, [filteredRows, oddsData, isGated]);
+  }, [filteredRows, isGated]);
 
-  // Count rows without live odds
+  // Count rows without odds
   const noOddsCount = useMemo(() => {
-    if (!oddsData) return 0;
-    return filteredRows.filter(row => {
-      if (!row.oddsSelectionId) return true;
-      const odds = oddsData[row.oddsSelectionId];
-      return !odds || (odds.bestOver === null && odds.bestUnder === null);
-    }).length;
-  }, [filteredRows, oddsData]);
+    return filteredRows.filter(row => row.bestOdds === null).length;
+  }, [filteredRows]);
 
   const handleRowClick = (row: CheatSheetRow) => {
     // TODO: Open player detail modal or navigate to hit rates drilldown
@@ -832,8 +802,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
       <>
         <MobileCheatSheet
           rows={displayRows}
-          isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-          oddsData={oddsData}
+          isLoading={isLoading || isLoadingAccess}
           filters={filters}
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
@@ -898,9 +867,7 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
           <>
             <CheatSheetTable 
               rows={displayRows}
-              isLoading={isLoading || isLoadingAccess || (isGated && isLoadingOdds)}
-              oddsData={oddsData}
-              isLoadingOdds={isLoadingOdds}
+              isLoading={isLoading || isLoadingAccess}
               timeWindow={filters.timeWindow}
               onRowClick={handleRowClick}
               onPlayerClick={(row) => setSelectedPlayer({

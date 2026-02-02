@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { CheatSheetRow } from "@/app/api/nba/cheat-sheet/route";
 
 // Re-export the type for convenience
@@ -147,20 +147,21 @@ async function fetchCheatSheet(filters: CheatSheetFilters): Promise<CheatSheetRe
 }
 
 // Main hook
+// Best odds are now included directly in the API response (from Redis bestodds:nba:* keys)
+// No separate odds fetch needed - detailed odds fetched on demand via /api/nba/props/odds-line
 export function useCheatSheet(filters: CheatSheetFilters = {}) {
   return useQuery({
     queryKey: ["cheat-sheet", filters],
     queryFn: () => fetchCheatSheet(filters),
     staleTime: 60 * 1000, // 1 minute
-    refetchInterval: 60 * 1000, // Refetch every minute for fresh odds
+    refetchInterval: 60 * 1000, // Refetch every minute for fresh data + odds
   });
 }
 
-// Hook to fetch odds for cheat sheet rows
-interface OddsSelection {
-  stableKey: string;
-  line?: number;
-}
+// =============================================================================
+// LEGACY TYPES - For backwards compatibility with injury impact components
+// These are used by useInjuryImpactOdds and injury impact tables
+// =============================================================================
 
 export interface OddsData {
   stableKey: string;
@@ -176,40 +177,5 @@ export interface OddsData {
   }>;
   live: boolean;
   timestamp: number | null;
-}
-
-async function fetchOdds(selections: OddsSelection[]): Promise<Record<string, OddsData>> {
-  if (!selections.length) return {};
-
-  const response = await fetch("/api/nba/hit-rates/odds", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ selections }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch odds");
-  }
-
-  const data = await response.json();
-  return data.odds || {};
-}
-
-// Hook to fetch live odds for cheat sheet rows
-export function useCheatSheetOdds(rows: CheatSheetRow[] | undefined) {
-  const selections: OddsSelection[] = (rows || [])
-    .filter((row) => row.oddsSelectionId)
-    .map((row) => ({
-      stableKey: row.oddsSelectionId!,
-      line: row.line,
-    }));
-
-  return useQuery({
-    queryKey: ["cheat-sheet-odds", selections.map((s) => s.stableKey).sort()],
-    queryFn: () => fetchOdds(selections),
-    enabled: selections.length > 0,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds for live odds
-  });
 }
 

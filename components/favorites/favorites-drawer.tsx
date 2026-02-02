@@ -313,11 +313,74 @@ interface BookFilterStripProps {
 
 function BookFilterStrip({ books, selectedBook, onSelectBook }: BookFilterStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+  
+  // Check scroll position to show/hide arrows
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setShowLeftArrow(scrollLeft > 0);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5);
+  }, []);
+  
+  // Set up scroll listener
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    
+    checkScroll();
+    el.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
+    
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll, books]);
+  
+  // Scroll by amount
+  const scroll = (direction: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    
+    const scrollAmount = 150;
+    el.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
+  };
   
   if (books.length === 0) return null;
   
   return (
-    <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
+    <div className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 relative">
+      {/* Left scroll arrow */}
+      {showLeftArrow && (
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-full px-1.5 bg-gradient-to-r from-neutral-50 dark:from-neutral-800/90 to-transparent flex items-center"
+        >
+          <div className="p-1 rounded-full bg-white dark:bg-neutral-700 shadow-sm border border-neutral-200 dark:border-neutral-600">
+            <ChevronLeft className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+          </div>
+        </button>
+      )}
+      
+      {/* Right scroll arrow */}
+      {showRightArrow && (
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-full px-1.5 bg-gradient-to-l from-neutral-50 dark:from-neutral-800/90 to-transparent flex items-center"
+        >
+          <div className="p-1 rounded-full bg-white dark:bg-neutral-700 shadow-sm border border-neutral-200 dark:border-neutral-600">
+            <ChevronRight className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+          </div>
+        </button>
+      )}
+      
       <div 
         ref={scrollRef}
         className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto scrollbar-hide"

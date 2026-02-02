@@ -15,39 +15,22 @@ import {
   ArrowRight,
   Calendar,
   SlidersHorizontal,
-  ExternalLink,
   HeartPulse,
 } from "lucide-react";
 import Link from "next/link";
 import { InjuryImpactRow } from "@/hooks/use-injury-impact";
-import { OddsData } from "@/hooks/use-cheat-sheet";
 import { CheatSheetFilterState } from "../cheat-sheet-filters";
 import { Tooltip } from "@/components/tooltip";
 import { PlayerHeadshot } from "@/components/player-headshot";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
 
-// Helper to get sportsbook logo
-const getBookLogo = (bookId?: string): string | null => {
-  if (!bookId) return null;
-  const sb = getSportsbookById(bookId);
-  return sb?.image?.light || null;
-};
-
-// Helper to get sportsbook name
-const getBookName = (bookId?: string): string => {
-  if (!bookId) return "";
-  const sb = getSportsbookById(bookId);
-  return sb?.name || bookId;
-};
-
 interface MobileInjuryImpactProps {
   rows: InjuryImpactRow[];
   isLoading: boolean;
-  oddsData?: Record<string, OddsData>;
   filters: CheatSheetFilterState;
   onFiltersChange: (filters: CheatSheetFilterState) => void;
   onGlossaryOpen: () => void;
@@ -161,196 +144,9 @@ const getInjuryStatusColor = (status: string) => {
   return "text-neutral-500 bg-neutral-500/10";
 };
 
-// Format odds display
-const formatOdds = (price: number): string => {
-  return price >= 0 ? `+${price}` : `${price}`;
-};
-
-// Mobile Odds Dropdown Component
-function MobileOddsDropdown({ 
-  odds, 
-  line 
-}: { 
-  odds: OddsData | null; 
-  line: number;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const booksForLine = useMemo(() => {
-    if (!odds) return [];
-
-    const lineData = odds.allLines?.find((l) => l.line === line);
-    
-    if (!lineData?.books) {
-      if (odds.bestOver) {
-        return [{
-          book: odds.bestOver.book,
-          price: odds.bestOver.price,
-          url: odds.bestOver.url,
-          mobileUrl: odds.bestOver.mobileUrl,
-        }];
-      }
-      return [];
-    }
-
-    const books: Array<{ book: string; price: number; url: string | null; mobileUrl: string | null }> = [];
-    for (const [bookId, bookOdds] of Object.entries(lineData.books)) {
-      if (bookOdds.over !== undefined) {
-        books.push({
-          book: bookId,
-          price: bookOdds.over.price,
-          url: bookOdds.over.url,
-          mobileUrl: bookOdds.over.mobileUrl,
-        });
-      }
-    }
-
-    books.sort((a, b) => b.price - a.price);
-    return books;
-  }, [odds, line]);
-
-  if (!odds || booksForLine.length === 0) {
-    return <span className="text-[10px] text-neutral-400">—</span>;
-  }
-
-  const bestBook = booksForLine[0];
-  const bestBookLogo = getBookLogo(bestBook.book);
-  const bestBookName = getBookName(bestBook.book);
-  const hasMultipleBooks = booksForLine.length > 1;
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (hasMultipleBooks) {
-      setIsOpen(!isOpen);
-    } else {
-      const link = bestBook.mobileUrl || bestBook.url;
-      if (link) {
-        window.open(link, "_blank", "noopener,noreferrer");
-      }
-    }
-  };
-
-  const handleBookClick = (book: typeof bestBook, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link = book.mobileUrl || book.url;
-    if (link) {
-      window.open(link, "_blank", "noopener,noreferrer");
-    }
-    setIsOpen(false);
-  };
-
-  return (
-    <div ref={dropdownRef} className="relative inline-flex">
-      <button
-        type="button"
-        onClick={handleToggle}
-        className={cn(
-          "inline-flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all min-w-[70px] justify-center",
-          "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700",
-          isOpen && "ring-2 ring-brand/30"
-        )}
-      >
-        {bestBookLogo ? (
-          <img 
-            src={bestBookLogo}
-            alt={bestBookName}
-            className="w-3.5 h-3.5 object-contain shrink-0"
-          />
-        ) : (
-          <span className="text-[8px] shrink-0">{bestBook.book.slice(0, 2).toUpperCase()}</span>
-        )}
-        <span className={cn(
-          "tabular-nums",
-          bestBook.price >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
-        )}>
-          {formatOdds(bestBook.price)}
-        </span>
-        {hasMultipleBooks ? (
-          <ChevronDown className={cn(
-            "h-3 w-3 shrink-0 text-neutral-500 dark:text-neutral-400 transition-transform",
-            isOpen && "rotate-180"
-          )} />
-        ) : (
-          <ExternalLink className="h-3 w-3 shrink-0 text-neutral-500 dark:text-neutral-400" />
-        )}
-      </button>
-
-      {isOpen && hasMultipleBooks && (
-        <div className="absolute right-0 top-full z-[100] mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          <div className="flex flex-col gap-0.5 max-h-[200px] overflow-y-auto">
-            {booksForLine.map((book, idx) => {
-              const bookLogo = getBookLogo(book.book);
-              const bookName = getBookName(book.book);
-              const isBest = idx === 0;
-              const bookLink = book.mobileUrl || book.url;
-              
-              return (
-                <button
-                  key={book.book}
-                  type="button"
-                  onClick={(e) => handleBookClick(book, e)}
-                  disabled={!bookLink}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                    bookLink 
-                      ? "cursor-pointer active:bg-neutral-100 dark:active:bg-neutral-700" 
-                      : "cursor-default opacity-60",
-                    isBest && "bg-emerald-50 dark:bg-emerald-900/20"
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {bookLogo ? (
-                      <img
-                        src={bookLogo}
-                        alt={bookName}
-                        className="h-4 w-4 rounded object-contain"
-                      />
-                    ) : (
-                      <div className="h-4 w-4 rounded bg-neutral-200 dark:bg-neutral-700" />
-                    )}
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                      {bookName}
-                    </span>
-                  </div>
-                  <span className={cn(
-                    "font-semibold tabular-nums",
-                    book.price >= 0 
-                      ? "text-emerald-600 dark:text-emerald-400" 
-                      : "text-neutral-900 dark:text-white"
-                  )}>
-                    {formatOdds(book.price)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          
-          <div className="mt-1 border-t border-neutral-200 dark:border-neutral-700 pt-1">
-            <p className="px-2 text-[9px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-              {booksForLine.length} books
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function MobileInjuryImpact({
   rows,
   isLoading,
-  oddsData,
   filters,
   onFiltersChange,
   onGlossaryOpen,
@@ -396,35 +192,20 @@ export function MobileInjuryImpact({
   const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
   
   // Build favorite params from a row
-  const buildFavoriteParams = (row: InjuryImpactRow, liveOdds: OddsData | null): AddFavoriteParams => {
-    const bestPrice = liveOdds?.bestOver?.price ?? null;
-    const bestBook = liveOdds?.bestOver?.book ?? null;
+  const buildFavoriteParams = (row: InjuryImpactRow): AddFavoriteParams => {
+    // Use bestOdds from the row (fetched from Redis in the API)
+    const bestPrice = row.bestOdds?.price ?? null;
+    const bestBook = row.bestOdds?.book ?? null;
     
+    // Build minimal books snapshot from bestOdds
     let booksSnapshot: Record<string, any> | null = null;
-    if (liveOdds?.allLines?.length) {
-      const matchingLine = liveOdds.allLines.find(l => l.line === row.line);
-      if (matchingLine?.books && Object.keys(matchingLine.books).length > 0) {
-        booksSnapshot = {};
-        Object.entries(matchingLine.books).forEach(([bookKey, bookData]) => {
-          if (bookData.over) {
-            booksSnapshot![bookKey] = {
-              price: bookData.over.price,
-              u: bookData.over.url || null,
-              m: bookData.over.mobileUrl || null,
-              sgp: bookData.over.sgp || null, // Include SGP token
-            };
-          }
-        });
-      }
-    }
-    
-    if (!booksSnapshot && bestBook && liveOdds?.bestOver) {
+    if (bestBook && bestPrice !== null) {
       booksSnapshot = {
         [bestBook]: {
           price: bestPrice,
-          u: liveOdds.bestOver.url || null,
-          m: liveOdds.bestOver.mobileUrl || null,
-          sgp: liveOdds.bestOver.sgp || null, // Include SGP token
+          u: null, // Links fetched on demand
+          m: null,
+          sgp: null,
         },
       };
     }
@@ -485,8 +266,7 @@ export function MobileInjuryImpact({
     e.stopPropagation();
     if (!isLoggedIn) return;
     
-    const liveOdds = (oddsData && row.oddsSelectionId) ? oddsData[row.oddsSelectionId] : null;
-    const params = buildFavoriteParams(row, liveOdds ?? null);
+    const params = buildFavoriteParams(row);
     const key = createFavoriteKey({
       event_id: params.event_id,
       type: params.type,
@@ -504,30 +284,27 @@ export function MobileInjuryImpact({
     }
   };
 
-  // Helper to check if a row has live odds
+  // Helper to check if a row has best odds from Redis
   const hasLiveOdds = (row: InjuryImpactRow): boolean => {
-    if (!oddsData || !row.oddsSelectionId) return false;
-    const odds = oddsData[row.oddsSelectionId];
-    return odds !== null && odds !== undefined && (odds.bestOver !== null || odds.bestUnder !== null);
+    return row.bestOdds !== null && row.bestOdds !== undefined;
   };
 
   // Count rows without odds
   const noOddsCount = useMemo(() => {
-    if (!oddsData) return 0;
     return rows.filter(row => !hasLiveOdds(row)).length;
-  }, [rows, oddsData]);
+  }, [rows]);
 
   // Sort rows
   const sortedRows = useMemo(() => {
     let filteredRows = rows;
-    if (filters.hideNoOdds && oddsData) {
+    if (filters.hideNoOdds) {
       filteredRows = rows.filter(row => hasLiveOdds(row));
     }
 
     const sorted = [...filteredRows];
     
     sorted.sort((a, b) => {
-      // Push rows without live odds to the bottom
+      // Push rows without best odds to the bottom
       if (!filters.hideNoOdds) {
         const aHasOdds = hasLiveOdds(a);
         const bHasOdds = hasLiveOdds(b);
@@ -547,10 +324,8 @@ export function MobileInjuryImpact({
           return (gradeOrder[a.opportunityGrade] ?? 5) - (gradeOrder[b.opportunityGrade] ?? 5);
         }
         case "odds": {
-          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
-          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
-          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
-          return (bOdds?.bestOver?.price ?? -9999) - (aOdds?.bestOver?.price ?? -9999);
+          // Sort by best over American odds (higher is better: +200 > +100 > -100 > -200)
+          return (b.bestOdds?.price ?? -9999) - (a.bestOdds?.price ?? -9999);
         }
         default:
           return (b.hitRate ?? 0) - (a.hitRate ?? 0);
@@ -558,18 +333,13 @@ export function MobileInjuryImpact({
     });
     
     return sorted;
-  }, [rows, sortBy, filters.hideNoOdds, oddsData]);
+  }, [rows, sortBy, filters.hideNoOdds]);
 
   const visibleRows = useMemo(() => sortedRows.slice(0, visibleCount), [sortedRows, visibleCount]);
   const hasMore = sortedRows.length > visibleCount;
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? "Hit %";
   const currentDateLabel = DATE_OPTIONS.find(o => o.value === filters.dateFilter)?.label ?? "Today";
-
-  const getLiveOdds = (row: InjuryImpactRow): OddsData | undefined => {
-    if (!oddsData || !row.oddsSelectionId) return undefined;
-    return oddsData[row.oddsSelectionId];
-  };
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950">
@@ -858,7 +628,6 @@ export function MobileInjuryImpact({
 
                 <tbody className="bg-white dark:bg-neutral-900">
                   {visibleRows.map((row, idx) => {
-                    const odds = getLiveOdds(row);
                     const hitRatePct = row.hitRate !== null ? Math.round(row.hitRate * 100) : null;
 
                     return (
@@ -1018,7 +787,13 @@ export function MobileInjuryImpact({
 
                         {/* Odds */}
                         <td className="text-center px-2 py-2">
-                          <MobileOddsDropdown odds={odds ?? null} line={row.line} />
+                          <OddsDropdown
+                            eventId={row.eventId}
+                            market={row.market}
+                            selKey={row.selKey}
+                            line={row.line}
+                            bestOdds={row.bestOdds}
+                          />
                         </td>
                         
                         {/* Favorites */}

@@ -21,18 +21,15 @@ import {
   CheatSheetRow, 
   getGradeColor, 
   getMarketLabel,
-  OddsData
 } from "@/hooks/use-cheat-sheet";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { Tooltip } from "@/components/tooltip";
-import { OddsDropdownCell } from "./odds-dropdown-cell";
+import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { useFavorites, createFavoriteKey, type AddFavoriteParams } from "@/hooks/use-favorites";
 
 interface CheatSheetTableProps {
   rows: CheatSheetRow[];
   isLoading?: boolean;
-  oddsData?: Record<string, OddsData>;
-  isLoadingOdds?: boolean;
   timeWindow?: string;
   onRowClick?: (row: CheatSheetRow) => void;
   /** Click handler for player name to open hit rate modal */
@@ -270,13 +267,7 @@ function SortIcon({ field, currentField, direction }: {
     : <ChevronUp className="w-3 h-3 text-brand" />;
 }
 
-export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
-  // Helper to get live odds for a row
-  const getLiveOdds = (row: CheatSheetRow) => {
-    if (!oddsData || !row.oddsSelectionId) return null;
-    return oddsData[row.oddsSelectionId] || null;
-  };
-
+export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPlayerClick, onGlossaryOpen, hideNoOdds = true }: CheatSheetTableProps) {
   const [sortField, setSortField] = useState<SortField>("hitRate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   // const [expandedRow, setExpandedRow] = useState<number | null>(null); // Reserved for SGP feature
@@ -293,43 +284,22 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
   const [togglingRowKey, setTogglingRowKey] = useState<string | null>(null);
   
   // Build favorite params from a cheat sheet row
-  const buildFavoriteParams = useCallback((row: CheatSheetRow, liveOdds: OddsData | null): AddFavoriteParams => {
-    // Build books snapshot from live odds if available
-    let booksSnapshot: Record<string, any> | null = null;
-    let bestPrice: number | null = null;
-    let bestBook: string | null = null;
+  const buildFavoriteParams = useCallback((row: CheatSheetRow): AddFavoriteParams => {
+    // Use bestOdds from the row (fetched from Redis in the API)
+    const bestPrice = row.bestOdds?.price ?? null;
+    const bestBook = row.bestOdds?.book ?? null;
     
-    if (liveOdds?.bestOver) {
-      bestPrice = liveOdds.bestOver.price;
-      bestBook = liveOdds.bestOver.book;
-      
-      // Build snapshot from allLines for the current line
-      const currentLineData = liveOdds.allLines?.find(l => l.line === row.line);
-      if (currentLineData?.books && Object.keys(currentLineData.books).length > 0) {
-        booksSnapshot = {};
-        Object.entries(currentLineData.books).forEach(([bookId, bookData]) => {
-          if (bookData.over) {
-            booksSnapshot![bookId] = {
-              price: bookData.over.price,
-              u: bookData.over.url || null,
-              m: bookData.over.mobileUrl || null,
-              sgp: bookData.over.sgp || null, // Include SGP token
-            };
-          }
-        });
-      }
-      
-      // If we still don't have books snapshot but we have bestOver, save that at minimum
-      if (!booksSnapshot && bestBook) {
-        booksSnapshot = {
-          [bestBook]: {
-            price: bestPrice,
-            u: liveOdds.bestOver.url || null,
-            m: liveOdds.bestOver.mobileUrl || null,
-            sgp: liveOdds.bestOver.sgp || null, // Include SGP token
-          },
-        };
-      }
+    // Build minimal books snapshot from bestOdds
+    let booksSnapshot: Record<string, any> | null = null;
+    if (bestBook && bestPrice !== null) {
+      booksSnapshot = {
+        [bestBook]: {
+          price: bestPrice,
+          u: null, // Links fetched on demand via OddsDropdown
+          m: null,
+          sgp: null,
+        },
+      };
     }
     
     // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
@@ -343,7 +313,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
       game_date: row.gameDate,
       home_team: row.homeTeamAbbr,
       away_team: row.awayTeamAbbr,
-      start_time: null, // Would need game start time from data
+      start_time: null,
       player_id: String(row.playerId),
       player_name: row.playerName,
       player_team: row.teamAbbr,
@@ -362,8 +332,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
   
   // Handle favorite toggle
   const handleToggleFavorite = useCallback(async (row: CheatSheetRow) => {
-    const liveOdds = getLiveOdds(row);
-    const params = buildFavoriteParams(row, liveOdds);
+    const params = buildFavoriteParams(row);
     const key = createFavoriteKey({
       event_id: params.event_id,
       type: params.type,
@@ -379,7 +348,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
     } finally {
       setTogglingRowKey(null);
     }
-  }, [toggleFavorite, buildFavoriteParams, getLiveOdds]);
+  }, [toggleFavorite, buildFavoriteParams]);
   
   // Check if a row is favorited
   const isRowFavorited = useCallback((row: CheatSheetRow): boolean => {
@@ -416,25 +385,20 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
     }
   };
 
-  // Helper to check if a row has live odds in Redis
+  // Helper to check if a row has best odds from Redis
   const hasLiveOdds = (row: CheatSheetRow): boolean => {
-    if (!oddsData || !row.oddsSelectionId) return false;
-    const odds = oddsData[row.oddsSelectionId];
-    // Check if odds object exists AND has actual betting odds (bestOver or bestUnder)
-    return odds !== null && 
-           odds !== undefined && 
-           (odds.bestOver !== null || odds.bestUnder !== null);
+    return row.bestOdds !== null && row.bestOdds !== undefined;
   };
 
   const sortedRows = useMemo(() => {
     // First filter out rows without odds if hideNoOdds is true
     let filteredRows = rows;
-    if (hideNoOdds && oddsData) {
+    if (hideNoOdds) {
       filteredRows = rows.filter(row => hasLiveOdds(row));
     }
 
     return [...filteredRows].sort((a, b) => {
-      // Push rows without live odds to the bottom (for when hideNoOdds is false)
+      // Push rows without best odds to the bottom (for when hideNoOdds is false)
       if (!hideNoOdds) {
         const aHasOdds = hasLiveOdds(a);
         const bHasOdds = hasLiveOdds(b);
@@ -464,11 +428,9 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
           bVal = b.dvpRank ?? 31;
           break;
         case "odds":
-          // Sort by best over American odds from live data (higher is better: +200 > +100 > -100 > -200)
-          const aOdds = oddsData?.[a.oddsSelectionId ?? ""];
-          const bOdds = oddsData?.[b.oddsSelectionId ?? ""];
-          aVal = aOdds?.bestOver?.price ?? -9999;
-          bVal = bOdds?.bestOver?.price ?? -9999;
+          // Sort by best over American odds (higher is better: +200 > +100 > -100 > -200)
+          aVal = a.bestOdds?.price ?? -9999;
+          bVal = b.bestOdds?.price ?? -9999;
           break;
         case "line":
           aVal = a.line;
@@ -491,7 +453,7 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
       const numB = typeof bVal === "number" ? bVal : 0;
       return sortDirection === "desc" ? numB - numA : numA - numB;
     });
-  }, [rows, sortField, sortDirection, oddsData, hideNoOdds]);
+  }, [rows, sortField, sortDirection, hideNoOdds]);
 
   if (isLoading) {
     return (
@@ -796,13 +758,15 @@ export function CheatSheetTable({ rows, isLoading, oddsData, isLoadingOdds, time
                 </div>
               </td>
 
-              {/* Odds Column - Live from Redis with Dropdown */}
+              {/* Odds Column - Best odds from Redis, detailed odds fetched on demand */}
               <td className="px-3 py-2">
                 <div className="flex justify-center">
-                  <OddsDropdownCell 
-                    odds={getLiveOdds(row)} 
+                  <OddsDropdown 
+                    eventId={row.eventId}
+                    market={row.market}
+                    selKey={row.selKey}
                     line={row.line}
-                    isLive={getLiveOdds(row)?.live}
+                    bestOdds={row.bestOdds}
                   />
                 </div>
               </td>
