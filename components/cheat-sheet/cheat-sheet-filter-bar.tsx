@@ -120,7 +120,7 @@ export function CheatSheetFilterBar({
   const marketDropdownRef = useRef<HTMLDivElement>(null);
   
   // Upgrade tooltip content for gated users
-  const upgradeTooltip = "Upgrade to Hit Rate or Pro plan to unlock all filters";
+  const upgradeTooltip = "Upgrade to Hit Rate or Sharp plan to unlock all filters";
 
   // Close market dropdown on outside click
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, normalizePlanName, type UserPlan } from "@/lib/plans";
 
 /**
  * GET /api/me/plan
@@ -43,9 +44,12 @@ export async function GET() {
       );
     }
 
+    const normalized = normalizePlanName(String(entitlement.current_plan || "free"));
+    const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+
     return NextResponse.json(
       { 
-        plan: entitlement.current_plan || "free", 
+        plan, 
         authenticated: true,
         userId: user.id,
         entitlement_source: entitlement.entitlement_source,

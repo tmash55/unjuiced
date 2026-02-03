@@ -27,21 +27,33 @@ export default function OddsPage({ params }: OddsPageProps) {
   const { preferences } = useOddsPreferences();
   
   // Sports without player props - force to game type
-  const sportsWithoutPlayerProps = ['ncaab', 'mlb', 'wnba'];
+  const sportsWithoutPlayerProps = ['mlb', 'wnba'];
   const hasPlayerProps = !sportsWithoutPlayerProps.includes(sport.toLowerCase());
   
   // Get search params or defaults
   const rawType = (searchParams.get("type") || "game") as "game" | "player";
   const type = hasPlayerProps ? rawType : "game"; // Force game type for sports without player props
-  const market = searchParams.get("market") || getDefaultMarket(sport);
+  const rawMarket = searchParams.get("market");
+  const defaultMarket = getDefaultMarket(sport, type);
+  const market = rawMarket || defaultMarket;
   const scope = (searchParams.get("scope") || "pregame") as "pregame" | "live";
   
   // Redirect if type=player for sports without player props
   useEffect(() => {
     if (!hasPlayerProps && rawType === "player") {
-      router.replace(`/odds/${sport}?type=game&market=${market}&scope=${scope}`);
+      router.replace(`/odds/${sport}?type=game&market=${defaultMarket}&scope=${scope}`);
+      return;
     }
-  }, [hasPlayerProps, rawType, sport, market, scope, router]);
+    
+    // If type/market mismatch, normalize to sensible default
+    if (type === "game" && rawMarket && rawMarket.startsWith("player_")) {
+      router.replace(`/odds/${sport}?type=game&market=${defaultMarket}&scope=${scope}`);
+      return;
+    }
+    if (type === "player" && rawMarket && rawMarket.startsWith("game_")) {
+      router.replace(`/odds/${sport}?type=player&market=${defaultMarket}&scope=${scope}`);
+    }
+  }, [hasPlayerProps, rawType, sport, defaultMarket, scope, router, type, rawMarket]);
   
   // Connect to utility context for search and filters
   const utility = useOddsUtility();
@@ -52,7 +64,7 @@ export default function OddsPage({ params }: OddsPageProps) {
   // Check if mobile viewport
   const isMobile = useIsMobile();
   
-  // SSE state - live updates enabled by default for Pro users
+  // SSE state - live updates enabled by default for Sharp users
   const [liveUpdatesEnabled] = useState(true);
   const lastRefetchRef = useRef<number>(0);
   const REFETCH_DEBOUNCE_MS = 2000; // Don't refetch more than every 2 seconds
@@ -118,7 +130,7 @@ export default function OddsPage({ params }: OddsPageProps) {
     refetch();
   }, [refetch]);
   
-  // SSE connection for Pro users
+  // SSE connection for Sharp users
   const {
     isConnected: sseConnected,
     isReconnecting: sseReconnecting,

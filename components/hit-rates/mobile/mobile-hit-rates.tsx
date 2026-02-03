@@ -228,7 +228,12 @@ export function MobileHitRates({
       
       // If we have odds data, check if there are valid lines
       if (odds) {
-        return odds.bestOver || odds.bestUnder;
+        return !!(odds.bestOver || odds.bestUnder);
+      }
+
+      // Fallback to bestOdds from API (desktop parity)
+      if (row.bestOdds) {
+        return true;
       }
       
       // If no odds data yet:
@@ -348,7 +353,21 @@ export function MobileHitRates({
         ) : (
           <>
             {visibleRows.map((row, idx) => {
-              const odds = getOdds?.(row.oddsSelectionId);
+              const oddsFromHook = getOdds?.(row.oddsSelectionId);
+              const oddsFallback = row.bestOdds
+                ? {
+                    bestOver: {
+                      price: row.bestOdds.price,
+                      book: row.bestOdds.book,
+                      url: null,
+                      mobileUrl: null,
+                    },
+                    bestUnder: null,
+                  }
+                : null;
+              const odds = oddsFromHook && (oddsFromHook.bestOver || oddsFromHook.bestUnder)
+                ? oddsFromHook
+                : oddsFallback;
               
               // Note: hideNoOdds filtering is now done BEFORE pagination in rowsForDisplay
               // So all rows here should already have odds if hideNoOdds is enabled
@@ -399,4 +418,3 @@ export function MobileHitRates({
     </div>
   );
 }
-

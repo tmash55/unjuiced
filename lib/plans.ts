@@ -8,7 +8,7 @@ import { User } from "@supabase/supabase-js";
  * - sharp: $35/mo - Hit rates + EV/Arb tools (no live arb, no custom models)
  * - edge: $65/mo - Everything including live arb + custom models
  */
-export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "edge";
+export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "edge" | "elite";
 
 /**
  * Legacy plan type aliases for backward compatibility
@@ -22,6 +22,7 @@ export type LegacyUserPlan = "hit_rate" | "pro";
 export function normalizePlanName(plan: string): UserPlan {
   if (plan === "hit_rate") return "scout";
   if (plan === "pro") return "sharp"; // Old pro maps to sharp (not edge)
+  if (plan === "admin") return "elite"; // Admins get full access
   return plan as UserPlan;
 }
 
@@ -144,6 +145,29 @@ export const PLAN_LIMITS = {
       hasEVSignals: true, // EV-enhanced hit rates for Edge
     },
   },
+  elite: {
+    arbitrage: {
+      maxResults: -1, // Unlimited
+      refreshRate: 2000, // 2 seconds
+      canFilter: true,
+      canExport: true,
+      hasLiveArb: true, // Full access
+    },
+    odds: {
+      maxLeagues: -1, // Unlimited
+      refreshRate: 2000,
+      canCompare: true,
+    },
+    positiveEV: {
+      maxResults: -1, // Unlimited
+      refreshRate: 5000,
+      hasCustomModels: true, // Full access
+    },
+    hitRates: {
+      hasAccess: true,
+      hasEVSignals: true, // EV-enhanced hit rates
+    },
+  },
 } as const;
 
 /**
@@ -157,22 +181,22 @@ export function hasHitRateAccess(plan: UserPlan): boolean {
  * Check if a plan has access to sharp tools (EV, Arb, Edge Finder)
  */
 export function hasSharpAccess(plan: UserPlan): boolean {
-  return plan === "sharp" || plan === "edge";
+  return plan === "sharp" || plan === "edge" || plan === "elite";
 }
 
 /**
  * Check if a plan has access to Edge features (live arb, custom models, EV signals)
  */
 export function hasEdgeAccess(plan: UserPlan): boolean {
-  return plan === "edge";
+  return plan === "edge" || plan === "elite";
 }
 
 /**
- * Check if a plan has full Pro features (arb, EV, etc.)
+ * Check if a plan has full Sharp features (arb, EV, etc.)
  * @deprecated Use hasSharpAccess or hasEdgeAccess instead
  */
 export function hasProAccess(plan: UserPlan): boolean {
-  return plan === "sharp" || plan === "edge";
+  return plan === "sharp" || plan === "edge" || plan === "elite";
 }
 
 /**

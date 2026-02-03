@@ -127,17 +127,28 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       const now = new Date();
       const etOptions: Intl.DateTimeFormatOptions = { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' };
       const todayET = now.toLocaleDateString('en-CA', etOptions);
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowET = tomorrow.toLocaleDateString('en-CA', etOptions);
+
       const todayGames = allGames.filter(g => g.game_date === todayET);
-      const todayGameIds = todayGames.length > 0 ? todayGames.map(g => g.game_id) : [];
+      const todayUpcomingGames = todayGames.filter(g => !hasGameStarted(g));
+      const tomorrowGames = allGames.filter(g => g.game_date === tomorrowET);
+
+      const defaultGameIds = todayUpcomingGames.length > 0
+        ? todayUpcomingGames.map(g => g.game_id)
+        : tomorrowGames.length > 0
+        ? tomorrowGames.map(g => g.game_id)
+        : [];
       
       // Initialize desktop if not yet set
       if (selectedGameIds === null) {
-        setSelectedGameIds(todayGameIds);
+        setSelectedGameIds(defaultGameIds);
       }
       
       // Initialize mobile if not yet set
       if (mobileSelectedGameIds === null) {
-        setMobileSelectedGameIds(todayGameIds);
+        setMobileSelectedGameIds(defaultGameIds);
       }
     }
   }, [allGames, selectedGameIds, mobileSelectedGameIds]);

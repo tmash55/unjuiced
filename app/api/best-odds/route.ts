@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 import { redis } from "@/lib/redis";
 import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
 
@@ -23,7 +24,7 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
  * 
  * Access control:
  * - Free users: Limited to improvements < 10%
- * - Pro users: Full access to all deals
+ * - Sharp users: Full access to all deals
  * 
  * Note: Enrichment data (player names, teams, events) is now EMBEDDED in the response!
  */
@@ -45,7 +46,9 @@ export async function GET(req: NextRequest) {
         .select('current_plan')
         .eq('user_id', user.id)
         .single();
-      isPro = ent?.current_plan === 'pro' || ent?.current_plan === 'admin';
+      const normalized = normalizePlanName(String(ent?.current_plan || "free"));
+      const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+      isPro = hasSharpAccess(plan);
     }
     
     // 2. Parse query parameters
@@ -344,4 +347,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

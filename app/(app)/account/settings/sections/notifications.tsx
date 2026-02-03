@@ -46,8 +46,8 @@ export default function NotificationsSettings({ user, preferences }: Notificatio
             <div className="flex-1">
               <h3 className="text-sm font-medium text-neutral-900 dark:text-white">
                 Arbitrage Alerts
-                <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
-                  Pro
+                <span className="ml-2 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                  Elite
                 </span>
               </h3>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
@@ -67,8 +67,8 @@ export default function NotificationsSettings({ user, preferences }: Notificatio
             <div className="flex-1">
               <h3 className="text-sm font-medium text-neutral-900 dark:text-white">
                 +EV Alerts
-                <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
-                  Pro
+                <span className="ml-2 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                  Elite
                 </span>
               </h3>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
@@ -123,4 +123,3 @@ export default function NotificationsSettings({ user, preferences }: Notificatio
     </div>
   );
 }
-

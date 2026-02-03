@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 
 const oddsMessages = [
@@ -112,12 +113,14 @@ export function LoadingState({
   message, 
   type = 'odds',
   showSkeleton = false, // Default to false now
-  minimal = false
+  minimal = false,
+  compact = false,
 }: { 
   message?: string;
   type?: LoadingType;
   showSkeleton?: boolean;
   minimal?: boolean;
+  compact?: boolean;
 }) {
   const [currentMessage, setCurrentMessage] = useState(0);
   const messages = type === 'account' ? accountMessages : oddsMessages;
@@ -141,16 +144,19 @@ export function LoadingState({
     );
   }
 
+  const logoSize = compact ? 44 : 56;
+  const containerClass = compact ? "min-h-[200px]" : "min-h-[400px]";
+
   return (
-    <div className="flex items-center justify-center min-h-[400px]">
+    <div className={cn("flex items-center justify-center", containerClass)}>
       <motion.div 
-        className="flex flex-col items-center gap-8"
+        className={cn("flex flex-col items-center", compact ? "gap-6" : "gap-8")}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
       >
         {/* Premium Logo */}
-        <PremiumLogo size={56} />
+        <PremiumLogo size={logoSize} />
 
         {/* Loading indicator + message */}
         <div className="flex flex-col items-center gap-3">

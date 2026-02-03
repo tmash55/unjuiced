@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 import { Redis } from "@upstash/redis";
 import type { EVRow } from "@/lib/ev-schema";
 
@@ -19,7 +20,7 @@ const redis = new Redis({
  * 
  * Access control:
  * - Free users: Can access, but EV > 3% is filtered out
- * - Pro users: Full access to all EV opportunities
+ * - Sharp users: Full access to all EV opportunities
  */
 export async function GET(req: NextRequest) {
   try {
@@ -36,7 +37,9 @@ export async function GET(req: NextRequest) {
         .eq('user_id', user.id)
         .single();
       
-      isPro = ent?.current_plan === 'pro' || ent?.current_plan === 'admin';
+      const normalized = normalizePlanName(String(ent?.current_plan || "free"));
+      const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+      isPro = hasSharpAccess(plan);
     }
     
     // Parse query params
@@ -161,4 +164,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

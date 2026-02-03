@@ -52,6 +52,40 @@ export function getProductPriceId(
   return STRIPE_PRODUCT_PRICES[product]?.[plan] || "";
 }
 
+type CheckoutOptions = {
+  trialDays?: number;
+  couponId?: string;
+  mode?: "subscription" | "payment";
+};
+
+export function buildCheckoutStartPath(
+  product: ProductType,
+  plan: BillingPlan = "monthly",
+  options: CheckoutOptions = {}
+): string {
+  const priceId = getProductPriceId(product, plan);
+  const params = new URLSearchParams({
+    priceId,
+    mode: options.mode ?? "subscription",
+  });
+  if (typeof options.trialDays === "number") {
+    params.set("trialDays", String(options.trialDays));
+  }
+  if (options.couponId) {
+    params.set("couponId", options.couponId);
+  }
+  return `/billing/start?${params.toString()}`;
+}
+
+export function buildRegisterCheckoutPath(
+  product: ProductType,
+  plan: BillingPlan = "monthly",
+  options: CheckoutOptions = {}
+): string {
+  const checkoutPath = buildCheckoutStartPath(product, plan, options);
+  return `/register?redirectTo=${encodeURIComponent(checkoutPath)}`;
+}
+
 /**
  * Check if a price ID is for a yearly plan
  */

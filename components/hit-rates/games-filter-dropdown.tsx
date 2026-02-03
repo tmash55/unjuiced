@@ -39,6 +39,16 @@ export const hasGameStarted = (game: NbaGame): boolean => {
   return false;
 };
 
+const getTodayETString = (): string => {
+  const now = new Date();
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+};
+
 // Format game time
 const formatGameTime = (gameStatus: string | null): string => {
   if (!gameStatus) return "TBD";
@@ -107,6 +117,7 @@ export function GamesFilterDropdown({
   compact = false,
 }: GamesFilterDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const todayET = useMemo(() => getTodayETString(), []);
 
   // Group games by date
   const gamesByDate = useMemo(() => {
@@ -246,13 +257,23 @@ export function GamesFilterDropdown({
 
         {/* Games List */}
         <div className="overflow-y-auto max-h-[320px]">
-          {gamesByDate.map(([date, dateGames]) => (
+          {gamesByDate.map(([date, dateGames]) => {
+            const isToday = date === todayET;
+            const availableGames = isToday
+              ? dateGames.filter((game) => !hasGameStarted(game))
+              : dateGames;
+
+            if (availableGames.length === 0) {
+              return null;
+            }
+
+            return (
             <React.Fragment key={date}>
               <DropdownMenuLabel className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800/50">
                 {getDayLabel(date)}
               </DropdownMenuLabel>
               
-              {dateGames.map((game) => {
+              {availableGames.map((game) => {
                 const gameId = normalizeGameId(game.game_id);
                 const selected = isSelected(gameId);
                 const started = hasGameStarted(game);
@@ -307,7 +328,8 @@ export function GamesFilterDropdown({
                 );
               })}
             </React.Fragment>
-          ))}
+          );
+          })}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

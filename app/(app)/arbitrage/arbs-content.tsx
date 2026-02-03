@@ -85,7 +85,7 @@ export default function ArbsPage() {
   const [searchLocal, setSearchLocal] = useState("");
   const [showConnectionError, setShowConnectionError] = useState(false);
   
-  // Show dialog when SSE fails (only for Pro users with auto refresh enabled)
+  // Show dialog when SSE fails (only for Sharp users with auto refresh enabled)
   useEffect(() => {
     if (hasFailed && pro && auto) {
       setShowConnectionError(true);

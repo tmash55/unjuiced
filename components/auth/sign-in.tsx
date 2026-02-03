@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 
 export const SignInForm = () => {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo");
+  const redirectTo = searchParams.get("redirectTo") || searchParams.get("redirect");
   
   // Preserve redirectTo when switching to register
   const registerHref = redirectTo ? `/register?redirectTo=${encodeURIComponent(redirectTo)}` : "/register";

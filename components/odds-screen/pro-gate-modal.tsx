@@ -26,7 +26,7 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
       <DialogContent className="sm:max-w-md border-[var(--tertiary)]/20 bg-white p-0 shadow-xl dark:border-[var(--tertiary)]/30 dark:bg-neutral-900">
         {/* Accessible title for screen readers */}
         <VisuallyHidden asChild>
-          <DialogTitle>{feature} is a Pro Feature</DialogTitle>
+          <DialogTitle>{feature} is a Sharp Feature</DialogTitle>
         </VisuallyHidden>
         <div className="p-8 text-center">
           {/* Icon with gradient glow */}
@@ -38,9 +38,9 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
           </div>
 
           {/* Headline */}
-          <h3 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white">{feature} is a Pro Feature</h3>
+          <h3 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-white">{feature} is a Sharp Feature</h3>
           <p className="mb-6 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-            Upgrade to Pro to unlock direct betting links, giving you instant access to pre-filled bet slips on your favorite sportsbooks.
+            Upgrade to Sharp to unlock direct betting links, giving you instant access to pre-filled bet slips on your favorite sportsbooks.
           </p>
 
           {/* Feature cards */}
@@ -73,7 +73,7 @@ export function ProGateModal({ isOpen, onClose, feature = "Deep Linking" }: ProG
               </ButtonLink>
             ) : (
               <ButtonLink href="/pricing" onClick={onClose} variant="pro" className="w-full justify-center">
-                Get Pro Now
+                Get Sharp Now
               </ButtonLink>
             )}
             <button

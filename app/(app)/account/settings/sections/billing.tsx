@@ -7,6 +7,7 @@ import { useEntitlements } from "@/hooks/use-entitlements";
 import { getPriceId } from "@/constants/billing";
 import config from "@/config";
 import { useSubscription } from "@/hooks/use-subscription";
+import { cn } from "@/lib/utils";
 
 export default function BillingSettings({ user }: { user: any }) {
   const [loading, setLoading] = useState(false);
@@ -141,13 +142,13 @@ export default function BillingSettings({ user }: { user: any }) {
                 Current Plan
               </h3>
               {isPro && !isCanceled && !isTrial && !isGrant && (
-                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-brand to-brand/80 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                  Pro
+                <span className="inline-flex items-center rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand shadow-sm">
+                  Sharp
                 </span>
               )}
               {isGrant && (
-                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                  Pro
+                <span className="inline-flex items-center rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand shadow-sm">
+                  Sharp
                 </span>
               )}
               {isTrial && (
@@ -190,15 +191,20 @@ export default function BillingSettings({ user }: { user: any }) {
                   </span>
                 </>
               )}
-              {!isLoading && isPro && isSubscription && !isCanceled && "Active Pro subscription"}
+              {!isLoading && isPro && isSubscription && !isCanceled && "Active Sharp subscription"}
               {!isLoading && isHitRate && isSubscription && !isCanceled && "Active Hit Rates subscription"}
               {!isLoading && isGrant && "Granted access"}
               {!isLoading && isSubscription && isCanceled && "Subscription set to cancel"}
               {!isLoading && !hasPaidPlan && !isTrial && "Free plan with limited features"}
             </p>
           </div>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-50 dark:bg-neutral-800">
-            {isPro && isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-green-500" />}
+          <div className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+            isPro && isSubscription && !isCanceled
+              ? "bg-brand/10 dark:bg-brand/20"
+              : "bg-neutral-50 dark:bg-neutral-800"
+          )}>
+            {isPro && isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-brand" />}
             {isHitRate && isSubscription && !isCanceled && <CheckCircle className="h-5 w-5 text-orange-500" />}
             {isSubscription && isCanceled && <AlertCircle className="h-5 w-5 text-amber-500" />}
             {isTrial && <CheckCircle className="h-5 w-5 text-blue-500" />}
@@ -219,7 +225,7 @@ export default function BillingSettings({ user }: { user: any }) {
                   Free Trial Active
                 </p>
                 <p className="text-sm leading-relaxed text-blue-800/90 dark:text-blue-300/90">
-                  You have full Pro access until{" "}
+                  You have full Sharp access until{" "}
                   <span className="font-semibold text-blue-900 dark:text-blue-200">
                     {new Date(entitlements.trial.trial_ends_at).toLocaleDateString("en-US", {
                       month: "long",
@@ -246,7 +252,7 @@ export default function BillingSettings({ user }: { user: any }) {
                   Subscription Ending
                 </p>
                 <p className="text-sm leading-relaxed text-amber-800/90 dark:text-amber-300/90">
-                  Your Pro access will end on{" "}
+                  Your Sharp access will end on{" "}
                   <span className="font-semibold text-amber-900 dark:text-amber-200">
                     {periodEnd.toLocaleDateString("en-US", {
                       month: "long",
@@ -261,7 +267,7 @@ export default function BillingSettings({ user }: { user: any }) {
           </div>
         )}
 
-        {/* Manage Subscription Button - Pro users only */}
+        {/* Manage Subscription Button - Sharp users only */}
         {isSubscription && isPro && (
           <div className="mt-6 space-y-2">
             <button
@@ -296,7 +302,7 @@ export default function BillingSettings({ user }: { user: any }) {
                   href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=3`}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow"
             >
-                  Upgrade to Pro
+                  Upgrade to Sharp
               <ExternalLink className="h-4 w-4" />
             </a>
             <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
@@ -337,7 +343,7 @@ export default function BillingSettings({ user }: { user: any }) {
               href="/pricing"
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand to-brand/90 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
             >
-              Upgrade to Pro
+              Upgrade to Sharp
               <ExternalLink className="h-4 w-4" />
             </a>
           </div>
@@ -364,82 +370,12 @@ export default function BillingSettings({ user }: { user: any }) {
               )}
             </button>
             <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              Update payment method, view invoices, or upgrade to Pro
+              Update payment method, view invoices, or upgrade to Sharp
             </p>
           </div>
         )}
       </div>
 
-      {/* Features Summary */}
-      <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <h3 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-white">
-          {isPro ? "Pro Features" : isHitRate ? "Hit Rates Features" : "Upgrade Benefits"}
-        </h3>
-        <ul className="mt-4 space-y-3 text-sm text-neutral-600 dark:text-neutral-400">
-          {isHitRate ? (
-            <>
-              <li className="flex items-center gap-3">
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
-                </div>
-                <span className="leading-relaxed">NBA player prop hit rates</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
-                </div>
-                <span className="leading-relaxed">L5, L10, L20, Season stats</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
-                </div>
-                <span className="leading-relaxed">Matchup analysis</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                  <div className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
-                </div>
-                <span className="leading-relaxed">Basic odds comparison</span>
-              </li>
-            </>
-          ) : (
-            <>
-              <li className="flex items-center gap-3">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-                </div>
-                <span className="leading-relaxed">Real-time odds updates (sub 2s)</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-                </div>
-                <span className="leading-relaxed">Legal arbitrage detection</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-                </div>
-                <span className="leading-relaxed">Alternate lines & props</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-                </div>
-                <span className="leading-relaxed">One-click deep linking</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isPro ? 'bg-green-100 dark:bg-green-900/30' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                  <div className={`h-1.5 w-1.5 rounded-full ${isPro ? 'bg-green-600 dark:bg-green-400' : 'bg-neutral-400'}`} />
-                </div>
-                <span className="leading-relaxed">Priority support</span>
-              </li>
-            </>
-          )}
-        </ul>
-      </div>
     </div>
   );
 }
-

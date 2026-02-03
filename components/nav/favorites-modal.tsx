@@ -2032,7 +2032,7 @@ export function FavoritesModal() {
                     {/* View Full Page Link - Empty State */}
                     <div className="px-3 pb-3">
                       <Link
-                        href="/saved-plays"
+                        href="/my-slips"
                         onClick={() => setIsOpen(false)}
                         className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-white/5 text-xs font-medium text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02] transition-colors group"
                       >
@@ -2103,7 +2103,7 @@ export function FavoritesModal() {
                   
                   {/* View Full Page Link */}
                   <Link
-                    href="/saved-plays"
+                    href="/my-slips"
                     onClick={() => setIsOpen(false)}
                     className="flex items-center justify-center gap-2 px-4 py-3 border-t border-white/5 text-xs font-medium text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02] transition-colors group"
                   >
@@ -2352,7 +2352,7 @@ export function FavoritesModal() {
                   
                   {/* Primary CTA */}
                   <Link
-                    href="/saved-plays"
+                    href="/my-slips"
                     onClick={() => setIsOpen(false)}
                     className={cn(
                       "flex items-center justify-center gap-2 w-full py-3.5 rounded-xl",

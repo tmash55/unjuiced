@@ -55,7 +55,7 @@ export const SignInEmail = () => {
           });
 
           // Check for redirect URL (support both 'next' and 'redirectTo' params)
-          const next = searchParams.get("next") || searchParams.get("redirectTo");
+          const next = searchParams.get("next") || searchParams.get("redirectTo") || searchParams.get("redirect");
           const destination = next || "/today";
 
           // Use full page navigation to ensure cookies are properly sent
@@ -155,4 +155,3 @@ export const SignInEmail = () => {
     </form>
   );
 };
-

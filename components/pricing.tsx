@@ -40,7 +40,7 @@ export const Pricing = () => {
       <Container className="border-divide flex flex-col items-center justify-center border-x px-4 pt-20 pb-10 md:px-8">
         <Badge text="Pricing" />
         <SectionHeading className="mt-4">
-          Choose Your Edge
+          Choose Your Plan
         </SectionHeading>
         <p className="mx-auto mt-4 max-w-2xl text-center text-base text-neutral-600 md:text-lg dark:text-neutral-400">
           Find the plan that fits your betting strategy
@@ -60,10 +60,9 @@ export const Pricing = () => {
         <div className="mt-12 grid w-full max-w-5xl grid-cols-1 gap-8 md:grid-cols-2">
           {tiers.map((tier, tierIdx) => {
             const productType = tier.productType;
-            // Only Pro has yearly pricing - Hit Rates is always monthly
-            const useYearly = tier.featured && isYearly;
+            const useYearly = isYearly;
             const priceId = getProductPriceId(productType, useYearly ? "yearly" : "monthly");
-            const hasTrial = tier.featured && tier.trialDays && showTrialCTA;
+            const hasTrial = Boolean(tier.trialDays && showTrialCTA);
             
             // Debug logging in development
             if (process.env.NODE_ENV === 'development') {
@@ -89,7 +88,7 @@ export const Pricing = () => {
                     </span>
                   </div>
                 )}
-                {tier.featured && isYearly && (
+                {isYearly && (
                   <div className="absolute -top-4 right-4">
                     <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-lg">
                       2 months free
@@ -136,9 +135,7 @@ export const Pricing = () => {
                   
                   <div className="mt-6 flex items-baseline justify-center gap-2">
                     <div className="relative overflow-hidden">
-                      <Price 
-                        value={tier.featured && isYearly ? Math.round(tier.yearly / 12) : tier.monthly} 
-                      />
+                      <Price value={isYearly ? Math.round(tier.yearly / 12) : tier.monthly} />
                     </div>
                     <span className="text-neutral-600 dark:text-neutral-400">
                       /month
@@ -175,7 +172,7 @@ export const Pricing = () => {
                           <BuyButton
                             priceId={priceId}
                             mode="subscription"
-                            label="Unlock Pro Now"
+                            label="Unlock Sharp Now"
                             className="w-full justify-center rounded-lg border-2 border-neutral-200 bg-white px-6 py-2.5 text-center text-sm font-medium text-neutral-700 transition-all hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"
                           />
                         )}
@@ -186,11 +183,11 @@ export const Pricing = () => {
                         <BuyButton
                           priceId={priceId}
                           mode="subscription"
-                          label="Unlock Pro Now"
+                          label="Unlock Sharp Now"
                           className="w-full justify-center rounded-lg border-2 border-brand bg-brand px-6 py-3 text-center text-base font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow-md hover:ring-4 hover:ring-brand/20"
                         />
                         <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-                          Subscribe to unlock all Pro features
+                          Subscribe to unlock all Sharp features
                         </p>
                       </>
                     )}
@@ -200,7 +197,7 @@ export const Pricing = () => {
                     <BuyButton
                       priceId={priceId}
                       mode="subscription"
-                      label="Get Started"
+                      label={tier.title === "Scout" ? "Try for free" : `Get ${tier.title}`}
                       className="w-full justify-center rounded-lg border-2 border-neutral-900 bg-neutral-900 px-6 py-3 text-center text-base font-medium text-white transition-all hover:bg-neutral-800 hover:ring-4 hover:ring-neutral-200/60 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50"
                     />
                   </div>

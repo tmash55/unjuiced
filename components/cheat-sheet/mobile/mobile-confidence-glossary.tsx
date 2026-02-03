@@ -227,10 +227,10 @@ export function MobileConfidenceGlossary({ isOpen, onClose }: MobileConfidenceGl
             </div>
           </div>
 
-          {/* Pro Tip */}
+          {/* Sharp Tip */}
           <div className="bg-brand/5 border border-brand/20 rounded-xl p-3">
             <h4 className="text-xs font-bold text-brand mb-2">
-              Pro Tip
+              Sharp Tip
             </h4>
             <p className="text-xs text-neutral-700 dark:text-neutral-300">
               <strong>A+ grades (90+)</strong> are rare and indicate exceptional value. <strong>Hit Rate</strong> accounts for 40% of the score because consistency matters most.

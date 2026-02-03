@@ -203,7 +203,7 @@ export function ModeToggle({
   onModeChange,
   counts,
   liveDisabled = false,
-  liveDisabledReason = "Pro",
+  liveDisabledReason = "Sharp",
   className,
 }: ModeToggleProps) {
   return (

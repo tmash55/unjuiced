@@ -53,6 +53,10 @@ export interface MultiDevigResult {
  * - prophetx: ProphetX only (sharp pricing with high limits)
  * - pinnacle_circa: Blend of Pinnacle and Circa
  * - hardrock_thescore: Blend of Hard Rock and theScore
+ * - thescore: theScore only (retail book)
+ * - ballybet: Bally Bet only (retail book)
+ * - betrivers: BetRivers only (retail book)
+ * - fanatics: Fanatics only (retail book)
  * - market_average: Average of all available sharp books (most robust consensus)
  * - custom: User-defined blend of books with weights
  */
@@ -70,6 +74,10 @@ export type SharpPreset =
   | "caesars"
   | "hardrock"
   | "bet365"
+  | "thescore"
+  | "ballybet"
+  | "betrivers"
+  | "fanatics"
   | "polymarket"
   | "kalshi"
   | "custom";

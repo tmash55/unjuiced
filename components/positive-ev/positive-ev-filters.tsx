@@ -320,14 +320,14 @@ export function PositiveEVFilters({
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-brand" />
                   <div>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Sharp Feature</p>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
                       {isLoggedIn ? "Upgrade to unlock full filtering capabilities" : "Try free to unlock full filtering capabilities"}
                     </p>
                   </div>
                 </div>
                 <ButtonLink href="/pricing" variant="pro" className="justify-center text-xs">
-                  {isLoggedIn ? "Upgrade to Pro" : "Try Free"}
+                  {isLoggedIn ? "Upgrade to Sharp" : "Try Free"}
                 </ButtonLink>
               </div>
             </div>

@@ -1196,7 +1196,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             {/* Unlock button - positioned absolutely, NOT blurred */}
             {isTeaser && (
               <div className="absolute inset-0 flex items-center justify-center z-[5] pointer-events-none">
-                <Tooltip content="Upgrade to Pro to unlock premium arbitrage opportunities">
+                <Tooltip content="Upgrade to Sharp to unlock premium arbitrage opportunities">
                   <button
                     onClick={() => window.location.href = '/pricing'}
                     className="flex items-center gap-2 rounded-lg border-2 border-white/20 px-4 py-2 text-sm font-semibold shadow-xl transition-all hover:scale-105 cursor-pointer pointer-events-auto bg-[var(--tertiary)] text-white dark:text-[var(--on-tertiary)]"

@@ -38,10 +38,10 @@ export const SharpFeatures = () => {
 
   return (
     <TabbedFeatureSection
-      badge="Pro Tools"
+      badge="Sharp Tools"
       heading="Find the Edge the Books Missed."
       subheading="Tools for the serious bettor. Identify pricing errors, arbitrage opportunities, and positive EV plays in real-time across 20+ sportsbooks."
-      ctaText="Explore Pro Tools"
+      ctaText="Explore Sharp Tools"
       ctaHref="/pro/ev"
       tabs={tabs}
       autoRotate={true}

@@ -20,7 +20,7 @@ export function UpgradePrompt({
   variant = "card",
 }: UpgradePromptProps) {
   const isAnonymous = plan === "anonymous";
-  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Pro";
+  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
   const ctaLink = isAnonymous ? "/register" : "/pricing";
 
   if (variant === "inline") {
@@ -89,7 +89,7 @@ export function UpgradePrompt({
         )}
       </div>
       <h3 className="mb-2 text-lg font-semibold text-neutral-900 dark:text-white">
-        {isAnonymous ? "Unlock More Opportunities" : "Upgrade to Pro"}
+        {isAnonymous ? "Unlock More Opportunities" : "Upgrade to Sharp"}
       </h3>
       <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
         {message}
@@ -121,7 +121,7 @@ export function LockedOverlay({
   className,
 }: Omit<UpgradePromptProps, "variant">) {
   const isAnonymous = plan === "anonymous";
-  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Pro";
+  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
   const ctaLink = isAnonymous ? "/register" : "/pricing";
 
   return (

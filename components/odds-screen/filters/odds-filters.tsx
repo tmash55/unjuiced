@@ -139,7 +139,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
     setShowBestLine(true)
     setShowAverageLine(true)
     
-    // Reset SSE toggle to on (default for Pro users)
+    // Reset SSE toggle to on (default for Sharp users)
     if (isPro) {
       setLocalLiveUpdatesEnabled(true)
     }
@@ -264,14 +264,14 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                           Unlock Display Settings
                         </h3>
                         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-                          Upgrade to Pro to customize your odds display with auto refresh, column highlighting, and more advanced settings.
+                          Upgrade to Sharp to customize your odds display with auto refresh, column highlighting, and more advanced settings.
                         </p>
                         <ButtonLink
                           href="/pricing"
                           variant="pro"
                           className="inline-flex items-center gap-2 text-sm h-auto py-2"
                         >
-                          {canUseTrial ? "Start Free Trial" : "Get Pro Now"}
+                          {canUseTrial ? "Start Free Trial" : "Get Sharp Now"}
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
@@ -281,7 +281,7 @@ export function OddsFilters({ className = '', isPro = false, liveUpdatesEnabled 
                   </div>
                 )}
 
-                {/* Display Settings - Pro Only */}
+                {/* Display Settings - Sharp Only */}
                 {isPro && (
                   <>
                     {/* Auto Refresh Toggle */}

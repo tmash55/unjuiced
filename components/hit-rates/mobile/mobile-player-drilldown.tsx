@@ -44,6 +44,7 @@ const getBookLogo = (bookId?: string): string | null => {
   return sb?.image?.light || null;
 };
 import { useHitRateOdds } from "@/hooks/use-hit-rate-odds";
+import { useAlternateLines, type AlternateLine } from "@/hooks/use-alternate-lines";
 import { useOddsLine } from "@/hooks/use-odds-line";
 import { usePositionVsTeam } from "@/hooks/use-position-vs-team";
 import { useMatchupRanks } from "@/hooks/use-matchup-ranks";
@@ -156,8 +157,8 @@ const MARKET_TO_FIELD: Record<string, string> = {
 
 interface BookOddsEntry {
   book: string;
-  over?: { price: number; u?: string | null; m?: string | null } | null;
-  under?: { price: number; u?: string | null; m?: string | null } | null;
+  over?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null } | null;
+  under?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null } | null;
 }
 
 interface MobileOddsLineRowProps {
@@ -165,7 +166,10 @@ interface MobileOddsLineRowProps {
     line: number;
     bestOver: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
     bestUnder: { book: string; price: number; url: string | null; mobileUrl: string | null } | null;
-    books: Record<string, { over?: { price: number; u?: string | null; m?: string | null }; under?: { price: number; u?: string | null; m?: string | null } }>;
+    books: Record<string, { 
+      over?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null }; 
+      under?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null };
+    }>;
   };
   isActive: boolean;
   rates: { l5: number | null; l10: number | null; l20: number | null; szn: number | null };
@@ -195,7 +199,9 @@ function MobileOddsLineRow({
     
     // Prefer mobile URL on mobile devices
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const url = isMobile ? (oddsData.m || oddsData.u) : (oddsData.u || oddsData.m);
+    const url = isMobile
+      ? (oddsData.mobileUrl || oddsData.m || oddsData.url || oddsData.u)
+      : (oddsData.url || oddsData.u || oddsData.mobileUrl || oddsData.m);
     
     if (url) {
       window.open(url, "_blank", "noopener,noreferrer");
@@ -3414,6 +3420,76 @@ export function MobilePlayerDrilldown({
   });
   
   const fullOddsData = getOdds(profile.oddsSelectionId);
+
+  // Alternate lines (same source as desktop matrix) for mobile odds tab fallback
+  const { lines: alternateLines } = useAlternateLines({
+    eventId: profile.eventId,
+    selKey: profile.selKey,
+    playerId: profile.playerId,
+    market: profile.market,
+    currentLine: profile.line,
+    enabled: !!profile.eventId && !!profile.selKey && !!profile.playerId && !!profile.market,
+  });
+
+  const mapAlternateLineToOddsLine = useCallback((line: AlternateLine) => {
+    const books: Record<string, {
+      over?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null };
+      under?: { price: number; u?: string | null; m?: string | null; url?: string | null; mobileUrl?: string | null };
+    }> = {};
+
+    for (const book of line.books || []) {
+      if (!books[book.book]) {
+        books[book.book] = {};
+      }
+      if (book.price !== null && book.price !== undefined) {
+        books[book.book].over = {
+          price: book.price,
+          url: book.url || null,
+          mobileUrl: book.mobileUrl || null,
+          u: book.url || null,
+          m: book.mobileUrl || null,
+        };
+      }
+      if (book.underPrice !== null && book.underPrice !== undefined) {
+        books[book.book].under = {
+          price: book.underPrice,
+          url: book.underUrl || null,
+          mobileUrl: book.underMobileUrl || null,
+          u: book.underUrl || null,
+          m: book.underMobileUrl || null,
+        };
+      }
+    }
+
+    const overBooks = Object.entries(books)
+      .map(([book, odds]) => (odds.over ? { book, ...odds.over } : null))
+      .filter(Boolean) as Array<{ book: string; price: number; url?: string | null; mobileUrl?: string | null }>;
+    const underBooks = Object.entries(books)
+      .map(([book, odds]) => (odds.under ? { book, ...odds.under } : null))
+      .filter(Boolean) as Array<{ book: string; price: number; url?: string | null; mobileUrl?: string | null }>;
+
+    overBooks.sort((a, b) => b.price - a.price);
+    underBooks.sort((a, b) => b.price - a.price);
+
+    return {
+      line: line.line,
+      bestOver: overBooks[0] ? { book: overBooks[0].book, price: overBooks[0].price, url: overBooks[0].url || null, mobileUrl: overBooks[0].mobileUrl || null } : null,
+      bestUnder: underBooks[0] ? { book: underBooks[0].book, price: underBooks[0].price, url: underBooks[0].url || null, mobileUrl: underBooks[0].mobileUrl || null } : null,
+      books,
+    };
+  }, []);
+
+  const alternateLinesForOdds = useMemo(
+    () => alternateLines.map(mapAlternateLineToOddsLine),
+    [alternateLines, mapAlternateLineToOddsLine]
+  );
+
+  const oddsLinesForTabs = useMemo(() => {
+    if (fullOddsData?.allLines && fullOddsData.allLines.length > 0) {
+      return fullOddsData.allLines;
+    }
+    return alternateLinesForOdds;
+  }, [fullOddsData, alternateLinesForOdds]);
   
   // Get odds for the current line using new Redis keys
   // Falls back to legacy data if new data not available
@@ -3458,7 +3534,22 @@ export function MobilePlayerDrilldown({
     }
     
     // Fall back to legacy data
-    if (!fullOddsData) return null;
+    const hasLegacyOdds = !!fullOddsData && (
+      !!fullOddsData.bestOver ||
+      !!fullOddsData.bestUnder ||
+      (fullOddsData.allLines && fullOddsData.allLines.length > 0)
+    );
+    if (!hasLegacyOdds) {
+      const fallbackLine = alternateLinesForOdds.find(l => l.line === (customLine ?? profile.line));
+      if (fallbackLine) {
+        return {
+          bestOver: fallbackLine.bestOver,
+          bestUnder: fallbackLine.bestUnder,
+          isAltLine: customLine !== null && customLine !== profile.line,
+        };
+      }
+      return null;
+    }
     
     // If using a custom line different from the profile line, try to find odds for that line
     if (customLine !== null && customLine !== profile.line) {
@@ -3516,7 +3607,7 @@ export function MobilePlayerDrilldown({
       bestUnder: fullOddsData.bestUnder,
       isAltLine: false,
     };
-  }, [oddsLineData, fullOddsData, customLine, profile.line]);
+  }, [oddsLineData, fullOddsData, customLine, profile.line, alternateLinesForOdds]);
 
   // Favorites hook for adding to My Plays
   const { isFavorited, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
@@ -3549,9 +3640,9 @@ export function MobilePlayerDrilldown({
       if (Object.keys(snapshot).length > 0) {
         booksSnapshot = snapshot;
       }
-    } else if (fullOddsData?.allLines) {
-      // Fall back to legacy data
-      const lineData = fullOddsData.allLines.find((l: any) => l.line === activeLine);
+    } else if (oddsLinesForTabs.length > 0) {
+      // Fall back to odds lines data
+      const lineData = oddsLinesForTabs.find((l: any) => l.line === activeLine);
       if (lineData?.books) {
         const snapshot: Record<string, BookSnapshot> = {};
         for (const [bookId, bookOdds] of Object.entries(lineData.books as Record<string, any>)) {
@@ -3601,7 +3692,7 @@ export function MobilePlayerDrilldown({
       best_book_at_save: bestOdds?.book ?? null,
       source: "hit_rates",
     };
-  }, [profile, customLine, odds, oddsLineData, fullOddsData]);
+  }, [profile, customLine, odds, oddsLineData, fullOddsData, oddsLinesForTabs]);
 
   // Check if current selection is favorited
   const isOverFavorited = useMemo(() => {
@@ -4046,7 +4137,7 @@ export function MobilePlayerDrilldown({
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY HEADER - Centered Player Info
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="sticky top-14 z-30 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-800/60 shadow-sm">
+      <div className="sticky top-0 z-30 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-800/60 shadow-sm">
         {/* ═══ ROW 1: Back Button + Centered Player Info ═══ */}
         <div className="relative flex items-center px-3 py-3">
           {/* Back Button - absolute positioned */}
@@ -4495,7 +4586,7 @@ export function MobilePlayerDrilldown({
       />
 
       {/* All Odds - Bottom Sheet Modal */}
-      {showAllOdds && fullOddsData?.allLines && (() => {
+      {showAllOdds && oddsLinesForTabs.length > 0 && (() => {
         // Calculate hit rates for each line using chartGames
         const calcHitRates = (line: number) => {
           const l5 = chartGames.slice(0, 5);
@@ -4524,7 +4615,7 @@ export function MobilePlayerDrilldown({
           return "text-red-500 dark:text-red-400";
         };
         
-        const sortedLines = [...fullOddsData.allLines].sort((a, b) => a.line - b.line);
+        const sortedLines = [...oddsLinesForTabs].sort((a, b) => a.line - b.line);
         
         // Show only lines within range of selected, with expand option
         const linesToShow = showAllLines 
@@ -4558,11 +4649,11 @@ export function MobilePlayerDrilldown({
                       </span>
                       <span className="text-neutral-300 dark:text-neutral-700">•</span>
                       <span className="text-[11px] text-neutral-400">
-                        {fullOddsData.allLines.length} lines
+                        {oddsLinesForTabs.length} lines
                       </span>
                     </div>
                   </div>
-                  {fullOddsData.live && (
+                  {fullOddsData?.live && (
                     <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">LIVE</span>
@@ -5013,7 +5104,7 @@ export function MobilePlayerDrilldown({
                   </div>
                   
                   {/* View All */}
-                  {fullOddsData?.allLines && fullOddsData.allLines.length > 0 && (
+                  {oddsLinesForTabs.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setShowAllOdds(true)}
@@ -5770,8 +5861,8 @@ export function MobilePlayerDrilldown({
             return "text-red-500 dark:text-red-400";
           };
 
-          const sortedAllLines = fullOddsData?.allLines 
-            ? [...fullOddsData.allLines].sort((a, b) => a.line - b.line)
+          const sortedAllLines = oddsLinesForTabs.length > 0
+            ? [...oddsLinesForTabs].sort((a, b) => a.line - b.line)
             : [];
           
           // Find the active line in the list
@@ -5933,7 +6024,7 @@ export function MobilePlayerDrilldown({
               )}
 
               {/* No odds available state */}
-              {!fullOddsData?.allLines || fullOddsData.allLines.length === 0 && (
+              {oddsLinesForTabs.length === 0 && (
                 <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200/60 dark:border-neutral-800/60 p-6 text-center">
                   <DollarSign className="h-8 w-8 text-neutral-300 dark:text-neutral-600 mx-auto mb-2" />
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">No alternate lines available</p>
@@ -6005,4 +6096,3 @@ export function MobilePlayerDrilldown({
     </div>
   );
 }
-

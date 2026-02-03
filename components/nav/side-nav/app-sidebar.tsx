@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useEntitlements } from "@/hooks/use-entitlements"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { cn } from "@/lib/utils"
 
 // Types for navigation
@@ -141,7 +142,7 @@ const resourcesLinks: NavItem[] = [
   { label: "Sportsbooks", href: "/sportsbooks", icon: IconBuildingBank },
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
-  { label: "My Plays", href: "/saved-plays", icon: IconHeart },
+  { label: "My Slips", href: "/my-slips", icon: IconHeart },
 ]
 
 const accountLinks: NavItem[] = [
@@ -629,7 +630,7 @@ function LogoIcon() {
   )
 }
 
-// Tips for Pro users
+// Tips for Sharp users
 const PRO_TIPS = [
   "Use keyboard shortcuts: Press 'F' to favorite a play",
   "Set up custom filters to find your edge faster",
@@ -683,7 +684,7 @@ function StatusCard() {
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-neutral-900 dark:text-white">
-            Pro Trial
+            Sharp Trial
           </span>
           <Link 
             href="/pricing" 
@@ -710,7 +711,7 @@ function StatusCard() {
     )
   }
   
-  // Show tips for Pro users
+  // Show tips for Sharp users
   if (isPro) {
     return (
       <motion.div
@@ -722,7 +723,7 @@ function StatusCard() {
           <IconBulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 block mb-1">
-              Pro Tip
+              Sharp Tip
             </span>
             <AnimatePresence mode="wait">
               <motion.p
@@ -752,7 +753,7 @@ function StatusCard() {
       <div className="flex items-center gap-2 mb-2">
         <IconSparkles className="w-4 h-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
         <span className="text-xs font-semibold text-neutral-900 dark:text-white">
-          Unlock Pro Features
+          Unlock Sharp Features
         </span>
       </div>
       <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
@@ -762,7 +763,7 @@ function StatusCard() {
         href="/pricing" 
         className="inline-flex items-center justify-center w-full py-1.5 px-3 rounded-lg bg-[#0EA5E9] dark:bg-[#7DD3FC] text-white dark:text-neutral-900 text-xs font-semibold hover:opacity-90 transition-opacity"
       >
-        Upgrade to Pro
+        Upgrade to Sharp
       </Link>
     </motion.div>
   )
@@ -773,6 +774,7 @@ function UserSection() {
   const { user, signOut } = useAuth()
   const { open, animate, setOpen } = useSidebar()
   const { data: entitlements } = useEntitlements()
+  const isMobile = useMediaQuery("(max-width: 767px)")
   
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
   const email = user?.email || ''
@@ -781,6 +783,25 @@ function UserSection() {
   const isPro = entitlements?.entitlement_source === 'subscription' || 
                 entitlements?.entitlement_source === 'grant'
   const isTrial = entitlements?.entitlement_source === 'trial'
+  const tier = entitlements?.plan
+  const tierLabel = isTrial
+    ? "Trial"
+    : tier === "edge"
+      ? "Elite"
+      : tier === "sharp"
+        ? "Sharp"
+        : tier === "scout"
+          ? "Hit Rates"
+          : "Free"
+  const tierBadgeClass = isTrial
+    ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
+    : tier === "edge"
+      ? "text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20"
+      : tier === "sharp"
+        ? "text-brand bg-brand/10 dark:bg-brand/20"
+        : tier === "scout"
+          ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/20"
+          : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
   
   const closeMobileSidebar = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -831,9 +852,10 @@ function UserSection() {
       
       <DropdownMenuContent
         className="min-w-56 rounded-lg"
-        side="right"
-        align="end"
+        side={isMobile ? "top" : "right"}
+        align={isMobile ? "start" : "end"}
         sideOffset={8}
+        collisionPadding={8}
       >
         {/* User info header */}
         <DropdownMenuLabel className="p-0 font-normal">
@@ -849,13 +871,9 @@ function UserSection() {
                 <span className="truncate font-medium text-neutral-900 dark:text-white">{displayName}</span>
                 <span className={cn(
                   "text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded",
-                  isPro 
-                    ? "text-[#0EA5E9] dark:text-[#7DD3FC] bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10" 
-                    : isTrial
-                      ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
-                      : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
+                  tierBadgeClass
                 )}>
-                  {isPro ? 'Pro' : isTrial ? 'Trial' : 'Free'}
+                  {tierLabel}
                 </span>
               </div>
               <span className="truncate text-xs text-neutral-500 dark:text-neutral-400">{email}</span>
@@ -865,14 +883,14 @@ function UserSection() {
         
         <DropdownMenuSeparator />
         
-        {/* Upgrade to Pro - only show if not pro */}
+        {/* Upgrade to Sharp - only show if not pro */}
         {!isPro && (
           <>
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
                 <Link href="/pricing" onClick={closeMobileSidebar} className="cursor-pointer">
                   <IconSparkles className="h-4 w-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
-                  <span>Upgrade to Pro</span>
+                  <span>Upgrade to Sharp</span>
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>

@@ -4,7 +4,7 @@ import { CloseIcon } from "@/icons/general";
 export enum TierName {
   SCOUT = "Scout",
   SHARP = "Sharp",
-  EDGE = "Edge",
+  ELITE = "Elite",
 }
 
 export const tiers = [
@@ -32,8 +32,8 @@ export const tiers = [
     title: TierName.SHARP,
     subtitle: "Complete betting toolkit",
     description: "Level up from research to execution. Get hit rates plus sharp betting tools: Positive EV, Pregame Arbitrage, and Edge Finder.",
-    monthly: 35,
-    yearly: 350,
+    monthly: 40,
+    yearly: 400,
     ctaText: "Start Free Trial",
     ctaLink: "/register",
     features: [
@@ -53,12 +53,12 @@ export const tiers = [
     trialDays: 3,
   },
   {
-    title: TierName.EDGE,
+    title: TierName.ELITE,
     subtitle: "Every advantage",
     description: "For serious bettors who want every edge. Everything in Sharp plus Live Arbitrage, Custom Models, and EV-enhanced hit rates.",
-    monthly: 65,
-    yearly: 650,
-    ctaText: "Go Edge",
+    monthly: 70,
+    yearly: 700,
+    ctaText: "Go Elite",
     ctaLink: "/register",
     features: [
       "Everything in Sharp — plus:",
@@ -83,7 +83,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -91,7 +91,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -99,7 +99,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -107,7 +107,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -115,7 +115,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CheckIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   // Sharp Features
@@ -124,7 +124,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -132,7 +132,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -140,7 +140,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -148,7 +148,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -156,7 +156,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -164,16 +164,16 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CheckIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
-  // Edge Features
+  // Elite Features
   {
     title: "Live Arbitrage",
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CloseIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -181,7 +181,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CloseIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -189,7 +189,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CloseIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
   {
@@ -197,7 +197,7 @@ export const pricingTable = [
     tiers: [
       { title: TierName.SCOUT, value: <CloseIcon /> },
       { title: TierName.SHARP, value: <CloseIcon /> },
-      { title: TierName.EDGE, value: <CheckIcon /> },
+      { title: TierName.ELITE, value: <CheckIcon /> },
     ],
   },
 ];

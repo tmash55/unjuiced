@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { 
   ChevronDown, 
   ChevronUp,
@@ -109,6 +110,24 @@ const getDateLabels = () => {
   return { today: etDateStr, tomorrow: tomorrowStr };
 };
 
+const hasGameStartedByStatus = (gameStatus: string | null | undefined, gameDate: string | null | undefined): boolean => {
+  const status = gameStatus?.toLowerCase() || "";
+  if (status.includes("final")) return true;
+  if (/^\d+-\d+$/.test(status) || /^q[1-4]/i.test(status) || status.includes("halftime") || status.includes("ot")) {
+    return true;
+  }
+  const timeMatch = gameStatus?.match(/^(\d{1,2}):(\d{2})\s*(am|pm)\s*ET$/i);
+  if (timeMatch && gameDate) {
+    const [, hours, minutes, period] = timeMatch;
+    let hour = parseInt(hours, 10);
+    if (period.toLowerCase() === "pm" && hour !== 12) hour += 12;
+    if (period.toLowerCase() === "am" && hour === 12) hour = 0;
+    const gameTime = new Date(`${gameDate}T${hour.toString().padStart(2, "0")}:${minutes}:00-05:00`);
+    return new Date() >= gameTime;
+  }
+  return false;
+};
+
 // Market categories for grouping
 const MARKET_CATEGORIES = {
   main: {
@@ -214,13 +233,15 @@ function DropdownPanel({
 }) {
   if (!isOpen) return null;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <>
       <div 
         className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
         onClick={onClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 rounded-t-[2rem] max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl ring-1 ring-black/5 dark:ring-white/5">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-900 rounded-t-[2rem] max-h-[85svh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-12 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
         </div>
@@ -240,7 +261,8 @@ function DropdownPanel({
           {children}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
@@ -576,7 +598,9 @@ export function MobileHeader({
     
     games.forEach(game => {
       if (game.date === today) {
-        todayGames.push(game);
+        if (!hasGameStartedByStatus(game.time, game.date)) {
+          todayGames.push(game);
+        }
       } else if (game.date === tomorrow) {
         tomorrowGames.push(game);
       } else {

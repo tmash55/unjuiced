@@ -630,14 +630,14 @@ export function UnifiedFilters({
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-brand" />
                   <div>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Sharp Feature</p>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
                       {isLoggedIn ? "Upgrade to unlock full filtering capabilities" : "Try free to unlock full filtering capabilities"}
                     </p>
                   </div>
                 </div>
                 <ButtonLink href="/pricing" variant="pro" className="justify-center text-xs">
-                  {isLoggedIn ? "Upgrade to Pro" : "Try Free"}
+                  {isLoggedIn ? "Upgrade to Sharp" : "Try Free"}
                 </ButtonLink>
               </div>
             </div>
@@ -1418,7 +1418,7 @@ export function UnifiedFilters({
                         min="0"
                         step="0.1"
                         disabled={locked}
-                        title={locked ? "Pro only" : ""}
+                        title={locked ? "Sharp only" : ""}
                       />
                     </div>
                     
@@ -1440,7 +1440,7 @@ export function UnifiedFilters({
                           min="-1000"
                           step="5"
                           disabled={locked}
-                          title={locked ? "Pro only" : ""}
+                          title={locked ? "Sharp only" : ""}
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -1459,7 +1459,7 @@ export function UnifiedFilters({
                           min="-1000"
                           step="5"
                           disabled={locked}
-                          title={locked ? "Pro only" : ""}
+                          title={locked ? "Sharp only" : ""}
                         />
                       </div>
                     </div>
@@ -1570,7 +1570,7 @@ export function UnifiedFilters({
                         placeholder="1000"
                         className="h-10"
                         disabled={locked}
-                        title={locked ? "Pro only" : ""}
+                        title={locked ? "Sharp only" : ""}
                       />
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">Your total betting bankroll</p>
                     </div>
@@ -1594,7 +1594,7 @@ export function UnifiedFilters({
                         placeholder="25"
                         className="h-10"
                         disabled={locked}
-                        title={locked ? "Pro only" : ""}
+                        title={locked ? "Sharp only" : ""}
                       />
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">
                         {(() => {
@@ -1637,7 +1637,7 @@ export function UnifiedFilters({
                       }}
                       disabled={locked}
                       className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-brand transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       {MIN_LIQUIDITY_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>

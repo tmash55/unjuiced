@@ -564,7 +564,7 @@ export function MobilePositiveEV({
               "shadow-lg shadow-brand/20"
             )}
           >
-            Upgrade to Pro for All +EV Bets
+            Upgrade to Sharp for All +EV Bets
           </a>
         </div>
       )}

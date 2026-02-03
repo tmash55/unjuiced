@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 
 /**
  * GET /api/sse/best-odds
@@ -13,7 +14,7 @@ import { createClient } from "@/libs/supabase/server";
  * 
  * Access control:
  * - Free users: Deals with improvement >= 10% are filtered out
- * - Pro users: Full access to all updates
+ * - Sharp users: Full access to all updates
  * 
  * Events:
  * - hello: Initial connection event with auth status
@@ -34,7 +35,9 @@ async function checkAuth(req: NextRequest) {
       .select('current_plan')
       .eq('user_id', user.id)
       .single();
-    isPro = ent?.current_plan === 'pro' || ent?.current_plan === 'admin';
+    const normalized = normalizePlanName(String(ent?.current_plan || "free"));
+    const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+    isPro = hasSharpAccess(plan);
   }
   
   return { user, isPro };
@@ -50,11 +53,11 @@ export async function GET(req: NextRequest) {
       isPro 
     });
     
-    // Disable SSE for free/anon users (auto-refresh is a Pro feature)
+    // Disable SSE for free/anon users (auto-refresh is a Sharp feature)
     if (!isPro) {
-      console.log('[/api/sse/best-odds] Rejecting connection: Pro only');
+      console.log('[/api/sse/best-odds] Rejecting connection: Sharp only');
       return new Response(
-        JSON.stringify({ error: 'Pro subscription required for real-time updates' }),
+        JSON.stringify({ error: 'Sharp subscription required for real-time updates' }),
         { 
           status: 403,
           headers: { 'Content-Type': 'application/json' }
@@ -196,7 +199,7 @@ export async function GET(req: NextRequest) {
             }
           }
           
-          // Pass through for Pro users or non-data events
+          // Pass through for Sharp users or non-data events
           await write(text);
         }
       } catch (error) {
@@ -223,4 +226,3 @@ export async function GET(req: NextRequest) {
     return new Response("Internal error", { status: 500 });
   }
 }
-

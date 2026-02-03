@@ -28,7 +28,7 @@ export function LiveUpgradeBanner() {
               Unlock Real-Time Odds Updates
             </h3>
             <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
-              Get live SSE feeds with instant updates and color-coded changes. Upgrade to Pro for the edge.
+              Get live SSE feeds with instant updates and color-coded changes. Upgrade to Sharp for the edge.
             </p>
           </div>
         </div>
@@ -39,7 +39,7 @@ export function LiveUpgradeBanner() {
             variant="pro"
             className="text-xs sm:text-sm px-4 py-2 h-auto"
           >
-            {canUseTrial ? "Start Free Trial" : "Get Pro Now"}
+            {canUseTrial ? "Start Free Trial" : "Get Sharp Now"}
           </ButtonLink>
         </div>
       </div>

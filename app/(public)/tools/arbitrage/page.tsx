@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { ToolPreviewLayout, ToolFeature, ToolBenefit } from "@/components/tool-preview";
+import { buildRegisterCheckoutPath } from "@/constants/billing";
 import { Link2, Shield, Calculator, Zap, Clock, Target } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -59,6 +60,7 @@ export default function ArbitragePreview() {
       features={features}
       benefits={benefits}
       ctaText="Find Arb Opportunities"
+      ctaHref={buildRegisterCheckoutPath("sharp", "monthly", { trialDays: 3 })}
       accentColor="#2563eb"
       category="Betting Tools"
       toolPath="/arbitrage"

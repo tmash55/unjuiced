@@ -146,14 +146,14 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-[var(--tertiary)]" />
                   <div>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Sharp Feature</p>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
                       {isLoggedIn ? 'Upgrade to unlock full filtering capabilities' : 'Try free to unlock full filtering capabilities'}
                     </p>
                   </div>
                 </div>
                 <ButtonLink href="/pricing" variant="pro" className="justify-center text-xs">
-                  {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+                  {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                 </ButtonLink>
               </div>
             </div>
@@ -188,7 +188,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onClick={() => pro && setLocalBooks(allBooks.map(b => b.id))} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Select All
                     </button>
@@ -196,7 +196,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onClick={() => pro && setLocalBooks([])} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Clear
                     </button>
@@ -217,7 +217,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                               ? 'active' 
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
-                          title={!pro ? "Pro only" : ""}
+                          title={!pro ? "Sharp only" : ""}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => toggleBook(sb.id)} disabled={!pro} />
                           {sb.image?.light && (
@@ -244,7 +244,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       }} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Select All
                     </button>
@@ -256,7 +256,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       }} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Clear All
                     </button>
@@ -281,7 +281,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                               ? 'active' 
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
-                          title={!pro ? "Pro only" : ""}
+                          title={!pro ? "Sharp only" : ""}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => toggleSport(sport.id)} disabled={!pro} />
                           <SportIcon sport={sport.name.toLowerCase()} className="h-5 w-5" />
@@ -319,7 +319,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                           onClick={(e) => {
                             if (isDisabled) e.preventDefault();
                           }}
-                          title={!pro ? "Pro only" : !sportSelected ? "Select sport first" : ""}
+                          title={!pro ? "Sharp only" : !sportSelected ? "Select sport first" : ""}
                         >
                           <Checkbox 
                             checked={checked} 
@@ -349,7 +349,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onClick={() => pro && setLocalMarketTypes(['player', 'game'])} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Select All
                     </button>
@@ -357,7 +357,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onClick={() => pro && setLocalMarketTypes([])} 
                       disabled={!pro}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     >
                       Clear
                     </button>
@@ -374,7 +374,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                         ? 'active' 
                         : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                     }`}
-                    title={!pro ? "Pro only" : ""}
+                    title={!pro ? "Sharp only" : ""}
                   >
                     <Checkbox 
                       checked={localMarketTypes.includes('player')} 
@@ -403,7 +403,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                         ? 'active' 
                         : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                     }`}
-                    title={!pro ? "Pro only" : ""}
+                    title={!pro ? "Sharp only" : ""}
                   >
                     <Checkbox 
                       checked={localMarketTypes.includes('game')} 
@@ -441,7 +441,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onChange={(e) => pro && setMinArb(Number(e.target.value))}
                       disabled={!pro}
                       className="h-10"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Only show opportunities at or above this percent</p>
                   </div>
@@ -453,7 +453,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onChange={(e) => pro && setMaxArb(Number(e.target.value))}
                       disabled={!pro}
                       className="h-10"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide outliers above this percent</p>
                     {!pro && (
@@ -473,7 +473,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onChange={(e) => pro && setTotalBetAmount(Number(e.target.value))}
                       disabled={!pro}
                       className="h-10"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Default total stake for equal-profit splits</p>
                   </div>
@@ -485,7 +485,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                       onChange={(e) => pro && setMinLiquidity(Number(e.target.value))}
                       disabled={!pro}
                       className="h-10"
-                      title={!pro ? "Pro only" : ""}
+                      title={!pro ? "Sharp only" : ""}
                     />
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">Hide arbs where max bet is below this amount</p>
                   </div>
@@ -500,7 +500,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                 onClick={reset}
                 disabled={!pro}
                 className="h-10 rounded-lg border border-transparent px-4 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                title={!pro ? "Pro only" : ""}
+                title={!pro ? "Sharp only" : ""}
               >
                 Reset All
               </button>
@@ -515,7 +515,7 @@ export function FiltersSheet({ children, pro = false, isLoggedIn = false }: { ch
                   onClick={apply}
                   disabled={!pro}
                   className={`apply-btn h-10 rounded-lg border border-brand bg-brand px-5 text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand ${hasUnsavedChanges ? 'active' : ''}`}
-                  title={!pro ? "Pro only" : ""}
+                  title={!pro ? "Sharp only" : ""}
                 >
                   Apply Filters
                 </button>

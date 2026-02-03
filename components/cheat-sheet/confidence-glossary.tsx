@@ -254,10 +254,10 @@ export function ConfidenceGlossary({ isOpen, onClose }: ConfidenceGlossaryProps)
             </div>
           </div>
 
-          {/* Pro Tips */}
+          {/* Sharp Tips */}
           <div className="bg-brand/5 border border-brand/20 rounded-xl p-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-brand mb-3">
-              Pro Tips
+              Sharp Tips
             </h3>
             <ul className="space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
               <li className="flex items-start gap-2">

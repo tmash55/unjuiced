@@ -5,7 +5,7 @@ import { Container } from "./container";
 import { motion } from "motion/react";
 import { CheckIcon } from "@/icons/card-icons";
 import { ButtonLink } from "./button-link";
-import { getProductPriceId, ProductType } from "@/constants/billing";
+import { buildCheckoutStartPath, buildRegisterCheckoutPath, ProductType } from "@/constants/billing";
 import { useAuth } from "./auth/auth-provider";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { usePartnerCoupon } from "@/hooks/use-partner-coupon";
@@ -24,6 +24,7 @@ interface PlanTier {
   badge?: string;
   productType: ProductType | "free";
   trialDays?: number;
+  ctaText?: string;
 }
 
 const plans: PlanTier[] = [
@@ -36,7 +37,7 @@ const plans: PlanTier[] = [
       "Dashboard overview",
       "Defense vs Position matchups",
       "Hit Rate Matrix cheat sheets",
-      "My Plays & betslip builder",
+      "My Slips & betslip builder",
       "Community access",
     ],
     productType: "free",
@@ -56,12 +57,13 @@ const plans: PlanTier[] = [
     ],
     previousTier: "Free",
     productType: "scout",
+    ctaText: "Try for free",
   },
   {
     name: "Sharp",
     description: "Complete betting toolkit",
-    monthlyPrice: 35,
-    yearlyPrice: 350,
+    monthlyPrice: 40,
+    yearlyPrice: 400,
     features: [
       "Positive EV scanner",
       "Pregame Arbitrage finder",
@@ -76,10 +78,10 @@ const plans: PlanTier[] = [
     trialDays: 3,
   },
   {
-    name: "Edge",
+    name: "Elite",
     description: "Every advantage",
-    monthlyPrice: 65,
-    yearlyPrice: 650,
+    monthlyPrice: 70,
+    yearlyPrice: 700,
     features: [
       "Live Arbitrage (in-game)",
       "Custom Model builder",
@@ -104,46 +106,46 @@ interface FeatureRow {
   free: boolean | string;
   scout: boolean | string;
   sharp: boolean | string;
-  edge: boolean | string;
+  elite: boolean | string;
 }
 
 const featureCategories: { category: string; features: FeatureRow[] }[] = [
   {
     category: "Hit Rate Tools",
     features: [
-      { name: "Dashboard Overview", free: true, scout: true, sharp: true, edge: true },
-      { name: "Defense vs Position", free: true, scout: true, sharp: true, edge: true },
-      { name: "Hit Rate Matrix", free: true, scout: true, sharp: true, edge: true },
-      { name: "My Plays & Betslip", free: true, scout: true, sharp: true, edge: true },
-      { name: "Injury Impact Analysis", free: false, scout: true, sharp: true, edge: true },
-      { name: "Player Correlations", free: false, scout: true, sharp: true, edge: true },
-      { name: "Head-to-Head Matchups", free: false, scout: true, sharp: true, edge: true },
-      { name: "Game Logs & Box Scores", free: false, scout: true, sharp: true, edge: true },
-      { name: "Deep Linking to Books", free: false, scout: true, sharp: true, edge: true },
+      { name: "Dashboard Overview", free: true, scout: true, sharp: true, elite: true },
+      { name: "Defense vs Position", free: true, scout: true, sharp: true, elite: true },
+      { name: "Hit Rate Matrix", free: true, scout: true, sharp: true, elite: true },
+      { name: "My Slips & Betslip", free: true, scout: true, sharp: true, elite: true },
+      { name: "Injury Impact Analysis", free: false, scout: true, sharp: true, elite: true },
+      { name: "Player Correlations", free: false, scout: true, sharp: true, elite: true },
+      { name: "Head-to-Head Matchups", free: false, scout: true, sharp: true, elite: true },
+      { name: "Game Logs & Box Scores", free: false, scout: true, sharp: true, elite: true },
+      { name: "Deep Linking to Books", free: false, scout: true, sharp: true, elite: true },
     ],
   },
   {
     category: "Sharp Betting Tools",
     features: [
-      { name: "Positive EV Scanner", free: false, scout: false, sharp: true, edge: true },
-      { name: "Pregame Arbitrage Finder", free: false, scout: false, sharp: true, edge: true },
-      { name: "Edge Finder", free: false, scout: false, sharp: true, edge: true },
-      { name: "Real-time Odds (2s updates)", free: false, scout: false, sharp: true, edge: true },
-      { name: "20+ Sportsbooks", free: false, scout: false, sharp: true, edge: true },
-      { name: "Alternate Lines & Props", free: false, scout: false, sharp: true, edge: true },
-      { name: "Advanced Filters & Export", free: false, scout: false, sharp: true, edge: true },
-      { name: "EV-Enhanced Hit Rates", free: false, scout: false, sharp: "Soon", edge: "Soon" },
+      { name: "Positive EV Scanner", free: false, scout: false, sharp: true, elite: true },
+      { name: "Pregame Arbitrage Finder", free: false, scout: false, sharp: true, elite: true },
+      { name: "Edge Finder", free: false, scout: false, sharp: true, elite: true },
+      { name: "Real-time Odds (2s updates)", free: false, scout: false, sharp: true, elite: true },
+      { name: "20+ Sportsbooks", free: false, scout: false, sharp: true, elite: true },
+      { name: "Alternate Lines & Props", free: false, scout: false, sharp: true, elite: true },
+      { name: "Advanced Filters & Export", free: false, scout: false, sharp: true, elite: true },
+      { name: "EV-Enhanced Hit Rates", free: false, scout: false, sharp: "Soon", elite: "Soon" },
     ],
   },
   {
-    category: "Edge Features",
+    category: "Elite Features",
     features: [
-      { name: "Live Arbitrage (In-Game)", free: false, scout: false, sharp: false, edge: true },
-      { name: "Custom Model Builder", free: false, scout: false, sharp: false, edge: true },
-      { name: "Custom EV Thresholds", free: false, scout: false, sharp: false, edge: true },
-      { name: "Priority Odds Updates", free: false, scout: false, sharp: false, edge: true },
-      { name: "Priority Support", free: false, scout: false, sharp: false, edge: true },
-      { name: "Early Access to Features", free: false, scout: false, sharp: false, edge: true },
+      { name: "Live Arbitrage (In-Game)", free: false, scout: false, sharp: false, elite: true },
+      { name: "Custom Model Builder", free: false, scout: false, sharp: false, elite: true },
+      { name: "Custom EV Thresholds", free: false, scout: false, sharp: false, elite: true },
+      { name: "Priority Odds Updates", free: false, scout: false, sharp: false, elite: true },
+      { name: "Priority Support", free: false, scout: false, sharp: false, elite: true },
+      { name: "Early Access to Features", free: false, scout: false, sharp: false, elite: true },
     ],
   },
 ];
@@ -161,17 +163,20 @@ export const PricingNew = () => {
   // Show trial CTA only if user hasn't used trial
   const showTrialCTA = !user || entitlements?.trial?.trial_used === false;
 
-  // Build checkout URL
+  // Build checkout URL (wrap in /register if not authenticated)
   const getCheckoutUrl = (productType: ProductType, trialDays?: number) => {
     const plan = isYearly ? "yearly" : "monthly";
-    const priceId = getProductPriceId(productType, plan);
-    const params = new URLSearchParams({
-      priceId,
-      mode: "subscription",
+    const trial = trialDays && showTrialCTA ? trialDays : undefined;
+    const checkoutPath = buildCheckoutStartPath(productType, plan, {
+      trialDays: trial,
+      couponId: partnerCouponId ?? undefined,
     });
-    if (trialDays && showTrialCTA) params.set("trialDays", String(trialDays));
-    if (partnerCouponId) params.set("couponId", partnerCouponId);
-    return `/billing/start?${params.toString()}`;
+    return user
+      ? checkoutPath
+      : buildRegisterCheckoutPath(productType, plan, {
+          trialDays: trial,
+          couponId: partnerCouponId ?? undefined,
+        });
   };
 
   return (
@@ -228,7 +233,7 @@ export const PricingNew = () => {
 
         {/* Footnote */}
         <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-          All paid plans include a 3-day free trial. Cancel anytime.
+          Yearly billing includes 2 months free on all paid plans. 3-day free trials are available on Sharp and Elite.
         </p>
 
         {/* Feature Comparison */}
@@ -256,6 +261,7 @@ const PlanCard = ({ plan, isYearly, index, checkoutUrl, showTrialCTA }: PlanCard
   const isFree = plan.productType === "free";
   const isPopular = plan.badge === "Most Popular";
   const hasTrial = plan.trialDays && showTrialCTA;
+  const ctaLabel = plan.ctaText || (hasTrial ? "Try for free" : "Get started");
 
   return (
     <motion.div
@@ -297,7 +303,7 @@ const PlanCard = ({ plan, isYearly, index, checkoutUrl, showTrialCTA }: PlanCard
         </div>
         {!isFree && isYearly && (
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-            ${yearlyTotal} billed annually
+            ${yearlyTotal} billed annually · 2 months free
           </p>
         )}
         {isFree && (
@@ -347,7 +353,7 @@ const PlanCard = ({ plan, isYearly, index, checkoutUrl, showTrialCTA }: PlanCard
                 : "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
             }`}
           >
-            {hasTrial ? "Try for free" : "Get started"}
+            {ctaLabel}
           </ButtonLink>
         )}
       </div>
@@ -420,7 +426,7 @@ const FeatureComparison = () => {
                       <FeatureValue value={feature.sharp} />
                     </td>
                     <td className="px-6 py-3 text-center">
-                      <FeatureValue value={feature.edge} />
+                      <FeatureValue value={feature.elite} />
                     </td>
                   </tr>
                 ))}
@@ -450,13 +456,13 @@ const FeatureComparison = () => {
                     {feature.name}
                   </span>
                   <div className="flex items-center gap-2">
-                    {feature.edge && (
-                      <span className="text-xs font-medium text-brand">Edge</span>
+                    {feature.elite && (
+                      <span className="text-xs font-medium text-brand">Elite</span>
                     )}
-                    {feature.sharp && !feature.edge && (
+                    {feature.sharp && !feature.elite && (
                       <span className="text-xs font-medium text-neutral-500">Sharp+</span>
                     )}
-                    {feature.scout && !feature.sharp && (
+                    {feature.scout && !feature.sharp && !feature.elite && (
                       <span className="text-xs font-medium text-neutral-400">Scout+</span>
                     )}
                     {feature.free && !feature.scout && (

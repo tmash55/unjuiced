@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 
 async function assertPro(req: NextRequest) {
   const supabase = await createClient();
@@ -13,7 +14,9 @@ async function assertPro(req: NextRequest) {
     .select('current_plan')
     .eq('user_id', user.id)
     .single();
-  if (!ent || ent.current_plan !== 'pro') {
+  const normalized = normalizePlanName(String(ent?.current_plan || "free"));
+  const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+  if (!hasSharpAccess(plan)) {
     return new Response(JSON.stringify({ error: 'pro required' }), { status: 403 });
   }
   return null;

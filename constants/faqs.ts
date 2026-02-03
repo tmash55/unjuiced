@@ -20,14 +20,14 @@ export const faqs = [
       "We support all major US sportsbooks including DraftKings, FanDuel, BetMGM, Caesars, ESPN BET, Fanatics, BetRivers, and many more. We also include sharp books like Pinnacle and Circa. You can customize which books to display based on your location and preferences. View all supported sportsbooks and details here: /sportsbooks",
   },
   {
-    question: "What's the difference between Free and Pro plans?",
+    question: "What's the difference between Free and Sharp plans?",
     answer:
-      "Free users can compare odds across all sportsbooks and find arbitrage opportunities up to 2% ROI. Pro users get unlimited arbitrage opportunities, live odds updates via real-time data feeds, advanced filters, and the ability to hide/reorder columns. Pro also includes deep links to place bets directly from our platform. Compare Free and Pro features here: /pricing",
+      "Free users can compare odds across all sportsbooks and find arbitrage opportunities up to 2% ROI. Sharp users get unlimited arbitrage opportunities, live odds updates via real-time data feeds, advanced filters, and the ability to hide/reorder columns. Sharp also includes deep links to place bets directly from our platform. Compare Free and Sharp features here: /pricing",
   },
   {
     question: "How accurate and fast are your odds?",
     answer:
-      "We provide live, up-to-date odds with sub-second latency directly from sportsbook APIs. Pro users receive real-time updates via Server-Sent Events (SSE) with instant UI updates as lines move. We offer full bet coverage including main lines, alternate lines, player props, and more across all major markets.",
+      "We provide live, up-to-date odds with sub-second latency directly from sportsbook APIs. Sharp users receive real-time updates via Server-Sent Events (SSE) with instant UI updates as lines move. We offer full bet coverage including main lines, alternate lines, player props, and more across all major markets.",
   },
   {
     question: "Is sports betting legal in my state?",

@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { ToolPreviewLayout, ToolFeature, ToolBenefit } from "@/components/tool-preview";
 import { Calculator, TrendingUp, Zap, BarChart3, Clock, Target } from "lucide-react";
+import { buildRegisterCheckoutPath } from "@/constants/billing";
 
 export const metadata: Metadata = {
   title: "Positive EV Tool - Data-Driven Betting Edges",
@@ -59,6 +60,7 @@ export default function PositiveEvPreview() {
       features={features}
       benefits={benefits}
       ctaText="Find +EV Bets"
+      ctaHref={buildRegisterCheckoutPath("sharp", "monthly", { trialDays: 3 })}
       accentColor="#8b5cf6"
       category="Betting Tools"
       toolPath="/positive-ev"

@@ -168,6 +168,13 @@ export async function updateSession(request: NextRequest) {
   // MARKETING SITE LOGIC (localhost / unjuiced.bet)
   // ═══════════════════════════════════════════════════════════════════
 
+  // Always route auth pages to the app subdomain so sessions live there
+  if (isAuthRoute) {
+    const search = searchParams.toString();
+    const appUrl = getRedirectUrl(host, `${pathname}${search ? '?' + search : ''}`, 'app');
+    return NextResponse.redirect(appUrl);
+  }
+
   // If authenticated user visits an app route on marketing site → redirect to app subdomain
   if (user && isAppRoute(pathname)) {
     const search = searchParams.toString();

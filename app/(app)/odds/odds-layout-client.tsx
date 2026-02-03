@@ -44,7 +44,7 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
   
   // Get type and market from search params
   const type = searchParams.get("type") || "game";
-  const market = searchParams.get("market") || getDefaultMarket(sport);
+  const market = searchParams.get("market") || getDefaultMarket(sport, type as "game" | "player");
   const scope = (searchParams.get("scope") || "pregame") as "pregame" | "live";
   
   // Track if we're transitioning to show loading state
@@ -58,10 +58,10 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
   const handleSportChange = useCallback((newSport: string) => {
     if (newSport === sport) return;
     setIsTransitioning(true);
-    const newMarket = getDefaultMarket(newSport);
-    // Reset to "game" type for sports without player props (ncaab, mlb, wnba)
-    const sportsWithoutPlayerProps = ['ncaab', 'mlb', 'wnba'];
+    // Reset to "game" type for sports without player props (mlb, wnba)
+    const sportsWithoutPlayerProps = ['mlb', 'wnba'];
     const newType = sportsWithoutPlayerProps.includes(newSport.toLowerCase()) ? 'game' : type;
+    const newMarket = getDefaultMarket(newSport, newType as "game" | "player");
     router.push(`/odds/${newSport}?type=${newType}&market=${newMarket}&scope=${scope}`, { scroll: false });
   }, [sport, type, scope, router]);
   

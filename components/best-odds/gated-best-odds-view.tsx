@@ -52,7 +52,7 @@ export function GatedBestOddsView({
   onClearAllHidden,
   isHidden,
 }: GatedBestOddsViewProps) {
-  // Pro user: Show full data
+  // Sharp user: Show full data
   if (isPro) {
     if (viewMode === 'table') {
       return (
@@ -150,7 +150,7 @@ export function GatedBestOddsView({
                       variant="outline"
               className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
                   >
-              {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+              {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                     <ArrowRight className="h-4 w-4" />
                   </ButtonLink>
             <span className="text-xs text-neutral-500 dark:text-neutral-300/70">

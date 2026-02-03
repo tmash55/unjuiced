@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-export type PlanType = "free" | "scout" | "sharp" | "edge" | "admin";
+export type PlanType = "free" | "scout" | "sharp" | "edge" | "elite" | "admin";
 
 // Legacy plan names for backward compatibility
 export type LegacyPlanType = "hit_rate" | "pro";
@@ -25,6 +25,7 @@ export type Entitlements = {
 function normalizePlan(plan: string | undefined): string {
   if (plan === "hit_rate") return "scout";
   if (plan === "pro") return "sharp";
+  if (plan === "admin") return "elite";
   return plan || "free";
 }
 
@@ -82,6 +83,7 @@ export function useHasSharpAccess() {
     !isLoading &&
     (entitlements?.plan === "sharp" ||
       entitlements?.plan === "edge" ||
+      entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
   return { hasAccess, isLoading, plan: entitlements?.plan };
@@ -95,6 +97,7 @@ export function useHasEdgeAccess() {
   const hasAccess =
     !isLoading &&
     (entitlements?.plan === "edge" ||
+      entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
   return { hasAccess, isLoading, plan: entitlements?.plan };
@@ -110,6 +113,7 @@ export function useHasHitRateAccess() {
     (entitlements?.plan === "scout" ||
       entitlements?.plan === "sharp" ||
       entitlements?.plan === "edge" ||
+      entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
   return { hasAccess, isLoading, plan: entitlements?.plan };
@@ -125,6 +129,7 @@ export function useHasPaidPlan() {
     (entitlements?.plan === "scout" ||
       entitlements?.plan === "sharp" ||
       entitlements?.plan === "edge" ||
+      entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
   return { hasPaidPlan, isLoading, plan: entitlements?.plan };

@@ -553,6 +553,14 @@ export function HitRateTable({
     setTogglingFavoriteKey(favoriteKey);
     
     try {
+      const oddsKey = row.eventId ? `odds:nba:${row.eventId}:${row.market}` : null;
+      const oddsSelectionId = row.selKey && row.line !== null
+        ? `${row.selKey}:${row.line}:over`
+        : row.oddsSelectionId;
+      const booksSnapshot = row.bestOdds
+        ? { [row.bestOdds.book]: { price: row.bestOdds.price } }
+        : null;
+
       const result = await toggleFavorite({
         type: "player",
         sport: "nba",
@@ -567,7 +575,11 @@ export function HitRateTable({
         market: row.market,
         line: row.line,
         side: "over",
-        odds_selection_id: row.oddsSelectionId,
+        odds_key: oddsKey,
+        odds_selection_id: oddsSelectionId,
+        books_snapshot: booksSnapshot,
+        best_price_at_save: row.bestOdds?.price ?? null,
+        best_book_at_save: row.bestOdds?.book ?? null,
         source: "hit-rates",
       });
       
@@ -1573,4 +1585,3 @@ export function HitRateTable({
     </div>
   );
 }
-

@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { MobileOddsCard } from "./mobile-odds-card";
 import { GameDetailSheet } from "./game-detail-sheet";
 import type { OddsScreenItem, OddsScreenEvent } from "../types/odds-screen-types";
+import { LogoSVG } from "@/components/logo";
+import { LoadingState } from "@/components/common/loading-state";
 
 // Available sports
 const SPORTS = [
@@ -14,9 +16,9 @@ const SPORTS = [
   { key: "nfl", label: "NFL" },
   { key: "nhl", label: "NHL" },
   { key: "ncaab", label: "NCAAB" },
-  { key: "mlb", label: "MLB" },
-  { key: "wnba", label: "WNBA" },
-  { key: "ncaaf", label: "NCAAF" },
+  { key: "mlb", label: "MLB", disabled: true },
+  { key: "wnba", label: "WNBA", disabled: true },
+  { key: "ncaaf", label: "NCAAF", disabled: true },
 ];
 
 interface MobileOddsViewProps {
@@ -97,27 +99,27 @@ function groupGamesByDate(games: GameGroup[]): Map<string, GameGroup[]> {
 function GameCardSkeleton({ delay = 0 }: { delay?: number }) {
   return (
     <div 
-      className="bg-white dark:bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-800 animate-pulse"
+      className="bg-white/90 dark:bg-neutral-900/80 rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 animate-pulse shadow-sm"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700" />
-              <div className="h-5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="w-7 h-7 rounded bg-neutral-200/70 dark:bg-neutral-700/60" />
+              <div className="h-5 w-12 bg-neutral-200/70 dark:bg-neutral-700/60 rounded" />
             </div>
-            <div className="h-4 w-4 bg-neutral-200 dark:bg-neutral-700 rounded" />
+            <div className="h-4 w-4 bg-neutral-200/70 dark:bg-neutral-700/60 rounded" />
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded bg-neutral-200 dark:bg-neutral-700" />
-              <div className="h-5 w-12 bg-neutral-200 dark:bg-neutral-700 rounded" />
+              <div className="w-7 h-7 rounded bg-neutral-200/70 dark:bg-neutral-700/60" />
+              <div className="h-5 w-12 bg-neutral-200/70 dark:bg-neutral-700/60 rounded" />
             </div>
           </div>
-          <div className="h-4 w-16 bg-neutral-200 dark:bg-neutral-700 rounded" />
+          <div className="h-4 w-16 bg-neutral-200/70 dark:bg-neutral-700/60 rounded" />
         </div>
         <div className="flex gap-2">
-          <div className="flex-1 h-10 bg-neutral-200 dark:bg-neutral-700 rounded-xl" />
-          <div className="flex-1 h-10 bg-neutral-200 dark:bg-neutral-700 rounded-xl" />
+          <div className="flex-1 h-10 bg-neutral-200/70 dark:bg-neutral-700/60 rounded-xl" />
+          <div className="flex-1 h-10 bg-neutral-200/70 dark:bg-neutral-700/60 rounded-xl" />
         </div>
       </div>
     </div>
@@ -253,16 +255,22 @@ function SportChips({
     >
       {SPORTS.map((sport) => {
         const isSelected = selectedSport.toLowerCase() === sport.key;
+        const isDisabled = sport.disabled;
         return (
           <button
             key={sport.key}
             ref={isSelected ? selectedRef : null}
-            onClick={() => onSportChange(sport.key)}
+            onClick={() => {
+              if (!isDisabled) onSportChange(sport.key);
+            }}
+            disabled={isDisabled}
+            aria-disabled={isDisabled}
             className={cn(
               "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap active:scale-[0.95]",
               isSelected
-                ? "bg-emerald-500 text-white shadow-sm"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                ? "bg-brand text-neutral-900 border border-brand shadow-sm shadow-brand/25"
+                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700",
+              isDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
             )}
           >
             {sport.label}
@@ -416,10 +424,7 @@ export function MobileOddsView({
         {loading && moneylineData.length === 0 ? (
           // Loading State
           <div className="space-y-4">
-            <div className="flex items-center justify-center gap-2 py-4">
-              <RefreshCw className="w-5 h-5 animate-spin text-emerald-500" />
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading games...</p>
-            </div>
+            <LoadingState message="Loading games..." compact />
             {[0, 100, 200, 300].map((delay, i) => (
               <GameCardSkeleton key={i} delay={delay} />
             ))}

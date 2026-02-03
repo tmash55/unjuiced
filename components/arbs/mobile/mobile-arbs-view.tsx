@@ -233,7 +233,7 @@ export function MobileArbsView({
 
           {/* Actions - Right */}
           <div className="flex items-center gap-2">
-            {/* Auto-refresh Toggle (Pro only) - Shows connection state */}
+            {/* Auto-refresh Toggle (Sharp only) - Shows connection state */}
             {isPro && (
               <button
                 onClick={() => onToggleAuto(!autoEnabled)}

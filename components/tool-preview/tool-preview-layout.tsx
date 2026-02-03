@@ -113,7 +113,9 @@ export function ToolPreviewLayout({
   category,
   toolPath,
 }: ToolPreviewLayoutProps) {
-  const finalCtaHref = ctaHref || `/register?redirect=${encodeURIComponent(toolPath)}`;
+  const finalCtaHref = ctaHref || `/register?redirectTo=${encodeURIComponent(toolPath)}`;
+  const hasHeroMedia = Boolean(screenshot || screenshotComponent);
+  const textAlignClass = hasHeroMedia ? "text-center md:text-left" : "text-center";
   
   return (
     <>
@@ -128,13 +130,16 @@ export function ToolPreviewLayout({
             }}
           />
           
-          <div className="relative z-10 mx-auto w-full max-w-4xl">
+          <div className="relative z-10 mx-auto w-full max-w-6xl">
             {/* Category & Badge */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex items-center justify-center gap-2"
+              className={cn(
+                "flex items-center gap-2",
+                hasHeroMedia ? "justify-center md:justify-start" : "justify-center",
+              )}
             >
               {category && (
                 <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
@@ -150,124 +155,137 @@ export function ToolPreviewLayout({
                 </span>
               )}
             </motion.div>
-            
-            {/* Title */}
-            <motion.h1
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="mt-6 text-center text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl md:text-6xl dark:text-neutral-100"
+
+            <div
+              className={cn(
+                "mt-6 grid items-center gap-10",
+                hasHeroMedia ? "md:grid-cols-[1.1fr,0.9fr]" : "grid-cols-1",
+              )}
             >
-              {title}
-            </motion.h1>
-            
-            {/* Tagline */}
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-              className="mt-4 text-center text-xl font-medium md:text-2xl"
-              style={{ color: accentColor }}
-            >
-              {tagline}
-            </motion.p>
-            
-            {/* Description */}
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-              className="mx-auto mt-6 max-w-2xl text-center text-base text-neutral-600 sm:text-lg dark:text-neutral-400"
-            >
-              {description}
-            </motion.p>
-            
-            {/* Benefits badges */}
-            {benefits.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-neutral-500 dark:text-neutral-400"
-              >
-                {benefits.map((benefit, index) => (
-                  <React.Fragment key={benefit.text}>
-                    <div className="flex items-center gap-2">
-                      <Check className="size-4" style={{ color: accentColor }} />
-                      <span>{benefit.text}</span>
-                    </div>
-                    {index < benefits.length - 1 && (
-                      <div className="hidden h-4 w-px bg-neutral-300 sm:block dark:bg-neutral-600" />
+              <div>
+                {/* Title */}
+                <motion.h1
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                  className={cn(
+                    "text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl md:text-6xl dark:text-neutral-100",
+                    textAlignClass,
+                  )}
+                >
+                  {title}
+                </motion.h1>
+                
+                {/* Tagline */}
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 }}
+                  className={cn("mt-4 text-xl font-medium md:text-2xl", textAlignClass)}
+                  style={{ color: accentColor }}
+                >
+                  {tagline}
+                </motion.p>
+                
+                {/* Description */}
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.3 }}
+                  className={cn(
+                    "mx-auto mt-6 max-w-2xl text-base text-neutral-600 sm:text-lg dark:text-neutral-400",
+                    textAlignClass,
+                  )}
+                >
+                  {description}
+                </motion.p>
+                
+                {/* Benefits badges */}
+                {benefits.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.4 }}
+                    className={cn(
+                      "mx-auto mt-8 flex flex-wrap items-center gap-4 text-sm text-neutral-500 dark:text-neutral-400",
+                      hasHeroMedia ? "justify-center md:justify-start" : "justify-center",
                     )}
-                  </React.Fragment>
-                ))}
-              </motion.div>
-            )}
-            
-            {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.5 }}
-              className="mt-10 flex w-full flex-col items-center justify-center gap-4 px-4 sm:flex-row sm:px-0"
-            >
-              <ButtonLink 
-                href={finalCtaHref} 
-                variant="primary"
-                className="w-full justify-center text-center rounded-lg px-8 py-3 text-base font-medium text-white hover:ring-4 sm:w-auto"
-                style={{ 
-                  backgroundColor: accentColor,
-                  borderColor: accentColor,
-                }}
-              >
-                {ctaText}
-                <ArrowRight className="ml-2 size-4" />
-              </ButtonLink>
-              <ButtonLink 
-                href={secondaryCtaHref} 
-                variant="secondary"
-                className="w-full justify-center text-center rounded-lg border-transparent bg-transparent px-6 py-3 text-base font-medium hover:bg-neutral-100 sm:w-auto dark:hover:bg-neutral-800"
-              >
-                {secondaryCtaText}
-              </ButtonLink>
-            </motion.div>
+                  >
+                    {benefits.map((benefit, index) => (
+                      <React.Fragment key={benefit.text}>
+                        <div className="flex items-center gap-2">
+                          <Check className="size-4" style={{ color: accentColor }} />
+                          <span>{benefit.text}</span>
+                        </div>
+                        {index < benefits.length - 1 && (
+                          <div className="hidden h-4 w-px bg-neutral-300 sm:block dark:bg-neutral-600" />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </motion.div>
+                )}
+                
+                {/* CTA Buttons */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.5 }}
+                  className={cn(
+                    "mt-10 flex w-full flex-col items-center gap-4 px-4 sm:flex-row sm:px-0",
+                    hasHeroMedia ? "sm:justify-start md:items-start" : "justify-center",
+                  )}
+                >
+                  <ButtonLink 
+                    href={finalCtaHref} 
+                    variant="primary"
+                    className="w-full justify-center text-center rounded-lg px-8 py-3 text-base font-medium text-white hover:ring-4 sm:w-auto"
+                    style={{ 
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                    }}
+                  >
+                    {ctaText}
+                    <ArrowRight className="ml-2 size-4" />
+                  </ButtonLink>
+                  <ButtonLink 
+                    href={secondaryCtaHref} 
+                    variant="secondary"
+                    className="w-full justify-center text-center rounded-lg border-transparent bg-transparent px-6 py-3 text-base font-medium hover:bg-neutral-100 sm:w-auto dark:hover:bg-neutral-800"
+                  >
+                    {secondaryCtaText}
+                  </ButtonLink>
+                </motion.div>
+              </div>
+
+              {hasHeroMedia && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="mx-auto w-full max-w-xl"
+                >
+                  {screenshotComponent ? (
+                    screenshotComponent
+                  ) : screenshot ? (
+                    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
+                      <Image
+                        src={screenshot}
+                        alt={`${title} screenshot`}
+                        width={1600}
+                        height={1000}
+                        className="w-full"
+                        priority
+                      />
+                    </div>
+                  ) : null}
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
       </Container>
       
       <DivideX />
-      
-      {/* Screenshot Section */}
-      {(screenshot || screenshotComponent) && (
-        <>
-          <Container className="border-divide border-x">
-            <div className="relative bg-neutral-50 px-4 py-12 md:px-8 md:py-16 dark:bg-neutral-900/50">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="mx-auto max-w-6xl"
-              >
-                {screenshotComponent ? (
-                  screenshotComponent
-                ) : screenshot ? (
-                  <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
-                    <Image
-                      src={screenshot}
-                      alt={`${title} screenshot`}
-                      width={1920}
-                      height={1080}
-                      className="w-full"
-                      priority
-                    />
-                  </div>
-                ) : null}
-              </motion.div>
-            </div>
-          </Container>
-          <DivideX />
-        </>
-      )}
       
       {/* Features Section */}
       <Container className="border-divide border-x">

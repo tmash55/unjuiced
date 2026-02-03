@@ -567,14 +567,14 @@ export default function EdgeFinderPage() {
         <div className="text-center py-8 border-t">
           <p className="text-muted-foreground mb-2">
             {isLoggedIn 
-              ? "Upgrade to Pro to unlock all opportunities and filters"
-              : "Sign up for Pro to unlock all opportunities and filters"}
+              ? "Upgrade to Sharp to unlock all opportunities and filters"
+              : "Sign up for Sharp to unlock all opportunities and filters"}
           </p>
           <a
             href="/pricing"
             className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium"
           >
-            {isLoggedIn ? "Upgrade to Pro" : "View Plans"}
+            {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
           </a>
         </div>
       )}

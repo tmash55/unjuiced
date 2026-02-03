@@ -26,7 +26,7 @@ export function AutoToggle({
         !enabled && "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400",
         !pro && "opacity-50 cursor-not-allowed"
       )}
-      title={pro ? (enabled ? "Disable auto refresh" : "Enable auto refresh") : "Pro required"}
+      title={pro ? (enabled ? "Disable auto refresh" : "Enable auto refresh") : "Sharp required"}
     >
       <span className={cn(
         "inline-flex h-2 w-2 rounded-full",

@@ -95,7 +95,8 @@ const formatSide = (side: string): string => {
 
 const formatFavoriteTime = (value?: string | null): string | null => {
   if (!value) return null;
-  const date = new Date(value);
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const date = isDateOnly ? new Date(`${value}T00:00:00`) : new Date(value);
   if (Number.isNaN(date.getTime())) return null;
 
   const now = new Date();
@@ -134,6 +135,10 @@ const formatFavoriteTime = (value?: string | null): string | null => {
     dayLabel = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
   }
   
+  if (isDateOnly) {
+    return dayLabel;
+  }
+
   const timeLabel = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -1663,7 +1668,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       toast.success(`Added ${selectedIds.size} play${selectedIds.size !== 1 ? "s" : ""} to ${slip?.name || "betslip"}`, {
         action: {
           label: "View",
-          onClick: () => router.push("/saved-plays"),
+          onClick: () => router.push("/my-slips"),
         },
       });
       
@@ -1691,7 +1696,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
       toast.success(`Created "${name}" with ${selectedIds.size} play${selectedIds.size !== 1 ? "s" : ""}`, {
         action: {
           label: "View",
-          onClick: () => router.push("/saved-plays"),
+          onClick: () => router.push("/my-slips"),
         },
       });
       
@@ -1908,7 +1913,7 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
                   </button>
                   
                   <Link
-                    href="/saved-plays"
+                    href="/my-slips"
                     onClick={() => handleOpenChange(false)}
                     className="inline-flex items-center justify-center gap-1 px-4 py-2.5 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                   >

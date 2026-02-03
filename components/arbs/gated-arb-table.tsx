@@ -221,7 +221,7 @@ export function GatedArbTable({
                     </>
                   ) : (
                     <>
-                      {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+                      {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -232,7 +232,7 @@ export function GatedArbTable({
                   variant="outline"
                   className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
                 >
-                  {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+                  {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                   <ArrowRight className="h-4 w-4" />
                 </ButtonLink>
               )}

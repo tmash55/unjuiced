@@ -29,6 +29,10 @@ const SHARP_PRESET_TO_BOOK: Record<string, string | null> = {
   caesars: "caesars",
   hardrock: "hardrock",
   bet365: "bet365",
+  thescore: "thescore",
+  ballybet: "ballybet",
+  betrivers: "betrivers",
+  fanatics: "fanatics",
   polymarket: "polymarket",
   kalshi: "kalshi",
   market_average: null, // Average - no logo
@@ -49,6 +53,10 @@ const RETAIL_BOOK_OPTIONS = [
   { id: "caesars", name: "Caesars" },
   { id: "hardrock", name: "Hard Rock" },
   { id: "bet365", name: "Bet365" },
+  { id: "thescore", name: "theScore" },
+  { id: "ballybet", name: "Bally Bet" },
+  { id: "betrivers", name: "BetRivers" },
+  { id: "fanatics", name: "Fanatics" },
 ];
 
 // Betting exchanges for Edge Finder
@@ -271,7 +279,7 @@ export function ComparingDropdown({
               </span>
             </div>
 
-            {(["draftkings", "fanduel", "betmgm", "caesars", "hardrock", "bet365"] as const).map((key) => {
+            {(["draftkings", "fanduel", "betmgm", "caesars", "hardrock", "bet365", "thescore", "ballybet", "betrivers", "fanatics"] as const).map((key) => {
               const preset = SHARP_PRESETS[key];
               const bookId = SHARP_PRESET_TO_BOOK[key];
               const book = bookId ? getSportsbookById(bookId) : null;

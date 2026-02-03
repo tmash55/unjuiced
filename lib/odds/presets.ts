@@ -221,7 +221,7 @@ export function parseBlendParam(
 export const DEFAULT_PRESETS = {
   // Free users default
   free: "pinnacle",
-  // Pro users default
+  // Sharp users default
   pro: "sharp_consensus",
   // Sport-specific defaults
   nfl: "nfl_sharp",

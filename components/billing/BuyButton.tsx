@@ -8,12 +8,13 @@ interface BuyButtonProps {
   priceId: string; // Stripe price id
   mode?: "subscription" | "payment";
   couponId?: string | null;
+  trialDays?: number;
   label?: string;
   className?: string;
   disabled?: boolean;
 }
 
-export function BuyButton({ priceId, mode = "subscription", couponId = null, label = "Upgrade", className, disabled }: BuyButtonProps) {
+export function BuyButton({ priceId, mode = "subscription", couponId = null, trialDays, label = "Upgrade", className, disabled }: BuyButtonProps) {
   const [loading, setLoading] = React.useState(false);
   const { couponId: partnerCouponId } = usePartnerCoupon();
   
@@ -30,10 +31,15 @@ export function BuyButton({ priceId, mode = "subscription", couponId = null, lab
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, mode, couponId: effectiveCouponId }),
+        body: JSON.stringify({ priceId, mode, couponId: effectiveCouponId, trialDays }),
       });
       if (res.status === 401) {
-        const params = new URLSearchParams({ priceId, mode, ...(effectiveCouponId ? { couponId: effectiveCouponId } : {}) }).toString();
+        const params = new URLSearchParams({
+          priceId,
+          mode,
+          ...(typeof trialDays === "number" ? { trialDays: String(trialDays) } : {}),
+          ...(effectiveCouponId ? { couponId: effectiveCouponId } : {}),
+        }).toString();
         const redirectTarget = `/billing/start?${params}`;
         // Send to register (or login) with a redirect back to a protected starter route
         if (process.env.NODE_ENV === 'development') {
@@ -62,5 +68,4 @@ export function BuyButton({ priceId, mode = "subscription", couponId = null, lab
     </button>
   );
 }
-
 

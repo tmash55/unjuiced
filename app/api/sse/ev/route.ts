@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
+import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 
 /**
  * Assert user is Pro (required for SSE live updates)
@@ -21,7 +22,9 @@ async function assertPro(req: NextRequest) {
     .eq('user_id', user.id)
     .single();
   
-  if (!ent || (ent.current_plan !== 'pro' && ent.current_plan !== 'admin')) {
+  const normalized = normalizePlanName(String(ent?.current_plan || "free"));
+  const plan: UserPlan = normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
+  if (!hasSharpAccess(plan)) {
     return new Response(JSON.stringify({ error: 'pro required' }), { status: 403 });
   }
   
@@ -37,7 +40,7 @@ async function assertPro(req: NextRequest) {
  * Query params:
  * - scope: "pregame" | "live" (default: "pregame")
  * 
- * Access: Pro users only
+ * Access: Sharp users only
  */
 export async function GET(req: NextRequest) {
   const denied = await assertPro(req);
@@ -138,5 +141,4 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-
 

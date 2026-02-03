@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { ToolPreviewLayout, ToolFeature, ToolBenefit } from "@/components/tool-preview";
+import { buildRegisterCheckoutPath } from "@/constants/billing";
 import { TrendingUp, Zap, Target, BarChart3, Clock, Shield } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -59,6 +60,7 @@ export default function EdgeFinderPreview() {
       features={features}
       benefits={benefits}
       ctaText="Start Finding Edges"
+      ctaHref={buildRegisterCheckoutPath("sharp", "monthly", { trialDays: 3 })}
       accentColor="#f59e0b"
       category="Betting Tools"
       toolPath="/edge-finder"

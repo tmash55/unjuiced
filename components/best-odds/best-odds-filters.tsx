@@ -620,7 +620,7 @@ export function BestOddsFilters({
 
       {/* Refresh Button */}
       {onRefresh && (
-        <Tooltip content={isPro ? "Refresh" : "Pro only"}>
+        <Tooltip content={isPro ? "Refresh" : "Sharp only"}>
           <button
             onClick={onRefresh}
             disabled={refreshing || !isPro}
@@ -724,14 +724,14 @@ export function BestOddsFilters({
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-[var(--tertiary)]" />
                   <div>
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Pro Feature</p>
+                    <p className="text-sm font-semibold text-neutral-900 dark:text-white">Filters are a Sharp Feature</p>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400">
                       {isLoggedIn ? 'Upgrade to unlock full filtering capabilities' : 'Try free to unlock full filtering capabilities'}
                     </p>
                   </div>
                 </div>
                 <ButtonLink href="/pricing" variant="pro" className="justify-center text-xs">
-                  {isLoggedIn ? 'Upgrade to Pro' : 'Try Free'}
+                  {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                 </ButtonLink>
               </div>
             </div>
@@ -763,7 +763,7 @@ export function BestOddsFilters({
                       onClick={() => !locked && setLocalBooks([])}
                       disabled={locked}
                       className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-semibold text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       All
                     </button>
@@ -771,7 +771,7 @@ export function BestOddsFilters({
                       onClick={() => !locked && setLocalBooks(allSportsbooks.map(sb => sb.id))}
                       disabled={locked}
                       className="h-7 sm:h-8 rounded-lg border border-transparent px-2 sm:px-3 text-[10px] sm:text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       None
                     </button>
@@ -794,7 +794,7 @@ export function BestOddsFilters({
                               ? 'active'
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
-                          title={locked ? "Pro only" : ""}
+                          title={locked ? "Sharp only" : ""}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => toggleBook(sb.id)} disabled={locked} />
                           {sb.image?.light && (
@@ -823,7 +823,7 @@ export function BestOddsFilters({
                       }}
                       disabled={locked}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-brand transition-colors hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       Select All
                     </button>
@@ -836,7 +836,7 @@ export function BestOddsFilters({
                       }}
                       disabled={locked}
                       className="h-8 rounded-md border border-transparent px-3 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       Clear All
                     </button>
@@ -862,7 +862,7 @@ export function BestOddsFilters({
                               ? 'active'
                               : 'border-neutral-200 bg-white hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600'
                           }`}
-                          title={locked ? "Pro only" : ""}
+                          title={locked ? "Sharp only" : ""}
                         >
                           <Checkbox checked={checked} onCheckedChange={() => toggleSport(sport.id)} disabled={locked} />
                           <SportIcon sport={sport.name.toLowerCase()} className="h-5 w-5" />
@@ -901,7 +901,7 @@ export function BestOddsFilters({
                           onClick={(e) => {
                             if (isDisabled) e.preventDefault();
                           }}
-                          title={locked ? "Pro only" : !sportSelected ? "Select sport first" : ""}
+                          title={locked ? "Sharp only" : !sportSelected ? "Select sport first" : ""}
                         >
                           <Checkbox
                             checked={checked}
@@ -1366,7 +1366,7 @@ export function BestOddsFilters({
                     min="0"
                     step="0.1"
                     disabled={locked}
-                    title={locked ? "Pro only" : ""}
+                    title={locked ? "Sharp only" : ""}
                   />
                 </div>
 
@@ -1386,7 +1386,7 @@ export function BestOddsFilters({
                       min="-1000"
                       step="5"
                       disabled={locked}
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1404,7 +1404,7 @@ export function BestOddsFilters({
                       min="-1000"
                       step="5"
                       disabled={locked}
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     />
                   </div>
                 </div>
@@ -1445,7 +1445,7 @@ export function BestOddsFilters({
                         placeholder="1000"
                         className="h-10"
                         disabled={locked}
-                        title={locked ? "Pro only" : ""}
+                        title={locked ? "Sharp only" : ""}
                       />
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">Your total betting bankroll</p>
                     </div>
@@ -1471,7 +1471,7 @@ export function BestOddsFilters({
                         placeholder="25"
                         className="h-10"
                         disabled={locked}
-                        title={locked ? "Pro only" : ""}
+                        title={locked ? "Sharp only" : ""}
                       />
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">
                         {(() => {
@@ -1512,7 +1512,7 @@ export function BestOddsFilters({
                       }}
                       disabled={locked}
                       className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-brand transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={locked ? "Pro only" : ""}
+                      title={locked ? "Sharp only" : ""}
                     >
                       <option value={0}>No minimum</option>
                       <option value={25}>$25 minimum</option>
@@ -1541,7 +1541,7 @@ export function BestOddsFilters({
                 onClick={reset}
                 disabled={locked}
                 className="h-9 sm:h-10 rounded-xl border border-transparent px-3 sm:px-4 text-xs sm:text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-                title={locked ? "Pro only" : ""}
+                title={locked ? "Sharp only" : ""}
               >
                 Reset
               </button>
@@ -1556,7 +1556,7 @@ export function BestOddsFilters({
                   onClick={apply}
                   disabled={locked}
                   className={`apply-btn h-9 sm:h-10 rounded-xl border border-brand bg-brand px-4 sm:px-5 text-xs sm:text-sm font-semibold text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-brand ${hasUnsavedChanges ? 'active' : ''}`}
-                  title={locked ? "Pro only" : ""}
+                  title={locked ? "Sharp only" : ""}
                 >
                   Apply
                 </button>

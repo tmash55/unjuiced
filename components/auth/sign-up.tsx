@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 
 export const SignUpForm = () => {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo");
+  const redirectTo = searchParams.get("redirectTo") || searchParams.get("redirect");
   
   // Preserve redirectTo when switching to login
   const loginHref = redirectTo ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login";

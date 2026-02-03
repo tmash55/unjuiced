@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { ToolPreviewLayout, ToolFeature, ToolBenefit } from "@/components/tool-preview";
+import { buildRegisterCheckoutPath } from "@/constants/billing";
 import { BarChart3, TrendingUp, Users, Target, History, Zap } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -59,6 +60,7 @@ export default function HitRatesPreview() {
       features={features}
       benefits={benefits}
       ctaText="Analyze Hit Rates"
+      ctaHref={buildRegisterCheckoutPath("scout", "monthly")}
       accentColor="#10b981"
       category="Player Props"
       badge="NEW"

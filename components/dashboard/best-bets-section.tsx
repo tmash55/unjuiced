@@ -228,7 +228,7 @@ function LockedBetRow() {
       <div className="absolute inset-0 flex items-center justify-center bg-white/30 dark:bg-neutral-900/30">
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/95 dark:bg-neutral-800/95 border border-neutral-200 dark:border-neutral-700 shadow-sm">
           <Lock className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-          <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Pro Only</span>
+          <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Sharp Only</span>
         </div>
       </div>
     </div>
@@ -249,7 +249,7 @@ export function BestBetsSection() {
   
   const bets = data?.bets || [];
   
-  // Pro users see all (up to 10), others see first 2 + locked previews
+  // Sharp users see all (up to 10), others see first 2 + locked previews
   const visibleBets = isPro ? bets.slice(0, 10) : bets.slice(0, 2);
   const hiddenCount = isPro ? 0 : Math.max(0, bets.length - 2);
 

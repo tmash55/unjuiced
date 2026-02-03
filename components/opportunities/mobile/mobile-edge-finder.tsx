@@ -288,7 +288,7 @@ export function MobileEdgeFinder({
           </div>
           
           <div className="flex items-center gap-1">
-            {/* Auto-Refresh Toggle - Pro Feature */}
+            {/* Auto-Refresh Toggle - Sharp Feature */}
             {isPro && onAutoRefreshChange && (
               <button
                 onClick={() => {
@@ -556,7 +556,7 @@ export function MobileEdgeFinder({
               "shadow-lg shadow-brand/20"
             )}
           >
-            Upgrade to Pro for All Edges
+            Upgrade to Sharp for All Edges
           </a>
         </div>
       )}

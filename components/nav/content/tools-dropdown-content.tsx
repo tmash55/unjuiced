@@ -27,7 +27,7 @@ const researchTools = [
   {
     icon: BarChart3,
     title: "Hit Rates",
-    href: "/tools/hit-rates",
+    href: "/features/hit-rates",
     badge: "NEW",
   },
   {
@@ -51,22 +51,22 @@ const sharpTools = [
   {
     icon: LineChart,
     title: "Odds Screen",
-    href: "/tools/odds",
+    href: "/features/odds-screen",
   },
   {
     icon: Target,
     title: "Edge Finder",
-    href: "/tools/edge-finder",
+    href: "/features/edge-finder",
   },
   {
     icon: Percent,
     title: "Positive EV",
-    href: "/tools/positive-ev",
+    href: "/features/positive-ev",
   },
   {
     icon: Scale,
     title: "Arbitrage",
-    href: "/tools/arbitrage",
+    href: "/features/arbitrage",
   },
 ];
 

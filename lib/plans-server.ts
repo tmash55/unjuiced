@@ -1,6 +1,6 @@
 import { User } from "@supabase/supabase-js";
 import { createClient } from "@/libs/supabase/server";
-import type { UserPlan } from "./plans";
+import { PLAN_LIMITS, normalizePlanName, type UserPlan } from "./plans";
 
 /**
  * Get user's plan tier using the v_user_entitlements view
@@ -28,7 +28,12 @@ export async function getUserPlan(user: User | null): Promise<UserPlan> {
       return "free"; // Default to free if entitlement not found
     }
 
-    return (entitlement.current_plan as UserPlan) || "free";
+    const normalized = normalizePlanName(String(entitlement.current_plan || "free"));
+    if (normalized in PLAN_LIMITS) {
+      return normalized as UserPlan;
+    }
+    console.warn("Unknown plan in entitlements:", entitlement.current_plan);
+    return "free";
   } catch (error) {
     console.error("Error in getUserPlan:", error);
     return "free";

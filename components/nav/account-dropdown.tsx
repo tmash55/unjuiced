@@ -90,16 +90,16 @@ export function AccountDropdown({ user }: { user: User }) {
                         // Edge tier - premium purple
                         entitlements.plan === "edge" &&
                           "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400",
-                        // Sharp tier - teal/tertiary
+                        // Sharp tier - brand
                         (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "trial" &&
-                          "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400",
+                          "bg-brand/10 text-brand dark:bg-brand/20",
                         (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "subscription" &&
-                          "bg-[var(--tertiary)]/10 text-[var(--tertiary-strong)] dark:bg-[var(--tertiary)]/20",
+                          "bg-brand/10 text-brand dark:bg-brand/20",
                         (entitlements.plan === "sharp") &&
                           entitlements.entitlement_source === "grant" &&
-                          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                          "bg-brand/10 text-brand dark:bg-brand/20",
                         // Scout tier - orange
                         entitlements.plan === "scout" &&
                           "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400",
@@ -208,4 +208,3 @@ export function AccountDropdown({ user }: { user: User }) {
     </div>
   );
 }
-

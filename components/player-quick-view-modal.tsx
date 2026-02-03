@@ -1097,7 +1097,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
                         </Link>
                       </div>
                     </div>
@@ -1149,7 +1149,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
                         </Link>
                       </div>
                     </div>
@@ -1198,7 +1198,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Pro" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
                         </Link>
                       </div>
                     </div>

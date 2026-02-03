@@ -28,7 +28,7 @@ type SignUpProps = z.infer<typeof signUpSchema>;
 export const SignUpEmail = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo");
+  const redirectTo = searchParams.get("redirectTo") || searchParams.get("redirect");
   const supabase = createClient();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { setEmail, setPassword, setStep, email: contextEmail, lockEmail } = useRegisterContext();
@@ -63,10 +63,10 @@ export const SignUpEmail = () => {
 
           // Determine where to redirect after signup
           // Default to app subdomain /today
-          const nextUrl = redirectTo || '/today';
+          const nextUrl = redirectTo || "/today";
           
           // Build the callback URL - pass redirectTo for cross-subdomain redirect
-          const callbackUrl = redirectTo 
+          const callbackUrl = redirectTo
             ? `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
             : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`;
           
@@ -138,22 +138,17 @@ export const SignUpEmail = () => {
               console.warn('[BeeHiiv] Failed to sync lead:', beehiivError);
             }
             
-            // User is automatically signed in - redirect to plans page
+            // User is automatically signed in - redirect to destination
             toast.success("Account created! 🎉", {
-              description: "Choose your plan to get started.",
+              description: "Redirecting you to continue.",
               duration: 2500,
             });
 
-            // Redirect to plans page so user can choose their plan
-            // Handle cross-subdomain redirects if needed
             setTimeout(() => {
-              const destination = "/plans";
-              if (destination.startsWith('http://') || destination.startsWith('https://')) {
-                window.location.href = destination;
-              } else {
-                router.push(destination);
-                router.refresh();
-              }
+              const destination = nextUrl;
+              window.location.href = destination.startsWith("http")
+                ? destination
+                : `${window.location.origin}${destination}`;
             }, 500);
           } else {
             // Email confirmation is required

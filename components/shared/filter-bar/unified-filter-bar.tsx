@@ -299,7 +299,7 @@ export function UnifiedFilterBar({
                 </span>
                 Live
                 {!isPro && (
-                  <span className="text-[9px] opacity-60">Pro</span>
+                  <span className="text-[9px] opacity-60">Sharp</span>
                 )}
               </button>
             </div>
@@ -328,7 +328,7 @@ export function UnifiedFilterBar({
 
             {/* Auto Refresh Toggle */}
             {onAutoRefreshChange && (
-              <Tooltip content={isPro ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Pro required for auto-refresh"}>
+              <Tooltip content={isPro ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Sharp required for auto-refresh"}>
                 <button
                   onClick={() => isPro && onAutoRefreshChange(!autoRefresh)}
                   disabled={!isPro}
