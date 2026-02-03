@@ -14,7 +14,6 @@ import { SportsbooksDropdown } from "./sportsbooks-dropdown";
 import { ComparingDropdown } from "./comparing-dropdown";
 import { GlobalSettingsDropdown } from "./global-settings-dropdown";
 import { ResetButton } from "./reset-button";
-import { FilterPresetsManagerModal } from "@/components/filter-presets/filter-presets-manager-modal";
 import { EvModelsManagerModal } from "@/components/ev-models/ev-models-manager-modal";
 import { Layers, X } from "lucide-react";
 
@@ -254,7 +253,6 @@ export function UnifiedFilterBar({
   isRefreshing,
   className,
 }: UnifiedFilterBarProps) {
-  const [showModelsModal, setShowModelsModal] = React.useState(false);
   const [showEvModelsModal, setShowEvModelsModal] = React.useState(false);
 
   return (
@@ -473,7 +471,7 @@ export function UnifiedFilterBar({
               <Tooltip content="Manage custom models">
                 <div className="relative">
                   <button
-                    onClick={() => setShowModelsModal(true)}
+                    onClick={onManageModels}
                     disabled={locked}
                     className={cn(
                       "group relative inline-flex h-10 w-10 overflow-hidden rounded-xl p-[1.5px] focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(251,191,36,0.4)]",
@@ -511,10 +509,6 @@ export function UnifiedFilterBar({
                 </Tooltip>
               )}
               
-              <FilterPresetsManagerModal
-                open={showModelsModal}
-                onOpenChange={setShowModelsModal}
-              />
             </div>
           )}
 

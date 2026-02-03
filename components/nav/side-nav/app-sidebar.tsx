@@ -141,6 +141,11 @@ const researchLinks: NavItem[] = [
       { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
   },
+  {
+    label: "KOTC",
+    href: "/stats/nba/king-of-the-court",
+    icon: IconTrophy,
+  },
 ]
 
 // Resources - Informational content

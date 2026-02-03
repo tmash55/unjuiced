@@ -246,6 +246,7 @@ export function EvModelsManagerModal({
                   onClick={() => {
                     setEditingModel(null);
                     setFormOpen(true);
+                    onOpenChange(false);
                   }}
                   className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02]"
                 >
@@ -508,6 +509,7 @@ export function EvModelsManagerModal({
                                   e.stopPropagation();
                                   setEditingModel(model);
                                   setFormOpen(true);
+                                  onOpenChange(false);
                                 }}
                                 className="h-7 w-7 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors text-neutral-600 dark:text-neutral-300"
                               >
