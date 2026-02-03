@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { PricingNew } from "@/components/pricing-new";
 
 export default function PlansPage() {
-  redirect("/pricing");
+  return <PricingNew />;
 }

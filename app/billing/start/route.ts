@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
+import { isAppSubdomain } from '@/lib/domain'
 import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
@@ -11,7 +12,8 @@ export async function GET(req: NextRequest) {
   const trialDaysParam = sp.get('trialDays')
   const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
   // Always use absolute base origin from the incoming request URL
-  const { origin } = new URL(req.url)
+  const { origin, host } = new URL(req.url)
+  const fallbackPath = isAppSubdomain(host) ? '/plans' : '/pricing'
 
   console.log('[billing/start] Request received', { priceId, mode })
 
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     if (!priceId) {
       console.error('[billing/start] Missing priceId')
-      return NextResponse.redirect(`${origin}/pricing`)
+      return NextResponse.redirect(`${origin}${fallbackPath}`)
     }
 
     // Check for partner discount from Dub referral link
@@ -143,13 +145,13 @@ export async function GET(req: NextRequest) {
 
     if (!url) {
       console.error('[billing/start] Failed to create checkout')
-      return NextResponse.redirect(`${origin}/pricing`)
+      return NextResponse.redirect(`${origin}${fallbackPath}`)
     }
 
     console.log('[billing/start] Redirecting to Stripe checkout')
     return NextResponse.redirect(url)
   } catch (error) {
     console.error('[billing/start] Error:', error)
-    return NextResponse.redirect(`${origin}/pricing`)
+    return NextResponse.redirect(`${origin}${fallbackPath}`)
   }
 }

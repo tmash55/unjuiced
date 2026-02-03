@@ -15,9 +15,10 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const feature = getFeatureBySlug(params.slug);
+  const { slug } = await params;
+  const feature = getFeatureBySlug(slug);
   if (!feature) return {};
 
   return {
@@ -30,8 +31,9 @@ export async function generateMetadata({
   };
 }
 
-export default function FeatureDetailPage({ params }: { params: { slug: string } }) {
-  const feature = getFeatureBySlug(params.slug);
+export default async function FeatureDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const feature = getFeatureBySlug(slug);
 
   if (!feature) {
     notFound();

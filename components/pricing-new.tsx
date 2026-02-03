@@ -58,6 +58,7 @@ const plans: PlanTier[] = [
     previousTier: "Free",
     productType: "scout",
     ctaText: "Try for free",
+    trialDays: 3,
   },
   {
     name: "Sharp",
@@ -233,7 +234,7 @@ export const PricingNew = () => {
 
         {/* Footnote */}
         <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-          Yearly billing includes 2 months free on all paid plans. 3-day free trials are available on Sharp and Elite.
+          All paid plans include a 3-day free trial. Yearly billing includes 2 months free.
         </p>
 
         {/* Feature Comparison */}

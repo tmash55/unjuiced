@@ -27,6 +27,7 @@ export const tiers = [
       "Game log & box scores",
     ],
     productType: "scout" as const,
+    trialDays: 3,
   },
   {
     title: TierName.SHARP,

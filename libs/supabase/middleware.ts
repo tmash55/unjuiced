@@ -144,10 +144,21 @@ export async function updateSession(request: NextRequest) {
     if (isAuthRoute) {
       // If user is already logged in on auth pages, redirect to /today
       if (user) {
+        const redirectTo = searchParams.get('redirectTo') || searchParams.get('next');
+        if (redirectTo) {
+          return NextResponse.redirect(new URL(redirectTo, request.url));
+        }
         return NextResponse.redirect(new URL('/today', request.url));
       }
       // Allow access to auth pages for unauthenticated users
       return supabaseResponse;
+    }
+
+    // Keep pricing inside app layout
+    if (pathname === '/pricing') {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/plans';
+      return NextResponse.redirect(redirectUrl);
     }
 
     // For all other routes on app subdomain, require authentication
@@ -158,6 +169,24 @@ export async function updateSession(request: NextRequest) {
         loginUrl.searchParams.set('next', pathname);
       }
       return NextResponse.redirect(loginUrl);
+    }
+
+    // Keep resource pages inside app layout (same URL, app route)
+    if (pathname === '/changelog' || pathname === '/sportsbooks' || pathname === '/markets') {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname =
+        pathname === '/changelog'
+          ? '/app-changelog'
+          : pathname === '/sportsbooks'
+            ? '/app-sportsbooks'
+            : '/app-markets';
+      return NextResponse.rewrite(rewriteUrl);
+    }
+
+    if (pathname === '/stats/nba/king-of-the-court') {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = '/app-stats/nba/king-of-the-court';
+      return NextResponse.rewrite(rewriteUrl);
     }
 
     // User is authenticated on app subdomain - allow access

@@ -29,6 +29,7 @@ import {
   IconHistory,
   IconBuildingBank,
   IconTags,
+  IconTrophy,
 } from "@tabler/icons-react"
 import Chart from "@/icons/chart"
 
@@ -123,6 +124,11 @@ const researchLinks: NavItem[] = [
     href: "/hit-rates", 
     icon: Chart,
     children: hitRatesSports
+  },
+  {
+    label: "KOTC",
+    href: "/stats/nba/king-of-the-court",
+    icon: IconTrophy,
   },
   { 
     label: "Cheat Sheets", 
@@ -648,6 +654,7 @@ function StatusCard() {
   const isTrial = entitlements?.entitlement_source === 'trial'
   const isPro = entitlements?.entitlement_source === 'subscription' || 
                 entitlements?.entitlement_source === 'grant'
+  const canTrial = entitlements?.trial?.trial_used === false
   
   // Calculate trial days
   const trialDaysRemaining = React.useMemo(() => {
@@ -659,7 +666,16 @@ function StatusCard() {
     return Math.max(0, diffDays)
   }, [isTrial, entitlements?.trial?.trial_ends_at])
   
-  const trialTotalDays = 14 // Assuming 14 day trial
+  const trialTotalDays = React.useMemo(() => {
+    if (!isTrial) return 3
+    if (entitlements?.trial?.trial_started_at && entitlements?.trial?.trial_ends_at) {
+      const start = new Date(entitlements.trial.trial_started_at).getTime()
+      const end = new Date(entitlements.trial.trial_ends_at).getTime()
+      const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+      return Math.max(1, total)
+    }
+    return 3
+  }, [isTrial, entitlements?.trial?.trial_started_at, entitlements?.trial?.trial_ends_at])
   const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
   
   // Rotate tips for pro users
@@ -684,13 +700,13 @@ function StatusCard() {
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-neutral-900 dark:text-white">
-            Sharp Trial
+            Free Trial
           </span>
           <Link 
-            href="/pricing" 
+            href="/plans" 
             className="text-[10px] font-medium text-[#0EA5E9] dark:text-[#7DD3FC] hover:underline"
           >
-            Upgrade
+            View plans
           </Link>
         </div>
         
@@ -753,17 +769,17 @@ function StatusCard() {
       <div className="flex items-center gap-2 mb-2">
         <IconSparkles className="w-4 h-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
         <span className="text-xs font-semibold text-neutral-900 dark:text-white">
-          Unlock Sharp Features
+          Explore Plans
         </span>
       </div>
       <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
-        Get unlimited access to all edge tools and features.
+        Choose Scout, Sharp, or Elite based on how you play.
       </p>
       <Link 
-        href="/pricing" 
+        href="/plans" 
         className="inline-flex items-center justify-center w-full py-1.5 px-3 rounded-lg bg-[#0EA5E9] dark:bg-[#7DD3FC] text-white dark:text-neutral-900 text-xs font-semibold hover:opacity-90 transition-opacity"
       >
-        Upgrade to Sharp
+        {canTrial ? "Try for free" : "View plans"}
       </Link>
     </motion.div>
   )
@@ -786,20 +802,22 @@ function UserSection() {
   const tier = entitlements?.plan
   const tierLabel = isTrial
     ? "Trial"
-    : tier === "edge"
+    : tier === "elite"
       ? "Elite"
-      : tier === "sharp"
-        ? "Sharp"
-        : tier === "scout"
-          ? "Hit Rates"
-          : "Free"
+      : tier === "edge"
+        ? "Elite"
+        : tier === "sharp" || tier === "pro"
+          ? "Sharp"
+          : tier === "scout" || tier === "hit_rate"
+            ? "Scout"
+            : "Free"
   const tierBadgeClass = isTrial
     ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
-    : tier === "edge"
+    : tier === "elite" || tier === "edge"
       ? "text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20"
-      : tier === "sharp"
+      : tier === "sharp" || tier === "pro"
         ? "text-brand bg-brand/10 dark:bg-brand/20"
-        : tier === "scout"
+        : tier === "scout" || tier === "hit_rate"
           ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/20"
           : "text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800"
   
@@ -888,7 +906,7 @@ function UserSection() {
           <>
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/pricing" onClick={closeMobileSidebar} className="cursor-pointer">
+                <Link href="/plans" onClick={closeMobileSidebar} className="cursor-pointer">
                   <IconSparkles className="h-4 w-4 text-[#0EA5E9] dark:text-[#7DD3FC]" />
                   <span>Upgrade to Sharp</span>
                 </Link>

@@ -197,6 +197,7 @@ export const Pricing = () => {
                     <BuyButton
                       priceId={priceId}
                       mode="subscription"
+                      trialDays={tier.trialDays}
                       label={tier.title === "Scout" ? "Try for free" : `Get ${tier.title}`}
                       className="w-full justify-center rounded-lg border-2 border-neutral-900 bg-neutral-900 px-6 py-3 text-center text-base font-medium text-white transition-all hover:bg-neutral-800 hover:ring-4 hover:ring-neutral-200/60 dark:border-white dark:bg-white dark:text-black dark:hover:bg-neutral-50"
                     />

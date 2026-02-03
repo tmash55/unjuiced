@@ -49,6 +49,8 @@ export const APP_ROUTES = [
   '/changelog',
   '/sportsbooks',
   '/markets',
+  '/my-slips',
+  '/stats',
 ];
 
 /**

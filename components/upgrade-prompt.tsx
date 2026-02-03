@@ -21,7 +21,7 @@ export function UpgradePrompt({
 }: UpgradePromptProps) {
   const isAnonymous = plan === "anonymous";
   const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
-  const ctaLink = isAnonymous ? "/register" : "/pricing";
+  const ctaLink = isAnonymous ? "/register" : "/plans";
 
   if (variant === "inline") {
     return (
@@ -122,7 +122,7 @@ export function LockedOverlay({
 }: Omit<UpgradePromptProps, "variant">) {
   const isAnonymous = plan === "anonymous";
   const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
-  const ctaLink = isAnonymous ? "/register" : "/pricing";
+  const ctaLink = isAnonymous ? "/register" : "/plans";
 
   return (
     <div
@@ -150,4 +150,3 @@ export function LockedOverlay({
     </div>
   );
 }
-

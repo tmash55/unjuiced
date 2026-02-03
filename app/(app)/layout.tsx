@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { IconHelp, IconMenu2 } from "@tabler/icons-react"
 import { Sidebar } from "@/components/ui/sidebar"
@@ -16,19 +16,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
 
-  // Show loading state while checking auth
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
-        <LoadingSpinner className="size-8" />
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!loading && !user) {
+      setRedirecting(true)
+      router.push('/login')
+    }
+  }, [loading, user, router])
 
-  // Redirect to login if not authenticated
-  if (!user) {
-    router.push('/login')
+  if (loading || redirecting || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
         <LoadingSpinner className="size-8" />
