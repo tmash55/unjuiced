@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import html2canvas from "html2canvas-pro";
 import { Share2, Check, Loader2, Image, Type } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -13,12 +14,18 @@ interface ShareOddsButtonProps {
   shareContent: React.ReactNode;
   /** Text to copy */
   shareText: string;
+  /** Show button on mobile (default false) */
+  showOnMobile?: boolean;
+  /** Show toast on copy (default false) */
+  toastOnCopy?: boolean;
   className?: string;
 }
 
 export function ShareOddsButton({
   shareContent,
   shareText,
+  showOnMobile = false,
+  toastOnCopy = false,
   className,
 }: ShareOddsButtonProps) {
   const [isCapturing, setIsCapturing] = useState(false);
@@ -31,11 +38,17 @@ export function ShareOddsButton({
     try {
       await navigator.clipboard.writeText(shareText);
       setCopySuccess("text");
+      if (toastOnCopy) {
+        toast.success("Copied share text");
+      }
       setTimeout(() => setCopySuccess(null), 2000);
       setIsOpen(false);
     } catch (err) {
       console.error("Failed to copy text:", err);
       setError("Failed to copy");
+      if (toastOnCopy) {
+        toast.error("Failed to copy text");
+      }
       setTimeout(() => setError(null), 2000);
     }
   };
@@ -158,11 +171,17 @@ export function ShareOddsButton({
         }),
       ]);
       setCopySuccess("image");
+      if (toastOnCopy) {
+        toast.success("Image copied");
+      }
       setTimeout(() => setCopySuccess(null), 2000);
       setIsOpen(false);
     } catch (err) {
       console.error("Error capturing odds:", err);
       setError("Failed to capture");
+      if (toastOnCopy) {
+        toast.error("Failed to capture image");
+      }
       setTimeout(() => setError(null), 2000);
     } finally {
       setIsCapturing(false);
@@ -177,7 +196,7 @@ export function ShareOddsButton({
           onClick={() => setIsOpen(true)}
           disabled={isCapturing}
           className={cn(
-            "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
+            showOnMobile ? "block p-1.5 rounded-lg transition-all duration-200" : "hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200",
             "hover:scale-110 active:scale-95",
             copySuccess
               ? "bg-emerald-500/10 text-emerald-500"

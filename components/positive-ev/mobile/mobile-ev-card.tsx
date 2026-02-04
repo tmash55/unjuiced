@@ -11,8 +11,12 @@ import { getLeagueName } from "@/lib/data/sports";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
+import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
+import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 import { useFavorites } from "@/hooks/use-favorites";
 import { SportIcon } from "@/components/icons/sport-icons";
+import { SHARP_PRESETS } from "@/lib/ev/constants";
+import { impliedProbToAmerican } from "@/lib/ev/devig";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -228,6 +232,47 @@ export function MobileEVCard({
   
   // Format the market display
   const marketDisplay = formatMarketLabelShort(opp.market) || opp.marketDisplay || opp.market?.replace(/_/g, " ");
+
+  const referenceLabel = useMemo(() => {
+    const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
+    const presetLabel = opp.sharpPreset && opp.sharpPreset in SHARP_PRESETS
+      ? SHARP_PRESETS[opp.sharpPreset as keyof typeof SHARP_PRESETS].label
+      : opp.sharpPreset;
+    let label = modelName || presetLabel || "Market Average";
+    if (label.toLowerCase().startsWith("vs ")) {
+      label = label.slice(3);
+    }
+    return label;
+  }, [opp]);
+
+  const shareText = useMemo(() => {
+    const bestBookName = getBookName(opp.book.bookId) || opp.book.bookName || opp.book.bookId;
+    const bestOdds = formatOdds(opp.book.price);
+    const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
+    const linePart = opp.line !== undefined && opp.line !== null ? ` ${opp.line}` : "";
+    const selectionLine = `${sideLabel}${linePart}`;
+
+    let fairOdds = "";
+    const devigResult = opp.devigResults?.power || opp.devigResults?.multiplicative || opp.devigResults?.additive;
+    if (devigResult?.success) {
+      const fairProb = opp.side === "over" || opp.side === "yes" ? devigResult.fairProbOver : devigResult.fairProbUnder;
+      if (fairProb > 0 && fairProb < 1) {
+        const fairAmerican = impliedProbToAmerican(fairProb);
+        fairOdds = `${fairAmerican > 0 ? "+" : ""}${Math.round(fairAmerican)}`;
+      }
+    }
+
+    const oddsComparison = fairOdds
+      ? `${bestBookName} ${bestOdds} vs ${fairOdds} (${referenceLabel})`
+      : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+
+    return [
+      `${selectionDisplay}`,
+      `${selectionLine} ${marketDisplay}`,
+      oddsComparison,
+      "unjuiced.bet",
+    ].join("\n");
+  }, [opp, referenceLabel, selectionDisplay, marketDisplay]);
   
   // Determine if this is a binary/yes-no market
   // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
@@ -394,29 +439,76 @@ export function MobileEVCard({
         className="px-3 py-2.5 cursor-pointer active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"
         onClick={onToggleExpand}
       >
-        {/* Player/Selection + Line */}
-        <div className="flex items-baseline gap-1.5 mb-2">
-          {isPlayerProp ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlayerClick?.(opp);
-              }}
-              className="text-left"
-            >
-              <span className="text-[15px] font-bold text-neutral-900 dark:text-white hover:text-brand transition-colors leading-tight">
-                {opp.playerName}
+        {/* Player/Selection + Line + Share */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            {isPlayerProp ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayerClick?.(opp);
+                }}
+                className="text-left"
+              >
+                <span className="text-[15px] font-bold text-neutral-900 dark:text-white hover:text-brand transition-colors leading-tight">
+                  {opp.playerName}
+                </span>
+              </button>
+            ) : (
+              <span className="text-[15px] font-bold text-neutral-900 dark:text-white leading-tight">
+                {selectionDisplay}
               </span>
-            </button>
-          ) : (
-            <span className="text-[15px] font-bold text-neutral-900 dark:text-white leading-tight">
-              {selectionDisplay}
+            )}
+            <span className="text-[12px] font-semibold text-neutral-500 dark:text-neutral-400">
+              {sideDisplay} {lineDisplay}
             </span>
-          )}
-          <span className="text-[12px] font-semibold text-neutral-500 dark:text-neutral-400">
-            {sideDisplay} {lineDisplay}
-          </span>
+          </div>
+
+          <div onClick={(e) => e.stopPropagation()}>
+            <ShareOddsButton
+              showOnMobile
+              toastOnCopy
+              shareText={shareText}
+              className="h-7 w-7 p-1.5"
+              shareContent={
+                <ShareOddsCard
+                  playerName={selectionDisplay}
+                  market={marketDisplay || opp.market || ""}
+                  sport={opp.sport.toUpperCase()}
+                  line={opp.line ?? 0}
+                  side={opp.side}
+                  bestBookId={opp.book.bookId}
+                  bestOdds={formatOdds(opp.book.price)}
+                  edgePercent={(() => {
+                    const evCalc = opp.evCalculations?.power || opp.evCalculations?.multiplicative;
+                    return evCalc?.evPercent ?? 0;
+                  })()}
+                  fairOdds={(() => {
+                    const devigResult = opp.devigResults?.power || opp.devigResults?.multiplicative || opp.devigResults?.additive;
+                    if (!devigResult?.success) return null;
+                    const fairProb = opp.side === "over" || opp.side === "yes" ? devigResult.fairProbOver : devigResult.fairProbUnder;
+                    if (!fairProb || fairProb <= 0 || fairProb >= 1) return null;
+                    const fairAmerican = impliedProbToAmerican(fairProb);
+                    return `${fairAmerican > 0 ? "+" : ""}${Math.round(fairAmerican)}`;
+                  })()}
+                  sharpOdds={formatOdds(opp.sharpReference?.overOdds)}
+                  referenceLabel={referenceLabel}
+                  eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                  timeLabel={opp.startTime || opp.gameDate || undefined}
+                  overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
+                    bookId: b.bookId,
+                    price: b.price,
+                  }))}
+                  underBooks={(opp.side === "under" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
+                    bookId: b.bookId,
+                    price: b.price,
+                  }))}
+                  accent="emerald"
+                />
+              }
+            />
+          </div>
         </div>
         
         {/* Action Row - Odds left, BET right */}
@@ -525,7 +617,7 @@ export function MobileEVCard({
                 )}>{recStakeDisplay}</span>
               </span>
             )}
-            
+
             {/* Bet Button */}
             <button
               type="button"

@@ -13,6 +13,8 @@ import { DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
+import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
+import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 
 const hexToRgba = (hex: string, alpha: number): string => {
   const normalized = hex.replace("#", "");
@@ -94,6 +96,21 @@ function getSportEmoji(sport: string): string {
       return "🎯";
   }
 }
+
+const buildShareText = (opp: Opportunity, edgePct: number): string => {
+  const bookName = getSportsbookById(opp.bestBook)?.name || opp.bestBook;
+  const marketLabel = formatMarketLabelShort(opp.market) || opp.market || "";
+  const selection = opp.player ? opp.player : `${opp.awayTeam} @ ${opp.homeTeam}`;
+  const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
+  const lineDisplay = opp.line !== undefined && opp.line !== null ? ` ${opp.line}` : "";
+  const odds = opp.bestPrice || "—";
+  return [
+    `+${edgePct.toFixed(1)}% Edge | ${opp.sport.toUpperCase()} ${marketLabel}`,
+    `${selection} • ${sideLabel}${lineDisplay}`,
+    `${bookName} ${odds}`,
+    "unjuiced.bet",
+  ].join("\n");
+};
 
 interface MobileEdgeCardProps {
   opportunity: Opportunity;
@@ -258,6 +275,17 @@ export function MobileEdgeCard({
   
   // Format the market display
   const marketDisplay = formatMarketLabelShort(opp.market) || opp.market?.replace(/_/g, " ");
+
+  const shareText = useMemo(() => buildShareText(opp, boostedEdge), [opp, boostedEdge]);
+  const shareReferenceLabel = useMemo(() => {
+    if (opp.filterName) return opp.filterName;
+    if (opp.sharpBooks && opp.sharpBooks.length > 0) {
+      return opp.sharpBooks
+        .map((bookId) => getSportsbookById(bookId)?.name || bookId)
+        .join(" + ");
+    }
+    return "Market Average";
+  }, [opp.filterName, opp.sharpBooks]);
   
   // Determine if this is a binary/yes-no market
   // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
@@ -410,29 +438,66 @@ export function MobileEdgeCard({
         className="px-2.5 py-2 cursor-pointer active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"
         onClick={onToggleExpand}
       >
-        {/* Player/Selection + Line */}
-        <div className="flex items-baseline gap-1.5 mb-2">
-          {isPlayerProp ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlayerClick?.(opp);
-              }}
-              className="text-left"
-            >
-              <span className="text-[14px] font-bold text-neutral-900 dark:text-white hover:text-brand transition-colors leading-tight">
-                {opp.player}
+        {/* Player/Selection + Line + Share */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            {isPlayerProp ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayerClick?.(opp);
+                }}
+                className="text-left"
+              >
+                <span className="text-[14px] font-bold text-neutral-900 dark:text-white hover:text-brand transition-colors leading-tight">
+                  {opp.player}
+                </span>
+              </button>
+            ) : (
+              <span className="text-[14px] font-bold text-neutral-900 dark:text-white leading-tight">
+                {selectionDisplay}
               </span>
-            </button>
-          ) : (
-            <span className="text-[14px] font-bold text-neutral-900 dark:text-white leading-tight">
-              {selectionDisplay}
+            )}
+            <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+              {sideDisplay} {lineDisplay}
             </span>
-          )}
-          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
-            {sideDisplay} {lineDisplay}
-          </span>
+          </div>
+
+          <div onClick={(e) => e.stopPropagation()}>
+            <ShareOddsButton
+              showOnMobile
+              toastOnCopy
+              shareText={shareText}
+              className="h-7 w-7 p-1.5"
+              shareContent={
+                <ShareOddsCard
+                  playerName={selectionDisplay}
+                  market={marketDisplay || opp.market}
+                  sport={opp.sport.toUpperCase()}
+                  line={opp.line ?? 0}
+                  side={opp.side}
+                  bestBookId={opp.bestBook}
+                  bestOdds={formatOdds(opp.bestPrice)}
+                  edgePercent={boostedEdge}
+                  fairOdds={opp.fairAmerican || null}
+                  sharpOdds={opp.sharpPrice || null}
+                  referenceLabel={shareReferenceLabel}
+                  eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                  timeLabel={opp.gameStart || undefined}
+                  overBooks={(opp.side === "over" || opp.side === "yes" ? opp.allBooks : []).map((b) => ({
+                    bookId: b.book,
+                    price: b.price,
+                  }))}
+                  underBooks={(opp.side === "under" || opp.side === "no" ? opp.allBooks : []).map((b) => ({
+                    bookId: b.book,
+                    price: b.price,
+                  }))}
+                  accent="emerald"
+                />
+              }
+            />
+          </div>
         </div>
         
         {/* Action Row - Odds left, BET right */}
@@ -480,7 +545,7 @@ export function MobileEdgeCard({
                 )}>${recStake}</span>
               </span>
             )}
-            
+
             {/* Bet Button - Compact */}
             <button
               type="button"
