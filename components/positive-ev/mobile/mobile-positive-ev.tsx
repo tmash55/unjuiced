@@ -4,30 +4,17 @@ import React, { useState, useMemo, useCallback } from "react";
 import { 
   Loader2, 
   Search, 
-  ChevronDown, 
   RefreshCw,
   X,
-  Filter,
   Zap,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileEVCard } from "./mobile-ev-card";
+import { MobileEvModelsBar } from "./mobile-ev-models-bar";
 import type { PositiveEVOpportunity, DevigMethod, SharpPreset, EVMode } from "@/lib/ev/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { SportIcon } from "@/components/icons/sport-icons";
 import { PositiveEVFilters } from "../positive-ev-filters";
-
-// Sport filter options
-const SPORT_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "nba", label: "NBA" },
-  { value: "nfl", label: "NFL" },
-  { value: "ncaaf", label: "NCAAF" },
-  { value: "ncaab", label: "NCAAB" },
-  { value: "nhl", label: "NHL" },
-  { value: "mlb", label: "MLB" },
-];
 
 // Sort options
 const SORT_OPTIONS = [
@@ -89,6 +76,30 @@ interface MobilePositiveEVProps {
   streamConnected?: boolean;
   // Selected books filter
   selectedBooks?: string[];
+  selectedSports?: string[];
+  selectedMarkets?: string[];
+  minEv?: number;
+  maxEv?: number | undefined;
+  minBooksPerSide?: number;
+  minLiquidity?: number;
+  onFiltersChange?: (filters: {
+    selectedBooks?: string[];
+    selectedSports?: string[];
+    selectedMarkets?: string[];
+    sharpPreset?: SharpPreset;
+    devigMethods?: DevigMethod[];
+    evCase?: "worst" | "best";
+    minEv?: number;
+    maxEv?: number | undefined;
+    mode?: EVMode;
+    minBooksPerSide?: number;
+    minLiquidity?: number;
+    showHidden?: boolean;
+  }) => void;
+  availableSports?: string[];
+  availableMarkets?: string[];
+  locked?: boolean;
+  isLoggedIn?: boolean;
 }
 
 export function MobilePositiveEV({
@@ -110,9 +121,6 @@ export function MobilePositiveEV({
   evCase = "worst",
   mode = "pregame",
   onSharpPresetChange,
-  onDevigMethodsChange,
-  onEvCaseChange,
-  onModeChange,
   boostPercent = 0,
   onBoostChange,
   onBankrollChange,
@@ -124,10 +132,20 @@ export function MobilePositiveEV({
   onAutoRefreshChange,
   streamConnected = false,
   selectedBooks = [],
+  selectedSports = [],
+  selectedMarkets = [],
+  minEv = 0,
+  maxEv,
+  minBooksPerSide = 2,
+  minLiquidity = 0,
+  onFiltersChange,
+  availableSports = [],
+  availableMarkets = [],
+  locked = false,
+  isLoggedIn = false,
 }: MobilePositiveEVProps) {
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSport, setSelectedSport] = useState("all");
   const [sortOption, setSortOption] = useState("ev_desc");
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
@@ -150,13 +168,6 @@ export function MobilePositiveEV({
         opp.homeTeam?.toLowerCase().includes(query) ||
         opp.awayTeam?.toLowerCase().includes(query) ||
         opp.market?.toLowerCase().includes(query)
-      );
-    }
-    
-    // Sport filter
-    if (selectedSport !== "all") {
-      filtered = filtered.filter(opp => 
-        opp.sport?.toLowerCase() === selectedSport.toLowerCase()
       );
     }
     
@@ -183,7 +194,7 @@ export function MobilePositiveEV({
     });
     
     return filtered;
-  }, [opportunities, searchQuery, selectedSport, currentSort]);
+  }, [opportunities, searchQuery, currentSort]);
   
   // Visible opportunities
   const visibleOpportunities = useMemo(() => {
@@ -295,6 +306,36 @@ export function MobilePositiveEV({
                 Auto
               </button>
             )}
+
+            {/* Filters / Settings */}
+            {onFiltersChange && (
+              <PositiveEVFilters
+                selectedBooks={selectedBooks}
+                selectedSports={selectedSports}
+                selectedMarkets={selectedMarkets}
+                sharpPreset={sharpPreset}
+                devigMethods={devigMethods}
+                evCase={evCase}
+                minEv={minEv}
+                maxEv={maxEv}
+                mode={mode}
+                minBooksPerSide={minBooksPerSide}
+                minLiquidity={minLiquidity}
+                showHidden={showHidden}
+                hiddenCount={hiddenCount}
+                bankroll={bankroll}
+                kellyPercent={kellyPercent}
+                onFiltersChange={onFiltersChange}
+                onBankrollChange={onBankrollChange}
+                onKellyPercentChange={onKellyPercentChange}
+                availableSports={availableSports}
+                availableMarkets={availableMarkets}
+                locked={locked}
+                isLoggedIn={isLoggedIn}
+                isPro={isPro}
+                opportunities={opportunities.map((opp) => ({ book: { bookId: opp.book.bookId } }))}
+              />
+            )}
             
             {/* Refresh Button */}
             {onRefresh && (
@@ -313,52 +354,13 @@ export function MobilePositiveEV({
           </div>
         </div>
         
-        {/* Mode Tabs (Pregame / Live / All) */}
-        <div className="px-4 py-2 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800">
-          {(["pregame", "live", "all"] as EVMode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => onModeChange?.(m)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all",
-                mode === m 
-                  ? "bg-brand text-white"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-              )}
-            >
-              {m === "pregame" ? "Pregame" : m === "live" ? "Live" : "All"}
-            </button>
-          ))}
-          
-          <div className="flex-1" />
-          
-          {/* EV Case Toggle */}
-          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
-            <button
-              onClick={() => onEvCaseChange?.("worst")}
-              className={cn(
-                "px-2 py-1 rounded text-[10px] font-semibold uppercase transition-all",
-                evCase === "worst" 
-                  ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-500"
-              )}
-            >
-              Worst
-            </button>
-            <button
-              onClick={() => onEvCaseChange?.("best")}
-              className={cn(
-                "px-2 py-1 rounded text-[10px] font-semibold uppercase transition-all",
-                evCase === "best" 
-                  ? "bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm"
-                  : "text-neutral-500"
-              )}
-            >
-              Best
-            </button>
-          </div>
-        </div>
-        
+        {/* Models Bar */}
+        <MobileEvModelsBar
+          sharpPreset={sharpPreset}
+          onSharpPresetChange={onSharpPresetChange}
+          onModelsChanged={onRefresh}
+        />
+
         {/* Search + Boost + Sort Row */}
         <div className="px-4 py-2 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800">
           {/* Expandable Search */}
@@ -455,24 +457,6 @@ export function MobilePositiveEV({
           )}
         </div>
         
-        {/* Sport Pills */}
-        <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800 scrollbar-hide">
-          {SPORT_OPTIONS.map(sport => (
-            <button
-              key={sport.value}
-              onClick={() => setSelectedSport(sport.value)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0",
-                selectedSport === sport.value 
-                  ? "bg-brand text-white"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-              )}
-            >
-              {sport.label}
-            </button>
-          ))}
-        </div>
-        
         {/* Results Count */}
         <div className="px-4 py-1.5 bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-200/50 dark:border-neutral-800/50">
           <span className="text-[10px] font-medium text-neutral-500">
@@ -487,7 +471,7 @@ export function MobilePositiveEV({
       </div>
       
       {/* Spacer for fixed header - accounts for top-12 (48px) + header content */}
-      <div style={{ height: "232px" }} />
+      <div style={{ height: "192px" }} />
       
       {/* EV Cards */}
       <div className="pt-3 pb-24 bg-neutral-100/50 dark:bg-neutral-950">
@@ -501,7 +485,6 @@ export function MobilePositiveEV({
               type="button"
               onClick={() => {
                 setSearchQuery("");
-                setSelectedSport("all");
               }}
               className="mt-3 text-sm text-brand font-medium"
             >

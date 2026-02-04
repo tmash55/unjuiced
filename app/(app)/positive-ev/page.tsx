@@ -1001,6 +1001,17 @@ export default function PositiveEVPage() {
           onAutoRefreshChange={setAutoRefresh}
           streamConnected={streamConnected}
           selectedBooks={savedFilters.selectedBooks}
+          selectedSports={savedFilters.selectedSports}
+          selectedMarkets={savedFilters.selectedMarkets}
+          minEv={savedFilters.minEv}
+          maxEv={savedFilters.maxEv}
+          minBooksPerSide={savedFilters.minBooksPerSide}
+          minLiquidity={savedFilters.minLiquidity ?? 0}
+          onFiltersChange={handleFiltersChange}
+          availableSports={AVAILABLE_SPORTS}
+          availableMarkets={availableMarketOptions.map((market) => market.key)}
+          locked={locked}
+          isLoggedIn={isLoggedIn}
         />
         
         {/* Player Quick View Modal (NBA Hit Rates) - Mobile */}

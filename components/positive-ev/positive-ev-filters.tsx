@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAllActiveSportsbooks } from "@/lib/data/sportsbooks";
 import { formatMarketLabel, SPORT_MARKETS } from "@/lib/data/markets";
@@ -29,6 +30,8 @@ interface PositiveEVFiltersProps {
   minLiquidity: number;
   showHidden: boolean;
   hiddenCount: number;
+  bankroll: number;
+  kellyPercent: number;
   
   // Callbacks
   onFiltersChange: (filters: {
@@ -45,6 +48,8 @@ interface PositiveEVFiltersProps {
     minLiquidity?: number;
     showHidden?: boolean;
   }) => void;
+  onBankrollChange?: (value: number) => void;
+  onKellyPercentChange?: (value: number) => void;
   
   // Available options
   availableSports: string[];
@@ -87,7 +92,11 @@ export function PositiveEVFilters({
   minLiquidity,
   showHidden,
   hiddenCount,
+  bankroll,
+  kellyPercent,
   onFiltersChange,
+  onBankrollChange,
+  onKellyPercentChange,
   availableSports,
   availableMarkets,
   locked = false,
@@ -112,6 +121,8 @@ export function PositiveEVFilters({
   const [localMode, setLocalMode] = useState(mode);
   const [localMinBooksPerSide, setLocalMinBooksPerSide] = useState(minBooksPerSide);
   const [localMinLiquidity, setLocalMinLiquidity] = useState(minLiquidity);
+  const [localBankroll, setLocalBankroll] = useState(bankroll);
+  const [localKellyPercent, setLocalKellyPercent] = useState(kellyPercent);
   
   // Sync local state with props
   useEffect(() => {
@@ -127,6 +138,11 @@ export function PositiveEVFilters({
     setLocalMinBooksPerSide(minBooksPerSide);
     setLocalMinLiquidity(minLiquidity);
   }, [selectedBooks, selectedSports, selectedMarkets, sharpPreset, devigMethods, evCase, minEv, maxEv, mode, minBooksPerSide, minLiquidity]);
+
+  useEffect(() => {
+    setLocalBankroll(bankroll);
+    setLocalKellyPercent(kellyPercent);
+  }, [bankroll, kellyPercent]);
   
   // Calculate sportsbook counts from opportunities
   const sportsbookCounts = useMemo(() => {
@@ -242,6 +258,12 @@ export function PositiveEVFilters({
       minBooksPerSide: localMinBooksPerSide,
       minLiquidity: localMinLiquidity,
     });
+    if (onBankrollChange) {
+      onBankrollChange(localBankroll);
+    }
+    if (onKellyPercentChange) {
+      onKellyPercentChange(localKellyPercent);
+    }
     setOpen(false);
   };
   
@@ -258,6 +280,8 @@ export function PositiveEVFilters({
     setLocalMode("pregame");
     setLocalMinBooksPerSide(2);
     setLocalMinLiquidity(0);
+    setLocalBankroll(0);
+    setLocalKellyPercent(25);
     
     onFiltersChange({
       selectedBooks: [],
@@ -812,7 +836,7 @@ export function PositiveEVFilters({
                         value={localMinEv}
                         onChange={(e) => !locked && setLocalMinEv(Number(e.target.value))}
                         disabled={locked}
-                        className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
+                        className="w-full h-11 px-3 rounded-xl text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
                       >
                         {MIN_EV_OPTIONS.map((val) => (
                           <option key={val} value={val}>
@@ -827,7 +851,7 @@ export function PositiveEVFilters({
                         value={localMaxEv || ""}
                         onChange={(e) => !locked && setLocalMaxEv(e.target.value ? Number(e.target.value) : undefined)}
                         disabled={locked}
-                        className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
+                        className="w-full h-11 px-3 rounded-xl text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
                       >
                         <option value="">No limit</option>
                         {MAX_EV_OPTIONS.map((val) => (
@@ -842,6 +866,42 @@ export function PositiveEVFilters({
                     Filter opportunities by expected value percentage range
                   </p>
                 </div>
+
+                {/* Bankroll & Kelly */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Bankroll & Kelly</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Bankroll ($)</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={localBankroll}
+                        onChange={(e) => !locked && setLocalBankroll(Number(e.target.value || 0))}
+                        disabled={locked}
+                        className="h-11 text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-neutral-500 dark:text-neutral-400">Kelly %</label>
+                      <select
+                        value={localKellyPercent}
+                        onChange={(e) => !locked && setLocalKellyPercent(Number(e.target.value))}
+                        disabled={locked}
+                        className="w-full h-11 px-3 rounded-xl text-[14px] font-medium bg-white dark:bg-neutral-800/60 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700/80 focus:ring-2 focus:ring-brand transition-shadow"
+                      >
+                        {[5, 10, 25, 50, 100].map((val) => (
+                          <option key={val} value={val}>
+                            {val}% Kelly
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Stake size uses fractional Kelly based on your bankroll
+                  </p>
+                </div>
                 
                 {/* Min Books Per Side (Width Filter) */}
                 <div className="space-y-3">
@@ -850,7 +910,7 @@ export function PositiveEVFilters({
                     value={localMinBooksPerSide}
                     onChange={(e) => !locked && setLocalMinBooksPerSide(Number(e.target.value))}
                     disabled={locked}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
+                    className="w-full h-11 px-3 rounded-xl text-[14px] font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
                   >
                     {[1, 2, 3, 4, 5].map((val) => (
                       <option key={val} value={val}>
@@ -870,7 +930,7 @@ export function PositiveEVFilters({
                     value={localMinLiquidity}
                     onChange={(e) => !locked && setLocalMinLiquidity(Number(e.target.value))}
                     disabled={locked}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
+                    className="w-full h-11 px-3 rounded-xl text-[14px] font-medium bg-neutral-50 dark:bg-neutral-800/50 border-0 ring-1 ring-neutral-200 dark:ring-neutral-700 focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition-shadow"
                   >
                     <option value={0}>No minimum</option>
                     <option value={25}>$25 minimum</option>

@@ -201,14 +201,14 @@ export function EvModelsManagerModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent 
           showCloseButton={false}
-          className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl"
+          className="w-full sm:max-w-6xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-none sm:rounded-2xl"
         >
           {/* Premium gradient accent bar - GREEN theme */}
           <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500" />
           
           {/* Header */}
           <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 shrink-0 bg-gradient-to-r from-white via-emerald-50/20 to-green-50/20 dark:from-neutral-900 dark:via-emerald-950/10 dark:to-green-950/10">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/25">
                   <Layers className="h-5 w-5 text-white" />
@@ -224,7 +224,7 @@ export function EvModelsManagerModal({
               </div>
               
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 {/* Favorites quick select */}
                 {models.some(m => m.is_favorite) && (
                   <button
@@ -235,7 +235,7 @@ export function EvModelsManagerModal({
                       }
                       onModelsChanged?.();
                     }}
-                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-700/50 transition-colors"
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-700/50 transition-colors w-full sm:w-auto"
                   >
                     <Star filled className="w-4 h-4 text-amber-500" />
                     Favorites
@@ -249,7 +249,7 @@ export function EvModelsManagerModal({
                     setFormOpen(true);
                     onOpenChange(false);
                   }}
-                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02]"
+                  className="flex items-center justify-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:scale-[1.02] w-full sm:w-auto"
                 >
                   <Plus className="h-4 w-4" />
                   New Model

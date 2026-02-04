@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, Calculator } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
@@ -10,7 +10,7 @@ import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks
 import { getLeagueName } from "@/lib/data/sports";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
-import { getKellyStakeDisplay } from "@/lib/utils/kelly";
+import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
 import { SportIcon } from "@/components/icons/sport-icons";
 
@@ -175,33 +175,44 @@ export function MobileEVCard({
   const baseEV = evCase === "best" ? opp.evCalculations.evBest : opp.evCalculations.evWorst;
   const displayEV = boostPercent > 0 ? baseEV * (1 + boostPercent / 100) : baseEV;
   
-  // Calculate recommended stake
-  const recStake = useMemo(() => {
-    if (bankroll <= 0) return 0;
-    
-    const bestOdds = opp.book.price;
-    // Get fair odds from devigResults
-    const fairProb = opp.devigResults?.power?.fairProbOver ?? opp.devigResults?.multiplicative?.fairProbOver ?? 0.5;
-    const fairOdds = fairProb >= 0.5 
-      ? Math.round(-100 * fairProb / (1 - fairProb))
-      : Math.round(100 * (1 - fairProb) / fairProb);
-    
-    if (!bestOdds || !fairOdds) {
-      const kellyFraction = opp.evCalculations.kellyWorst ?? 0;
-      const adjustedKelly = kellyFraction * (kellyPercent / 100);
-      return Math.max(1, Math.round(bankroll * adjustedKelly));
-    }
-    
-    const { stake } = getKellyStakeDisplay({
-      bankroll,
-      bestOdds,
-      fairOdds,
-      kellyPercent,
-      boostPercent,
-    });
-    
-    return stake > 0 ? Math.max(1, Math.round(stake)) : 0;
-  }, [bankroll, kellyPercent, boostPercent, opp]);
+  const calculateBoostedEV = useCallback((baseEV: number, decimalOdds: number, fairProb: number, boost: number) => {
+    if (boost <= 0) return baseEV;
+    const boostedOdds = applyBoostToDecimalOdds(decimalOdds, boost);
+    return (fairProb * boostedOdds - 1) * 100;
+  }, []);
+
+  // Calculate recommended stake (match desktop logic)
+  const recStakeDisplay = useMemo(() => {
+    if (bankroll <= 0) return null;
+
+    const baseEV = evCase === "best" ? opp.evCalculations.evBest : opp.evCalculations.evWorst;
+    const decimalOdds = opp.book.priceDecimal || (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
+    const fairProbability = opp.evCalculations.power?.fairProb 
+      || opp.evCalculations.multiplicative?.fairProb 
+      || opp.evCalculations.additive?.fairProb 
+      || opp.evCalculations.probit?.fairProb 
+      || 0;
+    const displayEV = boostPercent > 0
+      ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent)
+      : baseEV;
+
+    const effectiveDecimalOdds = boostPercent > 0 
+      ? applyBoostToDecimalOdds(decimalOdds, boostPercent)
+      : decimalOdds;
+
+    if (displayEV <= 0 || effectiveDecimalOdds <= 1) return null;
+
+    const fullKellyPct = (displayEV / 100) / (effectiveDecimalOdds - 1) * 100;
+    if (fullKellyPct <= 0 || !isFinite(fullKellyPct)) return null;
+
+    const fractionalKellyPct = fullKellyPct * (kellyPercent / 100);
+    const stake = bankroll * (fractionalKellyPct / 100);
+
+    if (stake < 0.5) return "<$1";
+    if (stake < 10) return `$${Math.round(stake)}`;
+    if (stake < 100) return `$${Math.round(stake / 5) * 5}`;
+    return `$${Math.round(stake / 10) * 10}`;
+  }, [bankroll, kellyPercent, boostPercent, evCase, opp, calculateBoostedEV]);
   
   // Get best book info
   const bestBookInfo = getSportsbookById(opp.book.bookId);
@@ -502,7 +513,7 @@ export function MobileEVCard({
           
           {/* Right: Rec Stake + Bet Button */}
           <div className="flex items-center gap-2">
-            {recStake > 0 && (
+            {recStakeDisplay && (
               <span className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-0.5">
                 {boostPercent > 0 && <Zap className="w-3 h-3 text-amber-500" />}
                 <span className="text-[9px] uppercase">Rec </span>
@@ -511,7 +522,7 @@ export function MobileEVCard({
                   boostPercent > 0 
                     ? "text-amber-600 dark:text-amber-400" 
                     : "text-emerald-600 dark:text-emerald-400"
-                )}>${recStake}</span>
+                )}>{recStakeDisplay}</span>
               </span>
             )}
             
