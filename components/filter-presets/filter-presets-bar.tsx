@@ -6,7 +6,7 @@ import Logout from "@/icons/logout";
 import { Button } from "@/components/button";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
-import { parseSports, formatSharpBooks, FilterPreset } from "@/lib/types/filter-presets";
+import { DEFAULT_FILTER_COLOR, parseSports, formatSharpBooks, FilterPreset } from "@/lib/types/filter-presets";
 import { FilterPresetFormModal } from "./filter-preset-form-modal";
 import { FilterPresetsManagerModal } from "./filter-presets-manager-modal";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -344,7 +344,13 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
                     <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg min-w-[220px]">
                       {/* Header with name */}
                       <div className="text-center mb-3">
-                        <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{preset.name}</span>
+                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                          />
+                          {preset.name}
+                        </span>
                       </div>
                       
                       {/* Pie Chart with Book Logos */}
@@ -416,8 +422,12 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
                     </div>
                     
                     {/* Filter Name */}
-                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200 max-w-[100px] truncate">
-                      {preset.name}
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-200 max-w-[120px] truncate">
+                      <span
+                        className="h-2 w-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                      />
+                      <span className="truncate">{preset.name}</span>
                     </span>
 
                     {/* Book Logos */}
@@ -482,7 +492,13 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
                     <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg min-w-[220px]">
                       {/* Header with name */}
                       <div className="text-center mb-3">
-                        <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{preset.name}</span>
+                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                          />
+                          {preset.name}
+                        </span>
                       </div>
                       
                       {sharpBooks.length > 0 ? (
@@ -558,7 +574,13 @@ export function FilterPresetsBar({ className, onPresetsChange, onPresetHover }: 
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-800 dark:hover:text-neutral-100 transition-all flex-shrink-0"
                   >
                   {renderSportsIcon(sports, 14)}
-                    <span className="max-w-[80px] truncate">{preset.name}</span>
+                    <span className="flex items-center gap-1 max-w-[110px] truncate">
+                      <span
+                        className="h-2 w-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                      />
+                      <span className="truncate">{preset.name}</span>
+                    </span>
                   </button>
                 </Tooltip>
               );

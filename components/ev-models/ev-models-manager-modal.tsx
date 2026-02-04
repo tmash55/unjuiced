@@ -16,6 +16,7 @@ import {
   formatEvSharpBooks,
   formatEvMarketType,
   formatEvSports,
+  DEFAULT_MODEL_COLOR,
   type EvModel,
   type EvModelCreate,
 } from "@/lib/types/ev-models";
@@ -310,6 +311,10 @@ export function EvModelsManagerModal({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <Star filled className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: model.color || DEFAULT_MODEL_COLOR }}
+                              />
                               <h4 className={cn(
                                 "font-medium truncate transition-colors",
                                 model.is_active ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
@@ -455,6 +460,10 @@ export function EvModelsManagerModal({
                               {model.is_favorite && (
                                 <Star filled className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                               )}
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: model.color || DEFAULT_MODEL_COLOR }}
+                              />
                               <h4 className={cn(
                                 "font-medium truncate transition-colors",
                                 model.is_active ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"

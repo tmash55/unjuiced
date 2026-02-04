@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { 
+  DEFAULT_FILTER_COLOR,
   getSportLabel, 
   parseSports,
   formatSharpBooks,
@@ -582,6 +583,10 @@ export function FilterPresetsManagerModal({
                         key={preset.id}
                         className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-amber-200 dark:border-amber-800 shadow-sm"
                       >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                        />
                         <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
                           {preset.name}
                         </span>
@@ -762,6 +767,10 @@ export function FilterPresetsManagerModal({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                                />
                                 <h4 className={cn(
                                   "font-medium truncate transition-colors",
                                   isSelected ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
@@ -953,6 +962,10 @@ export function FilterPresetsManagerModal({
                                   {preset.is_favorite && (
                                     <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />
                                   )}
+                                  <span
+                                    className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                                  />
                                   <h4 className={cn(
                                     "font-medium truncate transition-colors",
                                     isSelected 

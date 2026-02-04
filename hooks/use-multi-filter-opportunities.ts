@@ -22,7 +22,7 @@ import {
   parseOpportunity,
 } from "@/lib/types/opportunities";
 import { normalizeSportsbookId, getSportsbookById } from "@/lib/data/sportsbooks";
-import { type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
+import { DEFAULT_FILTER_COLOR, type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
 import { type BestOddsPrefs } from "@/lib/best-odds-schema";
 
 // All supported sports for broad fetching in preset mode
@@ -162,6 +162,7 @@ function buildFilterConfigs(
         filterName,
         filterIcon: ALL_SPORTS.join(","),
         isCustom: false,
+        filterColor: null,
       },
     }];
   }
@@ -234,6 +235,7 @@ function buildFilterConfigs(
             filterName: preset.name,
             filterIcon: validSports.join(","), // Keep full icon list for display
             isCustom: true,
+            filterColor: preset.color || DEFAULT_FILTER_COLOR,
           },
         });
       }
@@ -270,6 +272,7 @@ function buildFilterConfigs(
           filterName: preset.name,
           filterIcon: validSports.join(","),
           isCustom: true,
+          filterColor: preset.color || DEFAULT_FILTER_COLOR,
         },
       });
     }
@@ -364,6 +367,7 @@ async function fetchFilterOpportunities(
       filterId: config.metadata.filterId,
       filterName: config.metadata.filterName,
       filterIcon: config.metadata.filterIcon,
+      filterColor: config.metadata.filterColor,
     };
   });
 
@@ -761,4 +765,3 @@ export function useMultiFilterOpportunities({
     prefetchPreset,
   };
 }
-

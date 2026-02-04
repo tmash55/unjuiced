@@ -6,6 +6,7 @@ export interface FilterPreset {
   id: string;
   user_id: string;
   name: string;
+  color?: string | null;
   sport: string; // Comma-separated list of sports (e.g., "nba,nfl,nhl") or single sport
   markets: string[] | null; // null = all markets
   market_type: "all" | "player" | "game"; // Market type filter
@@ -35,6 +36,7 @@ export interface FilterPreset {
 
 export interface FilterPresetCreate {
   name: string;
+  color?: string | null;
   sport: string;
   markets: string[] | null;
   market_type?: "all" | "player" | "game";
@@ -52,6 +54,7 @@ export interface FilterPresetCreate {
 
 // Maximum character length for notes field
 export const NOTES_MAX_LENGTH = 500;
+export const DEFAULT_FILTER_COLOR = "#0EA5E9";
 
 export interface FilterPresetUpdate extends Partial<FilterPresetCreate> {
   is_active?: boolean;

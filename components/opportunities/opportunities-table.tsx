@@ -11,7 +11,7 @@ import {
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
-import { parseSports } from "@/lib/types/filter-presets";
+import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
@@ -35,6 +35,14 @@ import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
 import { useFavorites } from "@/hooks/use-favorites";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 // dnd-kit imports
 import {
@@ -1211,7 +1219,14 @@ export function OpportunitiesTable({
           <td key="filter" className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
             {opp.filterId && opp.filterId !== "default" ? (
               <Tooltip content={opp.filterName || "Custom Filter"}>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200/60 dark:border-amber-800/40 text-amber-700 dark:text-amber-400 text-xs font-semibold shadow-sm">
+                <div
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shadow-sm"
+                  style={{
+                    color: opp.filterColor || DEFAULT_FILTER_COLOR,
+                    borderColor: opp.filterColor || DEFAULT_FILTER_COLOR,
+                    backgroundColor: hexToRgba(opp.filterColor || DEFAULT_FILTER_COLOR, 0.12),
+                  }}
+                >
                   <span className="flex -space-x-1">
                     {parseSports(opp.filterIcon || "").slice(0, 2).map((sport, idx) => (
                       <span key={`${opp.id}-${sport}-${idx}`} className="rounded-full ring-1 ring-amber-100 dark:ring-amber-900/50">
@@ -1219,7 +1234,7 @@ export function OpportunitiesTable({
                       </span>
                     ))}
                     {parseSports(opp.filterIcon || "").length > 2 && (
-                      <span className="text-[9px] text-amber-600 dark:text-amber-500 ml-1 font-medium">
+                      <span className="text-[9px] ml-1 font-medium" style={{ color: opp.filterColor || DEFAULT_FILTER_COLOR }}>
                         +{parseSports(opp.filterIcon || "").length - 2}
                       </span>
                     )}

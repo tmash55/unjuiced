@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
+  DEFAULT_FILTER_COLOR,
   parseSports,
   type FilterPreset,
   type FilterPresetCreate,
@@ -68,6 +69,7 @@ export function useFilterPresets() {
           id: `temp-${Date.now()}`, // Temporary ID
           user_id: user?.id || '',
           name: newPreset.name,
+          color: newPreset.color ?? DEFAULT_FILTER_COLOR,
           sport: newPreset.sport,
           markets: newPreset.markets,
           market_type: newPreset.market_type || 'all',
@@ -298,4 +300,3 @@ export function useFilterPresets() {
     isDeactivatingAll: deactivateAllMutation.isPending,
   };
 }
-

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
-import { parseSports, FilterPreset } from "@/lib/types/filter-presets";
+import { parseSports, FilterPreset, DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { motion, AnimatePresence } from "framer-motion";
@@ -254,8 +254,12 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
                         })}
                       </div>
                       
-                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 whitespace-nowrap max-w-[80px] truncate">
-                        {preset.name}
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 whitespace-nowrap max-w-[90px] truncate">
+                        <span
+                          className="h-2 w-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                        />
+                        <span className="truncate">{preset.name}</span>
                       </span>
                       
                       <X className="w-3.5 h-3.5 text-neutral-400" />
@@ -280,8 +284,12 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
                       )}
                     >
                       {renderSportsIcons(sports, 12)}
-                      <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300 whitespace-nowrap max-w-[80px] truncate">
-                        {preset.name}
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-300 whitespace-nowrap max-w-[90px] truncate">
+                        <span
+                          className="h-2 w-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                        />
+                        <span className="truncate">{preset.name}</span>
                       </span>
                     </button>
                   );
@@ -326,4 +334,3 @@ export function MobileModelsBar({ onPresetsChange, onPresetHover }: MobileModels
     </>
   );
 }
-

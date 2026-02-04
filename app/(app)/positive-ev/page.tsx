@@ -68,6 +68,7 @@ import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 
 // EV Models
 import { useEvModels } from "@/hooks/use-ev-models";
+import { DEFAULT_MODEL_COLOR } from "@/lib/types/ev-models";
 
 // Player profile modal
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
@@ -109,6 +110,14 @@ function formatTimeAgo(timestamp: number): string {
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /**
@@ -2029,11 +2038,19 @@ export default function PositiveEVPage() {
                           const tooltipContent = booksUsed.length > 0 
                             ? `Sharp books: ${booksUsed.map(b => getBookName(b) || b).join(", ")}`
                             : oppWithModel.modelName;
+                          const modelColor = oppWithModel.modelColor || DEFAULT_MODEL_COLOR;
                           
                           return (
                             <div className="flex items-center justify-center gap-2">
                               <Tooltip content={tooltipContent}>
-                                <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded cursor-help truncate max-w-[80px]">
+                                <span
+                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-help truncate max-w-[80px] border"
+                                  style={{
+                                    color: modelColor,
+                                    borderColor: modelColor,
+                                    backgroundColor: hexToRgba(modelColor, 0.12),
+                                  }}
+                                >
                                   {oppWithModel.modelName}
                                 </span>
                               </Tooltip>

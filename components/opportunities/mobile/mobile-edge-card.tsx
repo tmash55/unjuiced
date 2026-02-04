@@ -9,9 +9,18 @@ import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
 import { formatMarketLabelShort } from "@/lib/data/markets";
+import { DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
+
+const hexToRgba = (hex: string, alpha: number): string => {
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -382,7 +391,14 @@ export function MobileEdgeCard({
             {marketDisplay}
           </span>
           {opp.filterName && (
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 truncate max-w-[120px]">
+            <span
+              className="text-[9px] font-semibold px-1.5 py-0.5 rounded truncate max-w-[120px] border"
+              style={{
+                color: opp.filterColor || DEFAULT_FILTER_COLOR,
+                borderColor: opp.filterColor || DEFAULT_FILTER_COLOR,
+                backgroundColor: hexToRgba(opp.filterColor || DEFAULT_FILTER_COLOR, 0.12),
+              }}
+            >
               {opp.filterName}
             </span>
           )}
@@ -725,4 +741,3 @@ export function MobileEdgeCard({
     </div>
   );
 }
-

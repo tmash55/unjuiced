@@ -14,6 +14,7 @@ export interface EvModel {
   user_id: string;
   name: string;
   notes: string | null;
+  color?: string | null;
   
   // Sport/Market filtering
   sport: string;                                // Comma-separated sports (e.g., "nba,nfl") or single sport
@@ -47,6 +48,7 @@ export interface EvModel {
 export interface EvModelCreate {
   name: string;
   notes?: string | null;
+  color?: string | null;
   
   // Sport/Market filtering
   sport: string;
@@ -87,6 +89,7 @@ export interface EvModelsResponse {
 
 // Maximum character length for notes field
 export const EV_MODEL_NOTES_MAX_LENGTH = 500;
+export const DEFAULT_MODEL_COLOR = "#0EA5E9";
 
 /**
  * Sports available for EV models

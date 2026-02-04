@@ -6,6 +6,8 @@ import {
   ChevronDown, 
   ChevronRight, 
   Check,
+  Plus,
+  Minus,
   Filter,
   Info,
   Layers,
@@ -25,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { 
+  DEFAULT_FILTER_COLOR,
   PRESET_SPORTS, 
   parseSports,
   formatSportsForStorage,
@@ -37,6 +40,7 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { SPORT_MARKETS, type SportMarket } from "@/lib/data/markets";
 import { useAvailableMarkets } from "@/hooks/use-available-markets";
 import { getMarketDisplay } from "@/lib/odds/types";
+import { Tooltip } from "@/components/tooltip";
 
 interface FilterPresetFormModalProps {
   open: boolean;
@@ -72,6 +76,17 @@ const PIE_COLORS = [
   '#ec4899', // pink-500
   '#14b8a6', // teal-500
   '#f97316', // orange-500
+];
+
+const MODEL_COLOR_SWATCHES = [
+  "#0EA5E9", // sky
+  "#22C55E", // green
+  "#F97316", // orange
+  "#A855F7", // purple
+  "#EF4444", // red
+  "#EAB308", // yellow
+  "#14B8A6", // teal
+  "#3B82F6", // blue
 ];
 
 // Helper to get sport key for markets lookup
@@ -263,6 +278,7 @@ export function FilterPresetFormModal({
 
   // Form state
   const [name, setName] = useState("");
+  const [color, setColor] = useState(DEFAULT_FILTER_COLOR);
   const [selectedSports, setSelectedSports] = useState<string[]>(["nba"]);
   const [expandedSports, setExpandedSports] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -539,6 +555,7 @@ export function FilterPresetFormModal({
       console.log('[FilterPreset] Modal opened for editing, hydrating form...');
       const sports = parseSports(preset.sport);
       setName(preset.name);
+      setColor(preset.color || DEFAULT_FILTER_COLOR);
       setSelectedSports(sports);
       setReferenceBooks(preset.sharp_books || []);
       setWeights(preset.book_weights || getEqualWeights(preset.sharp_books || []));
@@ -581,6 +598,7 @@ export function FilterPresetFormModal({
       }
     } else {
       setName("");
+      setColor(DEFAULT_FILTER_COLOR);
       setSelectedSports(["nba"]);
       setExpandedSports(new Set());
       setExpandedCategories(new Set());
@@ -640,6 +658,46 @@ export function FilterPresetFormModal({
     });
   };
 
+  const selectAllMarketsForSport = (sportId: string) => {
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      delete next[`${sportId}:gameLines`];
+      delete next[`${sportId}:playerProps`];
+      return next;
+    });
+  };
+
+  const clearAllMarketsForSport = (sportId: string) => {
+    const data = getMarketData(sportId);
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      if (data.gameLineIds.length > 0) {
+        next[`${sportId}:gameLines`] = new Set();
+      }
+      if (data.playerPropIds.length > 0) {
+        next[`${sportId}:playerProps`] = new Set();
+      }
+      return next;
+    });
+  };
+
+  const selectAllMarketsForCategory = (sportId: string, category: "gameLines" | "playerProps") => {
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      delete next[`${sportId}:${category}`];
+      return next;
+    });
+  };
+
+  const clearAllMarketsForCategory = (sportId: string, category: "gameLines" | "playerProps") => {
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      const key = `${sportId}:${category}`;
+      next[key] = new Set();
+      return next;
+    });
+  };
+
   // Toggle a reference book
   const toggleReferenceBook = (bookId: string) => {
     // OLD (stable) behavior: update books and weights together.
@@ -657,6 +715,66 @@ export function FilterPresetFormModal({
       return newBooks;
     });
   };
+
+  const allPresetSportsSelected = selectedSports.length === PRESET_SPORTS.length;
+  const hasCustomMarkets = Object.keys(selectedMarkets).length > 0;
+
+  const handleSelectAllSports = () => {
+    setSelectedSports(PRESET_SPORTS.map((sport) => sport.value));
+  };
+
+  const handleClearSports = () => {
+    setSelectedSports([]);
+    setExpandedSports(new Set());
+  };
+
+  const handleSelectAllMarkets = () => {
+    const targetSports = selectedSports.length > 0
+      ? selectedSports
+      : PRESET_SPORTS.map((sport) => sport.value);
+
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      targetSports.forEach((sportId) => {
+        delete next[`${sportId}:gameLines`];
+        delete next[`${sportId}:playerProps`];
+      });
+      return next;
+    });
+  };
+
+  const handleClearMarkets = () => {
+    const targetSports = selectedSports.length > 0
+      ? selectedSports
+      : PRESET_SPORTS.map((sport) => sport.value);
+
+    setSelectedMarkets((prev) => {
+      const next = { ...prev };
+      targetSports.forEach((sportId) => {
+        const data = getMarketData(sportId);
+        if (data.gameLineIds.length > 0) {
+          next[`${sportId}:gameLines`] = new Set();
+        }
+        if (data.playerPropIds.length > 0) {
+          next[`${sportId}:playerProps`] = new Set();
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleSelectAllReferenceBooks = () => {
+    const allBooks = REFERENCE_BOOKS.map(book => book.id);
+    setReferenceBooks(allBooks);
+    setWeights(getEqualWeights(allBooks));
+  };
+
+  const handleDeselectAllReferenceBooks = () => {
+    setReferenceBooks([]);
+    setWeights({});
+  };
+
+  const allReferenceBooksSelected = referenceBooks.length === REFERENCE_BOOKS.length;
 
   // Handle weight change - only adjust the LAST book to maintain 100%
   // This allows setting specific weights from top to bottom without them changing
@@ -778,6 +896,7 @@ export function FilterPresetFormModal({
       const marketsPayload = buildSelectedMarketsPayload();
       const data: FilterPresetCreate = {
         name: name.trim(),
+        color,
         sport: formatSportsForStorage(selectedSports),
         markets: marketsPayload,
         market_type: getMarketType(),
@@ -856,6 +975,44 @@ export function FilterPresetFormModal({
                   disabled={isLoading}
                   className="h-12 bg-white dark:bg-neutral-800 border-neutral-200/80 dark:border-neutral-700/80 rounded-xl text-base font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
+              </div>
+
+              <div className="mb-6">
+                <Label htmlFor="model-color" className="text-sm font-semibold text-neutral-900 dark:text-white mb-2 block">
+                  Model Color
+                </Label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-800 px-3 py-2">
+                    <input
+                      id="model-color"
+                      type="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value.toUpperCase())}
+                      disabled={isLoading}
+                      className="h-8 w-10 cursor-pointer rounded-md border border-neutral-200/80 dark:border-neutral-700/80 bg-transparent"
+                    />
+                    <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                      {color.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {MODEL_COLOR_SWATCHES.map((swatch) => (
+                      <button
+                        key={swatch}
+                        type="button"
+                        onClick={() => setColor(swatch)}
+                        className={cn(
+                          "h-7 w-7 rounded-full border transition-all",
+                          color.toUpperCase() === swatch
+                            ? "border-neutral-900 dark:border-white ring-2 ring-neutral-900/10 dark:ring-white/10"
+                            : "border-neutral-200 dark:border-neutral-700 hover:scale-105"
+                        )}
+                        style={{ backgroundColor: swatch }}
+                        aria-label={`Select ${swatch}`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Two Column Layout */}
@@ -948,6 +1105,34 @@ export function FilterPresetFormModal({
                         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                           Select books to calculate fair odds
                         </p>
+                      </div>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllReferenceBooks}
+                          disabled={isLoading || allReferenceBooksSelected}
+                          className={cn(
+                            "text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors",
+                            allReferenceBooksSelected
+                              ? "text-neutral-400 border-neutral-200 dark:border-neutral-800"
+                              : "text-neutral-700 border-neutral-200 bg-neutral-50 hover:bg-neutral-100 dark:text-neutral-200 dark:border-neutral-700 dark:bg-neutral-800/60 dark:hover:bg-neutral-700"
+                          )}
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectAllReferenceBooks}
+                          disabled={isLoading || referenceBooks.length === 0}
+                          className={cn(
+                            "text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors",
+                            referenceBooks.length === 0
+                              ? "text-neutral-400 border-neutral-200 dark:border-neutral-800"
+                              : "text-neutral-600 border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                          )}
+                        >
+                          Clear
+                        </button>
                       </div>
                     </div>
 
@@ -1089,6 +1274,34 @@ export function FilterPresetFormModal({
                         Click to select, expand to customize
                       </p>
                     </div>
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllSports}
+                        disabled={isLoading || allPresetSportsSelected}
+                        className={cn(
+                          "text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors",
+                          allPresetSportsSelected
+                            ? "text-neutral-400 border-neutral-200 dark:border-neutral-800"
+                            : "text-neutral-700 border-neutral-200 bg-neutral-50 hover:bg-neutral-100 dark:text-neutral-200 dark:border-neutral-700 dark:bg-neutral-800/60 dark:hover:bg-neutral-700"
+                        )}
+                      >
+                        All sports
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSports}
+                        disabled={isLoading || selectedSports.length === 0}
+                        className={cn(
+                          "text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors",
+                          selectedSports.length === 0
+                            ? "text-neutral-400 border-neutral-200 dark:border-neutral-800"
+                            : "text-neutral-600 border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                        )}
+                      >
+                        Clear sports
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -1165,9 +1378,37 @@ export function FilterPresetFormModal({
                             </span>
                             
                             {isSelected && (
-                              <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                                {selectedCount}/{totalMarkets} markets
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Tooltip content="Select all markets for this sport">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        selectAllMarketsForSport(sport.value);
+                                      }}
+                                      className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </Tooltip>
+                                  <Tooltip content="Clear all markets for this sport">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        clearAllMarketsForSport(sport.value);
+                                      }}
+                                      className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                  </Tooltip>
+                                </div>
+                                <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                                  {selectedCount}/{totalMarkets} markets
+                                </span>
+                              </div>
                             )}
                             
                             <ChevronDown className={cn(
@@ -1204,6 +1445,32 @@ export function FilterPresetFormModal({
                                       <span className="text-[11px] text-neutral-400 tabular-nums">
                                         {data.gameLineIds.filter(id => isMarketSelected(sport.value, 'gameLines', id)).length}/{data.gameLines.length}
                                       </span>
+                                      <div className="flex items-center gap-1">
+                                        <Tooltip content="Select all game lines">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              selectAllMarketsForCategory(sport.value, "gameLines");
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </button>
+                                        </Tooltip>
+                                        <Tooltip content="Clear all game lines">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              clearAllMarketsForCategory(sport.value, "gameLines");
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                          >
+                                            <Minus className="h-3 w-3" />
+                                          </button>
+                                        </Tooltip>
+                                      </div>
                                       <ChevronRight className={cn(
                                         "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
                                         expandedCategories.has(`${sport.value}:gameLines`) && "rotate-90"
@@ -1255,6 +1522,32 @@ export function FilterPresetFormModal({
                                       <span className="text-[11px] text-neutral-400 tabular-nums">
                                         {data.playerPropIds.filter(id => isMarketSelected(sport.value, 'playerProps', id)).length}/{data.playerPropIds.length}
                                       </span>
+                                      <div className="flex items-center gap-1">
+                                        <Tooltip content="Select all player props">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              selectAllMarketsForCategory(sport.value, "playerProps");
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </button>
+                                        </Tooltip>
+                                        <Tooltip content="Clear all player props">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              clearAllMarketsForCategory(sport.value, "playerProps");
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 transition-colors"
+                                          >
+                                            <Minus className="h-3 w-3" />
+                                          </button>
+                                        </Tooltip>
+                                      </div>
                                       <ChevronRight className={cn(
                                         "w-3.5 h-3.5 text-neutral-400 transition-transform duration-200",
                                         expandedCategories.has(`${sport.value}:playerProps`) && "rotate-90"

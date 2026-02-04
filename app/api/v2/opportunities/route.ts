@@ -1240,73 +1240,22 @@ function calculateMetricsWithDevig(
 const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
 
 /**
- * Books that can have extreme outlier odds that would skew averages.
- * Prediction markets (Polymarket, Kalshi) can have very heavy odds (e.g., -1567) on certain markets.
+ * Books to exclude from market average calculations.
+ * Prediction markets (Polymarket, Kalshi) can skew averages with exchange-style pricing.
  */
 const OUTLIER_PRONE_BOOKS = new Set(["polymarket", "kalshi"]);
 
 /**
- * Thresholds for outlier detection (in decimal odds).
- * Decimal 1.11 = -1000 American, Decimal 6.0 = +500 American
- * These are odds that are likely extreme outliers when coming from prediction markets.
- */
-const OUTLIER_DECIMAL_MIN = 1.11;  // Anything below this (more extreme than -1000) is suspicious
-const OUTLIER_DECIMAL_MAX = 6.0;   // For consistency, though less common
-
-/**
- * Check if odds from an outlier-prone book should be excluded from averages.
- * We exclude when:
- * 1. The book is in OUTLIER_PRONE_BOOKS
- * 2. The decimal odds are extremely heavy (below threshold)
- * 3. The odds deviate significantly from other books' average
- */
-function isOutlierOdds(
-  book: string,
-  decimal: number,
-  otherBooks: { book: string; decimal: number }[]
-): boolean {
-  // Only check outlier-prone books
-  if (!OUTLIER_PRONE_BOOKS.has(book)) return false;
-  
-  // Check if odds are in extreme territory
-  if (decimal < OUTLIER_DECIMAL_MIN) {
-    return true; // Very heavy favorite odds (below -2000)
-  }
-  
-  // If there are other books, check if this book's odds deviate significantly
-  if (otherBooks.length >= 2) {
-    const otherAvg = otherBooks.reduce((sum, b) => sum + b.decimal, 0) / otherBooks.length;
-    const deviation = Math.abs(decimal - otherAvg) / otherAvg;
-    
-    // If prediction market deviates by more than 50% from the average of other books, exclude it
-    if (deviation > 0.5) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
  * Deduplicate and filter books for average calculation.
  * - RSI books with identical odds are counted once
- * - Outlier-prone books (Polymarket, Kalshi) with extreme odds are excluded
- * - Non-RSI/non-outlier books are always included normally
+ * - Excludes prediction markets (Polymarket, Kalshi) from the average
+ * - Non-RSI books are included normally
  */
 function deduplicateBooksForAverage(
   books: { book: string; decimal: number }[]
 ): { book: string; decimal: number }[] {
-  // First, filter out extreme outliers from outlier-prone books
-  const nonOutlierBooks = books.filter(b => !OUTLIER_PRONE_BOOKS.has(b.book));
-  const outlierProneBooks = books.filter(b => OUTLIER_PRONE_BOOKS.has(b.book));
-  
-  // Check each outlier-prone book against the others
-  const filteredOutlierBooks = outlierProneBooks.filter(b => 
-    !isOutlierOdds(b.book, b.decimal, nonOutlierBooks)
-  );
-  
-  // Combine filtered books
-  const filteredBooks = [...nonOutlierBooks, ...filteredOutlierBooks];
+  // Exclude prediction markets from the average calculation
+  const filteredBooks = books.filter(b => !OUTLIER_PRONE_BOOKS.has(b.book));
   
   // Now handle RSI deduplication
   const rsiBooks: { book: string; decimal: number }[] = [];
@@ -1599,4 +1548,3 @@ async function scanKeys(pattern: string): Promise<string[]> {
 
   return keys;
 }
-

@@ -133,6 +133,7 @@ export interface Opportunity {
   filterId: string | null;       // ID of the custom filter that matched (null = preset mode)
   filterName: string | null;     // Display name of the filter
   filterIcon: string | null;     // Sports string (e.g., "nba" or "nba,nfl")
+  filterColor?: string | null;   // Optional custom color for the filter
 }
 
 /**
@@ -194,6 +195,7 @@ export interface FilterConfig {
     filterName: string;      // Display name
     filterIcon: string;      // Sport icon(s)
     isCustom: boolean;       // true = custom preset, false = preset mode
+    filterColor?: string | null;
   };
 }
 
@@ -496,4 +498,3 @@ export function formatMarketName(market: string): string {
   const result = names[market] || market.replace(/_/g, " ").replace(/player /i, "");
   return shortenPeriodPrefix(result);
 }
-

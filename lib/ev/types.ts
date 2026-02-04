@@ -236,6 +236,11 @@ export interface PositiveEVOpportunity {
   // Timestamps
   createdAt: string;
   updatedAt: string;
+
+  // Optional model metadata (client-side tagging)
+  modelId?: string;
+  modelName?: string;
+  modelColor?: string | null;
 }
 
 // =============================================================================

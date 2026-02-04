@@ -17,7 +17,7 @@ import {
   TrendingDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FilterPreset, parseSports } from "@/lib/types/filter-presets";
+import { FilterPreset, parseSports, DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { motion, AnimatePresence } from "framer-motion";
@@ -196,6 +196,7 @@ export function MobileModelsSheet({
         min_books_reference: preset.min_books_reference,
         min_odds: preset.min_odds,
         max_odds: preset.max_odds,
+        color: preset.color,
         is_default: false,
       });
       onPresetsChange?.();
@@ -332,6 +333,10 @@ export function MobileModelsSheet({
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
+                            />
                             <h3 className="text-base font-bold text-neutral-900 dark:text-white truncate">
                               {preset.name}
                             </h3>

@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import type { EvModelUpdate, EvModel } from "@/lib/types/ev-models";
-import { EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+function normalizeColor(color?: string | null): string | null | undefined {
+  if (color === undefined) return undefined;
+  if (color === null || color === "") return null;
+  if (!HEX_COLOR_REGEX.test(color)) return undefined;
+  return color.toUpperCase();
+}
 
 // =============================================================================
 // Pre-warming Helper
@@ -163,6 +172,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const normalizedColor = normalizeColor(body.color);
+    if (body.color !== undefined && normalizedColor === undefined) {
+      return NextResponse.json(
+        { error: "color must be a valid hex value like #0EA5E9" },
+        { status: 400 }
+      );
+    }
+
     // Build update object with only provided fields
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -170,6 +187,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (body.name !== undefined) updateData.name = body.name;
     if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.color !== undefined) updateData.color = normalizedColor ?? DEFAULT_MODEL_COLOR;
     if (body.sport !== undefined) updateData.sport = body.sport;
     if (body.markets !== undefined) updateData.markets = body.markets;
     if (body.market_type !== undefined) updateData.market_type = body.market_type;

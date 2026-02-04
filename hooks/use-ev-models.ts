@@ -8,7 +8,7 @@ import type {
   EvModelUpdate,
   EvModelsResponse,
 } from "@/lib/types/ev-models";
-import { parseEvSports } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, parseEvSports } from "@/lib/types/ev-models";
 
 const QUERY_KEY = ["ev-models"];
 
@@ -73,6 +73,7 @@ export function useEvModels() {
           user_id: user?.id || "",
           name: newModel.name,
           notes: newModel.notes || null,
+          color: newModel.color ?? DEFAULT_MODEL_COLOR,
           sport: newModel.sport,
           markets: newModel.markets || null,
           market_type: newModel.market_type || "all",

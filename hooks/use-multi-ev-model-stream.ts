@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PositiveEVOpportunity, PositiveEVResponse, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { SHARP_PRESETS, DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
-import { type EvModel, parseEvSports } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { useSSE } from "@/hooks/use-sse";
 
 // =============================================================================
@@ -57,6 +57,7 @@ interface ModelConfig {
     modelId: string;
     modelName: string;
     isCustom: boolean;
+    modelColor?: string | null;
   };
 }
 
@@ -117,6 +118,7 @@ function buildModelConfigs(
         modelId: "default",
         modelName: prefs.sharpPreset,
         isCustom: false,
+        modelColor: null,
       },
     }];
   }
@@ -148,6 +150,7 @@ function buildModelConfigs(
         modelId: model.id,
         modelName: model.name,
         isCustom: true,
+        modelColor: model.color || DEFAULT_MODEL_COLOR,
       },
     });
   }
@@ -229,6 +232,7 @@ async function fetchModelOpportunities(
     ...opp,
     modelId: config.metadata.modelId,
     modelName: config.metadata.modelName,
+    modelColor: config.metadata.modelColor,
   }));
   
   return {

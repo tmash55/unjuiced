@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import type { FilterPreset, FilterPresetCreate } from "@/lib/types/filter-presets";
+import { DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
+
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+function normalizeColor(color?: string | null): string | null | undefined {
+  if (color === undefined) return undefined;
+  if (color === null || color === "") return null;
+  if (!HEX_COLOR_REGEX.test(color)) return undefined;
+  return color.toUpperCase();
+}
 
 // =============================================================================
 // Pre-warming Helper
@@ -165,12 +175,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedColor = normalizeColor(body.color);
+    if (body.color !== undefined && normalizedColor === undefined) {
+      return NextResponse.json(
+        { error: "color must be a valid hex value like #0EA5E9" },
+        { status: 400 }
+      );
+    }
+
     // Create the preset
     const { data: preset, error } = await supabase
       .from("user_filter_presets")
       .insert({
         user_id: user.id,
         name: body.name,
+        color: normalizedColor ?? DEFAULT_FILTER_COLOR,
         sport: body.sport,
         markets: body.markets || null,
         market_type: body.market_type || "all",

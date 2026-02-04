@@ -24,7 +24,7 @@ import {
   DEFAULT_DEVIG_METHODS,
   POSITIVE_EV_DEFAULTS,
 } from "@/lib/ev/constants";
-import { type EvModel, parseEvSports } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
 
 // All supported sports
@@ -78,6 +78,7 @@ export interface EVModelConfig {
     modelId: string;
     modelName: string;
     isCustom: boolean;
+    modelColor?: string | null;
   };
 }
 
@@ -161,6 +162,7 @@ function buildModelConfigs(
         modelId: "default",
         modelName: prefs.sharpPreset,
         isCustom: false,
+        modelColor: null,
       },
     }];
   }
@@ -205,6 +207,7 @@ function buildModelConfigs(
         modelId: model.id,
         modelName: model.name,
         isCustom: true,
+        modelColor: model.color || DEFAULT_MODEL_COLOR,
       },
     });
   }
@@ -317,6 +320,7 @@ async function fetchModelOpportunities(
     ...opp,
     modelId: config.metadata.modelId,
     modelName: config.metadata.modelName,
+    modelColor: config.metadata.modelColor,
   }));
   
   return {

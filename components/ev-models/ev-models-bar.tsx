@@ -6,7 +6,7 @@ import { Star } from "@/components/star";
 import { useEvModels } from "@/hooks/use-ev-models";
 import { EvModelFormModal } from "./ev-model-form-modal";
 import { EvModelsManagerModal } from "./ev-models-manager-modal";
-import { formatEvSharpBooks, formatEvMarketType, type EvModel } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, formatEvSharpBooks, formatEvMarketType, type EvModel } from "@/lib/types/ev-models";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
@@ -235,6 +235,10 @@ export function EvModelsBar({
             key={model.id}
             className="h-9 px-3 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-300 dark:border-violet-700 flex items-center gap-2"
           >
+            <span
+              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: model.color || DEFAULT_MODEL_COLOR }}
+            />
             <div className="flex items-center gap-1.5">
               {model.sharp_books.slice(0, 2).map((bookId) => {
                 const logo = getBookLogo(bookId);

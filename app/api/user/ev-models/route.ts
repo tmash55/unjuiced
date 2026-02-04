@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import type { EvModelCreate, EvModel } from "@/lib/types/ev-models";
-import { EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+import { DEFAULT_MODEL_COLOR, EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+function normalizeColor(color?: string | null): string | null | undefined {
+  if (color === undefined) return undefined;
+  if (color === null || color === "") return null;
+  if (!HEX_COLOR_REGEX.test(color)) return undefined;
+  return color.toUpperCase();
+}
 
 // =============================================================================
 // Pre-warming Helper
@@ -171,6 +180,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedColor = normalizeColor(body.color);
+    if (body.color !== undefined && normalizedColor === undefined) {
+      return NextResponse.json(
+        { error: "color must be a valid hex value like #0EA5E9" },
+        { status: 400 }
+      );
+    }
+
     // Get the max sort_order for this user
     const { data: existingModels } = await supabase
       .from("user_ev_models")
@@ -190,6 +207,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name: body.name,
         notes: body.notes || null,
+        color: normalizedColor ?? DEFAULT_MODEL_COLOR,
         sport: body.sport || "", // Empty string means "all sports"
         markets: body.markets || null,
         market_type: body.market_type || "all",
