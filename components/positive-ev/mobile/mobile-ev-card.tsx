@@ -473,7 +473,7 @@ export function MobileEVCard({
               className="h-7 w-7 p-1.5"
               shareContent={
                 <ShareOddsCard
-                  playerName={selectionDisplay}
+                  playerName={selectionDisplay || ""}
                   market={marketDisplay || opp.market || ""}
                   sport={opp.sport.toUpperCase()}
                   line={opp.line ?? 0}
