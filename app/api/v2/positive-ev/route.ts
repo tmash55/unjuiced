@@ -855,6 +855,7 @@ async function fetchPositiveEVOpportunities(
             price: bestBook.book.price,
             priceDecimal: bestBook.book.priceDecimal,
             link: bestBook.book.link,
+            mobileLink: bestBook.book.mobileLink || null,
             limits: bestBook.book.limits || null,
             evPercent: bestBook.evCalc.evWorst,
           } as BookOffer,
