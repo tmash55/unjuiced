@@ -20,11 +20,14 @@ export type Entitlements = {
 };
 
 /**
- * Normalize legacy plan names to new names
+ * Normalize legacy plan names to new names.
+ * Early adopters get bumped up one tier:
+ *   hit_rate → sharp  (was scout-level, now gets sharp tools)
+ *   pro      → elite  (was sharp-level, now gets full elite access)
  */
 function normalizePlan(plan: string | undefined): string {
-  if (plan === "hit_rate") return "scout";
-  if (plan === "pro") return "sharp";
+  if (plan === "hit_rate") return "sharp";
+  if (plan === "pro") return "elite";
   if (plan === "admin") return "elite";
   return plan || "free";
 }

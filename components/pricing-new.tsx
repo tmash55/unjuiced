@@ -8,7 +8,27 @@ import { ButtonLink } from "./button-link";
 import { buildCheckoutStartPath, buildRegisterCheckoutPath, ProductType } from "@/constants/billing";
 import { useAuth } from "./auth/auth-provider";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useSubscription } from "@/hooks/use-subscription";
 import { usePartnerCoupon } from "@/hooks/use-partner-coupon";
+import { cn } from "@/lib/utils";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Plan hierarchy (higher index = higher tier)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PLAN_RANK: Record<string, number> = {
+  free: 0,
+  scout: 1,
+  sharp: 2,
+  edge: 3,
+  elite: 3,
+  admin: 4,
+  unlimited: 4,
+};
+
+function getPlanRank(plan: string | undefined): number {
+  return PLAN_RANK[plan || "free"] ?? 0;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Plan Data
@@ -158,11 +178,22 @@ const featureCategories: { category: string; features: FeatureRow[] }[] = [
 export const PricingNew = () => {
   const [isYearly, setIsYearly] = useState(false);
   const { user } = useAuth();
-  const { data: entitlements } = useEntitlements();
+  const { data: entitlements, isLoading: isLoadingEntitlements } = useEntitlements();
+  const { data: subscription, isLoading: isLoadingSubscription } = useSubscription();
   const { couponId: partnerCouponId } = usePartnerCoupon();
 
+  const isLoading = isLoadingEntitlements || isLoadingSubscription;
+
+  // Determine the user's current plan
+  const currentPlan = entitlements?.plan || "free";
+  const currentPlanRank = getPlanRank(currentPlan);
+  const trialUsed = entitlements?.trial?.trial_used !== false; // true if used or undefined
+  const isTrialing = entitlements?.entitlement_source === "trial";
+  const hasActiveSubscription = entitlements?.entitlement_source === "subscription";
+  const isGranted = entitlements?.entitlement_source === "grant";
+
   // Show trial CTA only if user hasn't used trial
-  const showTrialCTA = !user || entitlements?.trial?.trial_used === false;
+  const showTrialCTA = !user || !trialUsed;
 
   // Build checkout URL (wrap in /register if not authenticated)
   const getCheckoutUrl = (productType: ProductType, trialDays?: number) => {
@@ -216,25 +247,45 @@ export const PricingNew = () => {
 
         {/* Plan Cards */}
         <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {plans.map((plan, idx) => (
-            <PlanCard
-              key={plan.name}
-              plan={plan}
-              isYearly={isYearly}
-              index={idx}
-              checkoutUrl={
-                plan.productType !== "free"
-                  ? getCheckoutUrl(plan.productType, plan.trialDays)
-                  : undefined
-              }
-              showTrialCTA={showTrialCTA}
-            />
-          ))}
+          {plans.map((plan, idx) => {
+            const cardProductType = plan.productType === "free" ? "free" : plan.productType;
+            // Normalize "edge" → rank 3, which is the same as "elite"
+            const cardPlanKey = cardProductType === "edge" ? "edge" : cardProductType;
+            const cardRank = getPlanRank(cardPlanKey);
+            const isCurrentPlan = user && !isLoading && currentPlanRank === cardRank && cardRank > 0;
+            const isCurrentFree = user && !isLoading && currentPlanRank === 0 && cardRank === 0;
+            const isUpgrade = user && !isLoading && cardRank > currentPlanRank && cardRank > 0;
+            const isDowngrade = user && !isLoading && cardRank < currentPlanRank && cardRank > 0;
+
+            return (
+              <PlanCard
+                key={plan.name}
+                plan={plan}
+                isYearly={isYearly}
+                index={idx}
+                checkoutUrl={
+                  plan.productType !== "free"
+                    ? getCheckoutUrl(plan.productType, plan.trialDays)
+                    : undefined
+                }
+                showTrialCTA={showTrialCTA}
+                isCurrentPlan={Boolean(isCurrentPlan) || Boolean(isCurrentFree)}
+                isUpgrade={Boolean(isUpgrade)}
+                isDowngrade={Boolean(isDowngrade)}
+                hasActiveSubscription={hasActiveSubscription || isTrialing}
+                isGranted={Boolean(isGranted)}
+                isLoggedIn={Boolean(user)}
+                isLoading={isLoading}
+              />
+            );
+          })}
         </div>
 
         {/* Footnote */}
         <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-          All paid plans include a 3-day free trial. Yearly billing includes 2 months free.
+          {showTrialCTA
+            ? "All paid plans include a 3-day free trial. Yearly billing includes 2 months free."
+            : "Yearly billing includes 2 months free. Upgrade or downgrade anytime."}
         </p>
 
         {/* Feature Comparison */}
@@ -254,34 +305,125 @@ interface PlanCardProps {
   index: number;
   checkoutUrl?: string;
   showTrialCTA: boolean;
+  isCurrentPlan: boolean;
+  isUpgrade: boolean;
+  isDowngrade: boolean;
+  hasActiveSubscription: boolean;
+  isGranted: boolean;
+  isLoggedIn: boolean;
+  isLoading: boolean;
 }
 
-const PlanCard = ({ plan, isYearly, index, checkoutUrl, showTrialCTA }: PlanCardProps) => {
+const PlanCard = ({
+  plan,
+  isYearly,
+  index,
+  checkoutUrl,
+  showTrialCTA,
+  isCurrentPlan,
+  isUpgrade,
+  isDowngrade,
+  hasActiveSubscription,
+  isGranted,
+  isLoggedIn,
+  isLoading,
+}: PlanCardProps) => {
+  const [portalLoading, setPortalLoading] = useState(false);
+
   const price = isYearly ? Math.round(plan.yearlyPrice / 12) : plan.monthlyPrice;
   const yearlyTotal = plan.yearlyPrice;
   const isFree = plan.productType === "free";
   const isPopular = plan.badge === "Most Popular";
   const hasTrial = plan.trialDays && showTrialCTA;
-  const ctaLabel = plan.ctaText || (hasTrial ? "Try for free" : "Get started");
+
+  // Open Stripe Customer Portal for existing subscribers to upgrade/downgrade
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnUrl: window.location.origin + "/plans",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to open billing portal");
+      if (data.url) window.location.assign(data.url);
+    } catch (error: any) {
+      console.error("Portal error:", error);
+      setPortalLoading(false);
+    }
+  };
+
+  // Determine CTA label and action
+  let ctaLabel: string;
+  let ctaAction: "checkout" | "portal" | "register" | "current" | "none";
+
+  if (isLoading) {
+    ctaLabel = "";
+    ctaAction = "none";
+  } else if (isFree) {
+    if (isCurrentPlan) {
+      ctaLabel = "Current plan";
+      ctaAction = "current";
+    } else {
+      ctaLabel = "Sign up for free";
+      ctaAction = "register";
+    }
+  } else if (isCurrentPlan) {
+    ctaLabel = isGranted ? "Granted access" : "Current plan";
+    ctaAction = "current";
+  } else if (isGranted) {
+    // Grant users shouldn't see upgrade/downgrade for other tiers —
+    // their access is managed outside of billing
+    ctaLabel = "";
+    ctaAction = "none";
+  } else if (isUpgrade && hasActiveSubscription) {
+    ctaLabel = "Upgrade";
+    ctaAction = "portal";
+  } else if (isDowngrade && hasActiveSubscription) {
+    ctaLabel = "Downgrade";
+    ctaAction = "portal";
+  } else {
+    // No subscription yet — go through checkout
+    ctaLabel = plan.ctaText || (hasTrial ? "Try for free" : "Get started");
+    ctaAction = "checkout";
+  }
+
+  // Override badge for current plan
+  const displayBadge = isCurrentPlan
+    ? isGranted
+      ? "Granted"
+      : "Current Plan"
+    : plan.badge;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="relative flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-700 dark:bg-neutral-900"
+      className={cn(
+        "relative flex flex-col rounded-2xl border p-6 transition-colors",
+        isCurrentPlan
+          ? "border-brand/30 bg-brand/[0.03] dark:border-brand/20 dark:bg-brand/[0.05]"
+          : "border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900",
+      )}
     >
       {/* Badge */}
-      {plan.badge && (
+      {displayBadge && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <span
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-              isPopular
+            className={cn(
+              "whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide",
+              isCurrentPlan
                 ? "bg-brand text-white"
-                : "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-            }`}
+                : isPopular
+                ? "bg-brand text-white"
+                : "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900",
+            )}
           >
-            {plan.badge}
+            {displayBadge}
           </span>
         </div>
       )}
@@ -338,21 +480,50 @@ const PlanCard = ({ plan, isYearly, index, checkoutUrl, showTrialCTA }: PlanCard
 
       {/* CTA Button */}
       <div className="mt-6">
-        {isFree ? (
+        {isLoading ? (
+          <div className="flex h-12 w-full items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          </div>
+        ) : ctaAction === "none" ? (
+          // Grant users on non-current tiers, or loading — no button
+          <div className="h-12" />
+        ) : ctaAction === "current" ? (
+          <div className="flex h-12 w-full items-center justify-center rounded-lg border-2 border-brand/30 bg-brand/5 text-sm font-semibold text-brand dark:border-brand/20 dark:bg-brand/10">
+            {ctaLabel}
+          </div>
+        ) : ctaAction === "portal" ? (
+          <button
+            onClick={handleManageSubscription}
+            disabled={portalLoading}
+            className={cn(
+              "flex h-12 w-full items-center justify-center rounded-lg text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50",
+              isUpgrade
+                ? "bg-brand text-white hover:bg-brand/90"
+                : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
+            )}
+          >
+            {portalLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              ctaLabel
+            )}
+          </button>
+        ) : ctaAction === "register" ? (
           <ButtonLink
             href="/register"
-            className="!flex !w-full items-center justify-center rounded-lg border-2 border-neutral-900 bg-white py-3 text-sm font-semibold text-neutral-900 transition-all hover:bg-neutral-50 dark:border-white dark:bg-transparent dark:text-white dark:hover:bg-white/5"
+            className="!flex !h-12 !w-full items-center justify-center rounded-lg border-2 border-neutral-900 bg-white text-sm font-semibold text-neutral-900 transition-all hover:bg-neutral-50 dark:border-white dark:bg-transparent dark:text-white dark:hover:bg-white/5"
           >
-            Sign up for free
+            {ctaLabel}
           </ButtonLink>
         ) : (
           <ButtonLink
             href={checkoutUrl || "/register"}
-            className={`!flex !w-full items-center justify-center rounded-lg py-3 text-sm font-semibold transition-all ${
+            className={cn(
+              "!flex !h-12 !w-full items-center justify-center rounded-lg text-sm font-semibold transition-all",
               isPopular
                 ? "bg-brand text-white hover:bg-brand/90"
-                : "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-            }`}
+                : "bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100",
+            )}
           >
             {ctaLabel}
           </ButtonLink>
@@ -395,9 +566,8 @@ const FeatureComparison = () => {
             </tr>
           </thead>
           <tbody>
-            {featureCategories.map((category, catIdx) => (
+            {featureCategories.map((category) => (
               <React.Fragment key={category.category}>
-                {/* Category Header */}
                 <tr className="border-b border-neutral-200 bg-neutral-50/50 dark:border-neutral-700 dark:bg-neutral-800/50">
                   <td
                     colSpan={5}
@@ -406,7 +576,6 @@ const FeatureComparison = () => {
                     {category.category}
                   </td>
                 </tr>
-                {/* Feature Rows */}
                 {category.features.map((feature, idx) => (
                   <tr
                     key={feature.name}
@@ -437,7 +606,7 @@ const FeatureComparison = () => {
         </table>
       </div>
 
-      {/* Mobile: Accordion or simplified view */}
+      {/* Mobile view */}
       <div className="mt-10 space-y-4 md:hidden">
         {featureCategories.map((category) => (
           <div

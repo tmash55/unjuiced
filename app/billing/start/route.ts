@@ -40,6 +40,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}${fallbackPath}`)
     }
 
+    // Safety net: block checkout if user already has an active subscription
+    // This prevents accidental double subscriptions. Existing subscribers
+    // should upgrade/downgrade through the Stripe Customer Portal instead.
+    const { data: existingSub } = await supabase
+      .schema('billing')
+      .from('subscriptions')
+      .select('id, status, stripe_subscription_id')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'trialing'])
+      .limit(1)
+      .maybeSingle()
+
+    if (existingSub) {
+      console.warn('[billing/start] User already has active subscription, redirecting to portal', {
+        subscriptionId: existingSub.stripe_subscription_id,
+        status: existingSub.status,
+      })
+      return NextResponse.redirect(`${origin}/account/settings/billing`)
+    }
+
     // Check for partner discount from Dub referral link
     const cookieHeader = req.headers.get('cookie')
     const partnerDiscount = getPartnerDiscountFromCookie(cookieHeader)
@@ -104,6 +124,18 @@ export async function GET(req: NextRequest) {
     }
     const allowTrial = profileTrialUsed === false
     const trialDays = allowTrial ? requestedTrialDays : undefined
+
+    // Validate existing customer ID actually exists in Stripe
+    // (handles test vs. live mode mismatch, deleted customers, etc.)
+    if (stripeCustomerId) {
+      try {
+        await stripe.customers.retrieve(stripeCustomerId)
+      } catch {
+        console.warn('[billing/start] Stored customer ID invalid, will create new:', stripeCustomerId)
+        stripeCustomerId = undefined
+      }
+    }
+
     if (!stripeCustomerId) {
       try {
         const customer = await stripe.customers.create({
@@ -115,6 +147,7 @@ export async function GET(req: NextRequest) {
           .update({ stripe_customer_id: customer.id })
           .eq('id', user.id)
         stripeCustomerId = customer.id
+        console.log('[billing/start] Created new Stripe customer:', customer.id)
       } catch (err) {
         console.warn('[billing/start] Failed to create Stripe customer:', (err as any)?.message)
       }

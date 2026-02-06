@@ -17,12 +17,15 @@ export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "edge" | "elit
 export type LegacyUserPlan = "hit_rate" | "pro";
 
 /**
- * Map legacy plan names to new plan names
+ * Map legacy plan names to new plan names.
+ * Early adopters get bumped up one tier as a loyalty reward:
+ *   hit_rate → sharp  (was scout-level, now gets sharp tools)
+ *   pro      → elite  (was sharp-level, now gets full elite access)
  */
 export function normalizePlanName(plan: string): UserPlan {
-  if (plan === "hit_rate") return "scout";
-  if (plan === "pro") return "sharp"; // Old pro maps to sharp (not edge)
-  if (plan === "admin") return "elite"; // Admins get full access
+  if (plan === "hit_rate") return "sharp"; // Legacy hit_rate → sharp (bumped up)
+  if (plan === "pro") return "elite";      // Legacy pro → elite (bumped up)
+  if (plan === "admin") return "elite";    // Admins get full access
   return plan as UserPlan;
 }
 
