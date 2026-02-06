@@ -1,28 +1,14 @@
 import Link from "next/link";
 import { ButtonLink } from "./button-link";
 import { Container } from "./container";
-
 import { SubHeading } from "./subheading";
+import { featurePages } from "@/data/feature-pages";
 
 export const Footer = () => {
-  const features = [
-    {
-      title: "Arbitrage Finder",
-      href: "/arbitrage",
-    },
-    {
-      title: "Odds Screen",
-      href: "/odds/nfl",
-    },
-    {
-      title: "Live Updates",
-      href: "/pricing",
-    },
-    {
-      title: "Pricing",
-      href: "/pricing",
-    },
-  ];
+  const features = featurePages.map((feature) => ({
+    title: feature.title,
+    href: `/features/${feature.slug}`,
+  }));
 
   const sports = [
     {
@@ -181,4 +167,3 @@ export const Footer = () => {
     </Container>
   );
 };
-

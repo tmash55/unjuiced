@@ -18,8 +18,8 @@ export const STRIPE_PRODUCT_PRICES: Record<ProductType, Record<BillingPlan, stri
     yearly: process.env.NEXT_PUBLIC_STRIPE_SHARP_YEARLY || "price_1SwQIFDHoRr1ai9XMYYvBaLY",
   },
   edge: {
-    monthly: process.env.NEXT_PUBLIC_STRIPE_EDGE_MONTHLY || "price_1SwQIgDHoRr1ai9XaVvzPu5t",
-    yearly: process.env.NEXT_PUBLIC_STRIPE_EDGE_YEARLY || "price_1SwQItDHoRr1ai9XFYDFVtuR",
+    monthly: process.env.NEXT_PUBLIC_STRIPE_ELITE_MONTHLY || "price_1SwQIgDHoRr1ai9XaVvzPu5t",
+    yearly: process.env.NEXT_PUBLIC_STRIPE_ELITE_YEARLY || "price_1SwQItDHoRr1ai9XFYDFVtuR",
   },
 };
 
@@ -84,6 +84,27 @@ export function buildRegisterCheckoutPath(
 ): string {
   const checkoutPath = buildCheckoutStartPath(product, plan, options);
   return `/register?redirectTo=${encodeURIComponent(checkoutPath)}`;
+}
+
+/**
+ * Active site-wide promotion
+ * Set enabled: false or let expiresAt pass to disable
+ */
+export const ACTIVE_PROMO = {
+  enabled: true,
+  promotionCodeId: "promo_1SxsnbDNAgNbsqnmJTh9P4pq",
+  name: "Super Bowl 60 - 60% Off First Month",
+  monthlyOnly: true,
+  expiresAt: new Date("2026-02-11T04:59:00Z"), // Feb 10th 11:59 PM ET
+} as const;
+
+/**
+ * Check if the active promo is currently valid
+ */
+export function isPromoActive(): boolean {
+  if (!ACTIVE_PROMO.enabled) return false;
+  if (ACTIVE_PROMO.expiresAt && new Date() > ACTIVE_PROMO.expiresAt) return false;
+  return true;
 }
 
 /**

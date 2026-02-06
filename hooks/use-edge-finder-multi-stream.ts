@@ -22,6 +22,7 @@ import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { parseSports } from "@/lib/types/filter-presets";
 import { useSSE } from "@/hooks/use-sse";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { isMarketSelected } from "@/lib/utils";
 
 // =============================================================================
 // Types
@@ -292,12 +293,8 @@ function applyClientFilters(
     }
     
     // Markets filter (client-side for preset mode)
-    if (!isCustomMode && prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
-      const oppMarket = (opp.market || "").toLowerCase();
-      const marketMatches = prefs.selectedMarkets.some(m => 
-        oppMarket.includes(m.toLowerCase()) || m.toLowerCase().includes(oppMarket)
-      );
-      if (!marketMatches) return false;
+    if (!isCustomMode && prefs.selectedMarkets) {
+      if (!isMarketSelected(prefs.selectedMarkets, opp.sport || "", opp.market || "")) return false;
     }
     
     // Search filter

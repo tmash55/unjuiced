@@ -123,6 +123,22 @@ export function PositiveEVFilters({
   const [localMinLiquidity, setLocalMinLiquidity] = useState(minLiquidity);
   const [localBankroll, setLocalBankroll] = useState(bankroll);
   const [localKellyPercent, setLocalKellyPercent] = useState(kellyPercent);
+
+  // Normalize composite market keys (e.g., "ncaab:total_points") for mobile display/toggles
+  const flattenMarkets = useCallback((markets: string[]) => {
+    if (markets.length === 0) return [];
+    const unique = new Set<string>();
+    markets.forEach((market) => {
+      const parts = market.split(":");
+      unique.add(parts.length > 1 ? parts[1] : market);
+    });
+    return Array.from(unique);
+  }, []);
+
+  const displaySelectedMarkets = useMemo(
+    () => flattenMarkets(localMarkets),
+    [localMarkets, flattenMarkets]
+  );
   
   // Sync local state with props
   useEffect(() => {
@@ -223,11 +239,14 @@ export function PositiveEVFilters({
   const toggleMarket = (id: string) => {
     if (locked) return;
     setLocalMarkets((prev) => {
-      if (prev.length === 0) {
-        // Empty = all selected
+      const flat = flattenMarkets(prev);
+      const totalMarkets = availableMarkets.length;
+      const isAllSelected = flat.length === 0 || (totalMarkets > 0 && flat.length === totalMarkets);
+      if (isAllSelected) {
+        // All selected -> deselect this one
         return availableMarkets.filter((m) => m !== id);
       }
-      return prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id];
+      return flat.includes(id) ? flat.filter((m) => m !== id) : [...flat, id];
     });
   };
   
@@ -245,10 +264,12 @@ export function PositiveEVFilters({
   
   const apply = () => {
     if (locked) return;
+    const flatMarkets = flattenMarkets(localMarkets);
+    const allMarketsInUI = localMarkets.length === 0 || (availableMarkets.length > 0 && flatMarkets.length === availableMarkets.length);
     onFiltersChange({
       selectedBooks: localBooks,
       selectedSports: localSports,
-      selectedMarkets: localMarkets,
+      selectedMarkets: allMarketsInUI ? [] : localMarkets,
       sharpPreset: localSharpPreset,
       devigMethods: localDevigMethods,
       evCase: localEvCase,
@@ -299,7 +320,8 @@ export function PositiveEVFilters({
   
   // Count active filters
   const allBooksSelected = localBooks.length === 0;
-  const allMarketsSelected = localMarkets.length === 0;
+  const totalMarkets = availableMarkets.length;
+  const allMarketsSelected = localMarkets.length === 0 || (totalMarkets > 0 && displaySelectedMarkets.length === totalMarkets);
   const activeFiltersCount =
     (!allBooksSelected ? 1 : 0) +
     (!allMarketsSelected ? 1 : 0) +
@@ -544,7 +566,7 @@ export function PositiveEVFilters({
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Markets</Label>
                     <span className="text-xs font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
-                      {allMarketsSelected ? "All" : localMarkets.length} selected
+                      {allMarketsSelected ? "All" : displaySelectedMarkets.length} selected
                     </span>
                   </div>
                   
@@ -581,7 +603,7 @@ export function PositiveEVFilters({
                       if (filteredMarkets.length === 0) return null;
                       
                       const isExpanded = expandedSportSections.has(sportType);
-                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || localMarkets.includes(m)).length;
+                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || displaySelectedMarkets.includes(m)).length;
                       const allSelected = selectedCount === filteredMarkets.length;
                       
                       // Sport icon mapping
@@ -675,13 +697,13 @@ export function PositiveEVFilters({
                                           e.stopPropagation();
                                           if (locked) return;
                                           setLocalMarkets(prev => {
-                                            if (prev.length === 0) {
+                                            const flat = flattenMarkets(prev);
+                                            if (flat.length === 0) {
                                               return [...filteredMarkets];
-                                            } else {
-                                              const newSelected = new Set(prev);
-                                              filteredMarkets.forEach(m => newSelected.add(m));
-                                              return Array.from(newSelected);
                                             }
+                                            const newSelected = new Set(flat);
+                                            filteredMarkets.forEach(m => newSelected.add(m));
+                                            return Array.from(newSelected);
                                           });
                                         }}
                                         disabled={locked}
@@ -693,7 +715,10 @@ export function PositiveEVFilters({
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           if (locked) return;
-                                          setLocalMarkets(prev => prev.filter(m => !filteredMarkets.includes(m)));
+                                          setLocalMarkets(prev => {
+                                            const flat = flattenMarkets(prev);
+                                            return flat.filter(m => !filteredMarkets.includes(m));
+                                          });
                                         }}
                                         disabled={locked}
                                         className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
@@ -707,7 +732,7 @@ export function PositiveEVFilters({
                                   <div className="p-3 max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {filteredMarkets.map(market => {
-                                        const checked = allMarketsSelected || localMarkets.includes(market);
+                                        const checked = allMarketsSelected || displaySelectedMarkets.includes(market);
                                         
                                         return (
                                           <button

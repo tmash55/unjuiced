@@ -23,7 +23,7 @@ const PUBLIC_ROUTES = [
   '/auth/callback',
   '/auth/auth-code-error',
   '/api/auth/callback',
-  '/tools',
+  '/features',
   '/api/billing/webhook',
 ];
 
@@ -36,20 +36,22 @@ const AUTH_ROUTES = [
   '/auth/auth-code-error',
 ];
 
-// Tool preview to actual tool path mappings
-const TOOL_PREVIEW_REDIRECTS: Record<string, string> = {
-  '/tools/edge-finder': '/edge-finder',
-  '/tools/positive-ev': '/positive-ev',
-  '/tools/arbitrage': '/arbitrage',
-  '/tools/odds': '/odds/nfl',
-  '/tools/hit-rates': '/hit-rates/nba',
+// Feature preview to actual tool path mappings
+const FEATURE_PREVIEW_REDIRECTS: Record<string, string> = {
+  '/features/edge-finder': '/edge-finder',
+  '/features/positive-ev': '/positive-ev',
+  '/features/arbitrage': '/arbitrage',
+  '/features/odds-screen': '/odds/nfl',
+  '/features/hit-rates': '/hit-rates/nba',
+  '/features/cheat-sheets': '/cheatsheets/nba/props',
+  '/features/my-slips': '/my-slips',
 };
 
-// Actual tool to preview page mappings
-const TOOL_TO_PREVIEW_REDIRECTS: Record<string, string> = {
-  '/edge-finder': '/tools/edge-finder',
-  '/positive-ev': '/tools/positive-ev',
-  '/arbitrage': '/tools/arbitrage',
+// Actual tool to feature page mappings
+const TOOL_TO_FEATURE_REDIRECTS: Record<string, string> = {
+  '/edge-finder': '/features/edge-finder',
+  '/positive-ev': '/features/positive-ev',
+  '/arbitrage': '/features/arbitrage',
 };
 
 // Freemium routes
@@ -88,7 +90,7 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some(route => 
     pathname === route || pathname.startsWith(`${route}/`)
   );
-  const isToolPreviewPage = pathname.startsWith('/tools/');
+  const isFeaturePreviewPage = pathname.startsWith('/features/');
   const isFreemiumRoute = FREEMIUM_ROUTES.some(route => 
     pathname === route || pathname.startsWith(`${route}/`)
   );
@@ -211,15 +213,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(appUrl);
   }
 
-  // If authenticated user visits tool preview → redirect to actual tool on app subdomain
-  if (user && isToolPreviewPage) {
-    const redirectPath = TOOL_PREVIEW_REDIRECTS[pathname] || '/today';
+  // If authenticated user visits feature preview → redirect to actual tool on app subdomain
+  if (user && isFeaturePreviewPage) {
+    const redirectPath = FEATURE_PREVIEW_REDIRECTS[pathname] || '/today';
     const appUrl = getRedirectUrl(host, redirectPath, 'app');
     return NextResponse.redirect(appUrl);
   }
 
   // Public routes - allow access
-  if (isPublicRoute && !isToolPreviewPage) {
+  if (isPublicRoute && !isFeaturePreviewPage) {
     // If logged in user visits auth pages on marketing site, redirect to app subdomain
     if (user && isAuthRoute) {
       const appUrl = getRedirectUrl(host, '/today', 'app');
@@ -228,14 +230,14 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Freemium routes for unauthenticated users → redirect to preview
+  // Freemium routes for unauthenticated users → redirect to feature page
   if (isFreemiumRoute && !user) {
-    const previewPath = TOOL_TO_PREVIEW_REDIRECTS[pathname];
-    if (previewPath) {
-      return NextResponse.redirect(new URL(previewPath, request.url));
+    const featurePath = TOOL_TO_FEATURE_REDIRECTS[pathname];
+    if (featurePath) {
+      return NextResponse.redirect(new URL(featurePath, request.url));
     }
     if (pathname.startsWith('/odds')) {
-      return NextResponse.redirect(new URL('/tools/odds', request.url));
+      return NextResponse.redirect(new URL('/features/odds-screen', request.url));
     }
   }
 
@@ -250,7 +252,7 @@ export async function updateSession(request: NextRequest) {
   if (isProtectedRoute) {
     if (!user) {
       if (pathname.startsWith('/hit-rates')) {
-        return NextResponse.redirect(new URL('/tools/hit-rates', request.url));
+        return NextResponse.redirect(new URL('/features/hit-rates', request.url));
       }
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirectTo', pathname);
@@ -263,8 +265,8 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Tool preview pages for unauthenticated users - allow access
-  if (isToolPreviewPage && !user) {
+  // Feature preview pages for unauthenticated users - allow access
+  if (isFeaturePreviewPage && !user) {
     return supabaseResponse;
   }
 

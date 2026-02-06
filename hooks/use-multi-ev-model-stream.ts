@@ -20,6 +20,7 @@ import type { PositiveEVOpportunity, PositiveEVResponse, SharpPreset, DevigMetho
 import { SHARP_PRESETS, DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { useSSE } from "@/hooks/use-sse";
+import { isMarketSelected } from "@/lib/utils";
 
 // =============================================================================
 // Types
@@ -286,7 +287,7 @@ function isRelevantUpdate(key: string, sports: string[], markets?: string[] | nu
   if (!sports.includes(keySport)) return false;
   
   if (markets && markets.length > 0) {
-    if (!markets.includes(keyMarket)) return false;
+    if (!isMarketSelected(markets, keySport || "", keyMarket || "")) return false;
   }
   
   return true;

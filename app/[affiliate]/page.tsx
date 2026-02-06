@@ -1,6 +1,6 @@
 import { AgenticIntelligence } from "@/components/agentic-intelligence";
 import { Benefits } from "@/components/benefits";
-import { CTA, CTAOrbit } from "@/components/cta";
+import { CTA } from "@/components/cta";
 import { DivideX } from "@/components/divide";
 import { FAQs } from "@/components/faqs";
 import { Hero } from "@/components/hero";

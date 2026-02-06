@@ -1,4 +1,5 @@
 import type { BestOddsDeal, BestOddsPrefs } from "@/lib/best-odds-schema";
+import { isMarketSelected } from "@/lib/utils";
 
 /**
  * Default preferences for Best Odds filtering
@@ -175,8 +176,7 @@ export function matchesBestOddsDeal(deal: BestOddsDeal, prefs: BestOddsPrefs): b
 
   // Filter by markets
   if (prefs.selectedMarkets.length > 0) {
-    const normalizedSelectedMarkets = prefs.selectedMarkets.map(m => normalize(m));
-    if (!normalizedSelectedMarkets.includes(normalize(deal.mkt))) return false;
+    if (!isMarketSelected(prefs.selectedMarkets, deal.sport || "", deal.mkt || "")) return false;
   }
 
   // Filter by search query
@@ -319,4 +319,3 @@ export function groupMarketsBySport(markets: string[]): Record<string, string[]>
 
   return groups;
 }
-

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { usePreferences } from "@/context/preferences-context";
 import { createClient } from "@/libs/supabase/client";
@@ -21,6 +22,9 @@ type SettingsSection = "general" | "security" | "notifications" | "billing";
 export default function SettingsClient() {
   const { user } = useAuth();
   const { preferences } = usePreferences();
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeSection, setActiveSection] = useState<SettingsSection>("general");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +48,16 @@ export default function SettingsClient() {
 
     loadProfile();
   }, [user]);
+
+  useEffect(() => {
+    const validSections: SettingsSection[] = ["general", "security", "notifications", "billing"];
+    const sectionFromParams = Array.isArray(params?.section) ? params?.section[0] : params?.section;
+    const sectionFromQuery = searchParams?.get("section");
+    const nextSection = (sectionFromParams || sectionFromQuery) as SettingsSection | null;
+    if (nextSection && validSections.includes(nextSection)) {
+      setActiveSection(nextSection);
+    }
+  }, [params, searchParams]);
 
   if (loading || !user) {
     return (
@@ -121,7 +135,10 @@ export default function SettingsClient() {
                 return (
                   <button
                     key={section.id}
-                    onClick={() => setActiveSection(section.id)}
+                    onClick={() => {
+                      setActiveSection(section.id);
+                      router.push(`/account/settings/${section.id}`);
+                    }}
                     className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
                       isActive
                         ? "bg-brand/10 text-brand dark:bg-brand/20"
@@ -162,4 +179,3 @@ export default function SettingsClient() {
     </div>
   );
 }
-

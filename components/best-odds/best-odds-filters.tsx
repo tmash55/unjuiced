@@ -129,6 +129,22 @@ export function BestOddsFilters({
   const [localComparisonMode, setLocalComparisonMode] = useState<BestOddsPrefs['comparisonMode']>(prefs.comparisonMode ?? 'average');
   const [localComparisonBook, setLocalComparisonBook] = useState<string | null>(prefs.comparisonBook ?? null);
   const [localSearchQuery, setLocalSearchQuery] = useState<string>(prefs.searchQuery || '');
+
+  // Normalize composite market keys (e.g., "ncaab:total_points") for mobile display/toggles
+  const flattenMarkets = useCallback((markets: string[]) => {
+    if (markets.length === 0) return [];
+    const unique = new Set<string>();
+    markets.forEach((market) => {
+      const parts = market.split(":");
+      unique.add(parts.length > 1 ? parts[1] : market);
+    });
+    return Array.from(unique);
+  }, []);
+
+  const displaySelectedMarkets = useMemo(
+    () => flattenMarkets(localMarkets),
+    [localMarkets, flattenMarkets]
+  );
   
   // Kelly Criterion local state - use strings for free typing, convert on blur/apply
   const [localBankrollStr, setLocalBankrollStr] = useState<string>(String(bankroll));
@@ -451,8 +467,11 @@ export function BestOddsFilters({
   const toggleMarket = (id: string) => {
     if (locked) return;
     setLocalMarkets(prev => {
-      const isCurrentlySelected = prev.length === 0 || prev.includes(id);
-      const willBeDeselected = isCurrentlySelected && prev.length !== 0;
+      const flat = flattenMarkets(prev);
+      const totalMarkets = availableMarkets?.length ?? 0;
+      const isAllSelected = flat.length === 0 || (totalMarkets > 0 && flat.length === totalMarkets);
+      const isCurrentlySelected = isAllSelected || flat.includes(id);
+      const willBeDeselected = isCurrentlySelected && !isAllSelected;
       
       // If deselecting a market, also clear its line selections
       if (willBeDeselected) {
@@ -462,12 +481,12 @@ export function BestOddsFilters({
         setLocalMarketLines(newMarketLines);
       }
       
-      // If empty (all selected), clicking one means "deselect this one, keep all others"
-      if (prev.length === 0) {
+      // If all selected, clicking one means "deselect this one, keep all others"
+      if (isAllSelected) {
         return (availableMarkets ?? []).filter(m => m !== id);
       }
       // Otherwise, normal toggle
-      return prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id];
+      return flat.includes(id) ? flat.filter(m => m !== id) : [...flat, id];
     });
   };
 
@@ -493,7 +512,7 @@ export function BestOddsFilters({
     // Convert UI state to backend format:
     // If all items are selected in UI, send empty array to backend (meaning "show all")
     const allLeaguesInUI = localLeagues.length === (availableLeagues?.length ?? 0);
-    const allMarketsInUI = localMarkets.length === (availableMarkets?.length ?? 0);
+    const allMarketsInUI = localMarkets.length === 0 || displaySelectedMarkets.length === (availableMarkets?.length ?? 0);
     
     // Filter leagues based on selected sports
     // If specific sports are selected, only include leagues from those sports
@@ -586,7 +605,8 @@ export function BestOddsFilters({
   // Check if filters are actually applied (not just "all selected")
   const allBooksSelected = localBooks.length === 0;
   const allLeaguesSelected = localLeagues.length === (availableLeagues?.length ?? 0) || localLeagues.length === 0;
-  const allMarketsSelected = localMarkets.length === (availableMarkets?.length ?? 0) || localMarkets.length === 0;
+  const totalMarkets = availableMarkets?.length ?? 0;
+  const allMarketsSelected = localMarkets.length === 0 || (totalMarkets > 0 && displaySelectedMarkets.length === totalMarkets);
 
   const activeFiltersCount =
     (!allLeaguesSelected ? 1 : 0) +
@@ -923,7 +943,7 @@ export function BestOddsFilters({
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Markets</Label>
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {allMarketsSelected ? 'All' : localMarkets.length} selected
+                  {allMarketsSelected ? 'All' : displaySelectedMarkets.length} selected
                     </span>
                   </div>
                   
@@ -975,7 +995,7 @@ export function BestOddsFilters({
                       if (filteredMarkets.length === 0) return null;
                       
                       const isExpanded = expandedSportSections.has(sportType);
-                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || localMarkets.includes(m)).length;
+                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || displaySelectedMarkets.includes(m)).length;
                       const allSelected = selectedCount === filteredMarkets.length;
                       
                       // Sport icon mapping
@@ -1069,13 +1089,13 @@ export function BestOddsFilters({
                                           e.stopPropagation();
                                 if (locked) return;
                                 setLocalMarkets(prev => {
-                                  if (prev.length === 0) {
-                                              return [...filteredMarkets];
-                                  } else {
-                                    const newSelected = new Set(prev);
-                                              filteredMarkets.forEach(m => newSelected.add(m));
-                                    return Array.from(newSelected);
+                                  const flat = flattenMarkets(prev);
+                                  if (flat.length === 0) {
+                                    return [...filteredMarkets];
                                   }
+                                  const newSelected = new Set(flat);
+                                  filteredMarkets.forEach(m => newSelected.add(m));
+                                  return Array.from(newSelected);
                                 });
                               }}
                               disabled={locked}
@@ -1087,7 +1107,10 @@ export function BestOddsFilters({
                                         onClick={(e) => {
                                           e.stopPropagation();
                                 if (locked) return;
-                                          setLocalMarkets(prev => prev.filter(m => !filteredMarkets.includes(m)));
+                                          setLocalMarkets(prev => {
+                                            const flat = flattenMarkets(prev);
+                                            return flat.filter(m => !filteredMarkets.includes(m));
+                                          });
                               }}
                               disabled={locked}
                                         className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
@@ -1101,7 +1124,7 @@ export function BestOddsFilters({
                                   <div className="p-3 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-200 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {filteredMarkets.map(market => {
-                            const checked = allMarketsSelected || localMarkets.includes(market);
+                            const checked = allMarketsSelected || displaySelectedMarkets.includes(market);
                             const hasLines = hasLineOptions(market);
                                         const isMarketExpanded = expandedMarkets.has(market);
                             const lineOptions = hasLines ? getLineOptions(market) : null;

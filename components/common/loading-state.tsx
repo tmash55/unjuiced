@@ -115,12 +115,14 @@ export function LoadingState({
   showSkeleton = false, // Default to false now
   minimal = false,
   compact = false,
+  className,
 }: { 
   message?: string;
   type?: LoadingType;
   showSkeleton?: boolean;
   minimal?: boolean;
   compact?: boolean;
+  className?: string;
 }) {
   const [currentMessage, setCurrentMessage] = useState(0);
   const messages = type === 'account' ? accountMessages : oddsMessages;
@@ -135,7 +137,7 @@ export function LoadingState({
 
   if (minimal) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className={cn("flex items-center justify-center py-12", className)}>
         <div className="flex items-center gap-3">
           <LoadingDots />
           <span className="text-sm text-neutral-500 dark:text-neutral-400">Loading...</span>
@@ -145,7 +147,10 @@ export function LoadingState({
   }
 
   const logoSize = compact ? 44 : 56;
-  const containerClass = compact ? "min-h-[200px]" : "min-h-[400px]";
+  const containerClass = cn(
+    compact ? "min-h-[200px]" : "min-h-[400px]",
+    className
+  );
 
   return (
     <div className={cn("flex items-center justify-center", containerClass)}>

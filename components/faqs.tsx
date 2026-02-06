@@ -1,15 +1,13 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { SubHeading } from "./subheading";
-import { Container } from "./container";
 import { SectionHeading } from "./seciton-heading";
 import { Badge } from "./badge";
-import { Button } from "./button";
-import { DivideX } from "./divide";
 import { faqs } from "@/constants/faqs";
 import { AnimatePresence, motion } from "motion/react";
 import useMeasure from "react-use-measure";
 import { ButtonLink } from "./button-link";
+import { MaxWidthWrapper } from "./max-width-wrapper";
 
 
 const ChevronDownIcon = (
@@ -50,37 +48,50 @@ export const FAQs = () => {
   };
 
   return (
-    <Container className="border-divide flex flex-col items-center border-x pt-12">
-      <Badge text="FAQs" />
-      <SectionHeading className="mt-4">
-        Frequently Asked Questions
-      </SectionHeading>
+    <section className="bg-black bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_70%)] py-14 sm:py-20">
+      <MaxWidthWrapper>
+        <div className="mx-auto flex max-w-4xl flex-col items-center">
+          <Badge text="FAQs" />
+          <SectionHeading className="mt-4 text-center">
+            Questions, Answered
+          </SectionHeading>
 
-      <SubHeading as="p" className="mx-auto mt-6 max-w-lg px-2 text-center">
-        Everything you need to know about finding the best odds and maximizing your betting value. Still have questions?
-      </SubHeading>
-      <div className="mt-8 mb-12 flex w-full flex-col items-center justify-center gap-4 px-4 sm:flex-row">
-        <ButtonLink variant="primary" href="/register">
-          Get Started Free
-        </ButtonLink>
-        <ButtonLink variant="outline" href="/contact">
-          Contact Support
-        </ButtonLink>
-      </div>
-      <DivideX />
-      <div className="divide-divide w-full divide-y">
-        {faqs.map((item, index) => (
-          <AccordionItem
-            key={item.question}
-            index={index}
-            question={item.question}
-            answer={item.answer}
-            isOpen={openItems.has(index)}
-            onToggle={() => toggle(index)}
-          />
-        ))}
-      </div>
-    </Container>
+          <SubHeading as="p" className="mx-auto mt-5 max-w-2xl px-2 text-center text-white/70">
+            Everything you need to know about research, value discovery, and execution on Unjuiced.
+          </SubHeading>
+
+          <div className="mt-7 mb-10 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row">
+            <ButtonLink
+              variant="primary"
+              href="/register"
+              className="rounded-full border-[color:var(--primary)] bg-[color:var(--primary)] text-white hover:bg-[color:var(--primary-strong)]"
+            >
+              Start Free Trial
+            </ButtonLink>
+            <ButtonLink
+              variant="outline"
+              href="/contact"
+              className="rounded-full border border-white/20 text-white hover:bg-white/10"
+            >
+              Contact Support
+            </ButtonLink>
+          </div>
+        </div>
+
+        <div className="mx-auto grid w-full max-w-5xl gap-3">
+          {faqs.map((item, index) => (
+            <AccordionItem
+              key={item.question}
+              index={index}
+              question={item.question}
+              answer={item.answer}
+              isOpen={openItems.has(index)}
+              onToggle={() => toggle(index)}
+            />
+          ))}
+        </div>
+      </MaxWidthWrapper>
+    </section>
   );
 };
 
@@ -117,7 +128,7 @@ const AccordionItem = ({
             <a
               href={path}
               onClick={(e) => e.stopPropagation()}
-              className="text-brand hover:underline font-medium"
+              className="font-medium text-[color:var(--primary-weak)] hover:underline"
             >
               {displayText}
             </a>
@@ -129,19 +140,19 @@ const AccordionItem = ({
   };
 
   return (
-    <div className="group">
+    <div className="group rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
       <button
         type="button"
         aria-expanded={isOpen}
         aria-controls={`faq-panel-${index}`}
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-8 py-6 text-left"
+        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left sm:px-7"
       >
-        <span className="text-charcoal-700 text-base font-medium dark:text-neutral-100">
+        <span className="text-base font-medium text-white">
           {question}
         </span>
         <motion.span
-          className="text-charcoal-700 shadow-aceternity inline-flex size-6 items-center justify-center rounded-md bg-white dark:bg-neutral-950"
+          className="inline-flex size-7 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white"
           initial={false}
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.25 }}
@@ -157,9 +168,9 @@ const AccordionItem = ({
         initial={false}
         animate={{ height: targetHeight, opacity: isOpen ? 1 : 0 }}
         transition={{ height: { duration: 0.35 }, opacity: { duration: 0.2 } }}
-        className="overflow-hidden px-8"
+        className="overflow-hidden px-6 sm:px-7"
       >
-        <div ref={ref} className="pr-2 pb-5 pl-2 sm:pr-0 sm:pl-0">
+        <div ref={ref} className="pb-5">
           <AnimatePresence mode="popLayout">
             {isOpen && (
               <motion.p
@@ -168,7 +179,7 @@ const AccordionItem = ({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -6, opacity: 0 }}
                 transition={{ duration: 0.25 }}
-                className="text-gray-600 dark:text-neutral-400"
+                className="text-white/70"
               >
                 {renderAnswer(answer)}
               </motion.p>

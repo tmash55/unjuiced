@@ -14,6 +14,7 @@ import {
   parseOpportunity,
 } from "@/lib/types/opportunities";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { isMarketSelected } from "@/lib/utils";
 
 interface UseOpportunitiesOptions {
   /**
@@ -173,8 +174,8 @@ function filterOpportunities(
 
     // Market filter (selectedMarkets contains SELECTED markets - normal logic)
     // Empty = all selected, non-empty = those are the only markets to show
-    if (filters.selectedMarkets.length > 0) {
-      if (!filters.selectedMarkets.includes(opp.market)) return false;
+    if (!isMarketSelected(filters.selectedMarkets, opp.sport || "", opp.market || "")) {
+      return false;
     }
 
     return true;
@@ -330,4 +331,3 @@ export function useEdgeOpportunities({
     isPro,
   });
 }
-

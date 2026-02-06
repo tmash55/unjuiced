@@ -87,23 +87,16 @@ export function AccountDropdown({ user }: { user: User }) {
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                        // Edge tier - premium purple
+                        entitlements.entitlement_source === "grant" &&
+                          "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400",
+                        entitlements.plan === "elite" &&
+                          "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400",
                         entitlements.plan === "edge" &&
-                          "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400",
-                        // Sharp tier - brand
-                        (entitlements.plan === "sharp") &&
-                          entitlements.entitlement_source === "trial" &&
+                          "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400",
+                        entitlements.plan === "sharp" &&
                           "bg-brand/10 text-brand dark:bg-brand/20",
-                        (entitlements.plan === "sharp") &&
-                          entitlements.entitlement_source === "subscription" &&
-                          "bg-brand/10 text-brand dark:bg-brand/20",
-                        (entitlements.plan === "sharp") &&
-                          entitlements.entitlement_source === "grant" &&
-                          "bg-brand/10 text-brand dark:bg-brand/20",
-                        // Scout tier - orange
                         entitlements.plan === "scout" &&
                           "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400",
-                        // Free tier
                         entitlements.plan === "free" &&
                           "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       )}
@@ -111,9 +104,11 @@ export function AccountDropdown({ user }: { user: User }) {
                       {entitlements.entitlement_source === "trial"
                         ? "Trial"
                         : entitlements.entitlement_source === "grant"
-                        ? "Edge"
+                        ? "Elite"
+                        : entitlements.plan === "elite"
+                        ? "Elite"
                         : entitlements.plan === "edge"
-                        ? "Edge"
+                        ? "Elite"
                         : entitlements.plan === "sharp"
                         ? "Sharp"
                         : entitlements.plan === "scout"

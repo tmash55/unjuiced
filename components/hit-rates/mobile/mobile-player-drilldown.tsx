@@ -35,6 +35,8 @@ import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
+import { useTeamPlayTypeRanks } from "@/hooks/use-team-play-type-ranks";
+import { useTeamShotZoneRanks, SHOT_ZONE_KEYS } from "@/hooks/use-team-shot-zone-ranks";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 
 // Helper to get sportsbook logo
@@ -51,7 +53,10 @@ import { useMatchupRanks } from "@/hooks/use-matchup-ranks";
 import { useTeamDefenseRanks } from "@/hooks/use-team-defense-ranks";
 import { useGameRosters, TeamRosterPlayer } from "@/hooks/use-team-roster";
 import { usePlayerCorrelations, TeammateCorrelation, StatCorrelation, TeammateGameLog } from "@/hooks/use-player-correlations";
+import { usePlayTypeMatchup } from "@/hooks/use-play-type-matchup";
+import { useShotZoneMatchup } from "@/hooks/use-shot-zone-matchup";
 import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-filters";
+import type { PlayTypeFilter, ShotZoneFilter } from "../filter-drawer";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { useMobileNav } from "@/contexts/mobile-nav-context";
 import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
@@ -1061,8 +1066,23 @@ interface HeroBarChartProps {
   // Advanced filters
   advancedFiltersCount?: number;
   onOpenAdvancedFilters?: () => void;
+  matchupFiltersCount?: number;
+  onOpenMatchupFilters?: () => void;
   // Active trending filter overlay
   activeOverlay?: { key: string; label: string } | null;
+  // Matchup filter lines (play type / shot zones)
+  activeMatchupFilters?: MatchupFilterLine[];
+  playTypeRanksMap?: Map<string, Map<string, number>>;
+  shotZoneRanksMap?: Map<string, Map<string, number>>;
+}
+
+// Play type/shot zone filter types for chart overlay lines
+interface MatchupFilterLine {
+  type: "playType" | "shotZone";
+  key: string;
+  label: "tough" | "neutral" | "favorable";
+  displayName: string;
+  color: string;
 }
 
 function HeroBarChart({ 
@@ -1078,12 +1098,30 @@ function HeroBarChart({
   market,
   advancedFiltersCount = 0,
   onOpenAdvancedFilters,
+  matchupFiltersCount = 0,
+  onOpenMatchupFilters,
   activeOverlay,
+  activeMatchupFilters = [],
+  playTypeRanksMap,
+  shotZoneRanksMap,
 }: HeroBarChartProps) {
   const displayGames = useMemo(() => {
     const count = gameCount === "season" || gameCount === "h2h" ? games.length : gameCount;
     return games.slice(0, count).reverse(); // Oldest on left, newest on right
   }, [games, gameCount]);
+
+  const chartHeight = 208;
+  const barGapPx = 4;
+  const barWidthPx = useMemo(() => {
+    if (displayGames.length <= 2) return 80;
+    if (displayGames.length <= 5) return 50;
+    if (displayGames.length <= 10) return 36;
+    return 28;
+  }, [displayGames.length]);
+  const contentWidth = displayGames.length > 0
+    ? displayGames.length * barWidthPx + (displayGames.length - 1) * barGapPx
+    : 0;
+  const shouldCenterBars = displayGames.length <= 10;
   
   // Ref for scroll container to auto-scroll to newest games (right side)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1171,11 +1209,6 @@ function HeroBarChart({
     { id: "away", label: "Away" },
     { id: "win", label: "W" },
     { id: "loss", label: "L" },
-    { id: "high_mins", label: "30+" },
-    // DvP defense filters
-    { id: "dvpTough", label: "DvP 1-10", color: "red" },
-    { id: "dvpAverage", label: "DvP 11-20", color: "amber" },
-    { id: "dvpWeak", label: "DvP 21-30", color: "green" },
   ];
 
   return (
@@ -1239,14 +1272,14 @@ function HeroBarChart({
                 {/* Bars - center when few games, left align when many (for scrolling) */}
                 <div className={cn(
                   "flex items-end gap-1",
-                  displayGames.length <= 10 ? "justify-center" : "justify-start"
+                  shouldCenterBars ? "justify-center" : "justify-start"
                 )}>
                   {/* Line marker - positioned inside the flex container to align with bars */}
                   {/* Hide when overlay is active since Y-axis shows overlay values, not market stat */}
                   {line !== null && !activeOverlay && (
                     <div 
                       className="absolute left-0 right-0 z-10 pointer-events-none border-t border-dashed border-neutral-400 dark:border-neutral-500"
-                      style={{ top: `${(1 - line / chartDomainMax) * 208}px` }}
+                      style={{ top: `${(1 - line / chartDomainMax) * chartHeight}px` }}
                     />
                   )}
                   {displayGames.map((game, idx) => (
@@ -1270,19 +1303,95 @@ function HeroBarChart({
                       totalGames={displayGames.length}
                     />
                   ))}
+                  {activeMatchupFilters.length > 0 && contentWidth > 0 && displayGames.length > 1 && (
+                    <>
+                      {activeMatchupFilters.map((filter) => {
+                        const ranksMap = filter.type === "playType"
+                          ? playTypeRanksMap?.get(filter.key)
+                          : shotZoneRanksMap?.get(filter.key);
+                        if (!ranksMap) return null;
+
+                        const points = displayGames
+                          .map((game, idx) => {
+                            const opponent = game.opponent_abbr;
+                            if (!opponent) return null;
+                            const rank = ranksMap.get(opponent);
+                            if (rank === null || rank === undefined) return null;
+                            const x = idx * (barWidthPx + barGapPx) + (barWidthPx / 2);
+                            const yPercent = ((rank - 1) / 29) * 100;
+                            const y = chartHeight * (1 - yPercent / 100);
+                            return { x, y };
+                          })
+                          .filter(Boolean) as { x: number; y: number }[];
+
+                        if (points.length < 2) return null;
+
+                        const pathD = points
+                          .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
+                          .join(" ");
+
+                        return (
+                          <svg
+                            key={`${filter.type}-${filter.key}`}
+                            className={cn(
+                              "absolute bottom-0 z-[9] pointer-events-none",
+                              shouldCenterBars ? "left-1/2 -translate-x-1/2" : "left-0"
+                            )}
+                            style={{ width: contentWidth, height: chartHeight }}
+                            viewBox={`0 0 ${contentWidth} ${chartHeight}`}
+                          >
+                            <path
+                              d={pathD}
+                              fill="none"
+                              stroke={filter.color}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeDasharray={filter.type === "shotZone" ? "4 2" : "none"}
+                              style={{ filter: `drop-shadow(0 0 4px ${filter.color}40)`, opacity: 0.9 }}
+                            />
+                          </svg>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {activeMatchupFilters.length > 0 && (
+        <div className="px-3 pb-2">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+            <span className="font-semibold uppercase tracking-wide text-[9px] text-neutral-400 dark:text-neutral-500">
+              Matchup Lines
+            </span>
+            {activeMatchupFilters.map((filter) => {
+              const labelText = filter.label === "tough" ? "1-10" : filter.label === "neutral" ? "11-20" : "21-30";
+              return (
+                <span
+                  key={`${filter.type}-${filter.key}`}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-neutral-100/80 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-300"
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: filter.color }} />
+                  <span className="font-medium">
+                    {filter.displayName}
+                  </span>
+                  <span className="text-[9px] text-neutral-400">({labelText})</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
       
       {/* Quick Filters Row - Below Chart */}
       <div className="flex items-center justify-between px-3 py-2 border-t border-neutral-100 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-800/20">
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           {quickFilterChips.map((chip) => {
             const isActive = quickFilters.has(chip.id);
-            const isDvpChip = chip.id.startsWith("dvp");
             return (
               <button
                 key={chip.id}
@@ -1291,13 +1400,7 @@ function HeroBarChart({
                 className={cn(
                   "px-2 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-all active:scale-95",
                   isActive
-                    ? isDvpChip && (chip as any).color === "red"
-                      ? "bg-red-500 text-white shadow-sm"
-                      : isDvpChip && (chip as any).color === "amber"
-                      ? "bg-amber-500 text-white shadow-sm"
-                      : isDvpChip && (chip as any).color === "green"
-                      ? "bg-emerald-500 text-white shadow-sm"
-                      : "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-white shadow-sm"
                     : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
                 )}
               >
@@ -1319,6 +1422,27 @@ function HeroBarChart({
         {/* Right side: Advanced button + filter status */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Advanced Filters Button */}
+          {onOpenMatchupFilters && (
+            <button
+              type="button"
+              onClick={onOpenMatchupFilters}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95",
+                matchupFiltersCount > 0
+                  ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+              )}
+            >
+              <Target className="h-3 w-3" />
+              <span>Matchups</span>
+              {matchupFiltersCount > 0 && (
+                <span className="px-1 py-0.5 rounded bg-emerald-500 text-white text-[8px]">
+                  {matchupFiltersCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {onOpenAdvancedFilters && (
             <button
               type="button"
@@ -1796,6 +1920,7 @@ function AdvancedFiltersSheet({
   games,
   market,
 }: AdvancedFiltersSheetProps) {
+  const [expandedFilterKey, setExpandedFilterKey] = useState<string | null>(null);
   // Calculate averages
   const calcAvg = useCallback((getValue: (g: BoxScoreGame) => number) => {
     if (games.length === 0) return 0;
@@ -1815,13 +1940,14 @@ function AdvancedFiltersSheet({
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
-    return [
+    const baseCount = [
       filters.minutes, filters.usage, filters.points, filters.rebounds,
       filters.assists, filters.steals, filters.blocks, filters.turnovers,
       filters.fg3m, filters.fg3a, filters.fga, filters.fgm, filters.fta, filters.ftm,
       filters.plusMinus, filters.tsPct, filters.efgPct,
       filters.oreb, filters.dreb, filters.potentialReb, filters.passes,
     ].filter(Boolean).length;
+    return baseCount;
   }, [filters]);
 
   // Filter categories based on market
@@ -1963,6 +2089,7 @@ function AdvancedFiltersSheet({
     onFiltersChange(DEFAULT_FILTERS);
   }, [onFiltersChange]);
 
+
   if (!isOpen) return null;
 
   return (
@@ -2018,7 +2145,7 @@ function AdvancedFiltersSheet({
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto overscroll-contain px-5 py-4 space-y-6" style={{ maxHeight: "calc(85vh - 120px)" }}>
+        <div className="overflow-y-auto overscroll-contain px-5 py-4 pb-24 space-y-6" style={{ maxHeight: "calc(85vh - 120px)" }}>
           {filterCategories.map((category) => (
             <div key={category.title}>
               {/* Category Header */}
@@ -2037,6 +2164,7 @@ function AdvancedFiltersSheet({
                   const minVal = Math.min(...values);
                   const maxVal = Math.max(...values);
                   const isActive = currentRange !== null;
+                  const isExpanded = expandedFilterKey === filter.key;
 
                   return (
                     <MobileFilterCard
@@ -2048,6 +2176,10 @@ function AdvancedFiltersSheet({
                       currentRange={currentRange}
                       isPercentage={filter.isPercentage}
                       isActive={isActive}
+                      isExpanded={isExpanded}
+                      onToggle={() =>
+                        setExpandedFilterKey(isExpanded ? null : (filter.key as string))
+                      }
                       onChange={(range) => handleFilterChange(filter.key, range)}
                     />
                   );
@@ -2055,6 +2187,7 @@ function AdvancedFiltersSheet({
               </div>
             </div>
           ))}
+
         </div>
 
         {/* Footer */}
@@ -2072,6 +2205,313 @@ function AdvancedFiltersSheet({
   );
 }
 
+interface MatchupFiltersSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+  quickFilters: Set<string>;
+  onQuickFilterToggle: (filter: string) => void;
+  playTypeFilters: PlayTypeFilter[];
+  onPlayTypeFiltersChange: (filters: PlayTypeFilter[]) => void;
+  playTypeRanks: { playType: string; displayName?: string; teams: { teamAbbr: string; pppRank: number }[] }[];
+  playTypeDisplayNames: Record<string, string>;
+  playTypeMatchup?: { play_types: Array<{ play_type: string; display_name: string; opponent_def_rank: number | null; player_ppg: number }> };
+  shotZoneFilters: ShotZoneFilter[];
+  onShotZoneFiltersChange: (filters: ShotZoneFilter[]) => void;
+  shotZoneRanks: { zone: string; teams: { teamAbbr: string; rank: number }[] }[];
+  shotZoneMatchup?: { zones: Array<{ zone: string; display_name: string; opponent_def_rank: number | null; player_pct_of_total: number }> };
+}
+
+function MatchupFiltersSheet({
+  isOpen,
+  onClose,
+  quickFilters,
+  onQuickFilterToggle,
+  playTypeFilters,
+  onPlayTypeFiltersChange,
+  playTypeRanks,
+  playTypeDisplayNames,
+  playTypeMatchup,
+  shotZoneFilters,
+  onShotZoneFiltersChange,
+  shotZoneRanks,
+  shotZoneMatchup,
+}: MatchupFiltersSheetProps) {
+  if (!isOpen) return null;
+
+  const dvpOptions = [
+    { key: "dvpTough", label: "Tough (1-10)", tone: "red" },
+    { key: "dvpAverage", label: "Avg (11-20)", tone: "amber" },
+    { key: "dvpWeak", label: "Soft (21-30)", tone: "emerald" },
+  ] as const;
+
+  const activeCount =
+    playTypeFilters.length +
+    shotZoneFilters.length +
+    dvpOptions.filter((opt) => quickFilters.has(opt.key)).length;
+
+  const rankBadge = (rank: number | null | undefined) => {
+    if (!rank) return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
+        —
+      </span>
+    );
+    const cls =
+      rank >= 21
+        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+        : rank <= 10
+        ? "bg-red-500/20 text-red-600 dark:text-red-400"
+        : "bg-amber-500/20 text-amber-600 dark:text-amber-400";
+    return (
+      <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums", cls)}>
+        #{rank}
+      </span>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 bg-white dark:bg-neutral-900 border-b border-neutral-200/60 dark:border-neutral-700/60">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Target className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+                  Matchup Filters
+                </h2>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {activeCount > 0 ? `${activeCount} active` : "No filters applied"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+            >
+              <X className="h-4 w-4 text-neutral-500" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto overscroll-contain px-5 py-4 pb-24 space-y-6" style={{ maxHeight: "calc(85vh - 120px)" }}>
+          {/* Defense vs Position */}
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
+              Defense vs Position
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {dvpOptions.map((opt) => {
+                const isActive = quickFilters.has(opt.key);
+                const styles = opt.tone === "red"
+                  ? isActive ? "bg-red-500 text-white" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                  : opt.tone === "amber"
+                  ? isActive ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  : isActive ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => onQuickFilterToggle(opt.key)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all active:scale-95 border",
+                      isActive ? "border-transparent" : "border-neutral-200/60 dark:border-neutral-700/60",
+                      styles
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Play Type Defense */}
+          {playTypeRanks.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
+                  Play Type Defense
+                </div>
+                {playTypeFilters.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onPlayTypeFiltersChange([])}
+                    className="text-[10px] text-red-500 hover:text-red-600"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {playTypeRanks.map((pt) => {
+                  const activeFilter = playTypeFilters.find((f) => f.playType === pt.playType);
+                  const displayName = playTypeDisplayNames[pt.playType] || pt.displayName || pt.playType;
+                  const matchup = playTypeMatchup?.play_types?.find((m) => m.play_type === pt.playType);
+                  const oppRank = matchup?.opponent_def_rank ?? null;
+                  const playerPpg = matchup?.player_ppg ?? null;
+                  return (
+                    <div
+                      key={pt.playType}
+                      className={cn(
+                        "flex items-center justify-between gap-3 p-2 rounded-lg border",
+                        activeFilter ? "border-emerald-400/40 bg-emerald-500/5" : "border-neutral-200/60 dark:border-neutral-700/60"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                            {displayName}
+                          </span>
+                          {rankBadge(oppRank)}
+                        </div>
+                        <div className="text-[9px] text-neutral-500 mt-0.5">
+                          {playerPpg !== null && playerPpg > 0 ? `${playerPpg.toFixed(1)} PPG` : "PPG —"}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {(["tough", "neutral", "favorable"] as const).map((label) => {
+                          const isActive = activeFilter?.label === label;
+                          const style = label === "tough"
+                            ? isActive ? "bg-red-500 text-white" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                            : label === "neutral"
+                            ? isActive ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            : isActive ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                          const labelText = label === "tough" ? "1-10" : label === "neutral" ? "11-20" : "21-30";
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => {
+                                if (isActive) {
+                                  onPlayTypeFiltersChange(playTypeFilters.filter((f) => f.playType !== pt.playType));
+                                } else {
+                                  const next = playTypeFilters.filter((f) => f.playType !== pt.playType);
+                                  next.push({ playType: pt.playType, label });
+                                  onPlayTypeFiltersChange(next);
+                                }
+                              }}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[10px] font-semibold transition-all active:scale-95",
+                                style
+                              )}
+                            >
+                              {labelText}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Shooting Zones */}
+          {shotZoneRanks.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
+                  Shooting Zones
+                </div>
+                {shotZoneFilters.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onShotZoneFiltersChange([])}
+                    className="text-[10px] text-red-500 hover:text-red-600"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {shotZoneRanks.map((zone) => {
+                  const activeFilter = shotZoneFilters.find((f) => f.zone === zone.zone);
+                  const displayName = SHOT_ZONE_KEYS.find((z) => z.key === zone.zone)?.label || zone.zone;
+                  const matchup = shotZoneMatchup?.zones?.find((z) => z.zone === zone.zone);
+                  const oppRank = matchup?.opponent_def_rank ?? null;
+                  const pct = matchup?.player_pct_of_total ?? null;
+                  return (
+                    <div
+                      key={zone.zone}
+                      className={cn(
+                        "flex items-center justify-between gap-3 p-2 rounded-lg border",
+                        activeFilter ? "border-emerald-400/40 bg-emerald-500/5" : "border-neutral-200/60 dark:border-neutral-700/60"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                            {displayName}
+                          </span>
+                          {rankBadge(oppRank)}
+                        </div>
+                        <div className="text-[9px] text-neutral-500 mt-0.5">
+                          {pct !== null && pct > 0
+                            ? `${pct > 100 ? (pct / 100).toFixed(0) : pct.toFixed(0)}% of shots`
+                            : "Usage —"}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {(["tough", "neutral", "favorable"] as const).map((label) => {
+                          const isActive = activeFilter?.label === label;
+                          const style = label === "tough"
+                            ? isActive ? "bg-red-500 text-white" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                            : label === "neutral"
+                            ? isActive ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            : isActive ? "bg-emerald-500 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                          const labelText = label === "tough" ? "1-10" : label === "neutral" ? "11-20" : "21-30";
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => {
+                                if (isActive) {
+                                  onShotZoneFiltersChange(shotZoneFilters.filter((f) => f.zone !== zone.zone));
+                                } else {
+                                  const next = shotZoneFilters.filter((f) => f.zone !== zone.zone);
+                                  next.push({ zone: zone.zone, label });
+                                  onShotZoneFiltersChange(next);
+                                }
+                              }}
+                              className={cn(
+                                "px-2 py-1 rounded-md text-[10px] font-semibold transition-all active:scale-95",
+                                style
+                              )}
+                            >
+                              {labelText}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="sticky bottom-0 bg-white dark:bg-neutral-900 border-t border-neutral-200/60 dark:border-neutral-700/60 px-5 py-4 safe-area-inset-bottom">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand to-brand/90 text-white font-bold text-sm shadow-lg shadow-brand/30 active:scale-[0.98] transition-transform"
+          >
+            Apply Matchups
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Mobile Filter Card Component
 interface MobileFilterCardProps {
   label: string;
@@ -2081,6 +2521,8 @@ interface MobileFilterCardProps {
   currentRange: FilterRange | null;
   isPercentage?: boolean;
   isActive: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
   onChange: (range: FilterRange | null) => void;
 }
 
@@ -2092,6 +2534,8 @@ function MobileFilterCard({
   currentRange,
   isPercentage,
   isActive,
+  isExpanded,
+  onToggle,
   onChange,
 }: MobileFilterCardProps) {
   const [localMin, setLocalMin] = useState(currentRange?.min ?? minVal);
@@ -2169,145 +2613,163 @@ function MobileFilterCard({
   const maxPos = ((localMax - minVal) / range) * 100;
 
   return (
-    <div className={cn(
-      "p-3 rounded-xl border transition-all",
-      isActive 
-        ? "bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40"
-        : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/40"
-    )}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <span className={cn(
-          "text-xs font-bold",
-          isActive ? "text-brand" : "text-neutral-700 dark:text-neutral-300"
-        )}>
-          {label}
-        </span>
-        {isActive && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="text-[10px] text-red-500 font-medium"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+    <div
+      className={cn(
+        "rounded-xl border transition-all overflow-hidden",
+        isActive
+          ? "bg-brand/5 border-brand/30 dark:bg-brand/10 dark:border-brand/40"
+          : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/40"
+      )}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left"
+      >
+        <div>
+          <div className={cn(
+            "text-xs font-bold",
+            isActive ? "text-brand" : "text-neutral-700 dark:text-neutral-300"
+          )}>
+            {label}
+          </div>
+          <div className="text-[9px] text-neutral-400 dark:text-neutral-500">
+            Avg: <span className="font-semibold text-neutral-600 dark:text-neutral-300">{formatValue(avg)}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 tabular-nums">
+            {formatValue(localMin)}–{formatValue(localMax)}
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-neutral-400 transition-transform", isExpanded && "rotate-180")} />
+        </div>
+      </button>
 
-      {/* Avg Display */}
-      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-2">
-        Avg: <span className="font-semibold text-neutral-600 dark:text-neutral-300">{formatValue(avg)}</span>
-      </div>
+      {isExpanded && (
+        <div className="px-3 pb-3 pt-1">
+          {/* Editable Range Display - Tap to type */}
+          <div className="flex items-center justify-center gap-2 mb-3">
+            {editingMin ? (
+              <input
+                type="number"
+                value={minInputValue}
+                onChange={(e) => setMinInputValue(e.target.value)}
+                onBlur={handleMinSubmit}
+                onKeyDown={(e) => e.key === "Enter" && handleMinSubmit()}
+                autoFocus
+                className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={handleMinEdit}
+                className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
+              >
+                {formatValue(localMin)}
+              </button>
+            )}
+            <span className="text-neutral-400 text-sm">–</span>
+            {editingMax ? (
+              <input
+                type="number"
+                value={maxInputValue}
+                onChange={(e) => setMaxInputValue(e.target.value)}
+                onBlur={handleMaxSubmit}
+                onKeyDown={(e) => e.key === "Enter" && handleMaxSubmit()}
+                autoFocus
+                className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={handleMaxEdit}
+                className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
+              >
+                {formatValue(localMax)}
+              </button>
+            )}
+          </div>
 
-      {/* Editable Range Display - Tap to type */}
-      <div className="flex items-center justify-center gap-2 mb-3">
-        {editingMin ? (
-          <input
-            type="number"
-            value={minInputValue}
-            onChange={(e) => setMinInputValue(e.target.value)}
-            onBlur={handleMinSubmit}
-            onKeyDown={(e) => e.key === "Enter" && handleMinSubmit()}
-            autoFocus
-            className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={handleMinEdit}
-            className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
-          >
-            {formatValue(localMin)}
-          </button>
-        )}
-        <span className="text-neutral-400 text-sm">–</span>
-        {editingMax ? (
-          <input
-            type="number"
-            value={maxInputValue}
-            onChange={(e) => setMaxInputValue(e.target.value)}
-            onBlur={handleMaxSubmit}
-            onKeyDown={(e) => e.key === "Enter" && handleMaxSubmit()}
-            autoFocus
-            className="w-14 px-2 py-1 text-center text-sm font-bold bg-white dark:bg-neutral-800 border border-brand rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/50"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={handleMaxEdit}
-            className="px-2 py-1 text-sm font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:border-brand transition-colors"
-          >
-            {formatValue(localMax)}
-          </button>
-        )}
-      </div>
+          {/* Dual Range Slider */}
+          <div className="relative h-6 px-1">
+            {/* Track */}
+            <div className="absolute left-1 right-1 top-2.5 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
+            
+            {/* Selected Range */}
+            <div
+              className="absolute top-2.5 h-1.5 bg-brand rounded-full"
+              style={{
+                left: `calc(${minPos}% + 4px)`,
+                width: `${maxPos - minPos}%`,
+              }}
+            />
 
-      {/* Dual Range Slider */}
-      <div className="relative h-6 px-1">
-        {/* Track */}
-        <div className="absolute left-1 right-1 top-2.5 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
-        
-        {/* Selected Range */}
-        <div
-          className="absolute top-2.5 h-1.5 bg-brand rounded-full"
-          style={{
-            left: `calc(${minPos}% + 4px)`,
-            width: `${maxPos - minPos}%`,
-          }}
-        />
+            {/* Min Slider */}
+            <input
+              type="range"
+              min={minVal}
+              max={maxVal}
+              step={(maxVal - minVal) / 20 || 0.1}
+              value={localMin}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (val < localMax) {
+                  setLocalMin(val);
+                  handleApply(val, localMax);
+                }
+              }}
+              className="absolute w-full h-6 opacity-0 cursor-pointer z-10"
+            />
 
-        {/* Min Slider */}
-        <input
-          type="range"
-          min={minVal}
-          max={maxVal}
-          step={(maxVal - minVal) / 20 || 0.1}
-          value={localMin}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value);
-            if (val < localMax) {
-              setLocalMin(val);
-              handleApply(val, localMax);
-            }
-          }}
-          className="absolute w-full h-6 opacity-0 cursor-pointer z-10"
-        />
+            {/* Max Slider */}
+            <input
+              type="range"
+              min={minVal}
+              max={maxVal}
+              step={(maxVal - minVal) / 20 || 0.1}
+              value={localMax}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (val > localMin) {
+                  setLocalMax(val);
+                  handleApply(localMin, val);
+                }
+              }}
+              className="absolute w-full h-6 opacity-0 cursor-pointer z-20"
+            />
 
-        {/* Max Slider */}
-        <input
-          type="range"
-          min={minVal}
-          max={maxVal}
-          step={(maxVal - minVal) / 20 || 0.1}
-          value={localMax}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value);
-            if (val > localMin) {
-              setLocalMax(val);
-              handleApply(localMin, val);
-            }
-          }}
-          className="absolute w-full h-6 opacity-0 cursor-pointer z-20"
-        />
+            {/* Min Handle */}
+            <div
+              className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
+              style={{ left: `calc(${minPos}% - 4px)` }}
+            />
 
-        {/* Min Handle */}
-        <div
-          className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
-          style={{ left: `calc(${minPos}% - 4px)` }}
-        />
+            {/* Max Handle */}
+            <div
+              className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
+              style={{ left: `calc(${maxPos}% - 4px)` }}
+            />
+          </div>
 
-        {/* Max Handle */}
-        <div
-          className="absolute top-1 w-4 h-4 bg-white dark:bg-neutral-200 border-2 border-brand rounded-full shadow-md pointer-events-none"
-          style={{ left: `calc(${maxPos}% - 4px)` }}
-        />
-      </div>
+          {/* Min/Max Labels */}
+          <div className="flex justify-between text-[9px] text-neutral-400 mt-1">
+            <span>{formatValue(minVal)}</span>
+            <span>{formatValue(maxVal)}</span>
+          </div>
 
-      {/* Min/Max Labels */}
-      <div className="flex justify-between text-[9px] text-neutral-400 mt-1">
-        <span>{formatValue(minVal)}</span>
-        <span>{formatValue(maxVal)}</span>
-      </div>
+          {isActive && (
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-[10px] text-red-500 font-medium"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3254,6 +3716,9 @@ export function MobilePlayerDrilldown({
   const [activeOverlayFilter, setActiveOverlayFilter] = useState<{ key: string; label: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"chart" | "matchup" | "injuries" | "stats" | "odds">("chart");
   const [selectedInjuryPlayer, setSelectedInjuryPlayer] = useState<TeamRosterPlayer | null>(null);
+  const [playTypeFilters, setPlayTypeFilters] = useState<PlayTypeFilter[]>([]);
+  const [shotZoneFilters, setShotZoneFilters] = useState<ShotZoneFilter[]>([]);
+  const [showMatchupFilters, setShowMatchupFilters] = useState(false);
   
   // Injury filter state - track with/without for each player
   type InjuryFilterMode = "with" | "without" | null;
@@ -3346,6 +3811,84 @@ export function MobilePlayerDrilldown({
     position: profile.position || "PG",
     enabled: !!profile.position,
   });
+
+  const { data: playTypeMatchup } = usePlayTypeMatchup({
+    playerId: profile.playerId,
+    opponentTeamId: profile.opponentTeamId,
+    enabled: !!profile.playerId && !!profile.opponentTeamId,
+  });
+
+  const { data: shotZoneMatchup } = useShotZoneMatchup({
+    playerId: profile.playerId,
+    opponentTeamId: profile.opponentTeamId,
+    enabled: !!profile.playerId && !!profile.opponentTeamId,
+  });
+
+  // Fetch play type ranks for matchup filters
+  const { playTypes: playTypeRanks, displayNames: playTypeDisplayNames } = useTeamPlayTypeRanks();
+
+  // Fetch shot zone ranks for matchup filters
+  const { zones: shotZoneRanks } = useTeamShotZoneRanks();
+
+  // Build play type ranks map for chart overlay lines: playType -> teamAbbr -> rank
+  const playTypeRanksMap = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    if (!playTypeRanks || playTypeRanks.length === 0) return map;
+
+    for (const pt of playTypeRanks) {
+      const teamMap = new Map<string, number>();
+      for (const team of pt.teams) {
+        teamMap.set(team.teamAbbr, team.pppRank);
+      }
+      map.set(pt.playType, teamMap);
+    }
+    return map;
+  }, [playTypeRanks]);
+
+  // Build shot zone ranks map for chart overlay lines: zone -> teamAbbr -> rank
+  const shotZoneRanksMap = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    if (!shotZoneRanks || shotZoneRanks.length === 0) return map;
+
+    for (const zone of shotZoneRanks) {
+      const teamMap = new Map<string, number>();
+      for (const team of zone.teams) {
+        teamMap.set(team.teamAbbr, team.rank);
+      }
+      map.set(zone.zone, teamMap);
+    }
+    return map;
+  }, [shotZoneRanks]);
+
+  // Build active matchup filter lines for chart overlay
+  const activeMatchupFilterLines = useMemo(() => {
+    const lines: MatchupFilterLine[] = [];
+    const playTypeColors = ["#f97316", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"];
+    const shotZoneColors = ["#14b8a6", "#f59e0b", "#6366f1", "#84cc16", "#ef4444"];
+
+    playTypeFilters.forEach((filter, idx) => {
+      const displayName = playTypeDisplayNames[filter.playType] || filter.playType.replace(/([A-Z])/g, " $1").trim();
+      lines.push({
+        type: "playType",
+        key: filter.playType,
+        label: filter.label,
+        displayName,
+        color: playTypeColors[idx % playTypeColors.length],
+      });
+    });
+
+    shotZoneFilters.forEach((filter, idx) => {
+      lines.push({
+        type: "shotZone",
+        key: filter.zone,
+        label: filter.label,
+        displayName: filter.zone,
+        color: shotZoneColors[idx % shotZoneColors.length],
+      });
+    });
+
+    return lines;
+  }, [playTypeFilters, shotZoneFilters, playTypeDisplayNames]);
 
   // Build opponent DvP rank lookup map based on current market
   const opponentDvpRanks = useMemo(() => {
@@ -3802,6 +4345,46 @@ export function MobilePlayerDrilldown({
       };
     });
   }, [boxScoreGames, profile.market, gamesWithInjuries, playersOutData]);
+
+  const applyPlayTypeFiltersToChart = useCallback((games: typeof chartGames) => {
+    if (playTypeFilters.length === 0 || playTypeRanks.length === 0) return games;
+    return games.filter((game) => {
+      const opponentAbbr = game.opponent_abbr;
+      if (!opponentAbbr) return true;
+
+      for (const filter of playTypeFilters) {
+        const playTypeData = playTypeRanks.find((pt) => pt.playType === filter.playType);
+        if (!playTypeData) continue;
+        const teamData = playTypeData.teams.find((t) => t.teamAbbr === opponentAbbr);
+        if (!teamData) continue;
+        const rank = teamData.pppRank;
+        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        if (matchupLabel !== filter.label) return false;
+      }
+
+      return true;
+    });
+  }, [playTypeFilters, playTypeRanks]);
+
+  const applyShotZoneFiltersToChart = useCallback((games: typeof chartGames) => {
+    if (shotZoneFilters.length === 0 || shotZoneRanks.length === 0) return games;
+    return games.filter((game) => {
+      const opponentAbbr = game.opponent_abbr;
+      if (!opponentAbbr) return true;
+
+      for (const filter of shotZoneFilters) {
+        const zoneData = shotZoneRanks.find((z) => z.zone === filter.zone);
+        if (!zoneData) continue;
+        const teamData = zoneData.teams.find((t) => t.teamAbbr === opponentAbbr);
+        if (!teamData) continue;
+        const rank = teamData.rank;
+        const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+        if (matchupLabel !== filter.label) return false;
+      }
+
+      return true;
+    });
+  }, [shotZoneFilters, shotZoneRanks]);
   
   // Filter games based on quick filters AND injury filters
   const filteredChartGames = useMemo(() => {
@@ -3825,10 +4408,6 @@ export function MobilePlayerDrilldown({
         const margin = typeof game.margin === 'number' ? game.margin : parseInt(String(game.margin)) || 0;
         if (quickFilters.has("wonBy10") && (game.win_loss !== "W" || margin < 10)) return false;
         if (quickFilters.has("lostBy10") && (game.win_loss !== "L" || Math.abs(margin) < 10)) return false;
-        
-        // 30+ Minutes
-        const mins = typeof game.minutes === 'number' ? game.minutes : parseFloat(String(game.minutes)) || 0;
-        if (quickFilters.has("high_mins") && mins < 30) return false;
         
         // DvP rank filters - opponent defense strength
         if (hasDvpFilter) {
@@ -3874,6 +4453,12 @@ export function MobilePlayerDrilldown({
         return true;
       });
     }
+
+    // Apply play type defense filters
+    games = applyPlayTypeFiltersToChart(games);
+
+    // Apply shot zone defense filters
+    games = applyShotZoneFiltersToChart(games);
     
     // Filter by opponent if H2H is selected
     if (gameCount === "h2h" && profile.opponentTeamAbbr) {
@@ -3971,7 +4556,7 @@ export function MobilePlayerDrilldown({
     }
     
     return games;
-  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, opponentDvpRanks]);
+  }, [chartGames, quickFilters, injuryFilters, advancedFilters, boxScoreGames, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, opponentDvpRanks, applyPlayTypeFiltersToChart, applyShotZoneFiltersToChart]);
 
   // Games for TrendingFilters/AdvancedFilters histograms - applies quick + injury filters but NOT advanced filters
   // This way when you filter "without Sam Merrill", the histogram shows only those games
@@ -3990,7 +4575,6 @@ export function MobilePlayerDrilldown({
         const margin = parseInt(String(game.margin)) || 0;
         if (quickFilters.has("wonBy10") && (game.result !== "W" || margin < 10)) return false;
         if (quickFilters.has("lostBy10") && (game.result !== "L" || Math.abs(margin) < 10)) return false;
-        if (quickFilters.has("high_mins") && game.minutes < 30) return false;
         return true;
       });
     }
@@ -4010,6 +4594,46 @@ export function MobilePlayerDrilldown({
         return true;
       });
     }
+
+    // Apply play type defense filters
+    if (playTypeFilters.length > 0 && playTypeRanks.length > 0) {
+      games = games.filter(game => {
+        const opponentAbbr = game.opponentAbbr;
+        if (!opponentAbbr) return true;
+
+        for (const filter of playTypeFilters) {
+          const playTypeData = playTypeRanks.find(pt => pt.playType === filter.playType);
+          if (!playTypeData) continue;
+          const teamData = playTypeData.teams.find(t => t.teamAbbr === opponentAbbr);
+          if (!teamData) continue;
+          const rank = teamData.pppRank;
+          const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          if (matchupLabel !== filter.label) return false;
+        }
+
+        return true;
+      });
+    }
+
+    // Apply shot zone defense filters
+    if (shotZoneFilters.length > 0 && shotZoneRanks.length > 0) {
+      games = games.filter(game => {
+        const opponentAbbr = game.opponentAbbr;
+        if (!opponentAbbr) return true;
+
+        for (const filter of shotZoneFilters) {
+          const zoneData = shotZoneRanks.find(z => z.zone === filter.zone);
+          if (!zoneData) continue;
+          const teamData = zoneData.teams.find(t => t.teamAbbr === opponentAbbr);
+          if (!teamData) continue;
+          const rank = teamData.rank;
+          const matchupLabel = rank <= 10 ? "tough" : rank >= 21 ? "favorable" : "neutral";
+          if (matchupLabel !== filter.label) return false;
+        }
+
+        return true;
+      });
+    }
     
     // Apply game count filter
     if (gameCount === "h2h" && profile.opponentTeamAbbr) {
@@ -4020,7 +4644,7 @@ export function MobilePlayerDrilldown({
     }
     
     return games;
-  }, [boxScoreGames, quickFilters, injuryFilters, teammatesOutByGame, gameCount, profile.opponentTeamAbbr]);
+  }, [boxScoreGames, quickFilters, injuryFilters, teammatesOutByGame, gameCount, profile.opponentTeamAbbr, playTypeFilters, shotZoneFilters, playTypeRanks, shotZoneRanks]);
   
   // Calculate average from filtered games
   const avg = useMemo(() => {
@@ -4066,6 +4690,15 @@ export function MobilePlayerDrilldown({
     
     return { hits, total: games.length, pct };
   }, [filteredChartGames, gameCount, effectiveLine]);
+
+  const advancedFiltersCount = useMemo(() => {
+    return Object.values(advancedFilters).filter(v => v !== null).length;
+  }, [advancedFilters]);
+
+  const matchupFiltersCount = useMemo(() => {
+    const dvpCount = ["dvpTough", "dvpAverage", "dvpWeak"].filter((key) => quickFilters.has(key)).length;
+    return dvpCount + playTypeFilters.length + shotZoneFilters.length;
+  }, [quickFilters, playTypeFilters.length, shotZoneFilters.length]);
   
   // Reset custom line when market changes
   useEffect(() => {
@@ -4279,7 +4912,6 @@ export function MobilePlayerDrilldown({
                     loss: "Losses",
                     wonBy10: "Won 10+",
                     lostBy10: "Lost 10+",
-                    high_mins: "30+ Min",
                     dvpTough: "DvP 1-10",
                     dvpAverage: "DvP 11-20",
                     dvpWeak: "DvP 21-30",
@@ -4583,6 +5215,22 @@ export function MobilePlayerDrilldown({
         onFiltersChange={setAdvancedFilters}
         games={gamesForTrendingFilters}
         market={profile.market}
+      />
+
+      <MatchupFiltersSheet
+        isOpen={showMatchupFilters}
+        onClose={() => setShowMatchupFilters(false)}
+        quickFilters={quickFilters}
+        onQuickFilterToggle={toggleQuickFilter}
+        playTypeFilters={playTypeFilters}
+        onPlayTypeFiltersChange={setPlayTypeFilters}
+        playTypeRanks={playTypeRanks}
+        playTypeDisplayNames={playTypeDisplayNames}
+        playTypeMatchup={playTypeMatchup}
+        shotZoneFilters={shotZoneFilters}
+        onShotZoneFiltersChange={setShotZoneFilters}
+        shotZoneRanks={shotZoneRanks}
+        shotZoneMatchup={shotZoneMatchup}
       />
 
       {/* All Odds - Bottom Sheet Modal */}
@@ -4910,9 +5558,14 @@ export function MobilePlayerDrilldown({
               onQuickFiltersClear={() => setQuickFilters(new Set())}
               totalGamesCount={chartGames.length}
               market={profile.market}
-              advancedFiltersCount={Object.values(advancedFilters).filter(v => v !== null).length}
+              advancedFiltersCount={advancedFiltersCount}
               onOpenAdvancedFilters={() => setShowAdvancedFilters(true)}
+              matchupFiltersCount={matchupFiltersCount}
+              onOpenMatchupFilters={() => setShowMatchupFilters(true)}
               activeOverlay={activeOverlayFilter}
+              activeMatchupFilters={activeMatchupFilterLines}
+              playTypeRanksMap={playTypeRanksMap}
+              shotZoneRanksMap={shotZoneRanksMap}
             />
             
             {/* ═══ TRENDING FILTERS - Quick stat sliders ═══ */}
@@ -5022,17 +5675,19 @@ export function MobilePlayerDrilldown({
               <div className="px-4 pb-3">
                 <div className="flex items-center gap-2">
                   {/* Over + Heart */}
-                  <div className="flex-1 flex items-center gap-1">
+                  <div
+                    className={cn(
+                      "flex-1 flex items-stretch rounded-lg border overflow-hidden transition-all",
+                      odds?.bestOver
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/60 dark:border-emerald-700/30"
+                        : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
+                    )}
+                  >
                     <button
                       type="button"
                       onClick={() => odds?.bestOver?.mobileUrl && window.open(odds.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestOver}
-                      className={cn(
-                        "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
-                        odds?.bestOver 
-                          ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/30" 
-                          : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
-                      )}
+                      className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">O {effectiveLine}</span>
@@ -5050,10 +5705,13 @@ export function MobilePlayerDrilldown({
                         onClick={() => handleToggleFavorite("over")}
                         disabled={isToggling}
                         className={cn(
-                          "p-2 rounded-lg border transition-all active:scale-95",
+                          "px-2.5 flex items-center justify-center border-l transition-all active:scale-95",
+                          odds?.bestOver
+                            ? "border-emerald-200/60 dark:border-emerald-700/30"
+                            : "border-neutral-200/60 dark:border-neutral-700/30",
                           isOverFavorited
-                            ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
-                            : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400",
+                            ? "bg-rose-50 dark:bg-rose-900/20 text-rose-500"
+                            : "text-neutral-400 hover:text-neutral-500 dark:text-neutral-500",
                           isToggling && "opacity-50"
                         )}
                       >
@@ -5063,17 +5721,19 @@ export function MobilePlayerDrilldown({
                   </div>
                   
                   {/* Under + Heart */}
-                  <div className="flex-1 flex items-center gap-1">
+                  <div
+                    className={cn(
+                      "flex-1 flex items-stretch rounded-lg border overflow-hidden transition-all",
+                      odds?.bestUnder
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-200/60 dark:border-red-700/30"
+                        : "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
+                    )}
+                  >
                     <button
                       type="button"
                       onClick={() => odds?.bestUnder?.mobileUrl && window.open(odds.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
                       disabled={!odds?.bestUnder}
-                      className={cn(
-                        "flex-1 flex items-center justify-between px-3 py-2 rounded-lg transition-all active:scale-[0.98]",
-                        odds?.bestUnder 
-                          ? "bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-700/30" 
-                          : "bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/30 opacity-50"
-                      )}
+                      className="flex-1 flex items-center justify-between px-3 py-2 rounded-l-lg transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] font-bold text-red-500 dark:text-red-400">U {effectiveLine}</span>
@@ -5091,10 +5751,13 @@ export function MobilePlayerDrilldown({
                         onClick={() => handleToggleFavorite("under")}
                         disabled={isToggling}
                         className={cn(
-                          "p-2 rounded-lg border transition-all active:scale-95",
+                          "px-2.5 flex items-center justify-center border-l transition-all active:scale-95",
+                          odds?.bestUnder
+                            ? "border-red-200/60 dark:border-red-700/30"
+                            : "border-neutral-200/60 dark:border-neutral-700/30",
                           isUnderFavorited
-                            ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
-                            : "bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400",
+                            ? "bg-rose-50 dark:bg-rose-900/20 text-rose-500"
+                            : "text-neutral-400 hover:text-neutral-500 dark:text-neutral-500",
                           isToggling && "opacity-50"
                         )}
                       >

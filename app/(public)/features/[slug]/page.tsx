@@ -1,10 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/badge";
-import { Container } from "@/components/container";
-import { DivideX } from "@/components/divide";
-import { SubHeading } from "@/components/subheading";
 import { ToolPreviewLayout } from "@/components/tool-preview";
 import { featurePages, getFeatureBySlug } from "@/data/feature-pages";
 
@@ -31,7 +27,11 @@ export async function generateMetadata({
   };
 }
 
-export default async function FeatureDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function FeatureDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
   const feature = getFeatureBySlug(slug);
 
@@ -40,12 +40,14 @@ export default async function FeatureDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div>
+    <div className="bg-black">
       <ToolPreviewLayout
         title={feature.title}
         tagline={feature.tagline}
         description={feature.description}
         screenshot={feature.screenshot}
+        heroImage={feature.heroImage}
+        mobileImage={feature.mobileImage}
         features={feature.features}
         benefits={feature.benefits.map((text) => ({ text }))}
         ctaText={`Try ${feature.title}`}
@@ -55,69 +57,79 @@ export default async function FeatureDetailPage({ params }: { params: Promise<{ 
         toolPath={feature.toolPath}
       />
 
-      <DivideX />
-
-      <Container className="border-divide border-x py-12 md:py-16">
-        <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
-          <Badge text="How It Works" />
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Get value in three steps
-          </h2>
-          <SubHeading className="mx-auto mt-3 max-w-2xl">
-            {feature.title} is built for speed. See the edge, validate it, and move before the
-            market shifts.
-          </SubHeading>
-        </div>
-
-        <div className="mt-10 grid gap-6 px-4 md:grid-cols-3">
-          {feature.steps.map((step, index) => (
-            <div
-              key={step.title}
-              className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-black"
+      {/* How It Works */}
+      <section className="bg-black px-4 py-16 md:px-8 md:py-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center">
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.28em]"
+              style={{ color: feature.accentColor }}
             >
+              How It Works
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Get value in three steps
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-lg text-white/60">
+              {feature.title} is built for speed. See the edge, validate it, and
+              move before the market shifts.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {feature.steps.map((step, index) => (
               <div
-                className="inline-flex size-9 items-center justify-center rounded-full text-sm font-semibold text-white"
-                style={{ backgroundColor: feature.accentColor ?? "#0ea5e9" }}
+                key={step.title}
+                className="rounded-2xl bg-white/[0.04] p-6"
               >
-                {index + 1}
+                <div
+                  className="inline-flex size-9 items-center justify-center rounded-full text-sm font-semibold text-white"
+                  style={{ backgroundColor: feature.accentColor ?? "#0ea5e9" }}
+                >
+                  {index + 1}
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-white">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm text-white/50">
+                  {step.description}
+                </p>
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                {step.title}
-              </h3>
-              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                {step.description}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </Container>
+      </section>
 
-      <DivideX />
+      {/* FAQ */}
+      <section className="bg-black px-4 py-16 md:px-8 md:py-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center">
+            <p
+              className="text-xs font-semibold uppercase tracking-[0.28em]"
+              style={{ color: feature.accentColor }}
+            >
+              FAQ
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Common questions
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-lg text-white/60">
+              Quick answers about {feature.title} so you can decide fast.
+            </p>
+          </div>
 
-      <Container className="border-divide border-x py-12 md:py-16">
-        <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
-          <Badge text="FAQ" />
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Common questions
-          </h2>
-          <SubHeading className="mx-auto mt-3 max-w-2xl">
-            Quick answers about {feature.title} so you can decide fast.
-          </SubHeading>
+          <div className="mx-auto mt-12 max-w-3xl divide-y divide-white/10">
+            {feature.faqs.map((item) => (
+              <div key={item.question} className="py-6">
+                <h3 className="text-base font-semibold text-white">
+                  {item.question}
+                </h3>
+                <p className="mt-2 text-sm text-white/50">{item.answer}</p>
+              </div>
+            ))}
+          </div>
         </div>
-
-        <div className="mt-10 divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white px-6 dark:divide-neutral-800 dark:border-neutral-800 dark:bg-black">
-          {feature.faqs.map((item) => (
-            <div key={item.question} className="py-6">
-              <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-                {item.question}
-              </h3>
-              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                {item.answer}
-              </p>
-            </div>
-          ))}
-        </div>
-      </Container>
+      </section>
     </div>
   );
 }

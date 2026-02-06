@@ -18,6 +18,7 @@ import {
   type OpportunitiesResponseV2,
   type BestOddsDealV2,
 } from "@/lib/api-adapters/opportunities-to-best-odds";
+import { isMarketSelected } from "@/lib/utils";
 
 interface UseBestOddsV2Options {
   isPro: boolean;
@@ -181,8 +182,8 @@ export function useBestOddsV2({
     }
     
     // Market filter
-    if (prefs.selectedMarkets?.length > 0) {
-      if (!prefs.selectedMarkets.includes(deal.mkt)) return false;
+    if (prefs.selectedMarkets) {
+      if (!isMarketSelected(prefs.selectedMarkets, deal.sport || "", deal.mkt || "")) return false;
     }
     
     // Book filter
@@ -254,4 +255,3 @@ export function usePositiveEV({
     extended: true,
   });
 }
-

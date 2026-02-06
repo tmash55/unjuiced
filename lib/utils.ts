@@ -40,8 +40,9 @@ export function formatGameTime(gameTime: string | null | undefined): string {
 
 /**
  * Check if a market is selected for a specific sport.
- * Supports both composite keys (nba:player_points) and plain keys (player_points).
- * 
+ * Supports both composite keys (nba:player_points) and plain keys (player_points),
+ * with fuzzy matching to preserve legacy "partial" behavior.
+ *
  * @param selectedMarkets - Array of selected market keys (can be composite or plain)
  * @param sport - The sport to check (e.g., "nba", "nfl")
  * @param market - The market key to check (e.g., "player_points")
@@ -54,14 +55,31 @@ export function isMarketSelected(
 ): boolean {
   // Empty array means "all markets selected"
   if (selectedMarkets.length === 0) return true;
-  
-  const compositeKey = `${sport}:${market}`;
-  
-  // Check if composite key is selected (sport-specific)
-  if (selectedMarkets.includes(compositeKey)) return true;
-  
-  // Check if plain key is selected (backwards compat / global)
-  if (selectedMarkets.includes(market)) return true;
-  
-  return false;
+
+  const marketLower = (market || "").toLowerCase();
+  const sportLower = (sport || "").toLowerCase();
+
+  return selectedMarkets.some((selected) => {
+    const selectedLower = selected.toLowerCase();
+
+    // Composite key: "sport:market"
+    if (selectedLower.includes(":")) {
+      const [selectedSport, selectedMarket] = selectedLower.split(":");
+      if (selectedSport && selectedMarket) {
+        if (selectedSport !== sportLower) return false;
+        return (
+          selectedMarket === marketLower ||
+          marketLower.includes(selectedMarket) ||
+          selectedMarket.includes(marketLower)
+        );
+      }
+    }
+
+    // Plain key (global / backwards compat)
+    return (
+      selectedLower === marketLower ||
+      marketLower.includes(selectedLower) ||
+      selectedLower.includes(marketLower)
+    );
+  });
 }

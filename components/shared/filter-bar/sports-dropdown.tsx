@@ -111,6 +111,15 @@ export function SportsDropdown({
 }: SportsDropdownProps) {
   const [open, setOpen] = useState(false);
   const [marketSearch, setMarketSearch] = useState("");
+  const flattenMarkets = useCallback((markets: string[]) => {
+    if (markets.length === 0) return [];
+    const unique = new Set<string>();
+    markets.forEach((market) => {
+      const parts = market.split(":");
+      unique.add(parts.length > 1 ? parts[1] : market);
+    });
+    return Array.from(unique);
+  }, []);
 
   // Determine if using sports or leagues based on tool
   const isPositiveEV = tool === "positive-ev";
@@ -122,6 +131,10 @@ export function SportsDropdown({
   const [localSelected, setLocalSelected] = useState<string[]>(propSelected);
   const [localMarkets, setLocalMarkets] = useState<string[]>(selectedMarkets);
   const [wasOpen, setWasOpen] = useState(false);
+  const displaySelectedMarkets = useMemo(
+    () => flattenMarkets(localMarkets),
+    [localMarkets, flattenMarkets]
+  );
 
   // Sync local state with props ONLY when dropdown transitions from closed to open
   useEffect(() => {
@@ -170,7 +183,7 @@ export function SportsDropdown({
   const allSportsSelected = selected.length === 0 || selected.length === available.length;
   
   // Check if all markets are selected (empty = all)
-  const allMarketsSelected = localMarkets.length === 0;
+  const allMarketsSelected = localMarkets.length === 0 || (availableMarkets.length > 0 && displaySelectedMarkets.length === availableMarkets.length);
 
   // Toggle sport/league selection - update LOCAL state only
   const toggleSportLeague = (id: string) => {
@@ -348,7 +361,7 @@ export function SportsDropdown({
   // Summary text for button - use PROP state (not local) for the button display
   // since we only want to show committed state in the trigger
   const propAllSportsSelected = propSelected.length === 0 || propSelected.length === available.length;
-  const propAllMarketsSelected = selectedMarkets.length === 0;
+  const propAllMarketsSelected = selectedMarkets.length === 0 || (availableMarkets.length > 0 && flattenMarkets(selectedMarkets).length === availableMarkets.length);
   const propPrimarySport = propSelected.length > 0 ? propSelected[0] : available[0];
   
   const getSummaryText = () => {
@@ -360,7 +373,7 @@ export function SportsDropdown({
       : `${propSelected.length} ${propSelected.length !== 1 ? entityLabelPlural : entityLabel}`;
     const marketsText = propAllMarketsSelected 
       ? "All Markets" 
-      : `${selectedMarkets.length} Market${selectedMarkets.length !== 1 ? "s" : ""}`;
+      : `${flattenMarkets(selectedMarkets).length} Market${flattenMarkets(selectedMarkets).length !== 1 ? "s" : ""}`;
     return { sportsText, marketsText };
   };
 
@@ -523,7 +536,7 @@ export function SportsDropdown({
                   </Tooltip>
                 </div>
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                  {allMarketsSelected ? "All" : localMarkets.length} selected
+                  {allMarketsSelected ? "All" : displaySelectedMarkets.length} selected
                 </span>
               </div>
               

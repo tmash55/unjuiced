@@ -130,7 +130,7 @@ const navItemClassName = cn(
  * Shows: Logo, Features (tool previews), Resources, Pricing, Sign In/Sign Up
  */
 export function PublicNav({
-  theme = "light",
+  theme,
   staticDomain,
   maxWidthWrapperClassName,
 }: {
@@ -143,27 +143,30 @@ export function PublicNav({
   const scrolled = useScroll(40);
   const pathname = usePathname();
   const authUrls = useAppAuthUrls();
+  const isHome = pathname === "/";
+  const resolvedTheme: NavTheme = theme ?? (isHome ? "dark" : "light");
+  const isTransparent = isHome && !scrolled;
 
   return (
-    <PublicNavContext.Provider value={{ theme }}>
+    <PublicNavContext.Provider value={{ theme: resolvedTheme }}>
       <LayoutGroup id={layoutGroupId}>
         <div
           className={cn(
             `sticky inset-x-0 top-0 z-50 w-full transition-all`,
-            theme === "dark" && "dark",
+            resolvedTheme === "dark" && "dark",
           )}
         >
           {/* Scrolled background */}
           <div
             className={cn(
-              "absolute inset-0 block border-b bg-white dark:bg-black transition-all",
-              scrolled
-                ? "border-neutral-100 backdrop-blur-lg dark:border-white/10"
-                : "border-transparent",
+              "absolute inset-0 block transition-all",
+              isTransparent
+                ? "border-b border-transparent bg-transparent"
+                : "border-b border-neutral-100 bg-white/90 backdrop-blur-lg dark:border-white/10 dark:bg-black/80",
             )}
           />
           <MaxWidthWrapper className={cn("relative", maxWidthWrapperClassName)}>
-            <div className="flex h-14 items-center justify-between">
+            <div className="flex h-16 items-center justify-between">
               <div className="flex grow basis-0 items-center">
                 <Link
                   className="flex items-center w-fit py-2 pr-2"
@@ -379,7 +382,7 @@ function PublicMobileNav({ domain }: { domain: string }) {
             {/* Header */}
             <div className="shrink-0 border-b border-neutral-200 dark:border-white/10">
               <MaxWidthWrapper>
-                <div className="flex h-14 items-center justify-between">
+                <div className="flex h-16 items-center justify-between">
                   <Link
                     href="/"
                     onClick={() => setIsOpen(false)}

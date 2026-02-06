@@ -258,10 +258,7 @@ export function GamesFilterDropdown({
         {/* Games List */}
         <div className="overflow-y-auto max-h-[320px]">
           {gamesByDate.map(([date, dateGames]) => {
-            const isToday = date === todayET;
-            const availableGames = isToday
-              ? dateGames.filter((game) => !hasGameStarted(game))
-              : dateGames;
+            const availableGames = dateGames;
 
             if (availableGames.length === 0) {
               return null;

@@ -24,6 +24,7 @@ import {
 import { normalizeSportsbookId, getSportsbookById } from "@/lib/data/sportsbooks";
 import { DEFAULT_FILTER_COLOR, type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
 import { type BestOddsPrefs } from "@/lib/best-odds-schema";
+import { isMarketSelected } from "@/lib/utils";
 
 // All supported sports for broad fetching in preset mode
 const ALL_SPORTS: Sport[] = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
@@ -489,13 +490,11 @@ function applyGlobalFilters(
     }
     
     // HYBRID: Selected markets filter (client-side)
-    // Only filter if user has selected specific markets
-    if (!isCustomMode && prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
-      const oppMarket = (opp.market || "").toLowerCase();
-      const marketMatches = prefs.selectedMarkets.some(m => 
-        oppMarket.includes(m.toLowerCase()) || m.toLowerCase().includes(oppMarket)
-      );
-      if (!marketMatches) return false;
+    // Empty = all markets selected
+    if (!isCustomMode && prefs.selectedMarkets) {
+      if (!isMarketSelected(prefs.selectedMarkets, opp.sport || "", opp.market || "")) {
+        return false;
+      }
     }
     
     // Search filter

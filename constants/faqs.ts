@@ -1,47 +1,47 @@
 export const faqs = [
   {
-    question: "What is Unjuiced and how does it work?",
+    question: "What is Unjuiced?",
     answer:
-      "Unjuiced is a real-time odds comparison platform that aggregates betting lines from all major sportsbooks. We help you find the best odds for any bet, identify arbitrage opportunities, and track line movements across NFL, NBA, NHL, MLB, and college sports. Our platform updates in real-time so you never miss the best value.",
+      "Unjuiced is a betting research and execution platform. You can validate props with Hit Rates, find mispriced odds with Smart Edges, and execute better tickets with SGP and Arbitrage tools.",
   },
   {
-    question: "What sports and markets do you cover?",
+    question: "What does the Hit Rates tool include?",
     answer:
-      "We cover all major sports including NFL, NBA, NHL, MLB, NCAAF, and NCAAB. You can compare odds for game lines (moneyline, spread, totals), player props (points, rebounds, touchdowns, etc.), and futures. We support both pregame and live betting markets across 20+ sportsbooks. See all sports and markets we support here: /markets",
+      "Hit Rates includes L5, L10, L20 and season performance, matchup context, and supporting research views to help you understand whether a prop is actually hitting before you bet.",
   },
   {
-    question: "How do I find arbitrage opportunities?",
+    question: "What are Smart Edges?",
     answer:
-      "Our Arbitrage Finder automatically scans all sportsbooks to identify risk-free betting opportunities where you can guarantee a profit regardless of the outcome. Simply set your bet amount and ROI filters, and we'll show you exactly how much to wager on each side to guarantee a profit.",
+      "Smart Edges combines value discovery across books, including positive EV opportunities and line discrepancies. It is designed to show where value exists now, before lines move.",
+  },
+  {
+    question: "How do Build and Optimize tools work?",
+    answer:
+      "Build and Optimize includes SGP and Arbitrage workflows. You can compare books, build better tickets, and identify risk-managed windows based on current market pricing.",
   },
   {
     question: "Which sportsbooks do you support?",
     answer:
-      "We support all major US sportsbooks including DraftKings, FanDuel, BetMGM, Caesars, ESPN BET, Fanatics, BetRivers, and many more. We also include sharp books like Pinnacle and Circa. You can customize which books to display based on your location and preferences. View all supported sportsbooks and details here: /sportsbooks",
+      "Unjuiced supports a broad set of major books, including top US operators and additional sharp/offshore sources depending on availability. You can review supported books and details at href: /sportsbooks",
   },
   {
-    question: "What's the difference between Free and Sharp plans?",
+    question: "Which plans do you offer?",
     answer:
-      "Free users can compare odds across all sportsbooks and find arbitrage opportunities up to 2% ROI. Sharp users get unlimited arbitrage opportunities, live odds updates via real-time data feeds, advanced filters, and the ability to hide/reorder columns. Sharp also includes deep links to place bets directly from our platform. Compare Free and Sharp features here: /pricing",
+      "Plans are Scout ($15), Sharp ($40), and Elite ($70) on monthly billing, with yearly options available. Scout is focused on research, Sharp adds real-time value tools, and Elite is for advanced workflows.",
   },
   {
-    question: "How accurate and fast are your odds?",
+    question: "How does the free trial work?",
     answer:
-      "We provide live, up-to-date odds with sub-second latency directly from sportsbook APIs. Sharp users receive real-time updates via Server-Sent Events (SSE) with instant UI updates as lines move. We offer full bet coverage including main lines, alternate lines, player props, and more across all major markets.",
+      "When you select a plan and start signup, you are taken through registration and then Stripe checkout to activate the trial. A payment method is required for trial activation.",
   },
   {
-    question: "Is sports betting legal in my state?",
+    question: "Does Unjuiced place bets for me?",
     answer:
-      "Sports betting legality varies by state. Unjuiced is a comparison tool available nationwide, but you can only place bets through licensed sportsbooks in states where sports betting is legal. We filter sportsbooks based on your location to show only those available in your state. Note: Bovada is available in all states and ProphetX is available in almost every state, providing options even in states with limited legal sportsbooks. Always gamble responsibly.",
-  },
-  {
-    question: "Does Unjuiced handle bets or process wagers?",
-    answer:
-      "No. Unjuiced is an odds comparison and information platform for entertainment purposes only. We do not accept, place, or process any bets or wagers. All betting is done directly through licensed sportsbooks. We simply provide tools to help you compare odds and find value across different betting platforms.",
+      "No. Unjuiced does not accept, place, or process wagers. Bets are always placed directly with sportsbooks.",
   },
   {
     question: "Does Unjuiced have a mobile app?",
     answer:
-      "Not yet, but development has been started—stay tuned! In the meantime, our web platform is fully responsive and works great on mobile browsers. You can access all features including odds comparison, arbitrage finder, and ladders directly from your phone or tablet.",
+      "A dedicated app is in progress. Today, the web app is fully responsive and supports core workflows on mobile browsers.",
   },
 ];

@@ -3,6 +3,7 @@ import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 import { isAppSubdomain } from '@/lib/domain'
+import { isYearlyPriceId, ACTIVE_PROMO, isPromoActive } from '@/constants/billing'
 import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
@@ -57,17 +58,20 @@ export async function GET(req: NextRequest) {
       typescript: true,
     })
     
-    let isYearlyPlan = false
+    // Check if yearly via Stripe metadata first, fall back to known price IDs
+    let isYearlyPlan = isYearlyPriceId(priceId)
     try {
       const price = await stripe.prices.retrieve(priceId)
       const billingInterval = price.metadata?.billing_interval
-      isYearlyPlan = billingInterval === 'yearly'
-      
-      if (isYearlyPlan) {
-        console.log('[billing/start] Yearly plan - promo codes disabled')
+      if (billingInterval === 'yearly') {
+        isYearlyPlan = true
       }
     } catch (priceError) {
-      console.warn('[billing/start] Could not retrieve price metadata:', priceError)
+      console.warn('[billing/start] Could not retrieve price metadata, using price ID fallback:', priceError)
+    }
+    
+    if (isYearlyPlan) {
+      console.log('[billing/start] Yearly plan detected - promo codes disabled')
     }
 
     // Try to reuse existing Stripe customer id if present
@@ -119,13 +123,39 @@ export async function GET(req: NextRequest) {
     const successUrl = `${origin}/account/settings?billing=success`
     const cancelUrl = `${origin}/account/settings?billing=cancelled`
 
-    // Determine discount to apply:
-    // - Yearly plans: no discounts
-    // - Partner referral: auto-apply coupon/promo code
-    // - Otherwise: show promo code input
-    const shouldAutoApplyDiscount = !isYearlyPlan && (partnerDiscount.promotionCodeId || partnerDiscount.couponId)
+    // Determine discount to apply (priority order):
+    // 1. Yearly plans: no discounts ever
+    // 2. Active site-wide promo (e.g. Super Bowl 60): overrides partner discount
+    // 3. Partner referral: auto-apply coupon/promo code
+    // 4. No discount: show promo code input for manual entry
+    
+    const promoActive = isPromoActive() && !isYearlyPlan && (!ACTIVE_PROMO.monthlyOnly || !isYearlyPlan)
+    const hasPartnerDiscount = !isYearlyPlan && (partnerDiscount.promotionCodeId || partnerDiscount.couponId)
+    
+    let autoPromotionCodeId: string | undefined
+    let autoCouponId: string | undefined
+    let allowPromoCodes = !isYearlyPlan
+    
+    if (promoActive) {
+      // Site-wide promo takes priority over partner discount
+      autoPromotionCodeId = ACTIVE_PROMO.promotionCodeId
+      allowPromoCodes = false
+      console.log('[billing/start] Applying site-wide promo:', ACTIVE_PROMO.name)
+    } else if (hasPartnerDiscount) {
+      // Partner discount as fallback
+      autoPromotionCodeId = partnerDiscount.promotionCodeId ?? undefined
+      autoCouponId = partnerDiscount.couponId ?? undefined
+      allowPromoCodes = false
+      console.log('[billing/start] Applying partner discount:', partnerDiscount.partnerName)
+    }
 
-    console.log('[billing/start] Creating checkout session')
+    console.log('[billing/start] Creating checkout session', {
+      isYearlyPlan,
+      promoActive,
+      hasPartnerDiscount,
+      autoPromotionCodeId: autoPromotionCodeId ? '***' : undefined,
+      allowPromoCodes,
+    })
     const url = await createCheckout({
       user: { customerId: stripeCustomerId, email: user.email ?? undefined },
       mode,
@@ -135,12 +165,9 @@ export async function GET(req: NextRequest) {
       priceId,
       trialDays,
       paymentMethodCollection: typeof trialDays === 'number' ? 'always' : 'if_required',
-      // If auto-applying discount, don't show promo code input (Stripe doesn't allow both)
-      // If no discount to auto-apply, show promo code input (except yearly plans)
-      allowPromotionCodes: !isYearlyPlan && !shouldAutoApplyDiscount,
-      // Auto-apply partner discount if available
-      couponId: shouldAutoApplyDiscount ? (partnerDiscount.couponId ?? undefined) : undefined,
-      promotionCodeId: shouldAutoApplyDiscount ? (partnerDiscount.promotionCodeId ?? undefined) : undefined,
+      allowPromotionCodes: allowPromoCodes,
+      couponId: autoCouponId,
+      promotionCodeId: autoPromotionCodeId,
     })
 
     if (!url) {

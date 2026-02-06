@@ -13,6 +13,7 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
+import { LoadingState } from "@/components/common/loading-state";
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { getLeagueName } from "@/lib/data/sports";
@@ -30,7 +31,7 @@ import {
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
-import { getKellyStakeDisplay } from "@/lib/utils/kelly";
+import { formatStake, getKellyStakeDisplay, getLongOddsStakeMultiplier } from "@/lib/utils/kelly";
 import { usePrefetchPlayerByOddsId } from "@/hooks/use-prefetch-player";
 import { useFavorites } from "@/hooks/use-favorites";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
@@ -1159,21 +1160,28 @@ export function OpportunitiesTable({
                 return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
-              const { stake, display, kellyPct } = getKellyStakeDisplay({
+              const { stake, kellyPct } = getKellyStakeDisplay({
                 bankroll,
                 bestOdds,
                 fairOdds,
                 kellyPercent: kellyPercent || 25,
                 boostPercent: boostPercent || 0,
               });
+
+              const longOddsMultiplier = getLongOddsStakeMultiplier(bestOdds);
+              const adjustedStake = stake * longOddsMultiplier;
+              const adjustedDisplay = formatStake(adjustedStake);
               
-              if (stake <= 0) {
+              if (adjustedStake <= 0) {
                 return <span className="text-[10px] lg:text-xs text-neutral-400 dark:text-neutral-500">—</span>;
               }
               
+              const longOddsAdjustment = longOddsMultiplier < 1
+                ? ` • Long-odds adjustment: ${Math.round((1 - longOddsMultiplier) * 100)}% lower`
+                : "";
               const tooltipContent = boostPercent > 0
-                ? `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display} • +${boostPercent}% boosted`
-                : `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${display}`;
+                ? `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${adjustedDisplay} • +${boostPercent}% boosted${longOddsAdjustment}`
+                : `Full Kelly: ${kellyPct.toFixed(1)}% • ${(kellyPercent || 25)}% Kelly: ${adjustedDisplay}${longOddsAdjustment}`;
               
               // Kelly % tier for visual emphasis (consistent across all bankrolls)
               // High: 3%+ full Kelly = strong bet
@@ -1193,10 +1201,10 @@ export function OpportunitiesTable({
                         : isMediumKelly 
                           ? "bg-amber-50 dark:bg-amber-900/20"
                           : "bg-neutral-100/60 dark:bg-neutral-800/40"
-                  )}>
-                    {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
-                    <span className={cn(
-                      "text-[11px] lg:text-sm font-bold tabular-nums",
+                    )}>
+                      {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
+                      <span className={cn(
+                        "text-[11px] lg:text-sm font-bold tabular-nums",
                       boostPercent > 0 
                         ? "text-amber-600 dark:text-amber-400"
                         : isHighKelly 
@@ -1204,8 +1212,8 @@ export function OpportunitiesTable({
                           : isMediumKelly 
                             ? "text-amber-600 dark:text-amber-400"
                             : "text-neutral-600 dark:text-neutral-400"
-                    )}>
-                      {display}
+                      )}>
+                      {adjustedDisplay}
                     </span>
                   </div>
                 </Tooltip>
@@ -1595,6 +1603,29 @@ export function OpportunitiesTable({
       filtered = opportunities.filter(opp => !isHidden(opp.id));
     }
     
+    const getSortableStake = (opp: Opportunity): number => {
+      const bestPriceStr = opp.bestPrice || "";
+      const fairPriceStr = opp.fairAmerican || opp.sharpPrice || "";
+
+      const bestOdds = parseInt(bestPriceStr.replace("+", ""), 10);
+      const fairOdds = parseInt(fairPriceStr.replace("+", ""), 10);
+      if (isNaN(bestOdds) || isNaN(fairOdds) || bestOdds === 0 || fairOdds === 0) {
+        const fallbackKelly = Math.max(0, opp.kellyFraction ?? 0);
+        const fraction = (kellyPercent || 25) / 100;
+        return bankroll > 0 ? bankroll * fallbackKelly * fraction : fallbackKelly;
+      }
+
+      const { stake } = getKellyStakeDisplay({
+        bankroll,
+        bestOdds,
+        fairOdds,
+        kellyPercent: kellyPercent || 25,
+        boostPercent: boostPercent || 0,
+      });
+
+      return stake * getLongOddsStakeMultiplier(bestOdds);
+    };
+
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       let aValue: number | string;
@@ -1614,9 +1645,9 @@ export function OpportunitiesTable({
           bValue = b.fairDecimal ?? 0;
           break;
         case 'stake':
-          // Sort by kelly fraction (higher kelly = larger stake)
-          aValue = a.kellyFraction ?? 0;
-          bValue = b.kellyFraction ?? 0;
+          // Sort by rendered stake value (includes long-odds dampening).
+          aValue = getSortableStake(a);
+          bValue = getSortableStake(b);
           break;
         case 'filter':
           // Sort alphabetically by filter name
@@ -1703,147 +1734,122 @@ export function OpportunitiesTable({
     return () => clearInterval(interval);
   }, [isLoading, isFetching]);
 
+  const getLoadingCellClass = (colId: string) => {
+    const base = "p-2 border-b border-neutral-100 dark:border-neutral-800/50";
+    switch (colId) {
+      case 'league':
+        return cn(base, "hidden xl:table-cell");
+      case 'time':
+        return cn(base, "hidden xl:table-cell");
+      case 'market':
+        return cn(base, "hidden lg:table-cell");
+      case 'reference':
+        return cn(base, "hidden xl:table-cell");
+      case 'filter':
+        return cn(base, "hidden xl:table-cell");
+      default:
+        return base;
+    }
+  };
+
+  const renderSkeletonCell = (colId: string) => {
+    switch (colId) {
+      case 'edge':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'league':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex justify-center">
+              <div className="w-12 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'time':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="space-y-1">
+              <div className="w-12 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-16 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'selection':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="space-y-1.5">
+              <div className="w-32 h-4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-24 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'line':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex justify-center">
+              <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'market':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex justify-center">
+              <div className="w-20 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'best-book':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'reference':
+      case 'fair':
+      case 'stake':
+      case 'filter':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex justify-center">
+              <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      case 'action':
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-14 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+              <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            </div>
+          </td>
+        );
+      default:
+        return (
+          <td key={colId} className={getLoadingCellClass(colId)}>
+            <div className="h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+          </td>
+        );
+    }
+  };
+
   // Skeleton row component for reuse
   const SkeletonRow = ({ index }: { index: number }) => (
     <tr className={index % 2 === 0 ? "table-row-even" : "table-row-odd"}>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex items-center justify-center gap-2">
-          <div className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-12 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="space-y-1">
-          <div className="w-12 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-16 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="space-y-1.5">
-          <div className="w-32 h-4 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-24 h-3 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-        </div>
-        </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-20 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-            </div>
-          </td>
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-                <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-14 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-                </div>
-      </td>
-      {/* Reference */}
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex justify-center">
-          <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-              </div>
-      </td>
-      {/* Fair - hidden in next_best mode */}
-      {comparisonMode !== "next_best" && (
-        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-          <div className="flex justify-center">
-            <div className="w-12 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      )}
-      {/* Stake - hidden if no bankroll */}
-      {showStakeColumn && (
-        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-          <div className="flex justify-center">
-            <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      )}
-      {/* Filter - hidden when using comparison presets */}
-      {!(comparisonMode === 'book' && !isCustomMode) && (
-        <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-          <div className="flex justify-center">
-            <div className="w-16 h-5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          </div>
-        </td>
-      )}
-      {/* Action - Bet button + Share + Favorite */}
-      <td className="p-2 border-b border-neutral-100 dark:border-neutral-800/50">
-        <div className="flex items-center justify-center gap-1.5">
-          <div className="w-14 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-          <div className="w-7 h-7 rounded-md bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
-        </div>
-      </td>
+      {filteredColumnOrder.map((colId) => renderSkeletonCell(colId))}
     </tr>
   );
-
-  if (isLoading) {
-    return (
-      <div className="overflow-auto max-h-[calc(100vh-300px)] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm">
-        <table className="min-w-full text-sm table-fixed">
-          <colgroup>
-            {filteredColumnOrder.map(colId => (
-              <col key={colId} style={{ width: columnWidths[colId] || 100 }} />
-            ))}
-          </colgroup>
-          <thead className="sticky top-0 z-[5]">
-            <tr className="bg-neutral-50 dark:bg-neutral-900">
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Edge %</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">League</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Time</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Selection</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Line</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Market</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-left border-b-2 border-neutral-200 dark:border-neutral-700">Best Book</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">{referenceColumnLabel}</th>
-              {comparisonMode !== "next_best" && (
-                <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Fair</th>
-              )}
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Stake</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Filter</th>
-              <th className="font-semibold text-[11px] text-neutral-600 dark:text-neutral-300 uppercase tracking-widest h-12 px-3 py-2 text-center border-b-2 border-neutral-200 dark:border-neutral-700">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Loading message row */}
-            <tr>
-              <td colSpan={filteredColumnOrder.length} className="p-0 border-b border-neutral-200/50 dark:border-neutral-800/50">
-                <div className="flex items-center justify-center py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
-                  <div className="flex items-center gap-3">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-brand border-t-transparent" />
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={loadingMessageIndex}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-sm text-neutral-500 dark:text-neutral-400"
-                      >
-                        {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
-                      </motion.span>
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <SkeletonRow key={`initial-skeleton-${i}`} index={i} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
 
   if (opportunities.length === 0) {
     return (
@@ -1898,22 +1904,12 @@ export function OpportunitiesTable({
               {/* Loading message row */}
               <tr>
                 <td colSpan={filteredColumnOrder.length} className="p-0 border-b border-neutral-200/50 dark:border-neutral-800/50">
-                  <div className="flex items-center justify-center py-3 bg-neutral-50/50 dark:bg-neutral-800/30">
-                    <div className="flex items-center gap-3">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-brand border-t-transparent" />
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={loadingMessageIndex}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-sm text-neutral-500 dark:text-neutral-400"
-                        >
-                          {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
+                  <div className="bg-neutral-50/50 dark:bg-neutral-800/30">
+                    <LoadingState
+                      compact
+                      message={EDGE_LOADING_MESSAGES[loadingMessageIndex]}
+                      className="min-h-0 py-6"
+                    />
                   </div>
                 </td>
               </tr>

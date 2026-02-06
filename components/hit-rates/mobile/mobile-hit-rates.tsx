@@ -354,20 +354,24 @@ export function MobileHitRates({
           <>
             {visibleRows.map((row, idx) => {
               const oddsFromHook = getOdds?.(row.oddsSelectionId);
-              const oddsFallback = row.bestOdds
+              const hookBestOver = oddsFromHook?.bestOver ?? null;
+              const hookBestUnder = oddsFromHook?.bestUnder ?? null;
+              
+              // Prefer Redis best odds from the hit-rates v2 API for display (matches drilldown/My Plays)
+              // Use hook data only for link enrichment when the book matches.
+              const bestOverFromRow = row.bestOdds
                 ? {
-                    bestOver: {
-                      price: row.bestOdds.price,
-                      book: row.bestOdds.book,
-                      url: null,
-                      mobileUrl: null,
-                    },
-                    bestUnder: null,
+                    price: row.bestOdds.price,
+                    book: row.bestOdds.book,
+                    url: hookBestOver?.book === row.bestOdds.book ? hookBestOver.url ?? null : null,
+                    mobileUrl: hookBestOver?.book === row.bestOdds.book ? hookBestOver.mobileUrl ?? null : null,
+                    sgp: hookBestOver?.book === row.bestOdds.book ? hookBestOver.sgp ?? null : null,
                   }
                 : null;
-              const odds = oddsFromHook && (oddsFromHook.bestOver || oddsFromHook.bestUnder)
-                ? oddsFromHook
-                : oddsFallback;
+              
+              const odds = bestOverFromRow
+                ? { bestOver: bestOverFromRow, bestUnder: null }
+                : (oddsFromHook && (hookBestOver || hookBestUnder) ? oddsFromHook : null);
               
               // Note: hideNoOdds filtering is now done BEFORE pagination in rowsForDisplay
               // So all rows here should already have odds if hideNoOdds is enabled

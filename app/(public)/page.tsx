@@ -1,16 +1,12 @@
 import { CTA } from "@/components/cta";
-import { DivideX } from "@/components/divide";
 import { FAQs } from "@/components/faqs";
-import { HeroV2 } from "@/components/hero-v2";
+import { HeroSpotlight } from "@/components/hero-spotlight";
 import { SocialProofBar } from "@/components/social-proof-bar";
-import { ToolsOverview } from "@/components/tools-overview";
-import { HitRateFeatures } from "@/components/landing-features/hit-rate-features";
-import { SGPBuilderFeatures } from "@/components/landing-features/sgp-builder-features";
-import { EVFeatures } from "@/components/landing-features/ev-features";
-import { HowItWorks } from "@/components/how-it-works";
-import { TestimonialsV2 } from "@/components/testimonials-v2";
-import { WhyUnjuiced } from "@/components/why-unjuiced";
-import { Pricing } from "@/components/pricing";
+import { HitRatesHighlight } from "@/components/feature-highlights/hit-rates-highlight";
+import { SmartEdgesHighlight } from "@/components/feature-highlights/smart-edges-highlight";
+import { BuildSmarterBetsHighlight } from "@/components/feature-highlights/build-smarter-bets-highlight";
+import { PricingHighlight } from "@/components/pricing-highlight";
+import { MoreThanTools } from "@/components/more-than-tools";
 
 import { getSEOTags } from "@/lib/seo";
 
@@ -25,77 +21,30 @@ export default function Home() {
   return (
     <>
       {/* 1. Hero */}
-      <HeroV2 />
+      <HeroSpotlight />
 
-      {/* 2. Social Proof Bar */}
-      <SocialProofBar />
+      <SocialProofBar
+        variant="hero"
+        className="bg-black pt-10 pb-10 sm:pt-12 sm:pb-12 lg:pt-16 lg:pb-16"
+      />
 
-      <DivideX />
+      {/* 2b. Feature Highlight */}
+      <HitRatesHighlight />
 
-      {/* 3. Tools Overview (5 tabs) */}
-      <section id="tools">
-        <ToolsOverview />
-      </section>
+      <SmartEdgesHighlight />
 
-      <DivideX />
+      <BuildSmarterBetsHighlight />
 
-      {/* 4. Hit Rate Features */}
-      <section id="hit-rates">
-        <HitRateFeatures />
-      </section>
+      <PricingHighlight />
 
-      <DivideX />
+      <MoreThanTools />
 
-      {/* 5. SGP Builder Features */}
-      <section id="sgp-builder">
-        <SGPBuilderFeatures />
-      </section>
-
-      <DivideX />
-
-      {/* 6. EV Tools (+EV Finder & Edge Finder) */}
-      <section id="ev-tools">
-        <EVFeatures />
-      </section>
-
-      <DivideX />
-
-      {/* 7. Arbitrage Features */}
-      <section id="how-it-works">
-        <HowItWorks />
-      </section>
-
-      <DivideX />
-
-      {/* 8. Testimonials */}
-      <section id="testimonials">
-        <TestimonialsV2 />
-      </section>
-
-      <DivideX />
-
-      {/* 9. Why Unjuiced */}
-      <section id="why-unjuiced">
-        <WhyUnjuiced />
-      </section>
-
-      <DivideX />
-
-      {/* 10. Pricing */}
-      <section id="pricing">
-        <Pricing />
-      </section>
-
-      <DivideX />
-
-      {/* 11. FAQs */}
+      {/* 3. FAQs */}
       <section id="faq">
         <FAQs />
       </section>
 
-      <DivideX />
-
-      {/* 12. CTA */}
+      {/* 4. CTA */}
       <CTA />
     </>
   );

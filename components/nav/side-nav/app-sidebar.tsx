@@ -125,11 +125,6 @@ const researchLinks: NavItem[] = [
     icon: Chart,
     children: hitRatesSports
   },
-  {
-    label: "KOTC",
-    href: "/stats/nba/king-of-the-court",
-    icon: IconTrophy,
-  },
   { 
     label: "Cheat Sheets", 
     href: "/cheatsheets", 
@@ -807,18 +802,20 @@ function UserSection() {
   const tier = entitlements?.plan
   const tierLabel = isTrial
     ? "Trial"
-    : tier === "elite"
+    : entitlements?.entitlement_source === "grant"
       ? "Elite"
-      : tier === "edge"
+      : tier === "elite"
         ? "Elite"
-        : tier === "sharp" || tier === "pro"
-          ? "Sharp"
-          : tier === "scout" || tier === "hit_rate"
-            ? "Scout"
-            : "Free"
+        : tier === "edge"
+          ? "Elite"
+          : tier === "sharp" || tier === "pro"
+            ? "Sharp"
+            : tier === "scout" || tier === "hit_rate"
+              ? "Scout"
+              : "Free"
   const tierBadgeClass = isTrial
     ? "text-amber-600 dark:text-amber-400 bg-amber-500/10"
-    : tier === "elite" || tier === "edge"
+    : entitlements?.entitlement_source === "grant" || tier === "elite" || tier === "edge"
       ? "text-red-700 dark:text-red-300 bg-red-500/10 dark:bg-red-500/20"
       : tier === "sharp" || tier === "pro"
         ? "text-brand bg-brand/10 dark:bg-brand/20"
@@ -924,19 +921,19 @@ function UserSection() {
         {/* Account actions */}
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/account/settings" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link href="/account/settings/general" onClick={closeMobileSidebar} className="cursor-pointer">
               <IconUser className="h-4 w-4" />
               <span>Account</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/billing" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link href="/account/settings/billing" onClick={closeMobileSidebar} className="cursor-pointer">
               <IconCreditCard className="h-4 w-4" />
               <span>Billing</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/account/notifications" onClick={closeMobileSidebar} className="cursor-pointer">
+            <Link href="/account/settings/notifications" onClick={closeMobileSidebar} className="cursor-pointer">
               <IconBell className="h-4 w-4" />
               <span>Notifications</span>
             </Link>

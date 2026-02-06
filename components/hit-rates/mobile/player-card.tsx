@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronRight, Plus, HeartPulse, X, AlertTriangle, ArrowDown } from "lucide-react";
+import { ChevronRight, Plus, Heart, HeartPulse, X, AlertTriangle, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
+import { useFavorites, type AddFavoriteParams } from "@/hooks/use-favorites";
+import { useOddsLine } from "@/hooks/use-odds-line";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -187,6 +189,8 @@ function DvpBadge({ rank }: { rank: number | null }) {
 
 export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = false, isBlurred = false }: PlayerCardProps) {
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [isFavoriteToggling, setIsFavoriteToggling] = useState(false);
+  const { isFavorited, toggleFavorite, isLoggedIn } = useFavorites();
 
   const {
     playerId,
@@ -219,8 +223,95 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
   // Format prop text
   const propText = line !== null ? `${line}+ ${propLabel}` : propLabel;
 
-  const hasOdds = odds && (odds.bestOver || odds.bestUnder);
+  const playerKey = profile.selKey ? profile.selKey.split(":")[0] : null;
+  const { data: oddsLineData } = useOddsLine({
+    eventId: profile.eventId,
+    market: profile.market,
+    playerId: playerKey,
+    line: profile.line ?? null,
+    enabled: !!profile.eventId && !!profile.market && !!playerKey && profile.line !== null && !isBlurred,
+  });
+
+  const bestOverFromLine = oddsLineData?.best && oddsLineData.best.over !== null
+    ? {
+        book: oddsLineData.best.book,
+        price: oddsLineData.best.over,
+        url: oddsLineData.best.links?.desktop ?? null,
+        mobileUrl: oddsLineData.best.links?.mobile ?? null,
+      }
+    : null;
+
+  const displayBestOver = bestOverFromLine ?? odds?.bestOver ?? null;
+  const hasOdds = !!displayBestOver;
   const hasInjury = !isBlurred && injuryStatus && injuryStatus.toLowerCase() !== "active" && injuryStatus.toLowerCase() !== "available";
+
+  const favoriteParams: AddFavoriteParams | null = (() => {
+    if (isBlurred) return null;
+    const eventId = profile.gameId ?? profile.eventId;
+    if (!eventId) return null;
+
+    const lineValue = profile.line ?? null;
+    const oddsSelectionId = profile.selKey && lineValue !== null
+      ? `${profile.selKey}:${lineValue}:over`
+      : profile.oddsSelectionId ?? null;
+    const oddsKey = profile.eventId ? `odds:nba:${profile.eventId}:${profile.market}` : null;
+    const bestOver = displayBestOver;
+    const booksSnapshot = bestOver?.book && bestOver?.price !== undefined
+      ? {
+          [bestOver.book]: {
+            price: bestOver.price,
+            u: bestOver.url ?? null,
+            m: bestOver.mobileUrl ?? null,
+            sgp: null,
+          },
+        }
+      : null;
+
+    return {
+      type: "player",
+      sport: "nba",
+      event_id: eventId,
+      game_date: profile.gameDate,
+      home_team: profile.homeTeamName?.split(" ").pop() || null,
+      away_team: profile.awayTeamName?.split(" ").pop() || null,
+      start_time: null,
+      player_id: String(profile.playerId),
+      player_name: profile.playerName,
+      player_team: profile.teamAbbr,
+      player_position: profile.position,
+      market: profile.market,
+      line: lineValue,
+      side: "over",
+      odds_key: oddsKey,
+      odds_selection_id: oddsSelectionId,
+      books_snapshot: booksSnapshot,
+      best_price_at_save: bestOver?.price ?? null,
+      best_book_at_save: bestOver?.book ?? null,
+      source: "hit_rates",
+    };
+  })();
+
+  const isCardFavorited = favoriteParams
+    ? isFavorited({
+        event_id: favoriteParams.event_id,
+        type: favoriteParams.type,
+        player_id: favoriteParams.player_id,
+        market: favoriteParams.market,
+        line: favoriteParams.line,
+        side: favoriteParams.side,
+      })
+    : false;
+
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLoggedIn || !favoriteParams) return;
+    setIsFavoriteToggling(true);
+    try {
+      await toggleFavorite(favoriteParams);
+    } finally {
+      setIsFavoriteToggling(false);
+    }
+  };
   
   // Check if player is in G League
   const isGLeague = injuryNotes?.toLowerCase().includes("g league") || 
@@ -247,14 +338,22 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
       )}
       
       {/* Main tappable area - Premium */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={isBlurred ? -1 : 0}
+        aria-disabled={isBlurred}
         onClick={isBlurred ? undefined : onCardClick}
-        disabled={isBlurred}
+        onKeyDown={(e) => {
+          if (isBlurred) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onCardClick();
+          }
+        }}
         className={cn(
           "w-full text-left px-4 py-3.5",
-          isBlurred 
-            ? "cursor-default" 
+          isBlurred
+            ? "cursor-default"
             : "active:bg-neutral-50/80 dark:active:bg-neutral-800/50 transition-colors duration-150"
         )}
       >
@@ -270,14 +369,14 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
           </div>
           <div className="flex items-center gap-2">
             {/* Over Odds - Premium */}
-            {!isBlurred && hasOdds && odds.bestOver && (
+            {!isBlurred && hasOdds && displayBestOver && (
               <a
-                href={odds.bestOver.mobileUrl || odds.bestOver.url || "#"}
+                href={displayBestOver.mobileUrl || displayBestOver.url || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!odds.bestOver?.mobileUrl && !odds.bestOver?.url) {
+                  if (!displayBestOver.mobileUrl && !displayBestOver.url) {
                     e.preventDefault();
                   }
                 }}
@@ -287,24 +386,41 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
                   "border border-emerald-300/70 dark:border-emerald-700/50",
                   "shadow-sm",
                   "transition-all duration-200",
-                  (odds.bestOver.mobileUrl || odds.bestOver.url) 
+                  (odds?.bestOver?.mobileUrl || odds?.bestOver?.url) 
                     ? "hover:shadow-md active:scale-95 cursor-pointer" 
                     : "cursor-default"
                 )}
               >
-                {getBookLogo(odds.bestOver.book) && (
+                {getBookLogo(displayBestOver.book) && (
                   <img
-                    src={getBookLogo(odds.bestOver.book)!}
-                    alt={odds.bestOver.book}
+                    src={getBookLogo(displayBestOver.book)!}
+                    alt={displayBestOver.book}
                     className="h-3.5 w-3.5 rounded object-contain"
                   />
                 )}
                 <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400">
-                  {formatOdds(odds.bestOver.price)}
+                  {formatOdds(displayBestOver.price)}
                 </span>
               </a>
             )}
             <DvpBadge rank={isBlurred ? null : matchupRank} />
+            {!isBlurred && favoriteParams && (
+              <button
+                type="button"
+                onClick={handleFavoriteClick}
+                disabled={isFavoriteToggling}
+                className={cn(
+                  "h-7 w-7 rounded-lg border flex items-center justify-center transition-all active:scale-95",
+                  isCardFavorited
+                    ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
+                    : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-neutral-500",
+                  isFavoriteToggling && "opacity-50"
+                )}
+                aria-label={isCardFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Heart className={cn("h-3.5 w-3.5", isCardFavorited && "fill-current")} />
+              </button>
+            )}
           </div>
         </div>
         
@@ -400,7 +516,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
             <HitRateCluster l5={last5Pct} l10={last10Pct} season={seasonPct} h2h={h2hPct} />
           </div>
         </div>
-      </button>
+      </div>
       
       {/* Injury Detail Modal */}
       {showInjuryModal && hasInjury && (

@@ -132,6 +132,25 @@ export function formatStake(stake: number): string {
 }
 
 /**
+ * Additional stake dampener for long underdog prices.
+ *
+ * Use this only where a more conservative recommendation is desired.
+ * Keeps near-even prices mostly unchanged while reducing very long-shot sizing.
+ */
+export function getLongOddsStakeMultiplier(americanOdds: number): number {
+  // Favorite/near-even prices do not need extra dampening.
+  if (!Number.isFinite(americanOdds) || americanOdds <= 100) return 1;
+
+  const impliedProb = decimalToImpliedProb(americanToDecimal(americanOdds));
+  // 0.45 implied probability is treated as the "no-discount" anchor.
+  const normalized = impliedProb / 0.45;
+  const scaled = Math.sqrt(normalized);
+
+  // Clamp to avoid extreme reductions while still being meaningfully conservative.
+  return Math.max(0.35, Math.min(1, scaled));
+}
+
+/**
  * Calculate and format Kelly stake as a single convenience function
  * 
  * @param params.boostPercent - Optional profit boost percentage (e.g., 30 for 30% boost)
@@ -182,4 +201,3 @@ export function getKellyStakeDisplay({
     kellyPct,
   };
 }
-

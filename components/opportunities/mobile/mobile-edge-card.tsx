@@ -11,7 +11,7 @@ import { getLeagueName } from "@/lib/data/sports";
 import { formatMarketLabelShort } from "@/lib/data/markets";
 import { DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { motion, AnimatePresence } from "framer-motion";
-import { getKellyStakeDisplay, americanToDecimal, applyBoostToDecimalOdds } from "@/lib/utils/kelly";
+import { getKellyStakeDisplay, getLongOddsStakeMultiplier } from "@/lib/utils/kelly";
 import { useFavorites } from "@/hooks/use-favorites";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
@@ -257,8 +257,9 @@ export function MobileEdgeCard({
       kellyPercent,
       boostPercent,
     });
-    
-    return stake > 0 ? Math.max(1, Math.round(stake)) : 0;
+
+    const adjustedStake = stake * getLongOddsStakeMultiplier(bestOdds);
+    return adjustedStake > 0 ? Math.max(1, Math.round(adjustedStake)) : 0;
   }, [bankroll, kellyPercent, boostPercent, opp.bestPrice, opp.fairAmerican, opp.sharpPrice, opp.kellyFraction]);
   
   // Get best book info

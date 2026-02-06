@@ -25,6 +25,7 @@ import {
 import { useSSE } from "@/hooks/use-sse";
 // BestOddsPrefs type is not used - we define StreamPrefs locally with just the fields we need
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { isMarketSelected } from "@/lib/utils";
 
 // =============================================================================
 // Types
@@ -137,12 +138,8 @@ function applyClientFilters(
     if (oppOdds < minOdds || oppOdds > maxOdds) return false;
     
     // Selected markets filter
-    if (prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
-      const oppMarket = (opp.market || "").toLowerCase();
-      const marketMatches = prefs.selectedMarkets.some(m => 
-        oppMarket.includes(m.toLowerCase()) || m.toLowerCase().includes(oppMarket)
-      );
-      if (!marketMatches) return false;
+    if (prefs.selectedMarkets) {
+      if (!isMarketSelected(prefs.selectedMarkets, opp.sport || "", opp.market || "")) return false;
     }
     
     // Search filter
@@ -191,7 +188,7 @@ function isRelevantUpdate(key: string, sports: string[], markets?: string[]): bo
   
   // If we have market filters, check if market matches
   if (markets && markets.length > 0) {
-    if (!markets.some(m => keyMarket.toLowerCase().includes(m.toLowerCase()))) return false;
+    if (!isMarketSelected(markets, keySport || "", keyMarket || "")) return false;
   }
   
   return true;

@@ -345,7 +345,7 @@ function HitRateMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
       subtitle={sheetInfo.description}
       headerActions={
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="relative z-[80]">
             <button
               onClick={() => setShowHelp(!showHelp)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -354,7 +354,7 @@ function HitRateMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
               How It Works
             </button>
             {showHelp && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-[300px] p-3 rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+              <div className="absolute right-0 top-full mt-2 z-[90] w-[300px] p-3 rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
                 <p className="font-semibold text-sm text-neutral-900 dark:text-white mb-2">How to read this matrix</p>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400">
                   Each cell shows the hit rate % for that player at the given threshold.

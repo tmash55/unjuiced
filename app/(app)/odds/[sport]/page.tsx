@@ -6,6 +6,7 @@ import { OddsTable } from "@/components/odds-screen/tables/odds-table";
 import { OddsTableSkeleton } from "@/components/odds-screen/tables/odds-table-skeleton";
 import { OddsFilters } from "@/components/odds-screen/filters/odds-filters";
 import { MobileOddsView } from "@/components/odds-screen/mobile/mobile-odds-view";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useOddsPreferences } from "@/context/preferences-context";
 import { useOddsUtility } from "../odds-utility-context";
 import { fetchOddsWithNewAPI } from "@/lib/api-adapters/props-to-odds";
@@ -65,7 +66,7 @@ export default function OddsPage({ params }: OddsPageProps) {
   const isMobile = useIsMobile();
   
   // SSE state - live updates enabled by default for Sharp users
-  const [liveUpdatesEnabled] = useState(true);
+  const [liveUpdatesEnabled, setLiveUpdatesEnabled] = useState(true);
   const lastRefetchRef = useRef<number>(0);
   const REFETCH_DEBOUNCE_MS = 2000; // Don't refetch more than every 2 seconds
   
@@ -256,19 +257,50 @@ export default function OddsPage({ params }: OddsPageProps) {
   
   // Desktop: table view
   return (
-    <div className="px-4 sm:px-6 pb-6">
-      <OddsTable
-        data={filteredData}
-        loading={false}
-        sport={sport}
-        type={type}
-        market={market}
-        scope={scope}
-        searchQuery={utility?.searchQuery}
-        tableView={preferences.tableView}
-        selectedGameId={utility?.selectedGameId}
-        onGameScrollComplete={() => utility?.onGameSelect(null)}
-      />
-    </div>
+    <>
+      <div className="px-4 sm:px-6 pb-6">
+        <OddsTable
+          data={filteredData}
+          loading={false}
+          sport={sport}
+          type={type}
+          market={market}
+          scope={scope}
+          searchQuery={utility?.searchQuery}
+          tableView={preferences.tableView}
+          selectedGameId={utility?.selectedGameId}
+          onGameScrollComplete={() => utility?.onGameSelect(null)}
+        />
+      </div>
+
+      <Sheet
+        open={utility?.isFiltersOpen ?? false}
+        onOpenChange={(open) => {
+          if (open) {
+            utility?.openFilters();
+          } else {
+            utility?.closeFilters();
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-2xl overflow-y-auto bg-white dark:bg-neutral-900 p-0"
+        >
+          <SheetHeader className="border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
+            <SheetTitle className="text-lg font-semibold">Filters & Settings</SheetTitle>
+          </SheetHeader>
+          <div className="px-6 py-6">
+            <OddsFilters
+              embedded
+              isPro={isPro}
+              liveUpdatesEnabled={liveUpdatesEnabled}
+              onLiveUpdatesChange={setLiveUpdatesEnabled}
+              onClose={() => utility?.closeFilters()}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

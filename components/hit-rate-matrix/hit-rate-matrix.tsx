@@ -15,7 +15,6 @@ import {
   getHitRateBackground,
   formatEdge,
   isDeadZone,
-  getBestLineFromRow,
   decimalToAmerican,
 } from "@/hooks/use-hit-rate-matrix";
 import { PlayerHeadshot } from "@/components/player-headshot";
@@ -42,6 +41,18 @@ interface HitRateMatrixProps {
 type SortField = "player" | "dvp" | "line" | number; // number represents threshold line
 type SortDirection = "asc" | "desc";
 
+// Implied probability from odds (returns 0-1 or null)
+function getImpliedProbability(bestDecimal: number | null, bestOdds: number | null): number | null {
+  if (bestDecimal !== null && bestDecimal > 1) {
+    return 1 / bestDecimal;
+  }
+  if (bestOdds === null || bestOdds === 0) return null;
+  if (bestOdds > 0) {
+    return 100 / (bestOdds + 100);
+  }
+  return Math.abs(bestOdds) / (Math.abs(bestOdds) + 100);
+}
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -60,6 +71,7 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGameIds, setSelectedGameIds] = useState<string[]>([]); // empty = all games
   const [minEdge, setMinEdge] = useState<number>(0); // 0 = show all edges, 5 = only show edge strip if ≥5%
+  const [requireValueEdge, setRequireValueEdge] = useState(false); // only show rows where hit rate > implied odds
   
   // Game filter handlers
   const handleToggleGame = useCallback((gameId: string) => {
@@ -150,7 +162,8 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
 
   // Filter nbaGames to only include games that have players in the matrix
   const filteredGames = useMemo(() => {
-    return nbaGames.filter(game => matrixGameIds.has(normalizeGameId(game.game_id)));
+    const matches = nbaGames.filter(game => matrixGameIds.has(normalizeGameId(game.game_id)));
+    return matches.length > 0 ? matches : nbaGames;
   }, [nbaGames, matrixGameIds]);
 
   // Filter rows by search, game, etc.
@@ -166,9 +179,19 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
       }
       // Game filter - compare using numeric gameId (matches useNbaGames)
       if (selectedGameIds.length > 0 && !selectedGameIds.includes(normalizeGameId(row.gameId))) return false;
+      // Value filter - only show players with at least one line where hit rate > implied odds
+      if (requireValueEdge) {
+        const hasValue = row.thresholds.some((t) => {
+          if (t.hitRate === null) return false;
+          const implied = getImpliedProbability(t.bestDecimal, t.bestOdds);
+          if (implied === null) return false;
+          return t.hitRate > implied * 100;
+        });
+        if (!hasValue) return false;
+      }
       return true;
     });
-  }, [rawRows, searchQuery, selectedGameIds]);
+  }, [rawRows, searchQuery, selectedGameIds, requireValueEdge]);
 
   // Handle sort click
   const handleSort = useCallback((field: SortField) => {
@@ -557,6 +580,20 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                       {minEdge === opt.value && <Check className="h-3 w-3" />}
                     </button>
                   ))}
+                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-700/70" />
+                  <button
+                    type="button"
+                    onClick={() => setRequireValueEdge((prev) => !prev)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-[11px] transition-colors",
+                      requireValueEdge
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium"
+                        : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                    )}
+                  >
+                    <span>Hit rate &gt; odds</span>
+                    {requireValueEdge && <Check className="h-3 w-3" />}
+                  </button>
                 </div>
               )}
             </div>
@@ -612,13 +649,6 @@ export function HitRateMatrix({ sport = "nba", className }: HitRateMatrixProps) 
                       <span className="hidden md:inline">Line</span>
                       <span className="md:hidden">L</span>
                       <SortIcon field="line" sortField={sortField} sortDirection={sortDirection} />
-                    </div>
-                  </th>
-
-                  {/* Best Line column - sticky on desktop only, hidden on mobile */}
-                  <th className="hidden md:table-cell sticky left-[260px] z-40 bg-neutral-50 dark:bg-neutral-800 px-2 py-2.5 text-center w-[80px] min-w-[80px]">
-                    <div className="text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Best
                     </div>
                   </th>
 
@@ -743,10 +773,6 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
     ? "bg-white dark:bg-neutral-900" 
     : "bg-neutral-50/40 dark:bg-neutral-800/15";
 
-  // Get best line for this row
-  const bestLine = useMemo(() => getBestLineFromRow(row.thresholds), [row.thresholds]);
-  const bestBook = bestLine?.bestBook ? getSportsbookById(bestLine.bestBook) : null;
-
   // Solid backgrounds for sticky columns (fixes see-through issue)
   const stickyBgClass = isEven 
     ? "bg-white dark:bg-neutral-900" 
@@ -835,55 +861,6 @@ function MatrixRow({ row, isEven, market, minEdge, onPlayerClick }: {
         </span>
       </td>
 
-      {/* Best Line Column - shows best edge opportunity - hidden on mobile */}
-      <td className={cn("hidden md:table-cell sticky left-[260px] z-20 px-2 py-2.5 text-center border-b border-neutral-100/30 dark:border-neutral-800/30", stickyBgClass)}>
-        {bestLine && bestLine.edgePct !== null && bestLine.edgePct > 0 ? (
-          <Tooltip
-            content={
-              <div className="px-3 py-2 text-[11px] min-w-[160px] space-y-1">
-                <div className="font-medium text-neutral-800 dark:text-neutral-100">
-                  Best Value Line
-                </div>
-                <div className="text-neutral-400 dark:text-neutral-500 text-[10px]">
-                  Line: {bestLine.actualLine ?? bestLine.line}+
-                </div>
-                <div className="text-neutral-400 dark:text-neutral-500 text-[10px]">
-                  Hit Rate: {bestLine.hitRate}%
-                </div>
-                {bestBook && (
-                  <div className="text-neutral-400 dark:text-neutral-500 text-[10px]">
-                    Best: {bestBook.name} {formatOdds(bestLine.bestOdds)}
-                  </div>
-                )}
-                <div className="text-emerald-500 dark:text-emerald-400 text-[10px] font-medium pt-1 border-t border-neutral-200/20 dark:border-neutral-700/20">
-                  Edge vs market: {formatEdge(bestLine.edgePct)}
-                </div>
-              </div>
-            }
-            side="top"
-            delayDuration={200}
-          >
-            <div className="flex flex-col items-center gap-0.5 cursor-help">
-              {/* Line value - primary */}
-              <span className="text-xs md:text-sm font-semibold text-neutral-700 dark:text-neutral-200 tabular-nums">
-                {bestLine.actualLine ?? bestLine.line}+
-              </span>
-              {/* Odds + Edge - secondary */}
-              <div className="flex items-center gap-0.5 md:gap-1">
-                {bestBook?.image?.light && (
-                  <img src={bestBook.image.light} alt={bestBook.name} className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm opacity-80" />
-                )}
-                <span className="text-[9px] md:text-[10px] text-neutral-500 dark:text-neutral-400 tabular-nums font-medium">
-                  {formatOdds(bestLine.bestOdds)}
-                </span>
-              </div>
-            </div>
-          </Tooltip>
-        ) : (
-          <span className="text-[10px] md:text-xs text-neutral-300 dark:text-neutral-600">—</span>
-        )}
-      </td>
-
       {/* Threshold Cells - no vertical borders */}
       {row.thresholds.map((threshold) => (
         <ThresholdCell 
@@ -968,6 +945,12 @@ function ThresholdCell({
   const hasOdds = threshold.bestOdds !== null;
   const bookInfo = threshold.bestBook ? getSportsbookById(threshold.bestBook) : null;
   const bookLogo = bookInfo?.image?.light || null;
+  const impliedProb = useMemo(
+    () => getImpliedProbability(threshold.bestDecimal, threshold.bestOdds),
+    [threshold.bestDecimal, threshold.bestOdds]
+  );
+  const hasValueEdge =
+    threshold.hitRate !== null && impliedProb !== null && threshold.hitRate > impliedProb * 100;
   
   // Edge strip visibility based on minEdge filter
   const showEdgeStrip = threshold.edgePct !== null && threshold.edgePct >= minEdge && threshold.edgePct >= 5;
@@ -1197,6 +1180,8 @@ function ThresholdCell({
             getHitRateBackground(threshold.hitRate),
             // Dead zone fading
             isDead && "opacity-25",
+            // Value highlight (hit rate > implied odds)
+            hasValueEdge && "shadow-[inset_0_0_0_1px_rgba(16,185,129,0.45)]",
             // Interactive states - subtle hover
             hasOdds && !isDead && "cursor-pointer hover:brightness-95 dark:hover:brightness-110",
             isOpen && "ring-1 ring-inset ring-white/20"
@@ -1221,7 +1206,7 @@ function ThresholdCell({
           )}
 
           {/* Odds - SECONDARY (more visible, below hit rate) */}
-          {hasOdds && !isDead && (
+          {hasOdds && (
             <div className="flex items-center gap-0.5 md:gap-1 mt-0.5 md:mt-1">
               {bookLogo && <img src={bookLogo} alt={threshold.bestBook || ""} className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm" />}
               <span className="text-[9px] md:text-[10px] text-white/80 dark:text-white/75 font-medium tabular-nums">
