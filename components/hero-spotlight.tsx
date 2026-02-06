@@ -79,6 +79,8 @@ export function HeroSpotlight() {
         blur={34}
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/45" />
+      {/* Extra darkening on mobile so text stays readable over bright spotlight area */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-black/25 to-transparent md:hidden" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.18),transparent_72%)]" />
 
       <div className="relative z-10 w-full pt-10 md:pt-20 lg:pt-28">

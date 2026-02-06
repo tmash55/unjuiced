@@ -597,14 +597,23 @@ interface BookOddsData {
 }
 
 // Calculate parlay odds from individual favorites for ALL books
-const calculateAllParlayOdds = (favorites: Favorite[]): BookOddsData[] => {
+// Uses live SSE odds when available, falls back to books_snapshot
+const calculateAllParlayOdds = (
+  favorites: Favorite[],
+  refreshedOddsMap?: Map<string, RefreshedFavoriteOdds | null>
+): BookOddsData[] => {
   if (favorites.length < 2) return [];
   
-  // Get all books that have odds for ALL legs
+  // Get all books that have odds for ANY leg (from both snapshot and live data)
   const allBooks = new Set<string>();
   favorites.forEach(fav => {
     if (fav.books_snapshot) {
       Object.keys(fav.books_snapshot).forEach(book => allBooks.add(book));
+    }
+    // Also include books from live/refreshed odds
+    const liveData = refreshedOddsMap?.get(fav.id);
+    if (liveData?.allBooks) {
+      Object.keys(liveData.allBooks).forEach(book => allBooks.add(book));
     }
   });
   
@@ -615,13 +624,17 @@ const calculateAllParlayOdds = (favorites: Favorite[]): BookOddsData[] => {
     let hasAllLegs = true;
     
     favorites.forEach(fav => {
-      const bookData = fav.books_snapshot?.[bookId];
-      if (!bookData?.price) {
+      // Try live/refreshed odds first, then fall back to saved snapshot
+      const liveData = refreshedOddsMap?.get(fav.id);
+      const livePrice = liveData?.allBooks?.[bookId]?.price;
+      const snapshotPrice = fav.books_snapshot?.[bookId]?.price;
+      const price = livePrice ?? snapshotPrice;
+      
+      if (!price) {
         hasAllLegs = false;
         return;
       }
-      const american = bookData.price;
-      const decimal = american > 0 ? (american / 100) + 1 : (100 / Math.abs(american)) + 1;
+      const decimal = price > 0 ? (price / 100) + 1 : (100 / Math.abs(price)) + 1;
       parlayDecimal *= decimal;
     });
     
@@ -630,7 +643,7 @@ const calculateAllParlayOdds = (favorites: Favorite[]): BookOddsData[] => {
         ? Math.round((parlayDecimal - 1) * 100)
         : Math.round(-100 / (parlayDecimal - 1));
       
-      results.push({ bookId, odds: american, hasDeepLink: false });
+      results.push({ bookId, odds: american, hasDeepLink: false, hasAllLegs: true });
     }
   });
   
@@ -811,7 +824,7 @@ function BetslipCard({
   
   // Calculate odds
   const sgpOdds = useMemo(() => getSortedSgpOdds(betslip.sgp_odds_cache), [betslip.sgp_odds_cache]);
-  const parlayOdds = useMemo(() => calculateAllParlayOdds(favorites), [favorites]);
+  const parlayOdds = useMemo(() => calculateAllParlayOdds(favorites, refreshedOddsMap), [favorites, refreshedOddsMap]);
   const unavailableBooks = useMemo(() => getUnavailableBooks(betslip.sgp_odds_cache), [betslip.sgp_odds_cache]);
   const betTypeInfo = getBetTypeLabel(betslip.bet_type, legCount);
   
@@ -858,7 +871,9 @@ function BetslipCard({
         if (timeSinceLastRefresh < PASSIVE_REFRESH_MIN_INTERVAL_MS) return;
         
         // Only refresh if something changed (legs changed, market moved, or stale)
-        const needsRefresh = legsChanged || hasMarketMovement || oddsStale || !betslip.sgp_odds_cache;
+        // Don't re-fetch for parlay types - they use frontend calculation, not SGP API
+        const isParlay = betslip.bet_type === 'parlay' || betslip.bet_type === 'individual';
+        const needsRefresh = !isParlay && (legsChanged || hasMarketMovement || oddsStale || !betslip.sgp_odds_cache);
         if (!needsRefresh) return;
         
         // Passive refresh (not forced - can use short Redis cache)
@@ -877,7 +892,7 @@ function BetslipCard({
     
     observer.observe(cardRef.current);
     return () => observer.disconnect();
-  }, [hasMultipleLegs, isFetchingOdds, legsChanged, hasMarketMovement, oddsStale, betslip.sgp_odds_cache, onFetchOdds]);
+  }, [hasMultipleLegs, isFetchingOdds, legsChanged, hasMarketMovement, oddsStale, betslip.sgp_odds_cache, betslip.bet_type, onFetchOdds]);
 
   // Handle manual refresh (user-triggered, force refresh)
   const handleRefreshOdds = async (e: React.MouseEvent) => {
@@ -1866,11 +1881,16 @@ export default function FavoritesPage() {
     setSelectedIds(new Set());
     setShowAddModal(false);
     
-    // Fetch SGP odds for the updated betslip (if it now has 2+ legs)
-    const newLegCount = (slip?.items?.length || 0) + addedCount + replacedCount;
-    if (newLegCount >= 2) {
+    // Always trigger SGP odds fetch when items are added (API handles < 2 legs gracefully)
+    // Use legs_count from DB as fallback since slip?.items may be stale
+    const existingLegs = slip?.items?.length ?? slip?.legs_count ?? 0;
+    const newLegCount = existingLegs + addedCount + replacedCount;
+    if (newLegCount >= 2 && (addedCount > 0 || replacedCount > 0)) {
       setTimeout(() => {
-        handleFetchSgpOdds(betslipId, true).catch(console.error);
+        handleFetchSgpOdds(betslipId, true).catch((err) => {
+          console.error("[My Slips] SGP odds fetch failed:", err);
+          toast.error("Failed to fetch parlay odds");
+        });
       }, 500);
     }
   }, [selectedIds, selectedCount, betslips, addToBetslip, handleFetchSgpOdds]);
@@ -1888,7 +1908,10 @@ export default function FavoritesPage() {
     // Fetch SGP odds for the new betslip (if it has 2+ legs)
     if (selectedCount >= 2 && newBetslip?.id) {
       setTimeout(() => {
-        handleFetchSgpOdds(newBetslip.id, true).catch(console.error);
+        handleFetchSgpOdds(newBetslip.id, true).catch((err) => {
+          console.error("[My Slips] SGP odds fetch failed:", err);
+          toast.error("Failed to fetch parlay odds");
+        });
       }, 500);
     }
   }, [selectedIds, selectedCount, createBetslip, handleFetchSgpOdds]);
@@ -1957,13 +1980,17 @@ export default function FavoritesPage() {
     // Clear selection after drop
     setSelectedIds(new Set());
     
-    // Fetch SGP odds for the updated betslip (if it now has 2+ legs)
+    // Always trigger SGP odds fetch when items are added
     const actualAdded = addedCount + replacedCount;
-    const newLegCount = (slip?.items?.length || 0) + actualAdded;
+    const existingLegs = slip?.items?.length ?? slip?.legs_count ?? 0;
+    const newLegCount = existingLegs + actualAdded;
     if (newLegCount >= 2 && actualAdded > 0) {
       // Small delay to let the query cache invalidate first
       setTimeout(() => {
-        handleFetchSgpOdds(betslipId, true).catch(console.error);
+        handleFetchSgpOdds(betslipId, true).catch((err) => {
+          console.error("[My Slips] SGP odds fetch failed:", err);
+          toast.error("Failed to fetch parlay odds");
+        });
       }, 500);
     }
   }, [betslips, favorites, addToBetslip, handleFetchSgpOdds]);

@@ -243,15 +243,12 @@ async function fetchLiveSgpTokens(
     
     for (const [book, selections] of Object.entries(bookSelections)) {
       let matchFound = false;
+      let bestCandidate: { sel: SSESelection; lineDiff: number } | null = null;
+      
       for (const sel of Object.values(selections) as SSESelection[]) {
         // Match by player name
         const selPlayerNormalized = normalizePlayerName(sel.player);
         if (!selPlayerNormalized.includes(normalizedPlayer) && !normalizedPlayer.includes(selPlayerNormalized)) {
-          continue;
-        }
-        
-        // Match by line (if specified)
-        if (favorite.line !== null && favorite.line !== undefined && sel.line !== favorite.line) {
           continue;
         }
         
@@ -265,15 +262,34 @@ async function fetchLiveSgpTokens(
           continue;
         }
         
-        // Found a match - get SGP token
-        if (sel.sgp) {
-          tokens[book] = sel.sgp;
-          matchFound = true;
-          // Show more of the token for debugging duplicates
-          console.log(`[SGP API] ✓ Found token for ${book}: searched="${favorite.player_name}" matched="${sel.player}", line=${sel.line}, side=${sel.side}, token=${sel.sgp?.substring(0, 40)}...`);
+        // Must have SGP token
+        if (!sel.sgp) {
+          continue;
+        }
+        
+        // Calculate line difference (prefer exact match, then closest)
+        const lineDiff = (favorite.line !== null && favorite.line !== undefined)
+          ? Math.abs(sel.line - favorite.line)
+          : 0;
+        
+        // Exact line match - use immediately
+        if (lineDiff === 0) {
+          bestCandidate = { sel, lineDiff: 0 };
           break;
         }
+        
+        // Track closest line match as fallback (within ±3 of saved line)
+        if (lineDiff <= 3 && (!bestCandidate || lineDiff < bestCandidate.lineDiff)) {
+          bestCandidate = { sel, lineDiff };
+        }
       }
+      
+      if (bestCandidate) {
+        tokens[book] = bestCandidate.sel.sgp!;
+        matchFound = true;
+        console.log(`[SGP API] ✓ Found token for ${book}: searched="${favorite.player_name}" matched="${bestCandidate.sel.player}", line=${bestCandidate.sel.line} (saved=${favorite.line}, diff=${bestCandidate.lineDiff}), side=${bestCandidate.sel.side}, token=${bestCandidate.sel.sgp?.substring(0, 40)}...`);
+      }
+      
       if (!matchFound && Object.keys(selections).length > 0) {
         console.log(`[SGP API] ✗ No match for ${book} (searched="${favorite.player_name}", checked ${Object.keys(selections).length} selections)`);
       }
@@ -568,8 +584,19 @@ export async function POST(request: NextRequest) {
     // Classify bet type
     const betType = classifyBetType(items);
 
-    // For individual bets or regular parlays, no API call needed
+    // For individual bets or regular parlays, no SGP API call needed
+    // But DO update bet_type in the database so frontend knows the classification
+    // and doesn't keep re-fetching
     if (betType === 'individual' || betType === 'parlay') {
+      // Update bet_type in DB so passive refresh knows not to re-fetch
+      if (betslip.bet_type !== betType) {
+        await supabase
+          .from("user_betslips")
+          .update({ bet_type: betType })
+          .eq("id", betslip_id)
+          .eq("user_id", user.id);
+      }
+      
       return NextResponse.json({
         odds: {},
         bet_type: betType,

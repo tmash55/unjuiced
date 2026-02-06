@@ -212,8 +212,9 @@ export function MobilePositiveEV({
   }, []);
   
   const handleCardExpand = useCallback((oppId: string) => {
+    if (!isPro) return; // Block expansion for free users
     setExpandedCardId(prev => prev === oppId ? null : oppId);
-  }, []);
+  }, [isPro]);
   
   const handleBetClick = useCallback((opp: PositiveEVOpportunity) => {
     // On mobile, prefer the deep link (mobileLink) if available

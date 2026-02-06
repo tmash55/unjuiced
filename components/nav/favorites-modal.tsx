@@ -2440,12 +2440,20 @@ export function FavoritesModal() {
                             isRemovingLeg={isRemovingItem}
                             isFetchingSgpOdds={isFetchingSgpOdds}
                             selectedFavoriteIds={selectedIds}
-                            onAddSelected={() => {
+                            onAddSelected={async () => {
                               if (selectedIds.size > 0) {
-                                addToBetslip({ 
+                                const result = await addToBetslip({ 
                                   betslip_id: slip.id, 
                                   favorite_ids: Array.from(selectedIds) 
                                 });
+                                // Trigger SGP odds fetch if betslip now has 2+ legs
+                                const addedCount = result.added.length + result.replaced.length;
+                                const existingLegs = slip.items?.length ?? slip.legs_count ?? 0;
+                                if (existingLegs + addedCount >= 2 && addedCount > 0) {
+                                  setTimeout(() => {
+                                    fetchSgpOdds({ betslipId: slip.id, forceRefresh: true }).catch(console.error);
+                                  }, 500);
+                                }
                               }
                             }}
                           />
