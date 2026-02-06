@@ -31,23 +31,14 @@ export function SocialProofBar({
   const extendedLogos = [...sportsbooks, ...sportsbooks, ...sportsbooks];
 
   return (
-    <div
-      className={cn(
-        isHero
-          ? "bg-transparent pt-0 pb-3"
-          : "relative overflow-hidden bg-transparent py-2",
-        "overflow-hidden",
-        className,
-      )}
-    >
-      <div className="max-w-7xl mx-auto px-4 md:px-12">
+    <div className={cn("overflow-hidden", className)}>
+      <div className="mx-auto max-w-7xl px-4 md:px-8">
         {!isHero && (
-          <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.26em] text-white/55">
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.26em] text-white/40">
             {title}
           </p>
         )}
         <div className="relative overflow-hidden">
-          {/* Scrolling container */}
           <div
             className="flex overflow-hidden py-1"
             style={{
@@ -58,10 +49,8 @@ export function SocialProofBar({
             }}
           >
             <motion.div
-              className="flex gap-10 items-center"
-              animate={{
-                x: [0, -totalWidth],
-              }}
+              className="flex items-center gap-10"
+              animate={{ x: [0, -totalWidth] }}
               transition={{
                 x: {
                   repeat: Infinity,
@@ -70,26 +59,18 @@ export function SocialProofBar({
                   ease: "linear",
                 },
               }}
-              style={{
-                width: `${totalWidth * 3}px`,
-              }}
+              style={{ width: `${totalWidth * 3}px` }}
             >
               {extendedLogos.map((sportsbook, index) => (
                 <div
                   key={`${sportsbook.name}-${index}`}
-                  className={cn(
-                    "flex-shrink-0 w-[100px] h-10 relative transition-opacity",
-                    isHero ? "opacity-70 hover:opacity-100" : "opacity-78 hover:opacity-100",
-                  )}
+                  className="relative h-10 w-[100px] shrink-0 opacity-40 transition-opacity hover:opacity-70"
                 >
                   <Image
                     src={sportsbook.logo}
                     alt={`${sportsbook.name} logo`}
                     fill
-                    className={cn(
-                      "object-contain p-0.5",
-                      isHero ? "opacity-80 mix-blend-screen saturate-125" : "",
-                    )}
+                    className="object-contain"
                     sizes="100px"
                   />
                 </div>

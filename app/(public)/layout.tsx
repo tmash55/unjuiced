@@ -1,6 +1,5 @@
 import { PublicNav } from "@/components/nav/public-navbar";
 import { Footer } from "@/components/footer";
-import { DivideX } from "@/components/divide";
 import { ReactNode } from "react";
 
 /**
@@ -10,14 +9,10 @@ import { ReactNode } from "react";
  */
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="h-full bg-white antialiased dark:bg-black">
+    <main className="h-full bg-black antialiased">
       <PublicNav />
-      <DivideX />
       {children}
-      <DivideX />
-      <div className="hidden md:block">
-        <Footer />
-      </div>
+      <Footer />
     </main>
   );
 }

@@ -80,7 +80,7 @@ export function HeroSpotlight() {
             </span>
           </h1>
 
-          <p className="mx-auto max-w-xl py-6 text-center text-lg text-white/70 md:mx-0 md:text-left md:text-xl">
+          <p className="mx-auto max-w-xl py-6 text-center text-lg text-white/60 md:mx-0 md:text-left md:text-xl">
             Real-time data, sharp books, and tools built to help you bet smarter
             — not louder.
           </p>
@@ -90,30 +90,30 @@ export function HeroSpotlight() {
               type="button"
               onClick={handleGoogleSignUp}
               disabled={isGoogleLoading}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
             >
               <GoogleLogo className="h-4 w-4" />
               {isGoogleLoading ? "Redirecting..." : "Sign up with Google"}
             </button>
             <Link
               href="/register"
-              className="flex h-11 w-full items-center justify-center rounded-full border border-white/20 bg-white/10 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
+              className="flex h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
             >
               Sign up with email
             </Link>
           </div>
 
-          <div className="mt-4 flex flex-wrap justify-center gap-4 text-sm text-white/70 md:justify-start">
+          <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-white/50 md:justify-start">
             <span className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--primary)]" />
+              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
               3 Day Free Trial
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--primary-weak)]" />
+              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
               Real-Time Updates
             </span>
             <span className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--primary-strong)]" />
+              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
               20+ Sportsbooks
             </span>
           </div>

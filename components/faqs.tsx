@@ -1,14 +1,10 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { SubHeading } from "./subheading";
-import { SectionHeading } from "./seciton-heading";
-import { Badge } from "./badge";
 import { faqs } from "@/constants/faqs";
 import { AnimatePresence, motion } from "motion/react";
 import useMeasure from "react-use-measure";
-import { ButtonLink } from "./button-link";
 import { MaxWidthWrapper } from "./max-width-wrapper";
-
+import Link from "next/link";
 
 const ChevronDownIcon = (
   props: React.SVGProps<SVGSVGElement> & { rotated?: boolean },
@@ -48,37 +44,37 @@ export const FAQs = () => {
   };
 
   return (
-    <section className="bg-black bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_70%)] py-14 sm:py-20">
+    <section className="bg-black bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.12),transparent_60%)] py-16 sm:py-20 lg:py-24">
       <MaxWidthWrapper>
         <div className="mx-auto flex max-w-4xl flex-col items-center">
-          <Badge text="FAQs" />
-          <SectionHeading className="mt-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--primary-weak)]">
+            FAQs
+          </p>
+          <h2 className="mt-3 text-center text-3xl font-semibold text-white sm:text-4xl lg:text-5xl">
             Questions, Answered
-          </SectionHeading>
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl px-2 text-center text-base text-white/60 sm:text-lg">
+            Everything you need to know about research, value discovery, and
+            execution on Unjuiced.
+          </p>
 
-          <SubHeading as="p" className="mx-auto mt-5 max-w-2xl px-2 text-center text-white/70">
-            Everything you need to know about research, value discovery, and execution on Unjuiced.
-          </SubHeading>
-
-          <div className="mt-7 mb-10 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row">
-            <ButtonLink
-              variant="primary"
+          <div className="mt-8 mb-10 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row">
+            <Link
               href="/register"
-              className="rounded-full border-[color:var(--primary)] bg-[color:var(--primary)] text-white hover:bg-[color:var(--primary-strong)]"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100"
             >
               Start Free Trial
-            </ButtonLink>
-            <ButtonLink
-              variant="outline"
+            </Link>
+            <Link
               href="/contact"
-              className="rounded-full border border-white/20 text-white hover:bg-white/10"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
             >
               Contact Support
-            </ButtonLink>
+            </Link>
           </div>
         </div>
 
-        <div className="mx-auto grid w-full max-w-5xl gap-3">
+        <div className="mx-auto grid w-full max-w-4xl gap-2.5">
           {faqs.map((item, index) => (
             <AccordionItem
               key={item.question}
@@ -113,15 +109,13 @@ const AccordionItem = ({
 
   // Parse answer text and convert "/path" patterns to links
   const renderAnswer = (text: string) => {
-    // Match patterns like "here: /path" or "here: /path."
     const parts = text.split(/(\bhref:\s*\/[a-z-]+|\bhere:\s*\/[a-z-]+)/gi);
-    
+
     return parts.map((part, i) => {
-      // Check if this part contains a link pattern
       const linkMatch = part.match(/\b(href|here):\s*(\/[a-z-]+)/i);
       if (linkMatch) {
         const path = linkMatch[2];
-        const displayText = path.substring(1); // Remove leading slash for display
+        const displayText = path.substring(1);
         return (
           <React.Fragment key={i}>
             {linkMatch[1]}:{" "}
@@ -140,24 +134,24 @@ const AccordionItem = ({
   };
 
   return (
-    <div className="group rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] transition-colors hover:bg-white/[0.05]">
       <button
         type="button"
         aria-expanded={isOpen}
         aria-controls={`faq-panel-${index}`}
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left sm:px-7"
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-6"
       >
-        <span className="text-base font-medium text-white">
+        <span className="text-sm font-medium text-white sm:text-base">
           {question}
         </span>
         <motion.span
-          className="inline-flex size-7 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-white/40"
           initial={false}
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.25 }}
         >
-          <ChevronDownIcon className="dark:text-neutral-100" />
+          <ChevronDownIcon />
         </motion.span>
       </button>
 
@@ -168,9 +162,9 @@ const AccordionItem = ({
         initial={false}
         animate={{ height: targetHeight, opacity: isOpen ? 1 : 0 }}
         transition={{ height: { duration: 0.35 }, opacity: { duration: 0.2 } }}
-        className="overflow-hidden px-6 sm:px-7"
+        className="overflow-hidden px-5 sm:px-6"
       >
-        <div ref={ref} className="pb-5">
+        <div ref={ref} className="pb-4">
           <AnimatePresence mode="popLayout">
             {isOpen && (
               <motion.p
@@ -179,7 +173,7 @@ const AccordionItem = ({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -6, opacity: 0 }}
                 transition={{ duration: 0.25 }}
-                className="text-white/70"
+                className="text-sm text-white/50 leading-relaxed"
               >
                 {renderAnswer(answer)}
               </motion.p>

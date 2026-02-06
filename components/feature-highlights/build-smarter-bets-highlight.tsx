@@ -6,24 +6,23 @@ import { FeatureHighlight } from "@/components/feature-highlight";
 export function BuildSmarterBetsHighlight() {
   return (
     <FeatureHighlight
-      badge="Build Smarter Bets"
+      badge="Execute"
       title="Turn Data Into Better Bets"
-      description="Our bet tools help you build same game parlays, spot arbitrage, and maximize every opportunity."
-      ctaText="Build a Bet"
-      ctaHref="/parlay-builder"
-      className="bg-black bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_70%)]"
+      description="Save plays to My Slips, build same-game parlays, compare payouts across books, and deep-link straight to your sportsbook."
+      ctaText="Learn More"
+      ctaHref="/features/my-slips"
+      className="bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.12),transparent_60%)]"
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.2),transparent_60%)]" />
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent">
         <div className="absolute inset-0 grid place-items-center text-center px-6">
           <div className="max-w-md">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
               Bet Builder Preview
             </p>
-            <p className="mt-3 text-lg font-semibold text-white">
+            <p className="mt-3 text-lg font-semibold text-white/50">
               GIF placeholder
             </p>
-            <p className="mt-2 text-sm text-white/60">
+            <p className="mt-2 text-sm text-white/30">
               Add SGP builder, arbitrage alert, and betslip preview here.
             </p>
           </div>

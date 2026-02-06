@@ -47,7 +47,7 @@ export function PricingHighlight() {
   const [isYearly, setIsYearly] = useState(false);
 
   return (
-    <section className="bg-black bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.1),transparent_70%)] py-12 sm:py-16 lg:py-20">
+    <section className="bg-black bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.12),transparent_60%)] py-16 sm:py-20 lg:py-24">
       <MaxWidthWrapper>
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--primary-weak)]">
@@ -56,14 +56,14 @@ export function PricingHighlight() {
           <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl lg:text-5xl">
             Choose the plan that fits how you bet
           </h2>
-          <p className="mt-4 text-base text-white/70 sm:text-lg">
+          <p className="mt-4 text-base text-white/60 sm:text-lg">
             Our plans give you the tools and flexibility to bet smarter, find
             value, and maximize ROI.
           </p>
           <div className="mt-6">
             <Link
               href="/pricing"
-              className="inline-flex h-11 items-center justify-center rounded-full border border-white/15 bg-white/10 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
             >
               Compare all plans →
             </Link>
@@ -71,7 +71,7 @@ export function PricingHighlight() {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <div className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 p-1">
+          <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
             <button
               type="button"
               onClick={() => setIsYearly(false)}
@@ -79,7 +79,7 @@ export function PricingHighlight() {
                 "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-colors",
                 !isYearly
                   ? "bg-white text-neutral-900"
-                  : "text-white/70 hover:text-white",
+                  : "text-white/60 hover:text-white",
               )}
             >
               Monthly
@@ -91,7 +91,7 @@ export function PricingHighlight() {
                 "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition-colors",
                 isYearly
                   ? "bg-white text-neutral-900"
-                  : "text-white/70 hover:text-white",
+                  : "text-white/60 hover:text-white",
               )}
             >
               Yearly
@@ -99,7 +99,7 @@ export function PricingHighlight() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-8 md:grid-cols-3">
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
           {previewTiers.map((tier) => {
             const productType = tier.productType;
             const priceId = getProductPriceId(
@@ -114,7 +114,7 @@ export function PricingHighlight() {
                 ? "Research & confidence before you bet"
                 : productType === "sharp"
                 ? "Real-time value & mispriced odds"
-                : "For bettors who want alerts, automation, and guaranteed edges.";
+                : "Alerts, automation, and guaranteed edges";
             const planLabel =
               productType === "edge" ? "Elite" : displayNameForTier(tier.title, productType);
             const ctaLabel =
@@ -122,60 +122,62 @@ export function PricingHighlight() {
                 ? "Try for free"
                 : productType === "sharp"
                 ? "Start free trial"
-                : "Unlock Edge tools";
+                : "Unlock Elite";
 
             return (
               <div
                 key={tier.title}
                 className={cn(
-                  "flex h-full min-h-[460px] flex-col rounded-2xl border p-8 md:p-10",
+                  "relative flex h-full min-h-[460px] flex-col rounded-2xl border p-8 transition-colors md:p-10",
                   isFeatured
-                    ? "border-[color:var(--primary-weak)]/40 bg-white/10 shadow-xl ring-2 ring-[color:var(--primary)]/20"
-                    : "border-white/10 bg-white/5",
+                    ? "border-[color:var(--primary)]/25 bg-white/[0.07]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
               >
-                <div className="flex items-start justify-between">
+                {isFeatured && (
+                  <div className="pointer-events-none absolute -inset-px rounded-2xl bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.08),transparent_60%)]" />
+                )}
+
+                <div className="relative flex items-start justify-between">
                   <h3 className="text-2xl font-semibold text-white">
                     {planLabel}
                   </h3>
                   {isFeatured && (
-                    <span className="rounded-full border border-[color:var(--primary-weak)]/40 bg-[color:var(--primary)]/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--primary-weak)]">
-                      Most Popular
+                    <span className="rounded-full bg-[color:var(--primary)]/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--primary-weak)]">
+                      Popular
                     </span>
                   )}
                 </div>
 
-                <div className="mt-4 h-px w-full bg-white/10" />
-
-                <div className="mt-6 min-h-[96px]">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                <div className="relative mt-6 min-h-[96px]">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Starting at
                   </p>
                   <div className="mt-2 flex items-baseline gap-2">
                     <span className="text-4xl font-semibold text-white">
                       ${Math.round(displayPrice)}
                     </span>
-                    <span className="text-sm text-white/60">/mo</span>
+                    <span className="text-sm text-white/40">/mo</span>
                   </div>
-                  <p className="mt-1 text-xs text-white/50">
+                  <p className="mt-1 text-xs text-white/40">
                     {isYearly ? "Billed yearly" : "Billed monthly"}
                   </p>
                 </div>
 
-                <p className="mt-3 text-sm text-white/70">
+                <p className="relative mt-3 text-sm text-white/60">
                   {roleCopy}
                 </p>
 
-                <ul className="mt-5 flex flex-1 flex-col gap-2 text-sm text-white/70">
+                <ul className="relative mt-5 flex flex-1 flex-col gap-2.5 text-sm text-white/60">
                   {highlights.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[color:var(--primary-weak)]" />
+                    <li key={feature} className="flex items-start gap-2.5">
+                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[color:var(--primary-weak)]" />
                       <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-6">
+                <div className="relative mt-8">
                   <BuyButton
                     priceId={priceId}
                     mode="subscription"
@@ -185,14 +187,9 @@ export function PricingHighlight() {
                       "w-full justify-center rounded-full px-5 py-3 text-sm font-semibold transition-colors",
                       isFeatured
                         ? "bg-white text-neutral-900 hover:bg-neutral-100"
-                        : "border border-white/20 bg-white/10 text-white hover:bg-white/20",
+                        : "border border-white/10 bg-white/5 text-white hover:bg-white/10",
                     )}
                   />
-                  {productType === "edge" && (
-                    <p className="mt-3 text-center text-xs text-white/50">
-                      Best for high-volume bettors
-                    </p>
-                  )}
                 </div>
               </div>
             );

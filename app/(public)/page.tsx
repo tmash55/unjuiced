@@ -12,39 +12,27 @@ import { getSEOTags } from "@/lib/seo";
 
 export const metadata = getSEOTags();
 
-/**
- * Homepage - Unjuiced Landing Page
- * Restructured to showcase 5 core tools:
- * Hit Rate, SGP Builder, +EV, Edge Finder, Arbitrage
- */
 export default function Home() {
   return (
     <>
-      {/* 1. Hero */}
       <HeroSpotlight />
 
       <SocialProofBar
         variant="hero"
-        className="bg-black pt-10 pb-10 sm:pt-12 sm:pb-12 lg:pt-16 lg:pb-16"
+        className="bg-black py-10 sm:py-12 lg:py-14"
       />
 
-      {/* 2b. Feature Highlight */}
       <HitRatesHighlight />
-
       <SmartEdgesHighlight />
-
       <BuildSmarterBetsHighlight />
 
       <PricingHighlight />
-
       <MoreThanTools />
 
-      {/* 3. FAQs */}
       <section id="faq">
         <FAQs />
       </section>
 
-      {/* 4. CTA */}
       <CTA />
     </>
   );
