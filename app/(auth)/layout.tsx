@@ -2,7 +2,8 @@ import { Grid } from "@/components/grid";
 import { Wordmark } from "@/components/ui/wordmark";
 import { cn } from "@/lib/utils";    
 import { ReactNode } from "react";
-import Link from "next/link";
+
+const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL || "https://unjuiced.bet";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -48,12 +49,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       </div>
 
       <div className="relative flex min-h-screen w-full justify-center">
-        <Link
-          href="/"
+        <a
+          href={marketingUrl}
           className="absolute left-1/2 top-4 z-10 -translate-x-1/2 transition-opacity hover:opacity-80"
         >
           <Wordmark className="h-8" />
-        </Link>
+        </a>
         {children}
       </div>
     </>

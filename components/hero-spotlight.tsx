@@ -37,8 +37,25 @@ const heroSpotlights: SpotlightConfig[] = [
 ];
 
 export function HeroSpotlight() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, user } = useAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Build dashboard URL for logged-in users
+  const dashboardUrl = (() => {
+    if (typeof window !== "undefined") {
+      const host = window.location.host;
+      if (host.includes("localhost")) {
+        const port = host.split(":")[1] || "3000";
+        return `http://app.localhost:${port}/today`;
+      }
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (appUrl) {
+      const baseUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+      return `${baseUrl}/today`;
+    }
+    return "https://app.unjuiced.bet/today";
+  })();
 
   const handleGoogleSignUp = async () => {
     if (isGoogleLoading) return;
@@ -85,38 +102,52 @@ export function HeroSpotlight() {
             — not louder.
           </p>
 
-          <div className="flex flex-col items-center gap-3 sm:flex-row md:items-start">
-            <button
-              type="button"
-              onClick={handleGoogleSignUp}
-              disabled={isGoogleLoading}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            >
-              <GoogleLogo className="h-4 w-4" />
-              {isGoogleLoading ? "Redirecting..." : "Sign up with Google"}
-            </button>
-            <Link
-              href="/register"
-              className="flex h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
-            >
-              Sign up with email
-            </Link>
-          </div>
+          {user ? (
+            <div className="flex flex-col items-center gap-3 sm:flex-row md:items-start">
+              <a
+                href={dashboardUrl}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100 sm:w-auto"
+              >
+                Go to Dashboard
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </a>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center gap-3 sm:flex-row md:items-start">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignUp}
+                  disabled={isGoogleLoading}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                >
+                  <GoogleLogo className="h-4 w-4" />
+                  {isGoogleLoading ? "Redirecting..." : "Sign up with Google"}
+                </button>
+                <Link
+                  href="/register"
+                  className="flex h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
+                >
+                  Sign up with email
+                </Link>
+              </div>
 
-          <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-white/50 md:justify-start">
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
-              3 Day Free Trial
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
-              Real-Time Updates
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
-              20+ Sportsbooks
-            </span>
-          </div>
+              <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-white/50 md:justify-start">
+                <span className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
+                  3 Day Free Trial
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
+                  Real-Time Updates
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
+                  20+ Sportsbooks
+                </span>
+              </div>
+            </>
+          )}
 
           <LandingImages />
         </div>

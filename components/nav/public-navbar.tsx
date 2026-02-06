@@ -17,6 +17,7 @@ import { createHref } from "./content/shared";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Menu, X, Moon, Sun, Monitor, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/components/auth/auth-provider";
 
 // Hook to get app subdomain URL for auth routes with proper hydration handling
 // Returns URLs that update after client-side mount to use correct localhost port
@@ -143,9 +144,11 @@ export function PublicNav({
   const scrolled = useScroll(40);
   const pathname = usePathname();
   const authUrls = useAppAuthUrls();
+  const { user } = useAuth();
   const isHome = pathname === "/";
   const resolvedTheme: NavTheme = theme ?? (isHome ? "dark" : "light");
   const isTransparent = isHome && !scrolled;
+  const dashboardUrl = getAppAuthUrl("/today");
 
   return (
     <PublicNavContext.Provider value={{ theme: resolvedTheme }}>
@@ -236,26 +239,41 @@ export function PublicNav({
               </NavigationMenuPrimitive.Root>
 
               <div className="hidden grow basis-0 justify-end gap-3 lg:flex items-center">
-                {/* Login - plain text link, less focal */}
-                <a
-                  href={authUrls.login}
-                  className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors dark:text-neutral-300 dark:hover:text-white"
-                >
-                  Login
-                </a>
-                {/* Sign up for free - prominent blue button */}
-                <a
-                  href={authUrls.register}
-                  className={cn(
-                    "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
-                    "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
-                    "shadow-sm hover:shadow-md",
-                    "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
-                  )}
-                >
-                  Sign up for free
-                  <ArrowRight className="h-4 w-4" />
-                </a>
+                {user ? (
+                  <a
+                    href={dashboardUrl}
+                    className={cn(
+                      "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
+                      "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
+                      "shadow-sm hover:shadow-md",
+                      "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
+                    )}
+                  >
+                    Dashboard
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                ) : (
+                  <>
+                    <a
+                      href={authUrls.login}
+                      className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors dark:text-neutral-300 dark:hover:text-white"
+                    >
+                      Login
+                    </a>
+                    <a
+                      href={authUrls.register}
+                      className={cn(
+                        "flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-all",
+                        "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
+                        "shadow-sm hover:shadow-md",
+                        "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
+                      )}
+                    >
+                      Sign up for free
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  </>
+                )}
               </div>
 
               {/* Mobile Menu Button */}
@@ -309,6 +327,8 @@ function PublicMobileNav({ domain }: { domain: string }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const authUrls = useAppAuthUrls();
+  const { user } = useAuth();
+  const dashboardUrl = getAppAuthUrl("/today");
   
   useEffect(() => {
     setMounted(true);
@@ -326,19 +346,18 @@ function PublicMobileNav({ domain }: { domain: string }) {
     {
       group: "Research",
       items: [
-        { title: "Hit Rates", href: "/tools/hit-rates", badge: "NEW" },
-        { title: "Cheat Sheets", href: "/tools/cheat-sheets" },
-        { title: "Stats", href: "/tools/stats" },
-        { title: "Defense vs Position", href: "/tools/dvp" },
+        { title: "Hit Rates", href: "/features/hit-rates" },
+        { title: "Cheat Sheets", href: "/features/cheat-sheets" },
+        { title: "Odds Screen", href: "/features/odds-screen" },
+        { title: "My Slips", href: "/features/my-slips" },
       ],
     },
     {
-      group: "Sharp",
+      group: "Sharp Tools",
       items: [
-        { title: "Odds Screen", href: "/tools/odds" },
-        { title: "Edge Finder", href: "/tools/edge-finder" },
-        { title: "Positive EV", href: "/tools/positive-ev" },
-        { title: "Arbitrage", href: "/tools/arbitrage" },
+        { title: "Edge Finder", href: "/features/edge-finder" },
+        { title: "Positive EV", href: "/features/positive-ev" },
+        { title: "Arbitrage", href: "/features/arbitrage" },
       ],
     },
     {
@@ -457,21 +476,9 @@ function PublicMobileNav({ domain }: { domain: string }) {
                     transition={{ duration: 0.2, delay: mobileNavGroups.length * 0.1 + 0.1 }}
                     className="mt-2 space-y-4 border-t border-neutral-200 px-4 pt-6 dark:border-white/10"
                   >
-                    <div className="space-y-3">
+                    {user ? (
                       <a
-                        href={authUrls.login}
-                        onClick={() => setIsOpen(false)}
-                        className={cn(
-                          "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
-                          "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
-                          "dark:border-white/10 dark:bg-transparent dark:text-white dark:hover:bg-white/5",
-                          "w-full overflow-hidden hover:scale-[1.02] active:scale-[0.98]",
-                        )}
-                      >
-                        <span className="relative z-10">Login</span>
-                      </a>
-                      <a
-                        href={authUrls.register}
+                        href={dashboardUrl}
                         onClick={() => setIsOpen(false)}
                         className={cn(
                           "flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all",
@@ -480,13 +487,38 @@ function PublicMobileNav({ domain }: { domain: string }) {
                           "w-full overflow-hidden shadow-lg hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]",
                         )}
                       >
-                        <span className="relative z-10">Sign up for free</span>
+                        <span className="relative z-10">Dashboard</span>
                         <ArrowRight className="h-4 w-4" />
                       </a>
-                    </div>
-                    <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-                      No credit card required
-                    </p>
+                    ) : (
+                      <div className="space-y-3">
+                        <a
+                          href={authUrls.login}
+                          onClick={() => setIsOpen(false)}
+                          className={cn(
+                            "flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition-all",
+                            "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
+                            "dark:border-white/10 dark:bg-transparent dark:text-white dark:hover:bg-white/5",
+                            "w-full overflow-hidden hover:scale-[1.02] active:scale-[0.98]",
+                          )}
+                        >
+                          <span className="relative z-10">Login</span>
+                        </a>
+                        <a
+                          href={authUrls.register}
+                          onClick={() => setIsOpen(false)}
+                          className={cn(
+                            "flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all",
+                            "bg-[#0EA5E9] text-white hover:bg-[#0284C7]",
+                            "dark:bg-[#38BDF8] dark:text-[#07131A] dark:hover:bg-[#7DD3FC]",
+                            "w-full overflow-hidden shadow-lg hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]",
+                          )}
+                        >
+                          <span className="relative z-10">Sign up for free</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </a>
+                      </div>
+                    )}
                   </motion.div>
                 </div>
               </MaxWidthWrapper>

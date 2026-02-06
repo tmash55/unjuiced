@@ -1,17 +1,17 @@
-import { Nav } from "@/components/nav/navbar";
+import { PublicNav } from "@/components/nav/public-navbar";
 import { Footer } from "@/components/footer";
-import { DivideX } from "@/components/divide";
 import { ReactNode } from "react";
 
+/**
+ * Marketing layout for public-facing pages (about, blog, changelog, etc.)
+ * Uses the same PublicNav as the homepage for consistent navigation
+ */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
     <main className="h-full bg-white antialiased dark:bg-black">
-      <Nav />
-      <DivideX />
+      <PublicNav />
       {children}
-      <div className="hidden md:block">
-        <Footer />
-      </div>
+      <Footer />
     </main>
   );
 }
