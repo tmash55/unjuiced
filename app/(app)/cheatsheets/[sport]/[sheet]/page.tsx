@@ -35,6 +35,9 @@ import { cn } from "@/lib/utils";
 const FREE_USER_MAX_ROWS = 7;
 const UPGRADE_URL = "/pricing";
 
+// Sheets that are free for all users (no Scout+ required)
+const FREE_SHEETS = ["dvp", "hit-rate-matrix"] as const;
+
 // Upgrade CTA component for gated users
 function CheatSheetUpgradeCTA() {
   return (
@@ -191,13 +194,41 @@ function ComingSoonSheet({
 
 function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const sheetInfo = SHEET_INFO[sheet];
+  const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
+  const isGated = !FREE_SHEETS.includes(sheet) && !isLoadingAccess && !hasAccess;
 
   return (
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
     >
-      <AltHitMatrix sport={sport} />
+      <div className="relative">
+        {isGated && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl min-h-[400px]">
+            <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+                <Lock className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">Alt Hit Matrix</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Find the best alternate lines with highest hit rates. Upgrade to Scout to unlock.
+                </p>
+              </div>
+              <ButtonLink
+                href={UPGRADE_URL}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
+              >
+                Upgrade to Scout
+                <ArrowRight className="w-4 h-4" />
+              </ButtonLink>
+            </div>
+          </div>
+        )}
+        <div className={cn(isGated && "pointer-events-none select-none opacity-60")}>
+          <AltHitMatrix sport={sport} />
+        </div>
+      </div>
     </AppPageLayout>
   );
 }

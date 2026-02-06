@@ -26,6 +26,7 @@ export const BentoGridItem = ({
   header,
   icon,
   mobileHeight = "auto",
+  variant = "default",
 }: {
   className?: string;
   title?: string | React.ReactNode;
@@ -33,11 +34,16 @@ export const BentoGridItem = ({
   header?: React.ReactNode;
   icon?: React.ReactNode;
   mobileHeight?: string;
+  variant?: "default" | "flat";
 }) => {
   return (
     <div
       className={cn(
-        "group/bento shadow-input row-span-1 flex flex-col rounded-xl border border-neutral-200 bg-white transition duration-200 hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-none overflow-hidden",
+        "group/bento row-span-1 flex flex-col rounded-xl transition duration-200 overflow-hidden",
+        variant === "default" &&
+          "shadow-input border border-neutral-200 bg-white hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-none",
+        variant === "flat" &&
+          "bg-neutral-100/60 dark:bg-neutral-800/40",
         className,
       )}
       style={{ minHeight: mobileHeight }}

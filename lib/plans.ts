@@ -6,9 +6,9 @@ import { User } from "@supabase/supabase-js";
  * - free: Logged in, no subscription
  * - scout: $15/mo - Hit rate research tools
  * - sharp: $35/mo - Hit rates + EV/Arb tools (no live arb, no custom models)
- * - edge: $65/mo - Everything including live arb + custom models
+ * - elite: Full access - live arb, custom models, priority support
  */
-export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "edge" | "elite";
+export type UserPlan = "anonymous" | "free" | "scout" | "sharp" | "elite";
 
 /**
  * Legacy plan type aliases for backward compatibility
@@ -21,11 +21,13 @@ export type LegacyUserPlan = "hit_rate" | "pro";
  * Early adopters get bumped up one tier as a loyalty reward:
  *   hit_rate → sharp  (was scout-level, now gets sharp tools)
  *   pro      → elite  (was sharp-level, now gets full elite access)
+ *   edge     → elite  (consolidated into elite tier)
  */
 export function normalizePlanName(plan: string): UserPlan {
   if (plan === "hit_rate") return "sharp"; // Legacy hit_rate → sharp (bumped up)
   if (plan === "pro") return "elite";      // Legacy pro → elite (bumped up)
   if (plan === "admin") return "elite";    // Admins get full access
+  if (plan === "edge") return "elite";     // Edge consolidated into elite
   return plan as UserPlan;
 }
 
@@ -125,29 +127,6 @@ export const PLAN_LIMITS = {
       hasEVSignals: false,
     },
   },
-  edge: {
-    arbitrage: {
-      maxResults: -1, // Unlimited
-      refreshRate: 2000, // 2 seconds
-      canFilter: true,
-      canExport: true,
-      hasLiveArb: true, // Live arb for Edge
-    },
-    odds: {
-      maxLeagues: -1, // Unlimited
-      refreshRate: 2000,
-      canCompare: true,
-    },
-    positiveEV: {
-      maxResults: -1, // Unlimited
-      refreshRate: 5000,
-      hasCustomModels: true, // Custom models for Edge
-    },
-    hitRates: {
-      hasAccess: true,
-      hasEVSignals: true, // EV-enhanced hit rates for Edge
-    },
-  },
   elite: {
     arbitrage: {
       maxResults: -1, // Unlimited
@@ -177,29 +156,34 @@ export const PLAN_LIMITS = {
  * Check if a plan has access to Hit Rates
  */
 export function hasHitRateAccess(plan: UserPlan): boolean {
-  return plan === "scout" || plan === "sharp" || plan === "edge";
+  return plan === "scout" || plan === "sharp" || plan === "elite";
 }
 
 /**
  * Check if a plan has access to sharp tools (EV, Arb, Edge Finder)
  */
 export function hasSharpAccess(plan: UserPlan): boolean {
-  return plan === "sharp" || plan === "edge" || plan === "elite";
+  return plan === "sharp" || plan === "elite";
 }
 
 /**
- * Check if a plan has access to Edge features (live arb, custom models, EV signals)
+ * Check if a plan has access to Elite features (live arb, custom models, EV signals)
  */
+export function hasEliteAccess(plan: UserPlan): boolean {
+  return plan === "elite";
+}
+
+/** @deprecated Use hasEliteAccess instead */
 export function hasEdgeAccess(plan: UserPlan): boolean {
-  return plan === "edge" || plan === "elite";
+  return hasEliteAccess(plan);
 }
 
 /**
  * Check if a plan has full Sharp features (arb, EV, etc.)
- * @deprecated Use hasSharpAccess or hasEdgeAccess instead
+ * @deprecated Use hasSharpAccess or hasEliteAccess instead
  */
 export function hasProAccess(plan: UserPlan): boolean {
-  return plan === "sharp" || plan === "edge" || plan === "elite";
+  return plan === "sharp" || plan === "elite";
 }
 
 /**
@@ -211,8 +195,9 @@ export function getClientUserPlan(user: User | null): UserPlan {
   }
 
   // Check user metadata for plan (you can store it there or fetch from DB)
-  const plan = user.user_metadata?.plan as UserPlan | undefined;
-  return plan || "free";
+  const raw = user.user_metadata?.plan as string | undefined;
+  const normalized = normalizePlanName(raw || "free");
+  return normalized in PLAN_LIMITS ? (normalized as UserPlan) : "free";
 }
 
 /**
@@ -279,7 +264,7 @@ export function getUpgradeMessage(plan: UserPlan, feature: string): string {
   }
 
   if (plan === "sharp") {
-    return `Upgrade to Edge for live arbitrage, custom models, and EV-enhanced hit rates!`;
+    return `Upgrade to Elite for live arbitrage, custom models, and EV-enhanced hit rates!`;
   }
 
   return "";

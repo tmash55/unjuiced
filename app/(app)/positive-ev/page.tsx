@@ -31,6 +31,8 @@ import {
   Eye,
   EyeOff,
   ArrowUpDown,
+  ArrowRight,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -54,7 +56,7 @@ import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 
 // Auth & entitlements
 import { useAuth } from "@/components/auth/auth-provider";
-import { useIsPro } from "@/hooks/use-entitlements";
+import { useIsPro, useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 
 // Favorites
@@ -79,6 +81,8 @@ import { MobilePositiveEV } from "@/components/positive-ev/mobile";
 
 // Sportsbooks and markets
 import { X } from "lucide-react";
+import LockIcon from "@/icons/lock";
+import { ButtonLink } from "@/components/button-link";
 import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
 import { usePositiveEvPreferences, useEvPreferences } from "@/context/preferences-context";
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
@@ -87,6 +91,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Constants
 const AVAILABLE_SPORTS = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb"];
+const FREE_USER_EV_MAX_ROWS = 7;
 const MIN_EV_OPTIONS = [0, 0.5, 1, 2, 3, 5, 10];
 
 // Loading messages for +EV finder
@@ -289,6 +294,7 @@ function getBookFallbackUrl(bookId?: string): string | undefined {
 export default function PositiveEVPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
+  const { hasAccess: hasElite } = useHasEliteAccess();
   const isLoggedIn = !!user;
   const isMobile = useIsMobileOrTablet(); // Show card view on phones & tablets (< 1280px)
   const stablePlanRef = useRef(isPro);
@@ -388,12 +394,12 @@ export default function PositiveEVPage() {
   // Prefetch player data on hover
   const prefetchPlayer = usePrefetchPlayerByOddsId();
   
-  // Disable auto-refresh if not pro
+  // Disable auto-refresh if not Elite
   useEffect(() => {
-    if (!effectiveIsPro) {
+    if (!hasElite) {
       setAutoRefresh(false);
     }
-  }, [effectiveIsPro]);
+  }, [hasElite]);
   
   // Debug logging
   useEffect(() => {
@@ -746,6 +752,16 @@ export default function PositiveEVPage() {
     
     return sorted;
   }, [filteredOpportunities, sortColumn, sortDirection, savedFilters.evCase, bankroll, kellyPercent]);
+
+  // Gate: limit visible rows for free users
+  const displayOpportunities = useMemo(() => {
+    if (effectiveIsPro) return sortedOpportunities;
+    return sortedOpportunities.slice(0, FREE_USER_EV_MAX_ROWS);
+  }, [sortedOpportunities, effectiveIsPro]);
+
+  const hiddenEvCount = effectiveIsPro
+    ? 0
+    : Math.max(0, sortedOpportunities.length - FREE_USER_EV_MAX_ROWS);
   
   // When streaming changes occur on expanded rows, mark them as oddsChanged
   useEffect(() => {
@@ -950,7 +966,7 @@ export default function PositiveEVPage() {
     return (
       <>
         <MobilePositiveEV
-          opportunities={sortedOpportunities}
+          opportunities={displayOpportunities}
           isLoading={isLoading}
           isFetching={isFetching}
           error={error}
@@ -1012,6 +1028,7 @@ export default function PositiveEVPage() {
           availableMarkets={availableMarketOptions.map((market) => market.key)}
           locked={locked}
           isLoggedIn={isLoggedIn}
+          hasEliteAccess={hasElite}
         />
         
         {/* Player Quick View Modal (NBA Hit Rates) - Mobile */}
@@ -1038,7 +1055,9 @@ export default function PositiveEVPage() {
     ? "Loading +EV opportunities..."
     : isFetching
     ? "Updating..."
-    : `${sortedOpportunities.length}+ opportunities found`;
+    : effectiveIsPro
+    ? `${sortedOpportunities.length}+ opportunities found`
+    : `${displayOpportunities.length} of ${sortedOpportunities.length}+ opportunities shown`;
 
   // Header actions - freshness indicator
   const headerActions = dataUpdatedAt && !isLoading ? (
@@ -1156,7 +1175,7 @@ export default function PositiveEVPage() {
         }}
         // UI state
         locked={locked}
-        isPro={effectiveIsPro}
+        isPro={hasElite}
       />
     </>
   );
@@ -1448,7 +1467,7 @@ export default function PositiveEVPage() {
             )}
 
             {/* Empty State */}
-            {!isLoading && sortedOpportunities.length === 0 && (
+            {!isLoading && displayOpportunities.length === 0 && (
               <tr>
                 <td colSpan={totalColumns}>
                   <div className="flex flex-col items-center justify-center py-20 px-4">
@@ -1467,7 +1486,7 @@ export default function PositiveEVPage() {
             )}
 
             {/* Data Rows */}
-            {!isLoading && sortedOpportunities.map((opp, index) => {
+            {!isLoading && displayOpportunities.map((opp, index) => {
               // Get base EV based on evCase setting (worst or best)
               // The API returns evWorst, evBest, and evDisplay - we use evCase to select
               const evCase = savedFilters.evCase as "worst" | "best";
@@ -2658,13 +2677,46 @@ export default function PositiveEVPage() {
                 </React.Fragment>
               );
             })}
+
+            {/* Gate overlay row for free users - gradient fade + lock banner */}
+            {!effectiveIsPro && hiddenEvCount > 0 && !isLoading && (
+              <tr>
+                <td colSpan={totalColumns} className="p-0">
+                  {/* Gradient fade overlay */}
+                  <div className="relative">
+                    <div className="absolute inset-x-0 -top-16 h-16 bg-gradient-to-b from-transparent via-white/70 to-white dark:via-neutral-900/70 dark:to-neutral-900 pointer-events-none z-[1]" />
+                  </div>
+                  {/* Lock banner inside table */}
+                  <div className="relative z-[2] px-4 py-8 flex flex-col items-center gap-4 bg-white dark:bg-neutral-900">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10 dark:bg-sky-400/10 text-sky-600 dark:text-sky-400">
+                      <LockIcon className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-neutral-900 dark:text-white">
+                        {hiddenEvCount} More +EV Opportunit{hiddenEvCount === 1 ? "y" : "ies"} Hidden
+                      </p>
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 max-w-md">
+                        Free users can preview a limited number of +EV opportunities. Upgrade to unlock all edges, custom models, and real-time streaming.
+                      </p>
+                    </div>
+                    <a
+                      href="/pricing"
+                      className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 dark:bg-sky-500 dark:hover:bg-sky-400"
+                    >
+                      {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
           </table>
         </div>
       </div>
 
-      {/* Load More */}
-      {totalReturned >= limit && (
+      {/* Load More - only for pro users */}
+      {effectiveIsPro && totalReturned >= limit && (
         <div className="flex justify-center mt-4">
           <button
             onClick={() => setLimit((prev) => prev + 100)}
@@ -2676,20 +2728,70 @@ export default function PositiveEVPage() {
         </div>
       )}
 
-      {/* Pro Upgrade CTA */}
+      {/* Pro Upgrade CTA - Below table for free users */}
       {!effectiveIsPro && (
-        <div className="text-center py-8 border-t mt-8">
-          <p className="text-muted-foreground mb-2">
-            {isLoggedIn 
-              ? "Upgrade to Sharp to unlock all +EV opportunities"
-              : "Sign up for Sharp to unlock all +EV opportunities"}
-          </p>
-          <a
-            href="/pricing"
-            className="inline-block px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-md font-medium hover:from-emerald-600 hover:to-teal-700 transition-all"
-          >
-            {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
-          </a>
+        <div className="relative mt-6 overflow-hidden rounded-2xl border border-sky-200/60 dark:border-sky-800/40 bg-gradient-to-br from-sky-50/50 via-white to-sky-50/30 dark:from-sky-950/30 dark:via-neutral-900 dark:to-sky-950/20 p-4 shadow-sm sm:p-5">
+          <div className="relative z-10 flex flex-col gap-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 dark:bg-sky-400/10 text-sky-600 dark:text-sky-400">
+                  <LockIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                    Unlock All +EV Opportunities
+                  </p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-200/80">
+                    Free users can preview {FREE_USER_EV_MAX_ROWS} opportunities. Upgrade for full access to every edge, every sport, in real-time.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 text-sm text-neutral-800 dark:text-neutral-100 sm:grid-cols-2">
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <RefreshCw className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Real-time Auto Refresh</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Stay synced with every market swing.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <TrendingUp className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Unlimited +EV Edges</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Access every opportunity across all sports.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Calculator className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Custom EV Models</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Build your own sharp composites and devig methods.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Zap className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Advanced Filters & Sorting</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Dial in exactly the edges you want.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href="/pricing"
+                className="inline-flex items-center gap-2 rounded-full border border-sky-500 bg-sky-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 hover:border-sky-600 dark:border-sky-400 dark:bg-sky-500 dark:hover:bg-sky-400 dark:hover:border-sky-400"
+              >
+                {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <span className="text-xs text-neutral-500 dark:text-neutral-300/70">
+                Stop leaving edges on the table.
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

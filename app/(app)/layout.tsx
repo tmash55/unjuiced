@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { IconHelp, IconMenu2 } from "@tabler/icons-react"
 import { Sidebar } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/nav/side-nav/app-sidebar"
@@ -56,17 +57,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1">
             <MobileFavoritesDrawerTrigger />
             <ModeToggle />
-            <button
+            <Link
+              href="/support"
               className={cn(
                 "p-2 rounded-lg transition-all duration-200",
                 "hover:bg-[#0EA5E9]/10 dark:hover:bg-[#7DD3FC]/10",
                 "text-neutral-500 dark:text-neutral-400",
                 "hover:text-[#0EA5E9] dark:hover:text-[#7DD3FC]"
               )}
-              aria-label="Help"
+              aria-label="Help & Support"
             >
               <IconHelp className="h-5 w-5" />
-            </button>
+            </Link>
           </div>
         </TooltipProvider>
       </header>
@@ -130,17 +132,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               
               {/* Help Button */}
               <Tooltip content="Help & Support" side="bottom">
-                <button
+                <Link
+                  href="/support"
                   className={cn(
                     "p-2 rounded-lg transition-all duration-200",
                     "hover:bg-[#0EA5E9]/10 dark:hover:bg-[#7DD3FC]/10",
                     "text-neutral-500 dark:text-neutral-400",
                     "hover:text-[#0EA5E9] dark:hover:text-[#7DD3FC]"
                   )}
-                  aria-label="Help"
+                  aria-label="Help & Support"
                 >
                   <IconHelp className="h-5 w-5" />
-                </button>
+                </Link>
               </Tooltip>
             </div>
           </TooltipProvider>

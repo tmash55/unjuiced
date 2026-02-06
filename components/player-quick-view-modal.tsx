@@ -961,7 +961,7 @@ export function PlayerQuickViewModal({
                       <span className="sm:hidden">{tab.mobileLabel}</span>
                       {tab.proOnly && !hasAdvancedAccess && (
                         <span className="ml-1 px-1.5 py-0.5 text-[8px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-md shadow-sm">
-                          PRO
+                          SCOUT
                         </span>
                       )}
                     </button>
@@ -1097,7 +1097,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Scout" : "Try Free"}
                         </Link>
                       </div>
                     </div>
@@ -1149,7 +1149,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Scout" : "Try Free"}
                         </Link>
                       </div>
                     </div>
@@ -1198,7 +1198,7 @@ export function PlayerQuickViewModal({
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-shadow"
                         >
                           <Lock className="w-4 h-4" />
-                          {isAuthenticated ? "Upgrade to Sharp" : "Try Free"}
+                          {isAuthenticated ? "Upgrade to Scout" : "Try Free"}
                         </Link>
                       </div>
                     </div>

@@ -154,13 +154,13 @@ export function GatedArbTable({
       return (
     <div>
       {!isPro && filteredCount > 0 && (
-        <div className="relative mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-gradient-to-br from-white via-neutral-50 to-neutral-100 p-4 shadow-sm dark:border-neutral-800 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-950 sm:p-5">
+        <div className="relative mb-4 overflow-hidden rounded-2xl border border-sky-200/60 dark:border-sky-800/40 bg-gradient-to-br from-sky-50/50 via-white to-sky-50/30 dark:from-sky-950/30 dark:via-neutral-900 dark:to-sky-950/20 p-4 shadow-sm sm:p-5">
 
           <div className="relative z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900/5 text-neutral-900 shadow-inner dark:bg-white/10 dark:text-white">
-                  <LockIcon className="h-5 w-5 text-[var(--tertiary)]" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 dark:bg-sky-400/10 text-sky-600 dark:text-sky-400">
+                  <LockIcon className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-neutral-900 dark:text-white">
@@ -174,32 +174,32 @@ export function GatedArbTable({
             </div>
 
             <div className="grid gap-2 text-sm text-neutral-800 dark:text-neutral-100 sm:grid-cols-2">
-              <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
-                <RefreshCw className="h-4 w-4 text-[var(--tertiary)]" />
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <RefreshCw className="h-4 w-4 text-sky-500 dark:text-sky-400" />
                 <div>
                   <p className="font-semibold leading-none">Real-time Auto Refresh</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Stay synced with every market swing.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
-                <TrendingUp className="h-4 w-4 text-[var(--tertiary)]" />
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <TrendingUp className="h-4 w-4 text-sky-500 dark:text-sky-400" />
                 <div>
                   <p className="font-semibold leading-none">Premium Arbs (ROI &gt; 1%)</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Chase the edges that truly move bankrolls.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
                 <span className="relative flex h-4 w-4 items-center justify-center">
-                  <span className="absolute h-3 w-3 animate-ping rounded-full bg-[var(--tertiary)]/60" />
-                  <span className="relative h-2 w-2 rounded-full bg-[var(--tertiary)]" />
+                  <span className="absolute h-3 w-3 animate-ping rounded-full bg-sky-500/60 dark:bg-sky-400/60" />
+                  <span className="relative h-2 w-2 rounded-full bg-sky-500 dark:bg-sky-400" />
                 </span>
                 <div>
                   <p className="font-semibold leading-none">Live In-Game Opportunities</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Surface edges mid-drive, mid-possession.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-neutral-200/60 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/5 dark:bg-white/5">
-                <Infinity className="h-4 w-4 text-[var(--tertiary)]" />
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Infinity className="h-4 w-4 text-sky-500 dark:text-sky-400" />
                 <div>
                   <p className="font-semibold leading-none">Unlimited Opportunities</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-300/70">No throttle. Capture everything in one stream.</p>
@@ -212,7 +212,7 @@ export function GatedArbTable({
                 <button
                   onClick={handleStartTrial}
                   disabled={activatingTrial}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-sky-500 bg-sky-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 hover:border-sky-600 dark:border-sky-400 dark:bg-sky-500 dark:hover:bg-sky-400 dark:hover:border-sky-400"
                 >
                   {activatingTrial ? (
                     <>
@@ -230,7 +230,7 @@ export function GatedArbTable({
                 <ButtonLink
                   href="/pricing"
                   variant="outline"
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--tertiary)] bg-[var(--tertiary)] px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--tertiary-strong)] dark:border-[var(--tertiary)] dark:bg-[var(--tertiary)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-sky-500 bg-sky-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 hover:border-sky-600 dark:border-sky-400 dark:bg-sky-500 dark:hover:bg-sky-400 dark:hover:border-sky-400"
                 >
                   {isLoggedIn ? 'Upgrade to Sharp' : 'Try Free'}
                   <ArrowRight className="h-4 w-4" />

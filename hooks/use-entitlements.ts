@@ -2,10 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-export type PlanType = "free" | "scout" | "sharp" | "edge" | "elite" | "admin";
+export type PlanType = "free" | "scout" | "sharp" | "elite" | "admin";
 
 // Legacy plan names for backward compatibility
-export type LegacyPlanType = "hit_rate" | "pro";
+export type LegacyPlanType = "hit_rate" | "pro" | "edge";
 
 export type Entitlements = {
   plan: PlanType | LegacyPlanType | string;
@@ -24,11 +24,13 @@ export type Entitlements = {
  * Early adopters get bumped up one tier:
  *   hit_rate → sharp  (was scout-level, now gets sharp tools)
  *   pro      → elite  (was sharp-level, now gets full elite access)
+ *   edge     → elite  (consolidated into elite tier)
  */
 function normalizePlan(plan: string | undefined): string {
   if (plan === "hit_rate") return "sharp";
   if (plan === "pro") return "elite";
   if (plan === "admin") return "elite";
+  if (plan === "edge") return "elite";
   return plan || "free";
 }
 
@@ -78,14 +80,13 @@ export function useEntitlements() {
 }
 
 /**
- * Helper hook to check if user has Sharp or Edge access (EV, Arb, Edge Finder)
+ * Helper hook to check if user has Sharp or Elite access (EV, Arb, Edge Finder)
  */
 export function useHasSharpAccess() {
   const { data: entitlements, isLoading } = useEntitlements();
   const hasAccess =
     !isLoading &&
     (entitlements?.plan === "sharp" ||
-      entitlements?.plan === "edge" ||
       entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
@@ -93,21 +94,25 @@ export function useHasSharpAccess() {
 }
 
 /**
- * Helper hook to check if user has Edge access (Live Arb, Custom Models)
+ * Helper hook to check if user has Elite access (Live Arb, Custom Models)
  */
-export function useHasEdgeAccess() {
+export function useHasEliteAccess() {
   const { data: entitlements, isLoading } = useEntitlements();
   const hasAccess =
     !isLoading &&
-    (entitlements?.plan === "edge" ||
-      entitlements?.plan === "elite" ||
+    (entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
   return { hasAccess, isLoading, plan: entitlements?.plan };
 }
 
+/** @deprecated Use useHasEliteAccess instead */
+export function useHasEdgeAccess() {
+  return useHasEliteAccess();
+}
+
 /**
- * Helper hook to check if user has Hit Rates access (Scout, Sharp, or Edge)
+ * Helper hook to check if user has Hit Rates access (Scout, Sharp, Elite)
  */
 export function useHasHitRateAccess() {
   const { data: entitlements, isLoading } = useEntitlements();
@@ -115,7 +120,6 @@ export function useHasHitRateAccess() {
     !isLoading &&
     (entitlements?.plan === "scout" ||
       entitlements?.plan === "sharp" ||
-      entitlements?.plan === "edge" ||
       entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");
@@ -131,7 +135,6 @@ export function useHasPaidPlan() {
     !isLoading &&
     (entitlements?.plan === "scout" ||
       entitlements?.plan === "sharp" ||
-      entitlements?.plan === "edge" ||
       entitlements?.plan === "elite" ||
       entitlements?.plan === "admin" ||
       entitlements?.plan === "unlimited");

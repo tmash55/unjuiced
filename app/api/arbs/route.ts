@@ -91,25 +91,23 @@ export async function GET(req: NextRequest) {
       return acc;
     }, []);
 
-    // Apply free user restrictions: ROI <= 1% and pregame only
-    // Apply to both 'free' and 'anonymous' (not logged in) users
+    // Apply plan-based restrictions
     let filteredCount = 0;
     if (userPlan === 'free' || userPlan === 'anonymous') {
       const originalCount = rows.length;
-      
       rows = rows.filter((row) => {
         const roiPercent = (row.roi_bps ?? 0) / 100;
         const isLive = row.ev?.live === true;
-        // Free/anonymous users: only show pregame arbs with ROI <= 1%
         return roiPercent <= 1.0 && !isLive;
       });
-      
       filteredCount = originalCount - rows.length;
-      
-      // Limit to the requested amount (e.g., 100)
-      if (rows.length > limit) {
-        rows = rows.slice(0, limit);
-      }
+      if (rows.length > limit) rows = rows.slice(0, limit);
+    } else if (userPlan === 'sharp' && !planLimits.hasLiveArb) {
+      // Sharp: pregame only (no live arbs)
+      const originalCount = rows.length;
+      rows = rows.filter((row) => row.ev?.live !== true);
+      filteredCount = originalCount - rows.length;
+      if (rows.length > limit) rows = rows.slice(0, limit);
     }
 
     const body: Record<string, any> = { 
@@ -130,7 +128,10 @@ export async function GET(req: NextRequest) {
     if (debug) body.missing = missingIds;
     if (filteredCount > 0) {
       body.filteredCount = filteredCount;
-      body.filteredReason = 'Free users limited to pregame arbs with ROI ≤ 1%';
+      body.filteredReason =
+        userPlan === "sharp"
+          ? "Sharp plan: pregame arbs only (upgrade to Elite for live)"
+          : "Free users limited to pregame arbs with ROI ≤ 1%";
     }
 
     const headers: Record<string, string> = { 

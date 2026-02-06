@@ -103,6 +103,7 @@ interface MobileArbsViewProps {
   totalBetAmount: number;
   roundBets?: boolean;
   isPro: boolean;
+  hasLiveArb?: boolean;
   isLoggedIn: boolean;
   counts: { pregame: number; live: number } | null;
   mode: "prematch" | "live";
@@ -122,6 +123,7 @@ export function MobileArbsView({
   totalBetAmount,
   roundBets = false,
   isPro,
+  hasLiveArb = false,
   isLoggedIn,
   counts,
   mode,
@@ -216,18 +218,18 @@ export function MobileArbsView({
             </button>
             <button
               type="button"
-              onClick={() => isPro && onModeChange('live')}
-              disabled={!isPro}
+              onClick={() => hasLiveArb && onModeChange('live')}
+              disabled={!hasLiveArb}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1",
-                mode === 'live' && isPro
+                mode === 'live' && hasLiveArb
                   ? "bg-brand text-neutral-900 shadow-sm" 
                   : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white",
-                !isPro && "opacity-60 cursor-not-allowed"
+                !hasLiveArb && "opacity-60 cursor-not-allowed"
               )}
             >
               Live ({counts?.live ?? 0})
-              {!isPro && <Lock className="w-3 h-3" />}
+              {!hasLiveArb && <Lock className="w-3 h-3" />}
             </button>
           </div>
 

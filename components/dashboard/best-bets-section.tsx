@@ -239,6 +239,14 @@ export function BestBetsSection() {
   const { isPro, isLoading: isLoadingPlan } = useIsPro();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollArrow, setShowScrollArrow] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobileView(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard-best-bets"],
@@ -249,8 +257,9 @@ export function BestBetsSection() {
   
   const bets = data?.bets || [];
   
-  // Sharp users see all (up to 10), others see first 2 + locked previews
-  const visibleBets = isPro ? bets.slice(0, 10) : bets.slice(0, 2);
+  // Sharp users see all (up to 10 desktop, 3 mobile), others see first 2 + locked previews
+  const maxVisible = isPro ? (isMobileView ? 3 : 10) : 2;
+  const visibleBets = bets.slice(0, maxVisible);
   const hiddenCount = isPro ? 0 : Math.max(0, bets.length - 2);
 
   const checkScroll = () => {

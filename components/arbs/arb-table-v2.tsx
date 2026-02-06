@@ -1199,7 +1199,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                 <Tooltip content="Upgrade to Sharp to unlock premium arbitrage opportunities">
                   <button
                     onClick={() => window.location.href = '/pricing'}
-                    className="flex items-center gap-2 rounded-lg border-2 border-white/20 px-4 py-2 text-sm font-semibold shadow-xl transition-all hover:scale-105 cursor-pointer pointer-events-auto bg-[var(--tertiary)] text-white dark:text-[var(--on-tertiary)]"
+                    className="flex items-center gap-2 rounded-lg border-2 border-white/20 px-4 py-2 text-sm font-semibold shadow-xl transition-all hover:scale-105 cursor-pointer pointer-events-auto bg-sky-500 text-white hover:bg-sky-600 dark:bg-sky-500 dark:hover:bg-sky-400"
                   >
                     <Lock className="h-4 w-4" />
                     <span>Unlock</span>

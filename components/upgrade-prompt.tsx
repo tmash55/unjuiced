@@ -5,11 +5,19 @@ import Link from "next/link";
 import Lock from "@/icons/lock";
 
 interface UpgradePromptProps {
-  plan: "anonymous" | "free" | "pro";
+  plan: "anonymous" | "free" | "scout" | "sharp" | "elite";
   feature: string;
   message: string;
   className?: string;
   variant?: "inline" | "card" | "banner";
+}
+
+function getUpgradeCta(plan: UpgradePromptProps["plan"]): { text: string; link: string; heading: string } {
+  if (plan === "anonymous") return { text: "Sign up free", link: "/register", heading: "Unlock More Opportunities" };
+  if (plan === "free") return { text: "Upgrade to Scout", link: "/plans", heading: "Upgrade to Scout" };
+  if (plan === "scout") return { text: "Upgrade to Sharp", link: "/plans", heading: "Upgrade to Sharp" };
+  if (plan === "sharp") return { text: "Upgrade to Elite", link: "/plans", heading: "Upgrade to Elite" };
+  return { text: "View Plans", link: "/plans", heading: "View Plans" };
 }
 
 export function UpgradePrompt({
@@ -20,8 +28,7 @@ export function UpgradePrompt({
   variant = "card",
 }: UpgradePromptProps) {
   const isAnonymous = plan === "anonymous";
-  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
-  const ctaLink = isAnonymous ? "/register" : "/plans";
+  const { text: ctaText, link: ctaLink, heading } = getUpgradeCta(plan);
 
   if (variant === "inline") {
     return (
@@ -89,7 +96,7 @@ export function UpgradePrompt({
         )}
       </div>
       <h3 className="mb-2 text-lg font-semibold text-neutral-900 dark:text-white">
-        {isAnonymous ? "Unlock More Opportunities" : "Upgrade to Sharp"}
+        {heading}
       </h3>
       <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
         {message}
@@ -120,9 +127,7 @@ export function LockedOverlay({
   message,
   className,
 }: Omit<UpgradePromptProps, "variant">) {
-  const isAnonymous = plan === "anonymous";
-  const ctaText = isAnonymous ? "Sign up free" : "Upgrade to Sharp";
-  const ctaLink = isAnonymous ? "/register" : "/plans";
+  const { text: ctaText, link: ctaLink } = getUpgradeCta(plan);
 
   return (
     <div

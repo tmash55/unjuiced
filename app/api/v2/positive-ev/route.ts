@@ -35,6 +35,9 @@ import {
   POSITIVE_EV_DEFAULTS,
   EV_THRESHOLDS,
 } from "@/lib/ev/constants";
+import { createClient } from "@/libs/supabase/server";
+import { getUserPlan } from "@/lib/plans-server";
+import { hasEliteAccess } from "@/lib/plans";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -288,12 +291,21 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
     const minBooksPerSide = parseInt(params.get("minBooksPerSide") || "2");
     
-    // Custom sharp books (for user's custom models)
+    // Custom sharp books (for user's custom models) - Elite only
     const customSharpBooksParam = params.get("customSharpBooks")?.toLowerCase().split(",").filter(Boolean) || null;
     const customBookWeightsParam = params.get("customBookWeights");
     let customSharpConfig: CustomSharpConfig | null = null;
     
     if (customSharpBooksParam && customSharpBooksParam.length > 0) {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      const userPlan = await getUserPlan(user);
+      if (!hasEliteAccess(userPlan)) {
+        return NextResponse.json(
+          { error: "Custom models require Elite plan", code: "elite_required" },
+          { status: 403 }
+        );
+      }
       let weights: Record<string, number> | null = null;
       if (customBookWeightsParam) {
         try {

@@ -14,7 +14,6 @@ import {
 import { motion } from "motion/react";
 import { HitRatesBentoCarousel } from "@/components/dashboard/hit-rates-bento-carousel";
 import { QuickInsightsCarousel } from "@/components/dashboard/quick-insights-carousel";
-import { MarketPulseStats } from "@/components/dashboard/market-pulse-stats";
 import { BestBetsSection } from "@/components/dashboard/best-bets-section";
 import { ArbitrageSection } from "@/components/dashboard/arbitrage-section";
 import { PopularMarketsSection } from "@/components/dashboard/popular-markets-section";
@@ -178,21 +177,15 @@ const QuickInsightsSkeleton = () => {
 
 // Dashboard items configuration
 // Mobile: Single column, ordered by priority (most important first)
-// Desktop: 3 columns with specific row spans
+// Desktop: 3 columns with specific row spans (each row = 5rem)
 //
 // Mobile Order & Heights:
-// 1. Market Pulse (compact stats) - 120px
-// 2. Best Bets (primary value) - 320px
-// 3. Hit Rates (research) - 380px
-// 4. Arbitrage (money-making) - 400px
-// 5. Popular Markets (discovery) - 280px
-// 6. Quick Insights (education) - 200px
+// 1. Best Bets (primary value) - 340px
+// 2. Hit Rates (research) - 400px
+// 3. Quick Insights (education) - 160px
+// 4. Popular Markets (discovery) - 300px
+// 5. Arbitrage (money-making) - 420px
 const dashboardItems = [
-  {
-    header: <MarketPulseStats />,
-    className: "md:col-span-1 md:row-span-2 md:order-3",
-    mobileHeight: "120px",
-  },
   {
     header: <BestBetsSection />,
     className: "md:col-span-1 md:row-span-6 md:order-1",
@@ -200,23 +193,24 @@ const dashboardItems = [
   },
   {
     header: <HitRatesBentoCarousel />,
-    className: "md:col-span-1 md:row-span-6 md:order-4",
+    className: "md:col-span-1 md:row-span-6 md:order-2",
     mobileHeight: "400px",
+  },
+  {
+    header: <QuickInsightsCarousel />,
+    className: "md:col-span-1 md:row-span-2 md:order-3",
+    mobileHeight: "160px",
+  },
+  {
+    header: <PopularMarketsSection />,
+    className: "md:col-span-1 md:row-span-6 md:order-4",
+    mobileHeight: "300px",
   },
   {
     header: <ArbitrageSection />,
     className: "md:col-span-2 md:row-span-4 md:order-5",
-    mobileHeight: "420px",
-  },
-  {
-    header: <PopularMarketsSection />,
-    className: "md:col-span-1 md:row-span-6 md:order-2",
-    mobileHeight: "300px",
-  },
-  {
-    header: <QuickInsightsCarousel />,
-    className: "md:col-span-1 md:row-span-2 md:order-6",
-    mobileHeight: "180px",
+    mobileHeight: "380px",
+    variant: "flat" as const,
   },
 ];
 
@@ -268,6 +262,7 @@ export default function TodayPage() {
               header={item.header}
               className={item.className}
               mobileHeight={item.mobileHeight}
+              variant={(item as any).variant}
             />
           ))}
         </BentoGrid>

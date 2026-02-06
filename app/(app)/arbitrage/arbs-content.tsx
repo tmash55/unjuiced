@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { LoadingState } from "@/components/common/loading-state";
 import { ConnectionErrorDialog } from "@/components/common/connection-error-dialog";
 import { useAuth } from "@/components/auth/auth-provider";
-import { useIsPro } from "@/hooks/use-entitlements";
+import { useIsPro, useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 import { MobileArbsView } from "@/components/arbs/mobile";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
@@ -26,6 +26,7 @@ export default function ArbsPage() {
   // VC-Grade: Use centralized, cached Pro status
   const { user } = useAuth();
   const { isPro: pro, isLoading: planLoading } = useIsPro();
+  const { hasAccess: hasLiveArb } = useHasEliteAccess();
   
   const [auto, setAuto] = useState(false);
   const [eventId, setEventId] = useState<string | undefined>(undefined);
@@ -35,12 +36,19 @@ export default function ArbsPage() {
   // Derive logged in status from auth
   const loggedIn = !!user;
   
-  // Disable auto-refresh if not pro
+  // Disable auto-refresh if not Elite
   useEffect(() => {
-    if (!pro) {
+    if (!hasLiveArb) {
       setAuto(false);
     }
-  }, [pro]);
+  }, [hasLiveArb]);
+
+  // Reset to pregame if user loses live arb access (e.g. downgrade)
+  useEffect(() => {
+    if (!hasLiveArb && mode === "live") {
+      setMode("prematch");
+    }
+  }, [hasLiveArb, mode]);
 
   // State for premium teaser arbs (for free users)
   const [premiumTeaserArbs, setPremiumTeaserArbs] = useState<any[]>([]);
@@ -163,6 +171,7 @@ export default function ArbsPage() {
         totalBetAmount={prefs.totalBetAmount}
         roundBets={roundBets}
         isPro={pro}
+        hasLiveArb={hasLiveArb}
         isLoggedIn={loggedIn}
         counts={pro ? counts : previewCounts}
         mode={mode}
@@ -280,7 +289,8 @@ export default function ArbsPage() {
       }}
       // UI State
       locked={!pro}
-      isPro={pro}
+      isPro={hasLiveArb}
+      hasLiveArb={hasLiveArb}
     />
   );
 

@@ -55,9 +55,9 @@ export function useFeatureAccess(feature: keyof typeof PLAN_LIMITS.anonymous) {
     isFree: plan === "free",
     isScout: plan === "scout",
     isSharp: plan === "sharp",
-    isEdge: plan === "edge",
-    // isPro = has any paid plan (scout, sharp, or edge)
-    isPro: plan === "scout" || plan === "sharp" || plan === "edge",
+    isElite: plan === "elite",
+    // isPro = has any paid plan (scout, sharp, elite)
+    isPro: plan === "scout" || plan === "sharp" || plan === "elite",
     isAuthenticated: !!user,
   };
 }

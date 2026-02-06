@@ -171,6 +171,8 @@ export interface UnifiedFilterBarProps {
   // UI state
   locked?: boolean;
   isPro?: boolean;
+  /** Elite only - for arbitrage Live mode */
+  hasLiveArb?: boolean;
   
   // Optional refresh button
   onRefresh?: () => void;
@@ -249,6 +251,7 @@ export function UnifiedFilterBar({
   onReset,
   locked = false,
   isPro = true,
+  hasLiveArb,
   onRefresh,
   isRefreshing,
   className,
@@ -281,14 +284,14 @@ export function UnifiedFilterBar({
                 Pre-Match
               </button>
               <button
-                onClick={() => onModeChange("live")}
-                disabled={locked || !isPro}
+                onClick={() => (hasLiveArb ?? false) && onModeChange("live")}
+                disabled={locked || !(hasLiveArb ?? false)}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5",
                   mode === "live"
                     ? "bg-white dark:bg-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
                     : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300",
-                  !isPro && "opacity-50"
+                  !(hasLiveArb ?? false) && "opacity-50"
                 )}
               >
                 <span className="relative flex h-1.5 w-1.5">
@@ -296,8 +299,8 @@ export function UnifiedFilterBar({
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
                 </span>
                 Live
-                {!isPro && (
-                  <span className="text-[9px] opacity-60">Sharp</span>
+                {!(hasLiveArb ?? false) && (
+                  <span className="text-[9px] opacity-60">Elite</span>
                 )}
               </button>
             </div>
@@ -326,7 +329,7 @@ export function UnifiedFilterBar({
 
             {/* Auto Refresh Toggle */}
             {onAutoRefreshChange && (
-              <Tooltip content={isPro ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Sharp required for auto-refresh"}>
+              <Tooltip content={isPro ? (autoRefresh ? "Auto-refresh enabled" : "Enable auto-refresh") : "Elite required for auto-refresh"}>
                 <button
                   onClick={() => isPro && onAutoRefreshChange(!autoRefresh)}
                   disabled={!isPro}
