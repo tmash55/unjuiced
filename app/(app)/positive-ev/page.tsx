@@ -1997,7 +1997,7 @@ export default function PositiveEVPage() {
                         const extraCount = allTiedBooks.length - 4;
                         
                         return (
-                          <div className="flex items-center justify-center gap-1.5 lg:gap-2">
+                          <div className={cn("flex items-center justify-center gap-1.5 lg:gap-2", !effectiveIsPro && "blur-[8px] opacity-30 grayscale select-none pointer-events-none")}>
                             {/* Overlapping logos for tied books */}
                             <div className="flex items-center -space-x-1.5 lg:-space-x-2">
                               {tiedBooks.map((book, idx) => {

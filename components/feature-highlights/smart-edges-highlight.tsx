@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { FeatureHighlight } from "@/components/feature-highlight";
 
 export function SmartEdgesHighlight() {
@@ -13,18 +14,25 @@ export function SmartEdgesHighlight() {
       ctaHref="/features/positive-ev"
       className="bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.12),transparent_60%)]"
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent">
-        <div className="absolute inset-0 grid place-items-center text-center px-6">
-          <div className="max-w-md">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-              Smart Edges Preview
-            </p>
-            <p className="mt-3 text-lg font-semibold text-white/50">
-              GIF placeholder
-            </p>
-            <p className="mt-2 text-sm text-white/30">
-              Show edge %, EV %, best book, and updated-seconds metadata.
-            </p>
+      <div className="relative w-full rounded-xl">
+        <Image
+          src="/landing-page/ev-main.png"
+          alt="Positive EV scanner desktop view"
+          width={1920}
+          height={1080}
+          className="w-full rounded-lg"
+          quality={90}
+        />
+        <div className="absolute bottom-2 right-2 w-[24%] sm:bottom-3 sm:right-3 sm:w-[20%] md:bottom-4 md:right-4 lg:bottom-5 lg:right-5 lg:w-[18%]">
+          <div className="overflow-hidden rounded-lg border-2 border-white/15 shadow-[0_8px_40px_rgba(0,0,0,0.5)] sm:rounded-xl md:rounded-2xl">
+            <Image
+              src="/landing-page/ev-mobile.png"
+              alt="Positive EV mobile view"
+              width={390}
+              height={844}
+              className="block w-full"
+              quality={90}
+            />
           </div>
         </div>
       </div>

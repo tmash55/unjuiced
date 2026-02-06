@@ -119,7 +119,7 @@ export function AppPageLayout({
 
       {/* Context Bar (filters, tabs, etc.) */}
       {contextBar && (
-        <div className={cn("mb-4", stickyContextBar && "sticky top-14 z-30")}>
+        <div className={cn("mb-4", stickyContextBar && "sticky top-14 z-30 bg-white dark:bg-neutral-950 pb-2")}>
           {contextBar}
         </div>
       )}

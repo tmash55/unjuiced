@@ -89,6 +89,7 @@ export function HeroSpotlight() {
 
           <h1 className="text-center text-4xl font-semibold leading-tight tracking-tight text-white md:text-left md:text-5xl lg:text-6xl">
             Find your edge in{" "}
+            <br className="md:hidden" />
             <span className="text-[color:var(--primary-weak)]">
               <FlippingText
                 words={["props", "odds", "lines", "markets"]}

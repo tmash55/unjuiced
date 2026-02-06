@@ -546,14 +546,14 @@ export function MobileEdgeFinder({
       
       {/* Free User CTA */}
       {!isPro && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-neutral-950 via-white dark:via-neutral-950 to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-neutral-950 via-white dark:via-neutral-950 to-transparent z-40">
           <a
             href="/pricing"
             className={cn(
               "block w-full py-3 px-4 rounded-xl text-center",
-              "bg-gradient-to-r from-brand to-emerald-600",
+              "bg-sky-500 hover:bg-sky-600",
               "text-white font-semibold text-sm",
-              "shadow-lg shadow-brand/20"
+              "shadow-lg shadow-sky-500/20"
             )}
           >
             Upgrade to Sharp for All Edges

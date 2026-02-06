@@ -40,10 +40,10 @@ export function FeatureHighlight({
             </p>
           </div>
 
-          <div className="shrink-0">
+          <div className="w-full shrink-0 lg:w-auto">
             <Link
               href={ctaHref}
-              className="inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              className="flex h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto sm:inline-flex"
             >
               {ctaText} →
             </Link>

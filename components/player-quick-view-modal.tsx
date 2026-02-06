@@ -1079,7 +1079,7 @@ export function PlayerQuickViewModal({
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md rounded-xl">
                       <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
                         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
                           <Sparkles className="w-7 h-7 text-white" />
@@ -1131,7 +1131,7 @@ export function PlayerQuickViewModal({
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md rounded-xl">
                       <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
                         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
                           <Sparkles className="w-7 h-7 text-white" />
@@ -1180,7 +1180,7 @@ export function PlayerQuickViewModal({
                 <div className="relative">
                   {/* Pro gate overlay */}
                   {!hasAdvancedAccess && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-950/80 backdrop-blur-[2px] rounded-xl">
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-neutral-950/90 backdrop-blur-md rounded-xl">
                       <div className="flex flex-col items-center gap-4 p-6 max-w-sm text-center">
                         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
                           <Sparkles className="w-7 h-7 text-white" />
@@ -1221,15 +1221,26 @@ export function PlayerQuickViewModal({
                 FOOTER - View Full Profile CTA
                 ═══════════════════════════════════════════════════════════════════ */}
             <div className="shrink-0 px-4 sm:px-5 py-3 border-t border-neutral-200/50 dark:border-neutral-800/50">
-              <Link
-                href={`/hit-rates/nba/player/${nba_player_id}?market=${currentMarket}`}
-                target="_blank"
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                onClick={() => onOpenChange(false)}
-              >
-                View Full Hit Rate Profile
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
+              {hasAdvancedAccess ? (
+                <Link
+                  href={`/hit-rates/nba/player/${nba_player_id}?market=${currentMarket}`}
+                  target="_blank"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                  onClick={() => onOpenChange(false)}
+                >
+                  View Full Hit Rate Profile
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              ) : (
+                <Link
+                  href="/pricing"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-colors"
+                  onClick={() => onOpenChange(false)}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  {isAuthenticated ? "Upgrade to Scout for Full Profile" : "Try Free for Full Profile"}
+                </Link>
+              )}
             </div>
           </div>
         )}

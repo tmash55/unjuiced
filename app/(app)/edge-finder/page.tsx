@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { InputSearch } from "@/components/icons/input-search";
 import { LoadingState } from "@/components/common/loading-state";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
-import { Zap, ChevronDown, X, RefreshCw, Layers, Plus, Settings, Filter } from "lucide-react";
+import { Zap, ChevronDown, X, RefreshCw, Layers, Plus, Settings, Filter, ArrowRight } from "lucide-react";
+import LockIcon from "@/icons/lock";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/tooltip";
 import { FilterPresetFormModal } from "@/components/filter-presets/filter-preset-form-modal";
@@ -46,6 +47,7 @@ import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-mar
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
+const FREE_EDGE_ROW_LIMIT = 7; // Number of rows free users can see
 
 /**
  * Format timestamp as relative time (e.g., "5s ago", "2m ago")
@@ -243,6 +245,16 @@ export default function EdgeFinderPage() {
     return filtered;
   }, [opportunities, prefs.showHidden, prefs.minLiquidity, isHidden]);
 
+  // Gate: limit visible rows for free users
+  const displayOpportunities = useMemo(() => {
+    if (effectiveIsPro) return filteredOpportunities;
+    return filteredOpportunities.slice(0, FREE_EDGE_ROW_LIMIT);
+  }, [filteredOpportunities, effectiveIsPro]);
+
+  const hiddenEdgeCount = effectiveIsPro
+    ? 0
+    : Math.max(0, filteredOpportunities.length - FREE_EDGE_ROW_LIMIT);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
@@ -306,7 +318,7 @@ export default function EdgeFinderPage() {
     return (
       <>
         <MobileEdgeFinder
-          opportunities={filteredOpportunities}
+          opportunities={displayOpportunities}
           isLoading={isLoading}
           isFetching={isFetching || refreshing}
           error={error}
@@ -376,7 +388,9 @@ export default function EdgeFinderPage() {
     ? "Loading opportunities..."
     : isFetching && !isLoadingMore
     ? "Updating opportunities..."
-    : `${filteredOpportunities.length}+ opportunities found`;
+    : effectiveIsPro
+    ? `${filteredOpportunities.length}+ opportunities found`
+    : `${displayOpportunities.length} of ${filteredOpportunities.length}+ opportunities shown`;
 
   // Header actions - freshness indicator and loading
   const headerActions = (
@@ -523,7 +537,7 @@ export default function EdgeFinderPage() {
       {/* Results Table */}
       <div className="rounded-2xl">
           <OpportunitiesTable
-            opportunities={filteredOpportunities}
+            opportunities={displayOpportunities}
             isLoading={isLoading}
             isFetching={isFetching || refreshing}
             isPro={effectiveIsPro}
@@ -549,8 +563,37 @@ export default function EdgeFinderPage() {
           />
       </div>
 
-      {/* Load more button */}
-      {limit < 500 && (
+      {/* Gate banner for free users - below table */}
+      {!effectiveIsPro && hiddenEdgeCount > 0 && !isLoading && (
+        <div className="relative -mt-2 mb-4">
+          {/* Gradient fade */}
+          <div className="absolute inset-x-0 -top-12 h-12 bg-gradient-to-b from-transparent via-white/70 to-white dark:via-neutral-950/70 dark:to-neutral-950 pointer-events-none" />
+          {/* Lock banner */}
+          <div className="relative flex flex-col items-center gap-4 py-8 px-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10 dark:bg-sky-400/10 text-sky-600 dark:text-sky-400">
+              <LockIcon className="h-6 w-6" />
+            </div>
+            <div className="text-center">
+              <p className="text-base font-semibold text-neutral-900 dark:text-white">
+                {hiddenEdgeCount} More Edge{hiddenEdgeCount === 1 ? "" : "s"} Hidden
+              </p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 max-w-md">
+                Free users can preview {FREE_EDGE_ROW_LIMIT} opportunities. Upgrade to unlock all edges, custom models, and advanced filters.
+              </p>
+            </div>
+            <a
+              href="/pricing"
+              className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 dark:bg-sky-500 dark:hover:bg-sky-400"
+            >
+              {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Load more button - pro only */}
+      {effectiveIsPro && limit < 500 && (
         <div className="flex justify-center mt-4">
           <button
             onClick={() => setLimit(500)}
@@ -562,20 +605,70 @@ export default function EdgeFinderPage() {
         </div>
       )}
 
-      {/* Pro Upgrade CTA */}
+      {/* Pro Upgrade CTA - full banner for free users */}
       {!effectiveIsPro && (
-        <div className="text-center py-8 border-t">
-          <p className="text-muted-foreground mb-2">
-            {isLoggedIn 
-              ? "Upgrade to Sharp to unlock all opportunities and filters"
-              : "Sign up for Sharp to unlock all opportunities and filters"}
-          </p>
-          <a
-            href="/pricing"
-            className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium"
-          >
-            {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
-          </a>
+        <div className="relative mt-6 overflow-hidden rounded-2xl border border-sky-200/60 dark:border-sky-800/40 bg-gradient-to-br from-sky-50/50 via-white to-sky-50/30 dark:from-sky-950/30 dark:via-neutral-900 dark:to-sky-950/20 p-4 shadow-sm sm:p-5">
+          <div className="relative z-10 flex flex-col gap-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 dark:bg-sky-400/10 text-sky-600 dark:text-sky-400">
+                  <LockIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                    Unlock All Edge Finder Opportunities
+                  </p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-200/80">
+                    Free users can preview {FREE_EDGE_ROW_LIMIT} opportunities. Upgrade for full access to every edge, every sport.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 text-sm text-neutral-800 dark:text-neutral-100 sm:grid-cols-2">
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Layers className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Unlimited Edges</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Access every opportunity across all sports.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Filter className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Custom Filter Models</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Build your own comparison presets with custom books.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Settings className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Advanced Filters</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Fine-tune by odds range, liquidity, and more.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-sky-200/50 dark:border-sky-800/30 bg-white/80 px-3 py-1.5 shadow-sm dark:bg-sky-950/20 dark:border-sky-700/20">
+                <Zap className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <div>
+                  <p className="font-semibold leading-none">Kelly Criterion Sizing</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-300/70">Optimal bet sizing based on your bankroll.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href="/pricing"
+                className="inline-flex items-center gap-2 rounded-full border border-sky-500 bg-sky-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600 hover:border-sky-600 dark:border-sky-400 dark:bg-sky-500 dark:hover:bg-sky-400 dark:hover:border-sky-400"
+              >
+                {isLoggedIn ? "Upgrade to Sharp" : "View Plans"}
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <span className="text-xs text-neutral-500 dark:text-neutral-300/70">
+                Stop leaving edges on the table.
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

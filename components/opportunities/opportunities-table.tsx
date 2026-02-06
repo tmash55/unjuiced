@@ -1029,7 +1029,7 @@ export function OpportunitiesTable({
         const bestBookLimits = bestBooksWithPrice.find(b => b.limits?.max)?.limits;
         return (
           <td key="best-book" className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
-            <div className="flex items-center justify-center gap-1.5 lg:gap-2">
+            <div className={cn("flex items-center justify-center gap-1.5 lg:gap-2", !isPro && "blur-[8px] opacity-30 grayscale select-none pointer-events-none")}>
               <div className="flex items-center -space-x-1 lg:-space-x-1.5">
                 {bestBooksWithPrice.slice(0, 3).map((book) => {
                   const bookLogo = getBookLogo(book.book);

@@ -195,7 +195,7 @@ function ComingSoonSheet({
 function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
   const sheetInfo = SHEET_INFO[sheet];
   const { hasAccess, isLoading: isLoadingAccess } = useHasHitRateAccess();
-  const isGated = !FREE_SHEETS.includes(sheet) && !isLoadingAccess && !hasAccess;
+  const isGated = !(FREE_SHEETS as readonly string[]).includes(sheet) && !isLoadingAccess && !hasAccess;
 
   return (
     <AppPageLayout
