@@ -13,7 +13,7 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { DEFAULT_FILTER_COLOR, parseSports } from "@/lib/types/filter-presets";
 import { Tooltip } from "@/components/tooltip";
-import { LoadingState } from "@/components/common/loading-state";
+
 import { cn } from "@/lib/utils";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { getLeagueName } from "@/lib/data/sports";
@@ -26,7 +26,6 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Loader2,
   Lock,
   Zap,
   Share2,
@@ -1880,23 +1879,10 @@ export function OpportunitiesTable({
     </tr>
   );
 
-  if (opportunities.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-lg font-medium mb-2">No edges found</p>
-        <p className="text-sm text-muted-foreground">
-            Try adjusting your filters to see more opportunities
-        </p>
-        </div>
-      </div>
-    );
-  }
-
   // Only show skeleton loading state when there's NO data yet (initial load)
   // During refetch/refresh, keep existing rows visible with a subtle indicator
-  const showLoadingState = isLoading && sortedOpportunities.length === 0;
+  const showLoadingState = (isLoading || isFetching) && sortedOpportunities.length === 0;
+  const showEmptyState = !isLoading && !isFetching && opportunities.length === 0;
 
   return (
     <DndContext
@@ -1927,28 +1913,100 @@ export function OpportunitiesTable({
           </SortableContext>
         </thead>
         <tbody>
-          {/* Skeleton loading state */}
+          {/* Loading State - Clean and Premium (matches Positive EV) */}
           {showLoadingState && (
-            <>
-              {/* Loading message row */}
-              <tr>
-                <td colSpan={filteredColumnOrder.length} className="p-0 border-b border-neutral-200/50 dark:border-neutral-800/50">
-                  <div className="bg-neutral-50/50 dark:bg-neutral-800/30">
-                    <LoadingState
-                      compact
-                      message={EDGE_LOADING_MESSAGES[loadingMessageIndex]}
-                      className="min-h-0 py-6"
+            <tr>
+              <td colSpan={filteredColumnOrder.length} className="p-0">
+                <motion.div 
+                  className="flex flex-col items-center justify-center py-24"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {/* Logo with glow */}
+                  <motion.div 
+                    className="relative mb-6"
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <motion.div 
+                      className="absolute -inset-3 rounded-full bg-sky-400/10 blur-lg"
+                      animate={{ 
+                        scale: [1, 1.2, 1],
+                        opacity: [0.3, 0.5, 0.3] 
+                      }}
+                      transition={{ 
+                        duration: 2.5, 
+                        repeat: Infinity,
+                        ease: "easeInOut" 
+                      }}
                     />
+                    <img
+                      src="/logo.png"
+                      alt="Unjuiced"
+                      className="relative w-12 h-12 object-contain"
+                    />
+                  </motion.div>
+                  
+                  {/* Loading dots */}
+                  <div className="flex items-center gap-1.5 mb-4">
+                    {[0, 1, 2].map((i) => (
+                      <motion.div
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-sky-400/70"
+                        animate={{
+                          scale: [1, 1.4, 1],
+                          opacity: [0.4, 1, 0.4],
+                        }}
+                        transition={{
+                          duration: 1.2,
+                          repeat: Infinity,
+                          delay: i * 0.15,
+                          ease: "easeInOut",
+                        }}
+                      />
+                    ))}
                   </div>
-                </td>
-              </tr>
-              {/* Skeleton rows */}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <SkeletonRow key={`skeleton-${i}`} index={i} />
-              ))}
-            </>
+                  
+                  {/* Animated message */}
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={loadingMessageIndex}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-sm text-neutral-400 dark:text-neutral-500"
+                    >
+                      {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
+                    </motion.span>
+                  </AnimatePresence>
+                </motion.div>
+              </td>
+            </tr>
           )}
-          {!showLoadingState && sortedOpportunities.map((opp, index) => {
+
+          {/* Empty State */}
+          {showEmptyState && (
+            <tr>
+              <td colSpan={filteredColumnOrder.length}>
+                <div className="flex flex-col items-center justify-center py-20 px-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-900 flex items-center justify-center mb-5 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50">
+                    <TrendingUp className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1.5">
+                    No edges found
+                  </h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center max-w-sm">
+                    Try adjusting your filters to see more opportunities
+                  </p>
+                </div>
+              </td>
+            </tr>
+          )}
+
+          {!showLoadingState && !showEmptyState && sortedOpportunities.map((opp, index) => {
             const isExpanded = expandedRows.has(opp.id);
             const showLogos = hasTeamLogos(opp.sport);
             const bestLogo = getBookLogo(opp.bestBook);

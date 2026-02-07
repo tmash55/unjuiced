@@ -900,31 +900,51 @@ async function fetchPositiveEVOpportunities(
 }
 
 /**
- * Prediction market books that can have extreme odds
- * These need special filtering to avoid skewing calculations
+ * Books to exclude from market average calculations entirely.
+ * Prediction markets (Polymarket, Kalshi) use exchange-style pricing
+ * that can skew traditional sportsbook averages.
  */
-const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+const EXCLUDED_FROM_AVERAGE = new Set(["polymarket", "kalshi"]);
 
 /**
- * Filter out prediction market odds that are too extreme (-1000 or worse)
- * These extreme odds can skew market average and blend calculations
+ * RSI (Rush Street Interactive) books that often share the same odds feed.
+ * When all have identical odds, we should only count them once in averages.
  */
-function filterExtremePredictionMarketOdds(books: BookOffer[]): BookOffer[] {
-  const EXTREME_THRESHOLD = -1000; // -1000 or worse (more negative)
-  
-  return books.filter((book) => {
-    const isPredictionMarket = PREDICTION_MARKET_BOOKS.has(book.bookId.toLowerCase());
-    if (!isPredictionMarket) return true; // Keep all non-prediction market books
-    
-    // Filter out prediction market odds that are -1000 or worse (heavy favorites)
-    // Note: -1000 means you bet $1000 to win $100, which is 90.9% implied prob
-    if (book.price <= EXTREME_THRESHOLD) {
-      console.log(`[positive-ev] Filtering extreme ${book.bookId} odds: ${book.price}`);
-      return false;
+const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
+
+/**
+ * Filter and deduplicate books for market average calculation.
+ * - Excludes prediction markets (Polymarket, Kalshi) entirely
+ * - RSI books with identical odds are counted once to avoid skewing
+ */
+function filterBooksForAverage(books: BookOffer[]): BookOffer[] {
+  // Step 1: Exclude prediction markets entirely
+  const filtered = books.filter((b) => !EXCLUDED_FROM_AVERAGE.has(b.bookId.toLowerCase()));
+
+  // Step 2: Deduplicate RSI books with identical odds
+  const rsiBooks: BookOffer[] = [];
+  const otherBooks: BookOffer[] = [];
+
+  for (const b of filtered) {
+    if (RSI_BOOKS.has(b.bookId.toLowerCase())) {
+      rsiBooks.push(b);
+    } else {
+      otherBooks.push(b);
     }
-    
-    return true;
-  });
+  }
+
+  if (rsiBooks.length === 0) return filtered;
+
+  // Keep only unique RSI prices
+  const rsiByPrice = new Map<number, BookOffer>();
+  for (const b of rsiBooks) {
+    const rounded = Math.round(b.price * 100) / 100;
+    if (!rsiByPrice.has(rounded)) {
+      rsiByPrice.set(rounded, b);
+    }
+  }
+
+  return [...otherBooks, ...rsiByPrice.values()];
 }
 
 /**
@@ -942,10 +962,9 @@ function getSharpOddsForPreset(
     return null;
   }
 
-  // Market Average: Use ALL available books for this market
+  // Market Average: Use available sportsbooks (excluding prediction markets & deduplicating RSI)
   if (preset === "market_average") {
-    // Filter out extreme prediction market odds that could skew the average
-    const filteredBooks = filterExtremePredictionMarketOdds(books);
+    const filteredBooks = filterBooksForAverage(books);
     
     if (filteredBooks.length === 0) return null;
     
@@ -1042,8 +1061,8 @@ function getSharpOddsForCustomConfig(
     return null;
   }
 
-  // Filter out extreme prediction market odds that could skew the blend
-  const filteredBooks = filterExtremePredictionMarketOdds(books);
+  // For custom blends, exclude prediction markets entirely to avoid skewing
+  const filteredBooks = books.filter((b) => !EXCLUDED_FROM_AVERAGE.has(b.bookId.toLowerCase()));
   
   // Build lookup map once for O(1) lookups instead of O(n) .find() calls
   const bookMap = buildBookLookupMap(filteredBooks);

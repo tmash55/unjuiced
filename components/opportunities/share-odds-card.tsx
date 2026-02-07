@@ -197,90 +197,89 @@ export function ShareOddsCard({
 
   return (
     <div 
-      className="w-[400px] bg-[#0a0a0a] text-white overflow-hidden flex flex-col"
-      style={{ aspectRatio: "4/5" }}
+      className="w-[min(400px,calc(100vw-2rem))] bg-[#0a0a0a] text-white overflow-hidden"
     >
       {/* Gradient accent bar */}
       <div className={cn(
-        "h-1.5 w-full shrink-0",
+        "h-1.5 w-full",
         accent === "emerald" 
           ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400"
           : "bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500"
       )} />
 
       {/* Header - Sport & Event Context */}
-      <div className="px-5 pt-4 pb-2 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] text-neutral-400 font-medium uppercase tracking-wider">
+      <div className="px-4 sm:px-5 pt-3 sm:pt-4 pb-1.5 sm:pb-2">
+        <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-neutral-400 font-medium uppercase tracking-wider">
           <span>{sport}</span>
           <span className="text-neutral-600">•</span>
           <span className="truncate">{market}</span>
         </div>
         {(eventLabel || formattedTime) && (
-          <div className="text-[11px] text-neutral-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 sm:mt-1">
             {eventLabel}{eventLabel && formattedTime ? " · " : ""}{formattedTime}
           </div>
         )}
       </div>
 
       {/* Player Name - Hero */}
-      <div className="px-5 pb-3 shrink-0">
-        <h1 className="text-xl font-bold tracking-tight truncate">{playerName}</h1>
-        <div className="text-sm text-neutral-400 mt-0.5">
+      <div className="px-4 sm:px-5 pb-2 sm:pb-3">
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">{playerName}</h1>
+        <div className="text-xs sm:text-sm text-neutral-400 mt-0.5">
           {side === "over" ? "Over" : side === "under" ? "Under" : side === "yes" ? "Yes" : "No"} {line}
         </div>
       </div>
 
-      {/* Edge Indicator - The "Holy Shit" Moment */}
-      <div className="mx-5 mb-3 p-3 rounded-xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 shrink-0">
+      {/* Edge Indicator */}
+      <div className="mx-4 sm:mx-5 mb-2 sm:mb-3 p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             {bestBookLogo ? (
-              <img src={bestBookLogo} alt={bestBookName} className="h-9 w-9 rounded-lg object-contain" />
+              <img src={bestBookLogo} alt={bestBookName} className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-contain" />
             ) : (
-              <div className="h-9 w-9 rounded-lg bg-neutral-800 flex items-center justify-center text-xs font-bold">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-neutral-800 flex items-center justify-center text-xs font-bold">
                 {bestBookName.slice(0, 2).toUpperCase()}
               </div>
             )}
             <div>
-              <div className="text-lg font-bold">{bestOdds}</div>
-              <div className="text-[11px] text-neutral-500">{bestBookName}</div>
+              <div className="text-base sm:text-lg font-bold">{bestOdds}</div>
+              <div className="text-[10px] sm:text-[11px] text-neutral-500">{bestBookName}</div>
             </div>
           </div>
           <div className="text-right">
             <div className={cn(
-              "text-xl font-black tabular-nums",
+              "text-lg sm:text-xl font-black tabular-nums",
               accent === "emerald" ? "text-emerald-400" : "text-amber-400"
             )}>
               +{edgePercent.toFixed(1)}%
             </div>
-            <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Edge</div>
+            <div className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wide">Edge</div>
           </div>
         </div>
       </div>
 
-      {/* Reference Section - with Pinnacle badge if applicable */}
-      <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-neutral-900/60 border border-neutral-800/50 shrink-0">
+      {/* Reference Section */}
+      <div className="mx-4 sm:mx-5 mb-2 sm:mb-3 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-neutral-900/60 border border-neutral-800/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-medium">Reference</span>
+            <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider font-medium">Reference</span>
             {isPinnacle && pinnacleLogoUrl && (
               <div className="flex items-center gap-1">
                 <img 
                   src={pinnacleLogoUrl} 
                   alt="Pinnacle" 
-                  className="h-4 w-4 object-contain opacity-70 grayscale" 
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4 object-contain opacity-70 grayscale" 
                 />
-                <span className="text-[9px] text-neutral-600 uppercase">Sharp</span>
+                <span className="text-[8px] sm:text-[9px] text-neutral-600 uppercase">Sharp</span>
               </div>
             )}
           </div>
           <div className="text-right">
-            <div className="text-[12px] text-neutral-300">
+            <div className="text-[11px] sm:text-[12px] text-neutral-300">
               {!isPinnacle && <span className="text-neutral-500 mr-1">{cleanRefLabel} ·</span>}
               {fairOdds && <span className="font-semibold">Fair: {fairOdds}</span>}
             </div>
             {sharpOdds && (
-              <div className="text-[10px] text-neutral-500 mt-0.5">
+              <div className="text-[9px] sm:text-[10px] text-neutral-500 mt-0.5">
                 Sharp{isPinnacle ? " (Pinnacle)" : ""}: {sharpOdds}
               </div>
             )}
@@ -289,14 +288,14 @@ export function ShareOddsCard({
       </div>
 
       {/* Odds Comparison - Top 4 books only */}
-      <div className="mx-5 flex-1 flex flex-col min-h-0 shrink-0">
-        <div className="flex items-center justify-between text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5 px-1">
+      <div className="mx-4 sm:mx-5 pb-1">
+        <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1 sm:mb-1.5 px-1">
           <span>Over {line}</span>
           <span>Book</span>
           <span>Under {line}</span>
         </div>
         
-        <div className="space-y-1">
+        <div className="space-y-0.5 sm:space-y-1">
           {displayBooks.map((row) => {
             const logo = getBookLogo(row.bookId);
             const isOverBest = row.overNum === bestOverOdds && bestOverOdds !== null;
@@ -307,13 +306,13 @@ export function ShareOddsCard({
               <div 
                 key={row.bookId} 
                 className={cn(
-                  "grid grid-cols-[1fr_32px_1fr] items-center gap-1 py-1 px-2 rounded-lg bg-neutral-900/40",
+                  "grid grid-cols-[1fr_28px_1fr] sm:grid-cols-[1fr_32px_1fr] items-center gap-1 py-0.5 sm:py-1 px-1.5 sm:px-2 rounded-lg bg-neutral-900/40",
                   !hasBestOdds && "opacity-70"
                 )}
               >
                 {/* Over odds */}
                 <div className={cn(
-                  "text-[12px] font-semibold tabular-nums text-left",
+                  "text-[11px] sm:text-[12px] font-semibold tabular-nums text-left",
                   isOverBest ? "text-emerald-400" : "text-neutral-500"
                 )}>
                   {formatOdds(row.over?.price)}
@@ -322,15 +321,15 @@ export function ShareOddsCard({
                 {/* Book logo */}
                 <div className="flex items-center justify-center">
                   {logo ? (
-                    <img src={logo} alt={row.bookId} className="h-5 w-5 object-contain" />
+                    <img src={logo} alt={row.bookId} className="h-4 w-4 sm:h-5 sm:w-5 object-contain" />
                   ) : (
-                    <span className="text-[8px] text-neutral-600 font-medium">{row.bookId.slice(0, 3)}</span>
+                    <span className="text-[7px] sm:text-[8px] text-neutral-600 font-medium">{row.bookId.slice(0, 3)}</span>
                   )}
                 </div>
                 
                 {/* Under odds */}
                 <div className={cn(
-                  "text-[12px] font-semibold tabular-nums text-right",
+                  "text-[11px] sm:text-[12px] font-semibold tabular-nums text-right",
                   isUnderBest ? "text-blue-400" : "text-neutral-500"
                 )}>
                   {formatOdds(row.under?.price)}
@@ -342,20 +341,17 @@ export function ShareOddsCard({
 
         {/* More books indicator */}
         {remainingBooks > 0 && (
-          <div className="text-center text-[11px] text-neutral-500 mt-2">
+          <div className="text-center text-[10px] sm:text-[11px] text-neutral-500 mt-1.5 sm:mt-2">
             +{remainingBooks} more book{remainingBooks !== 1 ? "s" : ""} · {totalBooks} total
           </div>
         )}
       </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Footer - Branding (extra padding for safe cropping) */}
-      <div className="px-5 py-4 flex items-center justify-center border-t border-neutral-800/50 shrink-0">
+      {/* Footer - Branding */}
+      <div className="px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-center border-t border-neutral-800/50 mt-2">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Unjuiced" className="h-5 w-5 object-contain opacity-80" />
-          <span className="text-xs font-semibold text-neutral-300">unjuiced.bet</span>
+          <img src="/logo.png" alt="Unjuiced" className="h-4 w-4 sm:h-5 sm:w-5 object-contain opacity-80" />
+          <span className="text-[11px] sm:text-xs font-semibold text-neutral-300">unjuiced.bet</span>
         </div>
       </div>
     </div>

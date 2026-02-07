@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { 
-  Loader2, 
   Search, 
   ChevronDown, 
   ChevronUp,
@@ -238,14 +237,94 @@ export function MobileEdgeFinder({
     return `${Math.floor(minutes / 60)}h ago`;
   };
   
+  // Loading messages for edge finder
+  const EDGE_LOADING_MESSAGES = [
+    "Removing the juice...",
+    "Finding sharp lines...",
+    "Scanning sportsbooks...",
+    "Calculating edges...",
+    "Comparing to sharp books...",
+    "Analyzing market odds...",
+  ];
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  React.useEffect(() => {
+    if (!isLoading || opportunities.length > 0) return;
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % EDGE_LOADING_MESSAGES.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isLoading, opportunities.length]);
+
   // Loading state
   if (isLoading && opportunities.length === 0) {
     return (
       <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-brand" />
-          <span className="text-sm text-neutral-500">Finding edges...</span>
-        </div>
+        <motion.div 
+          className="flex flex-col items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {/* Logo with glow */}
+          <motion.div 
+            className="relative mb-6"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <motion.div 
+              className="absolute -inset-3 rounded-full bg-sky-400/10 blur-lg"
+              animate={{ 
+                scale: [1, 1.2, 1],
+                opacity: [0.3, 0.5, 0.3] 
+              }}
+              transition={{ 
+                duration: 2.5, 
+                repeat: Infinity,
+                ease: "easeInOut" 
+              }}
+            />
+            <img
+              src="/logo.png"
+              alt="Unjuiced"
+              className="relative w-12 h-12 object-contain"
+            />
+          </motion.div>
+          
+          {/* Loading dots */}
+          <div className="flex items-center gap-1.5 mb-4">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-sky-400/70"
+                animate={{
+                  scale: [1, 1.4, 1],
+                  opacity: [0.4, 1, 0.4],
+                }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  delay: i * 0.15,
+                  ease: "easeInOut",
+                }}
+              />
+            ))}
+          </div>
+          
+          {/* Animated message */}
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={loadingMessageIndex}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="text-sm text-neutral-400 dark:text-neutral-500"
+            >
+              {EDGE_LOADING_MESSAGES[loadingMessageIndex]}
+            </motion.span>
+          </AnimatePresence>
+        </motion.div>
       </div>
     );
   }
