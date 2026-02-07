@@ -1121,18 +1121,22 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
             {/* Over/Under with Dual Bet Button - Grouped Action Card */}
             <div className={cn("market-action-card relative rounded-lg border border-transparent bg-gradient-to-br from-transparent to-transparent transition-all duration-200 pl-2 pr-2 py-2")}>
               <div className="pr-12 space-y-1.5">
-                {/* Over Side - Clickable Card */}
+                {/* Over Side - Draggable Link Card */}
                 <Tooltip content={`Place bet on ${bookName(r.o?.bk)}`}>
-                  <button
-                    type="button"
+                  <a
+                    href={getBestLink(r.o?.bk, r.o?.u, r.o?.m) || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    draggable
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       openLink(r.o?.bk, r.o?.u, r.o?.m);
                     }}
-                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group no-underline"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 shrink-0 object-contain" />}
+                      {overLogo && <img src={overLogo} alt={r.o?.bk || ''} className="h-5 w-5 shrink-0 object-contain" draggable={false} />}
                       <div className="market-positive text-xs sm:text-sm font-medium truncate">
                         {getSideLabel("over", r)}
                       </div>
@@ -1147,21 +1151,25 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         </span>
                       )}
                     </div>
-                  </button>
+                  </a>
                 </Tooltip>
 
-                {/* Under Side - Clickable Card */}
+                {/* Under Side - Draggable Link Card */}
                 <Tooltip content={`Place bet on ${bookName(r.u?.bk)}`}>
-                  <button
-                    type="button"
+                  <a
+                    href={getBestLink(r.u?.bk, r.u?.u, r.u?.m) || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    draggable
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       openLink(r.u?.bk, r.u?.u, r.u?.m);
                     }}
-                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group"
+                    className="w-full flex items-center justify-between gap-2 rounded-md border border-neutral-200/60 bg-neutral-50/30 px-2.5 py-1.5 dark:border-neutral-700/60 dark:bg-neutral-800/30 hover:bg-neutral-100/50 dark:hover:bg-neutral-700/40 transition-colors cursor-pointer group no-underline"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 shrink-0 object-contain" />}
+                      {underLogo && <img src={underLogo} alt={r.u?.bk || ''} className="h-5 w-5 shrink-0 object-contain" draggable={false} />}
                       <div className="market-negative text-xs sm:text-sm font-medium truncate">
                         {getSideLabel("under", r)}
                       </div>
@@ -1176,7 +1184,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
                         </span>
                       )}
                     </div>
-                  </button>
+                  </a>
                 </Tooltip>
               </div>
 
