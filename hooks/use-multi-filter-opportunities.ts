@@ -29,6 +29,72 @@ import { isMarketSelected } from "@/lib/utils";
 // All supported sports for broad fetching in preset mode
 const ALL_SPORTS: Sport[] = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
 
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+      try {
+        return toStringArray(JSON.parse(trimmed));
+      } catch {
+        // Ignore parse errors and continue fallback parsing.
+      }
+    }
+
+    if (trimmed.includes(",")) {
+      return trimmed.split(",").map((v) => v.trim()).filter(Boolean);
+    }
+
+    return [trimmed];
+  }
+
+  return [];
+}
+
+function toNumberRecord(value: unknown): Record<string, number[]> {
+  const normalize = (raw: unknown): Record<string, number[]> => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+
+    const out: Record<string, number[]> = {};
+    for (const [key, arr] of Object.entries(raw as Record<string, unknown>)) {
+      if (!Array.isArray(arr)) continue;
+      const nums = arr
+        .map((v) => (typeof v === "number" ? v : Number(v)))
+        .filter((n) => Number.isFinite(n));
+      if (nums.length > 0) out[key] = nums;
+    }
+    return out;
+  };
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return {};
+    try {
+      return normalize(JSON.parse(trimmed));
+    } catch {
+      return {};
+    }
+  }
+
+  return normalize(value);
+}
+
+function toNumberMap(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const out: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(n)) out[key] = n;
+  }
+  return out;
+}
+
 interface UseMultiFilterOptions {
   /**
    * Global user preferences (books to exclude, min edge, search, etc.)
@@ -139,6 +205,8 @@ function buildFilterConfigs(
     const serverMinOdds = prefs.minOdds ?? -10000;
     const serverMaxOdds = prefs.maxOdds ?? 20000;
 
+    const safeMarketLines = toNumberRecord(prefs.marketLines as unknown);
+
     return [{
       filters: {
         ...DEFAULT_FILTERS,
@@ -153,7 +221,7 @@ function buildFilterConfigs(
         selectedBooks: [], // Book exclusions are client-side
         selectedMarkets: [], // Send empty to get ALL markets
         selectedLeagues: [], // Sport filtering is client-side
-        marketLines: prefs.marketLines || {}, // Market lines stay server-side (specific line filters)
+        marketLines: safeMarketLines, // Market lines stay server-side (specific line filters)
         minBooksPerSide: 2,
         requireFullBlend: false,
         marketType: "all", // Fetch both player and game, filter client-side
@@ -173,18 +241,20 @@ function buildFilterConfigs(
   const configs: FilterConfig[] = [];
   
   for (const preset of activePresets) {
-    const presetSports = parseSports(preset.sport);
+    const presetSports = parseSports(typeof preset.sport === "string" ? preset.sport : "");
     // Convert to lowercase for mapping (handles both "NBA" and "nba")
     const sports = presetSports
       .map(s => leagueToSport[s.toLowerCase()])
       .filter((s): s is Sport => !!s);
     
     // Build blend from preset's sharp_books and book_weights
+    const presetSharpBooks = toStringArray((preset as any).sharp_books);
+    const presetBookWeights = toNumberMap((preset as any).book_weights);
     let blend: Array<{ book: string; weight: number }> | null = null;
-    if (preset.sharp_books && preset.sharp_books.length > 0) {
-      const weights = preset.book_weights;
+    if (presetSharpBooks.length > 0) {
+      const weights = presetBookWeights;
       if (weights && Object.keys(weights).length > 0) {
-        blend = preset.sharp_books.map(book => ({
+        blend = presetSharpBooks.map(book => ({
           book,
           weight: (weights[book] || 0) / 100,
         })).filter(b => b.weight > 0);
@@ -194,13 +264,13 @@ function buildFilterConfigs(
           blend = blend.map(b => ({ ...b, weight: b.weight / totalWeight }));
         }
       } else {
-        const weight = 1 / preset.sharp_books.length;
-        blend = preset.sharp_books.map(book => ({ book, weight }));
+        const weight = 1 / presetSharpBooks.length;
+        blend = presetSharpBooks.map(book => ({ book, weight }));
       }
     }
 
     // Use preset's custom markets if defined, otherwise use global or empty
-    const presetMarkets = preset.markets && preset.markets.length > 0 ? preset.markets : [];
+    const presetMarkets = toStringArray((preset as any).markets);
     
     const validSports = sports.length > 0 ? sports : ["nba"] as Sport[];
     
@@ -292,9 +362,10 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
     params.set("sports", filters.sports.join(","));
   }
 
-  if (filters.selectedMarkets.length > 0) {
-    console.log(`[useMultiFilter] Sending ${filters.selectedMarkets.length} markets to API:`, filters.selectedMarkets.slice(0, 5), filters.selectedMarkets.length > 5 ? '...' : '');
-    params.set("markets", filters.selectedMarkets.join(","));
+  const selectedMarkets = toStringArray(filters.selectedMarkets as unknown);
+  if (selectedMarkets.length > 0) {
+    console.log(`[useMultiFilter] Sending ${selectedMarkets.length} markets to API:`, selectedMarkets.slice(0, 5), selectedMarkets.length > 5 ? '...' : '');
+    params.set("markets", selectedMarkets.join(","));
   } else {
     console.log(`[useMultiFilter] No market filter - will return all markets`);
   }
@@ -314,8 +385,9 @@ function buildQueryParams(filters: OpportunityFilters, isPro: boolean): URLSearc
   }
   
   // Market line filters (e.g., {"touchdowns": [0.5]} to only show "Anytime" touchdowns)
-  if (filters.marketLines && Object.keys(filters.marketLines).length > 0) {
-    params.set("marketLines", JSON.stringify(filters.marketLines));
+  const marketLines = toNumberRecord(filters.marketLines as unknown);
+  if (Object.keys(marketLines).length > 0) {
+    params.set("marketLines", JSON.stringify(marketLines));
   }
   
   params.set("minBooksPerSide", String(filters.minBooksPerSide));
@@ -455,12 +527,15 @@ function applyGlobalFilters(
   
   // Build set of selected sports for fast lookup
   const selectedSports = new Set<string>();
-  if (prefs.selectedLeagues.length > 0) {
-    for (const league of prefs.selectedLeagues) {
+  const selectedLeagues = toStringArray(prefs.selectedLeagues as unknown);
+  if (selectedLeagues.length > 0) {
+    for (const league of selectedLeagues) {
       const sport = leagueToSport[league.toLowerCase()];
       if (sport) selectedSports.add(sport);
     }
   }
+  const selectedBooks = toStringArray(prefs.selectedBooks as unknown);
+  const selectedMarkets = toStringArray(prefs.selectedMarkets as unknown);
   
   return opportunities.filter((opp) => {
     // HYBRID: Sport filter (client-side for preset mode)
@@ -491,8 +566,8 @@ function applyGlobalFilters(
     
     // HYBRID: Selected markets filter (client-side)
     // Empty = all markets selected
-    if (!isCustomMode && prefs.selectedMarkets) {
-      if (!isMarketSelected(prefs.selectedMarkets, opp.sport || "", opp.market || "")) {
+    if (!isCustomMode && selectedMarkets.length > 0) {
+      if (!isMarketSelected(selectedMarkets, opp.sport || "", opp.market || "")) {
         return false;
       }
     }
@@ -510,14 +585,14 @@ function applyGlobalFilters(
 
     // Book exclusions (selectedBooks contains EXCLUDED books)
     // Only filter out if ALL books with the best odds are excluded
-    if (prefs.selectedBooks.length > 0) {
+    if (selectedBooks.length > 0) {
       // Get all books that have the best (same) odds
       const booksWithBestOdds = (opp.allBooks || []).filter(b => b.decimal === opp.bestDecimal);
       
       // Check if at least one book with best odds is NOT excluded
       const hasSelectedBookWithBestOdds = booksWithBestOdds.some(b => {
         const normalizedBook = normalizeSportsbookId(b.book);
-        return !prefs.selectedBooks.includes(normalizedBook);
+        return !selectedBooks.includes(normalizedBook);
       });
       
       // If all books with best odds are excluded, filter out this opportunity

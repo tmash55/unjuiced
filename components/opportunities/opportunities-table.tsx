@@ -29,6 +29,7 @@ import {
   Lock,
   Zap,
   Share2,
+  AlertTriangle,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
@@ -96,6 +97,16 @@ function formatSelectionDisplay(playerName: string | null | undefined, marketDis
   }
   return playerName;
 }
+
+/**
+ * Threshold for flagging suspiciously large edges.
+ * Edges above this are almost always due to a player being ruled out
+ * on prediction markets (Polymarket, Kalshi) while sportsbooks haven't adjusted.
+ */
+const EXTREME_EDGE_THRESHOLD = 100; // 100%+
+
+const EXTREME_EDGE_WARNING =
+  "This large edge likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on edges this large.";
 
 /**
  * Format edge percentage with color coding and intensity scaling
@@ -792,6 +803,7 @@ export function OpportunitiesTable({
         const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
         const displayEdge = boostedEdge;
         const edgeFormat = getEdgeFormat(displayEdge);
+        const isExtremeEdge = displayEdge >= EXTREME_EDGE_THRESHOLD;
         
         return (
           <td key="edge" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
@@ -823,19 +835,29 @@ export function OpportunitiesTable({
                   <Lock className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-neutral-300 dark:text-neutral-600" />
                 </div>
               )}
-              <span className={cn(
-                "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold shadow-sm border",
-                // Use tiered edge formatting
-                edgeFormat.bgClass, edgeFormat.color, edgeFormat.borderClass,
-                // Amber glow when boosted
-                boostPercent > 0 && "ring-1 ring-amber-400/30"
-              )}>
-                {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
-                <svg className="w-2.5 h-2.5 lg:w-3 lg:h-3" viewBox="0 0 12 12" fill="currentColor">
-                  <path d="M6 0L12 10H0L6 0Z" />
-                </svg>
-                +{displayEdge.toFixed(1)}%
-              </span>
+              {isExtremeEdge ? (
+                <Tooltip content={EXTREME_EDGE_WARNING}>
+                  <span className={cn(
+                    "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold shadow-sm border cursor-help",
+                    "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 ring-1 ring-amber-400/40"
+                  )}>
+                    <AlertTriangle className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-amber-500" />
+                    +{displayEdge.toFixed(1)}%
+                  </span>
+                </Tooltip>
+              ) : (
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold shadow-sm border",
+                  edgeFormat.bgClass, edgeFormat.color, edgeFormat.borderClass,
+                  boostPercent > 0 && "ring-1 ring-amber-400/30"
+                )}>
+                  {boostPercent > 0 && <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />}
+                  <svg className="w-2.5 h-2.5 lg:w-3 lg:h-3" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M6 0L12 10H0L6 0Z" />
+                  </svg>
+                  +{displayEdge.toFixed(1)}%
+                </span>
+              )}
             </div>
           </td>
         );
@@ -2065,8 +2087,10 @@ export function OpportunitiesTable({
                     isPro ? "cursor-pointer" : "cursor-default",
                     // Edge-based left accent border for quick visual scanning
                     (() => {
-                      const edgeFormat = getEdgeFormat(opp.edgePct ?? 0);
-                      return !isHiddenRow && !isStale ? edgeFormat.accentClass : "border-l-neutral-300 dark:border-l-neutral-700";
+                      const edge = opp.edgePct ?? 0;
+                      if (isHiddenRow || isStale) return "border-l-neutral-300 dark:border-l-neutral-700";
+                      if (edge >= EXTREME_EDGE_THRESHOLD) return "border-l-amber-500";
+                      return getEdgeFormat(edge).accentClass;
                     })(),
                     "hover:bg-gradient-to-r hover:from-amber-50/80 hover:to-amber-50/20 dark:hover:from-amber-950/40 dark:hover:to-amber-950/10",
                     index % 2 === 0 

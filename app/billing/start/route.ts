@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
-import { isAppSubdomain } from '@/lib/domain'
+import { isAppSubdomain, getRedirectUrl } from '@/lib/domain'
 import { isYearlyPriceId, ACTIVE_PROMO, isPromoActive } from '@/constants/billing'
 import Stripe from 'stripe'
 
@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const mode = (sp.get('mode') || 'subscription') as 'payment' | 'subscription'
   const trialDaysParam = sp.get('trialDays')
   const requestedTrialDays = trialDaysParam ? Number(trialDaysParam) : undefined
-  // Always use absolute base origin from the incoming request URL
-  const { origin, host } = new URL(req.url)
+  // Use host to construct proper app subdomain URLs via getRedirectUrl
+  const { host } = new URL(req.url)
   const fallbackPath = isAppSubdomain(host) ? '/plans' : '/pricing'
 
   console.log('[billing/start] Request received', { priceId, mode })
@@ -25,19 +25,19 @@ export async function GET(req: NextRequest) {
 
     if (authError) {
       console.error('[billing/start] Auth error:', authError)
-      return NextResponse.redirect(`${origin}/login?redirectTo=${encodeURIComponent(req.url)}`)
+      return NextResponse.redirect(`${getRedirectUrl(host, '/login', 'app')}?redirectTo=${encodeURIComponent(req.url)}`)
     }
 
     if (!user) {
       console.error('[billing/start] No user found - redirecting to login')
-      return NextResponse.redirect(`${origin}/login?redirectTo=${encodeURIComponent(req.url)}`)
+      return NextResponse.redirect(`${getRedirectUrl(host, '/login', 'app')}?redirectTo=${encodeURIComponent(req.url)}`)
     }
 
     console.log('[billing/start] User authenticated:', user.id)
 
     if (!priceId) {
       console.error('[billing/start] Missing priceId')
-      return NextResponse.redirect(`${origin}${fallbackPath}`)
+      return NextResponse.redirect(getRedirectUrl(host, fallbackPath, 'app'))
     }
 
     // Safety net: block checkout if user already has an active subscription
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         subscriptionId: existingSub.stripe_subscription_id,
         status: existingSub.status,
       })
-      return NextResponse.redirect(`${origin}/account/settings/billing`)
+      return NextResponse.redirect(getRedirectUrl(host, '/account/settings/billing', 'app'))
     }
 
     // Check for partner discount from Dub referral link
@@ -153,8 +153,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const successUrl = `${origin}/account/settings?billing=success`
-    const cancelUrl = `${origin}/account/settings?billing=cancelled`
+    // Use app subdomain for redirects (e.g. https://app.unjuiced.bet/account/settings)
+    const successUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=success`
+    const cancelUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=cancelled`
 
     // Determine discount to apply (priority order):
     // 1. Yearly plans: no discounts ever
@@ -205,13 +206,13 @@ export async function GET(req: NextRequest) {
 
     if (!url) {
       console.error('[billing/start] Failed to create checkout')
-      return NextResponse.redirect(`${origin}${fallbackPath}`)
+      return NextResponse.redirect(getRedirectUrl(host, fallbackPath, 'app'))
     }
 
     console.log('[billing/start] Redirecting to Stripe checkout')
     return NextResponse.redirect(url)
   } catch (error) {
     console.error('[billing/start] Error:', error)
-    return NextResponse.redirect(`${origin}${fallbackPath}`)
+    return NextResponse.redirect(getRedirectUrl(host, fallbackPath, 'app'))
   }
 }

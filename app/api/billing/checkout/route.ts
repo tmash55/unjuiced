@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/libs/supabase/server'
 import { createCheckout } from '@/libs/stripe'
 import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
+import { getRedirectUrl } from '@/lib/domain'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -116,10 +117,10 @@ export async function POST(req: NextRequest) {
     const allowTrial = profileTrialUsed === false
     const trialDays = allowTrial ? requestedTrialDays : undefined
 
-    // Always use absolute origin from the request URL for Stripe success/cancel URLs
-    const { origin } = new URL(req.url)
-    const successUrl = `${origin}/account/settings?billing=success`
-    const cancelUrl = `${origin}/account/settings?billing=cancelled`
+    // Use app subdomain for Stripe success/cancel URLs (e.g. https://app.unjuiced.bet)
+    const { host } = new URL(req.url)
+    const successUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=success`
+    const cancelUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=cancelled`
 
     // Determine discount to apply:
     // - Yearly plans: no discounts

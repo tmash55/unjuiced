@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, Calculator } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, Calculator, AlertTriangle } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,10 @@ import { useFavorites } from "@/hooks/use-favorites";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
 import { impliedProbToAmerican } from "@/lib/ev/devig";
+
+const EXTREME_EV_THRESHOLD = 100;
+const EXTREME_EV_WARNING =
+  "This large +EV likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on +EV this large.";
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -361,11 +365,19 @@ export function MobileEVCard({
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
               "px-2 py-1 rounded-full flex items-center justify-center gap-1",
-              getEVBgColor(displayEV),
-              boostPercent > 0 && "ring-1 ring-amber-400/50"
+              displayEV >= EXTREME_EV_THRESHOLD
+                ? "bg-amber-500/20 ring-1 ring-amber-400/50"
+                : cn(getEVBgColor(displayEV), boostPercent > 0 && "ring-1 ring-amber-400/50")
             )}>
-              {boostPercent > 0 && <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />}
-              <span className={cn("text-[10px] font-bold tabular-nums leading-none", getEVColor(displayEV))}>
+              {displayEV >= EXTREME_EV_THRESHOLD ? (
+                <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+              ) : boostPercent > 0 ? (
+                <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+              ) : null}
+              <span className={cn(
+                "text-[10px] font-bold tabular-nums leading-none",
+                displayEV >= EXTREME_EV_THRESHOLD ? "text-amber-600 dark:text-amber-400" : getEVColor(displayEV)
+              )}>
                 +{displayEV.toFixed(1)}%
               </span>
               <span className="text-[8px] text-neutral-400 dark:text-neutral-500 uppercase">
@@ -434,6 +446,16 @@ export function MobileEVCard({
         </div>
       </div>
       
+      {/* Extreme EV warning banner */}
+      {displayEV >= EXTREME_EV_THRESHOLD && (
+        <div className="mx-3 mt-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-[10px] leading-tight text-amber-700 dark:text-amber-400">
+            {EXTREME_EV_WARNING}
+          </p>
+        </div>
+      )}
+
       {/* Main Content - Tappable to expand */}
       <div 
         className="px-3 py-2.5 cursor-pointer active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"

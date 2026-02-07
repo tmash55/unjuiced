@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, AlertTriangle } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,10 @@ function getEdgeBgColor(edge: number | null): string {
   if (edge >= 3) return "bg-amber-500/15 dark:bg-amber-500/20";
   return "bg-neutral-100 dark:bg-neutral-800";
 }
+
+const EXTREME_EDGE_THRESHOLD = 100;
+const EXTREME_EDGE_WARNING =
+  "This large edge likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on edges this large.";
 
 // Format time relative to now
 function formatGameTime(gameStart: string | null): string {
@@ -350,13 +354,19 @@ export function MobileEdgeCard({
           {/* Right: Edge Badge + Favorite + Hide/Unhide */}
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
-              "px-2 py-1 rounded-full flex items-center justify-center",
-              getEdgeBgColor(boostedEdge),
-              // Amber ring when boosted
-              boostPercent > 0 && "ring-1 ring-amber-400/50"
+              "px-2 py-1 rounded-full flex items-center justify-center gap-0.5",
+              boostedEdge >= EXTREME_EDGE_THRESHOLD
+                ? "bg-amber-500/20 ring-1 ring-amber-400/50"
+                : cn(getEdgeBgColor(boostedEdge), boostPercent > 0 && "ring-1 ring-amber-400/50")
             )}>
-              <span className={cn("text-[10px] font-bold tabular-nums leading-none", getEdgeColor(boostedEdge))}>
-                {boostPercent > 0 && <span className="text-amber-500 mr-0.5">⚡</span>}
+              {boostedEdge >= EXTREME_EDGE_THRESHOLD && (
+                <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+              )}
+              <span className={cn(
+                "text-[10px] font-bold tabular-nums leading-none",
+                boostedEdge >= EXTREME_EDGE_THRESHOLD ? "text-amber-600 dark:text-amber-400" : getEdgeColor(boostedEdge)
+              )}>
+                {boostPercent > 0 && boostedEdge < EXTREME_EDGE_THRESHOLD && <span className="text-amber-500 mr-0.5">⚡</span>}
                 +{boostedEdge.toFixed(1)}%
               </span>
             </div>
@@ -434,6 +444,16 @@ export function MobileEdgeCard({
         </div>
       </div>
       
+      {/* Extreme edge warning banner */}
+      {boostedEdge >= EXTREME_EDGE_THRESHOLD && (
+        <div className="mx-2.5 mt-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-[10px] leading-tight text-amber-700 dark:text-amber-400">
+            {EXTREME_EDGE_WARNING}
+          </p>
+        </div>
+      )}
+
       {/* Main Content - Compact & Tappable to expand */}
       <div 
         className="px-2.5 py-2 cursor-pointer active:bg-neutral-50 dark:active:bg-neutral-800/50 transition-colors"
