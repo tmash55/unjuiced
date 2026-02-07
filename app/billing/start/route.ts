@@ -154,8 +154,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Use app subdomain for redirects (e.g. https://app.unjuiced.bet/account/settings)
-    const successUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=success`
-    const cancelUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=cancelled`
+    const successUrl = getRedirectUrl(host, '/today', 'app')
+    const cancelUrl = getRedirectUrl(host, '/today', 'app')
 
     // Determine discount to apply (priority order):
     // 1. Yearly plans: no discounts ever

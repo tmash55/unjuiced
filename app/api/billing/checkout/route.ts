@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
 
     // Use app subdomain for Stripe success/cancel URLs (e.g. https://app.unjuiced.bet)
     const { host } = new URL(req.url)
-    const successUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=success`
-    const cancelUrl = `${getRedirectUrl(host, '/account/settings', 'app')}?billing=cancelled`
+    const successUrl = getRedirectUrl(host, '/today', 'app')
+    const cancelUrl = getRedirectUrl(host, '/today', 'app')
 
     // Determine discount to apply:
     // - Yearly plans: no discounts
