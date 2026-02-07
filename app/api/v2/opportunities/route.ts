@@ -91,8 +91,7 @@ function formatPosition(position: string | null): string | null {
 }
 
 // Supported sports (including soccer)
-// NOTE: mlb and wnba temporarily removed - no active odds feeds
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "soccer_epl"]);
+const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "wnba", "soccer_epl"]);
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)

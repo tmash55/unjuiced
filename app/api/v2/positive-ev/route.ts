@@ -112,7 +112,7 @@ async function setInResponseCache(key: string, data: unknown, isCustom: boolean)
 }
 
 // Supported sports
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "soccer_epl"]);
+const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "wnba", "soccer_epl"]);
 
 // Books to exclude (regional variants)
 const EXCLUDED_BOOKS = new Set([

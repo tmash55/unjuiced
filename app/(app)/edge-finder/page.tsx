@@ -102,7 +102,7 @@ export default function EdgeFinderPage() {
   // Dynamically fetch available markets from the API
   // This ensures we always show markets that actually exist in the data feed
   const { data: marketsData } = useAvailableMarkets(AVAILABLE_LEAGUES);
-  const availableMarketOptions = useMemo(() => {
+  const availableMarketOptions = useMemo((): Array<{ key: string; label: string; sports?: string[] }> => {
     if (marketsData?.aggregatedMarkets && marketsData.aggregatedMarkets.length > 0) {
       return marketsData.aggregatedMarkets.map((market) => ({
         key: market.key,
@@ -119,6 +119,15 @@ export default function EdgeFinderPage() {
     () => availableMarketOptions.map((market) => market.key),
     [availableMarketOptions]
   );
+
+  // Build sport mapping for mobile filters (maps market key -> sport keys from API)
+  const marketSportsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    availableMarketOptions.forEach((m) => {
+      if (m.sports && m.sports.length > 0) map[m.key] = m.sports;
+    });
+    return map;
+  }, [availableMarketOptions]);
   
   // Local search state (debounced before saving to prefs)
   const [searchLocal, setSearchLocal] = useState(prefs.searchQuery || "");
@@ -357,6 +366,7 @@ export default function EdgeFinderPage() {
           onPrefsChange={(newPrefs) => updatePrefs(newPrefs)}
           availableLeagues={AVAILABLE_LEAGUES}
           availableMarkets={availableMarkets}
+          marketSportsMap={marketSportsMap}
           availableSportsbooks={availableSportsbooks}
           boostPercent={boostPercent}
           onBoostChange={setBoostPercent}

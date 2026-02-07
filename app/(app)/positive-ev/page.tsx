@@ -338,7 +338,7 @@ export default function PositiveEVPage() {
   
   // Dynamically fetch available markets
   const { data: marketsData } = useAvailableMarkets(AVAILABLE_SPORTS);
-  const availableMarketOptions = useMemo(() => {
+  const availableMarketOptions = useMemo((): Array<{ key: string; label: string; sports?: string[] }> => {
     if (marketsData?.aggregatedMarkets && marketsData.aggregatedMarkets.length > 0) {
       return marketsData.aggregatedMarkets.map((market) => ({
         key: market.key,
@@ -351,6 +351,15 @@ export default function PositiveEVPage() {
       label: formatMarketLabel(market),
     }));
   }, [marketsData?.aggregatedMarkets]);
+
+  // Build sport mapping for mobile filters (maps market key -> sport keys from API)
+  const marketSportsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    availableMarketOptions.forEach((m) => {
+      if (m.sports && m.sports.length > 0) map[m.key] = m.sports;
+    });
+    return map;
+  }, [availableMarketOptions]);
 
   // Local UI state
   const [searchQuery, setSearchQuery] = useState("");
@@ -1029,6 +1038,7 @@ export default function PositiveEVPage() {
           onFiltersChange={handleFiltersChange}
           availableSports={AVAILABLE_SPORTS}
           availableMarkets={availableMarketOptions.map((market) => market.key)}
+          marketSportsMap={marketSportsMap}
           locked={locked}
           isLoggedIn={isLoggedIn}
           hasEliteAccess={hasElite}

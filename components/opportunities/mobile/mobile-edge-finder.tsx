@@ -86,6 +86,8 @@ interface MobileEdgeFinderProps {
   onPrefsChange?: (prefs: Omit<BestOddsPrefs, 'columnOrder'> & { columnOrder?: string[] }) => void;
   availableLeagues?: string[];
   availableMarkets?: string[];
+  /** Maps market key -> sport keys from API (e.g. { player_assists: ["nba", "nhl"] }) */
+  marketSportsMap?: Record<string, string[]>;
   availableSportsbooks?: string[];
   // Profit boost percentage
   boostPercent?: number;
@@ -126,6 +128,7 @@ export function MobileEdgeFinder({
   onPrefsChange,
   availableLeagues = [],
   availableMarkets = [],
+  marketSportsMap,
   availableSportsbooks = [],
   boostPercent = 0,
   onBoostChange,
@@ -352,6 +355,7 @@ export function MobileEdgeFinder({
                 onPrefsChange={(newPrefs) => onPrefsChange({ ...newPrefs, columnOrder: newPrefs.columnOrder ?? [] })}
                 availableLeagues={availableLeagues}
                 availableMarkets={availableMarkets}
+                marketSportsMap={marketSportsMap}
                 availableSportsbooks={availableSportsbooks}
                 customPresetActive={isCustomMode}
                 deals={opportunities.map(opp => ({

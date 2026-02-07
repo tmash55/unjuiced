@@ -54,6 +54,8 @@ interface PositiveEVFiltersProps {
   // Available options
   availableSports: string[];
   availableMarkets: string[];
+  /** Maps market key -> sport keys from API (e.g. { player_assists: ["nba", "nhl"] }) */
+  marketSportsMap?: Record<string, string[]>;
   
   // State
   locked?: boolean;
@@ -99,6 +101,7 @@ export function PositiveEVFilters({
   onKellyPercentChange,
   availableSports,
   availableMarkets,
+  marketSportsMap,
   locked = false,
   isLoggedIn = false,
   isPro = false,
@@ -170,7 +173,19 @@ export function PositiveEVFilters({
     return counts;
   }, [opportunities]);
   
-  // Group markets by sport
+  // Map API sport keys to display group names
+  const SPORT_KEY_TO_GROUP: Record<string, string> = {
+    nba: 'Basketball',
+    ncaab: 'Basketball',
+    ncaaf: 'Football',
+    nfl: 'Football',
+    nhl: 'Hockey',
+    mlb: 'Baseball',
+    wnba: 'Basketball',
+    soccer_epl: 'Soccer',
+  };
+
+  // Group markets by sport - use API-provided sport data when available for exact parity with desktop
   const groupedMarkets = useMemo(() => {
     const groups: Record<string, string[]> = {
       Basketball: [],
@@ -179,43 +194,87 @@ export function PositiveEVFilters({
       Baseball: [],
       Soccer: [],
     };
+    const added = new Set<string>(); // Track group:market to prevent duplicates
     
-    // Build lookup from SPORT_MARKETS
-    const basketballMarkets = new Set<string>();
-    const footballMarkets = new Set<string>();
-    const hockeyMarkets = new Set<string>();
-    const baseballMarkets = new Set<string>();
-    const soccerMarkets = new Set<string>();
-    
-    ["basketball_nba", "basketball_ncaab", "basketball_wnba"].forEach((key) => {
-      (SPORT_MARKETS[key] || []).forEach((m) => basketballMarkets.add(m.apiKey));
-    });
-    ["football_nfl", "football_ncaaf"].forEach((key) => {
-      (SPORT_MARKETS[key] || []).forEach((m) => footballMarkets.add(m.apiKey));
-    });
-    (SPORT_MARKETS["icehockey_nhl"] || []).forEach((m) => hockeyMarkets.add(m.apiKey));
-    (SPORT_MARKETS["baseball_mlb"] || []).forEach((m) => baseballMarkets.add(m.apiKey));
-    (SPORT_MARKETS["soccer_epl"] || []).forEach((m) => soccerMarkets.add(m.apiKey));
-    
-    availableMarkets.forEach((market) => {
-      const m = market.toLowerCase();
-      if (basketballMarkets.has(m)) groups.Basketball.push(market);
-      else if (footballMarkets.has(m)) groups.Football.push(market);
-      else if (hockeyMarkets.has(m)) groups.Hockey.push(market);
-      else if (baseballMarkets.has(m)) groups.Baseball.push(market);
-      else if (soccerMarkets.has(m)) groups.Soccer.push(market);
-      // Fallback by keyword
-      else if (m.includes("point") || m.includes("rebound") || m.includes("assist") || m.includes("pra")) {
-        groups.Basketball.push(market);
-      } else if (m.includes("passing") || m.includes("rushing") || m.includes("receiving") || m.includes("touchdown")) {
-        groups.Football.push(market);
-      } else if (m.includes("shot") || m.includes("goal") || m.includes("save")) {
-        groups.Hockey.push(market);
-      }
-    });
+    if (marketSportsMap && Object.keys(marketSportsMap).length > 0) {
+      // Use API-provided sport associations (matches desktop behavior exactly)
+      availableMarkets.forEach((market) => {
+        const sports = marketSportsMap[market] || marketSportsMap[market.toLowerCase()];
+        if (sports && sports.length > 0) {
+          sports.forEach((sport) => {
+            const group = SPORT_KEY_TO_GROUP[sport];
+            if (group && groups[group]) {
+              const key = `${group}:${market}`;
+              if (!added.has(key)) {
+                groups[group].push(market);
+                added.add(key);
+              }
+            }
+          });
+        } else {
+          // Market has no sport mapping - use keyword fallback
+          const m = market.toLowerCase();
+          if (m.includes("point") || m.includes("rebound") || m.includes("assist") || m.includes("pra") || m.includes("block") || m.includes("steal") || m.includes("turnover") || m.includes("basket") || m.includes("double")) {
+            groups.Basketball.push(market);
+          } else if (m.includes("passing") || m.includes("rushing") || m.includes("receiving") || m.includes("touchdown") || m.includes("sack") || m.includes("field_goal")) {
+            groups.Football.push(market);
+          } else if (m.includes("goal") || m.includes("shot") || m.includes("save") || m.includes("puck")) {
+            groups.Hockey.push(market);
+          } else if (m.includes("batter") || m.includes("pitcher") || m.includes("rbi") || m.includes("strikeout") || m.includes("home_run")) {
+            groups.Baseball.push(market);
+          } else {
+            // Default: add to first non-empty group or Basketball
+            groups.Basketball.push(market);
+          }
+        }
+      });
+    } else {
+      // Fallback: use SPORT_MARKETS static data for categorization
+      const basketballMarkets = new Set<string>();
+      const footballMarkets = new Set<string>();
+      const hockeyMarkets = new Set<string>();
+      const baseballMarkets = new Set<string>();
+      const soccerMarkets = new Set<string>();
+      
+      ["basketball_nba", "basketball_ncaab", "basketball_wnba"].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach((m) => basketballMarkets.add(m.apiKey));
+      });
+      ["football_nfl", "football_ncaaf"].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach((m) => footballMarkets.add(m.apiKey));
+      });
+      (SPORT_MARKETS["icehockey_nhl"] || []).forEach((m) => hockeyMarkets.add(m.apiKey));
+      (SPORT_MARKETS["baseball_mlb"] || []).forEach((m) => baseballMarkets.add(m.apiKey));
+      (SPORT_MARKETS["soccer_epl"] || []).forEach((m) => soccerMarkets.add(m.apiKey));
+      
+      availableMarkets.forEach((market) => {
+        const m = market.toLowerCase();
+        // Allow markets in multiple groups using separate if blocks
+        let matched = false;
+        if (basketballMarkets.has(m)) { groups.Basketball.push(market); matched = true; }
+        if (footballMarkets.has(m)) { groups.Football.push(market); matched = true; }
+        if (hockeyMarkets.has(m)) { groups.Hockey.push(market); matched = true; }
+        if (baseballMarkets.has(m)) { groups.Baseball.push(market); matched = true; }
+        if (soccerMarkets.has(m)) { groups.Soccer.push(market); matched = true; }
+        
+        if (!matched) {
+          // Fallback by keyword
+          if (m.includes("point") || m.includes("rebound") || m.includes("assist") || m.includes("pra") || m.includes("block") || m.includes("steal") || m.includes("turnover") || m.includes("basket") || m.includes("double")) {
+            groups.Basketball.push(market);
+          } else if (m.includes("passing") || m.includes("rushing") || m.includes("receiving") || m.includes("touchdown") || m.includes("sack") || m.includes("field_goal")) {
+            groups.Football.push(market);
+          } else if (m.includes("goal") || m.includes("shot") || m.includes("save") || m.includes("puck")) {
+            groups.Hockey.push(market);
+          } else if (m.includes("batter") || m.includes("pitcher") || m.includes("rbi") || m.includes("strikeout") || m.includes("home_run")) {
+            groups.Baseball.push(market);
+          } else {
+            groups.Basketball.push(market);
+          }
+        }
+      });
+    }
     
     return groups;
-  }, [availableMarkets]);
+  }, [availableMarkets, marketSportsMap]);
   
   // Toggle functions
   const toggleBook = (id: string) => {

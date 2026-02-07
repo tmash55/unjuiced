@@ -98,6 +98,8 @@ interface MobilePositiveEVProps {
   }) => void;
   availableSports?: string[];
   availableMarkets?: string[];
+  /** Maps market key -> sport keys from API (e.g. { player_assists: ["nba", "nhl"] }) */
+  marketSportsMap?: Record<string, string[]>;
   locked?: boolean;
   isLoggedIn?: boolean;
   /** Whether user has Elite access (for auto-refresh gating) */
@@ -143,6 +145,7 @@ export function MobilePositiveEV({
   onFiltersChange,
   availableSports = [],
   availableMarkets = [],
+  marketSportsMap,
   locked = false,
   isLoggedIn = false,
   hasEliteAccess = false,
@@ -334,6 +337,7 @@ export function MobilePositiveEV({
                 onKellyPercentChange={onKellyPercentChange}
                 availableSports={availableSports}
                 availableMarkets={availableMarkets}
+                marketSportsMap={marketSportsMap}
                 locked={locked}
                 isLoggedIn={isLoggedIn}
                 isPro={isPro}
