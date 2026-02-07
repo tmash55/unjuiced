@@ -367,6 +367,7 @@ export function MobilePositiveEV({
           sharpPreset={sharpPreset}
           onSharpPresetChange={onSharpPresetChange}
           onModelsChanged={onRefresh}
+          hasElite={hasEliteAccess}
         />
 
         {/* Search + Boost + Sort Row */}

@@ -99,7 +99,12 @@ function buildModelConfigs(
   isPro: boolean,
   limit: number
 ): ModelConfig[] {
-  if (activeModels.length === 0) {
+  // Safety: if user doesn't have pro (Elite) access, ignore custom models
+  if (!isPro && activeModels.length > 0) {
+    console.warn("[useMultiEvModelStream] Custom models require Elite access – falling back to preset mode");
+  }
+  
+  if (activeModels.length === 0 || !isPro) {
     return [{
       filters: {
         sports: prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS,

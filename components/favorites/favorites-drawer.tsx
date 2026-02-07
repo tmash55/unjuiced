@@ -628,27 +628,28 @@ function FavoriteRow({ favorite, isSelected, onToggleSelect, onRemove, selectedB
           </div>
         ) : null}
         
-        {/* Trash icon - visible on hover */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="p-1 text-neutral-300 dark:text-neutral-600 opacity-0 group-hover/row:opacity-100 hover:text-red-500 dark:hover:text-red-400 transition-all"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-        
         {/* Expand chevron */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 -mr-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
         >
           {isExpanded ? (
             <ChevronUp className="h-4 w-4" />
           ) : (
             <ChevronDown className="h-4 w-4" />
           )}
+        </button>
+        
+        {/* Remove button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="-mr-1 p-1.5 rounded-md text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+          aria-label="Remove play"
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
       

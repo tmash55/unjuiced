@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Settings2, X, ChevronDown, Check, Zap } from "lucide-react";
+import { Plus, Settings2, X, ChevronDown, Check, Zap, Lock } from "lucide-react";
 import { Star } from "@/components/star";
 import { useEvModels } from "@/hooks/use-ev-models";
 import { EvModelFormModal } from "./ev-model-form-modal";
@@ -99,6 +99,7 @@ interface EvModelsBarProps {
   onToggleCustomModel: (modelId: string, isActive: boolean) => void;
   onModelsChanged?: () => void;
   className?: string;
+  hasElite?: boolean;
 }
 
 export function EvModelsBar({
@@ -108,6 +109,7 @@ export function EvModelsBar({
   onToggleCustomModel,
   onModelsChanged,
   className,
+  hasElite = false,
 }: EvModelsBarProps) {
   const { models, isLoading, toggleModel } = useEvModels();
   const [managerOpen, setManagerOpen] = useState(false);
@@ -259,78 +261,97 @@ export function EvModelsBar({
           </div>
         ))}
 
-        {/* Custom Models Dropdown */}
-        {models.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="h-9 px-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition-all flex items-center gap-2">
-                <Plus className="w-3.5 h-3.5" />
-                Add Model
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-72">
-              <div className="px-2 py-1.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-                Your Custom Models
-              </div>
-              {models.filter(m => !m.is_active).map((model) => (
-                <DropdownMenuItem
-                  key={model.id}
-                  onClick={() => handleToggleCustomModel(model)}
-                  className="flex items-center gap-3 px-2 py-2"
-                >
-                  <div className="flex items-center gap-1">
-                    {model.sharp_books.slice(0, 2).map((bookId) => {
-                      const logo = getBookLogo(bookId);
-                      return (
-                        <div key={bookId} className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-                          {logo ? (
-                            <img src={logo} alt="" className="w-3.5 h-3.5 object-contain" />
-                          ) : (
-                            <span className="text-[8px] font-bold text-neutral-500">{bookId.slice(0,2).toUpperCase()}</span>
-                          )}
-                        </div>
-                      );
-                    })}
+        {/* Custom Models Dropdown - Elite only */}
+        {hasElite ? (
+          <>
+            {models.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="h-9 px-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition-all flex items-center gap-2">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Model
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-72">
+                  <div className="px-2 py-1.5 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                    Your Custom Models
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
-                      {model.name}
-                    </p>
-                    <p className="text-xs text-neutral-500 truncate">
-                      {formatEvSharpBooks(model.sharp_books)} &bull; {formatEvMarketType(model.market_type)}
-                    </p>
-                  </div>
-                  {model.is_favorite && (
-                    <Star filled className="w-3.5 h-3.5 text-amber-500" />
+                  {models.filter(m => !m.is_active).map((model) => (
+                    <DropdownMenuItem
+                      key={model.id}
+                      onClick={() => handleToggleCustomModel(model)}
+                      className="flex items-center gap-3 px-2 py-2"
+                    >
+                      <div className="flex items-center gap-1">
+                        {model.sharp_books.slice(0, 2).map((bookId) => {
+                          const logo = getBookLogo(bookId);
+                          return (
+                            <div key={bookId} className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+                              {logo ? (
+                                <img src={logo} alt="" className="w-3.5 h-3.5 object-contain" />
+                              ) : (
+                                <span className="text-[8px] font-bold text-neutral-500">{bookId.slice(0,2).toUpperCase()}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                          {model.name}
+                        </p>
+                        <p className="text-xs text-neutral-500 truncate">
+                          {formatEvSharpBooks(model.sharp_books)} &bull; {formatEvMarketType(model.market_type)}
+                        </p>
+                      </div>
+                      {model.is_favorite && (
+                        <Star filled className="w-3.5 h-3.5 text-amber-500" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                  {models.filter(m => !m.is_active).length === 0 && (
+                    <div className="px-2 py-4 text-center text-xs text-neutral-500">
+                      All models are active
+                    </div>
                   )}
-                </DropdownMenuItem>
-              ))}
-              {models.filter(m => !m.is_active).length === 0 && (
-                <div className="px-2 py-4 text-center text-xs text-neutral-500">
-                  All models are active
-                </div>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setFormOpen(true)}
-                className="flex items-center gap-2 text-sky-600 dark:text-sky-400"
-              >
-                <Plus className="w-4 h-4" />
-                Create New Model
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setFormOpen(true)}
+                    className="flex items-center gap-2 text-sky-600 dark:text-sky-400"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create New Model
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
-        {/* Manage Models Button */}
-        <Tooltip content="Manage Models">
-          <button
-            onClick={() => setManagerOpen(true)}
-            className="h-9 w-9 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all"
-          >
-            <Settings2 className="w-4 h-4" />
-          </button>
-        </Tooltip>
+            {/* Manage Models Button */}
+            <Tooltip content="Manage Models">
+              <button
+                onClick={() => setManagerOpen(true)}
+                className="h-9 w-9 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex items-center justify-center text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </>
+        ) : (
+          <Tooltip content="Upgrade to Elite to unlock custom models">
+            <button
+              className="group relative inline-flex h-9 overflow-hidden rounded-lg p-[1.5px] transition-transform hover:scale-105 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]"
+            >
+              {/* Animated spinning gold gradient border */}
+              <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FDE68A_0%,#F59E0B_20%,#D97706_40%,#F59E0B_60%,#FDE68A_80%,#FFFBEB_100%)]" />
+              {/* Inner content */}
+              <span className="relative inline-flex h-full w-full items-center justify-center gap-2 rounded-[7px] bg-white dark:bg-neutral-900 px-3 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
+                <Lock className="w-3.5 h-3.5" />
+                <span className="text-sm font-medium">Custom Models</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-orange-500 text-white">ELITE</span>
+              </span>
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Modals */}

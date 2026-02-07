@@ -91,11 +91,10 @@ const oddsScreenSports: NavChildItem[] = [
 const hitRatesSports: NavChildItem[] = [
   // Active
   { label: "NBA", href: "/hit-rates/nba" },
-  // Disabled (coming next season)
-  { label: "NFL", href: "/hit-rates/nfl", disabled: true },
-  { label: "NHL", href: "/hit-rates/nhl", disabled: true },
-  { label: "NCAAB", href: "/hit-rates/ncaab", disabled: true },
   // Under construction
+  { label: "NFL", href: "/hit-rates/nfl", disabled: true, comingSoon: true },
+  { label: "NHL", href: "/hit-rates/nhl", disabled: true, comingSoon: true },
+  { label: "NCAAB", href: "/hit-rates/ncaab", disabled: true, comingSoon: true },
   { label: "MLB", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
   { label: "WNBA", href: "/hit-rates/wnba", disabled: true, comingSoon: true },
   // Off season

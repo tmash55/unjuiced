@@ -15,7 +15,7 @@ import { ComparingDropdown } from "./comparing-dropdown";
 import { GlobalSettingsDropdown } from "./global-settings-dropdown";
 import { ResetButton } from "./reset-button";
 import { EvModelsManagerModal } from "@/components/ev-models/ev-models-manager-modal";
-import { Layers, X } from "lucide-react";
+import { Layers, X, Lock } from "lucide-react";
 
 // Types
 import type { SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
@@ -517,54 +517,70 @@ export function UnifiedFilterBar({
 
           {/* Custom EV Models Button - Positive EV (Animated Border) */}
           {tool === "positive-ev" && onManageEvModels && (
-            <div className="flex items-center gap-1">
-              <Tooltip content="Manage custom EV models">
-                <div className="relative">
-                  <button
-                    onClick={() => setShowEvModelsModal(true)}
-                    disabled={locked}
-                    className={cn(
-                      "group relative inline-flex h-10 w-10 overflow-hidden rounded-xl p-[1.5px] focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(16,185,129,0.4)]",
-                      locked && "opacity-50 cursor-not-allowed"
+            isPro ? (
+              <div className="flex items-center gap-1">
+                <Tooltip content="Manage custom EV models">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowEvModelsModal(true)}
+                      disabled={locked}
+                      className={cn(
+                        "group relative inline-flex h-10 w-10 overflow-hidden rounded-xl p-[1.5px] focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-neutral-900 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(16,185,129,0.4)]",
+                        locked && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {/* Animated spinning gradient border */}
+                      <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#34D399_0%,#10B981_20%,#047857_40%,#10B981_60%,#34D399_80%,#A7F3D0_100%)]" />
+                      {/* Inner button content */}
+                      <span className="relative inline-flex h-full w-full items-center justify-center rounded-[9px] bg-white dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
+                        <Layers className="w-5 h-5" />
+                      </span>
+                    </button>
+                    {activeEvModels && activeEvModels.length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white z-10 shadow-md ring-2 ring-white dark:ring-neutral-900">
+                        {activeEvModels.length}
+                      </span>
                     )}
-                  >
-                    {/* Animated spinning gradient border */}
-                    <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#34D399_0%,#10B981_20%,#047857_40%,#10B981_60%,#34D399_80%,#A7F3D0_100%)]" />
-                    {/* Inner button content */}
-                    <span className="relative inline-flex h-full w-full items-center justify-center rounded-[9px] bg-white dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
-                      <Layers className="w-5 h-5" />
-                    </span>
-                  </button>
-                  {activeEvModels && activeEvModels.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white z-10 shadow-md ring-2 ring-white dark:ring-neutral-900">
-                      {activeEvModels.length}
-                    </span>
-                  )}
-                </div>
-              </Tooltip>
-              
-              {/* X button to exit custom mode */}
-              {activeEvModels && activeEvModels.length > 0 && onClearEvModels && (
-                <Tooltip content="Exit custom mode">
-                  <button
-                    onClick={onClearEvModels}
-                    disabled={locked}
-                    className={cn(
-                      "flex items-center justify-center h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 dark:hover:text-red-400 border border-neutral-200/80 dark:border-neutral-700/80 transition-all",
-                      locked && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  </div>
                 </Tooltip>
-              )}
-              
-              <EvModelsManagerModal
-                open={showEvModelsModal}
-                onOpenChange={setShowEvModelsModal}
-                onModelsChanged={onManageEvModels}
-              />
-            </div>
+                
+                {/* X button to exit custom mode */}
+                {activeEvModels && activeEvModels.length > 0 && onClearEvModels && (
+                  <Tooltip content="Exit custom mode">
+                    <button
+                      onClick={onClearEvModels}
+                      disabled={locked}
+                      className={cn(
+                        "flex items-center justify-center h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 dark:hover:text-red-400 border border-neutral-200/80 dark:border-neutral-700/80 transition-all",
+                        locked && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                )}
+                
+                <EvModelsManagerModal
+                  open={showEvModelsModal}
+                  onOpenChange={setShowEvModelsModal}
+                  onModelsChanged={onManageEvModels}
+                />
+              </div>
+            ) : (
+              <Tooltip content="Upgrade to Elite to unlock custom EV models">
+                <button
+                  className="group relative inline-flex h-10 overflow-hidden rounded-xl p-[1.5px] transition-transform hover:scale-105 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]"
+                >
+                  {/* Animated spinning gold gradient border */}
+                  <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FDE68A_0%,#F59E0B_20%,#D97706_40%,#F59E0B_60%,#FDE68A_80%,#FFFBEB_100%)]" />
+                  {/* Inner content */}
+                  <span className="relative inline-flex h-full w-full items-center justify-center gap-2 rounded-[9px] bg-white dark:bg-neutral-900 px-3 text-amber-600 dark:text-amber-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/30 transition-colors">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span className="text-xs font-semibold">Elite</span>
+                  </span>
+                </button>
+              </Tooltip>
+            )
           )}
 
           {/* Reset Button */}

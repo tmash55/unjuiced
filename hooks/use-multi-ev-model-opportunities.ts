@@ -141,8 +141,14 @@ function buildModelConfigs(
   isPro: boolean,
   limit: number
 ): EVModelConfig[] {
-  // If no active models, use preset mode (standard fetch)
-  if (activeModels.length === 0) {
+  // Safety: if user doesn't have pro (Elite) access, ignore custom models
+  // Custom models require Elite plan – the server would 403 anyway
+  if (!isPro && activeModels.length > 0) {
+    console.warn("[useMultiEvModel] Custom models require Elite access – falling back to preset mode");
+  }
+  
+  // If no active models (or not Elite), use preset mode (standard fetch)
+  if (activeModels.length === 0 || !isPro) {
     return [{
       filters: {
         sports: prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS,

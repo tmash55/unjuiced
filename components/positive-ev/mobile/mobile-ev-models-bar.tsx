@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Filter, Layers, Plus, X, Zap } from "lucide-react";
+import { ChevronDown, Filter, Layers, Lock, Plus, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEvModels } from "@/hooks/use-ev-models";
 import { EvModelsManagerModal } from "@/components/ev-models/ev-models-manager-modal";
@@ -21,12 +21,14 @@ interface MobileEvModelsBarProps {
   sharpPreset: SharpPreset;
   onSharpPresetChange?: (preset: SharpPreset) => void;
   onModelsChanged?: () => void;
+  hasElite?: boolean;
 }
 
 export function MobileEvModelsBar({
   sharpPreset,
   onSharpPresetChange,
   onModelsChanged,
+  hasElite = false,
 }: MobileEvModelsBarProps) {
   const { activeModels, toggleModel, deactivateAll } = useEvModels();
   const [managerOpen, setManagerOpen] = useState(false);
@@ -126,19 +128,23 @@ export function MobileEvModelsBar({
                   </div>
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setManagerOpen(true)}
-                className="flex items-center gap-2 text-neutral-600 dark:text-neutral-300"
-              >
-                <Layers className="w-4 h-4" />
-                Manage Models
-              </DropdownMenuItem>
+              {hasElite && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setManagerOpen(true)}
+                    className="flex items-center gap-2 text-neutral-600 dark:text-neutral-300"
+                  >
+                    <Layers className="w-4 h-4" />
+                    Manage Models
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Active custom models */}
-          {activeModels.map((model) => (
+          {/* Active custom models (Elite only) */}
+          {hasElite && activeModels.map((model) => (
             <button
               key={model.id}
               onClick={() => handleRemoveModel(model)}
@@ -153,14 +159,29 @@ export function MobileEvModelsBar({
             </button>
           ))}
 
-          {/* Add / Manage */}
-          <button
-            onClick={() => setManagerOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Models
-          </button>
+          {/* Add / Manage (Elite only) */}
+          {hasElite ? (
+            <button
+              onClick={() => setManagerOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Models
+            </button>
+          ) : (
+            <button
+              className="group relative inline-flex h-[30px] overflow-hidden rounded-lg p-[1px] shrink-0 transition-transform active:scale-95 shadow-[0_0_8px_rgba(245,158,11,0.25)]"
+            >
+              {/* Animated spinning gold gradient border */}
+              <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#FDE68A_0%,#F59E0B_20%,#D97706_40%,#F59E0B_60%,#FDE68A_80%,#FFFBEB_100%)]" />
+              {/* Inner content */}
+              <span className="relative inline-flex h-full w-full items-center justify-center gap-1.5 rounded-[7px] bg-white dark:bg-neutral-900 px-2.5 text-amber-600 dark:text-amber-400">
+                <Lock className="w-3 h-3" />
+                <span className="text-xs font-medium">Models</span>
+                <span className="text-[9px] font-bold px-1 py-px rounded bg-gradient-to-r from-amber-500 to-orange-500 text-white leading-tight">ELITE</span>
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
