@@ -90,7 +90,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const [debouncedSearch, setDebouncedSearch] = useState("");
   
   // Game filter state (multi-select) - null means not yet initialized
-  const [selectedGameIds, setSelectedGameIds] = useState<string[] | null>(null);
+  const [selectedGameIds, setSelectedGameIds] = useState<string[] | null>(
+    savedState?.selectedGameIds ?? null
+  );
   
   // Desktop sort state
   const [sortField, setSortField] = useState<"line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank" | null>(
@@ -102,9 +104,13 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   // Mobile-specific filter state
   const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
-  const [mobileSortField, setMobileSortField] = useState("l10Pct_desc");
+  const [mobileSortField, setMobileSortField] = useState(
+    savedState?.mobileSortField || "l10Pct_desc"
+  );
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
-  const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[] | null>(null);
+  const [mobileSelectedGameIds, setMobileSelectedGameIds] = useState<string[] | null>(
+    savedState?.mobileSelectedGameIds ?? null
+  );
   
   // Advanced filter state
   const [hideNoOdds, setHideNoOdds] = useState(false);
@@ -312,12 +318,15 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         selectedMarkets,
         sortField,
         sortDirection,
+        selectedGameIds,
+        mobileSelectedGameIds,
+        mobileSortField,
       };
       sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify(state));
     } catch (e) {
       console.error("Failed to save filter state:", e);
     }
-  }, [selectedMarkets, sortField, sortDirection]);
+  }, [selectedMarkets, sortField, sortDirection, selectedGameIds, mobileSelectedGameIds, mobileSortField]);
 
   // Clear saved filter state after it's been restored
   useEffect(() => {
