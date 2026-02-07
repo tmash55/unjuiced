@@ -111,6 +111,8 @@ function buildQueryParams(filters: PositiveEVFilters, isPro: boolean): URLSearch
   }
   const limit = filters.limit || (isPro ? 200 : 50);
   params.set("limit", String(limit));
+  // Stream refreshes should bypass API response cache to avoid stale rows.
+  params.set("fresh", "true");
   
   return params;
 }

@@ -756,6 +756,19 @@ async function fetchPositiveEVOpportunities(
 
       if (!sharpOver || !sharpUnder) continue;
 
+      // In custom model mode, enforce min-books against the actual
+      // reference books that contributed on BOTH sides after exclusions.
+      // This ensures we only surface rows with enough true paired refs.
+      if (customSharpConfig) {
+        const sharpOverRefs = new Set(sharpOver.blendedFrom ?? [sharpOver.source.toLowerCase()]);
+        const sharpUnderRefs = new Set(sharpUnder.blendedFrom ?? [sharpUnder.source.toLowerCase()]);
+        const sharedRefCount = Array.from(sharpOverRefs).filter((book) => sharpUnderRefs.has(book)).length;
+
+        if (sharedRefCount < minBooksPerSide) {
+          continue;
+        }
+      }
+
       // De-vig using the sharp reference
       const devigResults = devigMultiple(sharpOver.price, sharpUnder.price, devigMethods);
 

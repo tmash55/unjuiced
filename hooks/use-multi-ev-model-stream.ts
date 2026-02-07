@@ -209,6 +209,8 @@ function buildQueryParams(config: ModelConfig, isPro: boolean): URLSearchParams 
   }
   
   params.set("limit", String(filters.limit));
+  // Stream refreshes should bypass API response cache to avoid stale rows.
+  params.set("fresh", "true");
   
   return params;
 }
