@@ -1,18 +1,100 @@
-
 import type { ArbRow } from "@/lib/arb-schema";
+import { formatMarketLabel } from "@/lib/data/markets";
+import { isMarketSelected } from "@/lib/utils";
 
 export type MarketType = 'player' | 'game';
+export type ArbMarketOption = {
+  key: string;
+  label: string;
+  sports: string[];
+};
 
 export type ArbPrefs = {
   selectedBooks: string[];
   selectedSports: string[];
   selectedLeagues: string[];
   selectedMarketTypes: MarketType[];
+  selectedMarkets: string[];
   minArb: number;
   maxArb: number;
   searchQuery: string;
   minLiquidity?: number;
 };
+
+const SPORT_NAME_TO_KEY: Record<string, string> = {
+  football: "football",
+  basketball: "basketball",
+  baseball: "baseball",
+  hockey: "hockey",
+  soccer: "soccer",
+};
+
+export function normalizeArbMarketKey(market: string): string {
+  return (market || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_");
+}
+
+export function getArbSportKey(row: ArbRow): string {
+  const leagueId = String(row.lg?.id || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  if (leagueId) return leagueId;
+
+  const sport = String(row.lg?.sport || "")
+    .toLowerCase()
+    .trim();
+  if (!sport) return "other";
+
+  return SPORT_NAME_TO_KEY[sport] || sport.replace(/\s+/g, "_");
+}
+
+function fallbackMarketLabel(market: string): string {
+  return market
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function getArbMarketLabel(market: string): string {
+  const normalized = normalizeArbMarketKey(market);
+  const fromCatalog = formatMarketLabel(normalized);
+  if (fromCatalog && fromCatalog.toLowerCase() !== normalized) return fromCatalog;
+  return fallbackMarketLabel(normalized);
+}
+
+export function buildArbMarketOptions(rows: ArbRow[]): ArbMarketOption[] {
+  const byMarket = new Map<string, { label: string; sports: Set<string> }>();
+
+  for (const row of rows) {
+    const marketKey = normalizeArbMarketKey(row.mkt || "");
+    if (!marketKey) continue;
+
+    const sportKey = getArbSportKey(row);
+    const existing = byMarket.get(marketKey);
+
+    if (existing) {
+      existing.sports.add(sportKey);
+      continue;
+    }
+
+    byMarket.set(marketKey, {
+      label: getArbMarketLabel(marketKey),
+      sports: new Set([sportKey]),
+    });
+  }
+
+  return Array.from(byMarket.entries())
+    .map(([key, value]) => ({
+      key,
+      label: value.label,
+      sports: Array.from(value.sports).sort(),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 
 // Determine if a market is a player prop or game prop
 export function getMarketType(market: string): MarketType {
@@ -130,6 +212,13 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   if (prefs.selectedMarketTypes && prefs.selectedMarketTypes.length > 0 && prefs.selectedMarketTypes.length < 2) {
     const marketType = getMarketType(row.mkt || '');
     if (!prefs.selectedMarketTypes.includes(marketType)) return false;
+  }
+
+  // Filter by specific markets per sport/league.
+  if (prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
+    const sport = getArbSportKey(row);
+    const market = normalizeArbMarketKey(row.mkt || "");
+    if (!isMarketSelected(prefs.selectedMarkets, sport, market)) return false;
   }
 
   // Filter by leagues only (not sports) - leagues are more granular
