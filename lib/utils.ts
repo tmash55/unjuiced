@@ -67,19 +67,13 @@ export function isMarketSelected(
       const [selectedSport, selectedMarket] = selectedLower.split(":");
       if (selectedSport && selectedMarket) {
         if (selectedSport !== sportLower) return false;
-        return (
-          selectedMarket === marketLower ||
-          marketLower.includes(selectedMarket) ||
-          selectedMarket.includes(marketLower)
-        );
+        // Use exact match only - substring matching caused false positives
+        // e.g., "player_pa" would incorrectly match "player_points"
+        return selectedMarket === marketLower;
       }
     }
 
-    // Plain key (global / backwards compat)
-    return (
-      selectedLower === marketLower ||
-      marketLower.includes(selectedLower) ||
-      selectedLower.includes(marketLower)
-    );
+    // Plain key (global / backwards compat) - exact match only
+    return selectedLower === marketLower;
   });
 }

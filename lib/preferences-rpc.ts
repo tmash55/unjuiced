@@ -47,6 +47,7 @@ export interface UserPreferences {
   arbitrage_selected_sports?: string[];
   arbitrage_selected_leagues?: string[];
   arbitrage_selected_market_types?: string[];
+  arbitrage_selected_markets?: string[];
   arbitrage_min_arb?: number;
   arbitrage_max_arb?: number;
   arbitrage_total_bet_amount?: number;
@@ -168,6 +169,7 @@ export class PreferencesRPC {
       arbitrage_selected_sports: data?.arbitrage_selected_sports !== null ? data?.arbitrage_selected_sports : undefined,
       arbitrage_selected_leagues: data?.arbitrage_selected_leagues !== null ? data?.arbitrage_selected_leagues : undefined,
       arbitrage_selected_market_types: data?.arbitrage_selected_market_types !== null ? data?.arbitrage_selected_market_types : undefined,
+      arbitrage_selected_markets: data?.arbitrage_selected_markets !== null ? data?.arbitrage_selected_markets : undefined,
       arbitrage_min_arb: data?.arbitrage_min_arb ?? 0,
       arbitrage_max_arb: data?.arbitrage_max_arb ?? 20,
       arbitrage_total_bet_amount: typeof data?.arbitrage_total_bet_amount === 'number' ? data!.arbitrage_total_bet_amount : (data?.arbitrage_total_bet_amount ? Number(data?.arbitrage_total_bet_amount) : undefined),
@@ -321,6 +323,7 @@ export class PreferencesRPC {
         arbitrage_selected_books: [],
         arbitrage_selected_sports: [],
         arbitrage_selected_leagues: [],
+        arbitrage_selected_markets: [],
         arbitrage_min_arb: 0,
         arbitrage_search_query: "",
         ev_selected_books: [],

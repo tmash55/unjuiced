@@ -18,6 +18,7 @@ import type { ArbRow } from "@/lib/arb-schema";
 import { FiltersSheet } from "../filters-sheet";
 import Lock from "@/icons/lock";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import type { ArbMarketOption } from "@/lib/arb-filters";
 
 // Skeleton component for loading state
 function ArbCardSkeleton({ delay = 0 }: { delay?: number }) {
@@ -100,6 +101,7 @@ interface MobileArbsViewProps {
   rows: ArbRow[];
   changes: Map<string, { roi?: "up" | "down"; o?: "up" | "down"; u?: "up" | "down" }>;
   added?: Set<string>;
+  availableMarkets?: ArbMarketOption[];
   totalBetAmount: number;
   roundBets?: boolean;
   isPro: boolean;
@@ -120,6 +122,7 @@ export function MobileArbsView({
   rows,
   changes,
   added,
+  availableMarkets = [],
   totalBetAmount,
   roundBets = false,
   isPro,
@@ -288,7 +291,7 @@ export function MobileArbsView({
             </button>
             
             {/* Filters */}
-            <FiltersSheet pro={isPro} isLoggedIn={isLoggedIn}>
+            <FiltersSheet pro={isPro} isLoggedIn={isLoggedIn} availableMarkets={availableMarkets}>
               <button className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
                 <Filter className="w-4 h-4" />
               </button>

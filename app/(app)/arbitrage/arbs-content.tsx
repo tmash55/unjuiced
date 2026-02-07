@@ -17,7 +17,9 @@ import { MobileArbsView } from "@/components/arbs/mobile";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import { getAllLeagues } from "@/lib/data/sports";
-import type { MarketType } from "@/lib/arb-filters";
+import type { MarketType, ArbMarketOption } from "@/lib/arb-filters";
+import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { formatMarketLabel } from "@/lib/data/markets";
 
 // Available leagues for arbitrage
 const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
@@ -88,7 +90,51 @@ export default function ArbsPage() {
   // Fetch all results at once (no pagination)
   const limit = pro ? 1000 : 100;
   
-  const { rows, ids, changes, added, version, loading, connected, cursor, hasMore, nextPage, prevPage, refresh, prefs, prefsLoading, updateFilters, counts, authExpired, reconnectNow, hasActiveFilters, hasFailed, filteredCount, filteredReason } = useArbsView({ pro: pro, live: auto, eventId, limit, mode });
+  const { rows, ids, changes, added, version, loading, connected, cursor, hasMore, nextPage, prevPage, refresh, prefs, prefsLoading, updateFilters, counts, authExpired, reconnectNow, hasActiveFilters, hasFailed, filteredCount, filteredReason, availableMarketOptions: rowDerivedMarkets } = useArbsView({ pro: pro, live: auto, eventId, limit, mode });
+  
+  // Dynamically fetch available markets from the API (same as EV/Edge Finder)
+  // This ensures we show ALL markets in the filter, not just those with current arb rows
+  const { data: marketsData } = useAvailableMarkets(AVAILABLE_LEAGUES);
+  const apiMarketOptions = useMemo((): ArbMarketOption[] => {
+    if (marketsData?.aggregatedMarkets && marketsData.aggregatedMarkets.length > 0) {
+      return marketsData.aggregatedMarkets.map((market) => ({
+        key: market.key,
+        label: market.display && market.display.length > 3 ? market.display : formatMarketLabel(market.key),
+        sports: market.sports || [],
+      }));
+    }
+    return FALLBACK_MARKETS.map((market) => ({
+      key: market,
+      label: formatMarketLabel(market),
+      sports: [],
+    }));
+  }, [marketsData?.aggregatedMarkets]);
+
+  // Merge API-provided markets with row-derived markets
+  // API markets give comprehensive coverage; row-derived markets catch any arb-specific keys
+  const availableMarketOptions = useMemo((): ArbMarketOption[] => {
+    const seen = new Set<string>();
+    const merged: ArbMarketOption[] = [];
+
+    // Start with API markets (authoritative, has sport associations)
+    for (const m of apiMarketOptions) {
+      if (!seen.has(m.key)) {
+        seen.add(m.key);
+        merged.push(m);
+      }
+    }
+
+    // Add any row-derived markets that the API didn't return
+    for (const m of rowDerivedMarkets) {
+      if (!seen.has(m.key)) {
+        seen.add(m.key);
+        merged.push(m);
+      }
+    }
+
+    return merged.sort((a, b) => a.label.localeCompare(b.label));
+  }, [apiMarketOptions, rowDerivedMarkets]);
+
   const [refreshing, setRefreshing] = useState(false);
   const [searchLocal, setSearchLocal] = useState("");
   const [showConnectionError, setShowConnectionError] = useState(false);
@@ -168,6 +214,7 @@ export default function ArbsPage() {
         rows={fRows}
         changes={changes}
         added={added}
+        availableMarkets={availableMarketOptions}
         totalBetAmount={prefs.totalBetAmount}
         roundBets={roundBets}
         isPro={pro}
@@ -241,10 +288,10 @@ export default function ArbsPage() {
         updateFilters({ selectedLeagues: leagues });
       }}
       availableLeagues={AVAILABLE_LEAGUES}
-      // Markets (arbitrage uses market types instead, pass empty)
-      selectedMarkets={[]}
-      onMarketsChange={() => {}}
-      availableMarkets={[]}
+      // Markets
+      selectedMarkets={prefs.selectedMarkets || []}
+      onMarketsChange={(markets) => updateFilters({ selectedMarkets: markets })}
+      availableMarkets={availableMarketOptions}
       // Sportsbooks
       selectedBooks={prefs.selectedBooks || []}
       onBooksChange={(books) => updateFilters({ selectedBooks: books })}
@@ -280,6 +327,7 @@ export default function ArbsPage() {
           selectedLeagues: AVAILABLE_LEAGUES,
           selectedBooks: [],
           selectedMarketTypes: ['player', 'game'],
+          selectedMarkets: [],
           minArb: 0,
           maxArb: 20,
           totalBetAmount: 200,

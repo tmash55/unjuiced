@@ -31,6 +31,7 @@ interface PreferencesContextType {
     selectedSports?: string[];
     selectedLeagues?: string[];
     selectedMarketTypes?: ('player' | 'game')[];
+    selectedMarkets?: string[];
     minArb?: number;
     maxArb?: number;
     totalBetAmount?: number;
@@ -44,6 +45,7 @@ interface PreferencesContextType {
     selectedSports: string[];
     selectedLeagues: string[];
     selectedMarketTypes: ('player' | 'game')[];
+    selectedMarkets: string[];
     minArb: number;
     maxArb: number;
     totalBetAmount: number;
@@ -188,6 +190,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedSports?: string[];
     selectedLeagues?: string[];
     selectedMarketTypes?: ('player' | 'game')[];
+    selectedMarkets?: string[];
     minArb?: number;
     maxArb?: number;
     totalBetAmount?: number;
@@ -489,6 +492,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     selectedSports?: string[];
     selectedLeagues?: string[];
     selectedMarketTypes?: ('player' | 'game')[];
+    selectedMarkets?: string[];
     minArb?: number;
     maxArb?: number;
     searchQuery?: string;
@@ -516,6 +520,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     }
     if (filters.selectedMarketTypes !== undefined) {
       (updates as any).arbitrage_selected_market_types = filters.selectedMarketTypes;
+    }
+    if (filters.selectedMarkets !== undefined) {
+      (updates as any).arbitrage_selected_markets = filters.selectedMarkets;
     }
     if (filters.minArb !== undefined) {
       updates.arbitrage_min_arb = filters.minArb;
@@ -639,8 +646,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
 
   const getArbitrageFilters = useCallback(() => {
     // Get all sports and leagues for defaults (matching vendor API format)
-    const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey'];
-    const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'];
+    const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer'];
+    const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl', 'soccer_epl'];
     const allMarketTypes: ('player' | 'game')[] = ['player', 'game'];
     
     // If logged-out user, use guest state with defaults
@@ -650,6 +657,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         selectedSports: guestArb.selectedSports ?? allSportsIds,
         selectedLeagues: guestArb.selectedLeagues ?? allLeaguesIds,
         selectedMarketTypes: guestArb.selectedMarketTypes ?? allMarketTypes,
+        selectedMarkets: guestArb.selectedMarkets ?? [],
         minArb: guestArb.minArb ?? 0,
         maxArb: guestArb.maxArb ?? 20,
         totalBetAmount: guestArb.totalBetAmount ?? 200,
@@ -666,6 +674,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         selectedSports: allSportsIds,
         selectedLeagues: allLeaguesIds,
         selectedMarketTypes: allMarketTypes,
+        selectedMarkets: [],
         minArb: 0,
         maxArb: 20,
         totalBetAmount: 200,
@@ -689,6 +698,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       selectedSports: preferences.arbitrage_selected_sports ?? allSportsIds,
       selectedLeagues: preferences.arbitrage_selected_leagues ?? allLeaguesIds,
       selectedMarketTypes: (preferences as any).arbitrage_selected_market_types ?? allMarketTypes,
+      selectedMarkets: (preferences as any).arbitrage_selected_markets ?? [],
       minArb: preferences.arbitrage_min_arb ?? 0,
       maxArb: preferences.arbitrage_max_arb ?? 20,
       totalBetAmount: (typeof preferences.arbitrage_total_bet_amount === 'number' ? preferences.arbitrage_total_bet_amount : Number(preferences.arbitrage_total_bet_amount)) ?? 200,

@@ -123,6 +123,7 @@ export function SportsDropdown({
 
   // Determine if using sports or leagues based on tool
   const isPositiveEV = tool === "positive-ev";
+  const showMarketsPanel = availableMarkets.length > 0;
   const propSelected = isPositiveEV ? selectedSports : selectedLeagues;
   const available = isPositiveEV ? availableSports : availableLeagues;
   const propOnChange = isPositiveEV ? onSportsChange : onLeaguesChange;
@@ -413,24 +414,14 @@ export function SportsDropdown({
         >
           <SportIcon sport={propPrimarySport} className="w-4 h-4" />
           <span className="hidden sm:inline text-xs">
-            {tool === "arbitrage" ? (
-              // Arbitrage: only show leagues, no markets
-              !propAllSportsSelected ? (
-                <span className="text-neutral-500 dark:text-neutral-400">{sportsText}</span>
-              ) : (
-                "Leagues"
-              )
+            {!propAllSportsSelected || !propAllMarketsSelected ? (
+              <span className="text-neutral-500 dark:text-neutral-400">
+                {!propAllSportsSelected && sportsText}
+                {!propAllSportsSelected && !propAllMarketsSelected && " · "}
+                {!propAllMarketsSelected && marketsText}
+              </span>
             ) : (
-              // Positive EV / Edge Finder: show both sports/leagues and markets
-              !propAllSportsSelected || !propAllMarketsSelected ? (
-                <span className="text-neutral-500 dark:text-neutral-400">
-                  {!propAllSportsSelected && sportsText}
-                  {!propAllSportsSelected && !propAllMarketsSelected && " · "}
-                  {!propAllMarketsSelected && marketsText}
-                </span>
-              ) : (
-                "Filters"
-              )
+              "Filters"
             )}
           </span>
           <ChevronDown className="w-3 h-3 opacity-60" />
@@ -441,15 +432,15 @@ export function SportsDropdown({
         align="start" 
         className={cn(
           "p-0 overflow-hidden",
-          tool === "arbitrage" ? "w-[220px]" : "w-[800px]"
+          showMarketsPanel ? "w-[800px]" : "w-[220px]"
         )}
         sideOffset={4}
       >
-        <div className={cn("flex", tool === "arbitrage" ? "h-[300px]" : "h-[600px]")}>
+        <div className={cn("flex", showMarketsPanel ? "h-[600px]" : "h-[300px]")}>
           {/* Left Column - Sports/Leagues */}
           <div className={cn(
             "border-r border-neutral-200 dark:border-neutral-700 flex flex-col",
-            tool === "arbitrage" ? "w-full border-r-0" : "w-[200px]"
+            showMarketsPanel ? "w-[200px]" : "w-full border-r-0"
           )}>
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between">
@@ -507,8 +498,8 @@ export function SportsDropdown({
               })}
             </div>
             
-            {/* Footer for arbitrage (when no markets column) */}
-            {tool === "arbitrage" && (
+            {/* Footer for single-column mode */}
+            {!showMarketsPanel && (
               <div className="px-3 py-2 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 flex justify-end">
                 <button
                   onClick={() => handleOpenChange(false)}
@@ -520,8 +511,8 @@ export function SportsDropdown({
             )}
           </div>
 
-          {/* Right Column - Markets (hidden for arbitrage) */}
-          {tool !== "arbitrage" && (
+          {/* Right Column - Markets */}
+          {showMarketsPanel && (
           <div className="flex-1 flex flex-col">
             <div className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50">
               <div className="flex items-center justify-between mb-2">
