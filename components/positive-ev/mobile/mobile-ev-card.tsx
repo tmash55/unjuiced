@@ -18,7 +18,8 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
 import { impliedProbToAmerican } from "@/lib/ev/devig";
 
-const EXTREME_EV_THRESHOLD = 100;
+const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+const EXTREME_EV_THRESHOLD = 1000;
 const EXTREME_EV_WARNING =
   "This large +EV likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on +EV this large.";
 
@@ -182,6 +183,7 @@ export function MobileEVCard({
   // Get EV based on case selection
   const baseEV = evCase === "best" ? opp.evCalculations.evBest : opp.evCalculations.evWorst;
   const displayEV = boostPercent > 0 ? baseEV * (1 + boostPercent / 100) : baseEV;
+  const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
   
   const calculateBoostedEV = useCallback((baseEV: number, decimalOdds: number, fairProb: number, boost: number) => {
     if (boost <= 0) return baseEV;
@@ -365,18 +367,18 @@ export function MobileEVCard({
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
               "px-2 py-1 rounded-full flex items-center justify-center gap-1",
-              displayEV >= EXTREME_EV_THRESHOLD
+              isExtremeEV
                 ? "bg-amber-500/20 ring-1 ring-amber-400/50"
                 : cn(getEVBgColor(displayEV), boostPercent > 0 && "ring-1 ring-amber-400/50")
             )}>
-              {displayEV >= EXTREME_EV_THRESHOLD ? (
+              {isExtremeEV ? (
                 <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
               ) : boostPercent > 0 ? (
                 <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
               ) : null}
               <span className={cn(
                 "text-[10px] font-bold tabular-nums leading-none",
-                displayEV >= EXTREME_EV_THRESHOLD ? "text-amber-600 dark:text-amber-400" : getEVColor(displayEV)
+                isExtremeEV ? "text-amber-600 dark:text-amber-400" : getEVColor(displayEV)
               )}>
                 +{displayEV.toFixed(1)}%
               </span>
@@ -447,7 +449,7 @@ export function MobileEVCard({
       </div>
       
       {/* Extreme EV warning banner */}
-      {displayEV >= EXTREME_EV_THRESHOLD && (
+      {isExtremeEV && (
         <div className="mx-3 mt-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
           <p className="text-[10px] leading-tight text-amber-700 dark:text-amber-400">

@@ -107,11 +107,15 @@ const EV_LOADING_MESSAGES = [
 ];
 
 /**
- * Threshold for flagging suspiciously large EV values.
- * EV above this is almost always due to a player being ruled out
- * on prediction markets while sportsbooks haven't adjusted.
+ * Prediction market books whose extreme pricing signals a player is likely out.
  */
-const EXTREME_EV_THRESHOLD = 100; // 100%+
+const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+
+/**
+ * Threshold for flagging suspiciously large EV values.
+ * Only applies when the best book is a prediction market (Polymarket/Kalshi).
+ */
+const EXTREME_EV_THRESHOLD = 1000; // 1000%+
 
 const EXTREME_EV_WARNING =
   "This large +EV likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on +EV this large.";
@@ -1532,6 +1536,7 @@ export default function PositiveEVPage() {
                 : baseEV;
               
               const evFormat = formatEVPercent(displayEV);
+              const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               const book = getSportsbookById(opp.book.bookId);
               const isExpanded = expandedRows.has(opp.id);
               const showLogos = hasTeamLogos(opp.sport);
@@ -1683,8 +1688,8 @@ export default function PositiveEVPage() {
                       "group/row transition-all duration-200 border-l-4",
                       effectiveIsPro ? "cursor-pointer" : "cursor-default",
                       // EV-based left accent border for quick visual scanning
-                      !isGreyedOut && displayEV >= EXTREME_EV_THRESHOLD && "border-l-amber-500",
-                      !isGreyedOut && displayEV < EXTREME_EV_THRESHOLD && evFormat.accentClass,
+                      !isGreyedOut && isExtremeEV && "border-l-amber-500",
+                      !isGreyedOut && !isExtremeEV && evFormat.accentClass,
                       isGreyedOut && "border-l-neutral-300 dark:border-l-neutral-700",
                       !isGreyedOut && "hover:bg-gradient-to-r hover:from-emerald-50/80 hover:to-emerald-50/20 dark:hover:from-emerald-950/40 dark:hover:to-emerald-950/10",
                       index % 2 === 0 
@@ -1808,7 +1813,7 @@ export default function PositiveEVPage() {
                                   </div>
                                 </div>
                               )}
-                              {displayEV >= EXTREME_EV_THRESHOLD && (
+                              {isExtremeEV && (
                                 <div className="pt-2 border-t border-amber-200 dark:border-amber-700">
                                   <div className="flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
                                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -1822,13 +1827,13 @@ export default function PositiveEVPage() {
                           <div className={cn(
                             "inline-flex items-center gap-0.5 lg:gap-1 px-1.5 lg:px-2.5 py-1 lg:py-1.5 rounded-md lg:rounded-lg text-[11px] lg:text-sm font-bold tabular-nums cursor-help",
                             "shadow-sm border",
-                            displayEV >= EXTREME_EV_THRESHOLD
+                            isExtremeEV
                               ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 ring-1 ring-amber-400/40"
                               : boostPercent > 0 
                                 ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-700/50 ring-1 ring-amber-400/30"
                                 : cn(evFormat.bgClass, evFormat.color, "border-emerald-200/50 dark:border-emerald-800/50")
                           )}>
-                            {displayEV >= EXTREME_EV_THRESHOLD ? (
+                            {isExtremeEV ? (
                               <AlertTriangle className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-amber-500" />
                             ) : boostPercent > 0 ? (
                               <Zap className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-amber-500" />

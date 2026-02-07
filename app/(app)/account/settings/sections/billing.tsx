@@ -22,7 +22,7 @@ export default function BillingSettings({ user }: { user: any }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          returnUrl: window.location.origin + "/account/settings",
+          returnUrl: window.location.origin + "/account/settings/billing",
         }),
       });
 

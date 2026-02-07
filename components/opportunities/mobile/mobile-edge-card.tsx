@@ -57,7 +57,8 @@ function getEdgeBgColor(edge: number | null): string {
   return "bg-neutral-100 dark:bg-neutral-800";
 }
 
-const EXTREME_EDGE_THRESHOLD = 100;
+const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+const EXTREME_EDGE_THRESHOLD = 1000;
 const EXTREME_EDGE_WARNING =
   "This large edge likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on edges this large.";
 
@@ -269,6 +270,7 @@ export function MobileEdgeCard({
   // Get best book info
   const bestBookInfo = getSportsbookById(opp.bestBook);
   const bestBookLogo = getBookLogo(opp.bestBook);
+  const isExtremeEdge = boostedEdge >= EXTREME_EDGE_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.bestBook || "").toLowerCase());
   
   // Determine if this is a player prop
   const isPlayerProp = opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam;
@@ -355,18 +357,18 @@ export function MobileEdgeCard({
           <div className="flex items-center gap-1.5 shrink-0">
             <div className={cn(
               "px-2 py-1 rounded-full flex items-center justify-center gap-0.5",
-              boostedEdge >= EXTREME_EDGE_THRESHOLD
+              isExtremeEdge
                 ? "bg-amber-500/20 ring-1 ring-amber-400/50"
                 : cn(getEdgeBgColor(boostedEdge), boostPercent > 0 && "ring-1 ring-amber-400/50")
             )}>
-              {boostedEdge >= EXTREME_EDGE_THRESHOLD && (
+              {isExtremeEdge && (
                 <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
               )}
               <span className={cn(
                 "text-[10px] font-bold tabular-nums leading-none",
-                boostedEdge >= EXTREME_EDGE_THRESHOLD ? "text-amber-600 dark:text-amber-400" : getEdgeColor(boostedEdge)
+                isExtremeEdge ? "text-amber-600 dark:text-amber-400" : getEdgeColor(boostedEdge)
               )}>
-                {boostPercent > 0 && boostedEdge < EXTREME_EDGE_THRESHOLD && <span className="text-amber-500 mr-0.5">⚡</span>}
+                {boostPercent > 0 && !isExtremeEdge && <span className="text-amber-500 mr-0.5">⚡</span>}
                 +{boostedEdge.toFixed(1)}%
               </span>
             </div>
@@ -445,7 +447,7 @@ export function MobileEdgeCard({
       </div>
       
       {/* Extreme edge warning banner */}
-      {boostedEdge >= EXTREME_EDGE_THRESHOLD && (
+      {isExtremeEdge && (
         <div className="mx-2.5 mt-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
           <p className="text-[10px] leading-tight text-amber-700 dark:text-amber-400">

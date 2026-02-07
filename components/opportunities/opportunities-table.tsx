@@ -99,11 +99,15 @@ function formatSelectionDisplay(playerName: string | null | undefined, marketDis
 }
 
 /**
- * Threshold for flagging suspiciously large edges.
- * Edges above this are almost always due to a player being ruled out
- * on prediction markets (Polymarket, Kalshi) while sportsbooks haven't adjusted.
+ * Prediction market books whose extreme pricing signals a player is likely out.
  */
-const EXTREME_EDGE_THRESHOLD = 100; // 100%+
+const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
+
+/**
+ * Threshold for flagging suspiciously large edges.
+ * Only applies when the best book is a prediction market (Polymarket/Kalshi).
+ */
+const EXTREME_EDGE_THRESHOLD = 1000; // 1000%+
 
 const EXTREME_EDGE_WARNING =
   "This large edge likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on edges this large.";
@@ -803,7 +807,7 @@ export function OpportunitiesTable({
         const boostedEdge = boostPercent > 0 ? baseEdge * (1 + boostPercent / 100) : baseEdge;
         const displayEdge = boostedEdge;
         const edgeFormat = getEdgeFormat(displayEdge);
-        const isExtremeEdge = displayEdge >= EXTREME_EDGE_THRESHOLD;
+        const isExtremeEdge = displayEdge >= EXTREME_EDGE_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.bestBook || "").toLowerCase());
         
         return (
           <td key="edge" className="px-2 lg:px-3 py-2 lg:py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
@@ -2089,7 +2093,7 @@ export function OpportunitiesTable({
                     (() => {
                       const edge = opp.edgePct ?? 0;
                       if (isHiddenRow || isStale) return "border-l-neutral-300 dark:border-l-neutral-700";
-                      if (edge >= EXTREME_EDGE_THRESHOLD) return "border-l-amber-500";
+                      if (edge >= EXTREME_EDGE_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.bestBook || "").toLowerCase())) return "border-l-amber-500";
                       return getEdgeFormat(edge).accentClass;
                     })(),
                     "hover:bg-gradient-to-r hover:from-amber-50/80 hover:to-amber-50/20 dark:hover:from-amber-950/40 dark:hover:to-amber-950/10",
