@@ -190,12 +190,18 @@ export function matchesArbRow(row: ArbRow, prefs: ArbPrefs): boolean {
   if (pct < prefs.minArb || pct > prefs.maxArb) return false;
 
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const blockedBooks = new Set(["hardrockindiana", "hard-rock-indiana"]);
+
+  // Always suppress Hard Rock Indiana rows from arbitrage results.
+  const overBook = normalize(String(row.o?.bk || ""));
+  const underBook = normalize(String(row.u?.bk || ""));
+  if (blockedBooks.has(overBook) || blockedBooks.has(underBook)) return false;
   
   // Sportsbooks filter: empty array means ALL books are included
   if (prefs.selectedBooks.length > 0) {
     const books = new Set(prefs.selectedBooks.map((b) => normalize(b)));
-    const overOk = books.has(normalize(String(row.o?.bk || "")));
-    const underOk = books.has(normalize(String(row.u?.bk || "")));
+    const overOk = books.has(overBook);
+    const underOk = books.has(underBook);
     if (!(overOk && underOk)) return false;
   }
 

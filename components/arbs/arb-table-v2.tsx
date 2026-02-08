@@ -39,6 +39,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   const [customWagers, setCustomWagers] = useState<Record<string, { over: string; under: string }>>({});
   const customWagersRef = React.useRef<Record<string, { over: string; under: string }>>({});
   const [pinnedRowId, setPinnedRowId] = useState<string | null>(null);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [calculatorRowId, setCalculatorRowId] = useState<string | null>(null);
+  const [calculatorDefaults, setCalculatorDefaults] = useState({
+    overOdds: 0,
+    underOdds: 0,
+    overStake: 0,
+    underStake: 0,
+  });
+  const [calculatorApplied, setCalculatorApplied] = useState<{
+    rowId: string;
+    over: string;
+    under: string;
+  } | null>(null);
+  const calculatorSnapshotRef = React.useRef<ArbRowWithId | null>(null);
 
   const setCustomWagersBoth = React.useCallback((updater: (prev: Record<string, { over: string; under: string }>) => Record<string, { over: string; under: string }>) => {
     setCustomWagers(prev => {
@@ -47,6 +61,41 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       return next;
     });
   }, []);
+
+  const openCalculator = React.useCallback((
+    row: ArbRowWithId,
+    rowId: string,
+    defaults: { overOdds: number; underOdds: number; overStake: number; underStake: number }
+  ) => {
+    calculatorSnapshotRef.current = row;
+    setCalculatorRowId(rowId);
+    setCalculatorDefaults(defaults);
+    setCalculatorOpen(true);
+  }, []);
+
+  const closeCalculator = React.useCallback(() => {
+    setCalculatorOpen(false);
+  }, []);
+
+  const applyCalculatorToRow = React.useCallback((newOver: number, newUnder: number) => {
+    if (!calculatorRowId) return;
+    const overFinal = roundBets ? Math.round(newOver) : Math.round(newOver * 100) / 100;
+    const underFinal = roundBets ? Math.round(newUnder) : Math.round(newUnder * 100) / 100;
+    const overText = roundBets ? String(overFinal) : overFinal.toFixed(2);
+    const underText = roundBets ? String(underFinal) : underFinal.toFixed(2);
+    setCustomWagersBoth(prev => ({
+      ...prev,
+      [calculatorRowId]: {
+        over: overText,
+        under: underText,
+      },
+    }));
+    setCalculatorApplied({
+      rowId: calculatorRowId,
+      over: overText,
+      under: underText,
+    });
+  }, [calculatorRowId, roundBets, setCustomWagersBoth]);
 
   // Utility functions
   const logo = (id?: string) => SB_MAP.get(norm(id))?.logo;
@@ -285,7 +334,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   };
 
   // Arb Calculator Modal - allows editing odds and amounts
-  function ArbCalculatorModal({ 
+  // Memoize the component type so stream updates don't remount it (flicker).
+  const ArbCalculatorModal = React.useMemo(() => function ArbCalculatorModal({ 
     row, 
     isOpen, 
     onClose, 
@@ -730,7 +780,7 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       </AnimatePresence>,
       document.body
     );
-  }
+  }, []);
 
   // Local, focus-safe cell for bet size editing. Avoids table-level re-renders on each keystroke.
   function BetSizeCell({ r, id }: { r: ArbRowWithId; id: string }) {
@@ -740,7 +790,6 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
     };
     const [overLocal, setOverLocal] = React.useState<string>(formatAmount(plan.overStake));
     const [underLocal, setUnderLocal] = React.useState<string>(formatAmount(plan.underStake));
-    const [isCalcOpen, setIsCalcOpen] = React.useState(false);
 
     // Sync local state if row id changes
     React.useEffect(() => {
@@ -748,6 +797,12 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       setOverLocal(formatAmount(p.overStake));
       setUnderLocal(formatAmount(p.underStake));
     }, [id, roundBets, r]);
+
+    React.useEffect(() => {
+      if (!calculatorApplied || calculatorApplied.rowId !== id) return;
+      setOverLocal(calculatorApplied.over);
+      setUnderLocal(calculatorApplied.under);
+    }, [calculatorApplied, id]);
 
     const commitOver = (value: string) => {
       const input = parseFloat(value);
@@ -801,17 +856,6 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
       setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
     };
     
-    const handleCalcApply = (newOver: number, newUnder: number) => {
-      const overFinal = roundBets ? Math.round(newOver) : Math.round(newOver * 100) / 100;
-      const underFinal = roundBets ? Math.round(newUnder) : Math.round(newUnder * 100) / 100;
-      setCustomWagersBoth(prev => ({
-        ...prev,
-        [id]: { over: roundBets ? String(overFinal) : overFinal.toFixed(2), under: roundBets ? String(underFinal) : underFinal.toFixed(2) },
-      }));
-      setOverLocal(roundBets ? String(overFinal) : overFinal.toFixed(2));
-      setUnderLocal(roundBets ? String(underFinal) : underFinal.toFixed(2));
-    };
-
     return (
       <div className="flex items-stretch gap-1.5">
         <div className="bg-neutral-50/50 dark:bg-neutral-800/50 rounded-lg p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 min-w-[170px]">
@@ -894,25 +938,18 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setIsCalcOpen(true);
+              openCalculator(r, id, {
+                overOdds: Number(r.o?.od || 0),
+                underOdds: Number(r.u?.od || 0),
+                overStake: parseFloat(overLocal) || 0,
+                underStake: parseFloat(underLocal) || 0,
+              });
             }}
             className="flex items-center justify-center w-8 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-50/50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-700/50 transition-colors"
           >
             <Calculator className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
           </button>
         </Tooltip>
-        
-        {/* Calculator Modal */}
-        <ArbCalculatorModal
-          row={r}
-          isOpen={isCalcOpen}
-          onClose={() => setIsCalcOpen(false)}
-          defaultOverOdds={Number(r.o?.od || 0)}
-          defaultUnderOdds={Number(r.u?.od || 0)}
-          defaultOverStake={parseFloat(overLocal) || 0}
-          defaultUnderStake={parseFloat(underLocal) || 0}
-          onApply={handleCalcApply}
-        />
       </div>
     );
   }
@@ -1298,7 +1335,8 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
   }
 
   return (
-    <Table
+    <>
+      <Table
         {...tableProps}
         sortableColumns={["roi", "time"]}
         resourceName={(plural) => plural ? "opportunities" : "opportunity"}
@@ -1366,7 +1404,20 @@ export function ArbTableV2({ rows, ids, changes, added, totalBetAmount = 200, ro
               })
             };
           }}
-    />
+      />
+
+      {calculatorSnapshotRef.current && calculatorRowId && (
+        <ArbCalculatorModal
+          row={calculatorSnapshotRef.current}
+          isOpen={calculatorOpen}
+          onClose={closeCalculator}
+          defaultOverOdds={calculatorDefaults.overOdds}
+          defaultUnderOdds={calculatorDefaults.underOdds}
+          defaultOverStake={calculatorDefaults.overStake}
+          defaultUnderStake={calculatorDefaults.underStake}
+          onApply={applyCalculatorToRow}
+        />
+      )}
+    </>
   );
 }
-
