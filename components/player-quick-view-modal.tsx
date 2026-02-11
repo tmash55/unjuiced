@@ -1210,6 +1210,11 @@ export function PlayerQuickViewModal({
                       market={currentMarket}
                       line={activeLine}
                       gameId={profile?.gameId}
+                      gameDate={profile?.gameDate}
+                      homeTeamName={profile?.homeTeamName}
+                      awayTeamName={profile?.awayTeamName}
+                      startTime={profile?.startTime}
+                      anchorTeam={profile?.teamAbbr || profile?.teamName}
                       playerName={profilePlayerName}
                     />
                   </div>

@@ -213,15 +213,18 @@ export function MobileInjuryImpact({
     // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
     const eventId = row.eventId || `game_${row.gameId}`;
     const oddsKey = `odds:nba:${eventId}:${row.market}`;
+    const isHome = String(row.homeAway || "").toLowerCase() === "home";
+    const homeTeam = isHome ? row.teamAbbr : row.opponentAbbr;
+    const awayTeam = isHome ? row.opponentAbbr : row.teamAbbr;
     
     return {
       type: "player",
       sport: "nba",
       event_id: eventId,
       game_date: row.gameDate,
-      home_team: null,
-      away_team: null,
-      start_time: null,
+      home_team: homeTeam || null,
+      away_team: awayTeam || null,
+      start_time: row.startTime ?? null,
       player_id: String(row.playerId),
       player_name: row.playerName,
       player_team: row.teamAbbr,
@@ -230,7 +233,7 @@ export function MobileInjuryImpact({
       line: row.line,
       side: "over",
       odds_key: oddsKey,
-      odds_selection_id: row.oddsSelectionId,
+      odds_selection_id: row.selKey || row.oddsSelectionId,
       books_snapshot: booksSnapshot,
       best_price_at_save: bestPrice,
       best_book_at_save: bestBook,
@@ -881,4 +884,3 @@ export function MobileInjuryImpact({
     </div>
   );
 }
-

@@ -274,7 +274,7 @@ export function PlayerCard({ profile, odds, onCardClick, onAddToSlip, isFirst = 
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
       away_team: profile.awayTeamName?.split(" ").pop() || null,
-      start_time: null,
+      start_time: profile.startTime ?? null,
       player_id: String(profile.playerId),
       player_name: profile.playerName,
       player_team: profile.teamAbbr,

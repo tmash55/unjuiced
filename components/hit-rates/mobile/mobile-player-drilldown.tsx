@@ -28,6 +28,7 @@ import {
   Heart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import ChartIcon from "@/icons/chart";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
@@ -59,7 +60,8 @@ import { ChartFiltersState, DEFAULT_FILTERS, applyChartFilters } from "../chart-
 import type { PlayTypeFilter, ShotZoneFilter } from "../filter-drawer";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
 import { useMobileNav } from "@/contexts/mobile-nav-context";
-import { useFavorites, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { useFavorites, createFavoriteKey, type AddFavoriteParams, type BookSnapshot } from "@/hooks/use-favorites";
+import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { MobilePlayTypeAnalysis } from "./mobile-play-type-analysis";
 import { MobileShootingZones } from "./mobile-shooting-zones";
 
@@ -138,6 +140,22 @@ const getPctBgColor = (value: number | null) => {
   if (value >= 70) return "bg-emerald-50 dark:bg-emerald-900/20";
   if (value >= 50) return "bg-amber-50 dark:bg-amber-900/20";
   return "bg-red-50 dark:bg-red-900/20";
+};
+
+// Map correlation stat keys to DB market keys (for favorites/odds)
+const CORR_STAT_TO_MARKET: Record<string, string> = {
+  points: "player_points",
+  rebounds: "player_rebounds",
+  assists: "player_assists",
+  threes: "player_threes_made",
+  steals: "player_steals",
+  blocks: "player_blocks",
+  turnovers: "player_turnovers",
+  pra: "player_points_rebounds_assists",
+  pointsRebounds: "player_points_rebounds",
+  pointsAssists: "player_points_assists",
+  reboundsAssists: "player_rebounds_assists",
+  blocksSteals: "player_blocks_steals",
 };
 
 // Map market names to box score field names
@@ -4153,7 +4171,7 @@ export function MobilePlayerDrilldown({
   }, [oddsLineData, fullOddsData, customLine, profile.line, alternateLinesForOdds]);
 
   // Favorites hook for adding to My Plays
-  const { isFavorited, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
+  const { isFavorited, favoriteKeys, toggleFavorite, isToggling, isLoggedIn } = useFavorites();
 
   // Build favorite params helper
   const buildFavoriteParams = useCallback((side: "over" | "under"): AddFavoriteParams | null => {
@@ -4220,7 +4238,7 @@ export function MobilePlayerDrilldown({
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null,
       away_team: profile.awayTeamName?.split(" ").pop() || null,
-      start_time: null,
+      start_time: profile.startTime ?? null,
       player_id: String(profile.playerId),
       player_name: profile.playerName,
       player_team: profile.teamAbbr,
@@ -4660,6 +4678,7 @@ export function MobilePlayerDrilldown({
   
   // State for expanded correlation rows
   const [expandedCorrelationId, setExpandedCorrelationId] = useState<number | null>(null);
+  const [togglingCorrFavKey, setTogglingCorrFavKey] = useState<string | null>(null);
   
   // Fetch player correlations for correlation tab
   const {
@@ -6091,6 +6110,68 @@ export function MobilePlayerDrilldown({
                       }).length;
                       const pct = games > 0 ? Math.round((timesHit / games) * 100) : 0;
                       
+                      // Favorite support for this correlation row
+                      const corrMarketKey = CORR_STAT_TO_MARKET[bestStat?.key || ""] || null;
+                      const corrHitRate = bestStat?.stat.hitRateWhenAnchorHits;
+                      const corrEventId = corrHitRate?.eventId ?? (profile.gameId ? String(profile.gameId) : null);
+                      const corrCanFavorite = !!corrEventId && !!corrMarketKey && (!!corrHitRate?.selKey || !!corrHitRate?.selectionId);
+                      const corrFavoriteKey = corrCanFavorite
+                        ? createFavoriteKey({
+                            event_id: corrEventId!,
+                            type: "player",
+                            player_id: String(teammate.playerId),
+                            market: corrMarketKey!,
+                            line: effectiveLineForBars,
+                            side: "over",
+                          })
+                        : null;
+                      const corrIsFavorited = corrFavoriteKey ? favoriteKeys.has(corrFavoriteKey) : false;
+                      const corrIsToggling = corrFavoriteKey ? togglingCorrFavKey === corrFavoriteKey : false;
+
+                      const handleCorrFavorite = async (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        if (!isLoggedIn) { toast.error("Sign in to save plays"); return; }
+                        if (!corrEventId || !corrMarketKey || !corrFavoriteKey) return;
+                        setTogglingCorrFavKey(corrFavoriteKey);
+                        try {
+                          const lineValue = Number.isFinite(effectiveLineForBars) ? Number(effectiveLineForBars.toFixed(1)) : 0.5;
+                          const oddsSelId = corrHitRate?.selKey
+                            ? `${corrHitRate.selKey}:${lineValue}:over`
+                            : corrHitRate?.selectionId ?? null;
+                          const result = await toggleFavorite({
+                            type: "player",
+                            sport: "nba",
+                            event_id: corrEventId,
+                            game_date: profile.gameDate ?? null,
+                            home_team: profile.homeTeamName ?? null,
+                            away_team: profile.awayTeamName ?? null,
+                            start_time: profile.startTime ?? null,
+                            player_id: String(teammate.playerId),
+                            player_name: teammate.playerName,
+                            player_team: profile.teamAbbr ?? null,
+                            player_position: teammate.position,
+                            market: corrMarketKey,
+                            line: lineValue,
+                            side: "over",
+                            odds_key: `odds:nba:${corrEventId}:${corrMarketKey}`,
+                            odds_selection_id: oddsSelId,
+                            books_snapshot: null,
+                            best_price_at_save: corrHitRate?.overPrice ?? null,
+                            best_book_at_save: null,
+                            source: "correlations",
+                          });
+                          if (result.action === "added") toast.success("Added to My Plays");
+                          else if (result.action === "removed") toast.success("Removed from My Plays");
+                        } catch { toast.error("Failed to update"); }
+                        finally { setTogglingCorrFavKey(null); }
+                      };
+
+                      // Odds dropdown data
+                      const corrSelKey = corrHitRate?.selKey || corrHitRate?.selectionId || null;
+                      const corrBestOdds = corrHitRate?.overPrice != null
+                        ? { book: "", price: corrHitRate.overPrice, updated_at: Date.now() }
+                        : null;
+
                       return (
                         <div key={teammate.playerId}>
                           {/* Premium inset divider like PlayerCard */}
@@ -6099,7 +6180,7 @@ export function MobilePlayerDrilldown({
                               <div className="w-[85%] h-px bg-neutral-200/60 dark:bg-neutral-700/40" />
                             </div>
                           )}
-                          
+
                           {/* Main Row - Full width like PlayerCard */}
                           <button
                             type="button"
@@ -6107,6 +6188,26 @@ export function MobilePlayerDrilldown({
                             className="w-full text-left px-3 py-2.5 active:bg-neutral-50 dark:active:bg-neutral-800/50"
                           >
                             <div className="flex items-start gap-2">
+                              {/* Heart icon — uses div to avoid nested button */}
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={handleCorrFavorite}
+                                className={cn(
+                                  "mt-0.5 p-0.5 rounded transition-colors shrink-0",
+                                  corrIsFavorited
+                                    ? "text-rose-500"
+                                    : "text-neutral-300 dark:text-neutral-600",
+                                  (!corrCanFavorite || corrIsToggling) && "opacity-40"
+                                )}
+                              >
+                                {corrIsToggling ? (
+                                  <div className="h-4 w-4 border-2 border-neutral-300 border-t-neutral-500 rounded-full animate-spin" />
+                                ) : (
+                                  <Heart className={cn("h-4 w-4", corrIsFavorited && "fill-current")} />
+                                )}
+                              </div>
+
                               {/* Left: Player identity */}
                               <div className="flex-1 min-w-0">
                                 {/* Name + Position */}
@@ -6145,7 +6246,7 @@ export function MobilePlayerDrilldown({
                                     const isHit = statValue >= effectiveLineForBars;
                                     const maxHeight = 24;
                                     const height = Math.max(4, Math.min(maxHeight, (statValue / (effectiveLineForBars * 1.5)) * maxHeight));
-                                    
+
                                     return (
                                       <div
                                         key={logIdx}
@@ -6158,14 +6259,14 @@ export function MobilePlayerDrilldown({
                                     );
                                   })}
                                 </div>
-                                
+
                                 {/* Hit Rate Badge */}
                                 <div className={cn(
                                   "flex items-center justify-center min-w-[44px] px-2 py-1 rounded-lg",
-                                  pct >= 70 
-                                    ? "bg-emerald-100 dark:bg-emerald-900/30" 
-                                    : pct >= 50 
-                                    ? "bg-amber-100 dark:bg-amber-900/30" 
+                                  pct >= 70
+                                    ? "bg-emerald-100 dark:bg-emerald-900/30"
+                                    : pct >= 50
+                                    ? "bg-amber-100 dark:bg-amber-900/30"
                                     : "bg-red-100 dark:bg-red-900/30"
                                 )}>
                                   <span className={cn(
@@ -6176,7 +6277,7 @@ export function MobilePlayerDrilldown({
                                     {pct.toFixed(0)}%
                                   </span>
                                 </div>
-                                
+
                                 <ChevronDown className={cn(
                                   "h-4 w-4 text-neutral-400 transition-transform",
                                   isExpanded && "rotate-180"
@@ -6184,15 +6285,26 @@ export function MobilePlayerDrilldown({
                               </div>
                             </div>
                           </button>
-                          
+
                           {/* Expanded Details */}
                           {isExpanded && (
                             <div className="px-3 pb-3 pt-2 bg-neutral-50/80 dark:bg-neutral-800/30 border-t border-neutral-100 dark:border-neutral-800">
-                              {/* Market Label */}
-                              <div className="text-[9px] font-bold uppercase text-neutral-400 mb-2">
-                                {bestStat?.label} Stats When {profile.playerName?.split(" ").pop()} Hits
+                              {/* Odds + Market Label Row */}
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-[9px] font-bold uppercase text-neutral-400">
+                                  {bestStat?.label} Stats When {profile.playerName?.split(" ").pop()} Hits
+                                </div>
+                                {corrEventId && corrMarketKey && corrSelKey && (
+                                  <OddsDropdown
+                                    eventId={corrEventId}
+                                    market={corrMarketKey}
+                                    selKey={corrSelKey}
+                                    line={effectiveLineForBars}
+                                    bestOdds={corrBestOdds}
+                                  />
+                                )}
                               </div>
-                              
+
                               {/* Main Stats Row */}
                               <div className="grid grid-cols-4 gap-1.5 mb-3">
                                 <div className="bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border border-neutral-200/60 dark:border-neutral-700/40">
@@ -6215,8 +6327,8 @@ export function MobilePlayerDrilldown({
                                 </div>
                                 <div className={cn(
                                   "bg-white dark:bg-neutral-800 rounded-lg p-2 text-center border",
-                                  (bestStat?.stat.diff ?? 0) > 0 
-                                    ? "border-emerald-200/60 dark:border-emerald-700/40" 
+                                  (bestStat?.stat.diff ?? 0) > 0
+                                    ? "border-emerald-200/60 dark:border-emerald-700/40"
                                     : "border-red-200/60 dark:border-red-700/40"
                                 )}>
                                   <div className="text-[8px] text-neutral-400 uppercase mb-0.5">Boost</div>
@@ -6228,7 +6340,7 @@ export function MobilePlayerDrilldown({
                                   </div>
                                 </div>
                               </div>
-                              
+
                               {/* Game-by-Game Breakdown */}
                               <div className="text-[9px] font-bold uppercase text-neutral-400 mb-1.5">
                                 Last {Math.min(gameLogs.length, 5)} Games When {profile.playerName?.split(" ").pop()} Hit
@@ -6247,7 +6359,7 @@ export function MobilePlayerDrilldown({
                                   const maxHeight = 32;
                                   const barLine = effectiveLineForBars > 0 ? effectiveLineForBars : 1;
                                   const height = Math.max(6, Math.min(maxHeight, (statValue / (barLine * 1.5)) * maxHeight));
-                                  
+
                                   return (
                                     <div key={logIdx} className="flex-1 flex flex-col items-center gap-0.5">
                                       <span className={cn(
@@ -6270,7 +6382,7 @@ export function MobilePlayerDrilldown({
                                   );
                                 })}
                               </div>
-                              
+
                               {/* Quick Summary */}
                               <div className="flex items-center justify-between px-2 py-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200/60 dark:border-neutral-700/40">
                                 <span className="text-[10px] text-neutral-500">

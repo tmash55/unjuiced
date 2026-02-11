@@ -180,15 +180,6 @@ export function OddsDropdown({
     }
   }, []);
 
-  // Loading state (initial)
-  if (initialLoading) {
-    return (
-      <div className="flex items-center justify-center">
-        <div className="h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
-      </div>
-    );
-  }
-
   // Sort books by best over price
   const sortedBooks = useMemo(() => {
     if (!oddsData?.books) return [];
@@ -219,6 +210,15 @@ export function OddsDropdown({
   // Show loading state while fetching fresh odds
   const isFetchingFreshOdds = isLoading && !hasFetched.current;
 
+  // Loading state (initial)
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center">
+        <div className="h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700" />
+      </div>
+    );
+  }
+
   // No best odds available at all (and not loading)
   if (!isFetchingFreshOdds && !displayBestOdds?.book && !displayBestOdds?.price) {
     return (
@@ -231,73 +231,77 @@ export function OddsDropdown({
 
   return (
     <div ref={dropdownRef} className="relative inline-flex">
+      {/* Minimal trigger — ghost pill with brand accent on hover */}
       <button
         type="button"
         onClick={handleToggle}
         disabled={isFetchingFreshOdds}
         className={cn(
-          "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-all",
-          "border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700",
-          "text-neutral-900 dark:text-white",
-          isFetchingFreshOdds && "opacity-70"
+          "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-semibold tabular-nums transition-all",
+          "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+          "hover:bg-[color-mix(in_oklab,var(--primary)_8%,transparent)]",
+          isOpen && "bg-[color-mix(in_oklab,var(--primary)_10%,transparent)] text-[var(--primary)]",
+          isFetchingFreshOdds && "opacity-60"
         )}
       >
         {isFetchingFreshOdds ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
-            <span className="text-neutral-400">...</span>
-          </>
+          <Loader2 className="h-4 w-4 animate-spin opacity-50" />
         ) : (
           <>
             {bestBookLogo && (
               <img
                 src={bestBookLogo}
                 alt={bestBookName}
-                className="h-4 w-4 rounded object-contain"
+                className="h-5 w-5 rounded-sm object-contain"
               />
             )}
             <span>{formatOdds(displayBestOdds?.price ?? null)}</span>
           </>
         )}
         <ChevronDown className={cn(
-          "h-3.5 w-3.5 opacity-50 transition-transform",
+          "h-3.5 w-3.5 opacity-40 transition-transform",
           isOpen && "rotate-180"
         )} />
       </button>
 
+      {/* Dropdown panel — compact, brand-aware, responsive */}
       {isOpen && (
-        <div className="absolute right-0 top-full z-[70] mt-1 min-w-[320px] rounded-lg border border-neutral-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
-          {/* Header */}
-          <div className="mb-2 px-1 text-xs font-medium text-neutral-500 dark:text-neutral-400 flex items-center justify-between">
-            <span>Line: {line}</span>
+        <div className="absolute right-0 top-full z-[70] mt-1 w-[280px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-lg ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[color-mix(in_oklab,var(--bg)_60%,var(--card))]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Line {line}
+            </span>
             {oddsData && (
-              <span>{oddsData.book_count} books</span>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">
+                {oddsData.book_count} books
+              </span>
             )}
           </div>
 
           {/* Loading state */}
           {isLoading && (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" />
             </div>
           )}
 
           {/* Error state */}
           {error && !isLoading && (
-            <div className="py-4 text-center text-sm text-neutral-500">
+            <div className="py-4 text-center text-xs text-[var(--text-muted)]">
               {error}
             </div>
           )}
 
           {/* Books list */}
           {!isLoading && !error && sortedBooks.length > 0 && (
-            <div className="flex flex-col gap-1 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
+            <div className="max-h-[220px] overflow-y-auto scrollbar-thin">
               {/* Column headers */}
-              <div className="flex items-center justify-between px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500 border-b border-neutral-100 dark:border-neutral-700 mb-1">
-                <span>Sportsbook</span>
-                <div className="flex gap-2">
-                  <span className="min-w-[60px] text-center">Over</span>
-                  <span className="min-w-[60px] text-center">Under</span>
+              <div className="flex items-center justify-between px-3 py-1.5 text-[9px] uppercase tracking-wider font-semibold text-[var(--text-muted)] sticky top-0 bg-[var(--card)]">
+                <span>Book</span>
+                <div className="flex">
+                  <span className="w-14 text-center">Over</span>
+                  <span className="w-14 text-center">Under</span>
                 </div>
               </div>
 
@@ -307,13 +311,15 @@ export function OddsDropdown({
                 const isBest = idx === 0;
                 const hasOverLink = book.over !== null && (book.link_over || getBookFallbackUrl(book.book));
                 const hasUnderLink = book.under !== null && (book.link_under || getBookFallbackUrl(book.book));
-                
+
                 return (
                   <div
                     key={book.book}
                     className={cn(
-                      "flex items-center justify-between rounded-md px-2 py-1.5 transition-colors",
-                      isBest && "bg-emerald-50 dark:bg-emerald-900/20"
+                      "flex items-center justify-between px-3 py-1.5 transition-colors",
+                      isBest
+                        ? "bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                        : "hover:bg-[color-mix(in_oklab,var(--primary)_4%,transparent)]"
                     )}
                   >
                     {/* Book info */}
@@ -322,59 +328,55 @@ export function OddsDropdown({
                         <img
                           src={bookLogo}
                           alt={bookName}
-                          className="h-5 w-5 rounded object-contain flex-shrink-0"
+                          className="h-4 w-4 rounded-sm object-contain flex-shrink-0"
                         />
                       ) : (
-                        <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700 flex-shrink-0" />
+                        <div className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700 flex-shrink-0" />
                       )}
-                      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300 truncate">
+                      <span className="text-xs font-medium text-[var(--text-primary)] truncate">
                         {bookName}
                       </span>
                       {isBest && (
-                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                        <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
                           Best
                         </span>
                       )}
                     </div>
 
                     {/* Over/Under prices */}
-                    <div className="flex gap-2">
-                      {/* Over */}
+                    <div className="flex">
                       <button
                         onClick={(e) => handleBookClick(book, "over", e)}
                         disabled={book.over === null || !hasOverLink}
                         className={cn(
-                          "min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1",
+                          "w-14 py-1 rounded text-xs font-semibold tabular-nums transition-colors flex items-center justify-center gap-0.5",
                           book.over !== null && hasOverLink
-                            ? "hover:bg-emerald-100 dark:hover:bg-emerald-900/30 cursor-pointer"
-                            : "opacity-40 cursor-default",
-                          book.over !== null && book.over >= 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-neutral-700 dark:text-neutral-300"
+                            ? "cursor-pointer hover:bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]"
+                            : "opacity-30 cursor-default",
+                          isBest && book.over !== null
+                            ? "text-[var(--accent-strong)]"
+                            : "text-[var(--text-primary)]"
                         )}
                         title={hasOverLink ? "Click to place bet" : undefined}
                       >
                         {formatOdds(book.over)}
-                        {hasOverLink && <ExternalLink className="w-3 h-3 opacity-60" />}
+                        {hasOverLink && <ExternalLink className="w-2.5 h-2.5 opacity-40" />}
                       </button>
 
-                      {/* Under */}
                       <button
                         onClick={(e) => handleBookClick(book, "under", e)}
                         disabled={book.under === null || !hasUnderLink}
                         className={cn(
-                          "min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1",
+                          "w-14 py-1 rounded text-xs font-semibold tabular-nums transition-colors flex items-center justify-center gap-0.5",
                           book.under !== null && hasUnderLink
-                            ? "hover:bg-rose-100 dark:hover:bg-rose-900/30 cursor-pointer"
-                            : "opacity-40 cursor-default",
-                          book.under !== null && book.under >= 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-neutral-700 dark:text-neutral-300"
+                            ? "cursor-pointer hover:bg-[color-mix(in_oklab,var(--primary)_10%,transparent)]"
+                            : "opacity-30 cursor-default",
+                          "text-[var(--text-primary)]"
                         )}
                         title={hasUnderLink ? "Click to place bet" : undefined}
                       >
                         {formatOdds(book.under)}
-                        {hasUnderLink && <ExternalLink className="w-3 h-3 opacity-60" />}
+                        {hasUnderLink && <ExternalLink className="w-2.5 h-2.5 opacity-40" />}
                       </button>
                     </div>
                   </div>
@@ -385,24 +387,21 @@ export function OddsDropdown({
 
           {/* Empty state - show best odds as fallback */}
           {!isLoading && !error && sortedBooks.length === 0 && oddsData && (
-            <div className="py-3 px-2">
+            <div className="p-3">
               {bestOdds ? (
-                <div className="flex items-center justify-between rounded-md px-2 py-2 bg-emerald-50 dark:bg-emerald-900/20">
+                <div className="flex items-center justify-between rounded-lg px-2.5 py-2 bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]">
                   <div className="flex items-center gap-2">
                     {getBookLogo(bestOdds.book) ? (
                       <img
                         src={getBookLogo(bestOdds.book)!}
                         alt={getBookName(bestOdds.book)}
-                        className="h-5 w-5 rounded object-contain"
+                        className="h-4 w-4 rounded-sm object-contain"
                       />
                     ) : (
-                      <div className="h-5 w-5 rounded bg-neutral-200 dark:bg-neutral-700" />
+                      <div className="h-4 w-4 rounded-sm bg-neutral-200 dark:bg-neutral-700" />
                     )}
-                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    <span className="text-xs font-medium text-[var(--text-primary)]">
                       {getBookName(bestOdds.book)}
-                    </span>
-                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
-                      Best
                     </span>
                   </div>
                   <button
@@ -411,18 +410,16 @@ export function OddsDropdown({
                       const link = getBookFallbackUrl(bestOdds.book);
                       if (link) window.open(link, "_blank", "noopener,noreferrer");
                     }}
-                    className="min-w-[60px] px-2 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 cursor-pointer text-emerald-600 dark:text-emerald-400"
+                    className="px-2 py-1 rounded text-xs font-semibold tabular-nums transition-colors flex items-center gap-1 cursor-pointer hover:bg-[color-mix(in_oklab,var(--accent)_15%,transparent)]"
+                    style={{ color: "var(--accent-strong)" }}
                   >
                     {formatOdds(bestOdds.price)}
-                    <ExternalLink className="w-3 h-3 opacity-60" />
+                    <ExternalLink className="w-2.5 h-2.5 opacity-50" />
                   </button>
                 </div>
               ) : (
-                <p className="text-center text-sm text-neutral-500">No odds available</p>
+                <p className="text-center text-xs text-[var(--text-muted)]">No odds available</p>
               )}
-              <p className="mt-2 text-center text-[10px] text-neutral-400">
-                Full book comparison unavailable
-              </p>
             </div>
           )}
         </div>

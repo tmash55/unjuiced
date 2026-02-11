@@ -51,6 +51,7 @@ interface RowState {
   // Current selections (can be modified by user)
   selectedMarket: string;
   selectedLine: number;
+  selectedSelKey: string | null;
   selectedTeammateIds: number[];
   
   // Current stats (recalculated when selections change)
@@ -103,6 +104,7 @@ function initRowState(row: InjuryImpactRowType): RowState {
   return {
     selectedMarket: row.market,
     selectedLine: row.line,
+    selectedSelKey: row.selKey || row.oddsSelectionId || null,
     selectedTeammateIds: [row.defaultTeammateId],
     currentStats: {
       games: row.gamesWithTeammateOut,
@@ -708,9 +710,13 @@ function InjuryImpactRow({
   
   // Build favorite params for this row
   const buildFavoriteParams = useCallback((): AddFavoriteParams => {
-    // Use bestOdds from the row (fetched from Redis in the API)
-    const bestPrice = row.bestOdds?.price ?? null;
-    const bestBook = row.bestOdds?.book ?? null;
+    // Only use row-level bestOdds snapshot when still on the default market/line/key.
+    const isDefaultSelection =
+      state.selectedMarket === row.market &&
+      state.selectedLine === row.line &&
+      (state.selectedSelKey || null) === (row.selKey || row.oddsSelectionId || null);
+    const bestPrice = isDefaultSelection ? (row.bestOdds?.price ?? null) : null;
+    const bestBook = isDefaultSelection ? (row.bestOdds?.book ?? null) : null;
     
     // Build minimal books snapshot from bestOdds for favorites
     let booksSnapshot: Record<string, any> | null = null;
@@ -728,15 +734,18 @@ function InjuryImpactRow({
     // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
     const eventId = row.eventId || `game_${row.gameId}`;
     const oddsKey = `odds:nba:${eventId}:${state.selectedMarket}`;
+    const isHome = String(row.homeAway || "").toLowerCase() === "home";
+    const homeTeam = isHome ? row.teamAbbr : row.opponentAbbr;
+    const awayTeam = isHome ? row.opponentAbbr : row.teamAbbr;
     
     return {
       type: "player",
       sport: "nba",
       event_id: eventId,
       game_date: row.gameDate,
-      home_team: null,
-      away_team: null,
-      start_time: null,
+      home_team: homeTeam || null,
+      away_team: awayTeam || null,
+      start_time: row.startTime ?? null,
       player_id: String(row.playerId),
       player_name: row.playerName,
       player_team: row.teamAbbr,
@@ -745,13 +754,13 @@ function InjuryImpactRow({
       line: state.selectedLine,
       side: "over",
       odds_key: oddsKey,
-      odds_selection_id: row.oddsSelectionId,
+      odds_selection_id: state.selectedSelKey || row.selKey || row.oddsSelectionId,
       books_snapshot: booksSnapshot,
       best_price_at_save: bestPrice,
       best_book_at_save: bestBook,
       source: "injury_impact",
     };
-  }, [row, state.selectedMarket, state.selectedLine]);
+  }, [row, state.selectedLine, state.selectedMarket, state.selectedSelKey]);
   
   // Check if this row is favorited
   const isRowFavorited = useMemo(() => {
@@ -807,6 +816,7 @@ function InjuryImpactRow({
       onStateChange({
         selectedMarket: line.market,
         selectedLine: line.line,
+        selectedSelKey: line.selKey || null,
         currentStats: {
           games: result.stats.games,
           hits: result.stats.hits,
@@ -1424,10 +1434,16 @@ function InjuryImpactRow({
         <div className="flex justify-center">
           <OddsDropdown
             eventId={row.eventId}
-            market={row.market}
-            selKey={row.selKey}
-            line={row.line}
-            bestOdds={row.bestOdds}
+            market={state.selectedMarket}
+            selKey={state.selectedSelKey || row.selKey || row.oddsSelectionId}
+            line={state.selectedLine}
+            bestOdds={
+              state.selectedMarket === row.market &&
+              state.selectedLine === row.line &&
+              (state.selectedSelKey || null) === (row.selKey || row.oddsSelectionId || null)
+                ? row.bestOdds
+                : null
+            }
           />
         </div>
       </td>

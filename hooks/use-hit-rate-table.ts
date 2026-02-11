@@ -112,6 +112,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     position: player?.depth_chart_pos ?? player?.position ?? profile.position,
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,
     gameDate: game?.game_date ?? profile.game_date,
+    startTime: game?.start_time ?? profile.start_time ?? profile.commence_time ?? null,
     gameStatus: game?.game_status ?? null,
     // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
     homeTeamName: game?.home_team_name ?? null,

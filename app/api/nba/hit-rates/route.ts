@@ -379,6 +379,7 @@ export async function GET(request: Request) {
         home_team_name: row.home_team_name,
         away_team_name: row.away_team_name,
         game_status: row.game_status,
+        start_time: row.start_time ?? row.commence_time ?? null,
       },
       
       // Nested team colors

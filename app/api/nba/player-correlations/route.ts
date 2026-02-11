@@ -26,8 +26,9 @@ interface HitRateData {
   games: number;
   pct: number | null;
   display: string;
-  // New odds fields from get_player_correlations_with_odds
+  // Odds/selection fields from correlation RPCs (v4 preferred)
   selection_id?: string | null;
+  sel_key?: string | null;
   event_id?: string | null;
   over_price?: number | null;
   under_price?: number | null;
@@ -210,6 +211,7 @@ interface StatCorrelationFrontend {
     display: string;
     // Odds data
     selectionId?: string | null;
+    selKey?: string | null;
     eventId?: string | null;
     overPrice?: number | null;
     underPrice?: number | null;
@@ -340,47 +342,79 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Call the new RPC function with odds data if gameId is provided
-    // Fall back to v3 if no gameId (backwards compatible)
-    let rpcResult;
-    let error;
+    const isTimeoutError = (err: any): boolean => {
+      const msg = typeof err?.message === "string" ? err.message.toLowerCase() : "";
+      return err?.code === "57014" || msg.includes("statement timeout");
+    };
 
-    if (gameId) {
-      // Use new function with odds
-      const result = await supabase.rpc("get_player_correlations_with_odds", {
-        p_game_id: gameId,
-        p_anchor_player_id: playerId,
-        p_anchor_market: market,
-        p_last_n_games: lastNGames,
-        p_season: season,
-      });
-      rpcResult = result.data;
-      error = result.error;
-    } else {
-      // Fall back to v3 for backwards compatibility
-      const result = await supabase.rpc("get_player_correlations_v3", {
+    // Use v5 only, with adaptive retry on DB timeout.
+    const attempts: Array<{ lastNGames: number | null; gameLogLimit: number; label: string }> =
+      lastNGames === null
+        ? [
+            // "Season" can exceed DB statement timeout on heavy slates; cap sample for responsiveness.
+            { lastNGames: 40, gameLogLimit: 12, label: "season_cap_40" },
+            { lastNGames: 25, gameLogLimit: 8, label: "season_cap_25" },
+          ]
+        : [
+            { lastNGames, gameLogLimit: 15, label: "primary" },
+            { lastNGames, gameLogLimit: 10, label: "retry_light" },
+          ];
+
+    let rpcResult: unknown = null;
+    let error: any = null;
+    let fallbackApplied = false;
+    let fallbackMeta: { lastNGames: number | null; gameLogLimit: number; label: string } | null = null;
+
+    for (let i = 0; i < attempts.length; i++) {
+      const attempt = attempts[i];
+      const v5Result = await supabase.rpc("get_player_correlations_v5", {
         p_player_id: playerId,
         p_market: market,
         p_line: line,
-        p_last_n_games: lastNGames,
+        p_last_n_games: attempt.lastNGames,
         p_season: season,
+        p_game_id: gameId,
+        p_game_log_limit: attempt.gameLogLimit,
       });
-      rpcResult = result.data;
-      error = result.error;
+
+      rpcResult = v5Result.data;
+      error = v5Result.error;
+
+      if (!error) {
+        fallbackApplied =
+          attempt.lastNGames !== lastNGames ||
+          attempt.gameLogLimit !== 15 ||
+          i > 0;
+        fallbackMeta = fallbackApplied ? attempt : null;
+        break;
+      }
+
+      if (!isTimeoutError(error)) {
+        break;
+      }
+
+      console.warn(
+        `[Player Correlations] RPC timeout on ${attempt.label}; retrying with smaller sample if available`
+      );
     }
 
-    if (error) {
+    if (error && !rpcResult) {
       console.error("[Player Correlations] RPC error:", error);
+      const isTimeout = isTimeoutError(error);
       return NextResponse.json(
-        { error: "Failed to fetch correlations", details: error.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        {
+          error: isTimeout ? "correlations_timeout" : "Failed to fetch correlations",
+          details: error.message,
+          version: "4.0",
+        },
+        { status: isTimeout ? 504 : 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
     // Handle null result
     if (!rpcResult) {
       return NextResponse.json({
-        version: "3.0",
+        version: "4.0",
         filters: { lastNGames, season, isFiltered: lastNGames !== null },
         anchorPlayer: null,
         anchorPerformance: null,
@@ -390,6 +424,24 @@ export async function POST(req: NextRequest) {
     }
 
     const data = rpcResult as RpcResponse;
+
+    // Guard against stale teammates after trades: keep only players currently on anchor's team.
+    let teammateCorrelationsFiltered = data.teammate_correlations || [];
+    if (data.anchor_player?.team_id && teammateCorrelationsFiltered.length > 0) {
+      const { data: rosterRows, error: rosterError } = await supabase
+        .from("nba_players_hr")
+        .select("nba_player_id")
+        .eq("team_id", data.anchor_player.team_id);
+
+      if (rosterError) {
+        console.warn("[Player Correlations] Roster filter lookup failed:", rosterError.message);
+      } else {
+        const rosterIds = new Set((rosterRows || []).map((r: any) => Number(r.nba_player_id)));
+        teammateCorrelationsFiltered = teammateCorrelationsFiltered.filter((tc) =>
+          rosterIds.has(Number(tc.player_id))
+        );
+      }
+    }
 
     // Transform to camelCase for frontend
     const response: PlayerCorrelationsResponse = {
@@ -441,7 +493,7 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-      teammateCorrelations: (data.teammate_correlations || []).map((tc) => {
+      teammateCorrelations: teammateCorrelationsFiltered.map((tc) => {
         // Helper to transform stat correlation
         const transformStat = (stat: StatCorrelation | undefined): StatCorrelationFrontend => {
           if (!stat) {
@@ -467,6 +519,7 @@ export async function POST(req: NextRequest) {
               display: hr.display ?? `${hr.times_hit ?? hr.hits_when_anchor_hits ?? 0}/${hr.games}`,
               // Include odds data
               selectionId: hr.selection_id,
+              selKey: hr.sel_key,
               eventId: hr.event_id,
               overPrice: hr.over_price,
               underPrice: hr.under_price,
@@ -576,11 +629,16 @@ export async function POST(req: NextRequest) {
       } : undefined,
     };
 
-    return NextResponse.json(response, {
-      headers: {
-        "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+    };
+    if (fallbackApplied && fallbackMeta) {
+      headers["X-Correlations-Fallback"] = `${fallbackMeta.label}`;
+      headers["X-Correlations-Last-N-Games"] = String(fallbackMeta.lastNGames ?? "season");
+      headers["X-Correlations-Game-Log-Limit"] = String(fallbackMeta.gameLogLimit);
+    }
+
+    return NextResponse.json(response, { headers });
   } catch (error: any) {
     console.error("[/api/nba/player-correlations] Error:", error);
     return NextResponse.json(
@@ -589,4 +647,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

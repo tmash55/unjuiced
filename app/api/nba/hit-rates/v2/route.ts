@@ -39,6 +39,11 @@ interface BestOddsData {
   updated_at: number;
 }
 
+interface EventRedisData {
+  commence_time?: string;
+  start_time?: string;
+}
+
 // =============================================================================
 // REDIS BEST ODDS HELPERS
 // =============================================================================
@@ -93,6 +98,53 @@ async function fetchBestOddsForRows(
   return result;
 }
 
+/**
+ * Batch fetch event start times from Redis.
+ * Uses event feed keys populated by the push ingest pipeline.
+ */
+async function fetchEventStartTimes(
+  rows: Array<{ event_id?: string }>
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const eventIds = [...new Set(rows.map(r => r.event_id).filter(Boolean))] as string[];
+
+  if (eventIds.length === 0) {
+    return result;
+  }
+
+  const eventKeys = eventIds.map(eventId => `events:nba:${eventId}`);
+
+  try {
+    const values = await redis.mget<(EventRedisData | string | null)[]>(...eventKeys);
+    eventIds.forEach((eventId, index) => {
+      const raw = values[index];
+      if (!raw) {
+        result.set(eventId, null);
+        return;
+      }
+
+      let event: EventRedisData;
+      if (typeof raw === "string") {
+        try {
+          event = JSON.parse(raw) as EventRedisData;
+        } catch {
+          result.set(eventId, null);
+          return;
+        }
+      } else {
+        event = raw;
+      }
+
+      const startTime = event.commence_time || event.start_time || null;
+      result.set(eventId, startTime);
+    });
+  } catch (error) {
+    console.error("[Hit Rates v2] Redis event start_time fetch error:", error);
+  }
+
+  return result;
+}
+
 // Valid sort fields for hit rates
 const VALID_SORT_FIELDS = [
   "line", "l5Avg", "l10Avg", "seasonAvg", "streak", 
@@ -143,7 +195,15 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
 }
 
 // Transform RPC response to frontend format
-function transformProfile(row: any, bestOdds: BestOddsData | null) {
+function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null) {
+  const startTime =
+    eventStartTime ||
+    row.start_time ||
+    row.commence_time ||
+    row.game_start ||
+    row.game_start_time ||
+    null;
+
   // Determine matchup quality from dvp_rank
   let matchupQuality: "favorable" | "neutral" | "unfavorable" | null = null;
   if (row.dvp_rank) {
@@ -193,6 +253,7 @@ function transformProfile(row: any, bestOdds: BestOddsData | null) {
     odds_selection_id: row.odds_selection_id,
     event_id: row.event_id,
     is_back_to_back: row.is_back_to_back,
+    start_time: startTime,
     // New field from v3 RPC - needed for Redis lookup
     sel_key: row.sel_key,
     // Live best odds from Redis
@@ -216,6 +277,7 @@ function transformProfile(row: any, bestOdds: BestOddsData | null) {
       home_team_name: row.home_team_name,
       away_team_name: row.away_team_name,
       game_status: row.game_status,
+      start_time: startTime,
     },
     // Team colors (now denormalized - no accent_color in table yet)
     nba_teams: row.primary_color ? {
@@ -430,6 +492,9 @@ export async function GET(request: Request) {
     const bestOddsMap = await fetchBestOddsForRows(paginatedData);
     const bestOddsTime = Date.now() - bestOddsStartTime;
     console.log(`[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${bestOddsTime}ms`);
+
+    // Fetch event start times from Redis for favorites/expiry workflows
+    const eventStartTimes = await fetchEventStartTimes(paginatedData);
     
     // Transform to frontend format with best odds merged
     const transformedData = paginatedData.map(row => {
@@ -438,7 +503,8 @@ export async function GET(request: Request) {
         ? `${row.event_id}:${row.market}:${row.sel_key}` 
         : null;
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
-      return transformProfile(row, bestOdds);
+      const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
+      return transformProfile(row, bestOdds, eventStartTime);
     });
     
     // Get unique dates from response

@@ -1208,8 +1208,8 @@ function ThresholdCell({
           {/* Odds - SECONDARY (more visible, below hit rate) */}
           {hasOdds && (
             <div className="flex items-center gap-0.5 md:gap-1 mt-0.5 md:mt-1">
-              {bookLogo && <img src={bookLogo} alt={threshold.bestBook || ""} className="w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm" />}
-              <span className="text-[9px] md:text-[10px] text-white/80 dark:text-white/75 font-medium tabular-nums">
+              {bookLogo && <img src={bookLogo} alt={threshold.bestBook || ""} className="w-3.5 h-3.5 md:w-4 md:h-4 rounded-sm" />}
+              <span className="text-[10px] md:text-[11px] text-white/80 dark:text-white/75 font-medium tabular-nums">
                 {formatOdds(threshold.bestOdds)}
               </span>
             </div>

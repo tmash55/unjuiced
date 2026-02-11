@@ -16,8 +16,9 @@ export interface HitRateStats {
   games: number;
   pct: number | null;
   display: string;
-  // Odds data (from get_player_correlations_with_odds)
+  // Odds/selection data from correlation RPCs (v4 preferred)
   selectionId?: string | null;
+  selKey?: string | null;
   eventId?: string | null;
   overPrice?: number | null;
   underPrice?: number | null;
@@ -218,4 +219,3 @@ export function usePlayerCorrelations(options: UsePlayerCorrelationsOptions) {
     refetch: query.refetch,
   };
 }
-

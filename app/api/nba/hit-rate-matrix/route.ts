@@ -309,22 +309,51 @@ export async function POST(req: NextRequest) {
     // We need game_logs to calculate hit rates at arbitrary thresholds
     const playerIds = [...new Set(profiles.map((p: any) => p.player_id))];
     
-    const { data: gameLogsData, error: gameLogsError } = await supabase
-      .from("nba_hit_rate_profiles")
+    const { data: gameLogsDataV2, error: gameLogsErrorV2 } = await supabase
+      .from("nba_hit_rate_profiles_v2")
       .select("player_id, game_logs")
       .eq("market", market)
       .eq("game_date", targetDate)
       .in("player_id", playerIds);
 
-    if (gameLogsError) {
-      console.error("[hit-rate-matrix] Game logs error:", gameLogsError);
+    let gameLogsData = gameLogsDataV2;
+
+    // Fallback to legacy table if v2 query fails
+    if (gameLogsErrorV2) {
+      console.error("[hit-rate-matrix] Game logs v2 error, falling back to legacy table:", gameLogsErrorV2);
+      const { data: gameLogsDataLegacy, error: gameLogsErrorLegacy } = await supabase
+        .from("nba_hit_rate_profiles")
+        .select("player_id, game_logs")
+        .eq("market", market)
+        .eq("game_date", targetDate)
+        .in("player_id", playerIds);
+
+      if (gameLogsErrorLegacy) {
+        console.error("[hit-rate-matrix] Game logs legacy error:", gameLogsErrorLegacy);
+      }
+      gameLogsData = gameLogsDataLegacy;
     }
 
     // Build a map of player_id -> game_logs
-    const gameLogsMap = new Map<number, any[]>();
+    // Normalize player_id as string to avoid number/string key mismatches.
+    const gameLogsMap = new Map<string, any[]>();
     for (const row of gameLogsData || []) {
-      if (row.game_logs && Array.isArray(row.game_logs)) {
-        gameLogsMap.set(row.player_id, row.game_logs);
+      if (!row?.game_logs) continue;
+
+      let parsedLogs: any[] = [];
+      if (Array.isArray(row.game_logs)) {
+        parsedLogs = row.game_logs;
+      } else if (typeof row.game_logs === "string") {
+        try {
+          const parsed = JSON.parse(row.game_logs);
+          parsedLogs = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          parsedLogs = [];
+        }
+      }
+
+      if (parsedLogs.length > 0) {
+        gameLogsMap.set(String(row.player_id), parsedLogs);
       }
     }
 
@@ -354,7 +383,7 @@ export async function POST(req: NextRequest) {
 
     for (const profile of profiles) {
       // Get game_logs from the separate fetch
-      const gameLogs = gameLogsMap.get(profile.player_id) || [];
+      const gameLogs = gameLogsMap.get(String(profile.player_id)) || [];
       if (gameLogs.length < minGames) continue;
 
       // Apply position filter if provided
