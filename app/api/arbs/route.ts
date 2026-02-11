@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
+import { isArbFreshForMode } from "@/lib/arb-freshness";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { getUserPlan } from "@/lib/plans-server";
@@ -90,6 +91,9 @@ export async function GET(req: NextRequest) {
       if (!r) acc.push(ids[i]);
       return acc;
     }, []);
+    const preFreshCount = rows.length;
+    rows = rows.filter((row) => isArbFreshForMode(row, mode, Date.now()));
+    const staleFilteredCount = preFreshCount - rows.length;
 
     // Apply plan-based restrictions
     let filteredCount = 0;
@@ -126,6 +130,7 @@ export async function GET(req: NextRequest) {
       }
     };
     if (debug) body.missing = missingIds;
+    if (debug && staleFilteredCount > 0) body.staleFiltered = staleFilteredCount;
     if (filteredCount > 0) {
       body.filteredCount = filteredCount;
       body.filteredReason =

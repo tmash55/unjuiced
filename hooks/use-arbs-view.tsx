@@ -5,10 +5,11 @@ import { useArbitragePreferences } from "@/context/preferences-context";
 import { useArbsStream } from "@/hooks/use-arbs-stream";
 import { buildArbMarketOptions, matchesArbRow } from "@/lib/arb-filters";
 import { sportsbooks } from "@/lib/data/sportsbooks";
+import { isArbLiveFresh, isArbPregameFresh } from "@/lib/arb-freshness";
 
 export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: boolean; live: boolean; eventId?: string; limit: number; mode: "prematch" | "live" }) {
   const { filters: arbPrefs, isLoading: prefsLoading, updateFilters } = useArbitragePreferences();
-  const stream = useArbsStream({ pro, live, eventId, limit });
+  const stream = useArbsStream({ pro, live, eventId, limit, mode: mode === "live" ? "live" : "pregame" });
   const availableMarketOptions = useMemo(() => buildArbMarketOptions(stream.rows), [stream.rows]);
 
   // Calculate filtered counts from current page data
@@ -34,8 +35,8 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
     );
     
     // Count live vs pregame from filtered results
-    const liveCount = filtered.filter((r) => Boolean((r as any).ev?.live)).length;
-    const pregameCount = filtered.length - liveCount;
+    const liveCount = filtered.filter((r) => isArbLiveFresh(r as any)).length;
+    const pregameCount = filtered.filter((r) => isArbPregameFresh(r as any)).length;
     
     // Check if any filters are applied
     const allBooks = sportsbooks.filter(sb => sb.isActive !== false);
@@ -53,15 +54,10 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
     const hasSpecificMarketFilter = arbPrefs.selectedMarkets.length > 0;
     const hasFilters = hasBookFilter || hasRoiFilter || hasSearchFilter || hasSportsFilter || hasLeaguesFilter || hasLiquidityFilter || hasMarketTypeFilter || hasSpecificMarketFilter;
     
-    // If no filters applied, use API total counts for accuracy
-    if (!hasFilters && stream.totalCounts) {
-      return { live: stream.totalCounts.live, pregame: stream.totalCounts.pregame };
-    }
-    
-    // With filters, show filtered count from current page
-    // Note: This reflects the current page only when paginated
+    // Use fresh row-derived counts so stale Redis mode indexes don't leak into UI counts.
+    // Note: this reflects currently loaded rows when paginated.
     return { live: liveCount, pregame: pregameCount };
-  }, [stream.rows, stream.totalCounts, arbPrefs, pro]);
+  }, [stream.rows, arbPrefs, pro]);
 
   const filteredRows = useMemo(() => {
     if (prefsLoading) return stream.rows;
@@ -71,7 +67,7 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
     const minLiquidity = arbPrefs.minLiquidity ?? 50;
     return stream.rows.filter((r) =>
       // live/prematch filter
-      Boolean((r as any).ev?.live) === wantLive &&
+      (wantLive ? isArbLiveFresh(r as any) : isArbPregameFresh(r as any)) &&
       matchesArbRow(r as any, {
         selectedBooks: arbPrefs.selectedBooks,
         selectedSports: arbPrefs.selectedSports,

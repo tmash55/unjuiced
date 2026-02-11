@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArbRow, fetchArbs, fetchRows } from "@/lib/arbs-client";
+import type { ArbMode } from "@/lib/arb-freshness";
 
 
 type Cache = Map<string, ArbRow>;
@@ -20,7 +21,7 @@ function dir(a: number | undefined, b: number | undefined): Dir | undefined {
   return undefined;
 }
 
-export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolean; live: boolean; eventId?: string; limit: number }) {
+export function useArbsStream({ pro, live, eventId, limit = 100, mode = "all" }: { pro: boolean; live: boolean; eventId?: string; limit: number; mode?: ArbMode }) {
   const [version, setVersion] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -99,7 +100,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     const useCur = opts?.cursor !== undefined ? opts.cursor : (opts?.reset ? 0 : cursor);
     setLoading(true);
     try {
-      const res = await fetchArbs({ v: 0, limit, cursor: useCur, event_id: eventId });
+      const res = await fetchArbs({ v: 0, limit, cursor: useCur, event_id: eventId, mode });
       if (!("unchanged" in res)) {
         setVersion(res.v);
         setLastUpdated(Date.now());
@@ -122,7 +123,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     } finally {
       setLoading(false);
     }
-  }, [cursor, limit, eventId]);
+  }, [cursor, limit, eventId, mode]);
 
   // initial & filter change
   useEffect(() => {
@@ -131,7 +132,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
       await loadPage({ reset: true });
     })();
     return () => { cancel = true; };
-  }, [eventId, limit, loadPage]);
+  }, [eventId, limit, mode, loadPage]);
 
   const nextPage = useCallback(async () => {
     const newCursor = cursor + limit;
@@ -281,7 +282,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   const rows = useMemo(() => ids.map(id => cacheRef.current.get(id)).filter(Boolean) as ArbRow[], [ids]);
 
   const refresh = useCallback(async () => {
-    const res = await fetchArbs({ v: version, limit, event_id: eventId, cursor });
+    const res = await fetchArbs({ v: version, limit, event_id: eventId, cursor, mode });
     if ("unchanged" in res) return false;
     setVersion(res.v);
     setLastUpdated(Date.now());
@@ -290,7 +291,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     setIds(res.ids);
     registerDiffs(res.ids);
     return true;
-  }, [version, eventId, limit, cursor]);
+  }, [version, eventId, limit, cursor, mode]);
 
   // When live toggles from off -> on, perform a refresh to catch up to latest v immediately
   const prevLiveRef = useRef<boolean>(live);
