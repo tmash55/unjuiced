@@ -16,9 +16,11 @@
 # next.js
 /.next/
 /out/
+/apps/web/.next/
 
 # production
 /build
+/apps/mobile/dist/
 
 # misc
 .DS_Store
@@ -34,9 +36,15 @@ yarn-error.log*
 .env
 .env.local
 .env.prod
+/apps/mobile/.env
+/apps/mobile/.env.local
 
 # vercel
 .vercel
+
+# expo
+/apps/mobile/.expo/
+/apps/mobile/.expo-shared/
 
 # typescript
 *.tsbuildinfo

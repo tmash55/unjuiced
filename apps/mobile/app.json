@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Unjuiced",
+    "slug": "unjuiced-mobile",
+    "entryPoint": "./node_modules/expo-router/entry",
+    "scheme": "unjuiced",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "bet.unjuiced.mobile"
+    },
+    "android": {
+      "package": "bet.unjuiced.mobile"
+    }
+  }
+}
