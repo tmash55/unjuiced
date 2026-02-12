@@ -394,22 +394,20 @@ export async function GET(req: NextRequest) {
     let allOpportunities = results.flatMap(r => r.opportunities);
     const totalScanned = allOpportunities.length;
 
-    // Get the set of sharp/reference books for filtering
-    // We should exclude opportunities where the best book IS the reference book
-    // (no edge to exploit if you're comparing to yourself)
-    const sharpBooks = new Set<string>();
-    if (blend && blend.length > 0) {
-      blend.forEach(b => sharpBooks.add(b.book));
-    } else if (presetId && presetId !== 'average') {
-      // Single book preset (e.g., "draftkings", "pinnacle")
-      sharpBooks.add(presetId);
+    // Only exclude opportunities where best book equals reference book in
+    // true single-book comparison modes.
+    // For multi-book custom blends, allow best book to be one of the blend inputs.
+    const selfComparisonBooks = new Set<string>();
+    if (blend && blend.length === 1) {
+      selfComparisonBooks.add(blend[0].book.toLowerCase());
+    } else if (!blend && presetId && presetId !== "average" && presetId !== "next_best") {
+      selfComparisonBooks.add(presetId.toLowerCase());
     }
 
     // Apply filters
     allOpportunities = allOpportunities.filter((o) => {
-      // Exclude opportunities where the best book is the sharp/reference book
-      // (no edge if you're comparing the book to itself)
-      if (sharpBooks.size > 0 && sharpBooks.has(o.best_book)) return false;
+      // Exclude only in single-book self-comparison modes
+      if (selfComparisonBooks.size > 0 && selfComparisonBooks.has((o.best_book || "").toLowerCase())) return false;
 
       // Market type filter (player props vs game lines)
       // Player props have a player name, game lines don't (or have "game")
