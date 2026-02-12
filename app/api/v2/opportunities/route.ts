@@ -141,6 +141,18 @@ interface BookWeight {
   weight: number;
 }
 
+interface BookOffer {
+  book: string;
+  price: number;
+  decimal: number;
+  link: string | null;
+  mobile_link: string | null;
+  sgp: string | null;
+  limits: { max: number } | null;
+  included_in_average?: boolean;
+  average_exclusion_reason?: string | null;
+}
+
 interface Opportunity {
   sport: string;
   event_id: string;
@@ -225,6 +237,8 @@ interface Opportunity {
       mobile_link: string | null;     // Deep link for mobile apps
       sgp: string | null;
       limits: { max: number } | null;
+      included_in_average?: boolean;
+      average_exclusion_reason?: string | null;
     }[];
   } | null;
 
@@ -237,6 +251,8 @@ interface Opportunity {
     mobile_link: string | null;       // Deep link for mobile apps
     sgp: string | null;
     limits: { max: number } | null;  // Betting limits when available (e.g., Pinnacle)
+    included_in_average?: boolean;
+    average_exclusion_reason?: string | null;
   }[];
 }
 
@@ -557,11 +573,11 @@ interface SelectionPair {
   marketDisplay: string;   // Human-readable market (e.g., "Player Points" instead of "player_points")
   line: number;
   over: {
-    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    books: BookOffer[];
     best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
   under: {
-    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    books: BookOffer[];
     best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
 }
@@ -1031,7 +1047,7 @@ async function fetchSportOpportunities(
  * Calculate edge and EV metrics for an opportunity
  */
 interface SideData {
-  books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+  books: BookOffer[];
   best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
 }
 
@@ -1048,6 +1064,11 @@ function calculateMetricsWithDevig(
   useNextBest: boolean = false
 ): void {
   if (sideData.books.length < 2) return;
+
+  // Always annotate average inclusion metadata for UI transparency,
+  // even when comparison mode is not "average".
+  annotateAndFilterBooksForAverage(sideData.books);
+  annotateAndFilterBooksForAverage(oppositeData.books);
 
   // Sort books by decimal (best first)
   opp.all_books.sort((a, b) => b.decimal - a.decimal);
@@ -1245,54 +1266,105 @@ const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
 const OUTLIER_PRONE_BOOKS = new Set(["polymarket", "kalshi"]);
 
 /**
- * Deduplicate and filter books for average calculation.
- * - RSI books with identical odds are counted once
- * - Excludes prediction markets (Polymarket, Kalshi) from the average
- * - Non-RSI books are included normally
+ * ProphetX can occasionally post prices that are materially disconnected
+ * from the rest of the market. When this happens, don't include it in the
+ * market average reference to avoid skewing edge calculations.
+ *
+ * Override with env var `PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN`.
  */
-function deduplicateBooksForAverage(
-  books: { book: string; decimal: number }[]
-): { book: string; decimal: number }[] {
-  // Exclude prediction markets from the average calculation
-  const filteredBooks = books.filter(b => !OUTLIER_PRONE_BOOKS.has(b.book));
-  
-  // Now handle RSI deduplication
-  const rsiBooks: { book: string; decimal: number }[] = [];
-  const otherBooks: { book: string; decimal: number }[] = [];
-  
-  for (const b of filteredBooks) {
-    if (RSI_BOOKS.has(b.book)) {
-      rsiBooks.push(b);
-    } else {
-      otherBooks.push(b);
+const PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN = (() => {
+  const fromEnv = Number(process.env.PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 600;
+})();
+
+const PROPHETX_BOOK = "prophetx";
+const PROPHETX_OUTLIER_REASON = "Not included in average (ProphetX outlier)";
+
+/**
+ * Compute median for robust outlier detection.
+ */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+/**
+ * Annotate each book with average inclusion metadata and return
+ * the final book list to use for market-average calculations.
+ */
+function annotateAndFilterBooksForAverage(books: BookOffer[]): BookOffer[] {
+  const excludedByBook = new Map<string, string>();
+
+  // 1) Exclude known non-reference books (prediction markets)
+  const initiallyFiltered = books.filter((book) => {
+    const id = book.book.toLowerCase();
+    if (OUTLIER_PRONE_BOOKS.has(id)) {
+      excludedByBook.set(id, "Not included in average (prediction market)");
+      return false;
+    }
+    return true;
+  });
+
+  // 2) Conditionally exclude ProphetX if it is far from market consensus
+  let prophetFiltered = initiallyFiltered;
+  const prophetxBook = initiallyFiltered.find((book) => book.book.toLowerCase() === PROPHETX_BOOK);
+  if (prophetxBook) {
+    const comparisonBooks = initiallyFiltered.filter((book) => book.book.toLowerCase() !== PROPHETX_BOOK);
+    if (comparisonBooks.length >= 1) {
+      const marketMedianAmerican = median(comparisonBooks.map((book) => decimalToAmerican(book.decimal)));
+      if (marketMedianAmerican !== null) {
+        const prophetxAmerican = decimalToAmerican(prophetxBook.decimal);
+        const delta = Math.abs(prophetxAmerican - marketMedianAmerican);
+        if (delta >= PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN) {
+          excludedByBook.set(PROPHETX_BOOK, PROPHETX_OUTLIER_REASON);
+          prophetFiltered = initiallyFiltered.filter((book) => book.book.toLowerCase() !== PROPHETX_BOOK);
+        }
+      }
     }
   }
-  
-  // If no RSI books, return filtered
-  if (rsiBooks.length === 0) {
-    return filteredBooks;
-  }
-  
-  // Group RSI books by their decimal odds
-  const rsiByDecimal = new Map<number, { book: string; decimal: number }>();
-  for (const b of rsiBooks) {
-    // Use rounded decimal to handle floating point comparison
-    const roundedDecimal = Math.round(b.decimal * 10000) / 10000;
-    if (!rsiByDecimal.has(roundedDecimal)) {
-      rsiByDecimal.set(roundedDecimal, b);
+
+  // 3) Deduplicate RSI books with identical prices
+  const rsiByDecimal = new Map<number, BookOffer>();
+  const averageBooks: BookOffer[] = [];
+  for (const book of prophetFiltered) {
+    const id = book.book.toLowerCase();
+    if (!RSI_BOOKS.has(id)) {
+      averageBooks.push(book);
+      continue;
     }
+    const roundedDecimal = Math.round(book.decimal * 10000) / 10000;
+    const firstAtPrice = rsiByDecimal.get(roundedDecimal);
+    if (!firstAtPrice) {
+      rsiByDecimal.set(roundedDecimal, book);
+      averageBooks.push(book);
+      continue;
+    }
+    excludedByBook.set(id, `Not included in average (duplicate ${firstAtPrice.book} price)`);
   }
-  
-  // Return other books plus unique RSI prices
-  return [...otherBooks, ...rsiByDecimal.values()];
+
+  // 4) Persist inclusion metadata to each original book entry
+  const includedIds = new Set(averageBooks.map((book) => book.book.toLowerCase()));
+  for (const book of books) {
+    const id = book.book.toLowerCase();
+    const included = includedIds.has(id);
+    book.included_in_average = included;
+    book.average_exclusion_reason = included ? null : (excludedByBook.get(id) || "Not included in average");
+  }
+
+  return averageBooks;
 }
 
 /**
  * Build a lookup map for fast book matching
  * Maps book names to their odds data for O(1) lookups
  */
-function buildBookOddsMap(books: { book: string; decimal: number }[]): Map<string, { book: string; decimal: number }> {
-  const map = new Map<string, { book: string; decimal: number }>();
+function buildBookOddsMap(books: Pick<BookOffer, "book" | "decimal">[]): Map<string, Pick<BookOffer, "book" | "decimal">> {
+  const map = new Map<string, Pick<BookOffer, "book" | "decimal">>();
   for (const book of books) {
     map.set(book.book.toLowerCase(), book);
   }
@@ -1304,7 +1376,7 @@ function buildBookOddsMap(books: { book: string; decimal: number }[]): Map<strin
  * Optimized with O(1) lookups using pre-built Map
  */
 function getSharpOdds(
-  books: { book: string; decimal: number }[],
+  books: BookOffer[],
   blend: BookWeight[] | null,
   useAverage: boolean = false,
   minBlendBooks: number = 1
@@ -1324,14 +1396,18 @@ function getSharpOdds(
   let blendComplete = true;
   let blendWeight = 1.0;
   let bookCount = 0;
+  const averageBooks = annotateAndFilterBooksForAverage(books);
+  const minAverageBooks = Math.max(2, minBlendBooks);
 
   if (useAverage) {
-    // Explicit market average: use all books, but deduplicate RSI group
-    const dedupedBooks = deduplicateBooksForAverage(books);
-    sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
-    bookCount = dedupedBooks.length;
+    // Explicit market average: use filtered + deduplicated average inputs
+    if (averageBooks.length < minAverageBooks) {
+      return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0, bookCount: averageBooks.length };
+    }
+    sharpDecimal = averageBooks.reduce((sum, b) => sum + b.decimal, 0) / averageBooks.length;
+    bookCount = averageBooks.length;
     // List all books used in the average (original list for transparency)
-    books.forEach(b => sharpBooks.push(b.book));
+    averageBooks.forEach((b) => sharpBooks.push(b.book));
   } else if (blend && blend.length > 0) {
     // Custom blend of specific books
     // Build lookup map once for O(1) lookups instead of O(n) .find() calls
@@ -1378,11 +1454,13 @@ function getSharpOdds(
       sharpBooks.push("circa");
       bookCount = 1;
     } else {
-      // Fallback to average (with RSI deduplication)
-      const dedupedBooks = deduplicateBooksForAverage(books);
-      sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
+      // Fallback to average (with outlier filtering + RSI deduplication)
+      if (averageBooks.length < minAverageBooks) {
+        return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0, bookCount: averageBooks.length };
+      }
+      sharpDecimal = averageBooks.reduce((sum, b) => sum + b.decimal, 0) / averageBooks.length;
       sharpBooks.push("average");
-      bookCount = dedupedBooks.length;
+      bookCount = averageBooks.length;
     }
   }
 

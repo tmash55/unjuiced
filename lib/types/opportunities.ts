@@ -29,6 +29,8 @@ export interface BookOdds {
   mobileLink: string | null;  // Deep link for mobile apps (e.g., fanduelsportsbook://...)
   sgp: string | null;      // SGP eligibility token
   limits: BookLimits | null;  // Betting limits when available
+  includedInAverage?: boolean;
+  averageExclusionReason?: string | null;
 }
 
 /**
@@ -269,6 +271,8 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
       mobileLink: b.mobile_link as string | null,
       sgp: b.sgp as string | null,
       limits: b.limits as { max: number } | null,
+      includedInAverage: (b.included_in_average as boolean | undefined) ?? true,
+      averageExclusionReason: (b.average_exclusion_reason as string | null | undefined) ?? null,
     })),
 
     sharpPrice: raw.sharp_price as string | null,
@@ -329,6 +333,8 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
             mobileLink: b.mobile_link as string | null,
             sgp: b.sgp as string | null,
             limits: (b.limits as { max: number } | null) ?? null,
+            includedInAverage: (b.included_in_average as boolean | undefined) ?? true,
+            averageExclusionReason: (b.average_exclusion_reason as string | null | undefined) ?? null,
           })),
         }
       : null,

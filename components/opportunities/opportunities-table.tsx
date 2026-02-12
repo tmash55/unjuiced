@@ -2055,8 +2055,9 @@ export function OpportunitiesTable({
             const timeStr = gameDate ? gameDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
 
             // Calculate average from all books
-            const avgDecimal = opp.allBooks && opp.allBooks.length > 0
-              ? opp.allBooks.reduce((sum, b) => sum + b.decimal, 0) / opp.allBooks.length
+            const averageEligibleBooks = (opp.allBooks || []).filter((b) => b.includedInAverage !== false);
+            const avgDecimal = averageEligibleBooks.length > 0
+              ? averageEligibleBooks.reduce((sum, b) => sum + b.decimal, 0) / averageEligibleBooks.length
               : null;
             let avgAmerican: string | null = null;
             if (avgDecimal) {
@@ -2162,8 +2163,9 @@ export function OpportunitiesTable({
                     
                     // Calculate average using implied probabilities (correct method)
                     const calcAvgAmerican = (books: typeof overBooks) => {
-                      if (books.length === 0) return null;
-                      const avgDecimal = books.reduce((sum, b) => sum + b.decimal, 0) / books.length;
+                      const averageBooks = books.filter((b) => b.includedInAverage !== false);
+                      if (averageBooks.length === 0) return null;
+                      const avgDecimal = averageBooks.reduce((sum, b) => sum + b.decimal, 0) / averageBooks.length;
                       if (avgDecimal >= 2) {
                         return `+${Math.round((avgDecimal - 1) * 100)}`;
                       } else {
@@ -2324,6 +2326,9 @@ export function OpportunitiesTable({
                                         const underOffer = underMap.get(bookId);
                                         const isOverBest = overOffer && overOffer.decimal === bestOver;
                                         const isUnderBest = underOffer && underOffer.decimal === bestUnder;
+                                        const isOverExcludedFromAverage = overOffer?.includedInAverage === false;
+                                        const isUnderExcludedFromAverage = underOffer?.includedInAverage === false;
+                                        const isExcludedFromAverage = isOverExcludedFromAverage || isUnderExcludedFromAverage;
                                         // Check if this book is a reference book (used in custom filter calculation)
                                         const normalizedSharpBooks = new Set(
                                           (opp.sharpBooks || []).map((book) => normalizeSportsbookId(book))
@@ -2336,7 +2341,8 @@ export function OpportunitiesTable({
                                             className={cn(
                                               "flex-shrink-0 w-[72px] border-r border-neutral-100 dark:border-neutral-800/40 last:border-r-0",
                                               "hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30 transition-colors",
-                                              isReferenceBook && "bg-amber-50/50 dark:bg-amber-900/10"
+                                              isReferenceBook && "bg-amber-50/50 dark:bg-amber-900/10",
+                                              isExcludedFromAverage && "bg-amber-100/60 dark:bg-amber-900/20"
                                             )}
                                           >
                                             {/* Book Logo Header */}
@@ -2362,6 +2368,13 @@ export function OpportunitiesTable({
                                                   </span>
                                                 </Tooltip>
                                               )}
+                                              {isExcludedFromAverage && (
+                                                <Tooltip content="Not included in average">
+                                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400">
+                                                    AVG OFF
+                                                  </span>
+                                                </Tooltip>
+                                              )}
                                             </div>
                                             {/* Over Odds */}
                                             <div className={cn(
@@ -2375,6 +2388,7 @@ export function OpportunitiesTable({
                                                     className={cn(
                                                       "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
                                                       "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",
+                                                      isOverExcludedFromAverage && "text-rose-700 dark:text-rose-300",
                                                       isOverBest
                                                         ? "text-amber-600 dark:text-amber-400 font-bold"
                                                         : "text-neutral-700 dark:text-neutral-300"
@@ -2382,6 +2396,13 @@ export function OpportunitiesTable({
                                                   >
                                                     {overOffer.priceFormatted}
                                                   </button>
+                                                  {isOverExcludedFromAverage && (
+                                                    <Tooltip content={overOffer.averageExclusionReason || "Not included in average"}>
+                                                      <span className="text-[9px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                                                        Not in avg
+                                                      </span>
+                                                    </Tooltip>
+                                                  )}
                                                   {overOffer.limits?.max && (
                                                     <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${overOffer.limits.max >= 1000 ? `${(overOffer.limits.max / 1000).toFixed(0)}k` : overOffer.limits.max}
@@ -2404,6 +2425,7 @@ export function OpportunitiesTable({
                                                     className={cn(
                                                       "text-sm font-semibold tabular-nums transition-all px-2 py-1 rounded",
                                                       "hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:scale-105",
+                                                      isUnderExcludedFromAverage && "text-rose-700 dark:text-rose-300",
                                                       isUnderBest
                                                         ? "text-amber-600 dark:text-amber-400 font-bold"
                                                         : "text-neutral-700 dark:text-neutral-300"
@@ -2411,6 +2433,13 @@ export function OpportunitiesTable({
                                                   >
                                                     {underOffer.priceFormatted}
                                                   </button>
+                                                  {isUnderExcludedFromAverage && (
+                                                    <Tooltip content={underOffer.averageExclusionReason || "Not included in average"}>
+                                                      <span className="text-[9px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                                                        Not in avg
+                                                      </span>
+                                                    </Tooltip>
+                                                  )}
                                                   {underOffer.limits?.max && (
                                                     <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${underOffer.limits.max >= 1000 ? `${(underOffer.limits.max / 1000).toFixed(0)}k` : underOffer.limits.max}
