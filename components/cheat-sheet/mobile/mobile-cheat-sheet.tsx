@@ -855,7 +855,7 @@ export function MobileCheatSheet({
                                       e.stopPropagation();
                                       onPlayerClick(row);
                                     }}
-                                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 truncate text-left"
+                                    className="text-[11px] font-bold text-neutral-900 dark:text-white hover:text-brand hover:underline truncate text-left"
                                   >
                                     {formatPlayerName(row.playerName)}
                                   </button>

@@ -657,15 +657,15 @@ export function PlayerQuickViewModal({
 
               {/* Bottom Section - Prop Controls - Premium Glass */}
               <div className="px-4 sm:px-6 py-3 bg-gradient-to-r from-neutral-50/80 via-white/60 to-neutral-50/80 dark:from-neutral-900/60 dark:via-neutral-800/40 dark:to-neutral-900/60 border-t border-neutral-200/60 dark:border-neutral-800/60">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                   {/* Left: Market Dropdown + Line Chip */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {/* Market Dropdown - Premium */}
                     <div className="relative" ref={marketDropdownRef}>
                       <button
                         type="button"
                         onClick={() => setIsMarketDropdownOpen(!isMarketDropdownOpen)}
-                        className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-sm font-bold text-neutral-900 dark:text-white hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-xs sm:text-sm font-bold text-neutral-900 dark:text-white hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all shadow-sm ring-1 ring-black/5 dark:ring-white/5"
                       >
                         <span className="text-emerald-600 dark:text-emerald-400">{formatMarketLabel(currentMarket)}</span>
                         <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200", isMarketDropdownOpen && "rotate-180")} />
@@ -698,9 +698,9 @@ export function PlayerQuickViewModal({
                     </div>
 
                     {/* Line Chip */}
-                    <div 
+                    <div
                       className={cn(
-                        "relative flex items-center gap-1.5 px-3 py-2 rounded-lg shadow-md transition-all cursor-pointer",
+                        "relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-md transition-all cursor-pointer",
                         customLine !== null && customLine !== defaultLine
                           ? "ring-2 ring-amber-400 ring-offset-1 ring-offset-white dark:ring-offset-neutral-950" 
                           : "hover:shadow-lg"
@@ -751,7 +751,7 @@ export function PlayerQuickViewModal({
                     )}
 
                     {/* Odds */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1">
                       {activeOdds?.over ? (
                         <button
                           type="button"
@@ -925,6 +925,30 @@ export function PlayerQuickViewModal({
                     );
                   })}
                 </div>
+
+                {/* Mobile CTA: quick access to full hit rate card */}
+                <div className="sm:hidden mt-2">
+                  {hasAdvancedAccess ? (
+                    <Link
+                      href={`/hit-rates/nba/player/${nba_player_id}?market=${currentMarket}`}
+                      target="_blank"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      View Full Hit Rate Card
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/pricing"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-colors"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      {isAuthenticated ? "Upgrade for Full Hit Rate Card" : "Try Free for Full Hit Rate Card"}
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1004,18 +1028,18 @@ export function PlayerQuickViewModal({
                           </div>
                           
                           {/* Chart Stats - Premium */}
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
+                          <div className="flex items-center gap-1.5 sm:gap-3">
+                            <div className="flex flex-col items-center px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-white dark:bg-neutral-700/40 ring-1 ring-neutral-200/60 dark:ring-neutral-600/40 shadow-sm">
                               <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-neutral-400">Avg</span>
                               <span className={cn(
-                                "text-lg sm:text-xl font-bold tabular-nums tracking-tight",
+                                "text-base sm:text-xl font-bold tabular-nums tracking-tight",
                                 chartStats.avg && chartStats.avg > activeLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white"
                               )}>
                                 {chartStats.avg?.toFixed(1) ?? "—"}
                               </span>
                             </div>
                             <div className={cn(
-                              "flex flex-col items-center px-4 py-2 rounded-xl ring-1 shadow-sm",
+                              "flex flex-col items-center px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl ring-1 shadow-sm",
                               chartStats.hitRate !== null && chartStats.hitRate >= 70 
                                 ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 ring-emerald-200/60 dark:ring-emerald-700/40"
                                 : chartStats.hitRate !== null && chartStats.hitRate >= 50 
@@ -1025,7 +1049,7 @@ export function PlayerQuickViewModal({
                                     : "bg-neutral-50 dark:bg-neutral-700/30 ring-neutral-200/50 dark:ring-neutral-700/50"
                             )}>
                               <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-neutral-400">Hit Rate</span>
-                              <span className={cn("text-lg sm:text-xl font-bold tabular-nums tracking-tight", getPctColor(chartStats.hitRate))}>
+                              <span className={cn("text-base sm:text-xl font-bold tabular-nums tracking-tight", getPctColor(chartStats.hitRate))}>
                                 {chartStats.hitRate !== null ? `${chartStats.hitRate}%` : "—"}
                               </span>
                             </div>
@@ -1038,24 +1062,20 @@ export function PlayerQuickViewModal({
                       </div>
                     </div>
 
-                    {/* Chart - Horizontally scrollable for many games */}
-                    <div className="relative">
-                      <div className="p-3 sm:p-4 overflow-x-auto max-w-full">
-                        <div style={{ width: filteredGames.length > 15 ? `${filteredGames.length * 40}px` : '100%', minWidth: '100%' }}>
-                          {filteredGames.length > 0 ? (
-                            <GameLogChart
-                              games={filteredGames}
-                              market={currentMarket}
-                              line={activeLine}
-                              onLineChange={setCustomLine}
-                              odds={oddsForChart}
-                              profileGameLogs={profile?.gameLogs as any}
-                            />
-                          ) : (
-                            <div className="py-12 text-center text-sm text-neutral-500">No game data available</div>
-                          )}
-                        </div>
-                      </div>
+                    {/* Chart */}
+                    <div className="p-3 sm:p-4">
+                      {filteredGames.length > 0 ? (
+                        <GameLogChart
+                          games={filteredGames}
+                          market={currentMarket}
+                          line={activeLine}
+                          onLineChange={setCustomLine}
+                          odds={oddsForChart}
+                          profileGameLogs={profile?.gameLogs as any}
+                        />
+                      ) : (
+                        <div className="py-12 text-center text-sm text-neutral-500">No game data available</div>
+                      )}
                     </div>
                   </div>
 

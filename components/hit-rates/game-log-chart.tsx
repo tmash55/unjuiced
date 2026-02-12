@@ -582,6 +582,7 @@ export function GameLogChart({
   const [showMatchupLines, setShowMatchupLines] = useState(true);
   const marketLabel = getMarketLabel(market);
   const chartRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragLine, setDragLine] = useState<number | null>(null);
   
@@ -641,7 +642,28 @@ export function GameLogChart({
 
   const chartHeight = 200;
   // Adjust bar width based on number of games
-  const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 36 : games.length <= 20 ? 24 : 16;
+  const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 40 : games.length <= 20 ? 30 : 24;
+
+  // Shared track sizing for bars/logos/dates so all x-axis elements stay aligned.
+  const gapPx = 12; // gap-3
+  const contentWidth = games.length > 0
+    ? games.length * barWidth + (games.length - 1) * gapPx
+    : 0;
+
+  // Auto-scroll to the right (most recent games) only when overflowing.
+  // Uses requestAnimationFrame to ensure the DOM has laid out the full scroll width first.
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    requestAnimationFrame(() => {
+      const isOverflowing = el.scrollWidth > el.clientWidth + 1;
+      if (isOverflowing) {
+        el.scrollLeft = el.scrollWidth;
+      } else {
+        el.scrollLeft = 0;
+      }
+    });
+  }, [games.length, barWidth, gapPx]);
 
   // Calculate line position as percentage (use displayLine for dragging)
   const linePosition = displayLine !== null ? (displayLine / maxStat) * 100 : null;
@@ -814,16 +836,16 @@ export function GameLogChart({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Y-Axis Labels - aligned with chart area */}
-      <div className="absolute left-0 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium" style={{ top: 0, height: chartHeight }}>
+      {/* Y-Axis Labels - aligned with chart area, stays outside scroll */}
+      <div className="absolute left-0 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium z-20" style={{ top: 0, height: chartHeight }}>
         <span>{maxStat}</span>
         <span>{Math.round(maxStat / 2)}</span>
         <span>0</span>
       </div>
-      
+
       {/* DvP Y-Axis Labels - Right side (only when DvP line is shown) */}
       {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && (
-        <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1" style={{ top: 0, height: chartHeight }}>
+        <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1 z-20" style={{ top: 0, height: chartHeight }}>
           {/* Top = Rank 30 (Weak defense = good for player) */}
           <div className="flex items-center justify-end gap-0.5">
             <span className="text-emerald-500 font-bold">#30</span>
@@ -839,8 +861,20 @@ export function GameLogChart({
         </div>
       )}
 
+      {/* Scrollable chart wrapper */}
+      <div
+        ref={scrollContainerRef}
+        className={cn(
+          "ml-10",
+          showDvpLine && "mr-16",
+          "overflow-x-auto scrollbar-thin"
+        )}
+      >
+      <div className="w-max min-w-full">
+      <div className="mx-auto" style={{ width: contentWidth }}>
+
       {/* Chart Area */}
-      <div ref={chartRef} className={cn("ml-10 relative", showDvpLine && "mr-16")} style={{ height: chartHeight }}>
+      <div ref={chartRef} className="relative" style={{ height: chartHeight }}>
         {/* Bottom Line Only */}
         <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-200 dark:border-neutral-700" />
 
@@ -860,17 +894,14 @@ export function GameLogChart({
           </div>
         )}
 
-        {/* Bars Container - centered with gap */}
-        <div className="absolute inset-0 flex items-end justify-center gap-3 z-10 pointer-events-none">
+        {/* Bars Container - fixed track with shared widths for perfect x-axis alignment */}
+        <div className="absolute inset-0 flex items-end justify-start gap-3 z-10 pointer-events-none">
           
           {/* DvP Line Overlay - positioned relative to centered bars */}
           {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && games.length > 1 && (() => {
-            // Calculate dimensions matching the flex layout
-            const gapSize = 12; // gap-3 = 12px
-            const totalGap = (games.length - 1) * gapSize;
-            const totalBarWidth = games.length * barWidth;
-            const contentWidth = totalBarWidth + totalGap;
-            
+            // Calculate dimensions matching the bar/date track
+            const gapSize = gapPx;
+
             // Build points data - X positions are relative to content start (0)
             const points = games.map((game, idx) => {
               const dvpRank = opponentDvpRanks.get(game.opponentTeamId);
@@ -895,11 +926,10 @@ export function GameLogChart({
             
             return (
               <svg 
-                className="absolute bottom-0 left-1/2 z-[5] pointer-events-none"
+                className="absolute bottom-0 left-0 z-[5] pointer-events-none"
                 style={{ 
                   width: contentWidth, 
                   height: chartHeight,
-                  transform: 'translateX(-50%)', // Center to match flex justify-center
                 }}
                 viewBox={`0 0 ${contentWidth} ${chartHeight}`}
               >
@@ -927,12 +957,9 @@ export function GameLogChart({
           
           {/* Matchup Filter Lines - Play Type and Shot Zone */}
           {showMatchupLines && activeMatchupFilters.length > 0 && games.length > 1 && (() => {
-            // Calculate dimensions matching the flex layout
-            const gapSize = 12; // gap-3 = 12px
-            const totalGap = (games.length - 1) * gapSize;
-            const totalBarWidth = games.length * barWidth;
-            const contentWidth = totalBarWidth + totalGap;
-            
+            // Calculate dimensions matching the bar/date track
+            const gapSize = gapPx;
+
             // Render a line for each active matchup filter
             return activeMatchupFilters.map((filter, filterIdx) => {
               const ranksMap = filter.type === "playType" ? playTypeRanksMap?.get(filter.key) : shotZoneRanksMap?.get(filter.key);
@@ -963,11 +990,10 @@ export function GameLogChart({
               return (
                 <svg 
                   key={`${filter.type}-${filter.key}`}
-                  className="absolute bottom-0 left-1/2 z-[4] pointer-events-none"
+                  className="absolute bottom-0 left-0 z-[4] pointer-events-none"
                   style={{ 
                     width: contentWidth, 
                     height: chartHeight,
-                    transform: 'translateX(-50%)', // Center to match flex justify-center
                   }}
                   viewBox={`0 0 ${contentWidth} ${chartHeight}`}
                 >
@@ -1192,7 +1218,7 @@ export function GameLogChart({
             return (
               <Tooltip key={game.gameId || idx} content={tooltipContent} side="top">
                 <div
-                  className="relative flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
+                  className="relative shrink-0 flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
                   style={{ width: barWidth, height: chartHeight }}
                 >
                   {/* Bar - Stacked for combo markets, solid for single stat */}
@@ -1426,11 +1452,11 @@ export function GameLogChart({
       </div>
 
       {/* X-Axis - Dates */}
-      <div className={cn("ml-10 mt-8 flex justify-center gap-3", showDvpLine && "mr-16")}>
+      <div className="mt-8 flex justify-start gap-3">
         {games.map((game, idx) => (
           <div
             key={game.gameId || idx}
-            className="text-[9px] text-neutral-400 text-center font-medium"
+            className="shrink-0 text-[9px] text-neutral-400 text-center font-medium"
             style={{ width: barWidth }}
           >
             {formatShortDate(game.date)}
@@ -1438,7 +1464,11 @@ export function GameLogChart({
         ))}
       </div>
 
-      {/* Chart Annotation Row - Minimal legend + context toggles */}
+      </div>{/* end centered track */}
+      </div>{/* end minWidth inner */}
+      </div>{/* end scroll wrapper */}
+
+      {/* Chart Annotation Row - Outside scroll so it stays fixed */}
       <div className={cn("ml-10 mt-3 flex items-center justify-between", showDvpLine && "mr-16")}>
         {/* Context Toggles - Slim, clickable pills (left) */}
         {onQuickFilterToggle ? (
@@ -1479,7 +1509,7 @@ export function GameLogChart({
                     className={cn(
                       "px-1.5 py-0.5 text-[9px] font-medium rounded transition-all",
                       quickFilters?.has(key)
-                        ? key === "dvpTough" 
+                        ? key === "dvpTough"
                           ? "bg-red-500 text-white"
                           : "bg-emerald-500 text-white"
                         : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
@@ -1492,7 +1522,7 @@ export function GameLogChart({
             )}
           </div>
         ) : (
-          <div /> 
+          <div />
         )}
 
         {/* Minimal Legend - Whispers, doesn't speak (center-right) */}
@@ -1529,18 +1559,18 @@ export function GameLogChart({
           {activeMatchupFilters.length > 0 && (
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-700">
               {activeMatchupFilters.map((filter) => (
-                <div 
+                <div
                   key={`${filter.type}-${filter.key}`}
                   className="flex items-center gap-1"
                 >
-                  <div 
+                  <div
                     className={cn(
                       "w-3 h-0.5 rounded-full",
                       filter.type === "shotZone" && "border-t border-dashed"
                     )}
-                    style={{ 
+                    style={{
                       backgroundColor: filter.type !== "shotZone" ? filter.color : undefined,
-                      borderColor: filter.type === "shotZone" ? filter.color : undefined 
+                      borderColor: filter.type === "shotZone" ? filter.color : undefined
                     }}
                   />
                   <span className="text-[9px]" style={{ color: filter.color }}>

@@ -484,6 +484,13 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           filters={filters}
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
+          onPlayerClick={(row) => setSelectedPlayer({
+            nba_player_id: row.playerId,
+            player_name: row.playerName,
+            market: row.market,
+            event_id: row.eventId ?? "",
+            line: row.line,
+          })}
           sport={sport}
           isGated={isGated}
         />
@@ -493,6 +500,21 @@ function InjuryImpactSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           isOpen={isGlossaryOpen} 
           onClose={() => setIsGlossaryOpen(false)} 
         />
+
+        {/* Player Quick View Modal */}
+        {selectedPlayer && (
+          <PlayerQuickViewModal
+            nba_player_id={selectedPlayer.nba_player_id}
+            player_name={selectedPlayer.player_name}
+            initial_market={selectedPlayer.market}
+            initial_line={selectedPlayer.line}
+            event_id={selectedPlayer.event_id}
+            open={!!selectedPlayer}
+            onOpenChange={(open) => {
+              if (!open) setSelectedPlayer(null);
+            }}
+          />
+        )}
       </>
     );
   }
@@ -838,6 +860,13 @@ function HitRatesCheatSheet({ sport, sheet }: { sport: SupportedSport; sheet: Su
           onFiltersChange={setFilters}
           onGlossaryOpen={() => setIsGlossaryOpen(true)}
           onRowClick={handleRowClick}
+          onPlayerClick={(row) => setSelectedPlayer({
+            nba_player_id: row.playerId,
+            player_name: row.playerName,
+            market: row.market,
+            event_id: row.eventId ?? "",
+            line: row.line,
+          })}
           sport={sport}
           currentSheet={sheet}
           isGated={isGated}

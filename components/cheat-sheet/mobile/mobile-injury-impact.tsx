@@ -699,7 +699,7 @@ export function MobileInjuryImpact({
                                       e.stopPropagation();
                                       onPlayerClick(row);
                                     }}
-                                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 truncate text-left"
+                                    className="text-[11px] font-bold text-neutral-900 dark:text-white hover:text-brand hover:underline truncate text-left"
                                   >
                                     {formatPlayerName(row.playerName)}
                                   </button>
@@ -731,7 +731,7 @@ export function MobileInjuryImpact({
                         {/* Teammate Out */}
                         <td className="text-center px-1.5 py-2">
                           <div className="flex flex-col items-center">
-                            <span className="text-[10px] font-semibold text-neutral-900 dark:text-white truncate max-w-[70px]">
+                            <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-400 truncate max-w-[70px]">
                               {formatPlayerName(row.defaultTeammateName)}
                             </span>
                             <span className={cn(

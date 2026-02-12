@@ -184,7 +184,7 @@ export function ShootingZones({
       return (
         <Tooltip content={tooltipContent} side="top">
           <div className={cn(
-            "w-5 h-5 rounded-full cursor-help transition-all hover:scale-125 bg-black/40 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-md",
+            "w-4 h-4 sm:w-5 sm:h-5 rounded-full cursor-help transition-all hover:scale-110 sm:hover:scale-125 bg-black/40 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-md",
             zoneClassName
           )}>
             <div className="w-2 h-2 rounded-full bg-white/80" />
@@ -204,20 +204,20 @@ export function ShootingZones({
     return (
       <Tooltip content={tooltipContent} side="top">
         <div className={cn(
-          "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 cursor-help transition-all hover:scale-110 backdrop-blur-md border shadow-lg",
+          "flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 cursor-help transition-all hover:scale-105 sm:hover:scale-110 backdrop-blur-md border shadow-lg",
           "bg-gradient-to-br",
           getBadgeStyle(),
           zoneClassName
         )}>
           {/* Shot percentage */}
-          <span className="text-[12px] font-black tabular-nums text-white drop-shadow-sm">
+          <span className="text-[10px] sm:text-[12px] font-black tabular-nums text-white drop-shadow-sm leading-none">
             {zone.pct.toFixed(0)}%
           </span>
           {/* Divider */}
-          <span className="text-white/20 font-light">|</span>
+          <span className="text-[10px] sm:text-xs text-white/20 font-light">|</span>
           {/* Defense rank with color */}
           <span className={cn(
-            "text-[11px] font-black tabular-nums drop-shadow-sm",
+            "text-[9px] sm:text-[11px] font-black tabular-nums drop-shadow-sm leading-none",
             zone.defRank !== null && zone.defRank >= 21 ? "text-emerald-300" :
             zone.defRank !== null && zone.defRank <= 10 ? "text-rose-300" : "text-amber-300"
           )}>
@@ -359,11 +359,11 @@ export function ShootingZones({
               <p className="text-sm text-neutral-400 font-medium">No shot zone data available</p>
             </div>
           ) : (
-            <div className={showSideTable ? "flex gap-4" : ""}>
+            <div className={showSideTable ? "flex flex-col gap-3 sm:flex-row sm:gap-4" : ""}>
               {/* Chart - full width when no side table, constrained when side table shown */}
               <div className={cn(
                 "relative",
-                showSideTable ? "flex-1 max-w-[400px]" : "max-w-2xl mx-auto"
+                showSideTable ? "w-full sm:flex-1 sm:max-w-[400px]" : "max-w-2xl mx-auto"
               )}>
               {/* 
                 NBA Court Dimensions (1 foot = 10 units):
@@ -638,7 +638,7 @@ export function ShootingZones({
               
               {/* RIGHT: Zone Details Table - Only shown when showSideTable is true */}
               {showSideTable && (
-                <div className="flex-1 min-w-[200px]">
+                <div className="w-full sm:flex-1 sm:min-w-[200px]">
                   {/* Table Header */}
                   <div className="grid grid-cols-[1fr_50px_50px_45px] items-center px-3 py-2 bg-neutral-100/80 dark:bg-neutral-800/60 rounded-t-lg border border-neutral-200/60 dark:border-neutral-700/60">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">

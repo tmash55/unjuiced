@@ -984,7 +984,7 @@ function InjuryImpactRow({
             />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 font-medium text-sm truncate">
+            <div className="flex items-center gap-1.5 truncate">
               {onPlayerClick ? (
                 <Tooltip content="View Profile" side="top">
                   <button
@@ -994,13 +994,13 @@ function InjuryImpactRow({
                       e.stopPropagation();
                       onPlayerClick(row);
                     }}
-                    className="text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline transition-colors text-left truncate"
+                    className="text-sm font-bold text-neutral-900 dark:text-white hover:text-brand hover:underline transition-colors text-left truncate"
                   >
                     {row.playerName}
                   </button>
                 </Tooltip>
               ) : (
-                <span className="text-neutral-900 dark:text-white truncate">
+                <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
                   {row.playerName}
                 </span>
               )}
@@ -1050,7 +1050,7 @@ function InjuryImpactRow({
                 )}>
                   {injuryInfo.label}
                 </span>
-                <span className="font-medium text-sm text-neutral-900 dark:text-white truncate">
+                <span className="font-medium text-sm text-neutral-600 dark:text-neutral-400 truncate">
                   {selectedTeammateNames[0]?.name || row.defaultTeammateName}
                 </span>
               </div>
