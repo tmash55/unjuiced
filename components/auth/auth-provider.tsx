@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import config from "@/config";
 import { getRedirectUrl } from "@/libs/utils/auth";
+import posthog from "posthog-js";
 
 interface AuthContextType {
   user: User | null;
@@ -92,6 +93,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           queryClient.invalidateQueries({ queryKey: ['me-plan'] });
           // Ensure any server components re-read cookies and re-render
           try { router.refresh(); } catch {}
+        }
+
+        // PostHog: Identify user on sign in, reset on sign out
+        if (event === 'SIGNED_IN' && session?.user) {
+          const { id, email, user_metadata } = session.user;
+          posthog.identify(id, {
+            email,
+            name: user_metadata?.full_name || user_metadata?.name,
+            first_name: user_metadata?.first_name,
+            last_name: user_metadata?.last_name,
+          });
+          posthog.capture("user_signed_in", {
+            method: user_metadata?.provider || "email",
+            email,
+          });
+        } else if (event === 'SIGNED_OUT') {
+          posthog.reset();
         }
       }
     });

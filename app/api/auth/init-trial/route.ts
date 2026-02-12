@@ -1,5 +1,6 @@
 import { createClient } from '@/libs/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 /**
  * POST /api/auth/init-trial
@@ -70,6 +71,18 @@ export async function POST() {
       email: user.email,
       trial_started_at: now.toISOString(),
       trial_ends_at: trialEnds.toISOString(),
+    })
+
+    // Capture trial_started event in PostHog
+    const posthog = getPostHogClient()
+    posthog.capture({
+      distinctId: user.id,
+      event: 'trial_started',
+      properties: {
+        trial_started_at: now.toISOString(),
+        trial_ends_at: trialEnds.toISOString(),
+        trial_duration_days: 3,
+      },
     })
 
     return NextResponse.json({

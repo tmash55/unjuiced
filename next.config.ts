@@ -24,9 +24,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // Dub Analytics reverse proxy support
+  // Dub Analytics and PostHog reverse proxy support
   async rewrites() {
     return [
+      // Dub Analytics
       {
         source: "/_proxy/dub/track/:path*",
         destination: "https://api.dub.co/track/:path*",
@@ -35,8 +36,19 @@ const nextConfig: NextConfig = {
         source: "/_proxy/dub/script.js",
         destination: "https://www.dubcdn.com/analytics/script.js",
       },
+      // PostHog reverse proxy
+      {
+        source: "/ingest/static/:path*",
+        destination: "https://us-assets.i.posthog.com/static/:path*",
+      },
+      {
+        source: "/ingest/:path*",
+        destination: "https://us.i.posthog.com/:path*",
+      },
     ];
   },
+  // Required to support PostHog trailing slash API requests
+  skipTrailingSlashRedirect: true,
 };
 
 export default nextConfig;

@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { syncSubscriptionToBeeHiiv, getPlanFromPriceId } from '@/libs/beehiiv'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-08-16' as any,
@@ -116,6 +117,48 @@ export async function POST(req: NextRequest) {
           console.error('[webhook] Failed to upsert subscription:', error)
         } else {
           console.log('[webhook] Successfully upserted subscription for user:', user_id)
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // POSTHOG - Track subscription lifecycle events
+        // ═══════════════════════════════════════════════════════════════════
+        const posthog = getPostHogClient()
+        const priceIdForEvent = typeof (sub as any)?.items?.data?.[0]?.price?.id === 'string'
+          ? (sub as any).items.data[0].price.id
+          : undefined
+
+        if (event.type === 'customer.subscription.created') {
+          posthog.capture({
+            distinctId: user_id,
+            event: 'subscription_created',
+            properties: {
+              subscription_id: sub.id,
+              status: normalizedStatus,
+              price_id: priceIdForEvent,
+              is_trialing: normalizedStatus === 'trialing',
+            },
+          })
+        } else if (event.type === 'customer.subscription.updated') {
+          posthog.capture({
+            distinctId: user_id,
+            event: 'subscription_updated',
+            properties: {
+              subscription_id: sub.id,
+              status: normalizedStatus,
+              price_id: priceIdForEvent,
+              cancel_at_period_end,
+            },
+          })
+        } else if (event.type === 'customer.subscription.deleted') {
+          posthog.capture({
+            distinctId: user_id,
+            event: 'subscription_cancelled',
+            properties: {
+              subscription_id: sub.id,
+              status: normalizedStatus,
+              price_id: priceIdForEvent,
+            },
+          })
         }
 
         // If the subscription includes a trial, persist trial metadata on the profile

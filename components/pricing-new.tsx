@@ -11,6 +11,7 @@ import { useEntitlements } from "@/hooks/use-entitlements";
 import { useSubscription } from "@/hooks/use-subscription";
 import { usePartnerCoupon } from "@/hooks/use-partner-coupon";
 import { cn } from "@/lib/utils";
+import posthog from "posthog-js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Plan hierarchy (higher index = higher tier)
@@ -336,8 +337,20 @@ const PlanCard = ({
   const isPopular = plan.badge === "Most Popular";
   const hasTrial = plan.trialDays && showTrialCTA;
 
+  // Track pricing plan selection
+  const trackPlanSelected = () => {
+    posthog.capture("pricing_plan_selected", {
+      plan_name: plan.name,
+      plan_type: plan.productType,
+      billing_period: isYearly ? "yearly" : "monthly",
+      price: price,
+      has_trial: !!hasTrial,
+    });
+  };
+
   // Open Stripe Customer Portal for existing subscribers to upgrade/downgrade
   const handleManageSubscription = async () => {
+    trackPlanSelected();
     setPortalLoading(true);
     try {
       const res = await fetch("/api/billing/portal", {
@@ -518,6 +531,7 @@ const PlanCard = ({
         ) : (
           <ButtonLink
             href={checkoutUrl || "/register"}
+            onClick={trackPlanSelected}
             className={cn(
               "!flex !h-12 !w-full items-center justify-center rounded-lg text-sm font-semibold transition-all",
               isPopular

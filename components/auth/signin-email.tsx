@@ -10,6 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "./auth-provider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import posthog from "posthog-js";
 
 // Zod schema for sign in
 const signInSchema = z.object({
@@ -66,6 +67,9 @@ export const SignInEmail = () => {
               : `${window.location.origin}${destination}`;
           }, 300);
         } catch (error) {
+          // Capture error in PostHog
+          posthog.captureException(error);
+
           // Handle specific authentication errors
           let errorMessage = "Invalid email or password.";
 
