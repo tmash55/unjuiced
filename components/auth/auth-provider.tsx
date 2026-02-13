@@ -154,7 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     // Check if there's a redirect URL in the current page's search params
     const searchParams = new URLSearchParams(window.location.search);
-    const redirectTo = searchParams.get('redirectTo') || searchParams.get('redirect');
+    const redirectTo =
+      searchParams.get('redirectTo') ||
+      searchParams.get('redirect') ||
+      searchParams.get('next');
 
     let redirectUrl = getRedirectUrl();
 

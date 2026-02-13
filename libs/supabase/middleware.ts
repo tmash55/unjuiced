@@ -104,6 +104,12 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith(prefix)
   );
   const isApiRoute = pathname.startsWith('/api/');
+  const isAuthCallbackRoute = pathname === '/auth/callback';
+  const hasAuthCallbackParams =
+    searchParams.has('code') ||
+    searchParams.has('token_hash') ||
+    searchParams.has('error') ||
+    searchParams.has('error_description');
 
   let supabaseResponse = NextResponse.next({ request });
 
@@ -143,6 +149,12 @@ export async function updateSession(request: NextRequest) {
 
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
+
+  // IMPORTANT: Do not bounce callback requests across domains once provider
+  // params are present. PKCE verifier lookup is origin-scoped.
+  if (isAuthCallbackRoute && hasAuthCallbackParams) {
+    return supabaseResponse;
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // APP SUBDOMAIN LOGIC (app.localhost / app.unjuiced.bet)
