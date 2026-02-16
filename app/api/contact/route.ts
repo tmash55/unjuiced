@@ -99,50 +99,69 @@ async function cioSendTransactional({
 function autoReplyHtml(name: string) {
   const logoUrl = "https://unjuiced.bet/logo.png";
   return `<!DOCTYPE html>
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <style>
+    :root { color-scheme: dark; supported-color-schemes: dark; }
+    body, .body-bg { background-color: #07131A !important; }
+    .card-bg { background-color: #0B1014 !important; }
+    .card-border { border-color: #1E293B !important; }
+    .text-heading { color: #F8FAFC !important; }
+    .text-body { color: #94A3B8 !important; }
+    .text-muted { color: #475569 !important; }
+    .text-brand { color: #38BDF8 !important; }
+    .btn-primary { background-color: #0EA5E9 !important; }
+    @media (prefers-color-scheme: dark) {
+      body, .body-bg { background-color: #07131A !important; }
+      .card-bg { background-color: #0B1014 !important; }
+      u + .body-bg { background-color: #07131A !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background-color:#07131A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#07131A;">
+<body class="body-bg" style="margin:0;padding:0;background-color:#07131A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div class="body-bg" style="background-color:#07131A;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="body-bg" style="background-color:#07131A !important;">
     <tr>
-      <td align="center" style="padding:40px 20px;">
+      <td align="center" style="padding:40px 20px;" class="body-bg">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
           <tr>
             <td style="padding-bottom:32px;">
               <a href="https://unjuiced.bet" style="text-decoration:none;">
                 <img src="${logoUrl}" alt="Unjuiced" width="36" height="36" style="border:0;display:inline;vertical-align:middle;border-radius:8px;" />
-                <span style="font-size:22px;font-weight:700;color:#38BDF8;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">Unjuiced</span>
+                <span class="text-brand" style="font-size:22px;font-weight:700;color:#38BDF8;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">Unjuiced</span>
               </a>
             </td>
           </tr>
           <tr>
-            <td style="background-color:#0B1014;border-radius:12px;padding:36px 32px;border:1px solid #1E293B;">
-              <p style="margin:0 0 20px;font-size:18px;font-weight:600;color:#F8FAFC;">
+            <td class="card-bg card-border" style="background-color:#0B1014;border-radius:12px;padding:36px 32px;border:1px solid #1E293B;">
+              <p class="text-heading" style="margin:0 0 20px;font-size:18px;font-weight:600;color:#F8FAFC;">
                 Hey ${name} 👋
               </p>
-              <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#94A3B8;">
+              <p class="text-body" style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#94A3B8;">
                 We got your message — thanks for reaching out. Someone from the team will get back to you soon, usually within 24 hours.
               </p>
-              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#94A3B8;">
+              <p class="text-body" style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#94A3B8;">
                 In the meantime, if you have anything else to add, just reply to this email.
               </p>
               <p style="margin:0 0 24px;">
-                <a href="https://unj.bet/6qfDqU9" style="display:inline-block;background-color:#0EA5E9;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Explore Our Tools →</a>
+                <a href="https://unj.bet/6qfDqU9" class="btn-primary" style="display:inline-block;background-color:#0EA5E9;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Explore Our Tools →</a>
               </p>
-              <p style="margin:0;font-size:15px;color:#94A3B8;">
+              <p class="text-body" style="margin:0;font-size:15px;color:#94A3B8;">
                 — The Unjuiced Team
               </p>
             </td>
           </tr>
           <tr>
             <td style="padding-top:28px;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#475569;">
+              <p class="text-muted" style="margin:0;font-size:12px;color:#475569;">
                 Unjuiced · Bet smarter in seconds.
               </p>
               <p style="margin:8px 0 0;font-size:12px;">
-                <a href="https://unjuiced.bet" style="color:#38BDF8;text-decoration:none;">unjuiced.bet</a>
+                <a href="https://unjuiced.bet" class="text-brand" style="color:#38BDF8;text-decoration:none;">unjuiced.bet</a>
               </p>
             </td>
           </tr>
@@ -150,6 +169,7 @@ function autoReplyHtml(name: string) {
       </td>
     </tr>
   </table>
+  </div>
 </body>
 </html>`;
 }
@@ -171,10 +191,26 @@ function internalNotificationHtml({
 
   const logoUrl = "https://unjuiced.bet/logo.png";
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#07131A;">
-  <div style="max-width:560px;margin:0 auto;background:#0B1014;border-radius:12px;padding:28px;border:1px solid #1E293B;">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <style>
+    :root { color-scheme: dark; supported-color-schemes: dark; }
+    body, .body-bg { background-color: #07131A !important; }
+    .card-bg { background-color: #0B1014 !important; }
+    .msg-bg { background-color: #131A22 !important; }
+    @media (prefers-color-scheme: dark) {
+      body, .body-bg { background-color: #07131A !important; }
+      .card-bg { background-color: #0B1014 !important; }
+      u + .body-bg { background-color: #07131A !important; }
+    }
+  </style>
+</head>
+<body class="body-bg" style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#07131A !important;">
+  <div class="body-bg" style="background-color:#07131A;">
+  <div class="card-bg" style="max-width:560px;margin:0 auto;background-color:#0B1014;border-radius:12px;padding:28px;border:1px solid #1E293B;">
     <div style="margin-bottom:20px;">
       <img src="${logoUrl}" alt="Unjuiced" width="28" height="28" style="border:0;display:inline;vertical-align:middle;border-radius:6px;" />
       <span style="font-size:16px;font-weight:700;color:#38BDF8;margin-left:8px;vertical-align:middle;">Unjuiced</span>
@@ -188,9 +224,10 @@ function internalNotificationHtml({
     </table>
     <hr style="margin:16px 0;border:none;border-top:1px solid #1E293B;">
     <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#CBD5E1;">Message:</p>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#94A3B8;white-space:pre-wrap;background:#131A22;padding:12px;border-radius:8px;">${esc(message)}</p>
+    <p class="msg-bg" style="margin:0;font-size:14px;line-height:1.6;color:#94A3B8;white-space:pre-wrap;background-color:#131A22;padding:12px;border-radius:8px;">${esc(message)}</p>
     <hr style="margin:16px 0;border:none;border-top:1px solid #1E293B;">
     <p style="margin:0;font-size:12px;color:#475569;">Reply directly to <a href="mailto:${esc(email)}" style="color:#38BDF8;text-decoration:none;">${esc(email)}</a> to respond.</p>
+  </div>
   </div>
 </body>
 </html>`;
