@@ -97,7 +97,7 @@ async function cioSendTransactional({
 // ── Email templates ──────────────────────────────────────────────────
 
 function autoReplyHtml(name: string) {
-  const logoUrl = "https://unjuiced.com/logo.png";
+  const logoUrl = "https://unjuiced.bet/logo.png";
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -111,7 +111,7 @@ function autoReplyHtml(name: string) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
           <tr>
             <td style="padding-bottom:32px;">
-              <a href="https://unjuiced.com" style="text-decoration:none;">
+              <a href="https://unjuiced.bet" style="text-decoration:none;">
                 <img src="${logoUrl}" alt="Unjuiced" width="36" height="36" style="border:0;display:inline;vertical-align:middle;border-radius:8px;" />
                 <span style="font-size:22px;font-weight:700;color:#38BDF8;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">Unjuiced</span>
               </a>
@@ -129,7 +129,7 @@ function autoReplyHtml(name: string) {
                 In the meantime, if you have anything else to add, just reply to this email.
               </p>
               <p style="margin:0 0 24px;">
-                <a href="https://unjuiced.com/tools" style="display:inline-block;background-color:#0EA5E9;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Explore Our Tools →</a>
+                <a href="https://unj.bet/6qfDqU9" style="display:inline-block;background-color:#0EA5E9;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Explore Our Tools →</a>
               </p>
               <p style="margin:0;font-size:15px;color:#94A3B8;">
                 — The Unjuiced Team
@@ -142,7 +142,7 @@ function autoReplyHtml(name: string) {
                 Unjuiced · Bet smarter in seconds.
               </p>
               <p style="margin:8px 0 0;font-size:12px;">
-                <a href="https://unjuiced.com" style="color:#38BDF8;text-decoration:none;">unjuiced.com</a>
+                <a href="https://unjuiced.bet" style="color:#38BDF8;text-decoration:none;">unjuiced.bet</a>
               </p>
             </td>
           </tr>
@@ -169,7 +169,7 @@ function internalNotificationHtml({
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const logoUrl = "https://unjuiced.com/logo.png";
+  const logoUrl = "https://unjuiced.bet/logo.png";
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
