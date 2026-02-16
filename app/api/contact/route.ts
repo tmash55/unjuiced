@@ -97,42 +97,52 @@ async function cioSendTransactional({
 // ── Email templates ──────────────────────────────────────────────────
 
 function autoReplyHtml(name: string) {
+  const logoUrl = "https://unjuiced.com/logo.png";
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">
+<body style="margin:0;padding:0;background-color:#07131A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#07131A;">
     <tr>
       <td align="center" style="padding:40px 20px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
           <tr>
             <td style="padding-bottom:32px;">
-              <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">🍊 Unjuiced</span>
+              <a href="https://unjuiced.com" style="text-decoration:none;">
+                <img src="${logoUrl}" alt="Unjuiced" width="36" height="36" style="border:0;display:inline;vertical-align:middle;border-radius:8px;" />
+                <span style="font-size:22px;font-weight:700;color:#38BDF8;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">Unjuiced</span>
+              </a>
             </td>
           </tr>
           <tr>
-            <td style="background-color:#141414;border-radius:12px;padding:36px 32px;border:1px solid #222;">
-              <p style="margin:0 0 20px;font-size:18px;font-weight:600;color:#ffffff;">
+            <td style="background-color:#0B1014;border-radius:12px;padding:36px 32px;border:1px solid #1E293B;">
+              <p style="margin:0 0 20px;font-size:18px;font-weight:600;color:#F8FAFC;">
                 Hey ${name} 👋
               </p>
-              <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#a0a0a0;">
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#94A3B8;">
                 We got your message — thanks for reaching out. Someone from the team will get back to you soon, usually within 24 hours.
               </p>
-              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#a0a0a0;">
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#94A3B8;">
                 In the meantime, if you have anything else to add, just reply to this email.
               </p>
-              <p style="margin:0;font-size:15px;color:#a0a0a0;">
+              <p style="margin:0 0 24px;">
+                <a href="https://unjuiced.com/tools" style="display:inline-block;background-color:#0EA5E9;color:#ffffff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Explore Our Tools →</a>
+              </p>
+              <p style="margin:0;font-size:15px;color:#94A3B8;">
                 — The Unjuiced Team
               </p>
             </td>
           </tr>
           <tr>
             <td style="padding-top:28px;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#555;">
-                Unjuiced · Sports betting analytics, no juice added
+              <p style="margin:0;font-size:12px;color:#475569;">
+                Unjuiced · Bet smarter in seconds.
+              </p>
+              <p style="margin:8px 0 0;font-size:12px;">
+                <a href="https://unjuiced.com" style="color:#38BDF8;text-decoration:none;">unjuiced.com</a>
               </p>
             </td>
           </tr>
@@ -159,22 +169,28 @@ function internalNotificationHtml({
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  const logoUrl = "https://unjuiced.com/logo.png";
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e0e0e0;">
-    <h2 style="margin:0 0 16px;font-size:18px;color:#333;">📬 New Contact Form Submission</h2>
-    <table style="width:100%;font-size:14px;color:#555;">
-      <tr><td style="padding:6px 0;font-weight:600;width:80px;">Name</td><td style="padding:6px 0;">${esc(name)}</td></tr>
-      <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;"><a href="mailto:${esc(email)}">${esc(email)}</a></td></tr>
-      <tr><td style="padding:6px 0;font-weight:600;">Time</td><td style="padding:6px 0;">${submittedAt}</td></tr>
+<body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#07131A;">
+  <div style="max-width:560px;margin:0 auto;background:#0B1014;border-radius:12px;padding:28px;border:1px solid #1E293B;">
+    <div style="margin-bottom:20px;">
+      <img src="${logoUrl}" alt="Unjuiced" width="28" height="28" style="border:0;display:inline;vertical-align:middle;border-radius:6px;" />
+      <span style="font-size:16px;font-weight:700;color:#38BDF8;margin-left:8px;vertical-align:middle;">Unjuiced</span>
+      <span style="font-size:14px;color:#475569;margin-left:8px;vertical-align:middle;">· Internal</span>
+    </div>
+    <h2 style="margin:0 0 16px;font-size:18px;color:#F8FAFC;">📬 New Contact Form Submission</h2>
+    <table style="width:100%;font-size:14px;color:#94A3B8;">
+      <tr><td style="padding:8px 0;font-weight:600;width:80px;color:#CBD5E1;">Name</td><td style="padding:8px 0;">${esc(name)}</td></tr>
+      <tr><td style="padding:8px 0;font-weight:600;color:#CBD5E1;">Email</td><td style="padding:8px 0;"><a href="mailto:${esc(email)}" style="color:#38BDF8;text-decoration:none;">${esc(email)}</a></td></tr>
+      <tr><td style="padding:8px 0;font-weight:600;color:#CBD5E1;">Time</td><td style="padding:8px 0;">${submittedAt}</td></tr>
     </table>
-    <hr style="margin:16px 0;border:none;border-top:1px solid #e0e0e0;">
-    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#333;">Message:</p>
-    <p style="margin:0;font-size:14px;line-height:1.6;color:#555;white-space:pre-wrap;">${esc(message)}</p>
-    <hr style="margin:16px 0;border:none;border-top:1px solid #e0e0e0;">
-    <p style="margin:0;font-size:12px;color:#999;">Reply directly to <a href="mailto:${esc(email)}">${esc(email)}</a> to respond.</p>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #1E293B;">
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#CBD5E1;">Message:</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#94A3B8;white-space:pre-wrap;background:#131A22;padding:12px;border-radius:8px;">${esc(message)}</p>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #1E293B;">
+    <p style="margin:0;font-size:12px;color:#475569;">Reply directly to <a href="mailto:${esc(email)}" style="color:#38BDF8;text-decoration:none;">${esc(email)}</a> to respond.</p>
   </div>
 </body>
 </html>`;
