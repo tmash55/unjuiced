@@ -56,6 +56,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // --- Customer.io: Identify user + track event ---
+    await sendToCustomerIo({ name, email, message }).catch((err) => {
+      // Log but don't fail the request if Customer.io is down
+      console.error("Customer.io tracking failed:", err);
+    });
+
     return NextResponse.json(
       { success: true, data },
       { status: 200 }
@@ -69,3 +75,58 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Send identify + event to Customer.io Track API (v1).
+ * Docs: https://customer.io/docs/api/track/
+ */
+async function sendToCustomerIo({
+  name,
+  email,
+  message,
+}: {
+  name: string;
+  email: string;
+  message: string;
+}) {
+  const siteId = process.env.CUSTOMERIO_SITE_ID;
+  const apiKey = process.env.CUSTOMERIO_API_KEY;
+
+  if (!siteId || !apiKey) {
+    console.warn("Customer.io credentials not configured — skipping tracking");
+    return;
+  }
+
+  const auth = Buffer.from(`${siteId}:${apiKey}`).toString("base64");
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Basic ${auth}`,
+  };
+
+  const customerId = email; // Use email as the Customer.io identifier
+  const nowUnix = Math.floor(Date.now() / 1000);
+
+  // 1. Identify the person
+  await fetch(`https://track.customer.io/api/v1/customers/${encodeURIComponent(customerId)}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      email,
+      name,
+      created_at: nowUnix,
+    }),
+  });
+
+  // 2. Track the contact_form_submitted event
+  await fetch(`https://track.customer.io/api/v1/customers/${encodeURIComponent(customerId)}/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "contact_form_submitted",
+      data: {
+        message,
+        submitted_at: new Date().toISOString(),
+        source: "website_contact_form",
+      },
+    }),
+  });
+}
