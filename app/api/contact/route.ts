@@ -1,6 +1,187 @@
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+// ── Customer.io config ───────────────────────────────────────────────
+
+const CIO_SITE_ID = process.env.CUSTOMERIO_SITE_ID;
+const CIO_TRACKING_KEY = process.env.CUSTOMERIO_API_KEY; // Track API key
+const CIO_APP_KEY = process.env.CUSTOMERIO_APP_API_KEY; // App API key (transactional)
+
+function trackAuth() {
+  return `Basic ${Buffer.from(`${CIO_SITE_ID}:${CIO_TRACKING_KEY}`).toString("base64")}`;
+}
+
+/** Identify a person in Customer.io (Track API) */
+async function cioIdentify(email: string, attributes: Record<string, unknown>) {
+  const res = await fetch(
+    `https://track.customer.io/api/v1/customers/${encodeURIComponent(email)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: trackAuth(),
+      },
+      body: JSON.stringify({ email, ...attributes }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Customer.io identify failed (${res.status}): ${text}`);
+  }
+}
+
+/** Track an event for a person (Track API) */
+async function cioTrackEvent(
+  email: string,
+  eventName: string,
+  data: Record<string, unknown>
+) {
+  const res = await fetch(
+    `https://track.customer.io/api/v1/customers/${encodeURIComponent(email)}/events`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: trackAuth(),
+      },
+      body: JSON.stringify({ name: eventName, data }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Customer.io event failed (${res.status}): ${text}`);
+  }
+}
+
+/** Send a transactional email (App API) */
+async function cioSendTransactional({
+  to,
+  subject,
+  body,
+  from = "Unjuiced Team <hello@unjuiced.bet>",
+  replyTo,
+  identifiers,
+}: {
+  to: string;
+  subject: string;
+  body: string;
+  from?: string;
+  replyTo?: string;
+  identifiers?: { email: string };
+}) {
+  const payload: Record<string, unknown> = {
+    transactional_message_id: 1,
+    to,
+    from,
+    subject,
+    body,
+    identifiers: identifiers ?? { email: to },
+  };
+  if (replyTo) payload.reply_to = replyTo;
+
+  const res = await fetch("https://api.customer.io/v1/send/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${CIO_APP_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Customer.io transactional failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+// ── Email templates ──────────────────────────────────────────────────
+
+function autoReplyHtml(name: string) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+          <tr>
+            <td style="padding-bottom:32px;">
+              <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">🍊 Unjuiced</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#141414;border-radius:12px;padding:36px 32px;border:1px solid #222;">
+              <p style="margin:0 0 20px;font-size:18px;font-weight:600;color:#ffffff;">
+                Hey ${name} 👋
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#a0a0a0;">
+                We got your message — thanks for reaching out. Someone from the team will get back to you soon, usually within 24 hours.
+              </p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#a0a0a0;">
+                In the meantime, if you have anything else to add, just reply to this email.
+              </p>
+              <p style="margin:0;font-size:15px;color:#a0a0a0;">
+                — The Unjuiced Team
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:28px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#555;">
+                Unjuiced · Sports betting analytics, no juice added
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function internalNotificationHtml({
+  name,
+  email,
+  message,
+  submittedAt,
+}: {
+  name: string;
+  email: string;
+  message: string;
+  submittedAt: string;
+}) {
+  // Escape HTML in user-provided fields to prevent injection
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e0e0e0;">
+    <h2 style="margin:0 0 16px;font-size:18px;color:#333;">📬 New Contact Form Submission</h2>
+    <table style="width:100%;font-size:14px;color:#555;">
+      <tr><td style="padding:6px 0;font-weight:600;width:80px;">Name</td><td style="padding:6px 0;">${esc(name)}</td></tr>
+      <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;"><a href="mailto:${esc(email)}">${esc(email)}</a></td></tr>
+      <tr><td style="padding:6px 0;font-weight:600;">Time</td><td style="padding:6px 0;">${submittedAt}</td></tr>
+    </table>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #e0e0e0;">
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#333;">Message:</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#555;white-space:pre-wrap;">${esc(message)}</p>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #e0e0e0;">
+    <p style="margin:0;font-size:12px;color:#999;">Reply directly to <a href="mailto:${esc(email)}">${esc(email)}</a> to respond.</p>
+  </div>
+</body>
+</html>`;
+}
+
+// ── Main route ───────────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -23,110 +204,97 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use service role client to bypass RLS for contact form submissions
+    // Use service role client to bypass RLS
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Insert contact message into database
+    // 1. Save to Supabase
     const { data, error } = await supabase
       .from("contact_messages")
-      .insert([
-        {
-          name,
-          email,
-          message,
-          created_at: new Date().toISOString(),
-        },
-      ])
+      .insert([{ name, email, message, created_at: new Date().toISOString() }])
       .select();
 
     if (error) {
-      console.error("Error saving contact message:", error);
+      console.error("Supabase insert error:", error);
       return NextResponse.json(
         { error: "Failed to save message" },
         { status: 500 }
       );
     }
 
-    // --- Customer.io: Identify user + track event ---
-    await sendToCustomerIo({ name, email, message }).catch((err) => {
-      // Log but don't fail the request if Customer.io is down
-      console.error("Customer.io tracking failed:", err);
-    });
+    // 2. Customer.io — all calls run in background (don't block response)
+    const trackingEnabled = CIO_SITE_ID && CIO_TRACKING_KEY;
+    const transactionalEnabled = CIO_APP_KEY;
+    const submittedAt = new Date().toISOString();
 
-    return NextResponse.json(
-      { success: true, data },
-      { status: 200 }
-    );
+    const cioTasks: Promise<unknown>[] = [];
+
+    if (trackingEnabled) {
+      // Identify the person + track the event
+      cioTasks.push(
+        cioIdentify(email, {
+          name,
+          lead_source: "contact_form",
+          created_at: Math.floor(Date.now() / 1000),
+        })
+      );
+      cioTasks.push(
+        cioTrackEvent(email, "contact_form_submitted", {
+          message,
+          submitted_at: submittedAt,
+          source: "website_contact_form",
+        })
+      );
+    }
+
+    if (transactionalEnabled) {
+      // Auto-reply to the user
+      cioTasks.push(
+        cioSendTransactional({
+          to: email,
+          subject: `Got it, ${name}! We'll be in touch 🤙`,
+          body: autoReplyHtml(name),
+          replyTo: "support@unjuiced.bet",
+          identifiers: { email },
+        })
+      );
+
+      // Internal notification to support team
+      cioTasks.push(
+        cioSendTransactional({
+          to: "support@unjuiced.bet",
+          subject: `📬 New contact form: ${name} (${email})`,
+          body: internalNotificationHtml({ name, email, message, submittedAt }),
+          replyTo: email,
+          identifiers: { email: "support@unjuiced.bet" },
+        })
+      );
+    }
+
+    if (cioTasks.length > 0) {
+      Promise.allSettled(cioTasks).then((results) => {
+        const labels = ["identify", "event", "auto-reply", "internal-notify"];
+        results.forEach((r, i) => {
+          if (r.status === "rejected") {
+            console.error(`Customer.io ${labels[i]} failed:`, r.reason);
+          }
+        });
+      });
+    } else {
+      console.warn(
+        "Customer.io credentials not configured — skipping tracking & emails"
+      );
+    }
+
+    return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
-    console.error("Error in contact API:", error);
+    console.error("Contact form error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
   }
-}
-
-/**
- * Send identify + event to Customer.io Track API (v1).
- * Docs: https://customer.io/docs/api/track/
- */
-async function sendToCustomerIo({
-  name,
-  email,
-  message,
-}: {
-  name: string;
-  email: string;
-  message: string;
-}) {
-  const siteId = process.env.CUSTOMERIO_SITE_ID;
-  const apiKey = process.env.CUSTOMERIO_API_KEY;
-
-  if (!siteId || !apiKey) {
-    console.warn("Customer.io credentials not configured — skipping tracking");
-    return;
-  }
-
-  const auth = Buffer.from(`${siteId}:${apiKey}`).toString("base64");
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Basic ${auth}`,
-  };
-
-  const customerId = email; // Use email as the Customer.io identifier
-  const nowUnix = Math.floor(Date.now() / 1000);
-
-  // 1. Identify the person
-  await fetch(`https://track.customer.io/api/v1/customers/${encodeURIComponent(customerId)}`, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({
-      email,
-      name,
-      created_at: nowUnix,
-    }),
-  });
-
-  // 2. Track the contact_form_submitted event
-  await fetch(`https://track.customer.io/api/v1/customers/${encodeURIComponent(customerId)}/events`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      name: "contact_form_submitted",
-      data: {
-        message,
-        submitted_at: new Date().toISOString(),
-        source: "website_contact_form",
-      },
-    }),
-  });
 }
