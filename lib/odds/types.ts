@@ -219,6 +219,7 @@ export interface SSEEvent {
  * Individual selection (player/line/side) from Redis
  */
 export interface SSESelection {
+  odd_id?: string;
   player: string;
   player_id: string;
   jersey_number: string;
@@ -307,6 +308,7 @@ export interface EdgeResult {
     price: string;
     decimal: number;
     link: string;
+    odd_id?: string;
   }>;
 }
 

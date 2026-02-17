@@ -112,7 +112,29 @@ async function setInResponseCache(key: string, data: unknown, isCustom: boolean)
 }
 
 // Supported sports
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "wnba", "soccer_epl"]);
+const VALID_SPORTS = new Set([
+  "nba",
+  "nfl",
+  "nhl",
+  "ncaab",
+  "ncaaf",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 // Books to exclude (regional variants)
 const EXCLUDED_BOOKS = new Set([
@@ -692,6 +714,7 @@ async function fetchPositiveEVOpportunities(
               sgp: overSel.sgp || null,
               limits: overSel.limits || null,
               updated: overSel.updated || undefined,
+              oddId: overSel.odd_id || undefined,
             };
             pair.over.books.push(bookOffer);
             if (!pair.over.best || overSel.price_decimal > pair.over.best.priceDecimal) {
@@ -726,6 +749,7 @@ async function fetchPositiveEVOpportunities(
               sgp: underSel.sgp || null,
               limits: underSel.limits || null,
               updated: underSel.updated || undefined,
+              oddId: underSel.odd_id || undefined,
             };
             pair.under.books.push(bookOffer);
             if (!pair.under.best || underSel.price_decimal > pair.under.best.priceDecimal) {
@@ -843,6 +867,7 @@ async function fetchPositiveEVOpportunities(
           mobileLink: b.book.mobileLink || null,
           sgp: b.book.sgp || null,
           limits: b.book.limits || null,
+          oddId: b.book.oddId || undefined,
           evPercent: b.evCalc.evWorst, // EV% for this book
           isSharpRef: b.isExcluded, // Mark if used as sharp reference
         }));
@@ -882,6 +907,7 @@ async function fetchPositiveEVOpportunities(
             link: bestBook.book.link,
             mobileLink: bestBook.book.mobileLink || null,
             limits: bestBook.book.limits || null,
+            oddId: bestBook.book.oddId || undefined,
             evPercent: bestBook.evCalc.evWorst,
           } as BookOffer,
           evCalculations: bestBook.evCalc,
@@ -896,6 +922,7 @@ async function fetchPositiveEVOpportunities(
             mobileLink: b.mobileLink || null,
             sgp: b.sgp || null,
             limits: b.limits || null,
+            oddId: b.oddId || undefined,
           })) as BookOffer[],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

@@ -55,6 +55,47 @@ const getPreferredLink = (link?: string | null, mobileLink?: string | null) => {
   return isMobile ? (mobileLink || link || undefined) : (link || mobileLink || undefined);
 };
 
+const FULL_MATCHUP_NAME_SPORTS = new Set([
+  'ncaaf',
+  'ncaab',
+  'ncaabaseball',
+  'soccer_epl',
+  'soccer_laliga',
+  'soccer_mls',
+  'soccer_ucl',
+  'soccer_uel',
+  'tennis_atp',
+  'tennis_challenger',
+  'tennis_itf_men',
+  'tennis_itf_women',
+  'tennis_utr_men',
+  'tennis_utr_women',
+  'tennis_wta',
+]);
+
+const MATCHUP_LABEL_SPORT_PREFIXES = ['soccer_', 'tennis_'];
+
+const getEntityColumnLabel = (type: 'game' | 'player', sport: string): string => {
+  if (type !== 'game') return 'Player';
+  const normalizedSport = sport.toLowerCase();
+  if (normalizedSport === 'ufc') return 'Fight';
+  if (MATCHUP_LABEL_SPORT_PREFIXES.some((prefix) => normalizedSport.startsWith(prefix))) {
+    return 'Match';
+  }
+  return 'Game';
+};
+
+const formatStartTimeDisplay = (startTime?: string): string => {
+  if (!startTime) return '—';
+  const date = new Date(startTime);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 interface AlternateRowData {
   key: string
   lineValue: number
@@ -760,9 +801,10 @@ const renderAlternateRow = (
             </td>
           )
         case 'event':
+        case 'time':
           return (
             <td
-              key="event"
+              key={columnId}
               className={`px-3 py-3 text-xs text-blue-600 dark:text-blue-300 border-r ${borderColor} ${rowBg}`}
             >
               —
@@ -1134,6 +1176,8 @@ export function OddsTable({
   // Line selector state - persisted per market in localStorage
   const marketStr = typeof market === 'string' ? market : ''
   const isSingleLineMarket = SINGLE_LINE_MARKETS.has(marketStr)
+  const useFullMatchupNames = FULL_MATCHUP_NAME_SPORTS.has(sport.toLowerCase())
+  const entityColumnLabel = useMemo(() => getEntityColumnLabel(type, sport), [type, sport])
   
   // Get localStorage key for this market's selected line
   const lineStorageKey = `odds-line-${sport}-${marketStr}`
@@ -1429,11 +1473,11 @@ export function OddsTable({
   
   // Ensure columnOrder always has all required columns (don't remove them when hiding)
   // IMPORTANT: Visibility is controlled by showBestLine/showAverageLine separately
-  // NOTE: 'event' column removed - date/time is already shown in game row headers
+  // NOTE: Legacy 'event' column has been replaced by 'time'
   // NOTE: 'line' column is only shown for single-line markets
   // NOTE: 'favorites' column is shown after best-line for saving props
   React.useEffect(() => {
-    const requiredColumns = ['entity', 'best-line', 'favorites', 'average-line']
+    const requiredColumns = ['entity', 'time', 'best-line', 'favorites', 'average-line']
     const missingColumns = requiredColumns.filter(col => !columnOrder.includes(col))
     
     if (missingColumns.length > 0) {
@@ -1461,10 +1505,11 @@ export function OddsTable({
 
   // Filter column order based on user preferences
   const filteredColumnOrder = useMemo(() => {
-    let columns = columnOrder
-    
-    // Remove event column - date/time is already shown in game row headers
-    columns = columns.filter(col => col !== 'event')
+    let columns = [...columnOrder]
+
+    // Migrate legacy event column to the dedicated time column.
+    columns = columns.map(col => (col === 'event' ? 'time' : col))
+    columns = columns.filter((col, idx) => columns.indexOf(col) === idx)
     
     // Remove any existing 'line' column (we'll add it conditionally below)
     columns = columns.filter(col => col !== 'line')
@@ -1483,6 +1528,20 @@ export function OddsTable({
     if (!preferences?.showAverageLine) {
       columns = columns.filter(col => col !== 'average-line')
     }
+
+    // Ensure time column is always present after entity for consistent layout.
+    if (!columns.includes('time')) {
+      const entityIndex = columns.indexOf('entity')
+      if (entityIndex !== -1) {
+        columns = [
+          ...columns.slice(0, entityIndex + 1),
+          'time',
+          ...columns.slice(entityIndex + 1)
+        ]
+      } else {
+        columns = ['time', ...columns]
+      }
+    }
     
     // Ensure 'favorites' column is after 'best-line' if both exist
     if (columns.includes('best-line') && !columns.includes('favorites')) {
@@ -1496,12 +1555,12 @@ export function OddsTable({
     
     // Add 'line' column after 'entity' for single-line markets only
     if (isSingleLineMarket) {
-      const entityIndex = columns.indexOf('entity')
-      if (entityIndex !== -1) {
+      const insertAfter = columns.includes('time') ? columns.indexOf('time') : columns.indexOf('entity')
+      if (insertAfter !== -1) {
         columns = [
-          ...columns.slice(0, entityIndex + 1),
+          ...columns.slice(0, insertAfter + 1),
           'line',
-          ...columns.slice(entityIndex + 1)
+          ...columns.slice(insertAfter + 1)
         ]
       }
     }
@@ -2027,7 +2086,7 @@ export function OddsTable({
               )}
             >
               <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                {type === 'game' ? 'Game' : 'Player'}
+                {entityColumnLabel}
               </span>
               {/* Drag Handle */}
               <div
@@ -2061,8 +2120,8 @@ export function OddsTable({
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
                       isRelaxedView 
-                        ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[15px]' : 'text-[17px]')
-                        : ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]')
+                        ? (useFullMatchupNames ? 'text-[15px]' : 'text-[17px]')
+                        : (useFullMatchupNames ? 'text-[13px]' : 'text-[15px]')
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
@@ -2071,21 +2130,21 @@ export function OddsTable({
                           className={cn(
                             'object-contain',
                             isRelaxedView 
-                              ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-5 w-5' : 'h-6 w-6')
-                              : ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')
+                              ? (useFullMatchupNames ? 'h-5 w-5' : 'h-6 w-6')
+                              : (useFullMatchupNames ? 'h-4 w-4' : 'h-5 w-5')
                           )}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
                         />
                       )}
-                      <span>{(sport === 'ncaaf' || sport === 'ncaab') ? (item.event?.awayName || item.event?.awayTeam) : item.event?.awayTeam}</span>
+                      <span>{useFullMatchupNames ? (item.event?.awayName || item.event?.awayTeam) : item.event?.awayTeam}</span>
                     </div>
                     <div className={cn(
                       "flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100",
                       isRelaxedView 
-                        ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[15px]' : 'text-[17px]')
-                        : ((sport === 'ncaaf' || sport === 'ncaab') ? 'text-[13px]' : 'text-[15px]')
+                        ? (useFullMatchupNames ? 'text-[15px]' : 'text-[17px]')
+                        : (useFullMatchupNames ? 'text-[13px]' : 'text-[15px]')
                     )}>
                       {hasTeamLogos(sport) && (
                         <img
@@ -2094,15 +2153,15 @@ export function OddsTable({
                           className={cn(
                             'object-contain',
                             isRelaxedView 
-                              ? ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-5 w-5' : 'h-6 w-6')
-                              : ((sport === 'ncaaf' || sport === 'ncaab') ? 'h-4 w-4' : 'h-5 w-5')
+                              ? (useFullMatchupNames ? 'h-5 w-5' : 'h-6 w-6')
+                              : (useFullMatchupNames ? 'h-4 w-4' : 'h-5 w-5')
                           )}
                           onError={(e) => {
                             ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                           }}
                         />
                       )}
-                      <span>{(sport === 'ncaaf' || sport === 'ncaab') ? (item.event?.homeName || item.event?.homeTeam) : item.event?.homeTeam}</span>
+                      <span>{useFullMatchupNames ? (item.event?.homeName || item.event?.homeTeam) : item.event?.homeTeam}</span>
                     </div>
                   </div>
                   {/* Hide redundant market name for spreads/totals in game column */}
@@ -2282,11 +2341,11 @@ export function OddsTable({
           )
         }
       }),
-      'event': columnHelper.display({
-        id: 'event',
+      'time': columnHelper.display({
+        id: 'time',
         header: () => {
           const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
-            id: 'event' 
+            id: 'time'
           })
 
           const style = {
@@ -2305,7 +2364,7 @@ export function OddsTable({
               )}
             >
               <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Event
+                Time
               </span>
               {/* Drag Handle */}
               <div
@@ -2319,13 +2378,14 @@ export function OddsTable({
             </div>
           )
         },
-        size: isSmallScreen ? 48 : 80,
+        size: isRelaxedView ? (isSmallScreen ? 66 : 84) : (isSmallScreen ? 58 : 72),
+        minSize: isSmallScreen ? 52 : 64,
+        maxSize: isSmallScreen ? 78 : 96,
         cell: (info) => {
           const item = info.row.original
           return (
-            <div className="text-xs text-neutral-600 dark:text-neutral-400">
-              <div>{item.event?.startTime ? new Date(item.event.startTime).toLocaleDateString() : ''}</div>
-              <div>{item.event?.startTime ? new Date(item.event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300 whitespace-nowrap text-center">
+              {formatStartTimeDisplay(item.event?.startTime)}
             </div>
           )
         }
@@ -2383,7 +2443,7 @@ export function OddsTable({
           )
             const isSpread = item.entity.type === 'game' && (
               item.entity.details === 'Point Spread' ||
-              (typeof market === 'string' && /spread/i.test(market)) ||
+              (typeof market === 'string' && /(spread|run_line|puck_line|handicap)/i.test(market)) ||
               // Fallback: non-zero line with best over/under both present and not totals
               (((item.odds?.best?.over?.line ?? null) !== null || (item.odds?.best?.under?.line ?? null) !== null) &&
                !((item.odds?.best?.over?.line ?? 0) === 0 && (item.odds?.best?.under?.line ?? 0) === 0) &&
@@ -2491,7 +2551,7 @@ export function OddsTable({
           )
           const isSpread = item.entity.type === 'game' && (
             item.entity.details === 'Point Spread' ||
-            (typeof market === 'string' && /spread/i.test(market))
+            (typeof market === 'string' && /(spread|run_line|puck_line|handicap)/i.test(market))
           )
           // Check if this is a single-line market
           const marketStr = typeof market === 'string' ? market : ''
@@ -2625,7 +2685,7 @@ export function OddsTable({
             // Prefer normalized mapping when present
             // Convention: Away team → 'over' slot (top), Home team → 'under' slot (bottom)
             const isMoneyline = n?.marketKind === 'moneyline' || (item.entity.type === 'game' && (item.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline'))))
-            const isSpread = n?.marketKind === 'spread' || (item.entity.type === 'game' && ((item.entity.details === 'Point Spread') || (typeof market === 'string' && /spread/i.test(market))))
+            const isSpread = n?.marketKind === 'spread' || (item.entity.type === 'game' && ((item.entity.details === 'Point Spread') || (typeof market === 'string' && /(spread|run_line|puck_line|handicap)/i.test(market))))
             const sideTop = (isMoneyline || isSpread) && n?.sideMap?.away ? n!.sideMap!.away : 'over'
             const sideBottom = (isMoneyline || isSpread) && n?.sideMap?.home ? n!.sideMap!.home : 'under'
             const firstSide = sideTop
@@ -2831,6 +2891,9 @@ export function OddsTable({
         ((item.odds?.best?.over?.line ?? 0) === 0 && (item.odds?.best?.under?.line ?? 0) === 0)
       ) {
         // For moneylines, show team abbreviations instead of o/u
+        if (useFullMatchupNames) {
+          return side === 'over' ? (item.event.awayName || item.event.awayTeam) : (item.event.homeName || item.event.homeTeam)
+        }
         return side === 'over' ? item.event.awayTeam : item.event.homeTeam
       } else if (gameDetails === 'Point Spread') {
         // For spreads, show clean spread value without team abbreviation
@@ -2861,7 +2924,14 @@ export function OddsTable({
     }
 
     const lineLabel = formatLine(displayOdds.line, side, rowItem)
-    const isMoneylineOrSingleLine = (rowItem.entity.type === 'game' && (rowItem.entity.details === 'Moneyline' || (typeof market === 'string' && market.toLowerCase().includes('moneyline')))) || !lineLabel
+    const isMoneylineStyleGameMarket =
+      rowItem.entity.type === 'game' &&
+      (
+        rowItem.entity.details === 'Moneyline' ||
+        (typeof market === 'string' && /moneyline|draw_no_bet/i.test(market)) ||
+        (((rowItem.odds?.best?.over?.line ?? 0) === 0) && ((rowItem.odds?.best?.under?.line ?? 0) === 0))
+      )
+    const isMoneylineOrSingleLine = isMoneylineStyleGameMarket || !lineLabel
     
     return (
       <div className={cn('avg-line', getCellClass(isSingleLine, isRelaxedView, 'avg-line'))}>
@@ -2971,10 +3041,24 @@ export function OddsTable({
     // Build chip content similar to alternates styling (icon + label/odds)
     const isMoneyline = rowItem.entity.type === 'game' && (
       rowItem.entity.details === 'Moneyline' ||
+      (typeof market === 'string' && /moneyline|draw_no_bet/i.test(market)) ||
       (((rowItem.odds?.best?.over?.line ?? 0) === 0) && ((rowItem.odds?.best?.under?.line ?? 0) === 0))
     )
-    const label = isMoneyline
-      ? (side === 'over' ? rowItem.event.awayTeam : rowItem.event.homeTeam)
+    const normalizedSport = sport.toLowerCase()
+    const hideBestMoneylineLabel =
+      isMoneyline &&
+      (
+        normalizedSport.startsWith('tennis_') ||
+        normalizedSport.startsWith('soccer_') ||
+        normalizedSport === 'ufc' ||
+        normalizedSport === 'ncaabaseball'
+      )
+    const label = hideBestMoneylineLabel
+      ? ''
+      : isMoneyline
+      ? (useFullMatchupNames
+        ? (side === 'over' ? (rowItem.event.awayName || rowItem.event.awayTeam) : (rowItem.event.homeName || rowItem.event.homeTeam))
+        : (side === 'over' ? rowItem.event.awayTeam : rowItem.event.homeTeam))
       : formatLine(displayOdds.line, side, rowItem)
 
     const chip = (
@@ -3261,8 +3345,8 @@ export function OddsTable({
                   {tableProps.table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header, headerIdx) => {
-                        // Check if this is a sportsbook column (not entity, event, best-line, average-line, line)
-                        const metaColumns = ['entity', 'line', 'best-line', 'average-line']
+                        // Check if this is a sportsbook column (not entity/time/meta columns)
+                        const metaColumns = ['entity', 'time', 'line', 'best-line', 'average-line']
                         const isMetaColumn = metaColumns.includes(header.column.id)
                         const isBookColumn = !isMetaColumn
                         // Check if this is the last meta column before books (for stronger border)
@@ -3280,6 +3364,7 @@ export function OddsTable({
                               : "px-1 py-2 sm:px-2 sm:py-2.5 text-[11px]",
                             header.column.id === 'average-line' && 'hidden sm:table-cell',
                             header.column.id === 'entity' && 'sticky left-0 z-40 !bg-gradient-to-r !from-neutral-50 !to-neutral-50 dark:!from-neutral-900 dark:!to-neutral-900',
+                            header.column.id === 'time' && 'px-0.5 sm:px-1 text-center',
                             header.column.id === 'line' && 'px-0.5 sm:px-1 text-center',
                             header.column.id === 'best-line' && 'px-0.5 sm:px-1 text-center',
                             header.column.id === 'average-line' && 'px-0.5 sm:px-1 text-center',
@@ -3330,15 +3415,10 @@ export function OddsTable({
 
                     // Render game header row
                     if (entry.type === 'game-header') {
-                      const gameTime = entry.startTime ? new Date(entry.startTime) : null
-                      const timeString = gameTime ? gameTime.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit',
-                        hour12: true 
-                      }) : ''
+                      const timeString = formatStartTimeDisplay(entry.startTime)
                       
                       const showLogos = ['nfl', 'nba', 'nhl', 'mlb'].includes(sport.toLowerCase())
-                      const showFullNames = sport === 'ncaaf' || sport === 'ncaab'
+                      const showFullNames = useFullMatchupNames
                       const awayDisplay = showFullNames && entry.awayName ? entry.awayName : entry.awayTeam
                       const homeDisplay = showFullNames && entry.homeName ? entry.homeName : entry.homeTeam
                       
@@ -3456,7 +3536,7 @@ export function OddsTable({
                     const stickyBg = idx % 2 === 0 ? 'bg-white dark:bg-neutral-900' : 'bg-neutral-50 dark:bg-neutral-800'
 
                     const visibleCells = row.getVisibleCells()
-                    const metaColumns = ['entity', 'line', 'best-line', 'average-line']
+                    const metaColumns = ['entity', 'time', 'line', 'best-line', 'average-line']
                     const cells = visibleCells.map((cell, cellIdx) => {
                       const isMetaColumn = metaColumns.includes(cell.column.id)
                       const isBookColumn = !isMetaColumn
@@ -3477,6 +3557,7 @@ export function OddsTable({
                             rowBg,
                             cell.column.id === 'average-line' && 'hidden sm:table-cell',
                             cell.column.id === 'entity' && `sticky left-0 z-10 ${stickyBg}`,
+                            cell.column.id === 'time' && 'text-center',
                             cell.column.id === 'line' && (isRelaxedView ? 'px-1 sm:px-2 text-center' : 'px-0.5 sm:px-1 text-center'),
                             cell.column.id === 'best-line' && (isRelaxedView ? 'px-1 sm:px-2' : 'px-0.5 sm:px-1'),
                             cell.column.id === 'average-line' && (isRelaxedView ? 'px-1 sm:px-2' : 'px-0.5 sm:px-1'),

@@ -13,41 +13,82 @@ interface GameLog {
   opponent_team_id: number;
 }
 
+const TOP_MARKETS = [
+  'player_points',
+  'player_rebounds',
+  'player_assists',
+  'player_threes_made',
+  'player_steals',
+] as const;
+const FALLBACK_LOOKAHEAD_DAYS = 10;
+const MARKET_CANDIDATE_LIMIT = 8;
+
+function formatDateET(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
     
     // Get today's date in ET
     const now = new Date();
-    const today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now);
+    const today = formatDateET(now);
+    const windowEnd = formatDateET(new Date(now.getTime() + FALLBACK_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000));
 
-    // Use regular query with client-side deduplication
-    return await fetchTopHitRates(supabase, today);
+    const dateToUse = await findNextAvailableDate(supabase, today, windowEnd);
+    if (!dateToUse) {
+      console.log(`[HitRatesAPI] No available game_date found between ${today} and ${windowEnd}`);
+      return NextResponse.json({ hitRates: [], gameDate: null, requestedDate: today, fallbackApplied: false });
+    }
+
+    const topHitRates = await fetchTopHitRatesForDate(supabase, dateToUse);
+    const fallbackApplied = dateToUse !== today;
+    console.log(`[HitRatesAPI] Requested ${today}, using ${dateToUse}${fallbackApplied ? " (fallback)" : ""}`);
+
+    return NextResponse.json({
+      hitRates: topHitRates,
+      gameDate: dateToUse,
+      requestedDate: today,
+      fallbackApplied,
+    });
   } catch (error) {
     console.error("Error fetching hit rates:", error);
     return NextResponse.json({ error: "Failed to fetch hit rates" }, { status: 500 });
   }
 }
 
-async function fetchTopHitRates(supabase: any, today: string) {
-  const markets = [
-    'player_points', 
-    'player_rebounds', 
-    'player_assists', 
-    'player_threes_made', 
-    'player_steals'
-  ];
+async function findNextAvailableDate(supabase: any, today: string, endDate: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("nba_hit_rate_profiles_v2")
+    .select("game_date")
+    .eq("has_live_odds", true)
+    .in("market", [...TOP_MARKETS])
+    .not("last_10_pct", "is", null)
+    .gte("game_date", today)
+    .lte("game_date", endDate)
+    .order("game_date", { ascending: true })
+    .limit(1);
 
-  console.log(`[HitRatesAPI] Fetching for date: ${today}`);
+  if (error) {
+    console.error("[HitRatesAPI] Error finding next available date:", error);
+    return null;
+  }
+
+  return data?.[0]?.game_date || null;
+}
+
+async function fetchTopHitRatesForDate(supabase: any, gameDate: string) {
+  console.log(`[HitRatesAPI] Fetching for date: ${gameDate}`);
 
   // Fetch top 1 for each market in parallel to ensure diversity
   // Filter for last_10_pct IS NOT NULL to match the working SQL query
-  const queries = markets.map(market => 
+  const queries = TOP_MARKETS.map(market =>
     supabase
       .from("nba_hit_rate_profiles_v2")
       .select(`
@@ -65,18 +106,19 @@ async function fetchTopHitRates(supabase: any, today: string) {
         last_10_avg,
         hit_streak,
         game_logs,
+        game_date,
         opponent_team_abbr,
         game_status,
         home_away,
         dvp_rank,
         dvp_label
       `)
-      .eq("game_date", today)
+      .eq("game_date", gameDate)
       .eq("has_live_odds", true)
       .eq("market", market)
       .not("last_10_pct", "is", null)
       .order("last_10_pct", { ascending: false, nullsFirst: false })
-      .limit(1)
+      .limit(MARKET_CANDIDATE_LIMIT)
   );
 
   const results = await Promise.all(queries);
@@ -88,8 +130,15 @@ async function fetchTopHitRates(supabase: any, today: string) {
       continue;
     }
     if (result.data && result.data.length > 0) {
-      console.log(`[HitRatesAPI] Found profile for ${result.data[0].market}:`, result.data[0].player_name, result.data[0].last_10_pct);
-      topHitRates.push(formatProfile(result.data[0]));
+      const actionableProfile = result.data.find((profile: any) => isActionableProfile(profile));
+      if (actionableProfile) {
+        console.log(
+          `[HitRatesAPI] Found actionable profile for ${actionableProfile.market}:`,
+          actionableProfile.player_name,
+          actionableProfile.last_10_pct
+        );
+        topHitRates.push(formatProfile(actionableProfile));
+      }
     }
   }
 
@@ -97,7 +146,38 @@ async function fetchTopHitRates(supabase: any, today: string) {
   topHitRates.sort((a, b) => b.l10 - a.l10);
 
   console.log(`[HitRatesAPI] Returning ${topHitRates.length} unique hit rates`);
-  return NextResponse.json({ hitRates: topHitRates });
+  return topHitRates;
+}
+
+function isActionableProfile(profile: any): boolean {
+  const status = String(profile?.game_status || "").trim();
+  if (!status) return true;
+
+  const lower = status.toLowerCase();
+  if (
+    lower.includes("final") ||
+    lower.includes("in progress") ||
+    lower.includes("live") ||
+    lower.includes("halftime") ||
+    lower.includes("postponed") ||
+    lower.includes("canceled") ||
+    lower.includes("cancelled") ||
+    lower.includes("suspended")
+  ) {
+    return false;
+  }
+
+  if (/(\bq[1-4]\b|\bot\b|\b1st\b|\b2nd\b|\b3rd\b|\b4th\b)/i.test(status)) {
+    return false;
+  }
+
+  // Scheduled games are typically represented with a time string and/or ET.
+  if (/\b(et|am|pm|tbd)\b/i.test(status)) {
+    return true;
+  }
+
+  // If status is unknown but not explicitly live/final, keep it actionable.
+  return true;
 }
 
 function formatProfile(profile: any) {
@@ -142,6 +222,7 @@ function formatProfile(profile: any) {
     gameLogs,
     opponent: profile.opponent_team_abbr,
     gameStatus: profile.game_status,
+    gameDate: profile.game_date || null,
     homeAway: profile.home_away,
     dvpRank: profile.dvp_rank,
     dvpLabel: profile.dvp_label,

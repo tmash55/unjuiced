@@ -22,7 +22,21 @@ const SPORT_NAMES: Record<string, string> = {
   ncaab: "NCAAB",
   ncaaf: "NCAAF",
   mlb: "MLB",
+  ncaabaseball: "NCAA Baseball",
   wnba: "WNBA",
+  soccer_epl: "EPL",
+  soccer_laliga: "LaLiga",
+  soccer_mls: "MLS",
+  soccer_ucl: "UCL",
+  soccer_uel: "UEL",
+  tennis_atp: "ATP",
+  tennis_challenger: "Challenger",
+  tennis_itf_men: "ITF Men",
+  tennis_itf_women: "ITF Women",
+  tennis_utr_men: "UTR Men",
+  tennis_utr_women: "UTR Women",
+  tennis_wta: "WTA",
+  ufc: "UFC",
 };
 
 /**
@@ -58,8 +72,8 @@ function OddsLayoutInner({ children }: OddsLayoutClientProps) {
   const handleSportChange = useCallback((newSport: string) => {
     if (newSport === sport) return;
     setIsTransitioning(true);
-    // Reset to "game" type for sports without player props (mlb, wnba)
-    const sportsWithoutPlayerProps = ['mlb', 'wnba'];
+    // Reset to "game" type for sports without player props.
+    const sportsWithoutPlayerProps = ['mlb', 'wnba', 'ncaabaseball', 'tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta', 'ufc'];
     const newType = sportsWithoutPlayerProps.includes(newSport.toLowerCase()) ? 'game' : type;
     const newMarket = getDefaultMarket(newSport, newType as "game" | "player");
     router.push(`/odds/${newSport}?type=${newType}&market=${newMarket}&scope=${scope}`, { scroll: false });

@@ -35,15 +35,45 @@ interface BestBet {
 interface BestBetsResponse {
   bets: BestBet[];
   timestamp: number;
-  source: "l1_cache" | "redis_cache" | "computed";
+  source: "l1_cache" | "redis_cache" | "computed" | "empty";
+  message?: string;
 }
+
+const COMPUTE_FALLBACK_COOLDOWN_MS = 2 * 60 * 1000;
+let lastComputeFallbackAt = 0;
 
 async function fetchBestBets(): Promise<BestBetsResponse> {
   const response = await fetch("/api/dashboard/best-bets?limit=10");
   if (!response.ok) {
     throw new Error("Failed to fetch best bets");
   }
-  return response.json();
+  const primaryData = (await response.json()) as BestBetsResponse;
+
+  if (Array.isArray(primaryData.bets) && primaryData.bets.length > 0) {
+    return primaryData;
+  }
+
+  const now = Date.now();
+  const shouldTryCompute =
+    (!primaryData.source || primaryData.source === "empty") &&
+    now - lastComputeFallbackAt > COMPUTE_FALLBACK_COOLDOWN_MS;
+
+  if (!shouldTryCompute) {
+    return primaryData;
+  }
+
+  lastComputeFallbackAt = now;
+  try {
+    const fallbackResponse = await fetch("/api/dashboard/best-bets?limit=10&compute=true");
+    if (!fallbackResponse.ok) return primaryData;
+    const fallbackData = (await fallbackResponse.json()) as BestBetsResponse;
+    if (Array.isArray(fallbackData.bets) && fallbackData.bets.length > 0) {
+      return fallbackData;
+    }
+    return primaryData;
+  } catch {
+    return primaryData;
+  }
 }
 
 const SPORT_LABEL: Record<string, string> = {
@@ -88,6 +118,28 @@ function getInsightText(bet: BestBet): string {
   return `+${bet.evPercent.toFixed(1)}% edge vs Pinnacle`;
 }
 
+function getBestBetsMarketLabel(marketDisplay: string): string {
+  const normalized = marketDisplay.trim().toLowerCase();
+  if (
+    normalized === "home team total points" ||
+    normalized === "away team total points"
+  ) {
+    return "Team Total Points";
+  }
+  return marketDisplay;
+}
+
+function isSuppressedBestBetMarket(bet: BestBet): boolean {
+  const market = (bet.market || "").toLowerCase();
+  const marketDisplay = (bet.marketDisplay || "").toLowerCase();
+  return (
+    market.includes("home_team_total") ||
+    market.includes("away_team_total") ||
+    marketDisplay.includes("home team total") ||
+    marketDisplay.includes("away team total")
+  );
+}
+
 // Premium Bet Row Component - Mobile-first responsive
 function BetRow({ bet }: { bet: BestBet }) {
   const bookMeta = getSportsbookById(bet.book);
@@ -96,6 +148,7 @@ function BetRow({ bet }: { bet: BestBet }) {
   const betLink = getBetLink(bet);
   const sportLabel = SPORT_LABEL[bet.sport.toLowerCase()] || bet.sport.toUpperCase();
   const insight = getInsightText(bet);
+  const marketLabel = getBestBetsMarketLabel(bet.marketDisplay);
 
   return (
     <div className={cn(
@@ -131,7 +184,7 @@ function BetRow({ bet }: { bet: BestBet }) {
           {/* Market + Line */}
           <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1">
             <span className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 truncate">
-              {bet.marketDisplay}
+              {marketLabel}
             </span>
             <span className={cn(
               "text-xs sm:text-sm font-bold shrink-0",
@@ -255,7 +308,7 @@ export function BestBetsSection() {
     staleTime: 15000,
   });
   
-  const bets = data?.bets || [];
+  const bets = (data?.bets || []).filter((bet) => !isSuppressedBestBetMarket(bet));
   
   // Sharp users see all (up to 10 desktop, 3 mobile), others see first 2 + locked previews
   const maxVisible = isPro ? (isMobileView ? 3 : 10) : 2;

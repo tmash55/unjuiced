@@ -30,6 +30,7 @@ import {
   Zap,
   Share2,
   AlertTriangle,
+  LineChart,
 } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
@@ -95,7 +96,34 @@ function formatSelectionDisplay(playerName: string | null | undefined, marketDis
     }
     return "Game Total";
   }
+
+  // Convert raw keys like "match_goals" into "Match Goals" for cleaner UI.
+  if (/[_-]/.test(playerName)) {
+    return playerName
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => {
+        const lower = part.toLowerCase();
+        if (["nba", "nfl", "nhl", "mlb", "wnba", "ufc", "atp", "wta", "mls", "ucl", "uel"].includes(lower)) {
+          return lower.toUpperCase();
+        }
+        if (lower === "ncaa") return "NCAA";
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
+  }
+
   return playerName;
+}
+
+function isMoneylineMarket(market?: string | null, marketDisplay?: string | null): boolean {
+  const combined = `${market || ""} ${marketDisplay || ""}`.toLowerCase();
+  return combined.includes("moneyline") || combined.includes("money line");
+}
+
+function getLeagueDisplayName(leagueId: string): string {
+  if (leagueId === "ncaabaseball") return "NCAA Baseball";
+  return getLeagueName(leagueId);
 }
 
 /**
@@ -179,6 +207,7 @@ interface OpportunitiesTableProps {
   onHideEdge?: (params: HideEdgeParams) => void;
   onUnhideEdge?: (edgeKey: string) => void;
   isHidden?: (edgeKey: string) => boolean;
+  onLineHistoryClick?: (opp: Opportunity) => void;
   /**
    * Callback when a player name is clicked (for opening hit rate modal)
    */
@@ -381,6 +410,7 @@ export function OpportunitiesTable({
   onHideEdge,
   onUnhideEdge,
   isHidden,
+  onLineHistoryClick,
   onPlayerClick,
   comparisonMode = "average",
   comparisonLabel,
@@ -556,7 +586,7 @@ export function OpportunitiesTable({
   // Column width configuration
   const columnWidths: Record<string, number> = {
     'edge': 100,
-    'league': 80,
+    'league': 112,
     'time': 100,
     'selection': 200,
     'line': 80,
@@ -871,8 +901,8 @@ export function OpportunitiesTable({
           <td key="league" className="hidden xl:table-cell px-3 py-3 border-b border-neutral-100 dark:border-neutral-800/50">
             <div className="flex items-center gap-2">
               <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-              <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-                {getLeagueName(opp.sport)}
+              <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap leading-none">
+                {getLeagueDisplayName(opp.sport)}
               </span>
             </div>
           </td>
@@ -1022,7 +1052,9 @@ export function OpportunitiesTable({
           opp.market.includes("player_goals")
         ));
         
-        const lineDisplay = opp.side === "yes" ? "Yes" : 
+        const moneylineMarket = isMoneylineMarket(opp.market, opp.marketDisplay);
+        const lineDisplay = moneylineMarket ? "ML" :
+          opp.side === "yes" ? "Yes" : 
           opp.side === "no" ? "No" :
           isBinaryMarket ? (opp.side === "over" ? "Yes" : "No") :
           `${opp.side === "over" ? "O" : "U"} ${opp.line}`;
@@ -1419,6 +1451,20 @@ export function OpportunitiesTable({
                   <Share2 className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 </button>
               )}
+
+              <Tooltip content="View line movement" side="left">
+                <button
+                  type="button"
+                  data-no-row-toggle="true"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLineHistoryClick?.(opp);
+                  }}
+                  className="hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
+                >
+                  <LineChart className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
+                </button>
+              </Tooltip>
 
               {/* Add to My Plays Button - hidden on small screens */}
               {!isLoggedIn ? (
@@ -2154,6 +2200,30 @@ export function OpportunitiesTable({
                     // Determine which row is Over and which is Under
                     const overMap = isOverSide ? currentSideMap : oppositeSideMap;
                     const underMap = isOverSide ? oppositeSideMap : currentSideMap;
+                    const moneylineMarket = isMoneylineMarket(opp.market, opp.marketDisplay);
+
+                    const selectedTeamLabel = (
+                      (opp.player && opp.player !== "game_total" && opp.player !== "Game" ? opp.player : null) ||
+                      opp.team ||
+                      (isOverSide ? opp.awayTeam : opp.homeTeam) ||
+                      (isOverSide ? "Away" : "Home")
+                    );
+                    const oppositeTeamLabel = (() => {
+                      if (opp.team && opp.awayTeam && opp.homeTeam) {
+                        if (opp.team === opp.awayTeam) return opp.homeTeam;
+                        if (opp.team === opp.homeTeam) return opp.awayTeam;
+                      }
+                      if (opp.awayTeam && opp.homeTeam) {
+                        return isOverSide ? opp.homeTeam : opp.awayTeam;
+                      }
+                      return isOverSide ? "Home" : "Away";
+                    })();
+                    const overRowLabel = moneylineMarket
+                      ? (isOverSide ? selectedTeamLabel : oppositeTeamLabel)
+                      : "Over";
+                    const underRowLabel = moneylineMarket
+                      ? (isOverSide ? oppositeTeamLabel : selectedTeamLabel)
+                      : "Under";
                     
                     // Calculate best and average for each side
                     const overBooks = Array.from(overMap.values());
@@ -2196,27 +2266,29 @@ export function OpportunitiesTable({
                             {/* Full Width Container */}
                             <div className="w-full flex flex-col items-center">
                               {/* Header Row with Player Info */}
-                              <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-900 dark:bg-neutral-950">
+                              <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-100/90 dark:bg-neutral-950">
                                 {/* Player & Market */}
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                                  <span className="text-sm font-bold text-white truncate">
+                                  <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
                                     {formatSelectionDisplay(opp.player, opp.marketDisplay)}
                                   </span>
-                                  <span className="text-xs text-neutral-400 shrink-0">
-                                    {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
-                                  </span>
+                                  {!moneylineMarket && (
+                                    <span className="text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+                                      {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
+                                    </span>
+                                  )}
                                   <span className="hidden sm:inline text-xs text-neutral-500 truncate">
                                     {opp.marketDisplay || opp.market}
                                   </span>
                                 </div>
                                 {/* Odds & Fair */}
-                                <div className="flex items-center gap-3 text-xs text-neutral-400 shrink-0">
+                                <div className="flex items-center gap-3 text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
                                   <span className="font-bold text-amber-500">{opp.bestPrice}</span>
-                                  <span className="text-neutral-600">@</span>
-                                  <span className="text-neutral-300">{getBookName(opp.bestBook)}</span>
-                                  <span className="w-px h-3 bg-neutral-700" />
-                                  <span>Fair: <strong className="text-amber-400">{opp.fairAmerican || opp.sharpPrice}</strong></span>
+                                  <span className="text-neutral-400 dark:text-neutral-600">@</span>
+                                  <span className="text-neutral-700 dark:text-neutral-300">{getBookName(opp.bestBook)}</span>
+                                  <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
+                                  <span>Fair: <strong className="text-amber-600 dark:text-amber-400">{opp.fairAmerican || opp.sharpPrice}</strong></span>
                                 </div>
                               </div>
 
@@ -2234,12 +2306,14 @@ export function OpportunitiesTable({
                                     )}>
                                       <div className="flex flex-col">
                                         <span className={cn(
-                                          "text-sm font-semibold tracking-tight",
+                                          "text-sm font-semibold tracking-tight truncate max-w-[88px]",
                                           isOverSide ? "text-amber-600 dark:text-amber-400" : "text-neutral-700 dark:text-neutral-300"
-                                        )}>
-                                          Over
+                                        )} title={overRowLabel}>
+                                          {overRowLabel}
                                         </span>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        {!moneylineMarket && (
+                                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        )}
                                       </div>
                                     </div>
                                     {/* Under Label */}
@@ -2249,12 +2323,14 @@ export function OpportunitiesTable({
                                     )}>
                                       <div className="flex flex-col">
                                         <span className={cn(
-                                          "text-sm font-semibold tracking-tight",
+                                          "text-sm font-semibold tracking-tight truncate max-w-[88px]",
                                           !isOverSide ? "text-amber-600 dark:text-amber-400" : "text-neutral-700 dark:text-neutral-300"
-                                        )}>
-                                          Under
+                                        )} title={underRowLabel}>
+                                          {underRowLabel}
                                         </span>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        {!moneylineMarket && (
+                                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>

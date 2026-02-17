@@ -54,7 +54,27 @@ const redis = new Redis({
 });
 
 const VALID_SPORTS = new Set([
-  "nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba", "soccer_epl"
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaab",
+  "ncaaf",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
 ]);
 
 // OPTIMIZATION: Higher scan count = fewer round trips
@@ -120,6 +140,14 @@ function normalizeMarketName(market: string): string {
     "spread": "game_spread",
     "point_spread": "game_spread",
     "pointspread": "game_spread",
+    "handicap": "handicap",
+    "match_handicap": "handicap",
+    "1st_half_handicap": "1st_half_handicap",
+    "1st_half_match_handicap": "1st_half_handicap",
+    "2nd_half_handicap": "2nd_half_handicap",
+    "2nd_half_match_handicap": "2nd_half_handicap",
+    "run_line": "game_run_line",
+    "runline": "game_run_line",
     "moneyline": "game_moneyline",
     "ml": "game_moneyline",
     "money_line": "game_moneyline",
@@ -141,6 +169,10 @@ function normalizeMarketName(market: string): string {
     "game_1h_moneyline": "game_1h_moneyline",
     "1st_half_moneyline": "game_1h_moneyline",
     "1st_half_moneyline_3_way": "1st_half_moneyline_3_way",
+    "1h_moneyline_3way": "1st_half_moneyline_3_way",
+    "1h_moneyline_3_way": "1st_half_moneyline_3_way",
+    "1h_ml_3way": "1st_half_moneyline_3_way",
+    "1h_ml_3_way": "1st_half_moneyline_3_way",
     "1q_spread": "1st_quarter_point_spread",
     "1st_quarter_spread": "1st_quarter_point_spread",
     "1st_quarter_point_spread": "1st_quarter_point_spread",
@@ -196,6 +228,7 @@ function normalizeMarketName(market: string): string {
     
     // 3-way moneyline
     "moneyline_3_way": "moneyline_3_way",
+    "moneyline_3way": "moneyline_3_way",
     "ml_3way": "moneyline_3_way",
     
     // ============ BASKETBALL PLAYER PROPS ============
@@ -589,8 +622,15 @@ function normalizeSide(side: string): "over" | "under" | null {
   switch (lower) {
     // Standard over/under
     case "over":
+    case "o":
       return "over";
     case "under":
+    case "u":
+      return "under";
+    // Odd/Even totals
+    case "odd":
+      return "over";
+    case "even":
       return "under";
     // Yes/No markets (treated as over/under)
     case "yes":
@@ -610,8 +650,8 @@ function normalizeSide(side: string): "over" | "under" | null {
     default:
       // Unknown side type - try to handle gracefully
       // If it contains "over" or "yes", treat as over
-      if (lower.includes("over") || lower.includes("yes")) return "over";
-      if (lower.includes("under") || lower.includes("no")) return "under";
+      if (lower.includes("over") || lower.includes("yes") || lower.includes("odd")) return "over";
+      if (lower.includes("under") || lower.includes("no") || lower.includes("even")) return "under";
       // Default to "over" for unknown single-sided entries
       return "over";
   }
@@ -622,6 +662,37 @@ function normalizeSide(side: string): "over" | "under" | null {
  * Maps canonical market name -> array of alternative Redis key names to try
  */
 const MARKET_SCAN_ALIASES: Record<string, string[]> = {
+  // Soccer game market aliases (vendor naming can vary by feed/book)
+  "match_total_goals": ["total_goals"],
+  "moneyline_3_way": ["match_moneyline_3_way", "moneyline_3way"],
+  "handicap": ["match_handicap"],
+  "draw_no_bet": ["match_draw_no_bet"],
+  "1st_half_moneyline_3_way": [
+    "1st_half_match_moneyline_3_way",
+    "first_half_moneyline_3_way",
+    "1h_moneyline_3way",
+    "1h_moneyline_3_way",
+    "1h_ml_3way",
+    "1h_ml_3_way"
+  ],
+  "1st_half_handicap": ["1st_half_match_handicap", "first_half_handicap"],
+  "1st_half_total_goals": ["1st_half_match_total_goals", "first_half_total_goals"],
+  "1st_half_draw_no_bet": ["first_half_draw_no_bet"],
+  "2nd_half_moneyline_3_way": [
+    "2nd_half_match_moneyline_3_way",
+    "second_half_moneyline_3_way",
+    "2h_moneyline_3way",
+    "2h_moneyline_3_way",
+    "2h_ml_3way",
+    "2h_ml_3_way"
+  ],
+  "2nd_half_total_goals": ["2nd_half_match_total_goals", "second_half_total_goals"],
+  "1st_half_both_teams_to_score": ["first_half_both_teams_to_score"],
+  "1st_half_first_team_to_score_3_way": ["first_half_first_team_to_score_3_way"],
+  "2nd_half_first_team_to_score_3_way": ["second_half_first_team_to_score_3_way"],
+  "1st_half_total_corners_odd_even": ["first_half_total_corners_odd_even"],
+  "2nd_half_total_corners_odd_even": ["second_half_total_corners_odd_even"],
+
   // First goalscorer - Redis might use different naming
   "player_first_goal": ["first_goalscorer", "first_goal_scorer", "first_goal"],
   "player_last_goal": ["last_goalscorer", "last_goal_scorer", "last_goal"],
@@ -641,6 +712,62 @@ const MARKET_SCAN_ALIASES: Record<string, string[]> = {
   // Steals + Blocks combo
   "player_steals_blocks": ["player_sb", "sb", "steals_blocks"],
 };
+
+/**
+ * Soccer feeds sometimes use compact 1h/2h market keys instead of 1st_half/2nd_half.
+ * Expand aliases only for soccer so other sports keep their existing behavior.
+ */
+function getSoccerHalfMarketAliases(market: string): string[] {
+  const aliases: string[] = [];
+
+  const add = (...values: string[]) => aliases.push(...values);
+
+  switch (market) {
+    case "1st_half_moneyline_3_way":
+      add("1h_moneyline_3way", "1h_moneyline_3_way", "1h_ml_3way", "1h_ml_3_way");
+      break;
+    case "1st_half_handicap":
+      add("1h_handicap");
+      break;
+    case "1st_half_total_goals":
+      add("1h_total_goals");
+      break;
+    case "1st_half_draw_no_bet":
+      add("1h_draw_no_bet");
+      break;
+    case "1st_half_both_teams_to_score":
+      add("1h_both_teams_to_score", "1h_btts");
+      break;
+    case "1st_half_first_team_to_score_3_way":
+      add("1h_first_team_to_score_3way", "1h_first_team_to_score_3_way");
+      break;
+    case "1st_half_total_corners_odd_even":
+      add("1h_total_corners_odd_even");
+      break;
+    case "2nd_half_moneyline_3_way":
+      add("2h_moneyline_3way", "2h_moneyline_3_way", "2h_ml_3way", "2h_ml_3_way");
+      break;
+    case "2nd_half_handicap":
+      add("2h_handicap");
+      break;
+    case "2nd_half_total_goals":
+      add("2h_total_goals");
+      break;
+    case "2nd_half_draw_no_bet":
+      add("2h_draw_no_bet");
+      break;
+    case "2nd_half_first_team_to_score_3_way":
+      add("2h_first_team_to_score_3way", "2h_first_team_to_score_3_way");
+      break;
+    case "2nd_half_total_corners_odd_even":
+      add("2h_total_corners_odd_even");
+      break;
+    default:
+      break;
+  }
+
+  return aliases;
+}
 
 /**
  * OPTIMIZATION: Get odds keys for specific events and market
@@ -665,7 +792,18 @@ async function getOddsKeysForEvents(
   const allKeys: string[] = [];
   
   // Primary market name + aliases to try
-  const marketsToScan = [market, ...(MARKET_SCAN_ALIASES[market] || [])];
+  const baseMarketsToScan = [
+    market,
+    ...(MARKET_SCAN_ALIASES[market] || []),
+    ...(sport.startsWith("soccer_") ? getSoccerHalfMarketAliases(market) : []),
+  ];
+  const soccerCompact3WayAliases = sport.startsWith("soccer_")
+    ? baseMarketsToScan.flatMap((m) => (m.includes("_3_way") ? [m.replace(/_3_way/g, "_3way")] : []))
+    : [];
+  const marketsToScan = Array.from(new Set([
+    ...baseMarketsToScan,
+    ...soccerCompact3WayAliases,
+  ]));
   
   // Batch scans in parallel (limit concurrency)
   const BATCH_SIZE = 10;
@@ -874,8 +1012,23 @@ async function buildPropsRows(
   }>();
 
   // Helper to identify game markets
+  const isSpreadLikeMarket =
+    market.includes("spread") ||
+    market.includes("puck_line") ||
+    market.includes("run_line") ||
+    market.includes("handicap");
   const isGameTotal = market.includes("total") || market.includes("over_under");
-  const isGameLine = (market.includes("spread") || market.includes("moneyline") || market.includes("puck_line")) && !isGameTotal;
+  const isThreeWayTeamMarket =
+    market.includes("moneyline_3_way") ||
+    market.includes("team_to_score_3_way");
+  const isGameLine =
+    (
+      isSpreadLikeMarket ||
+      market.includes("moneyline") ||
+      market.includes("draw_no_bet") ||
+      isThreeWayTeamMarket
+    ) &&
+    !isGameTotal;
   const isGameMarket = isGameTotal || isGameLine;
   
   // Check if this is a single-line player market (goalscorers, TDs, first basket)
@@ -933,7 +1086,7 @@ async function buildPropsRows(
       const entityKey = isGameMarket ? "Game" : rawName;
 
       // Special handling for spreads where line signs differ (e.g. -3.5 vs +3.5)
-      const isSpread = market.includes("spread") || market.includes("puck_line");
+      const isSpread = isSpreadLikeMarket;
       const effectiveLine = isSpread && isGameMarket ? Math.abs(line) : line;
 
       // Track ALL lines available for this entity+book (for closest line fallback)
@@ -1020,7 +1173,7 @@ async function buildPropsRows(
           // This book doesn't have main=true, check if it has the canonical line
           const bookLines = allLinesByEntityBook.get(playerBookKey);
           if (bookLines) {
-            const isSpread = market.includes("spread") || market.includes("puck_line");
+            const isSpread = isSpreadLikeMarket;
             const canonicalLine = canonical.line;
             
             // Check if book has exact canonical line
@@ -1057,7 +1210,7 @@ async function buildPropsRows(
         
         // Only include if line matches the target
         if (targetLine !== undefined) {
-          const isSpread = market.includes("spread") || market.includes("puck_line");
+          const isSpread = isSpreadLikeMarket;
           const match = (isSpread && isGameMarket) 
             ? Math.abs(line) === Math.abs(targetLine)
             : line === targetLine;
@@ -1070,7 +1223,7 @@ async function buildPropsRows(
       // SANITY CHECK: For game spreads/puck lines, reject unreasonable odds
       // Legitimate spread odds are typically between -200 and +200
       // Extreme odds (like -2500 or +900) indicate wrong line selection
-      if (isGameLine && (market.includes("spread") || market.includes("puck_line"))) {
+      if (isGameLine && isSpreadLikeMarket) {
         const oddsValue = parseInt(sel.price.replace("+", ""), 10);
         if (!isNaN(oddsValue)) {
           // Reject if odds are outside reasonable range for spreads
@@ -1151,16 +1304,24 @@ async function buildPropsRows(
           return false;
         };
 
+        // Soccer 3-way markets can encode outcomes as 1/X/2 instead of team names.
+        // 1 => Home, X => Draw, 2 => Away
+        const normalizeToken = (value: string): string => value.replace(/\s+/g, "").toLowerCase();
+        const playerToken = normalizeToken(playerName);
+        const keyToken = normalizeToken(keyName);
+        const sideToken = normalizeToken(sideLower);
+        const homeTokens = new Set(["home", "1"]);
+        const awayTokens = new Set(["away", "2"]);
+        const drawTokens = new Set(["draw", "x", "tie"]);
+
         // Check both player name and key name for matches
         const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm) ||
                        matchesTeam(keyName, homeNameNorm, homeTeamNorm) ||
-                       playerName === "home" || keyName === "home" ||
-                       sideLower === "home";
+                       homeTokens.has(playerToken) || homeTokens.has(keyToken) || homeTokens.has(sideToken);
                        
         const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm) ||
                        matchesTeam(keyName, awayNameNorm, awayTeamNorm) ||
-                       playerName === "away" || keyName === "away" ||
-                       sideLower === "away";
+                       awayTokens.has(playerToken) || awayTokens.has(keyToken) || awayTokens.has(sideToken);
 
         if (isAway && !isHome) mappedSide = "over";      // Top slot (Away)
         else if (isHome && !isAway) mappedSide = "under"; // Bottom slot (Home)
@@ -1169,7 +1330,7 @@ async function buildPropsRows(
           continue;
         } else {
            // Fallback: If we can't determine team, check if it's Draw
-           if (playerName === "draw" || keyName === "draw" || sideLower === "draw") continue; 
+           if (drawTokens.has(playerToken) || drawTokens.has(keyToken) || drawTokens.has(sideToken)) continue; 
            
            // For game lines where team matching fails completely, skip the entry
            // DO NOT use spread line sign as fallback - it doesn't indicate home/away
@@ -1480,4 +1641,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

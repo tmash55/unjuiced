@@ -84,7 +84,29 @@ const DEBOUNCE_MS = 2000;       // Debounce refresh requests (longer to batch mo
 const MIN_REFRESH_INTERVAL = 30000; // Minimum 30s between refreshes to avoid overwhelming API
 
 // All supported sports for broad fetching
-const ALL_SPORTS = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 // =============================================================================
 // Options & Result Types
@@ -257,8 +279,27 @@ function applyClientFilters(
   isCustomMode: boolean
 ): CachedOpportunity[] {
   const leagueToSport: Record<string, string> = {
-    nba: "nba", nfl: "nfl", ncaaf: "ncaaf", ncaab: "ncaab",
-    nhl: "nhl", mlb: "mlb", wnba: "wnba", soccer_epl: "soccer_epl",
+    nba: "nba",
+    nfl: "nfl",
+    ncaaf: "ncaaf",
+    ncaab: "ncaab",
+    nhl: "nhl",
+    mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
+    wnba: "wnba",
+    soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
   
   // Build set of selected sports for fast lookup

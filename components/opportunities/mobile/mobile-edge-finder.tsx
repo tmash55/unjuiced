@@ -69,6 +69,7 @@ interface MobileEdgeFinderProps {
   onPlayerClick?: (opp: Opportunity) => void;
   onHideEdge?: (opp: Opportunity) => void;
   onUnhideEdge?: (edgeKey: string) => void;
+  onLineHistoryClick?: (opp: Opportunity) => void;
   isHidden?: (edgeKey: string) => boolean;
   bankroll?: number;
   kellyPercent?: number;
@@ -115,6 +116,7 @@ export function MobileEdgeFinder({
   onPlayerClick,
   onHideEdge,
   onUnhideEdge,
+  onLineHistoryClick,
   isHidden,
   bankroll = 0,
   kellyPercent = 25,
@@ -597,6 +599,7 @@ export function MobileEdgeFinder({
                 onPlayerClick={onPlayerClick ? () => onPlayerClick(opp) : undefined}
                 onHide={onHideEdge ? () => onHideEdge(opp) : undefined}
                 onUnhide={onUnhideEdge ? () => onUnhideEdge(opp.id) : undefined}
+                onLineHistoryClick={onLineHistoryClick ? () => onLineHistoryClick(opp) : undefined}
                 isHidden={isHidden?.(opp.id) ?? false}
                 isExpanded={expandedCardId === opp.id}
                 onToggleExpand={() => handleCardExpand(opp.id)}
@@ -782,4 +785,3 @@ export function MobileEdgeFinder({
     </div>
   );
 }
-

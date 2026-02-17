@@ -91,7 +91,29 @@ function formatPosition(position: string | null): string | null {
 }
 
 // Supported sports (including soccer)
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "wnba", "soccer_epl"]);
+const VALID_SPORTS = new Set([
+  "nba",
+  "nfl",
+  "nhl",
+  "ncaab",
+  "ncaaf",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -151,6 +173,7 @@ interface BookOffer {
   limits: { max: number } | null;
   included_in_average?: boolean;
   average_exclusion_reason?: string | null;
+  odd_id?: string;
 }
 
 interface Opportunity {
@@ -239,6 +262,7 @@ interface Opportunity {
       limits: { max: number } | null;
       included_in_average?: boolean;
       average_exclusion_reason?: string | null;
+      odd_id?: string;
     }[];
   } | null;
 
@@ -253,6 +277,7 @@ interface Opportunity {
     limits: { max: number } | null;  // Betting limits when available (e.g., Pinnacle)
     included_in_average?: boolean;
     average_exclusion_reason?: string | null;
+    odd_id?: string;
   }[];
 }
 
@@ -908,6 +933,7 @@ async function fetchSportOpportunities(
               mobile_link: overSel.mobile_link || null,
               sgp: overSel.sgp || null,
               limits: overSel.limits || null,
+              odd_id: overSel.odd_id || undefined,
             });
             if (!pair.over.best || overSel.price_decimal > pair.over.best.decimal) {
               pair.over.best = {
@@ -941,6 +967,7 @@ async function fetchSportOpportunities(
               mobile_link: underSel.mobile_link || null,
               sgp: underSel.sgp || null,
               limits: underSel.limits || null,
+              odd_id: underSel.odd_id || undefined,
             });
             if (!pair.under.best || underSel.price_decimal > pair.under.best.decimal) {
               pair.under.best = {
@@ -962,6 +989,18 @@ async function fetchSportOpportunities(
       }
     }
 
+    // Moneyline feeds can publish one "ml" selection per team instead of over/under.
+    // Group those sibling team pairs so we can populate opposite side books for UI/devig.
+    const moneylineGroups = new Map<string, SelectionPair[]>();
+    for (const pair of pairMap.values()) {
+      if (!pair.market.toLowerCase().includes("moneyline")) continue;
+      const groupKey = `${pair.eventId}:${pair.market}:${pair.line}`;
+      if (!moneylineGroups.has(groupKey)) {
+        moneylineGroups.set(groupKey, []);
+      }
+      moneylineGroups.get(groupKey)!.push(pair);
+    }
+
     // Convert pairs to opportunities with proper devigging
     for (const pair of pairMap.values()) {
       // Create opportunities for both sides if they have enough books
@@ -971,6 +1010,22 @@ async function fetchSportOpportunities(
         const sideData = pair[side];
         const oppositeSide = side === "over" ? "under" : "over";
         const oppositeData = pair[oppositeSide];
+        let effectiveOppositeData = oppositeData;
+
+        // For moneyline rows, fallback to the sibling team's "over/ml" books
+        // when this pair has no direct under/no side populated.
+        if (
+          effectiveOppositeData.books.length === 0 &&
+          pair.market.toLowerCase().includes("moneyline")
+        ) {
+          const groupKey = `${pair.eventId}:${pair.market}:${pair.line}`;
+          const sibling = (moneylineGroups.get(groupKey) || []).find(
+            (candidate) => candidate !== pair && candidate.over.books.length > 0
+          );
+          if (sibling) {
+            effectiveOppositeData = sibling.over;
+          }
+        }
 
         // Need at least minBooksPerSide books on this side (default: 2 for EV, can be 1 for edge finder)
         if (sideData.books.length < minBooksPerSide || !sideData.best) continue;
@@ -1015,20 +1070,20 @@ async function fetchSportOpportunities(
           overround: null,
           market_coverage: null,
           devig_inputs: null,
-          opposite_side: oppositeData.books.length > 0 ? {
+          opposite_side: effectiveOppositeData.books.length > 0 ? {
             side: oppositeSide,
             sharp_price: null,
             sharp_decimal: null,
-            best_book: oppositeData.best?.book || null,
-            best_price: oppositeData.best ? formatAmericanOdds(oppositeData.best.price) : null,
-            best_decimal: oppositeData.best?.decimal || null,
-            all_books: oppositeData.books,
+            best_book: effectiveOppositeData.best?.book || null,
+            best_price: effectiveOppositeData.best ? formatAmericanOdds(effectiveOppositeData.best.price) : null,
+            best_decimal: effectiveOppositeData.best?.decimal || null,
+            all_books: effectiveOppositeData.books,
           } : null,
           all_books: sideData.books,
         };
 
         // Calculate metrics with proper devigging
-        calculateMetricsWithDevig(opp, sideData, oppositeData, blend, minBooksPerSide, useAverage, useNextBest);
+        calculateMetricsWithDevig(opp, sideData, effectiveOppositeData, blend, minBooksPerSide, useAverage, useNextBest);
         opportunities.push(opp);
         
       }

@@ -27,7 +27,7 @@ interface AlternateLinesRowProps {
   alternates: AlternateLine[];
   loading: boolean;
   error: string | null;
-  columnOrder: string[]; // Main column order (entity, event, best-line, average-line)
+  columnOrder: string[]; // Main column order (entity, time, best-line, average-line)
   sportsbookOrder: string[]; // Sportsbook column order
   primaryLine?: number;
   onOddsClick?: (line: number, side: 'over' | 'under', book: string) => void;
@@ -192,8 +192,8 @@ export function AlternateLinesRow({
               );
             }
             
-            // Event column - empty for now
-            if (colId === 'event') {
+            // Time/Event columns - empty for alternate lines
+            if (colId === 'event' || colId === 'time') {
               return <td key={colId} className="px-4 py-2" />;
             }
             
@@ -368,7 +368,6 @@ export function AlternateLinesRow({
     </>
   );
 }
-
 
 
 

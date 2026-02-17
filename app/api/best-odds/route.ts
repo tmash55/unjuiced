@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 import { redis } from "@/lib/redis";
-import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
+import type { BestOddsDeal, BestOddsResponse, BestOddsSport } from "@/lib/best-odds-schema";
 
 /**
  * GET /api/best-odds
@@ -32,6 +32,29 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
 const FREE_USER_IMPROVEMENT_LIMIT = 10; // Free users can only see <10% improvements
 const MAX_LIMIT = 2000; // Increased from 200 to match Redis key capacity
 const DEFAULT_LIMIT = 500;
+const VALID_BEST_ODDS_SPORTS: BestOddsSport[] = [
+  "nfl",
+  "nba",
+  "nhl",
+  "ncaaf",
+  "ncaab",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 export async function GET(req: NextRequest) {
   try {
@@ -125,9 +148,7 @@ export async function GET(req: NextRequest) {
       const parts = entry.key.split(':');
       const sport = parts[0];
       
-      // Support all sports (mlb/wnba temporarily removed - no active feeds)
-      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer_epl'];
-      if (!validSports.includes(sport)) {
+      if (!VALID_BEST_ODDS_SPORTS.includes(sport as BestOddsSport)) {
         console.log('[/api/best-odds] Unknown sport prefix:', sport);
         return acc;
       }
@@ -229,7 +250,7 @@ export async function GET(req: NextRequest) {
 
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
-          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl',  // Use sport from batch key
+          sport: sport as BestOddsSport,
           eid: deal.eid || '',
           ent: deal.ent || '',
           mkt: deal.mkt || '',

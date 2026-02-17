@@ -77,10 +77,13 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
   // Tennis
   if (sportLower.includes('tennis')) {
     return (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M2 12c0-5.5 4.5-10 10-10" />
-        <path d="M22 12c0 5.5-4.5 10-10 10" />
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="9.5" cy="9" rx="4.2" ry="5.7" />
+        <path d="M7.2 4.3c1.1 1.2 1.7 2.9 1.7 4.7s-.6 3.5-1.7 4.7" />
+        <path d="M11.8 4.3c1.1 1.2 1.7 2.9 1.7 4.7s-.6 3.5-1.7 4.7" />
+        <path d="M12.3 13.6l5.9 5.9" />
+        <path d="M15.3 16.6l-1.8 1.8" />
+        <circle cx="18.3" cy="6.2" r="1.6" />
       </svg>
     );
   }
@@ -99,13 +102,11 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
   // MMA / UFC / Boxing
   if (sportLower.includes('mma') || sportLower.includes('ufc') || sportLower.includes('boxing') || sportLower.includes('fight')) {
     return (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 2h6v6h-6z" />
-        <path d="M5 6h2v2h-2z" />
-        <path d="M17 6h2v2h-2z" />
-        <rect x="6" y="10" width="12" height="8" rx="1" />
-        <line x1="9" y1="18" x2="9" y2="22" />
-        <line x1="15" y1="18" x2="15" y2="22" />
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z" />
+        <path d="M9.1 13.8V9.6a2 2 0 0 1 2-2h2.5" />
+        <path d="M13.6 7.6h1.3a1.6 1.6 0 0 1 1.6 1.6v3.1a2.8 2.8 0 0 1-2.8 2.8h-2.6a2 2 0 0 1-2-2" />
+        <path d="M11.4 10.2h3.8" />
       </svg>
     );
   }
@@ -119,5 +120,4 @@ export function SportIcon({ sport, className = "h-5 w-5" }: SportIconProps) {
     </svg>
   );
 }
-
 

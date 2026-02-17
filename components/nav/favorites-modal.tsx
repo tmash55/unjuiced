@@ -70,9 +70,22 @@ const normalizeSport = (sport: string | null): string => {
     nfl: "americanfootball_nfl",
     nhl: "icehockey_nhl",
     mlb: "baseball_mlb",
+    ncaabaseball: "baseball_mlb",
     ncaab: "basketball_ncaab",
     ncaaf: "americanfootball_ncaaf",
     soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
   return sportMap[sport.toLowerCase()] || sport;
 };

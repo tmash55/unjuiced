@@ -57,6 +57,7 @@ interface HitRateData {
   gameLogs: GameLog[];
   opponent: string;
   gameStatus: string;
+  gameDate?: string | null;
   homeAway: string;
   dvpRank: number | null;
   dvpLabel: string | null;
@@ -67,6 +68,38 @@ async function fetchTopHitRates() {
   const res = await fetch("/api/dashboard/hit-rates");
   if (!res.ok) throw new Error("Failed to fetch hit rates");
   return res.json();
+}
+
+function getTodayDateET(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function formatGameDateLabel(gameDate: string): string {
+  const [yearStr, monthStr, dayStr] = gameDate.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!year || !month || !day) return gameDate;
+  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  return utcDate.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function formatGameStatusLabel(gameDate?: string | null, gameStatus?: string | null): string | null {
+  const status = (gameStatus || "").trim();
+  const date = (gameDate || "").trim();
+  if (!status && !date) return null;
+  if (!date) return status || null;
+
+  const todayET = getTodayDateET();
+  if (date === todayET) return status || null;
+
+  const dateLabel = formatGameDateLabel(date);
+  return status ? `${dateLabel} • ${status}` : dateLabel;
 }
 
 function GameLogChart({ gameLogs, line, compact = false }: { gameLogs: GameLog[]; line: number | string | null; compact?: boolean }) {
@@ -515,9 +548,9 @@ function ExpandedHitRateCard({
                   </span>
                 )}
               </div>
-              {item.gameStatus && (
+              {formatGameStatusLabel(item.gameDate, item.gameStatus) && (
                 <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 bg-neutral-200 dark:bg-neutral-700 px-3 py-1.5 rounded-lg">
-                  {item.gameStatus}
+                  {formatGameStatusLabel(item.gameDate, item.gameStatus)}
                 </span>
               )}
             </div>
@@ -613,7 +646,17 @@ export function HitRatesBentoCarousel() {
     }
   }, [data, error]);
 
-  const hitRates: HitRateData[] = data?.hitRates || [];
+  const hitRates: HitRateData[] = (data?.hitRates || []).filter((item: HitRateData) => {
+    const status = String(item?.gameStatus || "").toLowerCase();
+    if (!status) return true;
+    return !(
+      status.includes("final") ||
+      status.includes("in progress") ||
+      status.includes("live") ||
+      status.includes("halftime") ||
+      /\bq[1-4]\b/.test(status)
+    );
+  });
   const hasData = hitRates.length > 0;
 
   useEffect(() => {
@@ -917,9 +960,9 @@ export function HitRatesBentoCarousel() {
                               )}
                             </div>
                             {/* Game Time */}
-                            {item.gameStatus && (
+                            {formatGameStatusLabel(item.gameDate, item.gameStatus) && (
                               <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md">
-                                {item.gameStatus}
+                                {formatGameStatusLabel(item.gameDate, item.gameStatus)}
                               </span>
                             )}
                           </div>

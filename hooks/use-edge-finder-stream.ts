@@ -45,7 +45,29 @@ interface OddsUpdateMessage {
 }
 
 // All supported sports
-const ALL_SPORTS: Sport[] = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS: Sport[] = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 const FLASH_MS = 5000; // Highlight duration for changes
 const DEBOUNCE_MS = 1000; // Debounce refresh requests
@@ -104,8 +126,27 @@ function applyClientFilters(
   prefs: StreamPrefs
 ): Opportunity[] {
   const leagueToSport: Record<string, string> = {
-    nba: "nba", nfl: "nfl", ncaaf: "ncaaf", ncaab: "ncaab",
-    nhl: "nhl", mlb: "mlb", wnba: "wnba", soccer_epl: "soccer_epl",
+    nba: "nba",
+    nfl: "nfl",
+    ncaaf: "ncaaf",
+    ncaab: "ncaab",
+    nhl: "nhl",
+    mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
+    wnba: "wnba",
+    soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
   
   // Build set of selected sports for fast lookup
@@ -521,8 +562,27 @@ export function useEdgeFinderStream({
     
     // Build list of selected sports/leagues
     const leagueToSport: Record<string, string> = {
-      nba: "nba", nfl: "nfl", ncaaf: "ncaaf", ncaab: "ncaab",
-      nhl: "nhl", mlb: "mlb", wnba: "wnba", soccer_epl: "soccer_epl",
+      nba: "nba",
+      nfl: "nfl",
+      ncaaf: "ncaaf",
+      ncaab: "ncaab",
+      nhl: "nhl",
+      mlb: "mlb",
+      ncaabaseball: "ncaabaseball",
+      wnba: "wnba",
+      soccer_epl: "soccer_epl",
+      soccer_laliga: "soccer_laliga",
+      soccer_mls: "soccer_mls",
+      soccer_ucl: "soccer_ucl",
+      soccer_uel: "soccer_uel",
+      tennis_atp: "tennis_atp",
+      tennis_challenger: "tennis_challenger",
+      tennis_itf_men: "tennis_itf_men",
+      tennis_itf_women: "tennis_itf_women",
+      tennis_utr_men: "tennis_utr_men",
+      tennis_utr_women: "tennis_utr_women",
+      tennis_wta: "tennis_wta",
+      ufc: "ufc",
     };
     
     const selectedSports: string[] = [];

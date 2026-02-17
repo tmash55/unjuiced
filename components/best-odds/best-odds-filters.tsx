@@ -278,8 +278,21 @@ export function BestOddsFilters({
     ncaaf: 'NCAAF',
     ncaab: 'NCAAB',
     mlb: 'MLB',
+    ncaabaseball: 'NCAA Baseball',
     wnba: 'WNBA',
     soccer_epl: 'EPL',
+    soccer_laliga: 'LaLiga',
+    soccer_mls: 'MLS',
+    soccer_ucl: 'UCL',
+    soccer_uel: 'UEL',
+    tennis_atp: 'ATP',
+    tennis_challenger: 'Challenger',
+    tennis_itf_men: 'ITF Men',
+    tennis_itf_women: 'ITF Women',
+    tennis_utr_men: 'UTR Men',
+    tennis_utr_women: 'UTR Women',
+    tennis_wta: 'WTA',
+    ufc: 'UFC',
   };
 
   // Define which markets have line options and what those options are
@@ -315,8 +328,21 @@ export function BestOddsFilters({
     nfl: 'Football',
     nhl: 'Hockey',
     mlb: 'Baseball',
+    ncaabaseball: 'Baseball',
     wnba: 'Basketball',
     soccer_epl: 'Soccer',
+    soccer_laliga: 'Soccer',
+    soccer_mls: 'Soccer',
+    soccer_ucl: 'Soccer',
+    soccer_uel: 'Soccer',
+    tennis_atp: 'Tennis',
+    tennis_challenger: 'Tennis',
+    tennis_itf_men: 'Tennis',
+    tennis_itf_women: 'Tennis',
+    tennis_utr_men: 'Tennis',
+    tennis_utr_women: 'Tennis',
+    tennis_wta: 'Tennis',
+    ufc: 'MMA',
   };
 
   // Group markets by sport type - use API-provided sport data when available for exact parity with desktop
@@ -327,6 +353,8 @@ export function BestOddsFilters({
       Soccer: [],
       Hockey: [],
       Baseball: [],
+      Tennis: [],
+      MMA: [],
     };
     const added = new Set<string>(); // Track group:market to prevent duplicates
 
@@ -368,6 +396,8 @@ export function BestOddsFilters({
       const hockeyMarkets = new Set<string>();
       const baseballMarkets = new Set<string>();
       const soccerMarkets = new Set<string>();
+      const tennisMarkets = new Set<string>();
+      const mmaMarkets = new Set<string>();
 
       ['basketball_nba', 'basketball_ncaab', 'basketball_wnba'].forEach(key => {
         (SPORT_MARKETS[key] || []).forEach(m => basketballMarkets.add(m.apiKey));
@@ -377,7 +407,14 @@ export function BestOddsFilters({
       });
       (SPORT_MARKETS['icehockey_nhl'] || []).forEach(m => hockeyMarkets.add(m.apiKey));
       (SPORT_MARKETS['baseball_mlb'] || []).forEach(m => baseballMarkets.add(m.apiKey));
-      (SPORT_MARKETS['soccer_epl'] || []).forEach(m => soccerMarkets.add(m.apiKey));
+      (SPORT_MARKETS['baseball_ncaabaseball'] || []).forEach(m => baseballMarkets.add(m.apiKey));
+      ['soccer_epl', 'soccer_laliga', 'soccer_mls', 'soccer_ucl', 'soccer_uel'].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach(m => soccerMarkets.add(m.apiKey));
+      });
+      ['tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta'].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach(m => tennisMarkets.add(m.apiKey));
+      });
+      (SPORT_MARKETS['ufc'] || []).forEach(m => mmaMarkets.add(m.apiKey));
 
       (availableMarkets || []).forEach(market => {
         const m = market.toLowerCase();
@@ -388,6 +425,8 @@ export function BestOddsFilters({
         if (hockeyMarkets.has(m)) { groups.Hockey.push(market); matched = true; }
         if (baseballMarkets.has(m)) { groups.Baseball.push(market); matched = true; }
         if (soccerMarkets.has(m)) { groups.Soccer.push(market); matched = true; }
+        if (tennisMarkets.has(m)) { groups.Tennis.push(market); matched = true; }
+        if (mmaMarkets.has(m)) { groups.MMA.push(market); matched = true; }
         
         if (!matched) {
           // Fallback by keyword
@@ -399,6 +438,10 @@ export function BestOddsFilters({
             groups.Hockey.push(market);
           } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run')) {
             groups.Baseball.push(market);
+          } else if (m.includes('set') || m.includes('tiebreak') || m.includes('breaks')) {
+            groups.Tennis.push(market);
+          } else if (m.includes('fight') || m.includes('round') || m.includes('decision') || m.includes('finish')) {
+            groups.MMA.push(market);
           } else {
             groups.Basketball.push(market);
           }

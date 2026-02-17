@@ -538,21 +538,31 @@ export interface SportMarket {
     { value: "Shortest FG Yards", label: "Shortest FG Made Yards", apiKey: "shortest_field_goal_made_yards", group: "Field Goals", period: 'full' },
   ];
 
-  // Soccer (EPL) markets
-  // Note: Our data feed includes keys like odds:soccer_epl:*:player_goals:*
-  const SOCCER_EPL_MARKETS: SportMarket[] = [
-    // Game-level markets
-    { value: "Moneyline 3-Way", label: "Moneyline 3-Way", apiKey: "moneyline_3way", group: "Game", period: "full" },
-    { value: "Draw No Bet", label: "Draw No Bet", apiKey: "draw_no_bet", group: "Game", period: "full" },
-    { value: "Match Goals", label: "Match Goals", apiKey: "match_goals", group: "Game", period: "full" },
-    { value: "Total Goals", label: "Total Goals", apiKey: "total_goals", group: "Game", period: "full" },
-    { value: "Total Goals Odd/Even", label: "Total Goals Odd/Even", apiKey: "total_goals_odd_even", group: "Game", period: "full" },
+  // Soccer markets
+  // Core + expanded game markets aligned to active vendor coverage across EPL/LaLiga/MLS/UCL/UEL.
+  const SOCCER_MARKETS: SportMarket[] = [
+    { value: "Match Handicap", label: "Match Handicap", apiKey: "handicap", group: "Game", period: "full" },
+    { value: "Match Total Goals", label: "Match Total Goals", apiKey: "match_total_goals", group: "Game", period: "full" },
     { value: "Both Teams To Score", label: "Both Teams To Score", apiKey: "both_teams_to_score", group: "Game", period: "full" },
-    { value: "Team Total Goals", label: "Team Total Goals", apiKey: "team_total_goals", group: "Game", period: "full" },
-    { value: "Win To Nil", label: "Win To Nil", apiKey: "win_to_nil", group: "Game", period: "full" },
-    { value: "Clean Sheet", label: "Clean Sheet", apiKey: "clean_sheet", group: "Game", period: "full" },
-
-    // Player props - Goals
+    { value: "Draw No Bet", label: "Draw No Bet", apiKey: "draw_no_bet", group: "Game", period: "full" },
+    { value: "Home Team Total Goals", label: "Home Team Total Goals", apiKey: "home_team_total_goals", group: "Team", period: "full" },
+    { value: "Away Team Total Goals", label: "Away Team Total Goals", apiKey: "away_team_total_goals", group: "Team", period: "full" },
+    { value: "Goal in Both Halves", label: "Goal in Both Halves", apiKey: "goal_in_both_halves", group: "Game", period: "full" },
+    { value: "First Team To Score 3-Way", label: "First Team To Score (3-Way)", apiKey: "first_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "Second Team To Score 3-Way", label: "Second Team To Score (3-Way)", apiKey: "second_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "Third Team To Score 3-Way", label: "Third Team To Score (3-Way)", apiKey: "third_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "Fourth Team To Score 3-Way", label: "Fourth Team To Score (3-Way)", apiKey: "fourth_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "Fifth Team To Score 3-Way", label: "Fifth Team To Score (3-Way)", apiKey: "fifth_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "Last Team To Score 3-Way", label: "Last Team To Score (3-Way)", apiKey: "last_team_to_score_3_way", group: "Scoring", period: "full" },
+    { value: "1H Handicap", label: "1st Half Handicap", apiKey: "1st_half_handicap", group: "1st Half", period: "1h" },
+    { value: "1H Total Goals", label: "1st Half Total Goals", apiKey: "1st_half_total_goals", group: "1st Half", period: "1h" },
+    { value: "1H Draw No Bet", label: "1st Half Draw No Bet", apiKey: "1st_half_draw_no_bet", group: "1st Half", period: "1h" },
+    { value: "1H Both Teams To Score", label: "1st Half Both Teams To Score", apiKey: "1st_half_both_teams_to_score", group: "1st Half", period: "1h" },
+    { value: "1H First Team To Score 3-Way", label: "1st Half First Team To Score (3-Way)", apiKey: "1st_half_first_team_to_score_3_way", group: "1st Half", period: "1h" },
+    { value: "1H Total Corners Odd/Even", label: "1st Half Total Corners Odd/Even", apiKey: "1st_half_total_corners_odd_even", group: "Corners", period: "1h" },
+    { value: "2H Total Goals", label: "2nd Half Total Goals", apiKey: "2nd_half_total_goals", group: "2nd Half", period: "2h" },
+    { value: "2H First Team To Score 3-Way", label: "2nd Half First Team To Score (3-Way)", apiKey: "2nd_half_first_team_to_score_3_way", group: "2nd Half", period: "2h" },
+    { value: "2H Total Corners Odd/Even", label: "2nd Half Total Corners Odd/Even", apiKey: "2nd_half_total_corners_odd_even", group: "Corners", period: "2h" },
     {
       value: "Goals",
       label: "Goals",
@@ -563,21 +573,54 @@ export interface SportMarket {
       group: "Player",
       period: "full",
     },
-    { value: "Anytime Goalscorer", label: "Anytime Goalscorer", apiKey: "anytime_goalscorer", group: "Player", period: "full", singleLine: true },
-    { value: "First Goalscorer", label: "First Goalscorer", apiKey: "first_goalscorer", group: "Player", period: "full", singleLine: true },
-    { value: "Last Goalscorer", label: "Last Goalscorer", apiKey: "last_goalscorer", group: "Player", period: "full", singleLine: true },
-    
-    // Player props - Shots
+    { value: "First Goalscorer", label: "First Goalscorer", apiKey: "player_first_goal", group: "Player", period: "full", singleLine: true },
     { value: "Shots On Target", label: "Shots On Target", apiKey: "player_shots_on_target", group: "Player", period: "full" },
     { value: "Shots", label: "Shots", apiKey: "player_shots", group: "Player", period: "full" },
-    
-    // Player props - Other
     { value: "Assists", label: "Assists", apiKey: "player_assists", group: "Player", period: "full" },
-    { value: "Tackles", label: "Tackles", apiKey: "player_tackles", group: "Player", period: "full" },
-    { value: "Fouls Committed", label: "Fouls Committed", apiKey: "player_fouls_committed", group: "Player", period: "full" },
-    { value: "Yellow Cards", label: "Yellow Cards", apiKey: "player_yellow_cards", group: "Player", period: "full" },
-    { value: "To Be Carded", label: "To Be Carded", apiKey: "player_to_be_carded", group: "Player", period: "full" },
-    { value: "Passes", label: "Passes", apiKey: "player_passes", group: "Player", period: "full" },
+    { value: "Fouls", label: "Fouls", apiKey: "player_fouls", group: "Player", period: "full" },
+    { value: "Offsides", label: "Offsides", apiKey: "player_offsides", group: "Player", period: "full" },
+  ];
+
+  // Baseball markets (new Redis format)
+  const BASEBALL_MARKETS: SportMarket[] = [
+    { value: "Moneyline", label: "Moneyline", apiKey: "game_moneyline", group: "Game", period: "full" },
+    { value: "Run Line", label: "Run Line", apiKey: "game_run_line", group: "Game", period: "full" },
+    { value: "Total Runs", label: "Total Runs", apiKey: "game_total_runs", group: "Game", period: "full" },
+  ];
+
+  // Tennis markets (union of currently active ATP/WTA/ITF/UTR feeds)
+  const TENNIS_MARKETS: SportMarket[] = [
+    { value: "Match Moneyline", label: "Match Moneyline", apiKey: "match_moneyline", group: "Match", period: "full" },
+    { value: "Match Spread", label: "Match Spread", apiKey: "match_spread", group: "Match", period: "full" },
+    { value: "Match Total Games", label: "Match Total Games", apiKey: "match_total_games", group: "Match", period: "full" },
+    { value: "Match Total Sets", label: "Match Total Sets", apiKey: "match_total_sets", group: "Match", period: "full" },
+    { value: "Set Spread", label: "Set Spread", apiKey: "set_spread", group: "Match", period: "full" },
+
+    { value: "1st Set Moneyline", label: "1st Set Moneyline", apiKey: "1st_set_moneyline", group: "1st Set", period: "full" },
+    { value: "2nd Set Moneyline", label: "2nd Set Moneyline", apiKey: "2nd_set_moneyline", group: "2nd Set", period: "full" },
+    { value: "3rd Set Moneyline", label: "3rd Set Moneyline", apiKey: "3rd_set_moneyline", group: "3rd Set", period: "full" },
+
+    { value: "1st Set Game Spread", label: "1st Set Game Spread", apiKey: "1st_set_game_spread", group: "1st Set", period: "full" },
+    { value: "2nd Set Game Spread", label: "2nd Set Game Spread", apiKey: "2nd_set_game_spread", group: "2nd Set", period: "full" },
+
+    { value: "1st Set Tiebreak", label: "1st Set Tiebreak?", apiKey: "1st_set_tiebreak", group: "1st Set", period: "full", singleLine: true },
+    { value: "2nd Set Tiebreak", label: "2nd Set Tiebreak?", apiKey: "2nd_set_tiebreak", group: "2nd Set", period: "full", singleLine: true },
+
+    { value: "1st Set Total Games", label: "1st Set Total Games", apiKey: "set_1_total_games", group: "1st Set", period: "full" },
+    { value: "2nd Set Total Games", label: "2nd Set Total Games", apiKey: "set_2_total_games", group: "2nd Set", period: "full" },
+    { value: "3rd Set Total Games", label: "3rd Set Total Games", apiKey: "set_3_total_games", group: "3rd Set", period: "full" },
+
+    { value: "Total Breaks", label: "Total Breaks", apiKey: "total_breaks", group: "Match", period: "full" },
+  ];
+
+  // UFC/MMA markets
+  const UFC_MARKETS: SportMarket[] = [
+    { value: "Fight Moneyline", label: "Fight Moneyline", apiKey: "fight_moneyline", group: "Fight", period: "full" },
+    { value: "Point Spread", label: "Point Spread", apiKey: "point_spread", group: "Fight", period: "full" },
+    { value: "Fight Total Rounds", label: "Fight Total Rounds", apiKey: "fight_total_rounds", group: "Fight", period: "full" },
+    { value: "1st Round Finish Only", label: "1st Round Finish Only", apiKey: "1st_round_moneyline_finish_only", group: "Round 1", period: "full" },
+    { value: "Finish Only", label: "Moneyline (Finish Only)", apiKey: "moneyline_finish_only", group: "Method", period: "full" },
+    { value: "Decision Only", label: "Moneyline (Decision Only)", apiKey: "moneyline_decision_only", group: "Method", period: "full" },
   ];
   
   export const SPORT_MARKETS: SportMarkets = {
@@ -586,119 +629,21 @@ export interface SportMarket {
     basketball_ncaab: BASKETBALL_MARKETS,
     football_nfl: FOOTBALL_MARKETS,
     football_ncaaf: FOOTBALL_MARKETS,
-    soccer_epl: SOCCER_EPL_MARKETS,
-    baseball_mlb: [
-      // Game-level markets
-      { value: "Moneyline", label: "Moneyline", apiKey: "h2h", group: "Game" },
-      { value: "Spread", label: "Run Line", apiKey: "spreads", group: "Game" },
-      { value: "Total", label: "Total Runs", apiKey: "totals", group: "Game" },
-      
-      // Batter Props
-      {
-        value: "Home_Runs",
-        label: "Home Runs",
-        apiKey: "batter_home_runs",
-        hasAlternates: true,
-        alternateKey: "batter_home_runs_alternate",
-        alwaysFetchAlternate: true,
-        group: "Batter",
-      },
-      {
-        value: "Hits",
-        label: "Hits",
-        apiKey: "batter_hits",
-        hasAlternates: true,
-        alternateKey: "batter_hits_alternate",
-        alwaysFetchAlternate: true,
-        group: "Batter",
-      },
-      {
-        value: "Total_Bases",
-        label: "Total Bases",
-        apiKey: "batter_total_bases",
-        hasAlternates: true,
-        alternateKey: "batter_total_bases_alternate",
-        alwaysFetchAlternate: true,
-        group: "Batter",
-      },
-  
-      {
-        value: "RBIs",
-        label: "RBIs",
-        apiKey: "batter_rbis",
-        hasAlternates: true,
-        alternateKey: "batter_rbis_alternate",
-        alwaysFetchAlternate: true,
-        group: "Batter",
-      },
-      { value: "Runs", label: "Runs Scored", apiKey: "batter_runs_scored", group: "Batter" },
-      { value: "Walks", label: "Walks", apiKey: "batter_walks", group: "Batter" },
-      { value: "Singles", label: "Singles", apiKey: "batter_singles", group: "Batter" },
-      { value: "Doubles", label: "Doubles", apiKey: "batter_doubles", group: "Batter" },
-      { value: "Triples", label: "Triples", apiKey: "batter_triples", group: "Batter" },
-      { value: "Stolen_Bases", label: "Stolen Bases", apiKey: "batter_stolen_bases", group: "Batter" },
-      {
-        value: "Extra_Base_Hits",
-        label: "Extra Base Hits",
-        apiKey: "batter_extra_base_hits",
-        group: "Batter",
-      },
-      {
-        value: "Hits_Runs_RBIs",
-        label: "Hits + Runs + RBIs",
-        apiKey: "batter_hits_runs_rbis",
-        group: "Batter",
-      },
-      {
-        value: "Batter_First_Home_Run",
-        label: "1st Home Run",
-        apiKey: "batter_first_home_run",
-        group: "Batter",
-        singleLine: true,
-      },
-  
-      // Pitcher Props
-      {
-        value: "Strikeouts",
-        label: "Strikeouts",
-        apiKey: "pitcher_strikeouts",
-        hasAlternates: true,
-        alternateKey: "pitcher_strikeouts_alternate",
-        alwaysFetchAlternate: true,
-        group: "Pitcher",
-      },
-      {
-        value: "Hits_Allowed",
-        label: "Hits Allowed",
-        apiKey: "pitcher_hits_allowed",
-        hasAlternates: true,
-        alternateKey: "pitcher_hits_allowed_alternate",
-        alwaysFetchAlternate: true,
-        group: "Pitcher",
-      },
-      {
-        value: "Walks_Allowed",
-        label: "Walks Allowed",
-        apiKey: "pitcher_walks",
-        hasAlternates: true,
-        alternateKey: "pitcher_walks_alternate",
-        alwaysFetchAlternate: true,
-        group: "Pitcher",
-      },
-      {
-        value: "Earned_Runs",
-        label: "Earned Runs",
-        apiKey: "pitcher_earned_runs",
-        group: "Pitcher",
-      },
-      { value: "Outs_Recorded", label: "Outs Recorded", apiKey: "pitcher_outs", group: "Pitcher" },
-      {
-        value: "Pitches_Thrown",
-        label: "Pitches Thrown",
-        apiKey: "pitcher_pitches_thrown",
-        group: "Pitcher",
-      },
-    ],
+    soccer_epl: SOCCER_MARKETS,
+    soccer_laliga: SOCCER_MARKETS,
+    soccer_mls: SOCCER_MARKETS,
+    soccer_ucl: SOCCER_MARKETS,
+    soccer_uel: SOCCER_MARKETS,
+    baseball_mlb: BASEBALL_MARKETS,
+    baseball_ncaabaseball: BASEBALL_MARKETS,
+    tennis_atp: TENNIS_MARKETS,
+    tennis_challenger: TENNIS_MARKETS,
+    tennis_itf_men: TENNIS_MARKETS,
+    tennis_itf_women: TENNIS_MARKETS,
+    tennis_utr_men: TENNIS_MARKETS,
+    tennis_utr_women: TENNIS_MARKETS,
+    tennis_wta: TENNIS_MARKETS,
+    ufc: UFC_MARKETS,
     // =========================================================================
     // NHL MARKETS
     // =========================================================================
@@ -939,34 +884,44 @@ export interface SportMarket {
     ],
   };
   
+  // Map canonical sport keys (nba, nfl, etc.) to SPORT_MARKETS keys.
+  const SPORT_MARKET_KEY_MAP: Record<string, string> = {
+    nba: "basketball_nba",
+    wnba: "basketball_wnba",
+    ncaab: "basketball_ncaab",
+    nfl: "football_nfl",
+    ncaaf: "football_ncaaf",
+    nhl: "icehockey_nhl",
+    mlb: "baseball_mlb",
+    ncaabaseball: "baseball_ncaabaseball",
+    soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
+  };
+
   // Helper function to get markets for a sport
   export function getMarketsForSport(sport: string): SportMarket[] {
-    return SPORT_MARKETS[sport] || [];
+    const normalized = sport.toLowerCase();
+    const marketKey = SPORT_MARKET_KEY_MAP[normalized] || normalized;
+    return SPORT_MARKETS[marketKey] || [];
   }
   
   // Market types by sport
   export const SUPPORTED_MARKETS: Record<string, string[]> = {
     mlb: [
-      // Batter markets
-      'home runs',  // Set as first item to be default
-      'hits',
-      'total bases',
-      'rbis',
-      'runs',
-      'batting strikeouts',
-      'batting walks',
-      'singles',
-      'doubles',
-      'triples',
-      'hits + runs + rbis',
-      'stolen bases',
-      // Pitcher markets
-      'strikeouts',
-      'hits allowed',
-      'walks',
-      'earned runs',
-      'outs',
-      'pitcher win'
+      'moneyline',
+      'run line',
+      'total runs'
     ],
     nba: [
       'points', // Set as default
@@ -1110,24 +1065,192 @@ export interface SportMarket {
       'total saves'
     ],
     soccer_epl: [
-      'goals', // Set as default (player_goals)
-      'anytime goalscorer',
+      'match handicap',
+      'match total goals',
+      'both teams to score',
+      'draw no bet',
+      'home team total goals',
+      'away team total goals',
+      'goal in both halves',
+      'first team to score 3-way',
+      'second team to score 3-way',
+      'third team to score 3-way',
+      'fourth team to score 3-way',
+      'fifth team to score 3-way',
+      'last team to score 3-way',
+      '1h handicap',
+      '1h total goals',
+      '1h draw no bet',
+      '1h both teams to score',
+      '1h first team to score 3-way',
+      '1h total corners odd/even',
+      '2h total goals',
+      '2h first team to score 3-way',
+      '2h total corners odd/even',
+      'goals',
       'first goalscorer',
-      'last goalscorer',
       'shots on target',
       'shots',
       'assists',
-      'tackles',
-      'fouls committed',
-      'yellow cards',
-      'to be carded',
-      'passes'
+      'fouls',
+      'offsides'
+    ],
+    soccer_laliga: [
+      'match handicap',
+      'match total goals',
+      'both teams to score',
+      'draw no bet',
+      'home team total goals',
+      'away team total goals',
+      'goal in both halves',
+      'first team to score 3-way',
+      'second team to score 3-way',
+      'third team to score 3-way',
+      'fourth team to score 3-way',
+      'fifth team to score 3-way',
+      'last team to score 3-way',
+      '1h handicap',
+      '1h total goals',
+      '1h draw no bet',
+      '1h both teams to score',
+      '1h first team to score 3-way',
+      '1h total corners odd/even',
+      '2h total goals',
+      '2h first team to score 3-way',
+      '2h total corners odd/even',
+      'goals',
+      'first goalscorer',
+      'shots on target'
+    ],
+    soccer_mls: [
+      'match handicap',
+      'match total goals',
+      'both teams to score',
+      'draw no bet',
+      'home team total goals',
+      'away team total goals',
+      'goal in both halves',
+      'first team to score 3-way',
+      'second team to score 3-way',
+      'third team to score 3-way',
+      'fourth team to score 3-way',
+      'fifth team to score 3-way',
+      'last team to score 3-way',
+      '1h handicap',
+      '1h total goals',
+      '1h draw no bet',
+      '1h both teams to score',
+      '1h first team to score 3-way',
+      '2h total goals',
+      '2h first team to score 3-way',
+      'goals'
+    ],
+    soccer_ucl: [
+      'match handicap',
+      'match total goals',
+      'draw no bet',
+      '1h handicap',
+      '1h total goals',
+      '1h draw no bet'
+    ],
+    soccer_uel: [
+      'match handicap',
+      'match total goals',
+      'draw no bet',
+      '1h handicap',
+      '1h total goals',
+      '1h draw no bet'
+    ],
+    ncaabaseball: [
+      'moneyline',
+      'run line',
+      'total runs'
+    ],
+    tennis_atp: [
+      'match moneyline',
+      'match spread',
+      'match total games',
+      'match total sets',
+      'set spread',
+      '1st set moneyline',
+      '2nd set moneyline',
+      '3rd set moneyline'
+    ],
+    tennis_challenger: [
+      'match moneyline',
+      'match spread',
+      'match total games',
+      'match total sets',
+      '1st set moneyline',
+      '2nd set moneyline'
+    ],
+    tennis_itf_men: [
+      'match moneyline',
+      'match spread',
+      'match total games'
+    ],
+    tennis_itf_women: [
+      'match moneyline',
+      'match spread',
+      'match total games',
+      'match total sets'
+    ],
+    tennis_utr_men: [
+      'match moneyline',
+      'match spread',
+      'match total games',
+      'match total sets'
+    ],
+    tennis_utr_women: [
+      'match moneyline',
+      '1st set moneyline',
+      '2nd set moneyline'
+    ],
+    tennis_wta: [
+      'match moneyline',
+      'match spread',
+      'match total games',
+      'match total sets',
+      'set spread',
+      '1st set moneyline',
+      '2nd set moneyline',
+      '3rd set moneyline',
+      'total breaks'
+    ],
+    ufc: [
+      'fight moneyline',
+      'point spread',
+      'fight total rounds',
+      '1st round finish only',
+      'finish only',
+      'decision only'
     ]
   };
   
   // Export supported sports array
-  // NOTE: mlb and wnba temporarily removed - no active odds feeds
-  export const SUPPORTED_SPORTS = ['nba', 'ncaab', 'nfl', 'ncaaf', 'nhl', 'soccer_epl'] as const;
+  export const SUPPORTED_SPORTS = [
+    'nba',
+    'ncaab',
+    'wnba',
+    'nfl',
+    'ncaaf',
+    'nhl',
+    'mlb',
+    'ncaabaseball',
+    'soccer_epl',
+    'soccer_laliga',
+    'soccer_mls',
+    'soccer_ucl',
+    'soccer_uel',
+    'tennis_atp',
+    'tennis_challenger',
+    'tennis_itf_men',
+    'tennis_itf_women',
+    'tennis_utr_men',
+    'tennis_utr_women',
+    'tennis_wta',
+    'ufc',
+  ] as const;
   
 // Canonical mapping for market display names → internal API keys
 // Maps backend market names to frontend API keys for consistent routing
@@ -1891,16 +2014,43 @@ export const MARKET_NAME_MAP: Record<string, string> = {
   
   // Helper function to get default market for a sport
   // Returns the most popular player market for each sport
-  export function getDefaultMarket(sport: string, type?: 'game' | 'player'): string {
-    // If type is specified and it's game, return moneyline (using Redis key)
+export function getDefaultMarket(sport: string, type?: 'game' | 'player'): string {
+    const normalizedSport = sport.toLowerCase();
+
+    // Default game markets by sport
+    const defaultGameMarkets: Record<string, string> = {
+      nfl: 'game_moneyline',
+      ncaaf: 'game_moneyline',
+      nba: 'game_moneyline',
+      ncaab: 'game_moneyline',
+      wnba: 'game_moneyline',
+      nhl: 'game_moneyline',
+      mlb: 'game_moneyline',
+      ncaabaseball: 'game_moneyline',
+      soccer_epl: 'match_total_goals',
+      soccer_laliga: 'match_total_goals',
+      soccer_mls: 'match_total_goals',
+      soccer_ucl: 'match_total_goals',
+      soccer_uel: 'match_total_goals',
+      tennis_atp: 'match_moneyline',
+      tennis_challenger: 'match_moneyline',
+      tennis_itf_men: 'match_moneyline',
+      tennis_itf_women: 'match_moneyline',
+      tennis_utr_men: 'match_moneyline',
+      tennis_utr_women: 'match_moneyline',
+      tennis_wta: 'match_moneyline',
+      ufc: 'fight_moneyline',
+    };
+
+    // If type is specified and it's game, return sport-specific game default.
     if (type === 'game') {
-      return 'game_moneyline';
+      return defaultGameMarkets[normalizedSport] || 'game_moneyline';
     }
     
     // Sports that only have game lines (no player props)
-    const gameOnlySports = ['ncaab', 'mlb', 'wnba'];
-    if (gameOnlySports.includes(sport.toLowerCase())) {
-      return 'game_moneyline';
+    const gameOnlySports = ['ncaabaseball'];
+    if (gameOnlySports.includes(normalizedSport)) {
+      return defaultGameMarkets[normalizedSport] || 'game_moneyline';
     }
     
     // Default player markets by sport
@@ -1908,12 +2058,27 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       'nfl': 'player_touchdowns', // Anytime TD
       'ncaaf': 'player_touchdowns', // Anytime TD
       'nba': 'player_points',
+      'wnba': 'player_points',
       'nhl': 'player_goals',
       'soccer_epl': 'player_goals',
+      'soccer_laliga': 'player_goals',
+      'soccer_mls': 'player_goals',
+      'soccer_ucl': 'player_goals',
+      'soccer_uel': 'player_goals',
+      'mlb': 'game_moneyline',
+      'ncaabaseball': 'game_moneyline',
+      'tennis_atp': 'match_moneyline',
+      'tennis_challenger': 'match_moneyline',
+      'tennis_itf_men': 'match_moneyline',
+      'tennis_itf_women': 'match_moneyline',
+      'tennis_utr_men': 'match_moneyline',
+      'tennis_utr_women': 'match_moneyline',
+      'tennis_wta': 'match_moneyline',
+      'ufc': 'fight_moneyline',
     };
     
     // Return sport-specific default or fallback to game_moneyline
-    return defaultPlayerMarkets[sport.toLowerCase()] || 'game_moneyline';
+    return defaultPlayerMarkets[normalizedSport] || defaultGameMarkets[normalizedSport] || 'game_moneyline';
   }
   
   // Helper function to get API key for a market
@@ -1961,8 +2126,6 @@ export const MARKET_NAME_MAP: Record<string, string> = {
     'overtime',
     'both_teams_to_score',
     'first_team_to_score',
-    'first_team_to_score_3_way',
-    'last_team_to_score_3_way',
     
     // Hockey - Goalscorer markets (single-line "to score" markets)
     'player_first_goal',

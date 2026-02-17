@@ -27,7 +27,29 @@ import { type BestOddsPrefs } from "@/lib/best-odds-schema";
 import { isMarketSelected } from "@/lib/utils";
 
 // All supported sports for broad fetching in preset mode
-const ALL_SPORTS: Sport[] = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS: Sport[] = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -174,8 +196,21 @@ function buildFilterConfigs(
     ncaab: "ncaab",
     nhl: "nhl",
     mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
     wnba: "wnba",
     soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
 
   // If no active presets, use preset mode (single filter from prefs)
@@ -521,8 +556,21 @@ function applyGlobalFilters(
     ncaab: "ncaab",
     nhl: "nhl",
     mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
     wnba: "wnba",
     soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
   
   // Build set of selected sports for fast lookup

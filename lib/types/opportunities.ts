@@ -5,7 +5,28 @@
  * No adapters needed - components use these directly.
  */
 
-export type Sport = "nba" | "nfl" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba" | "soccer_epl";
+export type Sport =
+  | "nba"
+  | "nfl"
+  | "nhl"
+  | "ncaaf"
+  | "ncaab"
+  | "mlb"
+  | "ncaabaseball"
+  | "wnba"
+  | "soccer_epl"
+  | "soccer_laliga"
+  | "soccer_mls"
+  | "soccer_ucl"
+  | "soccer_uel"
+  | "tennis_atp"
+  | "tennis_challenger"
+  | "tennis_itf_men"
+  | "tennis_itf_women"
+  | "tennis_utr_men"
+  | "tennis_utr_women"
+  | "tennis_wta"
+  | "ufc";
 export type Side = "over" | "under" | "yes" | "no";
 export type DevigMethod = "proper" | "estimated";
 export type DevigSource = "sharp_book" | "sharp_blend" | "market_average";
@@ -31,6 +52,7 @@ export interface BookOdds {
   limits: BookLimits | null;  // Betting limits when available
   includedInAverage?: boolean;
   averageExclusionReason?: string | null;
+  oddId?: string;          // OddsBlaze odd ID for historical line lookup
 }
 
 /**
@@ -273,6 +295,7 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
       limits: b.limits as { max: number } | null,
       includedInAverage: (b.included_in_average as boolean | undefined) ?? true,
       averageExclusionReason: (b.average_exclusion_reason as string | null | undefined) ?? null,
+      oddId: (b.odd_id as string | undefined) || undefined,
     })),
 
     sharpPrice: raw.sharp_price as string | null,

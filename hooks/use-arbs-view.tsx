@@ -40,8 +40,30 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
     
     // Check if any filters are applied
     const allBooks = sportsbooks.filter(sb => sb.isActive !== false);
-    const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer'];
-    const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl', 'soccer_epl'];
+    const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer', 'Tennis', 'MMA'];
+    const allLeaguesIds = [
+      'nfl',
+      'ncaaf',
+      'nba',
+      'ncaab',
+      'wnba',
+      'mlb',
+      'ncaabaseball',
+      'nhl',
+      'soccer_epl',
+      'soccer_laliga',
+      'soccer_mls',
+      'soccer_ucl',
+      'soccer_uel',
+      'tennis_atp',
+      'tennis_challenger',
+      'tennis_itf_men',
+      'tennis_itf_women',
+      'tennis_utr_men',
+      'tennis_utr_women',
+      'tennis_wta',
+      'ufc',
+    ];
     const allMarketTypes = ['player', 'game'];
     
     const hasBookFilter = arbPrefs.selectedBooks.length !== allBooks.length;
@@ -84,8 +106,30 @@ export function useArbsView({ pro, live, eventId, limit = 100, mode }: { pro: bo
 
   // Calculate if filters are active for UI indication
   const allBooks = sportsbooks.filter(sb => sb.isActive !== false);
-  const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer'];
-  const allLeaguesIds = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl', 'soccer_epl'];
+  const allSportsIds = ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer', 'Tennis', 'MMA'];
+  const allLeaguesIds = [
+    'nfl',
+    'ncaaf',
+    'nba',
+    'ncaab',
+    'wnba',
+    'mlb',
+    'ncaabaseball',
+    'nhl',
+    'soccer_epl',
+    'soccer_laliga',
+    'soccer_mls',
+    'soccer_ucl',
+    'soccer_uel',
+    'tennis_atp',
+    'tennis_challenger',
+    'tennis_itf_men',
+    'tennis_itf_women',
+    'tennis_utr_men',
+    'tennis_utr_women',
+    'tennis_wta',
+    'ufc',
+  ];
   const allMarketTypes = ['player', 'game'];
   // Free users: cap at 1% ROI
   const effectiveMax = pro ? arbPrefs.maxArb : Math.min(arbPrefs.maxArb ?? 1, 1);

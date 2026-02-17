@@ -11,7 +11,7 @@ import { useOddsPreferences } from "@/context/preferences-context";
 import { useOddsUtility } from "../odds-utility-context";
 import { fetchOddsWithNewAPI } from "@/lib/api-adapters/props-to-odds";
 import { useQuery } from "@tanstack/react-query";
-import { getDefaultMarket } from "@/lib/data/markets";
+import { getDefaultMarket, getMarketsForSport } from "@/lib/data/markets";
 import { useSSE } from "@/hooks/use-sse";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useIsMobile } from "@/hooks/use-media-query";
@@ -26,9 +26,27 @@ export default function OddsPage({ params }: OddsPageProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { preferences } = useOddsPreferences();
+  const useFullTeamNames = useMemo(() => {
+    const fullNameSports = new Set([
+      "ncaabaseball",
+      "soccer_epl",
+      "soccer_laliga",
+      "soccer_mls",
+      "soccer_ucl",
+      "soccer_uel",
+      "tennis_atp",
+      "tennis_challenger",
+      "tennis_itf_men",
+      "tennis_itf_women",
+      "tennis_utr_men",
+      "tennis_utr_women",
+      "tennis_wta",
+    ]);
+    return fullNameSports.has(sport.toLowerCase());
+  }, [sport]);
   
   // Sports without player props - force to game type
-  const sportsWithoutPlayerProps = ['mlb', 'wnba'];
+  const sportsWithoutPlayerProps = ['mlb', 'wnba', 'ncaabaseball', 'tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta', 'ufc'];
   const hasPlayerProps = !sportsWithoutPlayerProps.includes(sport.toLowerCase());
   
   // Get search params or defaults
@@ -38,6 +56,9 @@ export default function OddsPage({ params }: OddsPageProps) {
   const defaultMarket = getDefaultMarket(sport, type);
   const market = rawMarket || defaultMarket;
   const scope = (searchParams.get("scope") || "pregame") as "pregame" | "live";
+  const validMarketApiKeys = useMemo(() => {
+    return new Set(getMarketsForSport(sport).map((m) => m.apiKey));
+  }, [sport]);
   
   // Redirect if type=player for sports without player props
   useEffect(() => {
@@ -53,8 +74,14 @@ export default function OddsPage({ params }: OddsPageProps) {
     }
     if (type === "player" && rawMarket && rawMarket.startsWith("game_")) {
       router.replace(`/odds/${sport}?type=player&market=${defaultMarket}&scope=${scope}`);
+      return;
     }
-  }, [hasPlayerProps, rawType, sport, defaultMarket, scope, router, type, rawMarket]);
+
+    // If market isn't valid for this sport, reset to sport/type default.
+    if (rawMarket && !validMarketApiKeys.has(rawMarket)) {
+      router.replace(`/odds/${sport}?type=${type}&market=${defaultMarket}&scope=${scope}`);
+    }
+  }, [hasPlayerProps, rawType, sport, defaultMarket, scope, router, type, rawMarket, validMarketApiKeys]);
   
   // Connect to utility context for search and filters
   const utility = useOddsUtility();
@@ -89,13 +116,14 @@ export default function OddsPage({ params }: OddsPageProps) {
     enabled: !isMobile, // Only fetch on desktop
   });
   
-  // Fetch moneyline data for mobile games list
+  // Fetch default game-market data for mobile games list
+  const mobileGameListMarket = getDefaultMarket(sport, "game");
   const { data: moneylineData, isLoading: isLoadingMoneyline, refetch: refetchMoneyline } = useQuery({
-    queryKey: ["odds-moneyline", sport, scope],
+    queryKey: ["odds-mobile-games", sport, scope, mobileGameListMarket],
     queryFn: async () => {
       const result = await fetchOddsWithNewAPI({
         sport,
-        market: "game_moneyline",
+        market: mobileGameListMarket,
         scope,
         type: "game",
         limit: 100,
@@ -170,8 +198,12 @@ export default function OddsPage({ params }: OddsPageProps) {
               {
                 id: item.event.id || "",
                 eventId: item.event.id || "",
-                homeTeam: item.event.homeTeam || "",
-                awayTeam: item.event.awayTeam || "",
+                homeTeam: useFullTeamNames
+                  ? (item.event.homeName || item.event.homeTeam || "")
+                  : (item.event.homeTeam || ""),
+                awayTeam: useFullTeamNames
+                  ? (item.event.awayName || item.event.awayTeam || "")
+                  : (item.event.awayTeam || ""),
                 startTime: item.event.startTime || "",
               },
             ])
@@ -179,7 +211,7 @@ export default function OddsPage({ params }: OddsPageProps) {
       );
       setGames(games);
     }
-  }, [data, setGames]);
+  }, [data, setGames, useFullTeamNames]);
   
   // Filter by search query
   const filteredData = useMemo(() => {
@@ -191,7 +223,9 @@ export default function OddsPage({ params }: OddsPageProps) {
       const player = (item.entity?.name || "").toLowerCase();
       const homeTeam = (item.event?.homeTeam || "").toLowerCase();
       const awayTeam = (item.event?.awayTeam || "").toLowerCase();
-      return player.includes(query) || homeTeam.includes(query) || awayTeam.includes(query);
+      const homeName = (item.event?.homeName || "").toLowerCase();
+      const awayName = (item.event?.awayName || "").toLowerCase();
+      return player.includes(query) || homeTeam.includes(query) || awayTeam.includes(query) || homeName.includes(query) || awayName.includes(query);
     });
   }, [data, utility?.searchQuery]);
   

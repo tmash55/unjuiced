@@ -10,7 +10,27 @@ const redis = new Redis({
 });
 
 const VALID_SPORTS = new Set([
-  "nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba", "soccer_epl"
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaab",
+  "ncaaf",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
 ]);
 
 const SCAN_COUNT = 500;
@@ -457,4 +477,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

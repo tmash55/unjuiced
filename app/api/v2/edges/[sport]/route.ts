@@ -22,7 +22,29 @@ import {
 } from "@/lib/odds/types";
 
 // Supported sports for this endpoint
-const SUPPORTED_SPORTS = new Set(["nba", "nfl", "mlb", "nhl", "ncaab", "ncaaf", "wnba"]);
+const SUPPORTED_SPORTS = new Set([
+  "nba",
+  "nfl",
+  "mlb",
+  "ncaabaseball",
+  "nhl",
+  "ncaab",
+  "ncaaf",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 // Sharp books for comparison (in priority order)
 const SHARP_BOOKS = ["pinnacle", "circa"];
@@ -218,6 +240,7 @@ export async function GET(
             decimal: b.decimal,
             link: b.link,
             sgp: b.sgp || null,
+            odd_id: b.selection.odd_id || undefined,
           })),
         });
       }
@@ -303,4 +326,3 @@ async function scanKeys(pattern: string): Promise<string[]> {
 
   return keys;
 }
-

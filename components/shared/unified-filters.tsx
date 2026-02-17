@@ -122,8 +122,21 @@ const SPORT_LABELS: Record<string, string> = {
   ncaab: "NCAAB",
   nhl: "NHL",
   mlb: "MLB",
+  ncaabaseball: "NCAA Baseball",
   wnba: "WNBA",
   soccer_epl: "EPL",
+  soccer_laliga: "LaLiga",
+  soccer_mls: "MLS",
+  soccer_ucl: "UCL",
+  soccer_uel: "UEL",
+  tennis_atp: "ATP",
+  tennis_challenger: "Challenger",
+  tennis_itf_men: "ITF Men",
+  tennis_itf_women: "ITF Women",
+  tennis_utr_men: "UTR Men",
+  tennis_utr_women: "UTR Women",
+  tennis_wta: "WTA",
+  ufc: "UFC",
 };
 
 const MIN_EV_OPTIONS = [0, 0.5, 1, 2, 3, 5, 10];
@@ -312,6 +325,8 @@ export function UnifiedFilters({
       Hockey: [],
       Baseball: [],
       Soccer: [],
+      Tennis: [],
+      MMA: [],
     };
     
     const basketballMarkets = new Set<string>();
@@ -319,6 +334,8 @@ export function UnifiedFilters({
     const hockeyMarkets = new Set<string>();
     const baseballMarkets = new Set<string>();
     const soccerMarkets = new Set<string>();
+    const tennisMarkets = new Set<string>();
+    const mmaMarkets = new Set<string>();
     
     ["basketball_nba", "basketball_ncaab", "basketball_wnba"].forEach((key) => {
       (SPORT_MARKETS[key] || []).forEach((m) => basketballMarkets.add(m.apiKey));
@@ -328,7 +345,14 @@ export function UnifiedFilters({
     });
     (SPORT_MARKETS["icehockey_nhl"] || []).forEach((m) => hockeyMarkets.add(m.apiKey));
     (SPORT_MARKETS["baseball_mlb"] || []).forEach((m) => baseballMarkets.add(m.apiKey));
-    (SPORT_MARKETS["soccer_epl"] || []).forEach((m) => soccerMarkets.add(m.apiKey));
+    (SPORT_MARKETS["baseball_ncaabaseball"] || []).forEach((m) => baseballMarkets.add(m.apiKey));
+    ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"].forEach((key) => {
+      (SPORT_MARKETS[key] || []).forEach((m) => soccerMarkets.add(m.apiKey));
+    });
+    ["tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta"].forEach((key) => {
+      (SPORT_MARKETS[key] || []).forEach((m) => tennisMarkets.add(m.apiKey));
+    });
+    (SPORT_MARKETS["ufc"] || []).forEach((m) => mmaMarkets.add(m.apiKey));
     
     availableMarkets.forEach((market) => {
       const m = market.toLowerCase();
@@ -337,12 +361,18 @@ export function UnifiedFilters({
       else if (hockeyMarkets.has(m)) groups.Hockey.push(market);
       else if (baseballMarkets.has(m)) groups.Baseball.push(market);
       else if (soccerMarkets.has(m)) groups.Soccer.push(market);
+      else if (tennisMarkets.has(m)) groups.Tennis.push(market);
+      else if (mmaMarkets.has(m)) groups.MMA.push(market);
       else if (m.includes("point") || m.includes("rebound") || m.includes("assist") || m.includes("pra")) {
         groups.Basketball.push(market);
       } else if (m.includes("passing") || m.includes("rushing") || m.includes("receiving") || m.includes("touchdown")) {
         groups.Football.push(market);
       } else if (m.includes("shot") || m.includes("goal") || m.includes("save")) {
         groups.Hockey.push(market);
+      } else if (m.includes("set") || m.includes("tiebreak") || m.includes("breaks")) {
+        groups.Tennis.push(market);
+      } else if (m.includes("fight") || m.includes("round") || m.includes("decision") || m.includes("finish")) {
+        groups.MMA.push(market);
       }
     });
     

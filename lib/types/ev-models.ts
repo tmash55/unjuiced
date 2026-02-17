@@ -99,10 +99,23 @@ export const EV_MODEL_SPORTS = [
   { value: "nfl", label: "NFL", icon: "🏈" },
   { value: "nhl", label: "NHL", icon: "🏒" },
   { value: "mlb", label: "MLB", icon: "⚾" },
+  { value: "ncaabaseball", label: "NCAA Baseball", icon: "⚾" },
   { value: "ncaab", label: "NCAAB", icon: "🏀" },
   { value: "ncaaf", label: "NCAAF", icon: "🏈" },
   { value: "wnba", label: "WNBA", icon: "🏀" },
   { value: "soccer_epl", label: "EPL", icon: "⚽" },
+  { value: "soccer_laliga", label: "LaLiga", icon: "⚽" },
+  { value: "soccer_mls", label: "MLS", icon: "⚽" },
+  { value: "soccer_ucl", label: "UCL", icon: "⚽" },
+  { value: "soccer_uel", label: "UEL", icon: "⚽" },
+  { value: "tennis_atp", label: "ATP", icon: "🎾" },
+  { value: "tennis_challenger", label: "Challenger", icon: "🎾" },
+  { value: "tennis_itf_men", label: "ITF Men", icon: "🎾" },
+  { value: "tennis_itf_women", label: "ITF Women", icon: "🎾" },
+  { value: "tennis_utr_men", label: "UTR Men", icon: "🎾" },
+  { value: "tennis_utr_women", label: "UTR Women", icon: "🎾" },
+  { value: "tennis_wta", label: "WTA", icon: "🎾" },
+  { value: "ufc", label: "UFC", icon: "🥊" },
 ] as const;
 
 /**

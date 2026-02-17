@@ -44,9 +44,33 @@ import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
 import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 
 // Available leagues for the filters component
-const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
+const AVAILABLE_LEAGUES = [
+  "nba",
+  "nfl",
+  "ncaaf",
+  "ncaab",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 const FREE_EDGE_ROW_LIMIT = 7; // Number of rows free users can see
 
 /**
@@ -172,6 +196,7 @@ export default function EdgeFinderPage() {
     line?: number;
     odds?: BestOddsData;
   } | null>(null);
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
 
   // Sync local search with prefs on load
   useEffect(() => {
@@ -300,6 +325,51 @@ export default function EdgeFinderPage() {
     updateEvPrefs({ kellyPercent: value });
   }, [updateEvPrefs]);
 
+  const handleOpenLineHistory = useCallback((opp: any) => {
+    const combinedMarket = `${opp.market || ""} ${opp.marketDisplay || ""}`.toLowerCase();
+    const moneylineMarket = combinedMarket.includes("moneyline") || combinedMarket.includes("money line");
+    const fallbackTeam = opp.side === "over" || opp.side === "yes" ? opp.awayTeam : opp.homeTeam;
+    const selectionName = moneylineMarket
+      ? (opp.team || fallbackTeam || opp.player || null)
+      : (opp.player || opp.team || fallbackTeam || null);
+
+    const compareBookIds = Array.from(
+      new Set(
+        [
+          ...(opp.sharpBooks || []),
+          prefs.comparisonMode === "book" ? prefs.comparisonBook : null,
+        ].filter(Boolean)
+      )
+    ) as string[];
+
+    const oddIdsByBook: Record<string, string> = {};
+    (opp.allBooks || []).forEach((book: { book: string; oddId?: string }) => {
+      if (book.oddId) oddIdsByBook[book.book] = book.oddId;
+    });
+
+    setLineHistoryContext({
+      source: "edge",
+      sport: opp.sport,
+      eventId: opp.eventId,
+      market: opp.market,
+      marketDisplay: opp.marketDisplay,
+      side: opp.side,
+      line: opp.line,
+      selectionName,
+      playerName: opp.player,
+      team: opp.team,
+      homeTeam: opp.homeTeam,
+      awayTeam: opp.awayTeam,
+      bestBookId: opp.bestBook,
+      compareBookIds,
+      allBookIds: (opp.allBooks || []).map((book: { book: string }) => book.book),
+      currentPricesByBook: Object.fromEntries(
+        (opp.allBooks || []).map((book: { book: string; price: number }) => [book.book, book.price])
+      ),
+      oddIdsByBook,
+    });
+  }, [prefs.comparisonBook, prefs.comparisonMode]);
+
   // Toggle show hidden
   const handleToggleShowHidden = useCallback(() => {
     updatePrefs({ showHidden: !prefs.showHidden });
@@ -372,6 +442,7 @@ export default function EdgeFinderPage() {
           onBoostChange={setBoostPercent}
           onBankrollChange={handleBankrollChange}
           onKellyPercentChange={handleKellyPercentChange}
+          onLineHistoryClick={handleOpenLineHistory}
         />
         
         {/* Player Quick View Modal */}
@@ -389,6 +460,13 @@ export default function EdgeFinderPage() {
             }}
           />
         )}
+        <LineHistoryDialog
+          open={!!lineHistoryContext}
+          onOpenChange={(open) => {
+            if (!open) setLineHistoryContext(null);
+          }}
+          context={lineHistoryContext}
+        />
       </>
     );
   }
@@ -570,6 +648,7 @@ export default function EdgeFinderPage() {
             bankroll={evPrefs.bankroll}
             kellyPercent={evPrefs.kellyPercent || 25}
             boostPercent={boostPercent}
+            onLineHistoryClick={handleOpenLineHistory}
           />
       </div>
 
@@ -698,6 +777,14 @@ export default function EdgeFinderPage() {
         />
       )}
 
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
+
       {/* Preset Manager & Form Modals */}
       <FilterPresetsManagerModal
         open={showPresetManager}
@@ -715,4 +802,3 @@ export default function EdgeFinderPage() {
     </AppPageLayout>
   );
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { X, ChevronRight, RefreshCw, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
@@ -81,18 +81,32 @@ function getBookLogo(bookId: string): string | null {
 
 // Check if sport has player props
 function hasPlayerProps(sport: string): boolean {
-  const sportsWithoutPlayerProps = ["ncaab", "mlb", "wnba"];
+  const sportsWithoutPlayerProps = ["mlb", "wnba", "ncaabaseball", "tennis_atp", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women", "tennis_wta", "ufc"];
   return !sportsWithoutPlayerProps.includes(sport.toLowerCase());
+}
+
+function shouldUseFullMatchupNames(sport: string): boolean {
+  const normalized = sport.toLowerCase();
+  return normalized.startsWith("soccer_") || normalized.startsWith("tennis_");
 }
 
 export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onClose }: GameDetailSheetProps) {
   const [type, setType] = useState<"game" | "player">("game");
-  const [selectedMarket, setSelectedMarket] = useState<string>("game_moneyline");
+  const defaultGameMarket = useMemo(() => getDefaultMarketForType(sport, "game"), [sport]);
+  const [selectedMarket, setSelectedMarket] = useState<string>(() => getDefaultMarketForType(sport, "game"));
   const [selectedOdds, setSelectedOdds] = useState<{ item: OddsScreenItem; side: "over" | "under" } | null>(null);
   const [selectedAlternates, setSelectedAlternates] = useState<OddsScreenItem | null>(null);
 
   const showLogos = hasTeamLogos(sport);
   const sportHasPlayerProps = hasPlayerProps(sport);
+  const useFullNames = shouldUseFullMatchupNames(sport);
+  const awayDisplay = useFullNames ? (game.awayName || game.awayTeam) : game.awayTeam;
+  const homeDisplay = useFullNames ? (game.homeName || game.homeTeam) : game.homeTeam;
+
+  useEffect(() => {
+    setSelectedMarket(getDefaultMarketForType(sport, "game"));
+    setType("game");
+  }, [sport]);
 
   // Handle type toggle
   const handleTypeChange = (newType: "game" | "player") => {
@@ -120,11 +134,11 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
 
   // Use moneyline item if we're showing moneyline and have it, otherwise use fetched data
   const displayItems = useMemo(() => {
-    if (selectedMarket === "game_moneyline" && moneylineItem) {
+    if (selectedMarket === defaultGameMarket && moneylineItem) {
       return [moneylineItem];
     }
     return marketData || [];
-  }, [selectedMarket, moneylineItem, marketData]);
+  }, [selectedMarket, defaultGameMarket, moneylineItem, marketData]);
 
   // Handle tapping on an odds row
   const handleOddsTap = (item: OddsScreenItem, side: "over" | "under") => {
@@ -168,7 +182,7 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
                       <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
                         <img
                           src={getTeamLogoUrl(game.awayTeam, sport)}
-                          alt={game.awayTeam}
+                          alt={awayDisplay}
                           className="w-7 h-7 object-contain"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
@@ -177,7 +191,7 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
                       <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center overflow-hidden">
                         <img
                           src={getTeamLogoUrl(game.homeTeam, sport)}
-                          alt={game.homeTeam}
+                          alt={homeDisplay}
                           className="w-7 h-7 object-contain"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
@@ -186,7 +200,7 @@ export function GameDetailSheet({ game, moneylineItem, sport, scope, isOpen, onC
                   )}
                   <div>
                     <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                      {game.awayTeam} @ {game.homeTeam}
+                      {awayDisplay} @ {homeDisplay}
                     </h3>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
                       {formatDate(game.startTime)} • {formatTime(game.startTime)}
@@ -315,6 +329,9 @@ interface GamePropsContentProps {
 
 function GamePropsContent({ items, game, sport, selectedMarket, onOddsTap }: GamePropsContentProps) {
   const showLogos = hasTeamLogos(sport);
+  const useFullNames = shouldUseFullMatchupNames(sport);
+  const awayDisplay = useFullNames ? (game.awayName || game.awayTeam) : game.awayTeam;
+  const homeDisplay = useFullNames ? (game.homeName || game.homeTeam) : game.homeTeam;
   const { toggleFavorite, isFavorited, isToggling, isLoggedIn } = useFavorites();
 
   // Find the item for this market (game props usually have one item per market)
@@ -434,12 +451,12 @@ function GamePropsContent({ items, game, sport, selectedMarket, onOddsTap }: Gam
                   {showLogos && (
                     <img
                       src={getTeamLogoUrl(game.awayTeam, sport)}
-                      alt={game.awayTeam}
+                      alt={awayDisplay}
                       className="w-7 h-7 object-contain"
                     />
                   )}
                   <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                    {game.awayTeam}
+                    {awayDisplay}
                   </span>
                   {isSpread && overOdds.line !== undefined && (
                     <span className="text-neutral-500 text-sm">{formatSpreadLine(overOdds.line)}</span>
@@ -497,12 +514,12 @@ function GamePropsContent({ items, game, sport, selectedMarket, onOddsTap }: Gam
                   {showLogos && (
                     <img
                       src={getTeamLogoUrl(game.homeTeam, sport)}
-                      alt={game.homeTeam}
+                      alt={homeDisplay}
                       className="w-7 h-7 object-contain"
                     />
                   )}
                   <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                    {game.homeTeam}
+                    {homeDisplay}
                   </span>
                   {isSpread && underOdds.line !== undefined && (
                     <span className="text-neutral-500 text-sm">{formatSpreadLine(underOdds.line)}</span>

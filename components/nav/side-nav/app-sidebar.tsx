@@ -78,10 +78,26 @@ interface NavItem {
 const oddsScreenSports: NavChildItem[] = [
   // Active
   { label: "NBA", href: "/odds/nba" },
-  { label: "NFL", href: "/odds/nfl" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
+  { label: "NCAA Baseball", href: "/odds/ncaabaseball" },
+  { label: "UFC", href: "/odds/ufc" },
+  // Soccer
+  { label: "Soccer • EPL", href: "/odds/soccer_epl" },
+  { label: "Soccer • LaLiga", href: "/odds/soccer_laliga" },
+  { label: "Soccer • MLS", href: "/odds/soccer_mls" },
+  { label: "Soccer • UCL", href: "/odds/soccer_ucl" },
+  { label: "Soccer • UEL", href: "/odds/soccer_uel" },
+  // Tennis
+  { label: "Tennis • ATP", href: "/odds/tennis_atp" },
+  { label: "Tennis • WTA", href: "/odds/tennis_wta" },
+  { label: "Tennis • Challenger", href: "/odds/tennis_challenger" },
+  { label: "Tennis • ITF Men", href: "/odds/tennis_itf_men" },
+  { label: "Tennis • ITF Women", href: "/odds/tennis_itf_women" },
+  { label: "Tennis • UTR Men", href: "/odds/tennis_utr_men" },
+  { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
+  { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
   { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
@@ -306,7 +322,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
               side="right"
               align="start"
               sideOffset={12}
-              className="min-w-[160px] p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
+              className="min-w-[200px] max-h-[70vh] overflow-y-auto p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
             >
               {link.children?.map((child, idx) => {
                 const isChildItemActive = pathname === child.href
@@ -562,7 +578,7 @@ function FindPlayButton() {
         "flex items-center rounded-lg transition-all duration-200",
         isActive
           ? "bg-brand hover:bg-brand/90 text-white"
-          : "bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900",
+          : "bg-brand/10 border border-brand/20 hover:bg-brand/15 text-brand dark:bg-white dark:border-white/20 dark:hover:bg-neutral-100 dark:text-neutral-900",
         "shadow-sm hover:shadow-md",
         open 
           ? "gap-2 py-2 px-3 w-full justify-center" 

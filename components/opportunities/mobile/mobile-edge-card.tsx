@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, AlertTriangle, LineChart } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
@@ -93,10 +93,25 @@ function getSportEmoji(sport: string): string {
     case "nhl":
       return "🏒";
     case "mlb":
+    case "ncaabaseball":
       return "⚾";
     case "soccer":
     case "soccer_epl":
+    case "soccer_laliga":
+    case "soccer_mls":
+    case "soccer_ucl":
+    case "soccer_uel":
       return "⚽";
+    case "tennis_atp":
+    case "tennis_challenger":
+    case "tennis_itf_men":
+    case "tennis_itf_women":
+    case "tennis_utr_men":
+    case "tennis_utr_women":
+    case "tennis_wta":
+      return "🎾";
+    case "ufc":
+      return "🥊";
     default:
       return "🎯";
   }
@@ -123,6 +138,7 @@ interface MobileEdgeCardProps {
   onPlayerClick?: (opportunity: Opportunity) => void;
   onHide?: (opportunity: Opportunity) => void;
   onUnhide?: (opportunity: Opportunity) => void;
+  onLineHistoryClick?: (opportunity: Opportunity) => void;
   isHidden?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -137,6 +153,7 @@ export function MobileEdgeCard({
   onPlayerClick,
   onHide,
   onUnhide,
+  onLineHistoryClick,
   isHidden = false,
   isExpanded = false,
   onToggleExpand,
@@ -423,6 +440,19 @@ export function MobileEdgeCard({
                 <EyeOff className="w-3 h-3 text-neutral-400" />
               </button>
             ) : null}
+            {onLineHistoryClick && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLineHistoryClick(opp);
+                }}
+                className="p-1 rounded hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 transition-colors"
+                title="Line history"
+              >
+                <LineChart className="w-3 h-3 text-neutral-400" />
+              </button>
+            )}
           </div>
         </div>
         

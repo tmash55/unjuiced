@@ -19,7 +19,29 @@ import {
 } from "@/lib/odds/types";
 
 // Supported sports
-const SUPPORTED_SPORTS = new Set(["nba", "nfl", "mlb", "nhl", "ncaab", "ncaaf", "wnba"]);
+const SUPPORTED_SPORTS = new Set([
+  "nba",
+  "nfl",
+  "mlb",
+  "ncaabaseball",
+  "nhl",
+  "ncaab",
+  "ncaaf",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 interface PlayerOdds {
   player: string;
@@ -280,4 +302,3 @@ async function scanKeys(pattern: string): Promise<string[]> {
 
   return keys;
 }
-

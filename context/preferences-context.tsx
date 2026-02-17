@@ -738,7 +738,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (!preferences) {
       return {
         selectedBooks: guestOdds.selectedBooks ?? activeSportsbooks,
-        columnOrder: guestOdds.columnOrder ?? ['entity', 'event', 'best-line', 'average-line'],
+        columnOrder: guestOdds.columnOrder ?? ['entity', 'time', 'best-line', 'favorites', 'average-line'],
         sportsbookOrder: guestOdds.sportsbookOrder ?? ([] as string[]),
         includeAlternates: guestOdds.includeAlternates ?? true,
         columnHighlighting: guestOdds.columnHighlighting ?? true,
@@ -750,7 +750,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
 
     return {
       selectedBooks: (preferences.odds_selected_books?.length ? preferences.odds_selected_books : activeSportsbooks),
-      columnOrder: (preferences.odds_column_order?.length ? preferences.odds_column_order : ['entity', 'event', 'best-line', 'average-line']),
+      columnOrder: (preferences.odds_column_order?.length ? preferences.odds_column_order : ['entity', 'time', 'best-line', 'favorites', 'average-line']),
       sportsbookOrder: (preferences.odds_sportsbook_order || []),
       includeAlternates: (preferences.include_alternates ?? true),
       columnHighlighting: (preferences.odds_column_highlighting ?? true),

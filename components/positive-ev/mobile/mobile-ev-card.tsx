@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, Calculator, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, EyeOff, Eye, Zap, Calculator, AlertTriangle, LineChart } from "lucide-react";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { cn } from "@/lib/utils";
@@ -87,6 +87,7 @@ interface MobileEVCardProps {
   onPlayerClick?: (opportunity: PositiveEVOpportunity) => void;
   onHide?: (opportunity: PositiveEVOpportunity) => void;
   onUnhide?: (opportunity: PositiveEVOpportunity) => void;
+  onLineHistoryClick?: (opportunity: PositiveEVOpportunity) => void;
   isHidden?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -104,6 +105,7 @@ export function MobileEVCard({
   onPlayerClick,
   onHide,
   onUnhide,
+  onLineHistoryClick,
   isHidden = false,
   isExpanded = false,
   onToggleExpand,
@@ -386,7 +388,7 @@ export function MobileEVCard({
                 {usedMethod}
               </span>
             </div>
-            
+
             {/* Add to Betslip Button */}
             <button
               type="button"
@@ -396,8 +398,8 @@ export function MobileEVCard({
               className={cn(
                 "p-1.5 rounded-lg transition-all",
                 !isLoggedIn && "opacity-50 cursor-not-allowed",
-                isFav 
-                  ? "bg-red-500/10 hover:bg-red-500/20" 
+                isFav
+                  ? "bg-red-500/10 hover:bg-red-500/20"
                   : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
               title={!isLoggedIn ? "Sign in to save plays" : isFav ? "Remove from My Plays" : "Add to My Plays"}
@@ -410,7 +412,7 @@ export function MobileEVCard({
                 <Heart className="w-3.5 h-3.5 text-neutral-400 hover:text-red-400" />
               )}
             </button>
-            
+
             {/* Hide/Unhide toggle */}
             {isHidden && onUnhide ? (
               <button
@@ -437,6 +439,19 @@ export function MobileEVCard({
                 <EyeOff className="w-3 h-3 text-neutral-400" />
               </button>
             ) : null}
+            {onLineHistoryClick && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLineHistoryClick(opp);
+                }}
+                className="p-1 rounded hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 transition-colors"
+                title="Line history"
+              >
+                <LineChart className="w-3 h-3 text-neutral-400" />
+              </button>
+            )}
           </div>
         </div>
         
