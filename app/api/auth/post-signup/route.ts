@@ -119,6 +119,9 @@ export async function POST(request: NextRequest) {
             first_name: firstName || '',
             last_name: lastName || '',
             plan: 'free',
+            plan_name: 'free',
+            subscription_status: 'free',
+            total_sessions: 0,
             signup_source: 'website',
             created_at: createdAt
               ? Math.floor(new Date(createdAt).getTime() / 1000)

@@ -62,8 +62,12 @@ export async function POST() {
     }
 
     // Sync to Customer.io (non-blocking)
+    const totalSessions = (profile as any)?.total_sessions
+      ? (profile as any).total_sessions + 1
+      : 1;
     identifyCustomer(user.id, {
       last_active_at: Math.floor(now.getTime() / 1000), // Unix timestamp for Customer.io
+      total_sessions: totalSessions,
       email: user.email,
     }).catch(() => {});
 

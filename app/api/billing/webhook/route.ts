@@ -201,19 +201,31 @@ export async function POST(req: NextRequest) {
           const planName = getPlanFromPriceId(priceIdForEvent) || 'free'
 
           if (event.type === 'customer.subscription.created') {
+            const trialStart = (sub as any).trial_start
+              ? Math.floor((sub as any).trial_start)
+              : undefined
+            const trialEnd = (sub as any).trial_end
+              ? Math.floor((sub as any).trial_end)
+              : undefined
+
             await identifyCustomer(user_id, {
               email: cioProfile?.email || undefined,
               first_name: cioProfile?.first_name || undefined,
               last_name: cioProfile?.last_name || undefined,
+              plan_name: planName,
               plan: planName,
               subscription_status: normalizedStatus,
               stripe_customer_id: String(sub.customer),
               created_at: Math.floor(Date.now() / 1000),
+              ...(trialStart && { trial_start_date: trialStart }),
+              ...(trialEnd && { trial_end_date: trialEnd }),
             })
             await trackEvent(user_id, 'subscription_created', {
               plan: planName,
+              plan_name: planName,
               price_id: priceIdForEvent,
               is_trial: normalizedStatus === 'trialing',
+              ...(trialEnd && { trial_end_date: new Date(trialEnd * 1000).toISOString() }),
             })
           } else if (event.type === 'customer.subscription.updated') {
             // Detect plan change by comparing previous attributes
@@ -225,11 +237,13 @@ export async function POST(req: NextRequest) {
             await identifyCustomer(user_id, {
               email: cioProfile?.email || undefined,
               plan: planName,
+              plan_name: planName,
               subscription_status: normalizedStatus,
               cancel_at_period_end,
             })
             await trackEvent(user_id, 'subscription_updated', {
               plan: planName,
+              plan_name: planName,
               status: normalizedStatus,
               cancel_at_period_end,
               canceled_at,
@@ -237,8 +251,13 @@ export async function POST(req: NextRequest) {
 
             // Track cancellation
             if (normalizedStatus === 'canceled' && oldStatus !== 'canceled') {
+              await identifyCustomer(user_id, {
+                subscription_status: 'churned',
+                churned_at: Math.floor(Date.now() / 1000),
+              })
               await trackEvent(user_id, 'subscription_canceled', {
                 plan: planName,
+                plan_name: planName,
                 price_id: priceIdForEvent,
               })
             }
@@ -252,11 +271,14 @@ export async function POST(req: NextRequest) {
             }
           } else if (event.type === 'customer.subscription.deleted') {
             await identifyCustomer(user_id, {
-              subscription_status: 'canceled',
+              subscription_status: 'churned',
               plan: 'free',
+              plan_name: 'free',
+              churned_at: Math.floor(Date.now() / 1000),
             })
             await trackEvent(user_id, 'subscription_deleted', {
               plan: planName,
+              plan_name: planName,
               price_id: priceIdForEvent,
             })
           }
