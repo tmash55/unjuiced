@@ -29,11 +29,31 @@ function formatOdds(value: number | null | undefined): string {
   return value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`;
 }
 
+/**
+ * Normalize American odds around even money so -100 and +100 both map to 0.
+ * This avoids inflated "cross-zero" move values (e.g., -110 -> +100 should be +10, not +210).
+ */
+function normalizeAmericanOddsForMove(value: number | null | undefined): number | null {
+  if (value == null || Number.isNaN(value)) return null;
+  const rounded = Math.round(value);
+  if (rounded >= 100) return rounded - 100;
+  if (rounded <= -100) return rounded + 100;
+  return rounded;
+}
+
+function computeMoveValue(openPrice: number | null | undefined, currentPrice: number | null | undefined): number | null {
+  const openNormalized = normalizeAmericanOddsForMove(openPrice);
+  const currentNormalized = normalizeAmericanOddsForMove(currentPrice);
+  if (openNormalized == null || currentNormalized == null) return null;
+  return currentNormalized - openNormalized;
+}
+
 function movementLabel(entries: LineHistoryPoint[]): string | null {
   if (!entries || entries.length < 2) return null;
   const first = entries[0].price;
   const last = entries[entries.length - 1].price;
-  const diff = last - first;
+  const diff = computeMoveValue(first, last);
+  if (diff == null) return null;
   if (diff === 0) return "Flat";
   const sign = diff > 0 ? "+" : "";
   return `${sign}${Math.round(diff)}`;
@@ -626,8 +646,7 @@ function StatsTable({
       const latestEntry = entries.length > 0 ? entries[entries.length - 1] : null;
       const currentDisplayPrice = latestEntry?.price ?? bookData?.currentPrice ?? null;
       const openPrice = entries.length > 0 ? entries[0].price : bookData?.olv.price ?? null;
-      const moveValue =
-        currentDisplayPrice != null && openPrice != null ? currentDisplayPrice - openPrice : null;
+      const moveValue = computeMoveValue(openPrice, currentDisplayPrice);
       const updatedEpoch =
         latestEntry?.timestamp ??
         parseIsoTimestamp(bookData?.updated) ??
