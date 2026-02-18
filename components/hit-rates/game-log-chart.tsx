@@ -836,11 +836,14 @@ export function GameLogChart({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Y-Axis Labels - aligned with chart area, stays outside scroll */}
-      <div className="absolute left-0 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium z-20" style={{ top: 0, height: chartHeight }}>
-        <span>{maxStat}</span>
-        <span>{Math.round(maxStat / 2)}</span>
-        <span>0</span>
+      {/* Y-Axis Labels + tick marks */}
+      <div className="absolute left-0 w-10 flex flex-col justify-between z-20" style={{ top: 0, height: chartHeight }}>
+        {[maxStat, Math.round(maxStat / 2), 0].map((val) => (
+          <div key={val} className="flex items-center">
+            <span className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 font-medium text-right flex-1 pr-1.5">{val}</span>
+            <div className="w-1.5 border-b border-neutral-400/20 dark:border-neutral-500/20" />
+          </div>
+        ))}
       </div>
 
       {/* DvP Y-Axis Labels - Right side (only when DvP line is shown) */}
@@ -861,6 +864,65 @@ export function GameLogChart({
         </div>
       )}
 
+      {/* Line value label - anchored in Y-axis area, always visible outside scroll */}
+      {linePosition !== null && (
+        <>
+          <div
+            onMouseDown={onLineChange ? handleDragStart : undefined}
+            onTouchStart={onLineChange ? handleDragStart : undefined}
+            className={cn(
+              "absolute left-0 z-30",
+              onLineChange
+                ? (isDragging ? "cursor-grabbing pointer-events-auto touch-none" : "cursor-grab pointer-events-auto touch-none")
+                : "pointer-events-none"
+            )}
+            style={{
+              top: chartHeight * (1 - linePosition / 100),
+              transform: "translateY(-50%)",
+            }}
+          >
+            <div
+              className={cn(
+                "text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 transition-all shadow-sm",
+                isDragging
+                  ? "bg-amber-500 dark:bg-amber-400 text-black scale-110"
+                  : "bg-primary dark:bg-primary-weak text-on-primary"
+              )}
+            >
+              {onLineChange && (
+                <GripVertical className="h-2.5 w-2.5 opacity-60" />
+              )}
+              {displayLine}
+            </div>
+          </div>
+          {/* Connecting line from label to chart area */}
+          <div
+            onMouseDown={onLineChange ? handleDragStart : undefined}
+            onTouchStart={onLineChange ? handleDragStart : undefined}
+            className={cn(
+              "absolute z-[22] left-10 right-0",
+              onLineChange
+                ? (isDragging ? "cursor-grabbing pointer-events-auto touch-none" : "cursor-grab pointer-events-auto touch-none")
+                : "pointer-events-none"
+            )}
+            style={{
+              top: chartHeight * (1 - linePosition / 100),
+              transform: "translateY(-50%)",
+            }}
+          >
+            <div className="absolute left-0 right-0 top-1/2 h-8 -translate-y-1/2" />
+            <div className={cn(
+              "absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed transition-all duration-200 pointer-events-none",
+              isDragging
+                ? "border-amber-500 dark:border-amber-400"
+                : "border-primary/40 dark:border-primary-weak/40"
+            )}
+            style={isDragging ? { filter: "drop-shadow(0 0 4px rgba(245, 158, 11, 0.3))" } : undefined}
+            />
+          </div>
+        </>
+      )}
+
       {/* Scrollable chart wrapper */}
       <div
         ref={scrollContainerRef}
@@ -875,24 +937,15 @@ export function GameLogChart({
 
       {/* Chart Area */}
       <div ref={chartRef} className="relative" style={{ height: chartHeight }}>
-        {/* Bottom Line Only */}
-        <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-200 dark:border-neutral-700" />
+        {/* Subtle chart background gradient */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-sm">
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-500/[0.04] via-transparent to-transparent dark:from-white/[0.025] dark:via-transparent dark:to-transparent" />
+        </div>
 
-        {/* Line Threshold - Visual line (behind bars) */}
-        {linePosition !== null && (
-          <div
-            className="absolute left-0 right-0 z-0 pointer-events-none"
-            style={{ bottom: `${linePosition}%` }}
-          >
-            {/* Visible dashed line - behind bars */}
-            <div className={cn(
-              "absolute left-0 right-0 border-t-2 border-dashed transition-all",
-              isDragging 
-                ? "border-amber-500 dark:border-amber-400" 
-                : "border-primary dark:border-primary-weak"
-            )} />
-          </div>
-        )}
+        {/* Horizontal grid lines at Y-axis ticks */}
+        <div className="absolute top-0 left-0 right-0 border-b border-dashed border-neutral-400/[0.12] dark:border-neutral-500/[0.15] pointer-events-none" />
+        <div className="absolute top-1/2 left-0 right-0 border-b border-dashed border-neutral-400/[0.12] dark:border-neutral-500/[0.15] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-400/[0.20] dark:border-neutral-500/[0.20] pointer-events-none" />
 
         {/* Bars Container - fixed track with shared widths for perfect x-axis alignment */}
         <div className="absolute inset-0 flex items-end justify-start gap-3 z-10 pointer-events-none">
@@ -1238,19 +1291,21 @@ export function GameLogChart({
                       </span>
                   <div
                     className={cn(
-                          "w-full rounded-t transition-all duration-200 group-hover:opacity-90 relative flex flex-col-reverse overflow-hidden",
+                          "w-full rounded-t transition-all duration-200 group-hover:brightness-110 relative flex flex-col-reverse overflow-hidden",
                       !hasLine
                             ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
                             : isHit
                               ? "bg-gradient-to-t from-emerald-600 to-emerald-500 dark:from-emerald-700 dark:to-emerald-600"
                               : "bg-gradient-to-t from-red-600 to-red-500 dark:from-red-700 dark:to-red-600"
                     )}
-                    style={{ 
+                    style={{
                           width: barWidth,
                       height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                      boxShadow: isHit 
-                        ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                        : undefined
+                      boxShadow: !hasLine
+                        ? undefined
+                        : isHit
+                          ? "0 -2px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.1)"
                     }}
                   >
                         {(() => {
@@ -1358,22 +1413,24 @@ export function GameLogChart({
                             </span>
                           </>
                         )}
-                        {/* Actual rebounds bar */}
+                        {/* Actual stat bar */}
                         <div
                           className={cn(
-                            "rounded-t transition-all duration-200 group-hover:opacity-90 relative",
+                            "rounded-t transition-all duration-200 group-hover:brightness-110 relative",
                             !hasLine
                               ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
                               : isHit
-                                ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
-                                : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
+                                ? "bg-gradient-to-t from-emerald-600 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
+                                : "bg-gradient-to-t from-red-600 to-red-400 dark:from-red-600 dark:to-red-500"
                           )}
-                          style={{ 
+                          style={{
                             width: barWidth,
                             height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                            boxShadow: isHit 
-                              ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                              : undefined
+                            boxShadow: !hasLine
+                              ? undefined
+                              : isHit
+                                ? "0 -2px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)"
+                                : "inset 0 1px 0 rgba(255,255,255,0.1)"
                           }}
                         />
                   </div>
@@ -1407,46 +1464,32 @@ export function GameLogChart({
           })}
         </div>
 
-        {/* Line Threshold - Draggable hit area (above bars) */}
+        {/* Line Threshold - Draggable hit area (above bars, full chart width) */}
         {linePosition !== null && onLineChange && (
           <div
             onMouseDown={handleDragStart}
             onTouchStart={handleDragStart}
             className={cn(
-              "absolute left-0 right-0 z-20 group/line",
+              "absolute left-0 right-0 z-20 group/line touch-none",
               !isDragging && "cursor-grab",
               isDragging && "cursor-grabbing"
             )}
             style={{ bottom: `${linePosition}%` }}
           >
-            {/* Invisible larger hit area for easier grabbing */}
+            {/* Full-width hit area with hover highlight */}
             <div className={cn(
-              "absolute left-0 right-0 h-8 -translate-y-1/2 transition-colors",
-              "hover:bg-amber-500/10 dark:hover:bg-amber-400/10"
+              "absolute left-0 right-0 h-10 -translate-y-1/2 transition-all duration-200 rounded-sm",
+              isDragging
+                ? "bg-amber-500/10 dark:bg-amber-400/10"
+                : "hover:bg-amber-500/[0.06] dark:hover:bg-amber-400/[0.06]"
             )} />
-          </div>
-        )}
-
-        {/* Line value label - always visible (highest z-index) */}
-        {linePosition !== null && (
-          <div
-            className="absolute left-0 z-30 pointer-events-none"
-            style={{ bottom: `${linePosition}%` }}
-          >
-            <div
-              className={cn(
-                "absolute -left-1 -translate-y-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-all",
-                isDragging 
-                  ? "bg-amber-500 dark:bg-amber-400 text-black scale-110" 
-                  : "bg-primary dark:bg-primary-weak text-on-primary",
-                onLineChange && !isDragging && "group-hover/line:bg-amber-500 group-hover/line:dark:bg-amber-400 group-hover/line:text-black group-hover/line:scale-105"
-              )}
-            >
-              {onLineChange && (
-                <GripVertical className="h-2.5 w-2.5 opacity-70" />
-              )}
-              {displayLine}
-            </div>
+            {/* Enhanced dashed line on hover - overlays the base line for emphasis */}
+            <div className={cn(
+              "absolute left-0 right-0 -translate-y-[1px] border-t-2 border-dashed transition-all duration-200 pointer-events-none",
+              isDragging
+                ? "border-amber-500 dark:border-amber-400 opacity-100"
+                : "border-transparent group-hover/line:border-amber-500/40 dark:group-hover/line:border-amber-400/40"
+            )} />
           </div>
         )}
       </div>
