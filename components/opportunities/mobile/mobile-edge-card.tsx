@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Opportunity } from "@/lib/types/opportunities";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { DEFAULT_FILTER_COLOR } from "@/lib/types/filter-presets";
 import { motion, AnimatePresence } from "framer-motion";
 import { getKellyStakeDisplay, getLongOddsStakeMultiplier } from "@/lib/utils/kelly";
@@ -61,6 +61,27 @@ const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
 const EXTREME_EDGE_THRESHOLD = 1000;
 const EXTREME_EDGE_WARNING =
   "This large edge likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on edges this large.";
+
+const isRawSelectionValue = (value?: string | null): boolean => {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (["game_total", "game", "fight_total", "fight_moneyline", "match_total", "game_moneyline"].includes(normalized)) {
+    return true;
+  }
+  return !value.includes(" ") && /[_-]/.test(value);
+};
+
+const formatMatchupLabel = (sport: string | undefined, awayTeam?: string | null, homeTeam?: string | null): string => {
+  if (!awayTeam || !homeTeam) return "Game";
+  return sport?.toLowerCase() === "ufc" ? `${awayTeam} vs ${homeTeam}` : `${awayTeam} @ ${homeTeam}`;
+};
+
+const formatShareMarketLabel = (market: string, marketDisplay?: string | null): string => {
+  const display = (marketDisplay || "").trim();
+  if (display && !display.includes("_")) return display;
+  return formatMarketLabel(market || display);
+};
 
 // Format time relative to now
 function formatGameTime(gameStart: string | null): string {
@@ -118,12 +139,27 @@ function getSportEmoji(sport: string): string {
 }
 
 const buildShareText = (opp: Opportunity, edgePct: number): string => {
+  const sportKey = (opp.sport || "").toLowerCase();
   const bookName = getSportsbookById(opp.bestBook)?.name || opp.bestBook;
-  const marketLabel = formatMarketLabelShort(opp.market) || opp.market || "";
-  const selection = opp.player ? opp.player : `${opp.awayTeam} @ ${opp.homeTeam}`;
+  const fullMarketLabel = formatShareMarketLabel(opp.market, opp.marketDisplay);
+  const marketLabel = formatMarketLabelShort(opp.market) || fullMarketLabel || opp.market || "";
+  const selection = !isRawSelectionValue(opp.player)
+    ? opp.player!
+    : formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
   const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
   const lineDisplay = opp.line !== undefined && opp.line !== null ? ` ${opp.line}` : "";
   const odds = opp.bestPrice || "—";
+
+  if (sportKey === "ufc") {
+    const ufcMarketLabel = fullMarketLabel.replace(/^Fight\s+/i, "").trim();
+    return [
+      `UFC: ${selection}`,
+      `${ufcMarketLabel} ${sideLabel}${lineDisplay}`.trim(),
+      `${bookName}: ${odds} (+${edgePct.toFixed(1)}% edge)`,
+      "unjuiced.bet",
+    ].join("\n");
+  }
+
   return [
     `+${edgePct.toFixed(1)}% Edge | ${opp.sport.toUpperCase()} ${marketLabel}`,
     `${selection} • ${sideLabel}${lineDisplay}`,
@@ -290,15 +326,19 @@ export function MobileEdgeCard({
   const isExtremeEdge = boostedEdge >= EXTREME_EDGE_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.bestBook || "").toLowerCase());
   
   // Determine if this is a player prop
-  const isPlayerProp = opp.player && opp.player !== opp.homeTeam && opp.player !== opp.awayTeam;
+  const isPlayerProp = !!opp.player &&
+    !isRawSelectionValue(opp.player) &&
+    opp.player !== opp.homeTeam &&
+    opp.player !== opp.awayTeam;
   
   // Format the selection display
   const selectionDisplay = isPlayerProp 
     ? opp.player 
-    : `${opp.awayTeam} @ ${opp.homeTeam}`;
+    : formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
   
   // Format the market display
   const marketDisplay = formatMarketLabelShort(opp.market) || opp.market?.replace(/_/g, " ");
+  const shareMarketDisplay = formatShareMarketLabel(opp.market, opp.marketDisplay);
 
   const shareText = useMemo(() => buildShareText(opp, boostedEdge), [opp, boostedEdge]);
   const shareReferenceLabel = useMemo(() => {
@@ -526,7 +566,7 @@ export function MobileEdgeCard({
               shareContent={
                 <ShareOddsCard
                   playerName={selectionDisplay}
-                  market={marketDisplay || opp.market}
+                  market={shareMarketDisplay || opp.market}
                   sport={opp.sport.toUpperCase()}
                   line={opp.line ?? 0}
                   side={opp.side}
@@ -536,7 +576,7 @@ export function MobileEdgeCard({
                   fairOdds={opp.fairAmerican || null}
                   sharpOdds={opp.sharpPrice || null}
                   referenceLabel={shareReferenceLabel}
-                  eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                  eventLabel={formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam) || undefined}
                   timeLabel={opp.gameStart || undefined}
                   overBooks={(opp.side === "over" || opp.side === "yes" ? opp.allBooks : []).map((b) => ({
                     bookId: b.book,

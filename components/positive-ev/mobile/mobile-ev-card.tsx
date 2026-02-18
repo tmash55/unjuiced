@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { PositiveEVOpportunity, DevigMethod } from "@/lib/ev/types";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { getLeagueName } from "@/lib/data/sports";
-import { formatMarketLabelShort } from "@/lib/data/markets";
+import { formatMarketLabel, formatMarketLabelShort } from "@/lib/data/markets";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
@@ -22,6 +22,27 @@ const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
 const EXTREME_EV_THRESHOLD = 1000;
 const EXTREME_EV_WARNING =
   "This large +EV likely exists because the player is expected to sit out. Prediction markets (Polymarket, Kalshi) may have already priced this in. Review their terms before placing bets on +EV this large.";
+
+const isRawSelectionValue = (value?: string | null): boolean => {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (["game_total", "game", "fight_total", "fight_moneyline", "match_total", "game_moneyline"].includes(normalized)) {
+    return true;
+  }
+  return !value.includes(" ") && /[_-]/.test(value);
+};
+
+const formatMatchupLabel = (sport: string | undefined, awayTeam?: string | null, homeTeam?: string | null): string => {
+  if (!awayTeam || !homeTeam) return "Game";
+  return sport?.toLowerCase() === "ufc" ? `${awayTeam} vs ${homeTeam}` : `${awayTeam} @ ${homeTeam}`;
+};
+
+const formatShareMarketLabel = (market: string, marketDisplay?: string | null): string => {
+  const display = (marketDisplay || "").trim();
+  if (display && !display.includes("_")) return display;
+  return formatMarketLabel(market || display);
+};
 
 // Helper to get sportsbook logo
 const getBookLogo = (bookId?: string): string | null => {
@@ -231,15 +252,16 @@ export function MobileEVCard({
   const bestBookLogo = getBookLogo(opp.book.bookId);
   
   // Determine if this is a player prop
-  const isPlayerProp = !!opp.playerName;
+  const isPlayerProp = !!opp.playerName && !isRawSelectionValue(opp.playerName);
   
   // Format the selection display
   const selectionDisplay = isPlayerProp 
     ? opp.playerName 
-    : `${opp.awayTeam} @ ${opp.homeTeam}`;
+    : formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
   
   // Format the market display
   const marketDisplay = formatMarketLabelShort(opp.market) || opp.marketDisplay || opp.market?.replace(/_/g, " ");
+  const shareMarketDisplay = formatShareMarketLabel(opp.market, opp.marketDisplay);
 
   const referenceLabel = useMemo(() => {
     const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
@@ -254,6 +276,7 @@ export function MobileEVCard({
   }, [opp]);
 
   const shareText = useMemo(() => {
+    const sportKey = (opp.sport || "").toLowerCase();
     const bestBookName = getBookName(opp.book.bookId) || opp.book.bookName || opp.book.bookId;
     const bestOdds = formatOdds(opp.book.price);
     const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
@@ -274,13 +297,23 @@ export function MobileEVCard({
       ? `${bestBookName} ${bestOdds} vs ${fairOdds} (${referenceLabel})`
       : `${bestBookName} ${bestOdds} (${referenceLabel})`;
 
+    if (sportKey === "ufc") {
+      const ufcMarketLabel = shareMarketDisplay.replace(/^Fight\s+/i, "").trim();
+      return [
+        `UFC: ${selectionDisplay}`,
+        `${ufcMarketLabel} ${selectionLine}`.trim(),
+        `${bestBookName}: ${bestOdds} (+${displayEV.toFixed(1)}% EV)`,
+        "unjuiced.bet",
+      ].join("\n");
+    }
+
     return [
       `${selectionDisplay}`,
-      `${selectionLine} ${marketDisplay}`,
+      `${selectionLine} ${shareMarketDisplay}`,
       oddsComparison,
       "unjuiced.bet",
     ].join("\n");
-  }, [opp, referenceLabel, selectionDisplay, marketDisplay]);
+  }, [opp, referenceLabel, selectionDisplay, shareMarketDisplay, displayEV]);
   
   // Determine if this is a binary/yes-no market
   // Single-line scorer markets (first/last TD, first/last goal, first basket) - ALWAYS yes/no
@@ -513,7 +546,7 @@ export function MobileEVCard({
               shareContent={
                 <ShareOddsCard
                   playerName={selectionDisplay || ""}
-                  market={marketDisplay || opp.market || ""}
+                  market={shareMarketDisplay || opp.market || ""}
                   sport={opp.sport.toUpperCase()}
                   line={opp.line ?? 0}
                   side={opp.side}
@@ -533,7 +566,7 @@ export function MobileEVCard({
                   })()}
                   sharpOdds={formatOdds(opp.sharpReference?.overOdds)}
                   referenceLabel={referenceLabel}
-                  eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                  eventLabel={formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam) || undefined}
                   timeLabel={opp.startTime || opp.gameDate || undefined}
                   overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
                     bookId: b.bookId,

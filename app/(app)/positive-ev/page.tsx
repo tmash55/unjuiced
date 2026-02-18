@@ -215,6 +215,34 @@ function getLeagueDisplayName(leagueId: string): string {
   return getLeagueName(leagueId);
 }
 
+function isRawSelectionValue(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (["game_total", "game", "fight_total", "fight_moneyline", "match_total", "game_moneyline"].includes(normalized)) {
+    return true;
+  }
+  return !value.includes(" ") && /[_-]/.test(value);
+}
+
+function formatMatchupLabel(sport: string, awayTeam?: string | null, homeTeam?: string | null): string | null {
+  if (!awayTeam || !homeTeam) return null;
+  return sport.toLowerCase() === "ufc" ? `${awayTeam} vs ${homeTeam}` : `${awayTeam} @ ${homeTeam}`;
+}
+
+function formatShareSelectionDisplay(opp: PositiveEVOpportunity): string {
+  const matchup = formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
+  if (opp.sport.toLowerCase() === "ufc" && matchup) return matchup;
+  if (!isRawSelectionValue(opp.playerName)) return opp.playerName!;
+  return matchup || formatSelectionDisplay(opp.playerName, opp.marketDisplay);
+}
+
+function formatShareMarketDisplay(market: string, marketDisplay?: string | null): string {
+  const display = (marketDisplay || "").trim();
+  if (display && !display.includes("_")) return display;
+  return formatMarketLabel(market || display);
+}
+
 /**
  * Format EV percentage with color coding and intensity scaling
  * Higher EV = more intense/saturated colors
@@ -923,6 +951,7 @@ export default function PositiveEVPage() {
   const buildShareText = useCallback((opp: PositiveEVOpportunity) => {
     const bestBookName = getBookName(opp.book.bookId) || opp.book.bookName || opp.book.bookId;
     const bestOdds = formatOdds(opp.book.price);
+    const sportKey = opp.sport.toLowerCase();
     const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
     const sharpPreset = savedFilters.sharpPreset;
     const sharpPresetLabel =
@@ -934,7 +963,7 @@ export default function PositiveEVPage() {
     if (referenceLabel.toLowerCase().startsWith("vs ")) {
       referenceLabel = referenceLabel.slice(3);
     }
-    const selection = formatSelectionDisplay(opp.playerName, opp.marketDisplay);
+    const selection = formatShareSelectionDisplay(opp);
     
     // Format line and side (e.g., "Over 15.5")
     const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
@@ -953,12 +982,26 @@ export default function PositiveEVPage() {
     }
     
     // Market display (e.g., "Points", "Rebounds")
-    const marketLabel = opp.marketDisplay || opp.market || "";
+    const marketLabel = formatShareMarketDisplay(opp.market, opp.marketDisplay);
     
     // Format: "DraftKings +1760 vs +1000 (Market Average)"
     const oddsComparison = fairOdds 
       ? `${bestBookName} ${bestOdds} vs ${fairOdds} (${referenceLabel})`
       : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+
+    if (sportKey === "ufc") {
+      const ufcMarketLabel = marketLabel.replace(/^Fight\s+/i, "").trim();
+      const evValue = (() => {
+        const evCalc = opp.evCalculations?.power || opp.evCalculations?.multiplicative;
+        return evCalc?.evPercent ?? 0;
+      })();
+      return [
+        `UFC: ${selection}`,
+        `${ufcMarketLabel} ${selectionLine}`.trim(),
+        `${bestBookName}: ${bestOdds} (+${evValue.toFixed(1)}% EV)`,
+        "via @Unjuiced",
+      ].join("\n");
+    }
     
     return [
       `${selection}`,
@@ -2404,8 +2447,8 @@ export default function PositiveEVPage() {
                           shareText={buildShareText(opp)}
                           shareContent={
                             <ShareOddsCard
-                              playerName={formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
-                              market={opp.marketDisplay || opp.market || ""}
+                              playerName={formatShareSelectionDisplay(opp)}
+                              market={formatShareMarketDisplay(opp.market, opp.marketDisplay)}
                               sport={opp.sport.toUpperCase()}
                               line={opp.line}
                               side={opp.side}
@@ -2433,7 +2476,7 @@ export default function PositiveEVPage() {
                                     : sharpPreset;
                                 return modelName || sharpPresetLabel || "Market Average";
                               })()}
-                              eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                              eventLabel={formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam) || undefined}
                               timeLabel={opp.startTime || opp.gameDate || undefined}
                               overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
                                 bookId: b.bookId,

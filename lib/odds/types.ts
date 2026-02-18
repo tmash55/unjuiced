@@ -50,6 +50,13 @@ export const SSE_MARKETS = {
   game_total: "Game Total",
   game_moneyline: "Moneyline",
   team_total: "Team Total",
+  // UFC / MMA
+  fight_moneyline: "Fight Moneyline",
+  fight_total_rounds: "Fight Total Rounds",
+  fight_total: "Fight Total Rounds",
+  moneyline_finish_only: "Moneyline (Finish Only)",
+  moneyline_decision_only: "Moneyline (Decision Only)",
+  "1st_round_moneyline_finish_only": "1st Round Finish Only",
 } as const;
 
 export type SSEMarketKey = keyof typeof SSE_MARKETS;
@@ -75,6 +82,13 @@ const RAW_MARKET_ALIASES: Record<string, string> = {
   "1st Quarter Points": "1Q Points",
   "1Q Points": "1Q Points",
   "First Quarter Points": "1Q Points",
+  // UFC / MMA
+  "fight_moneyline": "Fight Moneyline",
+  "fight_total": "Fight Total Rounds",
+  "fight_total_rounds": "Fight Total Rounds",
+  "moneyline_finish_only": "Moneyline (Finish Only)",
+  "moneyline_decision_only": "Moneyline (Decision Only)",
+  "1st_round_moneyline_finish_only": "1st Round Finish Only",
 };
 
 /**
@@ -82,14 +96,25 @@ const RAW_MARKET_ALIASES: Record<string, string> = {
  * Used when setting marketDisplay from SSE data.
  */
 export function normalizeRawMarket(rawMarket: string): string {
-  return RAW_MARKET_ALIASES[rawMarket] || rawMarket;
+  const mapped = RAW_MARKET_ALIASES[rawMarket];
+  if (mapped) return mapped;
+  if (rawMarket.includes("_")) {
+    return rawMarket
+      .split("_")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+  return rawMarket;
 }
 
 /**
  * Get display name for a market key
  */
 export function getMarketDisplay(market: string): string {
-  return SSE_MARKETS[market as SSEMarketKey] || market.replace(/_/g, " ").replace(/player /i, "");
+  const mapped = SSE_MARKETS[market as SSEMarketKey];
+  if (mapped) return mapped;
+  return market.replace(/_/g, " ").replace(/player /i, "");
 }
 
 /**
@@ -115,6 +140,13 @@ export function getMarketDisplayShort(market: string): string {
     game_total: "TOT",
     game_moneyline: "ML",
     team_total: "TT",
+    // UFC / MMA
+    fight_moneyline: "ML",
+    fight_total_rounds: "Tot Rds",
+    fight_total: "Tot Rds",
+    moneyline_finish_only: "Finish",
+    moneyline_decision_only: "Decision",
+    "1st_round_moneyline_finish_only": "R1 Finish",
   };
   return shortNames[market] || market.slice(0, 3).toUpperCase();
 }
@@ -366,4 +398,3 @@ export function calculateEdge(best: number, comparison: number): {
   const edgePct = ((best / comparison) - 1) * 100;
   return { edge, edgePct };
 }
-

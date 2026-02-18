@@ -1562,6 +1562,13 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       '1st_quarter_point_spread': '1Q SPR',
       '1st_half_total_points': '1H TOT',
       '1st_half_point_spread': '1H SPR',
+      // UFC / MMA
+      'fight_moneyline': 'ML',
+      'fight_total_rounds': 'Tot Rds',
+      'fight_total': 'Tot Rds',
+      'moneyline_finish_only': 'Finish',
+      'moneyline_decision_only': 'Decision',
+      '1st_round_moneyline_finish_only': 'R1 Finish',
       
       // Hockey (standardized Redis keys)
       'player_goals': 'Goals',
@@ -1703,6 +1710,13 @@ export const MARKET_NAME_MAP: Record<string, string> = {
       '4th_quarter_moneyline': '4Q Moneyline',
       '4th_quarter_point_spread': '4Q Spread',
       '4th_quarter_total_points': '4Q Total',
+      // UFC / MMA
+      'fight_moneyline': 'Fight Moneyline',
+      'fight_total_rounds': 'Fight Total Rounds',
+      'fight_total': 'Fight Total Rounds',
+      'moneyline_finish_only': 'Moneyline (Finish Only)',
+      'moneyline_decision_only': 'Moneyline (Decision Only)',
+      '1st_round_moneyline_finish_only': '1st Round Finish Only',
       
       // Basketball - 1st Quarter Player Props
       '1st_quarter_player_points': 'Points (1Q)',

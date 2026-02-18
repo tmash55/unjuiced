@@ -126,6 +126,34 @@ function getLeagueDisplayName(leagueId: string): string {
   return getLeagueName(leagueId);
 }
 
+function isRawSelectionValue(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (["game_total", "game", "fight_total", "fight_moneyline", "match_total", "game_moneyline"].includes(normalized)) {
+    return true;
+  }
+  return !value.includes(" ") && /[_-]/.test(value);
+}
+
+function formatMatchupLabel(sport: string, awayTeam?: string | null, homeTeam?: string | null): string | null {
+  if (!awayTeam || !homeTeam) return null;
+  return sport.toLowerCase() === "ufc" ? `${awayTeam} vs ${homeTeam}` : `${awayTeam} @ ${homeTeam}`;
+}
+
+function formatShareSelectionDisplay(opp: Opportunity): string {
+  const matchup = formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
+  if (opp.sport.toLowerCase() === "ufc" && matchup) return matchup;
+  if (!isRawSelectionValue(opp.player)) return opp.player!;
+  return matchup || formatSelectionDisplay(opp.player, opp.marketDisplay);
+}
+
+function formatShareMarketDisplay(market: string, marketDisplay?: string | null): string {
+  const display = (marketDisplay || "").trim();
+  if (display && !display.includes("_")) return display;
+  return formatMarketLabel(market || display);
+}
+
 /**
  * Prediction market books whose extreme pricing signals a player is likely out.
  */
@@ -1418,8 +1446,8 @@ export function OpportunitiesTable({
                 shareText={buildShareText(opp)}
                 shareContent={
                   <ShareOddsCard
-                    playerName={formatSelectionDisplay(opp.player, opp.marketDisplay)}
-                    market={opp.marketDisplay || opp.market || ""}
+                    playerName={formatShareSelectionDisplay(opp)}
+                    market={formatShareMarketDisplay(opp.market, opp.marketDisplay)}
                     sport={opp.sport.toUpperCase()}
                     line={opp.line}
                     side={opp.side}
@@ -1429,7 +1457,7 @@ export function OpportunitiesTable({
                     fairOdds={opp.fairAmerican}
                     sharpOdds={opp.sharpPrice}
                     referenceLabel={isCustomMode && opp.filterName ? opp.filterName : referenceColumnLabel}
-                    eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                    eventLabel={formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam) || undefined}
                     timeLabel={opp.gameStart}
                     overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeSide?.allBooks || []).map((b) => ({
                       bookId: b.book,
@@ -1570,7 +1598,8 @@ export function OpportunitiesTable({
     : "Sharp reference odds used for edge calculation";
 
   const buildShareText = (opp: Opportunity) => {
-    const selection = formatSelectionDisplay(opp.player, opp.marketDisplay);
+    const selection = formatShareSelectionDisplay(opp);
+    const sportKey = opp.sport.toLowerCase();
     const bestBookName = getBookName(opp.bestBook) || opp.bestBook;
     const bestOdds = opp.bestPrice || "—";
     let referenceLabel =
@@ -1586,12 +1615,22 @@ export function OpportunitiesTable({
     const selectionLine = `${sideLabel}${lineDisplay}`;
     
     // Market display (e.g., "Points", "Rebounds")
-    const marketLabel = opp.marketDisplay || opp.market || "";
+    const marketLabel = formatShareMarketDisplay(opp.market, opp.marketDisplay);
     
     // Format: "DraftKings +1760 vs +1000 (Pinnacle)"
     const oddsComparison = opp.sharpPrice 
       ? `${bestBookName} ${bestOdds} vs ${opp.sharpPrice} (${referenceLabel})`
       : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+
+    if (sportKey === "ufc") {
+      const ufcMarketLabel = marketLabel.replace(/^Fight\s+/i, "").trim();
+      return [
+        `UFC: ${selection}`,
+        `${ufcMarketLabel} ${selectionLine}`.trim(),
+        `${bestBookName}: ${bestOdds} (+${(opp.edgePct ?? 0).toFixed(1)}% edge)`,
+        "via @Unjuiced",
+      ].join("\n");
+    }
     
     return [
       `${selection}`,

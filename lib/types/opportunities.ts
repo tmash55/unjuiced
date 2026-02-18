@@ -522,6 +522,13 @@ export function formatMarketName(market: string): string {
     player_yellow_cards: "Yellow Cards",
     player_to_be_carded: "To Be Carded",
     player_passes: "Passes",
+    // UFC / MMA
+    fight_moneyline: "Fight Moneyline",
+    fight_total_rounds: "Fight Total Rounds",
+    fight_total: "Fight Total Rounds",
+    moneyline_finish_only: "Moneyline (Finish Only)",
+    moneyline_decision_only: "Moneyline (Decision Only)",
+    "1st_round_moneyline_finish_only": "1st Round Finish Only",
   };
   
   const result = names[market] || market.replace(/_/g, " ").replace(/player /i, "");
