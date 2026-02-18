@@ -28,13 +28,16 @@ function Verify() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-1 text-center">
           <h3 className="text-center text-xl font-semibold">
-            Verify your email address
+            Verify your email
           </h3>
           <p className="text-base font-medium text-neutral-500">
-            Enter the six digit verification code sent to{" "}
+            We sent a verification link to{" "}
             <strong className="font-semibold text-neutral-600" title={email}>
               {truncate(email, 30)}
-            </strong>
+            </strong>. Check your inbox and click the link to finish signup.
+          </p>
+          <p className="text-sm text-neutral-500 mt-1">
+            If you do not see it, check your spam or promotions folder.
           </p>
         </div>
        
