@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { syncSubscriptionToBeeHiiv, getPlanFromPriceId } from '@/libs/beehiiv'
+import { identifyCustomer, trackEvent } from '@/libs/customerio'
 import { getPostHogClient } from '@/lib/posthog-server'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -186,6 +187,106 @@ export async function POST(req: NextRequest) {
           console.warn('[webhook] Failed to update profile trial fields', (e as any)?.message)
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // CUSTOMER.IO - Sync subscription lifecycle
+        // ═══════════════════════════════════════════════════════════════════
+        try {
+          // Fetch profile for email/name (may already be fetched below for BeeHiiv, but keep independent)
+          const { data: cioProfile } = await supabase
+            .from('profiles')
+            .select('email, first_name, last_name')
+            .eq('id', user_id)
+            .maybeSingle()
+
+          const planName = getPlanFromPriceId(priceIdForEvent) || 'free'
+
+          if (event.type === 'customer.subscription.created') {
+            const trialStart = (sub as any).trial_start
+              ? Math.floor((sub as any).trial_start)
+              : undefined
+            const trialEnd = (sub as any).trial_end
+              ? Math.floor((sub as any).trial_end)
+              : undefined
+
+            await identifyCustomer(user_id, {
+              email: cioProfile?.email || undefined,
+              first_name: cioProfile?.first_name || undefined,
+              last_name: cioProfile?.last_name || undefined,
+              plan_name: planName,
+              plan: planName,
+              subscription_status: normalizedStatus,
+              stripe_customer_id: String(sub.customer),
+              created_at: Math.floor(Date.now() / 1000),
+              ...(trialStart && { trial_start_date: trialStart }),
+              ...(trialEnd && { trial_end_date: trialEnd }),
+            })
+            await trackEvent(user_id, 'subscription_created', {
+              plan: planName,
+              plan_name: planName,
+              price_id: priceIdForEvent,
+              is_trial: normalizedStatus === 'trialing',
+              ...(trialEnd && { trial_end_date: new Date(trialEnd * 1000).toISOString() }),
+            })
+          } else if (event.type === 'customer.subscription.updated') {
+            // Detect plan change by comparing previous attributes
+            const previousAttrs = (event.data as any).previous_attributes
+            const oldPriceId = previousAttrs?.items?.data?.[0]?.price?.id
+            const oldPlan = oldPriceId ? (getPlanFromPriceId(oldPriceId) || 'free') : undefined
+            const oldStatus = previousAttrs?.status
+
+            await identifyCustomer(user_id, {
+              email: cioProfile?.email || undefined,
+              plan: planName,
+              plan_name: planName,
+              subscription_status: normalizedStatus,
+              cancel_at_period_end,
+            })
+            await trackEvent(user_id, 'subscription_updated', {
+              plan: planName,
+              plan_name: planName,
+              status: normalizedStatus,
+              cancel_at_period_end,
+              canceled_at,
+            })
+
+            // Track cancellation
+            if (normalizedStatus === 'canceled' && oldStatus !== 'canceled') {
+              await identifyCustomer(user_id, {
+                subscription_status: 'churned',
+                churned_at: Math.floor(Date.now() / 1000),
+              })
+              await trackEvent(user_id, 'subscription_canceled', {
+                plan: planName,
+                plan_name: planName,
+                price_id: priceIdForEvent,
+              })
+            }
+
+            // Track plan change (upgrade/downgrade)
+            if (oldPlan && oldPlan !== planName) {
+              await trackEvent(user_id, 'plan_changed', {
+                old_plan: oldPlan,
+                new_plan: planName,
+              })
+            }
+          } else if (event.type === 'customer.subscription.deleted') {
+            await identifyCustomer(user_id, {
+              subscription_status: 'churned',
+              plan: 'free',
+              plan_name: 'free',
+              churned_at: Math.floor(Date.now() / 1000),
+            })
+            await trackEvent(user_id, 'subscription_deleted', {
+              plan: planName,
+              plan_name: planName,
+              price_id: priceIdForEvent,
+            })
+          }
+        } catch (e) {
+          // Non-blocking — don't fail the webhook for Customer.io errors
+          console.error('[webhook] Customer.io sync error:', (e as any)?.message)
+        }
+
         // Also persist the Stripe customer id on the profile for easy joins from invoice events
         try {
           await supabase
@@ -308,6 +409,34 @@ export async function POST(req: NextRequest) {
                 }, { onConflict: 'stripe_subscription_id' })
               console.log('[webhook] Upserted subscription from checkout.session for user', subUserId)
               
+              // ═══════════════════════════════════════════════════════════════════
+              // CUSTOMER.IO - Identify user on checkout completion
+              // ═══════════════════════════════════════════════════════════════════
+              try {
+                const { data: cioProfile } = await getServiceClient()
+                  .from('profiles')
+                  .select('email, first_name, last_name')
+                  .eq('id', subUserId)
+                  .maybeSingle()
+
+                const checkoutPlan = getPlanFromPriceId(priceId) || 'free'
+                await identifyCustomer(subUserId, {
+                  email: cioProfile?.email || session.customer_email || undefined,
+                  first_name: cioProfile?.first_name || undefined,
+                  last_name: cioProfile?.last_name || undefined,
+                  plan: checkoutPlan,
+                  subscription_status: normalizedStatus,
+                  stripe_customer_id: String(s.customer),
+                })
+                await trackEvent(subUserId, 'checkout_completed', {
+                  plan: checkoutPlan,
+                  price_id: priceId,
+                  is_trial: normalizedStatus === 'trialing',
+                })
+              } catch (e) {
+                console.error('[webhook] Customer.io checkout sync error:', (e as any)?.message)
+              }
+
               // ═══════════════════════════════════════════════════════════════════
               // BEEHIIV SYNC - Update contact lifecycle from checkout completion
               // ═══════════════════════════════════════════════════════════════════

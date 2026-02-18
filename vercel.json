@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/expire-favorites",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/sync-customerio",
+      "schedule": "0 14 * * *"
     }
   ]
 }
