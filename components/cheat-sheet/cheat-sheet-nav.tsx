@@ -6,7 +6,8 @@ import {
   BarChart3, 
   TrendingUp, 
   UserMinus,
-  LayoutGrid 
+  LayoutGrid,
+  CloudSun,
 } from "lucide-react";
 
 interface CheatSheetTab {
@@ -18,7 +19,7 @@ interface CheatSheetTab {
   comingSoon?: boolean;
 }
 
-const CHEAT_SHEET_TABS: CheatSheetTab[] = [
+const NBA_CHEAT_SHEET_TABS: CheatSheetTab[] = [
   {
     slug: "hit-rates",
     label: "Hit Rates",
@@ -49,6 +50,16 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
   },
 ];
 
+const MLB_CHEAT_SHEET_TABS: CheatSheetTab[] = [
+  {
+    slug: "weather-report",
+    label: "Weather Report",
+    shortLabel: "Weather",
+    icon: CloudSun,
+    description: "Wind, temp, and venue impact",
+  },
+];
+
 interface CheatSheetNavProps {
   sport: string;
   currentSheet: string;
@@ -56,11 +67,13 @@ interface CheatSheetNavProps {
 }
 
 export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSheetNavProps) {
+  const tabs = sport === "mlb" ? MLB_CHEAT_SHEET_TABS : NBA_CHEAT_SHEET_TABS;
+
   if (isMobile) {
     return (
       <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
         <nav className="flex overflow-x-auto scrollbar-hide">
-          {CHEAT_SHEET_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = currentSheet === tab.slug;
             const href = `/cheatsheets/${sport}/${tab.slug}`;
             const Icon = tab.icon;
@@ -96,7 +109,7 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSh
     <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
       <div className="container mx-auto px-4">
         <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
-          {CHEAT_SHEET_TABS.map((tab) => {
+          {tabs.map((tab) => {
             const isActive = currentSheet === tab.slug;
             const href = `/cheatsheets/${sport}/${tab.slug}`;
             const Icon = tab.icon;
@@ -127,4 +140,3 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSh
     </div>
   );
 }
-

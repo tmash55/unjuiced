@@ -4,9 +4,11 @@ import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayerBoxScores, BoxScoreGame, SeasonSummary } from "@/hooks/use-player-box-scores";
 import { getTeamLogoUrl } from "@/lib/data/team-mappings";
+import { formatMarketLabel } from "@/lib/data/markets";
 import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 interface BoxScoreTableProps {
+  sport?: "nba" | "mlb";
   playerId: number | null;
   market?: string | null;
   currentLine?: number | null;
@@ -17,7 +19,25 @@ interface BoxScoreTableProps {
   prefetchedSeasonSummary?: SeasonSummary | null;
 }
 
-type SortField = "date" | "pts" | "reb" | "ast" | "pra" | "fg3m" | "stl" | "blk" | "minutes" | "plusMinus";
+type SortField =
+  | "date"
+  | "pts"
+  | "reb"
+  | "ast"
+  | "pra"
+  | "fg3m"
+  | "stl"
+  | "blk"
+  | "minutes"
+  | "plusMinus"
+  | "marketStat"
+  | "hits"
+  | "homeRuns"
+  | "runs"
+  | "rbi"
+  | "totalBases"
+  | "strikeouts"
+  | "innings";
 type SortDirection = "asc" | "desc";
 
 // Get the stat value based on market
@@ -36,6 +56,12 @@ const getMarketStat = (game: BoxScoreGame, market: string | null | undefined): n
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    case "player_hits": return game.mlbHits ?? 0;
+    case "player_home_runs": return game.mlbHomeRuns ?? 0;
+    case "player_runs_scored": return game.mlbRunsScored ?? 0;
+    case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
     default: return game.pts;
   }
 };
@@ -50,6 +76,7 @@ const formatGameDate = (dateStr: string) => {
 };
 
 export function BoxScoreTable({
+  sport = "nba",
   playerId,
   market,
   currentLine,
@@ -60,13 +87,14 @@ export function BoxScoreTable({
 }: BoxScoreTableProps) {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const isMlb = sport === "mlb";
 
   // Only fetch if we don't have prefetched data
   const { games: fetchedGames, seasonSummary: fetchedSeasonSummary, isLoading, error } = usePlayerBoxScores({
     playerId,
     season,
     limit: 50,
-    enabled: !!playerId && !prefetchedGames,
+    enabled: sport === "nba" && !!playerId && !prefetchedGames,
   });
 
   // Use prefetched data if available, otherwise use fetched data
@@ -83,6 +111,38 @@ export function BoxScoreTable({
         case "date":
           aVal = a.date;
           bVal = b.date;
+          break;
+        case "marketStat":
+          aVal = getMarketStat(a, market);
+          bVal = getMarketStat(b, market);
+          break;
+        case "hits":
+          aVal = a.mlbHits ?? 0;
+          bVal = b.mlbHits ?? 0;
+          break;
+        case "homeRuns":
+          aVal = a.mlbHomeRuns ?? 0;
+          bVal = b.mlbHomeRuns ?? 0;
+          break;
+        case "runs":
+          aVal = a.mlbRunsScored ?? 0;
+          bVal = b.mlbRunsScored ?? 0;
+          break;
+        case "rbi":
+          aVal = a.mlbRbi ?? 0;
+          bVal = b.mlbRbi ?? 0;
+          break;
+        case "totalBases":
+          aVal = a.mlbTotalBases ?? 0;
+          bVal = b.mlbTotalBases ?? 0;
+          break;
+        case "strikeouts":
+          aVal = a.mlbPitcherStrikeouts ?? 0;
+          bVal = b.mlbPitcherStrikeouts ?? 0;
+          break;
+        case "innings":
+          aVal = a.mlbInningsPitched ?? 0;
+          bVal = b.mlbInningsPitched ?? 0;
           break;
         case "pts":
           aVal = a.pts;
@@ -138,6 +198,7 @@ export function BoxScoreTable({
 
   // Calculate averages for footer - must be before early returns
   const averages = useMemo(() => {
+    if (isMlb) return null;
     if (games.length === 0) return null;
     
     const sum = games.reduce((acc, g) => ({
@@ -180,7 +241,48 @@ export function BoxScoreTable({
       dreb: (sum.dreb / n).toFixed(1),
       plusMinus: (sum.plusMinus / n).toFixed(1),
     };
-  }, [games]);
+  }, [games, isMlb]);
+
+  const mlbAverages = useMemo(() => {
+    if (!isMlb || games.length === 0) return null;
+    const n = games.length;
+    const sum = games.reduce(
+      (acc, g) => ({
+        marketStat: acc.marketStat + getMarketStat(g, market),
+        hits: acc.hits + (g.mlbHits ?? 0),
+        homeRuns: acc.homeRuns + (g.mlbHomeRuns ?? 0),
+        runs: acc.runs + (g.mlbRunsScored ?? 0),
+        rbi: acc.rbi + (g.mlbRbi ?? 0),
+        totalBases: acc.totalBases + (g.mlbTotalBases ?? 0),
+        strikeouts: acc.strikeouts + (g.mlbPitcherStrikeouts ?? 0),
+        innings: acc.innings + (g.mlbInningsPitched ?? 0),
+        walks: acc.walks + (g.mlbWalks ?? 0),
+      }),
+      {
+        marketStat: 0,
+        hits: 0,
+        homeRuns: 0,
+        runs: 0,
+        rbi: 0,
+        totalBases: 0,
+        strikeouts: 0,
+        innings: 0,
+        walks: 0,
+      }
+    );
+
+    return {
+      marketStat: (sum.marketStat / n).toFixed(1),
+      hits: (sum.hits / n).toFixed(1),
+      homeRuns: (sum.homeRuns / n).toFixed(1),
+      runs: (sum.runs / n).toFixed(1),
+      rbi: (sum.rbi / n).toFixed(1),
+      totalBases: (sum.totalBases / n).toFixed(1),
+      strikeouts: (sum.strikeouts / n).toFixed(1),
+      innings: (sum.innings / n).toFixed(1),
+      walks: (sum.walks / n).toFixed(1),
+    };
+  }, [games, isMlb, market]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -225,6 +327,211 @@ export function BoxScoreTable({
     return (
       <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">No box score data available</p>
+      </div>
+    );
+  }
+
+  if (isMlb) {
+    const isPitcherMarket = market === "pitcher_strikeouts";
+    return (
+      <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-white via-neutral-50/50 to-sky-50/20 dark:from-neutral-800/80 dark:via-neutral-800/50 dark:to-sky-900/10" />
+          <div className="relative px-5 py-4 border-b border-neutral-200/60 dark:border-neutral-700/60">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-sky-500 to-blue-600 shadow-sm shadow-sky-500/30" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">Game Log</h2>
+                  <span className="px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-bold">
+                    {games.length} games
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                  MLB historical game logs
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="max-h-[400px] overflow-y-auto">
+            <table className="min-w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-800/95 backdrop-blur-sm">
+                <tr>
+                  <th
+                    className="px-3 py-2.5 text-left font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-1">
+                      DATE <SortIcon field="date" />
+                    </div>
+                  </th>
+                  <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                    OPP
+                  </th>
+                  <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                    RESULT
+                  </th>
+                  <th
+                    className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                    onClick={() => handleSort("marketStat")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      {formatMarketLabel(market || "")} <SortIcon field="marketStat" />
+                    </div>
+                  </th>
+                  {isPitcherMarket ? (
+                    <>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("innings")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          IP <SortIcon field="innings" />
+                        </div>
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        H
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        ER
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        BB
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        WHIP
+                      </th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        AB
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("hits")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          H <SortIcon field="hits" />
+                        </div>
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        R
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("rbi")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          RBI <SortIcon field="rbi" />
+                        </div>
+                      </th>
+                      <th
+                        className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide cursor-pointer hover:text-neutral-800 dark:hover:text-white"
+                        onClick={() => handleSort("totalBases")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          TB <SortIcon field="totalBases" />
+                        </div>
+                      </th>
+                      <th className="px-2 py-2.5 text-center font-bold text-neutral-600 dark:text-neutral-300 uppercase text-[10px] tracking-wide">
+                        BB
+                      </th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedGames.map((game, idx) => {
+                  const marketStat = getMarketStat(game, market);
+                  const isOverLine = currentLine != null && marketStat >= currentLine;
+                  return (
+                    <tr
+                      key={game.gameId}
+                      className={cn(
+                        "transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 border-b border-neutral-100 dark:border-neutral-700/50",
+                        idx % 2 === 0 ? "bg-white dark:bg-neutral-800" : "bg-neutral-50/70 dark:bg-neutral-800/70"
+                      )}
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className="font-medium text-neutral-700 dark:text-neutral-200">{formatGameDate(game.date)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-neutral-400 text-[10px]">{game.homeAway === "H" ? "vs" : "@"}</span>
+                          <img
+                            src={getTeamLogoUrl(game.opponentAbbr, "mlb")}
+                            alt={game.opponentAbbr}
+                            className="w-4 h-4 object-contain"
+                          />
+                          <span className="font-medium text-neutral-700 dark:text-neutral-300 text-[10px]">{game.opponentAbbr}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-center whitespace-nowrap">
+                        <span className={cn("font-bold", game.result === "W" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
+                          {game.result}
+                        </span>
+                        <span className="text-neutral-500 dark:text-neutral-400 ml-1 text-[10px]">{game.teamScore}-{game.opponentScore}</span>
+                      </td>
+                      <td className={cn("px-2 py-2 text-center font-bold", isOverLine ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-900 dark:text-white")}>
+                        {marketStat}
+                      </td>
+                      {isPitcherMarket ? (
+                        <>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbInningsPitched?.toFixed(1) ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHitsAllowed ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbEarnedRuns ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWhipGame?.toFixed(2) ?? "-"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbAtBats ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbHits ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRunsScored ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbRbi ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbTotalBases ?? "-"}</td>
+                          <td className="px-2 py-2 text-center text-neutral-700 dark:text-neutral-300">{game.mlbWalks ?? "-"}</td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {mlbAverages && (
+                <tfoot className="sticky bottom-0 z-10 bg-neutral-100 dark:bg-neutral-700 border-t-2 border-neutral-300 dark:border-neutral-500">
+                  <tr className="font-bold">
+                    <td className="px-3 py-2.5 text-left text-neutral-700 dark:text-neutral-200">AVERAGES</td>
+                    <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">—</td>
+                    <td className="px-2 py-2.5 text-center text-neutral-400 dark:text-neutral-500">—</td>
+                    <td className="px-2 py-2.5 text-center text-neutral-900 dark:text-white">{mlbAverages.marketStat}</td>
+                    {isPitcherMarket ? (
+                      <>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.innings}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">—</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.hits}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.runs}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.rbi}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.totalBases}</td>
+                        <td className="px-2 py-2.5 text-center text-neutral-700 dark:text-neutral-200">{mlbAverages.walks}</td>
+                      </>
+                    )}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
       </div>
     );
   }
@@ -578,4 +885,3 @@ export function BoxScoreTable({
     </div>
   );
 }
-

@@ -16,6 +16,7 @@ import { ConfidenceGlossary } from "@/components/cheat-sheet/confidence-glossary
 import { MobileConfidenceGlossary } from "@/components/cheat-sheet/mobile/mobile-confidence-glossary";
 import { MobileCheatSheet } from "@/components/cheat-sheet/mobile/mobile-cheat-sheet";
 import { MobileInjuryImpact } from "@/components/cheat-sheet/mobile/mobile-injury-impact";
+import { MlbWeatherReport } from "@/components/cheat-sheet/mlb-weather-report";
 import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
 import { HitRateMatrix } from "@/components/hit-rate-matrix";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
@@ -93,11 +94,23 @@ function MobileUpgradeBanner() {
   );
 }
 
-const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"] as const;
+const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
+const SUPPORTED_SHEETS = [
+  "hit-rates",
+  "alt-hit-matrix",
+  "injury-impact",
+  "hit-rate-matrix",
+  "dvp",
+  "weather-report",
+] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
+
+const SPORT_SHEETS: Record<SupportedSport, SupportedSheet[]> = {
+  nba: ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"],
+  mlb: ["weather-report"],
+};
 
 // Sheet display names and descriptions
 const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }> = {
@@ -121,6 +134,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
     title: "Defense vs Position",
     description: "Team defensive rankings by position - Find the best matchups",
   },
+  "weather-report": {
+    title: "MLB Weather Report",
+    description: "Weather, wind, and venue impact by game for MLB props.",
+  },
 };
 
 export default function CheatSheetPage({ 
@@ -137,12 +154,16 @@ export default function CheatSheetPage({
     notFound();
   }
 
-  // Validate sheet type
-  if (!SUPPORTED_SHEETS.includes(sheet)) {
+  // Validate sheet type for selected sport
+  if (!SUPPORTED_SHEETS.includes(sheet) || !SPORT_SHEETS[sport].includes(sheet)) {
     notFound();
   }
 
   const sheetInfo = SHEET_INFO[sheet];
+
+  if (sport === "mlb" && sheet === "weather-report") {
+    return <MlbWeatherReportSheet sport={sport} sheet={sheet} />;
+  }
 
   // Route to appropriate sheet component
   if (sheet === "hit-rates") {
@@ -167,6 +188,16 @@ export default function CheatSheetPage({
 
   // Other sheets coming soon
   return <ComingSoonSheet sport={sport} sheet={sheet} sheetInfo={sheetInfo} />;
+}
+
+function MlbWeatherReportSheet({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+
+  return (
+    <AppPageLayout title={sheetInfo.title} subtitle={sheetInfo.description}>
+      <MlbWeatherReport />
+    </AppPageLayout>
+  );
 }
 
 function ComingSoonSheet({ 

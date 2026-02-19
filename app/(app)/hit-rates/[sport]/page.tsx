@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, use, useEffect, useCallback, useRef } from "react";
-import { notFound, useRouter, useSearchParams } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { GatedHitRateTable } from "@/components/hit-rates/gated-hit-rate-table";
 import { GamesFilterDropdown, hasGameStarted } from "@/components/hit-rates/games-filter-dropdown";
 import { GatedMobileHitRates } from "@/components/hit-rates/mobile/gated-mobile-hit-rates";
@@ -9,24 +9,55 @@ import { GlossaryModal, GlossaryButton } from "@/components/hit-rates/glossary-m
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { useNbaGames } from "@/hooks/use-nba-games";
+import { useMlbGames } from "@/hooks/use-mlb-games";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 
-const SUPPORTED_SPORTS = ["nba"] as const;
-const MARKET_OPTIONS = [
-  { value: "player_points", label: "Points" },
-  { value: "player_rebounds", label: "Rebounds" },
-  { value: "player_assists", label: "Assists" },
-  { value: "player_points_rebounds_assists", label: "Points + Rebounds + Assists" },
-  { value: "player_points_rebounds", label: "Points + Rebounds" },
-  { value: "player_points_assists", label: "Points + Assists" },
-  { value: "player_rebounds_assists", label: "Rebounds + Assists" },
-  { value: "player_threes_made", label: "Three Pointers" },
-  { value: "player_steals", label: "Steals" },
-  { value: "player_blocks", label: "Blocks" },
-  { value: "player_blocks_steals", label: "Blocks + Steals" },
-  { value: "player_turnovers", label: "Turnovers" },
-];
+const SUPPORTED_SPORTS = ["nba", "mlb"] as const;
+type SupportedSport = (typeof SUPPORTED_SPORTS)[number];
+
+const SPORT_CONFIG: Record<
+  SupportedSport,
+  {
+    title: string;
+    subtitle: string;
+    defaultMarket: string;
+    markets: Array<{ value: string; label: string }>;
+  }
+> = {
+  nba: {
+    title: "NBA Hit Rates",
+    subtitle: "Analyze player prop performance with historical hit rates, streaks, and matchup data.",
+    defaultMarket: "player_points",
+    markets: [
+      { value: "player_points", label: "Points" },
+      { value: "player_rebounds", label: "Rebounds" },
+      { value: "player_assists", label: "Assists" },
+      { value: "player_points_rebounds_assists", label: "Points + Rebounds + Assists" },
+      { value: "player_points_rebounds", label: "Points + Rebounds" },
+      { value: "player_points_assists", label: "Points + Assists" },
+      { value: "player_rebounds_assists", label: "Rebounds + Assists" },
+      { value: "player_threes_made", label: "Three Pointers" },
+      { value: "player_steals", label: "Steals" },
+      { value: "player_blocks", label: "Blocks" },
+      { value: "player_blocks_steals", label: "Blocks + Steals" },
+      { value: "player_turnovers", label: "Turnovers" },
+    ],
+  },
+  mlb: {
+    title: "MLB Hit Rates",
+    subtitle: "Analyze MLB batter and pitcher prop hit rates with recent trends and matchup context.",
+    defaultMarket: "player_hits",
+    markets: [
+      { value: "player_hits", label: "Hits" },
+      { value: "player_home_runs", label: "Home Runs" },
+      { value: "player_runs_scored", label: "Runs" },
+      { value: "player_rbi", label: "RBIs" },
+      { value: "player_total_bases", label: "Total Bases" },
+      { value: "pitcher_strikeouts", label: "Pitcher Strikeouts" },
+    ],
+  },
+};
 
 // Debounce delay for market filter changes (ms)
 const FILTER_DEBOUNCE_MS = 300;
@@ -49,19 +80,19 @@ const normalizeGameId = (id: string | number | null | undefined): string => {
 
 export default function HitRatesSportPage({ params }: { params: Promise<{ sport: string }> }) {
   const resolvedParams = use(params);
-  const sport = resolvedParams.sport?.toLowerCase();
-  if (!SUPPORTED_SPORTS.includes(sport as typeof SUPPORTED_SPORTS[number])) {
+  const sport = resolvedParams.sport?.toLowerCase() as SupportedSport;
+  if (!SUPPORTED_SPORTS.includes(sport)) {
     notFound();
   }
+  const sportConfig = SPORT_CONFIG[sport];
 
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Detect mobile viewport
   const isMobile = useMediaQuery("(max-width: 767px)");
 
-  // Session storage key for filter state preservation
-  const FILTER_STATE_KEY = "hit-rate-filter-state";
+  // Session storage key for filter state preservation (sport-scoped)
+  const FILTER_STATE_KEY = `hit-rate-filter-state:${sport}`;
 
   // Restore filter state from sessionStorage on mount
   const getSavedFilterState = () => {
@@ -82,7 +113,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
   // Market filter state
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(
-    savedState?.selectedMarkets || ["player_points"]
+    savedState?.selectedMarkets || [sportConfig.defaultMarket]
   );
   
   // Search state - with debouncing for server-side search
@@ -103,7 +134,9 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   );
   
   // Mobile-specific filter state
-  const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>(["player_points"]);
+  const [mobileSelectedMarkets, setMobileSelectedMarkets] = useState<string[]>([
+    sportConfig.defaultMarket,
+  ]);
   const [mobileSortField, setMobileSortField] = useState(
     savedState?.mobileSortField || "l10Pct_desc"
   );
@@ -125,7 +158,25 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   }, []);
   
   // Get game data
-  const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
+  const nbaGamesQuery = useNbaGames(sport === "nba");
+  const mlbGamesQuery = useMlbGames(sport === "mlb");
+  const allGames = sport === "mlb" ? mlbGamesQuery.games : nbaGamesQuery.games;
+  const apiPrimaryDate = sport === "mlb" ? mlbGamesQuery.primaryDate : nbaGamesQuery.primaryDate;
+
+  // Ensure selected markets are valid for the active sport
+  useEffect(() => {
+    const validMarkets = new Set(sportConfig.markets.map((m) => m.value));
+
+    setSelectedMarkets((prev) => {
+      const next = prev.filter((m) => validMarkets.has(m));
+      return next.length > 0 ? next : [sportConfig.defaultMarket];
+    });
+
+    setMobileSelectedMarkets((prev) => {
+      const next = prev.filter((m) => validMarkets.has(m));
+      return next.length > 0 ? next : [sportConfig.defaultMarket];
+    });
+  }, [sportConfig]);
   
   // Default to the next game day on first load (both desktop and mobile)
   useEffect(() => {
@@ -155,6 +206,27 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
       }
     }
   }, [allGames, selectedGameIds, mobileSelectedGameIds]);
+
+  // Remove stale selected game IDs that are not in the current sport's game list
+  useEffect(() => {
+    if (!allGames || allGames.length === 0) return;
+
+    const validIds = new Set(allGames.map((g) => normalizeGameId(g.game_id)));
+
+    setSelectedGameIds((prev) => {
+      if (prev === null) return prev;
+      const filtered = prev.filter((id) => validIds.has(normalizeGameId(id)));
+      if (filtered.length === prev.length) return prev;
+      return filtered.length > 0 ? filtered : null;
+    });
+
+    setMobileSelectedGameIds((prev) => {
+      if (prev === null) return prev;
+      const filtered = prev.filter((id) => validIds.has(normalizeGameId(id)));
+      if (filtered.length === prev.length) return prev;
+      return filtered.length > 0 ? filtered : null;
+    });
+  }, [allGames]);
   
   // Effective game IDs (fallback to empty array if not yet initialized)
   const effectiveDesktopGameIds = selectedGameIds ?? [];
@@ -284,6 +356,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const dateToFetch = isInDrilldown ? undefined : effectiveDate;
 
   const { rows, count, isLoading, isFetching, error, meta } = useHitRateTable({
+    sport,
     date: dateToFetch,
     limit: currentLimit,
     search: effectiveSearch || undefined,
@@ -366,7 +439,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   const filteredRows = useMemo(() => {
     let result = rows.filter((row: HitRateProfile) => row.line !== null);
     
-    if (selectedMarkets.length > 0 && selectedMarkets.length < MARKET_OPTIONS.length) {
+    if (selectedMarkets.length > 0 && selectedMarkets.length < sportConfig.markets.length) {
       result = result.filter((row: HitRateProfile) => 
         selectedMarkets.includes(row.market)
       );
@@ -387,7 +460,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     }
     
     return result;
-  }, [rows, selectedMarkets, normalizedSelectedGameIds, startedGameIds]);
+  }, [rows, selectedMarkets, normalizedSelectedGameIds, startedGameIds, sportConfig.markets.length]);
 
   const showLoadingState = isLoading && rows.length === 0;
 
@@ -426,6 +499,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   if (isMobile) {
     return (
       <GatedMobileHitRates
+        sport={sport}
         rows={mobileFilteredRows}
         games={allGames ?? []}
         loading={isLoading}
@@ -433,6 +507,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         onPlayerClick={handleTableRowClick}
         selectedMarkets={mobileSelectedMarkets}
         onMarketsChange={setMobileSelectedMarkets}
+        marketOptions={sportConfig.markets}
         sortField={mobileSortField}
         onSortChange={setMobileSortField}
         searchQuery={mobileSearchQuery}
@@ -449,8 +524,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Desktop Layout - Using AppPageLayout
   return (
     <AppPageLayout
-      title="NBA Hit Rates"
-      subtitle="Analyze player prop performance with historical hit rates, streaks, and matchup data."
+      title={sportConfig.title}
+      subtitle={sportConfig.subtitle}
       headerActions={<GlossaryButton onClick={() => setShowGlossary(true)} />}
     >
       {/* Glossary Modal */}
@@ -458,6 +533,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
 
       {/* Hit Rate Table - with Games Filter passed as additional filter */}
       <GatedHitRateTable 
+        sport={sport}
         rows={paginatedRows} 
         loading={showLoadingState} 
         error={error?.message}
@@ -468,6 +544,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         totalCount={filteredRows.length}
         selectedMarkets={selectedMarkets}
         onMarketsChange={setSelectedMarkets}
+        marketOptions={sportConfig.markets}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         sortField={sortField}
@@ -480,6 +557,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         // Pass games filter props
         gamesFilter={
           <GamesFilterDropdown
+            sport={sport}
             games={allGames ?? []}
             selectedGameIds={effectiveDesktopGameIds}
             onToggleGame={toggleGame}

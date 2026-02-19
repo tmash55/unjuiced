@@ -16,6 +16,8 @@ export interface RawHitRateProfile {
   team_id: number | null;
   team_name: string | null;
   team_abbr: string | null;
+  player_name?: string | null;
+  player_position?: string | null;
   opponent_team_id: number | null;
   opponent_team_name: string | null;
   opponent_team_abbr: string | null;

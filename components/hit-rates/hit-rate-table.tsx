@@ -34,7 +34,7 @@ type SortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" 
 type SortDirection = "asc" | "desc";
 
 // Market options for filter
-const MARKET_OPTIONS = [
+const DEFAULT_MARKET_OPTIONS = [
   { value: "player_points", label: "Points" },
   { value: "player_rebounds", label: "Rebounds" },
   { value: "player_assists", label: "Assists" },
@@ -62,6 +62,7 @@ const POSITION_OPTIONS = [
 const MAX_MATCHUP_RANK_LIMIT = 30;
 
 interface HitRateTableProps {
+  sport?: "nba" | "mlb";
   rows: HitRateProfile[];
   loading?: boolean;
   error?: string | null;
@@ -73,6 +74,7 @@ interface HitRateTableProps {
   totalCount?: number;
   // Filter props
   selectedMarkets: string[];
+  marketOptions?: Array<{ value: string; label: string }>;
   onMarketsChange: (markets: string[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -378,12 +380,12 @@ const SORTABLE_COLUMNS: { key: SortField; label: string }[] = [
   { key: "line", label: "Prop" },
   { key: "l5Avg", label: "L5 Avg" },
   { key: "l10Avg", label: "L10 Avg" },
-  { key: "seasonAvg", label: "25/26 Avg" },
+  { key: "seasonAvg", label: "Season Avg" },
   { key: "streak", label: "Streak" },
   { key: "l5Pct", label: "L5" },
   { key: "l10Pct", label: "L10" },
   { key: "l20Pct", label: "L20" },
-  { key: "seasonPct", label: "25/26" },
+  { key: "seasonPct", label: "Season" },
 ];
 
 const getSortValue = (row: HitRateProfile, field: SortField): number | null => {
@@ -404,6 +406,7 @@ const getSortValue = (row: HitRateProfile, field: SortField): number | null => {
 };
 
 export function HitRateTable({ 
+  sport = "nba",
   rows, 
   loading, 
   error, 
@@ -413,6 +416,7 @@ export function HitRateTable({
   isLoadingMore,
   totalCount,
   selectedMarkets,
+  marketOptions,
   onMarketsChange,
   searchQuery,
   onSearchChange,
@@ -429,6 +433,10 @@ export function HitRateTable({
   blurAfterIndex,
   gamesFilter,
 }: HitRateTableProps) {
+  const effectiveMarketOptions =
+    marketOptions && marketOptions.length > 0 ? marketOptions : DEFAULT_MARKET_OPTIONS;
+  const seasonAvgHeaderLabel = sport === "mlb" ? "Season Avg" : "25/26 Avg";
+  const seasonPctHeaderLabel = sport === "mlb" ? "Season" : "25/26";
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -515,13 +523,13 @@ export function HitRateTable({
   }, [selectedMarkets, onMarketsChange]);
 
   const selectAllMarkets = useCallback(() => {
-    onMarketsChange(MARKET_OPTIONS.map((o) => o.value));
-  }, [onMarketsChange]);
+    onMarketsChange(effectiveMarketOptions.map((o) => o.value));
+  }, [effectiveMarketOptions, onMarketsChange]);
 
   const deselectAllMarkets = useCallback(() => {
     // Default back to points when deselecting all
-    onMarketsChange(["player_points"]);
-  }, [onMarketsChange]);
+    onMarketsChange([effectiveMarketOptions[0]?.value || "player_points"]);
+  }, [effectiveMarketOptions, onMarketsChange]);
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
@@ -553,7 +561,7 @@ export function HitRateTable({
     setTogglingFavoriteKey(favoriteKey);
     
     try {
-      const oddsKey = row.eventId ? `odds:nba:${row.eventId}:${row.market}` : null;
+      const oddsKey = row.eventId ? `odds:${sport}:${row.eventId}:${row.market}` : null;
       const oddsSelectionId = row.selKey && row.line !== null
         ? `${row.selKey}:${row.line}:over`
         : row.oddsSelectionId;
@@ -563,7 +571,7 @@ export function HitRateTable({
 
       const result = await toggleFavorite({
         type: "player",
-        sport: "nba",
+        sport,
         event_id: row.eventId || row.gameId || "",
         game_date: row.gameDate,
         home_team: row.homeTeamName,
@@ -599,7 +607,7 @@ export function HitRateTable({
     } finally {
       setTogglingFavoriteKey(null);
     }
-  }, [toggleFavorite]);
+  }, [sport, toggleFavorite]);
 
   // Apply advanced filters only (sorting is consolidated in sortedRows)
   const filteredRows = useMemo(() => {
@@ -747,12 +755,12 @@ export function HitRateTable({
             <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
               {selectedMarkets.length === 0
                 ? "No markets"
-                : selectedMarkets.length === MARKET_OPTIONS.length
+                : selectedMarkets.length === effectiveMarketOptions.length
                 ? "All Markets"
                 : selectedMarkets.length === 1
-                ? MARKET_OPTIONS.find(o => o.value === selectedMarkets[0])?.label ?? "1 selected"
+                ? effectiveMarketOptions.find((o) => o.value === selectedMarkets[0])?.label ?? "1 selected"
                 : selectedMarkets.length === 2
-                ? selectedMarkets.map(m => MARKET_OPTIONS.find(o => o.value === m)?.label).filter(Boolean).join(", ")
+                ? selectedMarkets.map((m) => effectiveMarketOptions.find((o) => o.value === m)?.label).filter(Boolean).join(", ")
                 : `${selectedMarkets.length} selected`}
             </span>
             <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200 shrink-0", marketDropdownOpen && "rotate-180 text-brand")} />
@@ -769,7 +777,7 @@ export function HitRateTable({
                 </button>
               </div>
               <div className="flex flex-col gap-0.5 max-h-64 overflow-auto">
-                {MARKET_OPTIONS.map((opt) => (
+                {effectiveMarketOptions.map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                     <Checkbox checked={selectedMarkets.includes(opt.value)} onCheckedChange={() => toggleMarket(opt.value)} />
                     <span className="text-sm font-medium text-neutral-900 dark:text-white">{opt.label}</span>
@@ -973,7 +981,7 @@ export function HitRateTable({
         {/* Count indicator - Premium pill style */}
         <div className="ml-auto px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60">
           <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-          {hasActiveFilters || selectedMarkets.length < MARKET_OPTIONS.length ? (
+          {hasActiveFilters || selectedMarkets.length < effectiveMarketOptions.length ? (
             // Filters active - show filtered count
             <>{filteredRows.length} props</>
           ) : totalCount !== undefined ? (
@@ -1115,7 +1123,7 @@ export function HitRateTable({
               className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
-                25/26 Avg
+                {seasonAvgHeaderLabel}
                 <SortIcon field="seasonAvg" />
               </div>
             </th>
@@ -1172,7 +1180,7 @@ export function HitRateTable({
               className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80 cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 select-none transition-all duration-200"
             >
               <div className="flex items-center justify-center gap-1">
-                25/26
+                {seasonPctHeaderLabel}
                 <SortIcon field="seasonPct" />
               </div>
             </th>
@@ -1316,7 +1324,9 @@ export function HitRateTable({
                             }}
                           >
                             <PlayerHeadshot
+                              sport={sport}
                               nbaPlayerId={row.playerId}
+                              mlbPlayerId={row.playerId}
                               name={row.playerName}
                               size="small"
                               className="h-full w-full object-cover"
@@ -1364,7 +1374,7 @@ export function HitRateTable({
                         <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-medium">
                           {row.teamAbbr && (
                             <img
-                              src={`/team-logos/nba/${row.teamAbbr.toUpperCase()}.svg`}
+                              src={getTeamLogoUrl(row.teamAbbr, sport)}
                               alt={row.teamAbbr}
                               className="h-4 w-4 object-contain"
                             />
@@ -1411,7 +1421,7 @@ export function HitRateTable({
                         </span>
                         {row.opponentTeamAbbr && (
                           <img
-                            src={`/team-logos/nba/${row.opponentTeamAbbr.toUpperCase()}.svg`}
+                            src={getTeamLogoUrl(row.opponentTeamAbbr, sport)}
                             alt={row.opponentTeamAbbr}
                             className="h-6 w-6 object-contain"
                           />

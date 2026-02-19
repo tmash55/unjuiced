@@ -8,6 +8,7 @@ import type { HitRateProfile, HitRateResponse, RawHitRateProfile } from "@/lib/h
 export type HitRateSortField = "line" | "l5Avg" | "l10Avg" | "seasonAvg" | "streak" | "l5Pct" | "l10Pct" | "l20Pct" | "seasonPct" | "h2hPct" | "matchupRank";
 
 export interface UseHitRateTableOptions {
+  sport?: "nba" | "mlb";
   date?: string;
   market?: string;
   minHitRate?: number;
@@ -52,8 +53,9 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
   if (params.sort) searchParams.set("sort", params.sort);
   if (params.sortDir) searchParams.set("sortDir", params.sortDir);
 
+  const sport = params.sport ?? "nba";
   // Use v2 API by default for better performance (Redis cached)
-  const apiPath = params.useV2 !== false ? "/api/nba/hit-rates/v2" : "/api/nba/hit-rates";
+  const apiPath = params.useV2 !== false ? `/api/${sport}/hit-rates/v2` : `/api/${sport}/hit-rates`;
   const url = `${apiPath}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   
   // Reduced timeout - v2 API should be fast with caching
@@ -74,6 +76,7 @@ async function fetchHitRateTable(params: UseHitRateTableOptions = {}): Promise<H
 }
 
 function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
+  const raw = profile as RawHitRateProfile & { player_name?: string; player_position?: string };
   const player = profile.nba_players_hr;
   const game = profile.nba_games_hr;
   const team = profile.nba_teams;
@@ -81,7 +84,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
   return {
     id: profile.id,
     playerId: player?.nba_player_id ?? profile.player_id,
-    playerName: player?.name || profile.team_name || "Unknown",
+    playerName: player?.name || raw.player_name || profile.team_name || "Unknown",
     teamId: profile.team_id ?? null,
     teamAbbr: profile.team_abbr ?? null,
     teamName: profile.team_name ?? null,
@@ -109,7 +112,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     injuryStatus: profile.injury_status,
     injuryNotes: profile.injury_notes,
     // Prefer depth_chart_pos (PG, SG, SF, PF, C) over generic position (G, F, C)
-    position: player?.depth_chart_pos ?? player?.position ?? profile.position,
+    position: player?.depth_chart_pos ?? player?.position ?? raw.player_position ?? profile.position,
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,
     gameDate: game?.game_date ?? profile.game_date,
     startTime: game?.start_time ?? profile.start_time ?? profile.commence_time ?? null,
@@ -196,13 +199,26 @@ function sortRows(rows: HitRateProfile[], sort: HitRateSortField | null, sortDir
 }
 
 export function useHitRateTable(options: UseHitRateTableOptions = {}) {
-  const { date, market, minHitRate, limit, offset, search, playerId, sort, sortDir, enabled = true } = options;
+  const {
+    sport = "nba",
+    date,
+    market,
+    minHitRate,
+    limit,
+    offset,
+    search,
+    playerId,
+    sort,
+    sortDir,
+    enabled = true,
+  } = options;
 
   // NOTE: Sort is NOT in the query key - sorting is done client-side for instant response
   // The API returns data pre-sorted by has_odds + L10, client re-sorts as needed
   const queryResult = useQuery<HitRateTableResult>({
-    queryKey: ["hit-rate-table", { date, market, minHitRate, limit, offset, search, playerId }],
-    queryFn: () => fetchHitRateTable({ date, market, minHitRate, limit, offset, search, playerId }),
+    queryKey: ["hit-rate-table", { sport, date, market, minHitRate, limit, offset, search, playerId }],
+    queryFn: () =>
+      fetchHitRateTable({ sport, date, market, minHitRate, limit, offset, search, playerId }),
     enabled,
     staleTime: 60_000, // 60 seconds - reduce unnecessary refetches
     gcTime: 5 * 60_000, // 5 minutes - keep data longer

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-export interface NbaGame {
+export interface MlbGame {
   game_id: string;
   game_date: string;
   home_team_name: string;
@@ -11,36 +11,32 @@ export interface NbaGame {
   away_team_tricode: string;
   home_team_score: number | null;
   away_team_score: number | null;
-  game_status: string; // e.g., "7:00 pm ET" or "Final"
+  game_status: string;
   is_primetime: boolean | null;
   national_broadcast: string | null;
   neutral_site: boolean | null;
-  season_type: string | null; // e.g., "Regular Season", "Emirates NBA Cup"
+  season_type: string | null;
 }
 
 interface GamesResponse {
-  games: NbaGame[];
-  dates: string[]; // Array of dates with games
+  games: MlbGame[];
+  dates: string[];
   primaryDate: string;
 }
 
-async function fetchNbaGames(): Promise<GamesResponse> {
-  const res = await fetch("/api/nba/games", { cache: "no-store" });
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch games");
-  }
-
+async function fetchMlbGames(): Promise<GamesResponse> {
+  const res = await fetch("/api/mlb/games", { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch games");
   return res.json();
 }
 
-export function useNbaGames(enabled = true) {
+export function useMlbGames(enabled = true) {
   const query = useQuery<GamesResponse>({
-    queryKey: ["nba-games"],
-    queryFn: fetchNbaGames,
+    queryKey: ["mlb-games"],
+    queryFn: fetchMlbGames,
     enabled,
-    staleTime: 60_000, // 1 minute
-    gcTime: 5 * 60_000, // 5 minutes
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 

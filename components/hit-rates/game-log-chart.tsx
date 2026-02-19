@@ -243,6 +243,7 @@ interface GameLogChartProps {
   games: BoxScoreGame[];
   line: number | null;
   market: string;
+  sport?: "nba" | "mlb";
   className?: string;
   // Optional: game logs from hit rate profile for teammates_out data
   profileGameLogs?: ProfileGameLog[] | null;
@@ -282,6 +283,12 @@ const getMarketStat = (game: BoxScoreGame, market: string): number => {
     case "player_points_assists": return game.pa;
     case "player_rebounds_assists": return game.ra;
     case "player_blocks_steals": return game.bs;
+    case "player_hits": return game.mlbHits ?? 0;
+    case "player_home_runs": return game.mlbHomeRuns ?? 0;
+    case "player_runs_scored": return game.mlbRunsScored ?? 0;
+    case "player_rbi": return game.mlbRbi ?? 0;
+    case "player_total_bases": return game.mlbTotalBases ?? 0;
+    case "pitcher_strikeouts": return game.mlbPitcherStrikeouts ?? 0;
     default: return game.pts;
   }
 };
@@ -351,6 +358,12 @@ const getMarketLabel = (market: string): string => {
     player_points_assists: "p+a",
     player_rebounds_assists: "r+a",
     player_blocks_steals: "Blk+Stl",
+    player_hits: "hits",
+    player_home_runs: "hr",
+    player_runs_scored: "runs",
+    player_rbi: "rbi",
+    player_total_bases: "tb",
+    pitcher_strikeouts: "k",
   };
   return labels[market] || "stat";
 };
@@ -378,6 +391,35 @@ const StatRow = ({ label, value, subValue }: { label: string; value: string | nu
 
 // Get market-specific stats for tooltip
 const getMarketStats = (game: BoxScoreGame, market: string): React.ReactNode => {
+  switch (market) {
+    case "player_hits":
+    case "player_home_runs":
+    case "player_runs_scored":
+    case "player_rbi":
+    case "player_total_bases":
+      return (
+        <>
+          <StatRow label="AB" value={game.mlbAtBats ?? 0} />
+          <StatRow label="Hits" value={game.mlbHits ?? 0} />
+          <StatRow label="Runs" value={game.mlbRunsScored ?? 0} />
+          <StatRow label="RBI" value={game.mlbRbi ?? 0} />
+          <StatRow label="Total Bases" value={game.mlbTotalBases ?? 0} />
+          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+        </>
+      );
+    case "pitcher_strikeouts":
+      return (
+        <>
+          <StatRow label="IP" value={game.mlbInningsPitched ?? 0} />
+          <StatRow label="Strikeouts" value={game.mlbPitcherStrikeouts ?? 0} />
+          <StatRow label="Hits Allowed" value={game.mlbHitsAllowed ?? 0} />
+          <StatRow label="Earned Runs" value={game.mlbEarnedRuns ?? 0} />
+          <StatRow label="Walks" value={game.mlbWalks ?? 0} />
+          <StatRow label="WHIP" value={game.mlbWhipGame?.toFixed(2) ?? "-"} />
+        </>
+      );
+  }
+
   // Common stats for all markets
   const commonStats = (
     <>
@@ -562,6 +604,7 @@ export function GameLogChart({
   games: inputGames,
   line,
   market,
+  sport = "nba",
   className,
   profileGameLogs,
   onLineChange,
@@ -1077,7 +1120,7 @@ export function GameLogChart({
             // >= so that hitting exactly the line counts as a hit (e.g., 1 block when line is 1)
             const hasLine = displayLine !== null;
             const isHit = hasLine && statValue >= displayLine;
-            const opponentLogo = getTeamLogoUrl(game.opponentAbbr, "nba");
+            const opponentLogo = getTeamLogoUrl(game.opponentAbbr, sport);
             
             // Get opponent DvP rank for this market
             const opponentDvpRank = opponentDvpRanks?.get(game.opponentTeamId) ?? null;

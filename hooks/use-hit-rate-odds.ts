@@ -49,12 +49,15 @@ const INITIAL_BATCH_SIZE = 100; // Increased to ensure filtering works correctly
 const BACKGROUND_BATCH_SIZE = 100;
 const STARTUP_DELAY_MS = 150; // Let profiles render before fetching odds
 
-async function fetchHitRateOdds(selections: OddsRequest[]): Promise<OddsResponse> {
+async function fetchHitRateOdds(
+  selections: OddsRequest[],
+  sport: "nba" | "mlb"
+): Promise<OddsResponse> {
   if (!selections.length) {
     return { odds: {} };
   }
 
-  const res = await fetch("/api/nba/hit-rates/odds", {
+  const res = await fetch(`/api/${sport}/hit-rates/odds`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ selections }),
@@ -75,6 +78,8 @@ interface RowData {
 interface UseHitRateOddsOptions {
   /** Array of rows with oddsSelectionId (stable key) and line */
   rows: RowData[];
+  /** Sport for the hit-rates odds endpoint */
+  sport?: "nba" | "mlb";
   /** Whether to enable the query */
   enabled?: boolean;
 }
@@ -91,7 +96,7 @@ interface UseHitRateOddsOptions {
 // This ensures we don't lose odds when navigating to/from drilldown
 const globalOddsCache: Record<string, LineOdds> = {};
 
-export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) {
+export function useHitRateOdds({ rows, sport = "nba", enabled = true }: UseHitRateOddsOptions) {
   const queryClient = useQueryClient();
   const backgroundFetchRef = useRef<boolean>(false);
   const allOddsRef = useRef<Record<string, LineOdds>>(globalOddsCache);
@@ -158,13 +163,13 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
   // Query key for initial batch
   const initialQueryKey = useMemo(() => {
     const sortedKeys = initialSelections.map((s) => s.stableKey).sort();
-    return ["hit-rate-odds-initial", sortedKeys.join(",")];
-  }, [initialSelections]);
+    return ["hit-rate-odds-initial", sport, sortedKeys.join(",")];
+  }, [initialSelections, sport]);
 
   // Fetch initial batch after startup delay (let profiles render first)
   const initialQuery = useQuery<OddsResponse>({
     queryKey: initialQueryKey,
-    queryFn: () => fetchHitRateOdds(initialSelections),
+    queryFn: () => fetchHitRateOdds(initialSelections, sport),
     enabled: isReady && initialSelections.length > 0,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -181,7 +186,7 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
         const batch = remainingSelections.slice(i, i + BACKGROUND_BATCH_SIZE);
         if (batch.length === 0) continue;
 
-        const result = await fetchHitRateOdds(batch);
+        const result = await fetchHitRateOdds(batch, sport);
         
         if (result.odds) {
           // Update both ref and global cache
@@ -203,7 +208,7 @@ export function useHitRateOdds({ rows, enabled = true }: UseHitRateOddsOptions) 
     } catch (error) {
       console.error("[useHitRateOdds] Background fetch error:", error);
     }
-  }, [remainingSelections, queryClient]);
+  }, [remainingSelections, queryClient, sport]);
 
   // Track the previous selections to detect meaningful changes
   const prevSelectionsRef = useRef<string>("");

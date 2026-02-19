@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
         hostname: "cdn.nba.com",
         pathname: "/headshots/nba/latest/**",
       },
+      {
+        protocol: "https",
+        hostname: "img.mlbstatic.com",
+        pathname: "/mlb-photos/image/upload/**",
+      },
     ],
   },
   // Redirects for renamed routes

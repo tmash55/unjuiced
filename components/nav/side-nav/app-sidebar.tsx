@@ -107,11 +107,11 @@ const oddsScreenSports: NavChildItem[] = [
 const hitRatesSports: NavChildItem[] = [
   // Active
   { label: "NBA", href: "/hit-rates/nba" },
+  { label: "MLB", href: "/hit-rates/mlb" },
   // Under construction
   { label: "NFL", href: "/hit-rates/nfl", disabled: true, comingSoon: true },
   { label: "NHL", href: "/hit-rates/nhl", disabled: true, comingSoon: true },
   { label: "NCAAB", href: "/hit-rates/ncaab", disabled: true, comingSoon: true },
-  { label: "MLB", href: "/hit-rates/mlb", disabled: true, comingSoon: true },
   { label: "WNBA", href: "/hit-rates/wnba", disabled: true, comingSoon: true },
   // Off season
   { label: "NCAAF", href: "/hit-rates/ncaaf", disabled: true, offSeason: true },
@@ -145,10 +145,11 @@ const researchLinks: NavItem[] = [
     href: "/cheatsheets", 
     icon: IconFileText,
     children: [
-      { label: "Hit Rates", href: "/cheatsheets/nba/hit-rates" },
-      { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
-      { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
-      { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
+      { label: "NBA • Hit Rates", href: "/cheatsheets/nba/hit-rates" },
+      { label: "NBA • Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
+      { label: "NBA • Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+      { label: "NBA • Defense vs Position", href: "/cheatsheets/nba/dvp" },
+      { label: "MLB • Weather Report", href: "/cheatsheets/mlb/weather-report" },
     ]
   },
   {

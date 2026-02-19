@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { FileText, UserMinus, Grid3X3, LayoutGrid } from "lucide-react";
+import { FileText, UserMinus, Grid3X3, LayoutGrid, CloudSun } from "lucide-react";
 
 const cheatsheets = [
   {
@@ -59,12 +59,25 @@ const cheatsheets = [
     comingSoon: true,
     badge: null,
   },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-sky-400">
+        <CloudSun className="size-2.5 text-sky-900" />
+      </div>
+    ),
+    title: "MLB Weather Report",
+    description: "Wind, temperature, and venue impact by game.",
+    href: "/cheatsheets/mlb/weather-report",
+    color: "#38bdf8",
+    comingSoon: false,
+    badge: "NEW",
+  },
 ];
 
 export function CheatSheetsContent({ domain }: { domain: string }) {
   return (
     <div className="w-[1020px] p-4">
-      <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>NBA Cheat Sheets</p>
+      <p className={cn(contentHeadingClassName, "mb-4 ml-2")}>Cheat Sheets</p>
       <div className="grid grid-cols-3 gap-4">
         {cheatsheets.map(({ icon, title, description, href, color, comingSoon, badge }) =>
           comingSoon ? (
@@ -141,4 +154,3 @@ export function CheatSheetsContent({ domain }: { domain: string }) {
     </div>
   );
 }
-

@@ -95,7 +95,7 @@ const getPctColor = (value: number | null) => {
 };
 
 // Market hit rate data structure
-interface MarketHitRateData {
+export interface MarketHitRateData {
   hitRate: number | null;
   hits: number;
   total: number;
@@ -136,7 +136,7 @@ interface MarketSelectorStripProps {
   totalGamesCount?: number;
 }
 
-function MarketSelectorStrip({ 
+export function MarketSelectorStrip({ 
   sortedMarkets, 
   selectedMarket, 
   setSelectedMarket, 

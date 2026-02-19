@@ -3,7 +3,6 @@
 import React from "react";
 import { MobileHitRates } from "./mobile-hit-rates";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
-import type { NbaGame } from "@/hooks/use-nba-games";
 import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
 import { ArrowRight } from "lucide-react";
@@ -19,12 +18,28 @@ const TOTAL_PREVIEW_ROWS = 15;
 const UPGRADE_URL = "/pricing";
 
 interface GatedMobileHitRatesProps {
+  sport?: "nba" | "mlb";
   rows: HitRateProfile[];
-  games: NbaGame[];
+  games: Array<{
+    game_id: string;
+    game_date: string;
+    home_team_name: string;
+    away_team_name: string;
+    home_team_tricode: string;
+    away_team_tricode: string;
+    home_team_score: number | null;
+    away_team_score: number | null;
+    game_status: string;
+    is_primetime: boolean | null;
+    national_broadcast: string | null;
+    neutral_site: boolean | null;
+    season_type: string | null;
+  }>;
   loading: boolean;
   error?: string | null;
   onPlayerClick: (player: HitRateProfile) => void;
   selectedMarkets: string[];
+  marketOptions?: Array<{ value: string; label: string }>;
   onMarketsChange: (markets: string[]) => void;
   sortField: string;
   onSortChange: (sort: string) => void;
@@ -96,12 +111,14 @@ function MobileUpgradeCTA() {
 }
 
 export function GatedMobileHitRates({
+  sport = "nba",
   rows,
   games,
   loading,
   error,
   onPlayerClick,
   selectedMarkets,
+  marketOptions,
   onMarketsChange,
   sortField,
   onSortChange,
@@ -119,12 +136,14 @@ export function GatedMobileHitRates({
   if (isLoadingAccess || hasAccess) {
     return (
       <MobileHitRates
+        sport={sport}
         rows={rows}
         games={games}
         loading={loading}
         error={error}
         onPlayerClick={onPlayerClick}
         selectedMarkets={selectedMarkets}
+        marketOptions={marketOptions}
         onMarketsChange={onMarketsChange}
         sortField={sortField}
         onSortChange={onSortChange}
@@ -143,12 +162,14 @@ export function GatedMobileHitRates({
   // Then blur cards after the visible index
   return (
     <MobileHitRates
+      sport={sport}
       rows={rows}
       games={games}
       loading={loading}
       error={error}
       onPlayerClick={onPlayerClick}
       selectedMarkets={selectedMarkets}
+      marketOptions={marketOptions}
       onMarketsChange={onMarketsChange}
       sortField={sortField}
       onSortChange={onSortChange}
