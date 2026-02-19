@@ -63,6 +63,8 @@ interface PlayerQuickViewModalProps {
   odds?: OddsData;
   /** Event ID for fetching alternate lines */
   event_id?: string;
+  /** Date for hit rate profile lookup (YYYY-MM-DD). Required for date-filtered hit rate routes. */
+  date?: string;
 }
 
 // Color helpers matching drilldown
@@ -128,6 +130,7 @@ export function PlayerQuickViewModal({
   onMarketChange,
   odds,
   event_id,
+  date,
 }: PlayerQuickViewModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -148,10 +151,21 @@ export function PlayerQuickViewModal({
   const nba_player_id = directNbaPlayerId || lookupData?.player?.nba_player_id;
   const playerInfo = lookupData?.player;
 
+  // Resolve the date to pass to hit rate API
+  // If date is explicitly provided, use it; otherwise default to today in ET
+  const resolvedDate = useMemo(() => {
+    if (date) return date;
+    // Default to today in US Eastern (where NBA/MLB schedules are anchored)
+    const now = new Date();
+    const etDate = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    return etDate.toISOString().slice(0, 10);
+  }, [date]);
+
   // Fetch profiles and box scores in PARALLEL (not sequential)
   // Only fetch when we have a player ID
   const { rows: profiles, isLoading: isLoadingProfiles } = useHitRateTable({
     playerId: nba_player_id,
+    date: resolvedDate,
     enabled: open && !!nba_player_id,
     limit: 20, // Reduced from 50 - we only need current markets
   });
