@@ -1265,13 +1265,19 @@ async function buildPropsRows(
         const awayTeamNorm = event.awayTeam.toLowerCase().replace(/_/g, " ");
 
         // Helper to check if input matches a team (exact, contains, or word match)
-        const matchesTeam = (input: string, teamName: string, teamAbbr: string): boolean => {
+        const matchesTeam = (
+          input: string,
+          teamName: string,
+          teamAbbr: string,
+          opts?: { allowCityMatch?: boolean }
+        ): boolean => {
           if (!input || input.length === 0) return false;
           
           // Normalize inputs
           const inputNorm = input.toLowerCase().trim();
           const teamNameNorm = teamName.toLowerCase().trim();
           const teamAbbrNorm = teamAbbr.toLowerCase().trim();
+          const allowCityMatch = opts?.allowCityMatch !== false;
           
           // Exact match
           if (inputNorm === teamNameNorm || inputNorm === teamAbbrNorm) return true;
@@ -1298,11 +1304,21 @@ async function buildPropsRows(
             if (inputNorm.includes(teamAbbrNorm) && teamAbbrNorm.length >= 3) return true;
           }
           
-          // Check city match for multi-word cities
-          if (city && city.length >= 4 && inputNorm.includes(city)) return true;
+          // Check city match for multi-word cities.
+          // Same-city matchups (e.g. Lakers vs Clippers) are ambiguous on city alone.
+          if (allowCityMatch && city && city.length >= 4 && inputNorm.includes(city)) return true;
           
           return false;
         };
+
+        const getCity = (teamName: string): string => {
+          const parts = teamName.trim().split(/\s+/);
+          if (parts.length <= 1) return "";
+          return parts.slice(0, -1).join(" ").toLowerCase();
+        };
+        const homeCity = getCity(homeNameNorm);
+        const awayCity = getCity(awayNameNorm);
+        const sameCityMatchup = homeCity.length > 0 && homeCity === awayCity;
 
         // Soccer 3-way markets can encode outcomes as 1/X/2 instead of team names.
         // 1 => Home, X => Draw, 2 => Away
@@ -1315,12 +1331,12 @@ async function buildPropsRows(
         const drawTokens = new Set(["draw", "x", "tie"]);
 
         // Check both player name and key name for matches
-        const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm) ||
-                       matchesTeam(keyName, homeNameNorm, homeTeamNorm) ||
+        const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       matchesTeam(keyName, homeNameNorm, homeTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
                        homeTokens.has(playerToken) || homeTokens.has(keyToken) || homeTokens.has(sideToken);
                        
-        const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm) ||
-                       matchesTeam(keyName, awayNameNorm, awayTeamNorm) ||
+        const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       matchesTeam(keyName, awayNameNorm, awayTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
                        awayTokens.has(playerToken) || awayTokens.has(keyToken) || awayTokens.has(sideToken);
 
         if (isAway && !isHome) mappedSide = "over";      // Top slot (Away)
