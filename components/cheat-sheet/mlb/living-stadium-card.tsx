@@ -35,6 +35,10 @@ function pathFromPoints(points: Point[], close = true): string {
   return segments.join(" ");
 }
 
+function safeRound(value: number) {
+  return Math.max(0, Math.round(value));
+}
+
 function normalizeToViewbox(groups: Point[][]): Point[][] {
   const allPoints = groups.flat();
   if (allPoints.length === 0) return groups;
@@ -175,18 +179,6 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const minWallHeight = numericWallHeights.length > 0 ? Math.min(...numericWallHeights) : 0;
   const maxWallHeight = numericWallHeights.length > 0 ? Math.max(...numericWallHeights) : 0;
 
-  const wallSegments = useMemo(() => {
-    if (normalizedOutfield.length < 10) return [];
-    const segments: Point[][] = [];
-    for (let i = 0; i < 5; i++) {
-      const start = Math.floor((normalizedOutfield.length - 1) * (i / 5));
-      const end = Math.floor((normalizedOutfield.length - 1) * ((i + 1) / 5));
-      const segment = normalizedOutfield.slice(start, Math.max(end + 1, start + 2));
-      if (segment.length >= 2) segments.push(segment);
-    }
-    return segments;
-  }, [normalizedOutfield]);
-
   const windSpeed = Number(row.windSpeedMph ?? 0);
   const windVector = polarVector(Number(row.windRelativeDeg ?? 0));
   const homePoint =
@@ -198,6 +190,97 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
       : { x: VIEWBOX_WIDTH / 2, y: VIEWBOX_HEIGHT - 40 };
   const homeX = normalizedPlate.length > 0 ? homePoint.x / normalizedPlate.length : homePoint.x;
   const homeY = normalizedPlate.length > 0 ? homePoint.y / normalizedPlate.length : homePoint.y;
+
+  const outfieldArcPoints = useMemo(() => {
+    if (normalizedOutfield.length < 8) return normalizedOutfield;
+
+    const enriched = normalizedOutfield.map((point) => {
+      const dx = point[0] - homeX;
+      const dy = point[1] - homeY;
+      return {
+        point,
+        distance: Math.hypot(dx, dy),
+        angle: Math.atan2(dy, dx),
+      };
+    });
+
+    const maxDistance = Math.max(...enriched.map((entry) => entry.distance));
+    const floorDistance = maxDistance * 0.55;
+    let activePoints = enriched.filter(
+      (entry) => entry.point[1] <= homeY - 6 && entry.distance >= floorDistance
+    );
+
+    if (activePoints.length < 8) {
+      activePoints = enriched.filter(
+        (entry) => entry.point[1] <= homeY - 6 && entry.distance >= maxDistance * 0.45
+      );
+    }
+    if (activePoints.length < 8) {
+      activePoints = enriched.filter((entry) => entry.point[1] <= homeY - 6);
+    }
+    if (activePoints.length < 8) return normalizedOutfield;
+
+    return activePoints
+      .sort((a, b) => a.angle - b.angle)
+      .map((entry) => entry.point);
+  }, [normalizedOutfield, homeX, homeY]);
+
+  const arcProfile = useMemo(() => {
+    if (outfieldArcPoints.length < 8) {
+      return {
+        markers: [] as Array<{ section: string; point: Point; index: number }>,
+        boundaries: [0, safeRound((outfieldArcPoints.length - 1) / 2), outfieldArcPoints.length - 1],
+      };
+    }
+
+    const n = outfieldArcPoints.length;
+    let cfIdx = 0;
+    for (let i = 1; i < n; i++) {
+      if (outfieldArcPoints[i][1] < outfieldArcPoints[cfIdx][1]) cfIdx = i;
+    }
+
+    const lfIdx = 0;
+    const rfIdx = n - 1;
+    const lcfIdx = safeRound((lfIdx + cfIdx) / 2);
+    const rcfIdx = safeRound((cfIdx + rfIdx) / 2);
+
+    const lfDisplayIdx = clamp(safeRound((lfIdx + lcfIdx * 5) / 6), lfIdx, lcfIdx);
+    const rfDisplayIdx = clamp(safeRound((rfIdx + rcfIdx * 5) / 6), rcfIdx, rfIdx);
+    const markerIndices = [lfDisplayIdx, lcfIdx, cfIdx, rcfIdx, rfDisplayIdx];
+    const markerSections = ["LF", "LCF", "CF", "RCF", "RF"];
+
+    const boundaries = [
+      lfIdx,
+      safeRound((lfIdx + lcfIdx) / 2),
+      safeRound((lcfIdx + cfIdx) / 2),
+      safeRound((cfIdx + rcfIdx) / 2),
+      safeRound((rcfIdx + rfIdx) / 2),
+      rfIdx,
+    ];
+
+    return {
+      markers: markerIndices.map((index, i) => ({
+        section: markerSections[i],
+        point: outfieldArcPoints[index],
+        index,
+      })),
+      boundaries,
+    };
+  }, [outfieldArcPoints]);
+
+  const wallSegments = useMemo(() => {
+    if (outfieldArcPoints.length < 6 || !arcProfile.boundaries || arcProfile.boundaries.length < 6) return [];
+    const segments: Point[][] = [];
+    for (let i = 0; i < 5; i += 1) {
+      const start = clamp(arcProfile.boundaries[i], 0, outfieldArcPoints.length - 1);
+      const end = clamp(arcProfile.boundaries[i + 1], 0, outfieldArcPoints.length - 1);
+      const from = Math.min(start, end);
+      const to = Math.max(start, end);
+      const segment = outfieldArcPoints.slice(from, Math.max(to + 1, from + 2));
+      if (segment.length >= 2) segments.push(segment);
+    }
+    return segments;
+  }, [outfieldArcPoints, arcProfile]);
 
   const windArrowLength = 75 + clamp(windSpeed, 0, 24) * 2.2;
   const windStartX = homeX - windVector.x * 20;
@@ -213,6 +296,46 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const heatEndX = homeX + windVector.x * 130;
   const heatEndY = homeY + windVector.y * 130;
   const windFlowDuration = `${clamp(10 - windSpeed * 0.25, 3.4, 9.5)}s`;
+  const sectionLabels = ["LF", "LCF", "CF", "RCF", "RF"];
+  const outfieldDistances = [
+    row.fieldDistances?.leftLine ?? null,
+    row.fieldDistances?.leftCenter ?? null,
+    row.fieldDistances?.centerField ?? null,
+    row.fieldDistances?.rightCenter ?? null,
+    row.fieldDistances?.rightLine ?? null,
+  ];
+
+  const distanceMarkers = useMemo(() => {
+    return arcProfile.markers
+      .map((marker, index) => {
+        const point = marker.point;
+
+        const dx = point[0] - homeX;
+        const dy = point[1] - homeY;
+        const magnitude = Math.max(1, Math.hypot(dx, dy));
+        const ux = dx / magnitude;
+        const uy = dy / magnitude;
+        const edgeBoost = marker.section === "LF" || marker.section === "RF" ? 7 : 0;
+        const labelOffset = 15 + edgeBoost;
+
+        return {
+          index,
+          section: marker.section,
+          distance: outfieldDistances[index],
+          lineEndX: point[0] - ux * 6,
+          lineEndY: point[1] - uy * 6,
+          labelX: clamp(point[0] + ux * labelOffset, 18, VIEWBOX_WIDTH - 18),
+          labelY: clamp(point[1] + uy * (labelOffset - 1), 14, VIEWBOX_HEIGHT - 24),
+        };
+      })
+      .filter((marker): marker is NonNullable<typeof marker> => !!marker);
+  }, [arcProfile, homeX, homeY, outfieldDistances]);
+
+  const wallHeightLegend = sectionLabels.map((section, index) => ({
+    section,
+    height: wallHeights[index],
+    color: wallColor(wallHeights[index], minWallHeight, maxWallHeight),
+  }));
 
   const gameLabel = `${row.awayTeamAbbr || row.awayTeamName || "Away"} @ ${row.homeTeamAbbr || row.homeTeamName || "Home"}`;
   const gameSubLabel =
@@ -310,6 +433,44 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
               />
             ))}
 
+            {distanceMarkers.map((marker) => (
+              <g key={`distance-marker-${marker.section}`}>
+                <line
+                  x1={homeX}
+                  y1={homeY}
+                  x2={marker.lineEndX}
+                  y2={marker.lineEndY}
+                  stroke="rgba(148, 163, 184, 0.28)"
+                  strokeWidth={1}
+                  strokeDasharray="3 4"
+                />
+                <circle cx={marker.lineEndX} cy={marker.lineEndY} r={2.1} fill="rgba(186, 230, 253, 0.8)" />
+                <text
+                  x={marker.labelX}
+                  y={marker.labelY}
+                  textAnchor="middle"
+                  fontSize="12"
+                  fontWeight="700"
+                  fill="rgba(224, 242, 254, 0.95)"
+                  stroke="rgba(2, 6, 23, 0.6)"
+                  strokeWidth="2"
+                  paintOrder="stroke fill"
+                >
+                  {marker.distance != null ? Math.round(marker.distance) : "-"}
+                </text>
+                <text
+                  x={marker.labelX}
+                  y={marker.labelY + 11}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  letterSpacing="0.04em"
+                  fill="rgba(148, 163, 184, 0.95)"
+                >
+                  {marker.section}
+                </text>
+              </g>
+            ))}
+
             <line
               x1={windStartX}
               y1={windStartY}
@@ -390,6 +551,27 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                     : "-"}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/50 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Wall Height Map</p>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Lower to Higher</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {wallHeightLegend.map((item) => (
+                <div
+                  key={`wall-height-${item.section}`}
+                  className="rounded border bg-white/70 dark:bg-neutral-900/40 px-1.5 py-1.5 text-center"
+                  style={{ borderColor: `${item.color}66` }}
+                >
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{item.section}</p>
+                  <p className="text-[11px] font-semibold" style={{ color: item.color }}>
+                    {item.height != null ? `${Math.round(item.height)}'` : "-"}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 
