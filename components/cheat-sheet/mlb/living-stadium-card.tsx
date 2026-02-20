@@ -99,21 +99,6 @@ function polarVector(degrees: number) {
   return { x: Math.cos(radians), y: Math.sin(radians) };
 }
 
-function interpolateColor(start: [number, number, number], end: [number, number, number], t: number): string {
-  const safeT = clamp(t, 0, 1);
-  const r = Math.round(start[0] + (end[0] - start[0]) * safeT);
-  const g = Math.round(start[1] + (end[1] - start[1]) * safeT);
-  const b = Math.round(start[2] + (end[2] - start[2]) * safeT);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function wallColor(height: number | null, minHeight: number, maxHeight: number): string {
-  if (height === null) return "rgba(156, 163, 175, 0.85)";
-  const range = Math.max(maxHeight - minHeight, 1);
-  const normalized = (height - minHeight) / range;
-  return interpolateColor([34, 197, 94], [239, 68, 68], normalized);
-}
-
 function scoreColor(score: number | null): string {
   if (score === null || score === undefined) return "text-neutral-500";
   if (score >= 2) return "text-emerald-400";
@@ -244,8 +229,8 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
     const lcfIdx = safeRound((lfIdx + cfIdx) / 2);
     const rcfIdx = safeRound((cfIdx + rfIdx) / 2);
 
-    const lfDisplayIdx = clamp(safeRound((lfIdx + lcfIdx * 5) / 6), lfIdx, lcfIdx);
-    const rfDisplayIdx = clamp(safeRound((rfIdx + rcfIdx * 5) / 6), rcfIdx, rfIdx);
+    const lfDisplayIdx = clamp(safeRound((lfIdx * 2 + lcfIdx * 3) / 5), lfIdx, lcfIdx);
+    const rfDisplayIdx = clamp(safeRound((rfIdx * 2 + rcfIdx * 3) / 5), rcfIdx, rfIdx);
     const markerIndices = [lfDisplayIdx, lcfIdx, cfIdx, rcfIdx, rfDisplayIdx];
     const markerSections = ["LF", "LCF", "CF", "RCF", "RF"];
 
@@ -282,12 +267,6 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
     return segments;
   }, [outfieldArcPoints, arcProfile]);
 
-  const windArrowLength = 75 + clamp(windSpeed, 0, 24) * 2.2;
-  const windStartX = homeX - windVector.x * 20;
-  const windStartY = homeY - windVector.y * 20;
-  const windEndX = homeX + windVector.x * windArrowLength;
-  const windEndY = homeY + windVector.y * windArrowLength;
-
   const hrImpact = Number(row.hrImpactScore ?? 0);
   const heatIntensity = clamp(Math.abs(hrImpact) / 8, 0.1, 0.58);
   const heatColor = hrImpact >= 0 ? `rgba(16, 185, 129, ${heatIntensity})` : `rgba(239, 68, 68, ${heatIntensity})`;
@@ -296,6 +275,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const heatEndX = homeX + windVector.x * 130;
   const heatEndY = homeY + windVector.y * 130;
   const windFlowDuration = `${clamp(10 - windSpeed * 0.25, 3.4, 9.5)}s`;
+  const windFlowRotationDeg = Number(row.windRelativeDeg ?? 0) - 90;
   const sectionLabels = ["LF", "LCF", "CF", "RCF", "RF"];
   const outfieldDistances = [
     row.fieldDistances?.leftLine ?? null,
@@ -315,8 +295,12 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         const magnitude = Math.max(1, Math.hypot(dx, dy));
         const ux = dx / magnitude;
         const uy = dy / magnitude;
-        const edgeBoost = marker.section === "LF" || marker.section === "RF" ? 7 : 0;
-        const labelOffset = 15 + edgeBoost;
+        const labelOffset =
+          marker.section === "LF" || marker.section === "RF"
+            ? 9
+            : marker.section === "CF"
+              ? 14
+              : 12;
 
         return {
           index,
@@ -325,7 +309,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
           lineEndX: point[0] - ux * 6,
           lineEndY: point[1] - uy * 6,
           labelX: clamp(point[0] + ux * labelOffset, 18, VIEWBOX_WIDTH - 18),
-          labelY: clamp(point[1] + uy * (labelOffset - 1), 14, VIEWBOX_HEIGHT - 24),
+          labelY: clamp(point[1] + uy * labelOffset, 14, VIEWBOX_HEIGHT - 24),
         };
       })
       .filter((marker): marker is NonNullable<typeof marker> => !!marker);
@@ -334,7 +318,6 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const wallHeightLegend = sectionLabels.map((section, index) => ({
     section,
     height: wallHeights[index],
-    color: wallColor(wallHeights[index], minWallHeight, maxWallHeight),
   }));
 
   const gameLabel = `${row.awayTeamAbbr || row.awayTeamName || "Away"} @ ${row.homeTeamAbbr || row.homeTeamName || "Home"}`;
@@ -386,8 +369,16 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 <stop offset="65%" stopColor={hrImpact >= 0 ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.12)"} />
                 <stop offset="100%" stopColor={hrImpact >= 0 ? heatColor : "rgba(239, 68, 68, 0.04)"} />
               </linearGradient>
-              <marker id={`${cardId}-arrowhead`} markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-                <path d="M0,0 L8,4 L0,8 z" fill="rgba(56, 189, 248, 0.9)" />
+              <marker
+                id={`${cardId}-flow-arrow`}
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="rgba(224, 242, 254, 0.96)" />
               </marker>
             </defs>
 
@@ -399,17 +390,36 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
               {[...Array(10)].map((_, index) => (
                 <line
                   key={index}
-                  x1={-120}
+                  x1={104}
                   y1={44 + index * 22}
-                  x2={VIEWBOX_WIDTH + 120}
+                  x2={VIEWBOX_WIDTH - 104}
                   y2={44 + index * 22}
                   className="living-wind-line"
+                  markerEnd={`url(#${cardId}-flow-arrow)`}
                   style={
                     {
                       transformOrigin: `${VIEWBOX_WIDTH / 2}px ${VIEWBOX_HEIGHT / 2}px`,
-                      transform: `rotate(${Number(row.windRelativeDeg ?? 0)}deg)`,
+                      transform: `rotate(${windFlowRotationDeg}deg)`,
                       animationDuration: windFlowDuration,
                       animationDelay: `${index * 0.32}s`,
+                    } as CSSProperties
+                  }
+                />
+              ))}
+
+              {[...Array(5)].map((_, index) => (
+                <line
+                  key={`wind-dir-arrow-${index}`}
+                  x1={VIEWBOX_WIDTH / 2 - 12}
+                  y1={78 + index * 36}
+                  x2={VIEWBOX_WIDTH / 2 + 12}
+                  y2={78 + index * 36}
+                  className="living-wind-arrow"
+                  markerEnd={`url(#${cardId}-flow-arrow)`}
+                  style={
+                    {
+                      transformOrigin: `${VIEWBOX_WIDTH / 2}px ${VIEWBOX_HEIGHT / 2}px`,
+                      transform: `rotate(${windFlowRotationDeg}deg)`,
                     } as CSSProperties
                   }
                 />
@@ -426,10 +436,10 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 key={`wall-segment-${index}`}
                 d={pathFromPoints(segment, false)}
                 fill="none"
-                stroke={wallColor(wallHeights[index] ?? null, minWallHeight, maxWallHeight)}
+                stroke="rgba(186, 230, 253, 0.9)"
                 strokeWidth={4.25}
                 strokeLinecap="round"
-                opacity={0.95}
+                opacity={0.92}
               />
             ))}
 
@@ -471,17 +481,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
               </g>
             ))}
 
-            <line
-              x1={windStartX}
-              y1={windStartY}
-              x2={windEndX}
-              y2={windEndY}
-              stroke="rgba(56, 189, 248, 0.92)"
-              strokeWidth={2.2}
-              strokeLinecap="round"
-              markerEnd={`url(#${cardId}-arrowhead)`}
-            />
-            <circle cx={homeX} cy={homeY} r={4.8} fill="rgba(125, 211, 252, 0.9)" stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
+            <circle cx={homeX} cy={homeY} r={4.2} fill="rgba(125, 211, 252, 0.72)" stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
           </svg>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
@@ -564,10 +564,10 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 <div
                   key={`wall-height-${item.section}`}
                   className="rounded border bg-white/70 dark:bg-neutral-900/40 px-1.5 py-1.5 text-center"
-                  style={{ borderColor: `${item.color}66` }}
+                  style={{ borderColor: "rgba(148,163,184,0.45)" }}
                 >
                   <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{item.section}</p>
-                  <p className="text-[11px] font-semibold" style={{ color: item.color }}>
+                  <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
                     {item.height != null ? `${Math.round(item.height)}'` : "-"}
                   </p>
                 </div>
@@ -586,25 +586,29 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
 
       <style jsx>{`
         .living-wind-line {
-          stroke: rgba(125, 211, 252, 0.42);
-          stroke-width: 1.6;
-          stroke-dasharray: 5 10;
+          stroke: rgba(125, 211, 252, 0.6);
+          stroke-width: 1.45;
+          stroke-dasharray: 7 12;
           animation-name: living-wind-flow;
           animation-iteration-count: infinite;
           animation-timing-function: linear;
         }
 
+        .living-wind-arrow {
+          stroke: rgba(186, 230, 253, 0.78);
+          stroke-width: 1.5;
+          opacity: 0.9;
+        }
+
         @keyframes living-wind-flow {
           from {
-            stroke-dashoffset: 0;
-            opacity: 0.2;
+            opacity: 0.3;
           }
           50% {
-            opacity: 0.85;
+            opacity: 0.88;
           }
           to {
-            stroke-dashoffset: -110;
-            opacity: 0.2;
+            opacity: 0.3;
           }
         }
       `}</style>
