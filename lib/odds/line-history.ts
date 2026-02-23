@@ -49,8 +49,11 @@ export interface LineHistoryBookData {
 export interface LineHistoryApiRequest {
   context: LineHistoryContext;
   books: string[];
+  includeOpposite?: boolean;
+  oppositeBookIds?: string[];
 }
 
 export interface LineHistoryApiResponse {
   books: LineHistoryBookData[];
+  oppositeBooks?: LineHistoryBookData[];
 }
