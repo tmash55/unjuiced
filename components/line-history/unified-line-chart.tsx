@@ -68,16 +68,22 @@ export function UnifiedLineChart({
       .filter((d) => d.entries.length > 0);
   }, [bookIds, bookDataById]);
 
-  // Apply time range filter
+  // Apply time range filter — carry forward last known price before cutoff
   const filteredDatasets = useMemo(() => {
     const rangeConfig = TIME_RANGES.find((r) => r.key === timeRange);
     if (!rangeConfig || rangeConfig.ms === 0) return datasets;
     const cutoff = Date.now() - rangeConfig.ms;
     return datasets
-      .map((ds) => ({
-        ...ds,
-        entries: ds.entries.filter((pt) => pt.timestamp >= cutoff),
-      }))
+      .map((ds) => {
+        const after = ds.entries.filter((pt) => pt.timestamp >= cutoff);
+        // Find the last entry before cutoff to anchor the line
+        const before = ds.entries.filter((pt) => pt.timestamp < cutoff);
+        if (before.length > 0 && (after.length === 0 || after[0].timestamp > cutoff)) {
+          const anchor = { ...before[before.length - 1], timestamp: cutoff };
+          return { ...ds, entries: [anchor, ...after] };
+        }
+        return { ...ds, entries: after };
+      })
       .filter((ds) => ds.entries.length > 0);
   }, [datasets, timeRange]);
 
