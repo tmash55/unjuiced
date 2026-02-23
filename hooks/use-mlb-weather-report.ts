@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 export interface MlbWeatherReportRow {
   gameId: number;
   venueId: number;
+  homeId: number | null;
+  awayId: number | null;
   gameDate: string;
   gameDatetime: string;
   temperatureF: number | null;
@@ -30,6 +32,10 @@ export interface MlbWeatherReportRow {
   awayTeamName: string | null;
   homeTeamAbbr: string | null;
   awayTeamAbbr: string | null;
+  homeTeamPrimaryColor: string | null;
+  homeTeamSecondaryColor: string | null;
+  awayTeamPrimaryColor: string | null;
+  awayTeamSecondaryColor: string | null;
   venueCity: string | null;
   venueState: string | null;
   wallHeights: {
@@ -54,6 +60,13 @@ export interface MlbWeatherReportRow {
     foulLines: number[][];
     homePlate: number[][];
     season: number | null;
+  } | null;
+  ballparkFactors: {
+    [factorType: string]: {
+      overall: number | null;
+      vsLhb: number | null;
+      vsRhb: number | null;
+    };
   } | null;
 }
 

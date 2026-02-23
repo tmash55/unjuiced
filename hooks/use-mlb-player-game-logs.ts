@@ -26,6 +26,8 @@ export interface MlbDrilldownLogEntry {
   battingAvg?: number | null;
   obp?: number | null;
   slg?: number | null;
+  battingHand?: string | null;
+  lineupPosition?: number | null;
   inningsPitched?: number | null;
   hitsAllowed?: number;
   earnedRuns?: number;

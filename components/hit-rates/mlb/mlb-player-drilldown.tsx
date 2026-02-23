@@ -80,6 +80,29 @@ function formatSigned(value: number | null | undefined): string {
   return value.toFixed(1);
 }
 
+function formatBattingAverage(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  const normalized = value > 1 ? value / 1000 : value;
+  if (!Number.isFinite(normalized) || normalized < 0) return null;
+  return normalized.toFixed(3).replace(/^0/, "");
+}
+
+function toOrdinal(value: number): string {
+  const abs = Math.abs(value);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  switch (abs % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+}
+
 function getCurrentEtYear(): number {
   return Number(
     new Intl.DateTimeFormat("en-US", {
@@ -151,7 +174,7 @@ export function MlbPlayerDrilldown({
     ? Number(activeProfile.gameDate.slice(0, 4))
     : getCurrentEtYear();
 
-  const { games, isLoading, error } = useMlbPlayerGameLogs({
+  const { entries, games, isLoading, error } = useMlbPlayerGameLogs({
     playerId: activeProfile.playerId,
     market: activeProfile.market,
     season: querySeason,
@@ -219,6 +242,32 @@ export function MlbPlayerDrilldown({
   const positionLabel = activeProfile.position
     ? POSITION_LABELS[activeProfile.position] || activeProfile.position
     : "Position N/A";
+  const derivedBattingHandFromLogs =
+    entries.find((entry) => entry.battingHand && ["L", "R", "S"].includes(entry.battingHand))?.battingHand ?? null;
+  const battingHand =
+    (activeProfile.battingHand && ["L", "R", "S"].includes(activeProfile.battingHand)
+      ? activeProfile.battingHand
+      : null) ?? derivedBattingHandFromLogs;
+  const derivedSeasonBattingAvgFromLogs = useMemo(() => {
+    const totals = games.reduce(
+      (acc, game) => {
+        acc.hits += Number(game.mlbHits ?? 0);
+        acc.atBats += Number(game.mlbAtBats ?? 0);
+        return acc;
+      },
+      { hits: 0, atBats: 0 }
+    );
+    if (totals.atBats <= 0) return null;
+    return totals.hits / totals.atBats;
+  }, [games]);
+  const seasonBattingAvg = formatBattingAverage(activeProfile.seasonBattingAvg ?? derivedSeasonBattingAvgFromLogs);
+  const derivedLineupPositionFromLogs =
+    entries.find((entry) => typeof entry.lineupPosition === "number" && entry.lineupPosition > 0)?.lineupPosition ?? null;
+  const lineupPosition =
+    (typeof activeProfile.lineupPosition === "number" && activeProfile.lineupPosition > 0
+      ? activeProfile.lineupPosition
+      : null) ?? derivedLineupPositionFromLogs;
+  const lineupLabel = lineupPosition ? `Batting ${toOrdinal(lineupPosition)}` : null;
 
   const handleMarketSelect = (market: string) => {
     setSelectedMarket(market);
@@ -305,6 +354,16 @@ export function MlbPlayerDrilldown({
                   <span className="px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 font-semibold text-neutral-600 dark:text-neutral-400">
                     {positionLabel}
                   </span>
+                  {battingHand && (
+                    <span className="px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 font-semibold text-neutral-600 dark:text-neutral-400">
+                      Bats {battingHand}
+                    </span>
+                  )}
+                  {seasonBattingAvg && (
+                    <span className="px-2.5 py-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 font-semibold text-neutral-600 dark:text-neutral-400">
+                      AVG {seasonBattingAvg}
+                    </span>
+                  )}
                   <span className="font-medium text-neutral-400">#{activeProfile.jerseyNumber ?? "-"}</span>
                 </div>
 
@@ -322,6 +381,14 @@ export function MlbPlayerDrilldown({
                     <span className="text-[10px] font-medium text-emerald-600/80 dark:text-emerald-400/80">
                       {activeProfile.gameStatus || "TBD"}
                     </span>
+                    {lineupLabel && (
+                      <>
+                        <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">•</span>
+                        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          {lineupLabel}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -38,6 +38,8 @@ interface MlbDrilldownLogEntry {
   battingAvg?: number | null;
   obp?: number | null;
   slg?: number | null;
+  battingHand?: string | null;
+  lineupPosition?: number | null;
   inningsPitched?: number | null;
   hitsAllowed?: number;
   earnedRuns?: number;
@@ -80,6 +82,14 @@ function mapBatterRows(rows: any[], market: string): { entries: MlbDrilldownLogE
         ? row.total_bases
         : row.hits;
 
+    const rawBattingHand = row.batting_hand ?? row.bats ?? row.batter_hand ?? null;
+    const battingHand =
+      typeof rawBattingHand === "string"
+        ? rawBattingHand.trim().toUpperCase().slice(0, 1)
+        : null;
+    const lineupRaw = row.lineup_position ?? row.batting_order ?? row.lineup_slot ?? null;
+    const lineupPosition = lineupRaw !== null && lineupRaw !== undefined ? Number(lineupRaw) : null;
+
     return {
       gameId: String(row.game_id),
       date: row.official_date,
@@ -103,6 +113,8 @@ function mapBatterRows(rows: any[], market: string): { entries: MlbDrilldownLogE
       battingAvg: toNumeric(row.batting_avg),
       obp: toNumeric(row.obp),
       slg: toNumeric(row.slg),
+      battingHand: battingHand && ["L", "R", "S"].includes(battingHand) ? battingHand : null,
+      lineupPosition: Number.isInteger(lineupPosition) && (lineupPosition as number) > 0 ? lineupPosition : null,
     };
   });
 
@@ -351,4 +363,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

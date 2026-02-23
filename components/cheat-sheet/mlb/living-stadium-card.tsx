@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 type Point = [number, number];
 
 const VIEWBOX_WIDTH = 420;
-const VIEWBOX_HEIGHT = 280;
-const VIEWBOX_PADDING = 24;
+const VIEWBOX_HEIGHT = 200;
+const VIEWBOX_PADDING = 10;
 
 function toPoint(value: unknown): Point | null {
   if (!Array.isArray(value) || value.length < 2) return null;
@@ -57,10 +57,16 @@ function normalizeToViewbox(groups: Point[][]): Point[][] {
     (VIEWBOX_HEIGHT - VIEWBOX_PADDING * 2) / sourceHeight
   );
 
+  const renderedWidth = sourceWidth * scale;
+  const renderedHeight = sourceHeight * scale;
+  // Center the scaled content within the viewbox
+  const offsetX = (VIEWBOX_WIDTH - renderedWidth) / 2;
+  const offsetY = (VIEWBOX_HEIGHT - renderedHeight) / 2;
+
   return groups.map((group) =>
     group.map(([x, y]) => [
-      VIEWBOX_PADDING + (x - minX) * scale,
-      VIEWBOX_HEIGHT - VIEWBOX_PADDING - (y - minY) * scale,
+      offsetX + (x - minX) * scale,
+      VIEWBOX_HEIGHT - offsetY - (y - minY) * scale,
     ])
   );
 }
@@ -104,6 +110,38 @@ function scoreColor(score: number | null): string {
   if (score >= 2) return "text-emerald-400";
   if (score <= -2) return "text-red-400";
   return "text-amber-400";
+}
+
+function wallHeightColor(height: number | null, min: number, max: number, alpha = 0.9): string {
+  if (height === null || !Number.isFinite(height)) return `rgba(148, 163, 184, ${alpha})`;
+  const range = max - min;
+  if (range < 1) return `rgba(148, 163, 184, ${alpha})`;
+  const t = Math.max(0, Math.min(1, (height - min) / range));
+  if (t < 0.5) {
+    const s = t * 2;
+    // emerald → amber
+    return `rgba(${Math.round(16 + 235 * s)}, ${Math.round(185 + 6 * s)}, ${Math.round(129 - 93 * s)}, ${alpha})`;
+  }
+  const s = (t - 0.5) * 2;
+  // amber → red
+  return `rgba(${Math.round(251 - 12 * s)}, ${Math.round(191 - 123 * s)}, ${Math.round(36 + 32 * s)}, ${alpha})`;
+}
+
+function factorValueColor(val: number | null): string {
+  if (val === null) return "text-neutral-500";
+  if (val >= 108) return "text-emerald-400";
+  if (val >= 103) return "text-emerald-500/80";
+  if (val <= 92) return "text-red-400";
+  if (val <= 97) return "text-red-400/70";
+  return "text-neutral-400 dark:text-neutral-500";
+}
+
+function impactAccentClass(totalImpact: string | null): string {
+  if (totalImpact?.includes("strong_over")) return "bg-gradient-to-r from-transparent via-emerald-400 to-transparent";
+  if (totalImpact?.includes("lean_over")) return "bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent";
+  if (totalImpact?.includes("strong_under")) return "bg-gradient-to-r from-transparent via-red-400 to-transparent";
+  if (totalImpact?.includes("lean_under")) return "bg-gradient-to-r from-transparent via-red-500/60 to-transparent";
+  return "bg-neutral-200/40 dark:bg-neutral-700/25";
 }
 
 function impactPillClass(totalImpact: string | null): string {
@@ -219,19 +257,30 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
     }
 
     const n = outfieldArcPoints.length;
+
+    // CF: highest point (smallest y in SVG = furthest from home)
     let cfIdx = 0;
     for (let i = 1; i < n; i++) {
       if (outfieldArcPoints[i][1] < outfieldArcPoints[cfIdx][1]) cfIdx = i;
     }
 
-    const lfIdx = 0;
-    const rfIdx = n - 1;
+    // LF: leftmost x in the left half of the arc (before CF index)
+    let lfIdx = 0;
+    for (let i = 1; i < cfIdx; i++) {
+      if (outfieldArcPoints[i][0] < outfieldArcPoints[lfIdx][0]) lfIdx = i;
+    }
+
+    // RF: rightmost x in the right half of the arc (after CF index)
+    let rfIdx = n - 1;
+    for (let i = cfIdx + 1; i < n; i++) {
+      if (outfieldArcPoints[i][0] > outfieldArcPoints[rfIdx][0]) rfIdx = i;
+    }
+
+    // LCF/RCF: true midpoints so spacing is equal on each side
     const lcfIdx = safeRound((lfIdx + cfIdx) / 2);
     const rcfIdx = safeRound((cfIdx + rfIdx) / 2);
 
-    const lfDisplayIdx = clamp(safeRound((lfIdx * 2 + lcfIdx * 3) / 5), lfIdx, lcfIdx);
-    const rfDisplayIdx = clamp(safeRound((rfIdx * 2 + rcfIdx * 3) / 5), rcfIdx, rfIdx);
-    const markerIndices = [lfDisplayIdx, lcfIdx, cfIdx, rcfIdx, rfDisplayIdx];
+    const markerIndices = [lfIdx, lcfIdx, cfIdx, rcfIdx, rfIdx];
     const markerSections = ["LF", "LCF", "CF", "RCF", "RF"];
 
     const boundaries = [
@@ -253,20 +302,6 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
     };
   }, [outfieldArcPoints]);
 
-  const wallSegments = useMemo(() => {
-    if (outfieldArcPoints.length < 6 || !arcProfile.boundaries || arcProfile.boundaries.length < 6) return [];
-    const segments: Point[][] = [];
-    for (let i = 0; i < 5; i += 1) {
-      const start = clamp(arcProfile.boundaries[i], 0, outfieldArcPoints.length - 1);
-      const end = clamp(arcProfile.boundaries[i + 1], 0, outfieldArcPoints.length - 1);
-      const from = Math.min(start, end);
-      const to = Math.max(start, end);
-      const segment = outfieldArcPoints.slice(from, Math.max(to + 1, from + 2));
-      if (segment.length >= 2) segments.push(segment);
-    }
-    return segments;
-  }, [outfieldArcPoints, arcProfile]);
-
   const hrImpact = Number(row.hrImpactScore ?? 0);
   const heatIntensity = clamp(Math.abs(hrImpact) / 8, 0.1, 0.58);
   const heatColor = hrImpact >= 0 ? `rgba(16, 185, 129, ${heatIntensity})` : `rgba(239, 68, 68, ${heatIntensity})`;
@@ -274,9 +309,32 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const heatStartY = homeY - windVector.y * 130;
   const heatEndX = homeX + windVector.x * 130;
   const heatEndY = homeY + windVector.y * 130;
-  const windFlowDuration = `${clamp(10 - windSpeed * 0.25, 3.4, 9.5)}s`;
+  const windFlowDuration = `${clamp(8.8 - windSpeed * 0.27, 2.2, 8.6)}s`;
   const windFlowRotationDeg = Number(row.windRelativeDeg ?? 0) - 90;
-  const sectionLabels = ["LF", "LCF", "CF", "RCF", "RF"];
+  const windShiftPx = 28 + clamp(windSpeed, 0, 24) * 2.2;
+  const windOpacity = clamp(0.3 + windSpeed / 40, 0.35, 0.88);
+  const windCompassCx = VIEWBOX_WIDTH - 40;
+  const windCompassCy = 38;
+  const windCompassR = 19;
+  const wxIconCx = 40;
+  const wxIconCy = 38;
+  const wxCloudCover = row.cloudCoverPct ?? 50;
+  const wxPrecip = row.precipProbability ?? 0;
+  const wxIsRainy = wxPrecip > 25;
+  const wxIsCloudy = wxCloudCover > 65 && !wxIsRainy;
+  const wxIsPartly = wxCloudCover > 30 && !wxIsCloudy && !wxIsRainy;
+  const wxLabel = wxIsRainy ? "Rain" : wxIsCloudy ? "Cloudy" : wxIsPartly ? "Partly" : "Clear";
+  const windArrowLen = 12;
+  const windTipX = windCompassCx + windVector.x * windArrowLen;
+  const windTipY = windCompassCy + windVector.y * windArrowLen;
+  const windTailX = windCompassCx - windVector.x * windArrowLen;
+  const windTailY = windCompassCy - windVector.y * windArrowLen;
+  const windPerpX = -windVector.y;
+  const windPerpY = windVector.x;
+  const windBaseX = windCompassCx + windVector.x * (windArrowLen - 5);
+  const windBaseY = windCompassCy + windVector.y * (windArrowLen - 5);
+  const windArrowHeadPath = `M${windTipX.toFixed(1)},${windTipY.toFixed(1)} L${(windBaseX + windPerpX * 4).toFixed(1)},${(windBaseY + windPerpY * 4).toFixed(1)} L${(windBaseX - windPerpX * 4).toFixed(1)},${(windBaseY - windPerpY * 4).toFixed(1)} Z`;
+  const outfieldArcPath = pathFromPoints(outfieldArcPoints, false);
   const outfieldDistances = [
     row.fieldDistances?.leftLine ?? null,
     row.fieldDistances?.leftCenter ?? null,
@@ -297,7 +355,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         const uy = dy / magnitude;
         const labelOffset =
           marker.section === "LF" || marker.section === "RF"
-            ? 9
+            ? 6
             : marker.section === "CF"
               ? 14
               : 12;
@@ -315,24 +373,65 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
       .filter((marker): marker is NonNullable<typeof marker> => !!marker);
   }, [arcProfile, homeX, homeY, outfieldDistances]);
 
-  const wallHeightLegend = sectionLabels.map((section, index) => ({
-    section,
-    height: wallHeights[index],
-  }));
-
-  const gameLabel = `${row.awayTeamAbbr || row.awayTeamName || "Away"} @ ${row.homeTeamAbbr || row.homeTeamName || "Home"}`;
+  const awayAbbr = row.awayTeamAbbr || row.awayTeamName || "Away";
+  const homeAbbr = row.homeTeamAbbr || row.homeTeamName || "Home";
+  const awayColor = row.awayTeamPrimaryColor ?? "#1e3a5f";
+  const homeColor = row.homeTeamPrimaryColor ?? "#1e3a5f";
+  const awayColorSecondary = row.awayTeamSecondaryColor ?? "#94a3b8";
+  const homeColorSecondary = row.homeTeamSecondaryColor ?? "#94a3b8";
   const gameSubLabel =
     row.venueCity && row.venueState ? `${row.venueName || "Unknown Venue"} • ${row.venueCity}, ${row.venueState}` : row.venueName || "Unknown Venue";
 
   return (
     <article className="rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+      <div className="h-[3px] w-full flex">
+        <div className="flex-1" style={{ background: awayColor }} />
+        <div className={cn("flex-[2]", impactAccentClass(row.totalImpact))} />
+        <div className="flex-1" style={{ background: homeColor }} />
+      </div>
       <div className="px-4 py-3 border-b border-neutral-200/80 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm md:text-base font-semibold text-neutral-900 dark:text-white">{gameLabel}</h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Away team */}
+          <div className="flex items-center gap-2">
+            {row.awayTeamAbbr && (
+              <div
+                className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${awayColor}22`, border: `1.5px solid ${awayColor}55` }}
+              >
+                <img
+                  src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
+                  alt={row.awayTeamAbbr}
+                  className="h-5 w-5 object-contain"
+                />
+              </div>
+            )}
+            <span className="font-bold text-sm text-neutral-900 dark:text-white">{awayAbbr}</span>
+          </div>
+          <span className="text-neutral-400 dark:text-neutral-500 text-xs font-medium">@</span>
+          {/* Home team */}
+          <div className="flex items-center gap-2">
+            {row.homeTeamAbbr && (
+              <div
+                className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${homeColor}22`, border: `1.5px solid ${homeColor}55` }}
+              >
+                <img
+                  src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
+                  alt={row.homeTeamAbbr}
+                  className="h-5 w-5 object-contain"
+                />
+              </div>
+            )}
+            <span className="font-bold text-sm text-neutral-900 dark:text-white">{homeAbbr}</span>
+          </div>
+          <p className="hidden sm:block text-xs text-neutral-500 dark:text-neutral-400 truncate">
             {gameSubLabel} • {getETTime(row.gameDatetime)}
           </p>
         </div>
+        {/* Mobile venue line */}
+        <p className="sm:hidden w-full text-xs text-neutral-500 dark:text-neutral-400 -mt-1">
+          {gameSubLabel} • {getETTime(row.gameDatetime)}
+        </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={cn("px-2 py-1 rounded-md text-xs font-semibold", impactPillClass(row.totalImpact))}>
             {formatImpactLabel(row.totalImpact)}
@@ -343,20 +442,16 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         </div>
       </div>
 
-      <div className="p-3 md:p-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <div className="rounded-xl border border-sky-500/15 bg-gradient-to-b from-sky-500/[0.08] to-transparent dark:from-sky-500/[0.09] dark:to-transparent p-2 md:p-3 overflow-hidden">
-          <svg viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} className="w-full h-[220px] md:h-[245px]">
+      <div className="bg-[#080e1a] overflow-hidden rounded-b-xl">
+        {/* 2/3 + 1/3 split: field left, park factors right */}
+        <div className="grid grid-cols-[2fr_1fr]">
+          {/* Left: Stadium field */}
+          <div className="border-r border-white/[0.06]">
+          <svg viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} className="w-full h-[240px] md:h-[280px]">
             <defs>
-              <pattern id={`${cardId}-grid`} width="28" height="28" patternUnits="userSpaceOnUse">
-                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="rgba(125, 211, 252, 0.13)" strokeWidth="0.8" />
-              </pattern>
               <clipPath id={`${cardId}-clip`}>
                 <path d={outfieldPath} />
               </clipPath>
-              <linearGradient id={`${cardId}-field-bg`} x1="0%" y1="100%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor="rgba(14, 116, 144, 0.08)" />
-                <stop offset="100%" stopColor="rgba(30, 64, 175, 0.16)" />
-              </linearGradient>
               <linearGradient
                 id={`${cardId}-heat`}
                 gradientUnits="userSpaceOnUse"
@@ -370,60 +465,48 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 <stop offset="100%" stopColor={hrImpact >= 0 ? heatColor : "rgba(239, 68, 68, 0.04)"} />
               </linearGradient>
               <marker
-                id={`${cardId}-flow-arrow`}
-                markerWidth="8"
-                markerHeight="8"
-                refX="7"
-                refY="4"
+                id={`${cardId}-particle-tip`}
+                markerWidth="3"
+                markerHeight="3"
+                refX="2.6"
+                refY="1.5"
                 orient="auto"
-                markerUnits="strokeWidth"
               >
-                <path d="M0,0 L8,4 L0,8 z" fill="rgba(224, 242, 254, 0.96)" />
+                <path d="M0,0 L3,1.5 L0,3 z" fill="rgba(224, 242, 254, 0.95)" />
               </marker>
+              <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
+                <stop offset="100%" stopColor={awayColor} stopOpacity={0.25} />
+              </linearGradient>
+              <linearGradient id={`${cardId}-home-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={homeColor} stopOpacity={0.55} />
+                <stop offset="100%" stopColor={homeColor} stopOpacity={0.25} />
+              </linearGradient>
             </defs>
 
-            <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-grid)`} />
+            <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#080e1a" />
             <g clipPath={`url(#${cardId}-clip)`}>
-              <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-field-bg)`} />
               <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={`url(#${cardId}-heat)`} />
 
-              {[...Array(10)].map((_, index) => (
-                <line
-                  key={index}
-                  x1={104}
-                  y1={44 + index * 22}
-                  x2={VIEWBOX_WIDTH - 104}
-                  y2={44 + index * 22}
-                  className="living-wind-line"
-                  markerEnd={`url(#${cardId}-flow-arrow)`}
-                  style={
-                    {
-                      transformOrigin: `${VIEWBOX_WIDTH / 2}px ${VIEWBOX_HEIGHT / 2}px`,
-                      transform: `rotate(${windFlowRotationDeg}deg)`,
-                      animationDuration: windFlowDuration,
-                      animationDelay: `${index * 0.32}s`,
-                    } as CSSProperties
-                  }
-                />
-              ))}
-
-              {[...Array(5)].map((_, index) => (
-                <line
-                  key={`wind-dir-arrow-${index}`}
-                  x1={VIEWBOX_WIDTH / 2 - 12}
-                  y1={78 + index * 36}
-                  x2={VIEWBOX_WIDTH / 2 + 12}
-                  y2={78 + index * 36}
-                  className="living-wind-arrow"
-                  markerEnd={`url(#${cardId}-flow-arrow)`}
-                  style={
-                    {
-                      transformOrigin: `${VIEWBOX_WIDTH / 2}px ${VIEWBOX_HEIGHT / 2}px`,
-                      transform: `rotate(${windFlowRotationDeg}deg)`,
-                    } as CSSProperties
-                  }
-                />
-              ))}
+              <g transform={`rotate(${windFlowRotationDeg} ${VIEWBOX_WIDTH / 2} ${VIEWBOX_HEIGHT / 2})`}>
+                {[...Array(11)].map((_, index) => (
+                  <g key={`wind-particle-row-${index}`} transform={`translate(110 ${50 + index * 18})`}>
+                    <g
+                      className="living-wind-particle"
+                      style={
+                        {
+                          animationDuration: windFlowDuration,
+                          animationDelay: `${index * 0.18}s`,
+                          opacity: windOpacity,
+                          "--wind-shift": `${windShiftPx}px`,
+                        } as CSSProperties
+                      }
+                    >
+                      <line x1={-8} y1={0} x2={8} y2={0} className="living-wind-particle-line" markerEnd={`url(#${cardId}-particle-tip)`} />
+                    </g>
+                  </g>
+                ))}
+              </g>
             </g>
 
             <path d={outfieldPath} fill="rgba(15, 23, 42, 0.14)" stroke="rgba(148, 163, 184, 0.25)" strokeWidth={1.25} />
@@ -431,17 +514,33 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
             {foulPath && <path d={foulPath} fill="none" stroke="rgba(203, 213, 225, 0.45)" strokeWidth={1} strokeDasharray="3 4" />}
             {platePath && <path d={platePath} fill="rgba(251, 191, 36, 0.25)" stroke="rgba(251, 191, 36, 0.7)" strokeWidth={1} />}
 
-            {wallSegments.map((segment, index) => (
-              <path
-                key={`wall-segment-${index}`}
-                d={pathFromPoints(segment, false)}
-                fill="none"
-                stroke="rgba(186, 230, 253, 0.9)"
-                strokeWidth={4.25}
-                strokeLinecap="round"
-                opacity={0.92}
-              />
-            ))}
+            {arcProfile.boundaries.length === 6
+              ? [0, 1, 2, 3, 4].map((i) => {
+                  const segPoints = outfieldArcPoints.slice(arcProfile.boundaries[i], arcProfile.boundaries[i + 1] + 1);
+                  if (segPoints.length < 2) return null;
+                  const segPath = pathFromPoints(segPoints, false);
+                  return (
+                    <path
+                      key={`wall-arc-${i}`}
+                      d={segPath}
+                      fill="none"
+                      stroke={wallHeightColor(wallHeights[i], minWallHeight, maxWallHeight)}
+                      strokeWidth={4.5}
+                      strokeLinecap="round"
+                      opacity={0.92}
+                    />
+                  );
+                })
+              : outfieldArcPath && (
+                  <path
+                    d={outfieldArcPath}
+                    fill="none"
+                    stroke="rgba(214, 224, 235, 0.95)"
+                    strokeWidth={4.25}
+                    strokeLinecap="round"
+                    opacity={0.95}
+                  />
+                )}
 
             {distanceMarkers.map((marker) => (
               <g key={`distance-marker-${marker.section}`}>
@@ -481,134 +580,267 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
               </g>
             ))}
 
-            <circle cx={homeX} cy={homeY} r={4.2} fill="rgba(125, 211, 252, 0.72)" stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
-          </svg>
+            {/* Weather condition icon — top-left, mirrors wind compass */}
+            <g>
+              <circle cx={wxIconCx} cy={wxIconCy} r={windCompassR + 4} fill="rgba(2, 6, 23, 0.58)" />
+              <circle cx={wxIconCx} cy={wxIconCy} r={windCompassR} fill="none" stroke="rgba(186, 230, 253, 0.18)" strokeWidth={1} />
+              {wxIsRainy ? (
+                <g>
+                  <path
+                    d={`M${wxIconCx - 9},${wxIconCy + 2} a4,4 0 0,1 1,-9 a6.5,6.5 0 0,1 12,0 a4,4 0 0,1 1,9 Z`}
+                    fill="rgba(148, 163, 184, 0.88)"
+                  />
+                  {[-4.5, 0, 4.5].map((offset) => (
+                    <line
+                      key={offset}
+                      x1={wxIconCx + offset} y1={wxIconCy + 6}
+                      x2={wxIconCx + offset - 2} y2={wxIconCy + 12}
+                      stroke="rgba(147, 197, 253, 0.85)"
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                    />
+                  ))}
+                </g>
+              ) : wxIsCloudy ? (
+                <path
+                  d={`M${wxIconCx - 10},${wxIconCy + 4} a5,5 0 0,1 1,-11 a7.5,7.5 0 0,1 14,0 a5,5 0 0,1 1,11 Z`}
+                  fill="rgba(148, 163, 184, 0.78)"
+                />
+              ) : wxIsPartly ? (
+                <g>
+                  <circle cx={wxIconCx - 2} cy={wxIconCy - 4} r={5.5} fill="rgba(251, 191, 36, 0.85)" />
+                  <path
+                    d={`M${wxIconCx - 8},${wxIconCy + 5} a4,4 0 0,1 1,-9 a6,6 0 0,1 11,0 a4,4 0 0,1 1,9 Z`}
+                    fill="rgba(148, 163, 184, 0.88)"
+                  />
+                </g>
+              ) : (
+                <g>
+                  {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+                    const rad = (deg * Math.PI) / 180;
+                    return (
+                      <line
+                        key={deg}
+                        x1={wxIconCx + Math.cos(rad) * 8.5} y1={wxIconCy + Math.sin(rad) * 8.5}
+                        x2={wxIconCx + Math.cos(rad) * 12.5} y2={wxIconCy + Math.sin(rad) * 12.5}
+                        stroke="rgba(251, 191, 36, 0.72)"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
+                  <circle cx={wxIconCx} cy={wxIconCy} r={6.5} fill="rgba(251, 191, 36, 0.92)" />
+                </g>
+              )}
+              <text
+                x={wxIconCx}
+                y={wxIconCy + windCompassR + 13}
+                textAnchor="middle"
+                fontSize="9.5"
+                fontWeight="700"
+                fill="rgba(224, 242, 254, 0.8)"
+                stroke="rgba(2, 6, 23, 0.65)"
+                strokeWidth="2.5"
+                paintOrder="stroke fill"
+              >
+                {wxLabel}
+              </text>
+            </g>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-              Wind: {formatNumber(row.windSpeedMph, 0)} mph
-            </span>
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-sky-500/10 border border-sky-500/20">
-              {row.windLabel || "No wind label"}
-            </span>
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
-              Wall profile: {numericWallHeights.length > 0 ? `${Math.round(minWallHeight)}-${Math.round(maxWallHeight)} ft` : "N/A"}
-            </span>
+            {/* Wind compass indicator */}
+            <g opacity={windSpeed > 0 ? 1 : 0.35}>
+              <circle cx={windCompassCx} cy={windCompassCy} r={windCompassR + 4} fill="rgba(2, 6, 23, 0.58)" />
+              <circle cx={windCompassCx} cy={windCompassCy} r={windCompassR} fill="none" stroke="rgba(186, 230, 253, 0.22)" strokeWidth={1} />
+              <line
+                x1={windTailX}
+                y1={windTailY}
+                x2={windBaseX}
+                y2={windBaseY}
+                stroke="rgba(186, 230, 253, 0.8)"
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+              <path d={windArrowHeadPath} fill="rgba(186, 230, 253, 0.92)" />
+              <text
+                x={windCompassCx}
+                y={windCompassCy + windCompassR + 13}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="700"
+                fill="rgba(224, 242, 254, 0.9)"
+                stroke="rgba(2, 6, 23, 0.65)"
+                strokeWidth="2.5"
+                paintOrder="stroke fill"
+              >
+                {Math.round(windSpeed)} mph
+              </text>
+            </g>
+
+            <circle cx={homeX} cy={homeY} r={4.2} fill="rgba(125, 211, 252, 0.72)" stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
+
+            {/* Team logo badges — bottom corners, broadcast style */}
+            {row.awayTeamAbbr && (
+              <g>
+                <circle cx={22} cy={VIEWBOX_HEIGHT - 22} r={17} fill={`url(#${cardId}-away-badge)`} />
+                <circle cx={22} cy={VIEWBOX_HEIGHT - 22} r={17} fill="none" stroke={awayColor} strokeWidth={1.25} strokeOpacity={0.5} />
+                <image
+                  href={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
+                  x={22 - 11} y={VIEWBOX_HEIGHT - 22 - 11}
+                  width={22} height={22}
+                />
+              </g>
+            )}
+            {row.homeTeamAbbr && (
+              <g>
+                <circle cx={VIEWBOX_WIDTH - 22} cy={VIEWBOX_HEIGHT - 22} r={17} fill={`url(#${cardId}-home-badge)`} />
+                <circle cx={VIEWBOX_WIDTH - 22} cy={VIEWBOX_HEIGHT - 22} r={17} fill="none" stroke={homeColor} strokeWidth={1.25} strokeOpacity={0.5} />
+                <image
+                  href={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
+                  x={VIEWBOX_WIDTH - 22 - 11} y={VIEWBOX_HEIGHT - 22 - 11}
+                  width={22} height={22}
+                />
+              </g>
+            )}
+          </svg>
+          </div>
+
+          {/* Right: Park Factors */}
+          <div className="p-3 flex flex-col justify-center">
+            {row.ballparkFactors && (() => {
+              const FACTORS = [
+                { key: "hr",   label: "HR" },
+                { key: "h",    label: "H" },
+                { key: "3b",   label: "3B" },
+                { key: "runs", label: "Runs" },
+                { key: "2b",   label: "2B" },
+              ];
+              const hasAny = FACTORS.some((f) => row.ballparkFactors?.[f.key]?.overall != null);
+              if (!hasAny) return null;
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] uppercase tracking-wider font-medium text-white/30">Park Factors</span>
+                    <span className="text-[10px] text-white/20">2025</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {FACTORS.map(({ key, label }) => {
+                      const val = row.ballparkFactors?.[key]?.overall ?? null;
+                      const dev = val != null ? Math.max(-20, Math.min(20, val - 100)) : 0;
+                      const barPct = (Math.abs(dev) / 20) * 45;
+                      const isOver = dev > 0;
+                      return (
+                        <div key={key} className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-white/40 w-6 shrink-0 font-medium">{label}</span>
+                          <div className="relative flex-1 h-2 bg-white/[0.10] rounded-full overflow-hidden">
+                            <div className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
+                            {val != null && (
+                              <div
+                                className={cn("absolute inset-y-0 rounded-full", isOver ? "bg-emerald-400/90" : "bg-red-400/90")}
+                                style={{ width: `${barPct}%`, left: isOver ? "50%" : undefined, right: !isOver ? "50%" : undefined }}
+                              />
+                            )}
+                          </div>
+                          <span className={cn("text-[11px] font-bold w-7 text-right tabular-nums shrink-0", factorValueColor(val))}>
+                            {val ?? "–"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/50 p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-300">
-                <Thermometer className="h-3.5 w-3.5" />
-                Temp
-              </span>
-              <span className="font-semibold text-neutral-900 dark:text-white">{formatNumber(row.temperatureF, 1)}°F</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-300">
-                <Wind className="h-3.5 w-3.5" />
-                Gusts
-              </span>
-              <span className="font-semibold text-neutral-900 dark:text-white">{formatNumber(row.windGustMph, 0)} mph</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-300">
-                <CloudRain className="h-3.5 w-3.5" />
-                Rain
-              </span>
-              <span className="font-semibold text-neutral-900 dark:text-white">
-                {row.precipProbability != null ? `${Math.round(row.precipProbability)}%` : "-"}
-              </span>
-            </div>
+        {/* Full-width weather pills */}
+        <div className="border-t border-white/[0.06] px-3 py-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {/* Temp */}
+          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <Thermometer className="h-3 w-3 shrink-0" /> Temp
+            </p>
+            <p className="text-[22px] font-bold text-white leading-none">{formatNumber(row.temperatureF, 0)}°</p>
+            <p className="text-[10px] text-white/40 mt-1.5">
+              {row.feelsLikeF != null ? `feels ${formatNumber(row.feelsLikeF, 0)}°` : "\u00A0"}
+            </p>
           </div>
 
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/50 p-3">
-            <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">Venue Factors</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded border border-neutral-200 dark:border-neutral-800 p-2">
-                <p className="text-neutral-500">Roof</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">{row.roofType || "-"}</p>
-              </div>
-              <div className="rounded border border-neutral-200 dark:border-neutral-800 p-2">
-                <p className="text-neutral-500">Elevation</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  {row.elevationFt != null ? `${Math.round(row.elevationFt)} ft` : "-"}
-                </p>
-              </div>
-              <div className="rounded border border-neutral-200 dark:border-neutral-800 p-2">
-                <p className="text-neutral-500">CF</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  {row.fieldDistances?.centerField != null ? `${Math.round(row.fieldDistances.centerField)} ft` : "-"}
-                </p>
-              </div>
-              <div className="rounded border border-neutral-200 dark:border-neutral-800 p-2">
-                <p className="text-neutral-500">LF/RF</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  {row.fieldDistances?.leftLine != null && row.fieldDistances?.rightLine != null
-                    ? `${Math.round(row.fieldDistances.leftLine)} / ${Math.round(row.fieldDistances.rightLine)}`
-                    : "-"}
-                </p>
-              </div>
-            </div>
+          {/* Wind */}
+          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <Wind className="h-3 w-3 shrink-0" /> Wind
+            </p>
+            <p className="text-[22px] font-bold text-white leading-none">
+              {formatNumber(row.windSpeedMph, 0)}
+              <span className="text-xs font-medium text-white/45 ml-1">mph</span>
+            </p>
+            <p className="text-[10px] text-sky-300/60 mt-1.5 truncate">
+              {row.windLabel || (row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0")}
+            </p>
           </div>
 
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/50 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Wall Height Map</p>
-              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Lower to Higher</span>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {wallHeightLegend.map((item) => (
-                <div
-                  key={`wall-height-${item.section}`}
-                  className="rounded border bg-white/70 dark:bg-neutral-900/40 px-1.5 py-1.5 text-center"
-                  style={{ borderColor: "rgba(148,163,184,0.45)" }}
-                >
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{item.section}</p>
-                  <p className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
-                    {item.height != null ? `${Math.round(item.height)}'` : "-"}
-                  </p>
-                </div>
-              ))}
-            </div>
+          {/* Rain */}
+          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <CloudRain className="h-3 w-3 shrink-0" /> Rain
+            </p>
+            <p className="text-[22px] font-bold text-white leading-none">
+              {row.precipProbability != null ? `${Math.round(row.precipProbability)}%` : "—"}
+            </p>
+            <p className="text-[10px] text-white/40 mt-1.5">
+              {row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0"}
+            </p>
           </div>
 
-          {row.weatherAlert && (
-            <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 inline-flex items-start gap-2">
-              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          {/* Venue */}
+          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Venue</p>
+            <p className="text-[22px] font-bold text-white leading-none truncate">{row.roofType || "—"}</p>
+            <p className="text-[10px] text-white/40 mt-1.5">
+              {row.elevationFt != null ? `${Math.round(row.elevationFt).toLocaleString()} ft elev` : "\u00A0"}
+            </p>
+          </div>
+        </div>
+
+        {/* Weather alert */}
+        {row.weatherAlert && (
+          <div className="border-t border-white/[0.06] px-4 py-3">
+            <div className="flex items-start gap-2 text-xs text-amber-400/90">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400" />
               <span>{row.weatherAlert}</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <style jsx>{`
-        .living-wind-line {
-          stroke: rgba(125, 211, 252, 0.6);
-          stroke-width: 1.45;
-          stroke-dasharray: 7 12;
-          animation-name: living-wind-flow;
+        .living-wind-particle {
+          animation-name: living-wind-particle-flow;
           animation-iteration-count: infinite;
           animation-timing-function: linear;
         }
 
-        .living-wind-arrow {
-          stroke: rgba(186, 230, 253, 0.78);
-          stroke-width: 1.5;
-          opacity: 0.9;
+        .living-wind-particle-line {
+          stroke: rgba(186, 230, 253, 0.7);
+          stroke-width: 1.25;
+          stroke-linecap: round;
         }
 
-        @keyframes living-wind-flow {
+        @keyframes living-wind-particle-flow {
           from {
+            transform: translateX(calc(var(--wind-shift, 48px) * -1));
             opacity: 0.3;
           }
-          50% {
-            opacity: 0.88;
+          20% {
+            opacity: 0.85;
+          }
+          80% {
+            opacity: 0.9;
           }
           to {
-            opacity: 0.3;
+            transform: translateX(var(--wind-shift, 48px));
+            opacity: 0.25;
           }
         }
       `}</style>

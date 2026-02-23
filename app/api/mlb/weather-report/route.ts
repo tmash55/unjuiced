@@ -24,6 +24,8 @@ function mapRow(row: any) {
   return {
     gameId: row.game_id,
     venueId: row.venue_id,
+    homeId: row.home_id ?? null,
+    awayId: row.away_id ?? null,
     gameDate: row.game_date,
     gameDatetime: row.game_datetime,
     temperatureF: row.temperature_f,
@@ -45,10 +47,14 @@ function mapRow(row: any) {
     roofType: row.roof_type,
     venueName: row.venue_name,
     elevationFt: row.elevation_ft,
-    homeTeamName: row.home_team_name ?? row.home_name ?? null,
-    awayTeamName: row.away_team_name ?? row.away_name ?? null,
-    homeTeamAbbr: row.home_team_tricode ?? row.home_team_abbr ?? null,
-    awayTeamAbbr: row.away_team_tricode ?? row.away_team_abbr ?? null,
+    homeTeamName: row.home_name ?? row.home_team_name ?? null,
+    awayTeamName: row.away_name ?? row.away_team_name ?? null,
+    homeTeamAbbr: row.home_team_abbr ?? row.home_team_tricode ?? null,
+    awayTeamAbbr: row.away_team_abbr ?? row.away_team_tricode ?? null,
+    homeTeamPrimaryColor: row.home_team_primary_color ?? null,
+    homeTeamSecondaryColor: row.home_team_secondary_color ?? null,
+    awayTeamPrimaryColor: row.away_team_primary_color ?? null,
+    awayTeamSecondaryColor: row.away_team_secondary_color ?? null,
     venueCity: row.venue_city ?? row.city ?? null,
     venueState: row.venue_state ?? row.state ?? null,
     wallHeights: {
@@ -66,6 +72,7 @@ function mapRow(row: any) {
       rightLine: row.right_line != null ? Number(row.right_line) : null,
     },
     stadiumGeometry: row.stadium_geometry ?? null,
+    ballparkFactors: row.ballpark_factors ?? null,
   };
 }
 
@@ -109,26 +116,6 @@ export async function GET(req: NextRequest) {
 
       rawRows = weatherRows.data;
       error = weatherRows.error;
-
-      if (!error && rawRows && rawRows.length > 0) {
-        const gameIds = Array.from(new Set(rawRows.map((row: any) => row.game_id).filter(Boolean)));
-        if (gameIds.length > 0) {
-          const games = await supabase
-            .from("mlb_games")
-            .select(
-              "game_id, home_name, away_name, home_team_name, away_team_name, home_team_abbr, away_team_abbr, home_team_tricode, away_team_tricode"
-            )
-            .in("game_id", gameIds);
-
-          if (!games.error && games.data) {
-            const gamesById = new Map(games.data.map((game: any) => [game.game_id, game]));
-            rawRows = rawRows.map((row: any) => ({
-              ...row,
-              ...(gamesById.get(row.game_id) ?? {}),
-            }));
-          }
-        }
-      }
     }
 
     if (error) {
@@ -138,15 +125,86 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    if (rawRows && rawRows.length > 0) {
+      const gameIds = Array.from(new Set(rawRows.map((row: any) => row.game_id).filter(Boolean)));
+
+      if (gameIds.length > 0) {
+        const games = await supabase
+          .from("mlb_games")
+          .select("game_id, home_name, away_name, home_id, away_id")
+          .in("game_id", gameIds);
+
+        if (!games.error && games.data) {
+          const teamIds = Array.from(
+            new Set(games.data.flatMap((g: any) => [g.home_id, g.away_id]).filter(Boolean))
+          );
+
+          let teamsById = new Map<number, { abbreviation: string | null; primary_color: string | null; secondary_color: string | null }>();
+          if (teamIds.length > 0) {
+            const teams = await supabase
+              .from("mlb_teams")
+              .select("team_id, abbreviation, primary_color, secondary_color")
+              .in("team_id", teamIds);
+
+            if (!teams.error && teams.data) {
+              teamsById = new Map(teams.data.map((t: any) => [t.team_id, t]));
+            }
+          }
+
+          const gamesById = new Map(
+            games.data.map((game: any) => [
+              game.game_id,
+              {
+                home_name: game.home_name ?? null,
+                away_name: game.away_name ?? null,
+                home_id: game.home_id ?? null,
+                away_id: game.away_id ?? null,
+                home_team_abbr: teamsById.get(game.home_id)?.abbreviation ?? null,
+                away_team_abbr: teamsById.get(game.away_id)?.abbreviation ?? null,
+                home_team_primary_color: teamsById.get(game.home_id)?.primary_color ?? null,
+                home_team_secondary_color: teamsById.get(game.home_id)?.secondary_color ?? null,
+                away_team_primary_color: teamsById.get(game.away_id)?.primary_color ?? null,
+                away_team_secondary_color: teamsById.get(game.away_id)?.secondary_color ?? null,
+              },
+            ])
+          );
+
+          rawRows = rawRows.map((row: any) => {
+            const game = gamesById.get(row.game_id);
+            if (!game) return row;
+
+            return {
+              ...row,
+              home_name: row.home_name ?? game.home_name,
+              away_name: row.away_name ?? game.away_name,
+              home_id: row.home_id ?? game.home_id,
+              away_id: row.away_id ?? game.away_id,
+              home_team_abbr: row.home_team_abbr ?? row.home_team_tricode ?? game.home_team_abbr,
+              away_team_abbr: row.away_team_abbr ?? row.away_team_tricode ?? game.away_team_abbr,
+              home_team_primary_color: row.home_team_primary_color ?? game.home_team_primary_color,
+              home_team_secondary_color: row.home_team_secondary_color ?? game.home_team_secondary_color,
+              away_team_primary_color: row.away_team_primary_color ?? game.away_team_primary_color,
+              away_team_secondary_color: row.away_team_secondary_color ?? game.away_team_secondary_color,
+            };
+          });
+        }
+      }
+    }
+
     const venueIds = Array.from(
       new Set((rawRows || []).map((row: any) => row.venue_id).filter((venueId: any) => Number.isFinite(Number(venueId))))
     );
 
     let venuesById = new Map<number, any>();
     let geometriesById = new Map<number, any>();
+    let factorsByVenueId = new Map<number, Record<string, { overall: number | null; vsLhb: number | null; vsRhb: number | null }>>();
+
+    // Use prior full season if before April (MLB off-season), else current year
+    const now = new Date();
+    const currentSeason = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
 
     if (venueIds.length > 0) {
-      const [venuesResult, geometriesResult] = await Promise.all([
+      const [venuesResult, geometriesResult, factorsResult] = await Promise.all([
         supabase
           .from("mlb_venues")
           .select(
@@ -160,6 +218,11 @@ export async function GET(req: NextRequest) {
           )
           .in("venue_id", venueIds)
           .order("season", { ascending: false }),
+        supabase
+          .from("mlb_ballpark_factors")
+          .select("venue_id, factor_type, factor_overall, factor_vs_lhb, factor_vs_rhb")
+          .in("venue_id", venueIds)
+          .eq("season", currentSeason),
       ]);
 
       if (!venuesResult.error && venuesResult.data) {
@@ -187,12 +250,26 @@ export async function GET(req: NextRequest) {
           });
         }
       }
+
+      if (!factorsResult.error && factorsResult.data) {
+        for (const f of factorsResult.data) {
+          const vid = Number(f.venue_id);
+          if (!Number.isFinite(vid)) continue;
+          if (!factorsByVenueId.has(vid)) factorsByVenueId.set(vid, {});
+          factorsByVenueId.get(vid)![f.factor_type] = {
+            overall: f.factor_overall != null ? Number(f.factor_overall) : null,
+            vsLhb: f.factor_vs_lhb != null ? Number(f.factor_vs_lhb) : null,
+            vsRhb: f.factor_vs_rhb != null ? Number(f.factor_vs_rhb) : null,
+          };
+        }
+      }
     }
 
     const rows = (rawRows || []).map((rawRow: any) => {
       const venueId = Number(rawRow.venue_id);
       const venue = Number.isFinite(venueId) ? venuesById.get(venueId) : null;
       const geometry = Number.isFinite(venueId) ? geometriesById.get(venueId) : null;
+      const ballparkFactors = Number.isFinite(venueId) ? (factorsByVenueId.get(venueId) ?? null) : null;
 
       const merged = {
         ...rawRow,
@@ -209,6 +286,7 @@ export async function GET(req: NextRequest) {
         right_center: rawRow.right_center ?? venue?.right_center ?? null,
         right_line: rawRow.right_line ?? venue?.right_line ?? null,
         stadium_geometry: geometry ?? null,
+        ballpark_factors: ballparkFactors,
       };
 
       return mapRow(merged);

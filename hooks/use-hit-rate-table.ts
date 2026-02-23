@@ -111,6 +111,9 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     total: profile.total,
     injuryStatus: profile.injury_status,
     injuryNotes: profile.injury_notes,
+    battingHand: profile.batting_hand ?? null,
+    seasonBattingAvg: profile.season_batting_avg ?? null,
+    lineupPosition: profile.lineup_position ?? null,
     // Prefer depth_chart_pos (PG, SG, SF, PF, C) over generic position (G, F, C)
     position: player?.depth_chart_pos ?? player?.position ?? raw.player_position ?? profile.position,
     jerseyNumber: player?.jersey_number ?? profile.jersey_number,

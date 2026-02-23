@@ -46,6 +46,9 @@ export interface RawHitRateProfile {
   injury_notes: string | null;
   position: string | null;
   jersey_number: number | null;
+  batting_hand?: string | null;
+  season_batting_avg?: number | null;
+  lineup_position?: number | null;
   game_logs: unknown[] | null;
   is_primetime: boolean | null;
   national_broadcast: string | null;
@@ -114,6 +117,9 @@ export interface HitRateProfile {
   injuryNotes: string | null;
   position: string | null;
   jerseyNumber: number | null;
+  battingHand: string | null;
+  seasonBattingAvg: number | null;
+  lineupPosition: number | null;
   gameDate: string | null;
   startTime: string | null;
   gameStatus: string | null;

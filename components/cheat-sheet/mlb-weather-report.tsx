@@ -102,10 +102,6 @@ export function MlbWeatherReport() {
           <div className="p-8 text-sm text-neutral-500">No weather report rows for this date.</div>
         ) : (
           <div className="p-3 md:p-4 space-y-4">
-            <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs md:text-sm text-sky-700 dark:text-sky-300">
-              <span className="font-semibold">Living Stadium Card:</span> Wall colors reflect wall height (green lower, red taller), wind flow shows directional speed, and outfield heatmap tracks HR environment.
-            </div>
-
             {summary.noGeometryCount > 0 && (
               <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs md:text-sm text-amber-700 dark:text-amber-300">
                 No stadium geometry loaded yet for {summary.noGeometryCount} game{summary.noGeometryCount === 1 ? "" : "s"}. Those cards use a generic ballpark shape temporarily.

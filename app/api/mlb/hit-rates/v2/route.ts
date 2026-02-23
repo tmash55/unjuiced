@@ -164,6 +164,33 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
     else matchupQuality = "neutral";
   }
 
+  const rawBattingHand =
+    row.batting_hand ??
+    row.bats ??
+    row.batter_hand ??
+    row.hit_side ??
+    null;
+  const battingHand =
+    typeof rawBattingHand === "string"
+      ? rawBattingHand.trim().toUpperCase().slice(0, 1)
+      : null;
+  const seasonBattingAvgRaw =
+    row.season_batting_avg ??
+    row.batting_avg ??
+    row.ba ??
+    null;
+  const seasonBattingAvg = seasonBattingAvgRaw !== null && seasonBattingAvgRaw !== undefined
+    ? Number(seasonBattingAvgRaw)
+    : null;
+  const lineupPositionRaw =
+    row.lineup_position ??
+    row.batting_order ??
+    row.lineup_slot ??
+    null;
+  const lineupPosition = lineupPositionRaw !== null && lineupPositionRaw !== undefined
+    ? Number(lineupPositionRaw)
+    : null;
+
   return {
     id: row.id,
     player_id: row.player_id,
@@ -191,6 +218,12 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
     total_clv: row.total_clv,
     injury_status: row.injury_status,
     injury_notes: row.injury_notes,
+    batting_hand: battingHand && ["L", "R", "S"].includes(battingHand) ? battingHand : null,
+    season_batting_avg: Number.isFinite(seasonBattingAvg as number) ? seasonBattingAvg : null,
+    lineup_position:
+      Number.isInteger(lineupPosition) && (lineupPosition as number) > 0
+        ? lineupPosition
+        : null,
     team_name: row.team_name,
     team_abbr: row.team_abbr,
     opponent_team_name: row.opponent_team_name,
@@ -484,4 +517,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
