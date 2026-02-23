@@ -106,10 +106,10 @@ function polarVector(degrees: number) {
 }
 
 function scoreColor(score: number | null): string {
-  if (score === null || score === undefined) return "text-neutral-500";
-  if (score >= 2) return "text-emerald-400";
-  if (score <= -2) return "text-red-400";
-  return "text-amber-400";
+  if (score === null || score === undefined) return "text-neutral-600 dark:text-neutral-400";
+  if (score >= 2) return "text-emerald-600 dark:text-emerald-300";
+  if (score <= -2) return "text-red-600 dark:text-red-300";
+  return "text-amber-600 dark:text-amber-300";
 }
 
 function wallHeightColor(height: number | null, min: number, max: number, alpha = 0.9): string {
@@ -153,6 +153,51 @@ function impactPillClass(totalImpact: string | null): string {
     return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-300/40 dark:border-red-700/40";
   }
   return "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
+}
+
+function formatSigned(value: number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${Number(value).toFixed(digits)}`;
+}
+
+function scorePanelClass(score: number | null): string {
+  if (score === null || score === undefined) {
+    return "border-neutral-300/70 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900";
+  }
+  if (score >= 2) {
+    return "border-emerald-300/60 bg-emerald-50 dark:border-emerald-700/40 dark:bg-emerald-950/35";
+  }
+  if (score <= -2) {
+    return "border-red-300/60 bg-red-50 dark:border-red-700/40 dark:bg-red-950/35";
+  }
+  return "border-amber-300/60 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-950/35";
+}
+
+function keyDrivers(row: MlbWeatherReportRow): string[] {
+  const drivers: string[] = [];
+  const trimmedWind = row.windLabel?.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  if (trimmedWind) drivers.push(trimmedWind);
+
+  if (row.temperatureF != null) {
+    const roundedTemp = Math.round(row.temperatureF);
+    if (roundedTemp >= 85) drivers.push(`Warm air (${roundedTemp}\u00b0F) can increase carry`);
+    if (roundedTemp <= 55) drivers.push(`Cool air (${roundedTemp}\u00b0F) can suppress carry`);
+  }
+
+  const hrFactor = row.ballparkFactors?.hr?.overall;
+  if (hrFactor != null) {
+    const delta = Math.round(hrFactor - 100);
+    if (Math.abs(delta) >= 2) {
+      drivers.push(`HR park factor ${Math.round(hrFactor)} (${delta > 0 ? "+" : ""}${delta}%)`);
+    }
+  }
+
+  if ((row.roofType || "").toLowerCase().includes("retract")) {
+    drivers.push("Retractable roof can change wind impact");
+  }
+
+  return drivers.slice(0, 3);
 }
 
 export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
@@ -377,68 +422,90 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
   const homeAbbr = row.homeTeamAbbr || row.homeTeamName || "Home";
   const awayColor = row.awayTeamPrimaryColor ?? "#1e3a5f";
   const homeColor = row.homeTeamPrimaryColor ?? "#1e3a5f";
-  const awayColorSecondary = row.awayTeamSecondaryColor ?? "#94a3b8";
-  const homeColorSecondary = row.homeTeamSecondaryColor ?? "#94a3b8";
   const gameSubLabel =
     row.venueCity && row.venueState ? `${row.venueName || "Unknown Venue"} • ${row.venueCity}, ${row.venueState}` : row.venueName || "Unknown Venue";
+  const gameTime = getETTime(row.gameDatetime);
+  const insightDrivers = keyDrivers(row);
 
   return (
     <article className="rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-      <div className="h-[3px] w-full flex">
-        <div className="flex-1" style={{ background: awayColor }} />
-        <div className={cn("flex-[2]", impactAccentClass(row.totalImpact))} />
-        <div className="flex-1" style={{ background: homeColor }} />
-      </div>
-      <div className="px-4 py-3 border-b border-neutral-200/80 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Away team */}
-          <div className="flex items-center gap-2">
-            {row.awayTeamAbbr && (
-              <div
-                className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: `${awayColor}22`, border: `1.5px solid ${awayColor}55` }}
-              >
-                <img
-                  src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
-                  alt={row.awayTeamAbbr}
-                  className="h-5 w-5 object-contain"
-                />
-              </div>
-            )}
-            <span className="font-bold text-sm text-neutral-900 dark:text-white">{awayAbbr}</span>
+      <div className={cn("h-[2px] w-full", impactAccentClass(row.totalImpact))} />
+      <div className="px-4 py-3 border-b border-neutral-200/80 dark:border-neutral-800 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Away team */}
+            <div className="flex items-center gap-2 min-w-0">
+              {row.awayTeamAbbr && (
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${awayColor}22`, border: `1.5px solid ${awayColor}55` }}
+                >
+                  <img
+                    src={`/team-logos/mlb/${row.awayTeamAbbr.toUpperCase()}.svg`}
+                    alt={row.awayTeamAbbr}
+                    className="h-5 w-5 object-contain"
+                  />
+                </div>
+              )}
+              <span className="font-bold text-sm md:text-base text-neutral-900 dark:text-white truncate">{awayAbbr}</span>
+            </div>
+            <span className="text-neutral-400 dark:text-neutral-500 text-xs font-medium">@</span>
+            {/* Home team */}
+            <div className="flex items-center gap-2 min-w-0">
+              {row.homeTeamAbbr && (
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${homeColor}22`, border: `1.5px solid ${homeColor}55` }}
+                >
+                  <img
+                    src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
+                    alt={row.homeTeamAbbr}
+                    className="h-5 w-5 object-contain"
+                  />
+                </div>
+              )}
+              <span className="font-bold text-sm md:text-base text-neutral-900 dark:text-white truncate">{homeAbbr}</span>
+            </div>
           </div>
-          <span className="text-neutral-400 dark:text-neutral-500 text-xs font-medium">@</span>
-          {/* Home team */}
-          <div className="flex items-center gap-2">
-            {row.homeTeamAbbr && (
-              <div
-                className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: `${homeColor}22`, border: `1.5px solid ${homeColor}55` }}
-              >
-                <img
-                  src={`/team-logos/mlb/${row.homeTeamAbbr.toUpperCase()}.svg`}
-                  alt={row.homeTeamAbbr}
-                  className="h-5 w-5 object-contain"
-                />
-              </div>
-            )}
-            <span className="font-bold text-sm text-neutral-900 dark:text-white">{homeAbbr}</span>
-          </div>
-          <p className="hidden sm:block text-xs text-neutral-500 dark:text-neutral-400 truncate">
-            {gameSubLabel} • {getETTime(row.gameDatetime)}
+          <p className="hidden sm:block text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-1">
+            {gameSubLabel}
+          </p>
+          <p className="hidden sm:block text-[10px] uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-500">
+            First Pitch {gameTime}
           </p>
         </div>
         {/* Mobile venue line */}
-        <p className="sm:hidden w-full text-xs text-neutral-500 dark:text-neutral-400 -mt-1">
-          {gameSubLabel} • {getETTime(row.gameDatetime)}
+        <p className="sm:hidden w-full text-[11px] text-neutral-500 dark:text-neutral-400 -mt-1">
+          {gameSubLabel} • First Pitch {gameTime}
         </p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("px-2 py-1 rounded-md text-xs font-semibold", impactPillClass(row.totalImpact))}>
-            {formatImpactLabel(row.totalImpact)}
-          </span>
-          <span className={cn("text-sm font-bold", scoreColor(row.hrImpactScore))}>
-            HR {row.hrImpactScore != null ? `${row.hrImpactScore > 0 ? "+" : ""}${formatNumber(row.hrImpactScore, 1)}` : "-"}
-          </span>
+        <div className="flex items-stretch gap-2 flex-wrap">
+          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[126px]", impactPillClass(row.totalImpact))}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold opacity-70">Edge Signal</p>
+            <p className="text-sm font-bold leading-tight">{formatImpactLabel(row.totalImpact)}</p>
+          </div>
+          <div className={cn("rounded-lg border px-2.5 py-1.5 min-w-[86px]", scorePanelClass(row.hrImpactScore))}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold text-neutral-500 dark:text-neutral-400">HR Delta</p>
+            <p className={cn("text-base font-bold tabular-nums leading-tight", scoreColor(row.hrImpactScore))}>
+              {formatSigned(row.hrImpactScore, 1)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 py-2.5 border-b border-neutral-200/70 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900/60 dark:to-neutral-900">
+        <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-neutral-500 dark:text-neutral-400">Why It Leans This Way</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {insightDrivers.length > 0 ? (
+            insightDrivers.map((driver) => (
+              <span
+                key={driver}
+                className="rounded-md border border-neutral-200/80 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900 px-2 py-1 text-[11px] text-neutral-600 dark:text-neutral-300"
+              >
+                {driver}
+              </span>
+            ))
+          ) : (
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">No strong directional weather drivers.</span>
+          )}
         </div>
       </div>
 
@@ -447,42 +514,46 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         <div className="grid grid-cols-[2fr_1fr]">
           {/* Left: Stadium field */}
           <div className="border-r border-white/[0.06]">
-          <svg viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} className="w-full h-[240px] md:h-[280px]">
-            <defs>
-              <clipPath id={`${cardId}-clip`}>
-                <path d={outfieldPath} />
-              </clipPath>
-              <linearGradient
-                id={`${cardId}-heat`}
-                gradientUnits="userSpaceOnUse"
-                x1={heatStartX}
-                y1={heatStartY}
-                x2={heatEndX}
-                y2={heatEndY}
-              >
-                <stop offset="0%" stopColor={hrImpact >= 0 ? "rgba(34, 197, 94, 0.04)" : heatColor} />
-                <stop offset="65%" stopColor={hrImpact >= 0 ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.12)"} />
-                <stop offset="100%" stopColor={hrImpact >= 0 ? heatColor : "rgba(239, 68, 68, 0.04)"} />
-              </linearGradient>
-              <marker
-                id={`${cardId}-particle-tip`}
-                markerWidth="3"
-                markerHeight="3"
-                refX="2.6"
-                refY="1.5"
-                orient="auto"
-              >
-                <path d="M0,0 L3,1.5 L0,3 z" fill="rgba(224, 242, 254, 0.95)" />
-              </marker>
-              <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
-                <stop offset="100%" stopColor={awayColor} stopOpacity={0.25} />
-              </linearGradient>
-              <linearGradient id={`${cardId}-home-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={homeColor} stopOpacity={0.55} />
-                <stop offset="100%" stopColor={homeColor} stopOpacity={0.25} />
-              </linearGradient>
-            </defs>
+            <div className="px-3 pt-2 pb-1 border-b border-white/[0.06]">
+              <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Field Profile</p>
+              <p className="text-[11px] text-white/55">Outfield distances with wall-height and wind overlay</p>
+            </div>
+            <svg viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} className="w-full h-[228px] md:h-[268px]">
+              <defs>
+                <clipPath id={`${cardId}-clip`}>
+                  <path d={outfieldPath} />
+                </clipPath>
+                <linearGradient
+                  id={`${cardId}-heat`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={heatStartX}
+                  y1={heatStartY}
+                  x2={heatEndX}
+                  y2={heatEndY}
+                >
+                  <stop offset="0%" stopColor={hrImpact >= 0 ? "rgba(34, 197, 94, 0.04)" : heatColor} />
+                  <stop offset="65%" stopColor={hrImpact >= 0 ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.12)"} />
+                  <stop offset="100%" stopColor={hrImpact >= 0 ? heatColor : "rgba(239, 68, 68, 0.04)"} />
+                </linearGradient>
+                <marker
+                  id={`${cardId}-particle-tip`}
+                  markerWidth="3"
+                  markerHeight="3"
+                  refX="2.6"
+                  refY="1.5"
+                  orient="auto"
+                >
+                  <path d="M0,0 L3,1.5 L0,3 z" fill="rgba(224, 242, 254, 0.95)" />
+                </marker>
+                <linearGradient id={`${cardId}-away-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={awayColor} stopOpacity={0.55} />
+                  <stop offset="100%" stopColor={awayColor} stopOpacity={0.25} />
+                </linearGradient>
+                <linearGradient id={`${cardId}-home-badge`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={homeColor} stopOpacity={0.55} />
+                  <stop offset="100%" stopColor={homeColor} stopOpacity={0.25} />
+                </linearGradient>
+              </defs>
 
             <rect x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#080e1a" />
             <g clipPath={`url(#${cardId}-clip)`}>
@@ -701,7 +772,7 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                 />
               </g>
             )}
-          </svg>
+            </svg>
           </div>
 
           {/* Right: Park Factors */}
@@ -718,19 +789,27 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
               if (!hasAny) return null;
               return (
                 <>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-white/30">Park Factors</span>
-                    <span className="text-[10px] text-white/20">2025</span>
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Park Factors</p>
+                      <p className="text-[10px] text-white/40">Baseline 100</p>
+                    </div>
+                    <span className="text-[10px] text-white/25">2025</span>
+                  </div>
+                  <div className="mb-2 flex items-center justify-between text-[9px] uppercase tracking-[0.08em] text-white/25">
+                    <span>Suppress</span>
+                    <span>Boost</span>
                   </div>
                   <div className="space-y-2.5">
                     {FACTORS.map(({ key, label }) => {
                       const val = row.ballparkFactors?.[key]?.overall ?? null;
                       const dev = val != null ? Math.max(-20, Math.min(20, val - 100)) : 0;
+                      const deltaLabel = val != null ? `${Math.round(dev) > 0 ? "+" : ""}${Math.round(dev)}%` : "--";
                       const barPct = (Math.abs(dev) / 20) * 45;
                       const isOver = dev > 0;
                       return (
                         <div key={key} className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-white/40 w-6 shrink-0 font-medium">{label}</span>
+                          <span className="text-[10px] text-white/45 w-7 shrink-0 font-semibold">{label}</span>
                           <div className="relative flex-1 h-2 bg-white/[0.10] rounded-full overflow-hidden">
                             <div className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
                             {val != null && (
@@ -740,9 +819,12 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
                               />
                             )}
                           </div>
-                          <span className={cn("text-[11px] font-bold w-7 text-right tabular-nums shrink-0", factorValueColor(val))}>
-                            {val ?? "–"}
-                          </span>
+                          <div className="w-[44px] shrink-0 text-right">
+                            <p className={cn("text-[11px] font-bold tabular-nums leading-none", factorValueColor(val))}>{val ?? "–"}</p>
+                            <p className={cn("text-[9px] font-semibold tabular-nums leading-none mt-0.5", dev > 0 ? "text-emerald-300/85" : dev < 0 ? "text-red-300/85" : "text-white/35")}>
+                              {deltaLabel}
+                            </p>
+                          </div>
                         </div>
                       );
                     })}
@@ -754,52 +836,57 @@ export function LivingStadiumCard({ row }: { row: MlbWeatherReportRow }) {
         </div>
 
         {/* Full-width weather pills */}
-        <div className="border-t border-white/[0.06] px-3 py-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {/* Temp */}
-          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Thermometer className="h-3 w-3 shrink-0" /> Temp
-            </p>
-            <p className="text-[22px] font-bold text-white leading-none">{formatNumber(row.temperatureF, 0)}°</p>
-            <p className="text-[10px] text-white/40 mt-1.5">
-              {row.feelsLikeF != null ? `feels ${formatNumber(row.feelsLikeF, 0)}°` : "\u00A0"}
-            </p>
+        <div className="border-t border-white/[0.06]">
+          <div className="px-3 pt-2">
+            <p className="text-[10px] uppercase tracking-[0.11em] font-semibold text-white/35">Game Conditions</p>
           </div>
+          <div className="px-3 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Temp */}
+            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+                <Thermometer className="h-3 w-3 shrink-0" /> Temp
+              </p>
+              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">{formatNumber(row.temperatureF, 0)}°</p>
+              <p className="text-[10px] text-white/50 mt-1.5">
+                {row.feelsLikeF != null ? `Feels ${formatNumber(row.feelsLikeF, 0)}°` : "\u00A0"}
+              </p>
+            </div>
 
-          {/* Wind */}
-          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Wind className="h-3 w-3 shrink-0" /> Wind
-            </p>
-            <p className="text-[22px] font-bold text-white leading-none">
-              {formatNumber(row.windSpeedMph, 0)}
-              <span className="text-xs font-medium text-white/45 ml-1">mph</span>
-            </p>
-            <p className="text-[10px] text-sky-300/60 mt-1.5 truncate">
-              {row.windLabel || (row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0")}
-            </p>
-          </div>
+            {/* Wind */}
+            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+                <Wind className="h-3 w-3 shrink-0" /> Wind
+              </p>
+              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">
+                {formatNumber(row.windSpeedMph, 0)}
+                <span className="text-xs font-medium text-white/50 ml-1">mph</span>
+              </p>
+              <p className="text-[10px] text-sky-300/70 mt-1.5 truncate">
+                {row.windLabel || (row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0")}
+              </p>
+            </div>
 
-          {/* Rain */}
-          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <CloudRain className="h-3 w-3 shrink-0" /> Rain
-            </p>
-            <p className="text-[22px] font-bold text-white leading-none">
-              {row.precipProbability != null ? `${Math.round(row.precipProbability)}%` : "—"}
-            </p>
-            <p className="text-[10px] text-white/40 mt-1.5">
-              {row.windGustMph != null ? `gusts ${formatNumber(row.windGustMph, 0)} mph` : "\u00A0"}
-            </p>
-          </div>
+            {/* Rain */}
+            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2 flex items-center gap-1">
+                <CloudRain className="h-3 w-3 shrink-0" /> Rain
+              </p>
+              <p className="text-[23px] font-semibold text-white leading-none tabular-nums">
+                {row.precipProbability != null ? `${Math.round(row.precipProbability)}%` : "—"}
+              </p>
+              <p className="text-[10px] text-white/50 mt-1.5">
+                {row.cloudCoverPct != null ? `${Math.round(row.cloudCoverPct)}% cloud cover` : "\u00A0"}
+              </p>
+            </div>
 
-          {/* Venue */}
-          <div className="rounded-lg bg-white/[0.05] border border-white/[0.07] px-3 py-2.5">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Venue</p>
-            <p className="text-[22px] font-bold text-white leading-none truncate">{row.roofType || "—"}</p>
-            <p className="text-[10px] text-white/40 mt-1.5">
-              {row.elevationFt != null ? `${Math.round(row.elevationFt).toLocaleString()} ft elev` : "\u00A0"}
-            </p>
+            {/* Venue */}
+            <div className="rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2.5">
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.08em] font-semibold mb-2">Venue</p>
+              <p className="text-[23px] font-semibold text-white leading-none truncate">{row.roofType || "—"}</p>
+              <p className="text-[10px] text-white/50 mt-1.5">
+                {row.elevationFt != null ? `${Math.round(row.elevationFt).toLocaleString()} ft elev` : "\u00A0"}
+              </p>
+            </div>
           </div>
         </div>
 
