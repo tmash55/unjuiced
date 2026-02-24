@@ -3,6 +3,7 @@ export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 
 /**
  * Assert user is Pro (required for SSE live updates)
@@ -53,8 +54,12 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "invalid_scope" }), { status: 400 });
   }
 
-  const url = process.env.UPSTASH_REDIS_REST_URL!;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+  const pubsub = getRedisPubSubEndpoint();
+  const url = pubsub.url;
+  const token = pubsub.token;
+  if (!url || !token) {
+    return new Response(JSON.stringify({ error: "missing_redis_pubsub_env" }), { status: 500 });
+  }
   
   // Subscribe to the unified EV channel
   const channel = `pub:ev:all`;
@@ -141,4 +146,3 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-

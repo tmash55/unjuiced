@@ -3,6 +3,7 @@ export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 
 /**
  * GET /api/sse/best-odds
@@ -75,8 +76,15 @@ export async function GET(req: NextRequest) {
     console.log('[/api/sse/best-odds] Subscribing to channel:', channel);
     
     // Subscribe to Redis pub/sub via Upstash REST API
-    const upstreamUrl = process.env.UPSTASH_REDIS_REST_URL!;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+    const pubsub = getRedisPubSubEndpoint();
+    const upstreamUrl = pubsub.url;
+    const token = pubsub.token;
+    if (!upstreamUrl || !token) {
+      return new Response(
+        JSON.stringify({ error: "Missing Redis pub/sub endpoint configuration" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
     
     const upstream = await fetch(`${upstreamUrl}/subscribe/${encodeURIComponent(channel)}`, {
       method: "POST",

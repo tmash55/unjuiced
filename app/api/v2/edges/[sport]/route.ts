@@ -17,7 +17,6 @@ import {
   EdgeFinderResponse,
   getActiveEventsKey,
   getEventKey,
-  getMarketOddsPattern,
   getMarketDisplay,
 } from "@/lib/odds/types";
 
@@ -48,6 +47,77 @@ const SUPPORTED_SPORTS = new Set([
 
 // Sharp books for comparison (in priority order)
 const SHARP_BOOKS = ["pinnacle", "circa"];
+const SCAN_COUNT = 1000;
+const MAX_SCAN_ITERATIONS = 200;
+const ACTIVE_EVENTS_CACHE_TTL = 15000;
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
+const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
+  "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
+  "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  "betmgm-michigan", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
+];
+
+function normalizeBookId(id: string): string {
+  const lower = id.toLowerCase();
+  switch (lower) {
+    case "hardrock":
+      return "hard-rock";
+    case "hardrockindiana":
+    case "hardrock-indiana":
+      return "hard-rock-indiana";
+    case "ballybet":
+    case "bally_bet":
+      return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
+    case "sportsinteraction":
+      return "sports-interaction";
+    case "fanduel-yourway":
+    case "fanduel_yourway":
+      return "fanduelyourway";
+    case "betmgm-michigan":
+    case "betmgm_michigan":
+      return "betmgm";
+    default:
+      return lower;
+  }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
+}
+
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return { market: member.slice(0, sep), book: member.slice(sep + 1) };
+}
 
 export async function GET(
   request: NextRequest,
@@ -108,9 +178,8 @@ export async function GET(
       const event = events[eventId];
       if (!event) continue;
 
-      // Get all books for this market
-      const oddsPattern = getMarketOddsPattern(sportKey, eventId, market);
-      const oddsKeys = await scanKeys(oddsPattern);
+      // Get all books for this market (index-first)
+      const oddsKeys = await getOddsKeysForEventMarket(sportKey, eventId, market);
 
       if (oddsKeys.length === 0) continue;
 
@@ -120,7 +189,7 @@ export async function GET(
       // Build book → selections map
       const bookSelections: Record<string, SSEBookSelections> = {};
       oddsKeys.forEach((key, i) => {
-        const book = key.split(":").pop()!;
+        const book = normalizeBookId(key.split(":").pop()!);
         const data = oddsDataRaw[i];
         if (data) {
           bookSelections[book] = typeof data === "string" ? JSON.parse(data) : data;
@@ -296,16 +365,65 @@ export async function GET(
  * Fallback: Scan events:{sport}:* keys (slower, for when SET isn't populated)
  */
 async function getActiveEventIds(sport: string): Promise<string[]> {
-  // Try the fast SET first
-  let eventIds = await redis.smembers(getActiveEventsKey(sport));
-
-  // Fallback: scan event keys if SET is empty
-  if (!eventIds || eventIds.length === 0) {
-    const eventKeys = await scanKeys(`events:${sport}:*`);
-    eventIds = eventKeys.map((key) => key.split(":")[2]);
+  const cached = activeEventsCache.get(sport);
+  if (cached && (Date.now() - cached.ts) < ACTIVE_EVENTS_CACHE_TTL) {
+    return cached.ids;
   }
 
-  return eventIds;
+  const members = (await redis.smembers(getActiveEventsKey(sport))).map(String).filter(Boolean);
+  if (members.length > 8) {
+    const unique = [...new Set(members)];
+    activeEventsCache.set(sport, { ids: unique, ts: Date.now() });
+    return unique;
+  }
+
+  const eventKeys = await scanKeys(`events:${sport}:*`);
+  const prefix = `events:${sport}:`;
+  const scannedIds = eventKeys
+    .map((key) => (key.startsWith(prefix) ? key.slice(prefix.length) : ""))
+    .filter(Boolean);
+
+  const merged = [...new Set([...members, ...scannedIds])];
+  activeEventsCache.set(sport, { ids: merged, ts: Date.now() });
+  return merged;
+}
+
+async function getOddsKeysForEventMarket(
+  sport: string,
+  eventId: string,
+  market: string
+): Promise<string[]> {
+  const keys: string[] = [];
+
+  // 1) Preferred path: consumer-maintained event index
+  const indexMembers = (await redis.smembers(`odds_idx:${sport}:${eventId}`)).map(String);
+  for (const member of indexMembers) {
+    const parsed = parseOddsIndexMember(member);
+    if (!parsed) continue;
+    if (parsed.market !== market) continue;
+    for (const candidate of getBookKeyCandidates(parsed.book)) {
+      keys.push(`odds:${sport}:${eventId}:${market}:${candidate}`);
+    }
+  }
+
+  // 2) Deterministic fallback: known-book probes
+  for (const book of KNOWN_BOOKS) {
+    keys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+  }
+
+  const unique = [...new Set(keys)];
+  if (unique.length === 0) return [];
+
+  const values = await redis.mget<(string | SSEBookSelections | null)[]>(...unique);
+  const existing = unique.filter((_, i) => !!values[i]);
+  if (existing.length > 0) return existing;
+
+  // 3) Optional SCAN fallback only when explicitly enabled
+  if (ENABLE_ODDS_SCAN_FALLBACK) {
+    return scanKeys(`odds:${sport}:${eventId}:${market}:*`);
+  }
+
+  return [];
 }
 
 /**
@@ -313,16 +431,30 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
  */
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = "0";
+  let cursor = 0;
+  let iterations = 0;
+  const seenCursors = new Set<number>();
 
   do {
+    iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[v2/edges] Cursor cycle detected for ${pattern}, stopping at ${keys.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const result: [string, string[]] = await redis.scan(cursor, {
       match: pattern,
-      count: 100,
+      count: SCAN_COUNT,
     });
-    cursor = result[0];
+    cursor = Number(result[0]);
     keys.push(...result[1]);
-  } while (cursor !== "0");
+
+    if (iterations >= MAX_SCAN_ITERATIONS) {
+      console.warn(`[v2/edges] Hit scan limit for ${pattern}, got ${keys.length} keys`);
+      break;
+    }
+  } while (cursor !== 0);
 
   return keys;
 }

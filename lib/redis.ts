@@ -1,9 +1,11 @@
 import { Redis } from "@upstash/redis";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
 // Initialize Redis client
+const commandEndpoint = getRedisCommandEndpoint();
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
 // Cache TTL in seconds (20 minutes)
@@ -263,6 +265,5 @@ function filterSingleItemBookmakers<T extends { bookmakers?: any[] }>(
 
   return filteredItem;
 }
-
 
 

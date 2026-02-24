@@ -85,13 +85,20 @@ const KNOWN_BOOKS = [
   "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
-  "superbook", "si-sportsbook", "betfred", "tipico", "fliff"
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  // Common aliases/variants seen across feeds
+  "betmgm", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
 ];
 
 // In-memory cache for odds keys (reduces SCAN frequency)
 // NOTE: If odds_keys:{sport} set doesn't exist, ingestor needs to populate it
 const oddsKeysCache = new Map<string, { keys: string[]; ts: number }>();
 const ODDS_KEYS_CACHE_TTL = 30000; // 30 seconds - longer since SCAN fallback is expensive
+const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+const ACTIVE_EVENTS_CACHE_TTL = 15000; // 15s
+// In indexed deployments, scanning odds:* should be unnecessary and can be unstable on some proxies.
+// Opt-in to scan fallback only when explicitly needed.
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -105,7 +112,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     // FanDuel YourWay - matches sportsbooks.ts ID
@@ -119,6 +130,35 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+
+  // Add common separator variants for robust key lookups.
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  // Common canonical aliases used in feeds
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
 }
 
 // Books to exclude (Canada, regional variants)
@@ -770,6 +810,51 @@ function getSoccerHalfMarketAliases(market: string): string[] {
 }
 
 /**
+ * Read per-event odds index keys populated by the consumer:
+ * odds_idx:{sport}:{eventId} => members like "{market}:{book}"
+ */
+async function getOddsKeysFromIndex(
+  sport: string,
+  eventIds: string[],
+  marketsToScan: string[]
+): Promise<{ keys: string[]; foundEventMarket: Set<string>; eventsWithIndex: Set<string> }> {
+  const keys: string[] = [];
+  const foundEventMarket = new Set<string>();
+  const eventsWithIndex = new Set<string>();
+  const marketSet = new Set(marketsToScan);
+
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
+    const batch = eventIds.slice(i, i + BATCH_SIZE);
+    const membersByEvent = await Promise.all(
+      batch.map((eventId) => redis.smembers(`odds_idx:${sport}:${eventId}`))
+    );
+
+    batch.forEach((eventId, batchIdx) => {
+      const members = (membersByEvent[batchIdx] || []).map(String);
+      if (members.length > 0) {
+        eventsWithIndex.add(eventId);
+      }
+      for (const member of members) {
+        // Member format: "{market}:{book}".
+        const sep = member.lastIndexOf(":");
+        if (sep <= 0 || sep >= member.length - 1) continue;
+        const market = member.slice(0, sep);
+        const book = member.slice(sep + 1);
+        if (!marketSet.has(market) || !book) continue;
+
+        for (const bookCandidate of getBookKeyCandidates(book)) {
+          keys.push(`odds:${sport}:${eventId}:${market}:${bookCandidate}`);
+        }
+        foundEventMarket.add(`${eventId}:${market}`);
+      }
+    });
+  }
+
+  return { keys, foundEventMarket, eventsWithIndex };
+}
+
+/**
  * OPTIMIZATION: Get odds keys for specific events and market
  * Uses event-scoped scanning: active_events (O(1) SET) + per-event focused scans
  * This avoids maintaining a massive global odds_keys set that's hard to clean up
@@ -779,16 +864,13 @@ async function getOddsKeysForEvents(
   eventIds: string[], 
   market: string
 ): Promise<string[]> {
-  // Cache key includes events + market for proper invalidation
-  const cacheKey = `${sport}:${eventIds.length}:${market}`;
+  // Cache key includes concrete event IDs to avoid collisions across same-size event sets.
+  const cacheKey = `${sport}:${market}:${[...eventIds].sort().join(",")}`;
   const cached = oddsKeysCache.get(cacheKey);
   if (cached && (Date.now() - cached.ts) < ODDS_KEYS_CACHE_TTL) {
     return cached.keys;
   }
 
-  // OPTIMIZED: Scan only for specific market on active events
-  // Each scan is focused: odds:{sport}:{eventId}:{market}:*
-  // ~10-50 events × 1 market = 10-50 focused scans (much better than global)
   const allKeys: string[] = [];
   
   // Primary market name + aliases to try
@@ -804,17 +886,63 @@ async function getOddsKeysForEvents(
     ...baseMarketsToScan,
     ...soccerCompact3WayAliases,
   ]));
-  
-  // Batch scans in parallel (limit concurrency)
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
-    const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.flatMap(eventId => 
-        marketsToScan.map(m => scanKeysOnce(`odds:${sport}:${eventId}:${m}:*`))
-      )
-    );
-    allKeys.push(...batchResults.flat());
+
+  // 1) Preferred path: read consumer-maintained per-event index.
+  const indexed = await getOddsKeysFromIndex(sport, eventIds, marketsToScan);
+  allKeys.push(...indexed.keys);
+
+  const foundEventMarket = new Set(indexed.foundEventMarket);
+  const unresolvedPairs: Array<{ eventId: string; market: string }> = [];
+  for (const eventId of eventIds) {
+    for (const m of marketsToScan) {
+      // Probe all event+market pairs to fill any index gaps (missing books/aliases).
+      unresolvedPairs.push({ eventId, market: m });
+    }
+  }
+
+  // 2) Fast fallback: build exact keys for known books, then mget to detect existing keys.
+  // This avoids expensive SCAN traversal on Redis proxies with large keyspaces.
+  // Probe known books for all event+market pairs.
+  // This complements indexes and recovers books when index members use variant IDs.
+  const fallbackCandidates = unresolvedPairs;
+
+  const candidateKeys: string[] = [];
+  const candidateMeta: Array<{ eventId: string; market: string }> = [];
+  for (const { eventId, market: m } of fallbackCandidates) {
+    for (const book of KNOWN_BOOKS) {
+      candidateKeys.push(`odds:${sport}:${eventId}:${m}:${book}`);
+      candidateMeta.push({ eventId, market: m });
+    }
+  }
+
+  const MGET_CHUNK_SIZE = 1000;
+  for (let i = 0; i < candidateKeys.length; i += MGET_CHUNK_SIZE) {
+    const keysChunk = candidateKeys.slice(i, i + MGET_CHUNK_SIZE);
+    const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+
+    values.forEach((value, idx) => {
+      if (!value) return;
+      const key = keysChunk[idx];
+      const meta = candidateMeta[i + idx];
+      allKeys.push(key);
+      foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+    });
+  }
+
+  // 3) Final fallback: SCAN only unresolved event+market pairs.
+  const fallbackPairs = fallbackCandidates.filter(
+    ({ eventId, market: m }) => !foundEventMarket.has(`${eventId}:${m}`)
+  );
+
+  if (ENABLE_ODDS_SCAN_FALLBACK && fallbackPairs.length > 0) {
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < fallbackPairs.length; i += BATCH_SIZE) {
+      const batch = fallbackPairs.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(({ eventId, market: m }) => scanKeysOnce(`odds:${sport}:${eventId}:${m}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
   }
   
   // Deduplicate keys (same data might be under different market names)
@@ -831,10 +959,17 @@ async function scanKeysOnce(pattern: string): Promise<string[]> {
   const results: string[] = [];
   let cursor = 0;
   let iterations = 0;
-  const MAX_ITERATIONS = 20; // Safety limit
+  const MAX_ITERATIONS = 200; // Safety limit for very large keyspaces/proxy scans
+  const seenCursors = new Set<number>();
 
   do {
     iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[scanKeysOnce] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const [nextCursor, keys] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
@@ -855,9 +990,38 @@ async function scanKeysOnce(pattern: string): Promise<string[]> {
  * Get active event IDs for a sport - uses index set (O(1))
  */
 async function getActiveEventIds(sport: string): Promise<string[]> {
+  const cached = activeEventsCache.get(sport);
+  if (cached && (Date.now() - cached.ts) < ACTIVE_EVENTS_CACHE_TTL) {
+    return cached.ids;
+  }
+
   const key = `active_events:${sport}`;
-  const members = await redis.smembers(key);
-  return members.map(String);
+  const members = (await redis.smembers(key)).map(String).filter(Boolean);
+
+  // Fast path: if set looks healthy, avoid additional scans.
+  if (members.length > 8) {
+    const unique = [...new Set(members)];
+    activeEventsCache.set(sport, { ids: unique, ts: Date.now() });
+    return unique;
+  }
+
+  // Fallback/merge for partially populated sets (common during feed migrations).
+  const eventKeys = await scanKeysOnce(`events:${sport}:*`);
+  const prefix = `events:${sport}:`;
+  const scannedIds = eventKeys
+    .map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : ""))
+    .filter(Boolean);
+
+  const merged = [...new Set([...members, ...scannedIds])];
+  activeEventsCache.set(sport, { ids: merged, ts: Date.now() });
+
+  if (scannedIds.length > members.length) {
+    console.warn(
+      `[v2/props/table] active_events:${sport} appears incomplete (${members.length}); merged with events scan (${scannedIds.length})`
+    );
+  }
+
+  return merged;
 }
 
 /**

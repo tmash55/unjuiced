@@ -3,6 +3,7 @@ export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 
 async function assertPro(req: NextRequest) {
   const supabase = await createClient();
@@ -26,8 +27,12 @@ export async function GET(req: NextRequest) {
   const denied = await assertPro(req);
   if (denied) return denied;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL!;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+  const pubsub = getRedisPubSubEndpoint();
+  const url = pubsub.url;
+  const token = pubsub.token;
+  if (!url || !token) {
+    return new Response(JSON.stringify({ error: "missing_redis_pubsub_env" }), { status: 500 });
+  }
   const channel = "pub:arbs";
 
   const upstream = await fetch(`${url}/subscribe/${encodeURIComponent(channel)}`, {

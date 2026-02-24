@@ -192,6 +192,9 @@ export function transformPropsRowToOddsItem(
       switch (lower) {
         case 'hardrock': return 'hard-rock'
         case 'ballybet': return 'bally-bet'
+        case 'bally_bet': return 'bally-bet'
+        case 'bet-rivers': return 'betrivers'
+        case 'bet_rivers': return 'betrivers'
         case 'sportsinteraction': return 'sports-interaction'
         default: return lower
       }

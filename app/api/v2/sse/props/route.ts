@@ -1,6 +1,7 @@
 export const runtime = "edge";
 
 import { NextRequest } from "next/server";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 
 // Channel mapping for each sport
 // These match the ingestor's publish channels
@@ -92,8 +93,12 @@ export async function GET(req: NextRequest) {
     }), { status: 400 });
   }
 
-  const url = process.env.UPSTASH_REDIS_REST_URL!;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+  const pubsub = getRedisPubSubEndpoint();
+  const url = pubsub.url;
+  const token = pubsub.token;
+  if (!url || !token) {
+    return new Response(JSON.stringify({ error: "missing_redis_pubsub_env" }), { status: 500 });
+  }
   
   // Use PSUBSCRIBE for pattern matching, SUBSCRIBE for direct channel
   const subscribeEndpoint = usePattern ? "psubscribe" : "subscribe";

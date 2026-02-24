@@ -1,6 +1,7 @@
 export const runtime = "edge";
 
 import { NextRequest } from "next/server";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 
 export async function GET(req: NextRequest) {
   // Open access: allow free and unsigned users to subscribe to props SSE
@@ -12,8 +13,12 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "invalid_sport" }), { status: 400 });
   }
 
-  const url = process.env.UPSTASH_REDIS_REST_URL!;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+  const pubsub = getRedisPubSubEndpoint();
+  const url = pubsub.url;
+  const token = pubsub.token;
+  if (!url || !token) {
+    return new Response(JSON.stringify({ error: "missing_redis_pubsub_env" }), { status: 500 });
+  }
   const channel = `pub:props:${sport}`;
 
   const upstream = await fetch(`${url}/subscribe/${encodeURIComponent(channel)}`, {
