@@ -9,8 +9,8 @@ const MAX_SCAN_ITERATIONS = 60;
 const MGET_CHUNK_SIZE = 300;
 const DEFAULT_SPORT = "nba";
 const DEFAULT_TARGET_LINE = 9.5;
-const DEFAULT_MAX_CANDIDATES = 14;
-const DEFAULT_MAX_ROWS = 12;
+const DEFAULT_MAX_CANDIDATES = 30;
+const DEFAULT_MAX_ROWS = 24;
 const DEFAULT_CONCURRENCY = 10;
 const SHEET_CACHE_TTL_SECONDS = 120;
 
@@ -24,13 +24,7 @@ const redis = new Redis({
 let cacheDisabled = false;
 let cacheDisableLogged = false;
 
-const DEFAULT_SHEET_BOOKS: string[] = [
-  "draftkings",
-  "fanduel",
-  "betmgm",
-  "caesars",
-  "thescore",
-];
+const DEFAULT_SHEET_BOOKS: string[] = ["draftkings", "fanduel", "betmgm", "caesars", "thescore"];
 
 const BASE_MARKETS = {
   points: "player_points",
@@ -167,7 +161,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     case "fanduel-yourway":
@@ -179,6 +177,48 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const normalized = normalizeBookId(lower);
+  const candidates = new Set<string>([lower, normalized]);
+
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+  if (normalized === "fanduelyourway") {
+    candidates.add("fanduel-yourway");
+    candidates.add("fanduel_yourway");
+  }
+  if (normalized === "betmgm") {
+    candidates.add("betmgm-michigan");
+    candidates.add("betmgm_michigan");
+  }
+
+  return [...candidates].filter(Boolean);
+}
+
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return {
+    market: member.slice(0, sep),
+    book: member.slice(sep + 1),
+  };
 }
 
 function isSubscriberModeError(error: unknown): boolean {
@@ -205,33 +245,67 @@ function formatDisplayPlayer(raw: string): string {
 }
 
 function resolveAllowedBooks(requested?: string[]): string[] {
-  const sgpBooks = new Set(
-    Object.entries(SPORTSBOOKS_META)
-      .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
-      .map(([id]) => id)
-  );
+  const allSgpBooks = Object.entries(SPORTSBOOKS_META)
+    .filter(([_, meta]) => meta.sgp === true && meta.isActive === true)
+    .sort((a, b) => (b[1].priority || 0) - (a[1].priority || 0))
+    .map(([id]) => normalizeBookId(id));
+  const sgpBooks = new Set(allSgpBooks);
 
-  const desired = requested?.length ? requested : DEFAULT_SHEET_BOOKS;
-  const filtered = desired.map(normalizeBookId).filter((book) => sgpBooks.has(book));
+  // Default to all active SGP books; keep a small hardcoded fallback only if metadata is empty.
+  const desired = requested?.length
+    ? requested
+    : (allSgpBooks.length ? allSgpBooks : DEFAULT_SHEET_BOOKS);
+  const filtered = desired
+    .map(normalizeBookId)
+    .filter((book) => sgpBooks.has(book));
 
-  return filtered.length ? filtered : Array.from(sgpBooks);
+  return filtered.length ? [...new Set(filtered)] : [...new Set(allSgpBooks)];
 }
 
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = "0";
+  let cursor = 0;
   let iterations = 0;
+  let resetAfterInvalidCursor = false;
+  const seenCursors = new Set<number>();
 
   do {
     iterations += 1;
-    const result: [string, string[]] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
-    });
-    cursor = result[0];
+    if (seenCursors.has(cursor)) {
+      console.warn(`[triple-double-sheet] Cursor cycle detected for ${pattern}, stopping at ${keys.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
+    let result: [string, string[]];
+    try {
+      result = await redis.scan(cursor, {
+        match: pattern,
+        count: SCAN_COUNT,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isInvalidCursor = message.toLowerCase().includes("invalid cursor");
+      if (isInvalidCursor && cursor !== 0 && !resetAfterInvalidCursor) {
+        console.warn(`[triple-double-sheet] Invalid cursor for ${pattern}; resetting scan cursor to 0 once`);
+        cursor = 0;
+        resetAfterInvalidCursor = true;
+        seenCursors.clear();
+        continue;
+      }
+      throw error;
+    }
+
+    const nextCursor = Number(result[0]);
+    if (!Number.isFinite(nextCursor)) {
+      console.warn(`[triple-double-sheet] Non-numeric cursor for ${pattern}; stopping at ${keys.length} keys`);
+      break;
+    }
+
+    cursor = nextCursor;
     keys.push(...result[1]);
     if (iterations >= MAX_SCAN_ITERATIONS) break;
-  } while (cursor !== "0");
+  } while (cursor !== 0);
 
   return keys;
 }
@@ -347,15 +421,57 @@ async function collectCandidatesForEvent(
   targetLine: number,
   out: Map<string, SheetCandidate>
 ): Promise<void> {
-  const marketPatterns = [
+  const desiredMarkets = new Set<string>([
     BASE_MARKETS.points,
     BASE_MARKETS.rebounds,
     BASE_MARKETS.assists,
     ...TD_MARKETS,
-  ].map((market) => `odds:${sport}:${eventMeta.eventId}:${market}:*`);
+  ]);
 
-  const marketKeysArrays = await Promise.all(marketPatterns.map((pattern) => scanKeys(pattern)));
-  const allKeys = marketKeysArrays.flat();
+  const [rawIndexMembers, rawIndexedMarkets] = await Promise.all([
+    redis.smembers(`odds_idx:${sport}:${eventMeta.eventId}`),
+    redis.smembers(`markets_idx:${sport}:${eventMeta.eventId}`),
+  ]);
+
+  const keysToFetch = new Set<string>();
+  const marketsToProbe = new Set<string>();
+
+  for (const raw of rawIndexedMarkets || []) {
+    const market = String(raw);
+    if (desiredMarkets.has(market)) {
+      marketsToProbe.add(market);
+    }
+  }
+
+  for (const raw of rawIndexMembers || []) {
+    const parsed = parseOddsIndexMember(String(raw));
+    if (!parsed || !desiredMarkets.has(parsed.market)) continue;
+
+    marketsToProbe.add(parsed.market);
+    const normalizedBook = normalizeBookId(parsed.book);
+    if (!allowedBooks.has(normalizedBook)) continue;
+
+    for (const bookCandidate of getBookKeyCandidates(parsed.book)) {
+      keysToFetch.add(`odds:${sport}:${eventMeta.eventId}:${parsed.market}:${bookCandidate}`);
+    }
+  }
+
+  if (marketsToProbe.size === 0) {
+    for (const market of desiredMarkets) {
+      marketsToProbe.add(market);
+    }
+  }
+
+  // Deterministic fallback to recover data when indexes are stale/incomplete.
+  for (const market of marketsToProbe) {
+    for (const allowedBook of allowedBooks) {
+      for (const bookCandidate of getBookKeyCandidates(allowedBook)) {
+        keysToFetch.add(`odds:${sport}:${eventMeta.eventId}:${market}:${bookCandidate}`);
+      }
+    }
+  }
+
+  const allKeys = [...keysToFetch];
   if (allKeys.length === 0) return;
 
   const allData = await mgetChunked<SSEBookSelections>(allKeys);
@@ -584,27 +700,52 @@ export async function computeTripleDoubleSheet(
 
   const quoteTasks = buildQuoteTasks(shortlisted);
   const taskFns = quoteTasks.map((task) => async (): Promise<{ task: QuoteTask; quote: ComboQuote }> => {
-    const result = await fetchSgpQuote(task.book, task.tokens, {
-      allowStaleOnRateLimit: true,
-      allowStaleOnLockTimeout: true,
-    });
+    try {
+      const result = await fetchSgpQuote(task.book, task.tokens, {
+        allowStaleOnRateLimit: true,
+        allowStaleOnLockTimeout: true,
+      });
 
-    const price = parseAmericanOdds(result.odds.price);
-    return {
-      task,
-      quote: {
-        combo: task.combo,
+      const price = parseAmericanOdds(result.odds.price);
+      return {
+        task,
+        quote: {
+          combo: task.combo,
+          book: task.book,
+          price,
+          priceFormatted: price !== null ? formatOdds(price) : null,
+          link: result.odds.links?.desktop || null,
+          mobileLink: result.odds.links?.mobile || null,
+          error: result.odds.error,
+          source: result.source,
+          fromCache: result.fromCache,
+          stale: result.stale,
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("[triple-double-sheet] quote task failed", {
         book: task.book,
-        price,
-        priceFormatted: price !== null ? formatOdds(price) : null,
-        link: result.odds.links?.desktop || null,
-        mobileLink: result.odds.links?.mobile || null,
-        error: result.odds.error,
-        source: result.source,
-        fromCache: result.fromCache,
-        stale: result.stale,
-      },
-    };
+        combo: task.combo,
+        tokenCount: task.tokens.length,
+        error: message,
+      });
+      return {
+        task,
+        quote: {
+          combo: task.combo,
+          book: task.book,
+          price: null,
+          priceFormatted: null,
+          link: null,
+          mobileLink: null,
+          error: "quote_unavailable",
+          source: "vendor",
+          fromCache: false,
+          stale: false,
+        },
+      };
+    }
   });
 
   const quoteResults = quoteTasks.length

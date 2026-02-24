@@ -166,6 +166,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to fetch triple-double sheet",
+        details:
+          process.env.NODE_ENV !== "production"
+            ? (error instanceof Error ? error.message : String(error))
+            : undefined,
         data: null,
         source: "empty",
         timestamp: Date.now(),
