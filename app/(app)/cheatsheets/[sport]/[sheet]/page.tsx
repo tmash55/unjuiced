@@ -19,6 +19,7 @@ import { MobileInjuryImpact } from "@/components/cheat-sheet/mobile/mobile-injur
 import { MlbWeatherReport } from "@/components/cheat-sheet/mlb-weather-report";
 import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
 import { HitRateMatrix } from "@/components/hit-rate-matrix";
+import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { InjuryImpactGlossary } from "@/components/cheat-sheet/injury-impact-glossary";
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from "@/components/nba/dvp-table/dvp-filters";
@@ -102,6 +103,11 @@ const SUPPORTED_SHEETS = [
   "hit-rate-matrix",
   "dvp",
   "weather-report",
+  "power-matchups",
+  "exit-velocity",
+  "batter-vs-pitcher",
+  "hit-streaks",
+  "strikeouts",
 ] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
@@ -109,7 +115,14 @@ type SupportedSheet = typeof SUPPORTED_SHEETS[number];
 
 const SPORT_SHEETS: Record<SupportedSport, SupportedSheet[]> = {
   nba: ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"],
-  mlb: ["weather-report"],
+  mlb: [
+    "weather-report",
+    "power-matchups",
+    "exit-velocity",
+    "batter-vs-pitcher",
+    "hit-streaks",
+    "strikeouts",
+  ],
 };
 
 // Sheet display names and descriptions
@@ -137,6 +150,26 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "weather-report": {
     title: "MLB Weather Report",
     description: "Weather, wind, and venue impact by game for MLB props.",
+  },
+  "power-matchups": {
+    title: "Power Matchups",
+    description: "Home-run environment and batter power matchups by slate.",
+  },
+  "exit-velocity": {
+    title: "Exit Velocity",
+    description: "Recent EV trends and hard-hit quality indicators.",
+  },
+  "batter-vs-pitcher": {
+    title: "Batter vs Pitcher",
+    description: "Historical matchup splits with contextual quality filters.",
+  },
+  "hit-streaks": {
+    title: "Hit Streaks",
+    description: "Current streak form and consistency signals for hitters.",
+  },
+  "strikeouts": {
+    title: "Strikeouts",
+    description: "Pitcher K projection context versus lineup tendencies.",
   },
 };
 
@@ -194,7 +227,11 @@ function MlbWeatherReportSheet({ sport, sheet }: { sport: SupportedSport; sheet:
   const sheetInfo = SHEET_INFO[sheet];
 
   return (
-    <AppPageLayout title={sheetInfo.title} subtitle={sheetInfo.description}>
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} />}
+    >
       <MlbWeatherReport />
     </AppPageLayout>
   );
@@ -213,6 +250,7 @@ function ComingSoonSheet({
     <AppPageLayout
       title={sheetInfo.title}
       subtitle={sheetInfo.description}
+      contextBar={<CheatSheetNav sport={sport} currentSheet={sheet} />}
     >
       <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
         <span className="px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold">

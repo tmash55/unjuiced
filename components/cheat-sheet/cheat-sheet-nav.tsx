@@ -58,6 +58,46 @@ const MLB_CHEAT_SHEET_TABS: CheatSheetTab[] = [
     icon: CloudSun,
     description: "Wind, temp, and venue impact",
   },
+  {
+    slug: "power-matchups",
+    label: "Power Matchups",
+    shortLabel: "Power",
+    icon: TrendingUp,
+    description: "HR environment matchups",
+    comingSoon: true,
+  },
+  {
+    slug: "exit-velocity",
+    label: "Exit Velocity",
+    shortLabel: "EV",
+    icon: BarChart3,
+    description: "Hard-hit trend context",
+    comingSoon: true,
+  },
+  {
+    slug: "batter-vs-pitcher",
+    label: "Batter vs Pitcher",
+    shortLabel: "BvP",
+    icon: LayoutGrid,
+    description: "Matchup split tracker",
+    comingSoon: true,
+  },
+  {
+    slug: "hit-streaks",
+    label: "Hit Streaks",
+    shortLabel: "Streaks",
+    icon: TrendingUp,
+    description: "Current form tracker",
+    comingSoon: true,
+  },
+  {
+    slug: "strikeouts",
+    label: "Strikeouts",
+    shortLabel: "K Props",
+    icon: BarChart3,
+    description: "Pitcher K outlook",
+    comingSoon: true,
+  },
 ];
 
 interface CheatSheetNavProps {

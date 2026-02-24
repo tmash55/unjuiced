@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { FileText, UserMinus, Grid3X3, LayoutGrid, CloudSun } from "lucide-react";
+import { FileText, UserMinus, Grid3X3, LayoutGrid, CloudSun, TrendingUp, BarChart3 } from "lucide-react";
 
 const cheatsheets = [
   {
@@ -71,6 +71,71 @@ const cheatsheets = [
     color: "#38bdf8",
     comingSoon: false,
     badge: "NEW",
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-red-400">
+        <TrendingUp className="size-2.5 text-red-900" />
+      </div>
+    ),
+    title: "MLB Power Matchups",
+    description: "HR-focused matchup context and power environment signals.",
+    href: "/cheatsheets/mlb/power-matchups",
+    color: "#f87171",
+    comingSoon: true,
+    badge: null,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-amber-400">
+        <BarChart3 className="size-2.5 text-amber-900" />
+      </div>
+    ),
+    title: "MLB Exit Velocity",
+    description: "Hard-hit quality and recent batted-ball trend snapshots.",
+    href: "/cheatsheets/mlb/exit-velocity",
+    color: "#fbbf24",
+    comingSoon: true,
+    badge: null,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-indigo-400">
+        <LayoutGrid className="size-2.5 text-indigo-900" />
+      </div>
+    ),
+    title: "MLB Batter vs Pitcher",
+    description: "Historical matchup sheet with context-aware caveats.",
+    href: "/cheatsheets/mlb/batter-vs-pitcher",
+    color: "#818cf8",
+    comingSoon: true,
+    badge: null,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-teal-400">
+        <FileText className="size-2.5 text-teal-900" />
+      </div>
+    ),
+    title: "MLB Hit Streaks",
+    description: "Track hitters on active streaks with consistency metrics.",
+    href: "/cheatsheets/mlb/hit-streaks",
+    color: "#2dd4bf",
+    comingSoon: true,
+    badge: null,
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-violet-400">
+        <Grid3X3 className="size-2.5 text-violet-900" />
+      </div>
+    ),
+    title: "MLB Strikeouts",
+    description: "Pitcher K matchups and lineup swing/miss profile context.",
+    href: "/cheatsheets/mlb/strikeouts",
+    color: "#a78bfa",
+    comingSoon: true,
+    badge: null,
   },
 ];
 

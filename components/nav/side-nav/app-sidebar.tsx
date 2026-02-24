@@ -150,6 +150,11 @@ const researchLinks: NavItem[] = [
       { label: "NBA • Injury Impact", href: "/cheatsheets/nba/injury-impact" },
       { label: "NBA • Defense vs Position", href: "/cheatsheets/nba/dvp" },
       { label: "MLB • Weather Report", href: "/cheatsheets/mlb/weather-report" },
+      { label: "MLB • Power Matchups", href: "/cheatsheets/mlb/power-matchups" },
+      { label: "MLB • Exit Velocity", href: "/cheatsheets/mlb/exit-velocity" },
+      { label: "MLB • Batter vs Pitcher", href: "/cheatsheets/mlb/batter-vs-pitcher" },
+      { label: "MLB • Hit Streaks", href: "/cheatsheets/mlb/hit-streaks" },
+      { label: "MLB • Strikeouts", href: "/cheatsheets/mlb/strikeouts" },
     ]
   },
   {
