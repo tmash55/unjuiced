@@ -3,11 +3,44 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { SSESelection, SSEBookSelections } from "@/lib/odds/types";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 const VALID_SPORTS = new Set([
   "nba",
@@ -340,7 +373,8 @@ async function buildAlternates(
     const data = oddsDataRaw[i];
     if (!data) return;
 
-    const selections: SSEBookSelections = typeof data === "string" ? JSON.parse(data) : data;
+    const selections = parseBookSelectionsValue(data, key);
+    if (!selections) return;
     const rawBook = key.split(":").pop()!;
     
     // Skip excluded books (Canada, regional variants)

@@ -7,6 +7,7 @@ import {
   SSESelection,
   SSEBookSelections,
 } from "@/lib/odds/types";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
 // Single-line markets where we show ALL players (no main line filtering)
 // For these markets, each player is their own "line" - show everyone
@@ -48,10 +49,42 @@ const SINGLE_LINE_PLAYER_MARKETS = new Set([
   // Soccer goalscorers (already listed above with hockey, same markets apply)
 ]);
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/table] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/table] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 const VALID_SPORTS = new Set([
   "nba",
@@ -922,6 +955,11 @@ async function getOddsKeysForEvents(
 
     values.forEach((value, idx) => {
       if (!value) return;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        // Ignore obvious non-odds payloads (e.g., HTML error pages).
+        if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
+      }
       const key = keysChunk[idx];
       const meta = candidateMeta[i + idx];
       allKeys.push(key);
@@ -1156,7 +1194,10 @@ async function buildPropsRows(
   allOddsKeys.forEach((key, i) => {
     const data = allOddsData[i];
     if (data) {
-      oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+      const parsed = parseBookSelectionsValue(data, key);
+      if (parsed) {
+        oddsDataMap.set(key, parsed);
+      }
     }
   });
 

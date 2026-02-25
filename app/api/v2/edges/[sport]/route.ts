@@ -52,6 +52,8 @@ const MAX_SCAN_ITERATIONS = 200;
 const ACTIVE_EVENTS_CACHE_TTL = 15000;
 const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
 const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+let invalidPayloadWarnCount = 0;
+const MAX_INVALID_PAYLOAD_WARNINGS = 8;
 
 const KNOWN_BOOKS = [
   "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
@@ -119,6 +121,36 @@ function parseOddsIndexMember(member: string): { market: string; book: string } 
   return { market: member.slice(0, sep), book: member.slice(sep + 1) };
 }
 
+function parseRedisJsonObject<T extends object>(
+  value: string | T | null,
+  key: string,
+  context: string
+): T | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidPayloadWarnCount < MAX_INVALID_PAYLOAD_WARNINGS) {
+      invalidPayloadWarnCount += 1;
+      console.warn(`[v2/edges] Skipping non-JSON ${context} payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as T;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidPayloadWarnCount < MAX_INVALID_PAYLOAD_WARNINGS) {
+      invalidPayloadWarnCount += 1;
+      console.warn(`[v2/edges] Skipping invalid JSON ${context} payload for key: ${key}`);
+    }
+    return null;
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sport: string }> }
@@ -166,8 +198,10 @@ export async function GET(
     eventIds.forEach((id, i) => {
       const data = eventDataRaw[i];
       if (data) {
-        // Handle both string and parsed object
-        events[id] = typeof data === "string" ? JSON.parse(data) : data;
+        const parsed = parseRedisJsonObject<SSEEvent>(data, eventKeys[i], "event");
+        if (parsed) {
+          events[id] = parsed;
+        }
       }
     });
 
@@ -192,7 +226,10 @@ export async function GET(
         const book = normalizeBookId(key.split(":").pop()!);
         const data = oddsDataRaw[i];
         if (data) {
-          bookSelections[book] = typeof data === "string" ? JSON.parse(data) : data;
+          const parsed = parseRedisJsonObject<SSEBookSelections>(data, key, "odds");
+          if (parsed) {
+            bookSelections[book] = parsed;
+          }
         }
       });
 

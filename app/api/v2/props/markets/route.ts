@@ -3,10 +3,12 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { getMarketDisplay } from "@/lib/odds/types";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
 const VALID_SPORTS = new Set([

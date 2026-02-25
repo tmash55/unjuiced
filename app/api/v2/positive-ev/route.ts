@@ -38,10 +38,12 @@ import {
 import { createClient } from "@/libs/supabase/server";
 import { getUserPlan } from "@/lib/plans-server";
 import { hasEliteAccess } from "@/lib/plans";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
 // Configuration - optimized for speed
@@ -70,11 +72,51 @@ const RESPONSE_CACHE_TTL_PRESET = 15;  // 15 seconds for standard presets
 const RESPONSE_CACHE_TTL_CUSTOM = 30;  // 30 seconds for custom models (configs rarely change)
 let responseCacheDisabled = false;
 let responseCacheDisableLogged = false;
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
 
 function isSubscriberModeError(error: unknown): boolean {
   const message =
     (error instanceof Error ? error.message : String(error || "")).toLowerCase();
   return message.includes("subscriber mode");
+}
+
+function isEndpointJsonParseError(error: unknown): boolean {
+  const message =
+    (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return (
+    (message.includes("unexpected token '<'") && message.includes("valid json")) ||
+    message.includes("is not valid json")
+  );
+}
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[positive-ev] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[positive-ev] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
 }
 
 /**
@@ -115,10 +157,13 @@ async function getFromResponseCache(key: string): Promise<unknown | null> {
     const cached = await redis.get(redisKey);
     return cached;
   } catch (error) {
-    if (isSubscriberModeError(error)) {
+    if (isSubscriberModeError(error) || isEndpointJsonParseError(error)) {
       responseCacheDisabled = true;
       if (!responseCacheDisableLogged) {
-        console.warn("[positive-ev] Disabling response cache reads/writes due to Redis subscriber-mode connection");
+        const reason = isSubscriberModeError(error)
+          ? "Redis subscriber-mode connection"
+          : "non-JSON response from Redis endpoint";
+        console.warn(`[positive-ev] Disabling response cache reads/writes due to ${reason}`);
         responseCacheDisableLogged = true;
       }
       return null;
@@ -138,10 +183,13 @@ async function setInResponseCache(key: string, data: unknown, isCustom: boolean)
     const redisKey = `${RESPONSE_CACHE_PREFIX}${hashCacheKey(key)}`;
     await redis.set(redisKey, data, { ex: ttl });
   } catch (error) {
-    if (isSubscriberModeError(error)) {
+    if (isSubscriberModeError(error) || isEndpointJsonParseError(error)) {
       responseCacheDisabled = true;
       if (!responseCacheDisableLogged) {
-        console.warn("[positive-ev] Disabling response cache writes due to Redis subscriber-mode connection");
+        const reason = isSubscriberModeError(error)
+          ? "Redis subscriber-mode connection"
+          : "non-JSON response from Redis endpoint";
+        console.warn(`[positive-ev] Disabling response cache writes due to ${reason}`);
         responseCacheDisableLogged = true;
       }
       return;
@@ -578,7 +626,10 @@ async function fetchPositiveEVOpportunities(
     filteredKeys.forEach((key, i) => {
       const data = allOddsData[i];
       if (data) {
-        oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+        const parsed = parseBookSelectionsValue(data, key);
+        if (parsed) {
+          oddsDataMap.set(key, parsed);
+        }
       }
     });
 
@@ -1408,6 +1459,11 @@ async function getOddsKeysForEvents(
 
       values.forEach((value, idx) => {
         if (!value) return;
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          // Ignore obvious non-odds payloads (e.g., HTML error pages).
+          if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
+        }
         const key = keysChunk[idx];
         const meta = candidateMeta[i + idx];
         allKeys.push(key);
