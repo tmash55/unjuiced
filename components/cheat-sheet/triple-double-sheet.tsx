@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-type SortField = "player" | "sgpRa" | "sgpPra" | "td" | "startTime" | "bestEv";
+type SortField = "player" | "sgpRa" | "sgpPra" | "td" | "startTime";
 type SortDirection = "asc" | "desc";
 
 function TeamLogo({ team, className }: { team: string; className?: string }) {
@@ -225,11 +225,6 @@ function getValueRec(row: TripleDoubleSheetRow): ValueRec {
   }
 
   return { type: "fair", edgePct: 0, combo: bestCombo };
-}
-
-function rowEdgeSortValue(row: TripleDoubleSheetRow): number {
-  const rec = getValueRec(row);
-  return rec.edgePct;
 }
 
 function ValueBadge({ row }: { row: TripleDoubleSheetRow }) {
@@ -457,7 +452,7 @@ export function TripleDoubleSheet() {
   const sheet = data?.data;
   const rows = sheet?.rows || [];
 
-  const [sortField, setSortField] = useState<SortField>("bestEv");
+  const [sortField, setSortField] = useState<SortField>("td");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedPlayer, setSelectedPlayer] = useState<{
     player_name: string;
@@ -499,10 +494,6 @@ export function TripleDoubleSheet() {
         case "startTime":
           aVal = new Date(a.startTime).getTime();
           bVal = new Date(b.startTime).getTime();
-          break;
-        case "bestEv":
-          aVal = rowEdgeSortValue(a);
-          bVal = rowEdgeSortValue(b);
           break;
       }
 
@@ -704,14 +695,6 @@ export function TripleDoubleSheet() {
                       Triple Double <SortIcon field="td" currentField={sortField} direction={sortDirection} />
                     </button>
                   </th>
-                  <th className="h-11 px-4 font-semibold border-b border-neutral-200/80 dark:border-neutral-700/80 min-w-[100px] bg-neutral-50/95 dark:bg-neutral-800/95">
-                    <button
-                      onClick={() => handleSort("bestEv")}
-                      className="w-full flex items-center justify-center gap-1.5 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-                    >
-                      Edge <SortIcon field="bestEv" currentField={sortField} direction={sortDirection} />
-                    </button>
-                  </th>
                   <th className="h-11 px-2 font-semibold border-b border-neutral-200/80 dark:border-neutral-700/80 w-10 bg-neutral-50/95 dark:bg-neutral-800/95" />
                 </tr>
               </thead>
@@ -773,9 +756,6 @@ export function TripleDoubleSheet() {
                           isBest={hasBest && row.td?.price === bestPrice}
                           isMobile={isMobile}
                         />
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <ValueBadge row={row} />
                       </td>
                       <td className="px-2 py-3 text-center">
                         <button
