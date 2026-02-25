@@ -235,30 +235,20 @@ function ValueBadge({ row }: { row: TripleDoubleSheetRow }) {
 
   if (rec.type === "build") {
     return (
-      <div className="inline-flex flex-col items-center gap-0.5">
+      <div className="inline-flex items-center">
         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
           Build SGP
         </span>
-        {rec.edgePct > 0 && (
-          <span className="text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-            +{rec.edgePct.toFixed(1)}% EV
-          </span>
-        )}
       </div>
     );
   }
 
   // type === "td"
   return (
-    <div className="inline-flex flex-col items-center gap-0.5">
+    <div className="inline-flex items-center">
       <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-400">
         Bet TD
       </span>
-      {rec.edgePct > 0 && (
-        <span className="text-[10px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
-          +{rec.edgePct.toFixed(1)}% EV
-        </span>
-      )}
     </div>
   );
 }
