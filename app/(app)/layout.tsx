@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { useActivityTracker } from "@/hooks/use-activity-tracker"
 import { LoadingSpinner } from "@/components/icons/loading-spinner"
 import { FavoritesDrawerTrigger, MobileFavoritesDrawerTrigger } from "@/components/favorites/favorites-drawer"
+import { FeatureAnnouncementModal } from "@/components/feature-announcements/feature-announcement-modal"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Tooltip, TooltipProvider } from "@/components/tooltip"
 import { cn } from "@/lib/utils"
@@ -158,6 +159,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      <FeatureAnnouncementModal />
     </div>
   )
 }
