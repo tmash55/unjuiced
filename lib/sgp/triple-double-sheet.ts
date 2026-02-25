@@ -8,10 +8,11 @@ const SCAN_COUNT = 1500;
 const MAX_SCAN_ITERATIONS = 60;
 const MGET_CHUNK_SIZE = 300;
 const DEFAULT_SPORT = "nba";
-const DEFAULT_TARGET_LINE = 9.5;
-const DEFAULT_MAX_CANDIDATES = 30;
-const DEFAULT_MAX_ROWS = 24;
+const DEFAULT_TARGET_LINE = 10;
+const DEFAULT_MAX_CANDIDATES = 80;
+const DEFAULT_MAX_ROWS = 40;
 const DEFAULT_CONCURRENCY = 10;
+const LEG_LINE_TOLERANCE = 0.5;
 const SHEET_CACHE_TTL_SECONDS = 120;
 
 const REDIS_SHEET_DATA_KEY = "dashboard:triple-double-sheet:data";
@@ -30,6 +31,11 @@ const BASE_MARKETS = {
   points: "player_points",
   rebounds: "player_rebounds",
   assists: "player_assists",
+} as const;
+const ALT_MARKETS = {
+  points: "player_points_alternate",
+  rebounds: "player_rebounds_alternate",
+  assists: "player_assists_alternate",
 } as const;
 
 const TD_MARKETS = ["player_triple_double", "triple_double"];
@@ -65,6 +71,7 @@ interface SheetCandidate {
   matchup: string;
   startTime: string;
   legsByBook: Record<string, BookLegTokens>;
+  legLinesByBook: Record<string, Partial<Record<BaseLegKey, number>>>;
   tdByBook: Record<string, BookTdPrice>;
 }
 
@@ -94,6 +101,7 @@ export interface SheetBestPrice {
 
 export interface TripleDoubleSheetRow {
   id: string;
+  playerId: string;
   player: string;
   team: string | null;
   matchup: string;
@@ -102,6 +110,9 @@ export interface TripleDoubleSheetRow {
   sgp_ra: SheetBestPrice | null;
   sgp_pra: SheetBestPrice | null;
   td: SheetBestPrice | null;
+  allSgpRa: SheetBestPrice[];
+  allSgpPra: SheetBestPrice[];
+  allTd: SheetBestPrice[];
   hasAllThreeLegs: boolean;
   booksWithRa: number;
   booksWithPra: number;
@@ -234,6 +245,20 @@ function formatOdds(price: number): string {
 function parseAmericanOdds(value: string | number | undefined | null): number | null {
   if (value === null || value === undefined) return null;
   const parsed = typeof value === "number" ? Math.round(value) : parseInt(value.replace("+", ""), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseNumericLineValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const matched = trimmed.match(/-?\d+(\.\d+)?/);
+  if (!matched) return null;
+
+  const parsed = parseFloat(matched[0]);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -378,10 +403,27 @@ async function getEventMetaMap(sport: string, eventIds: string[]): Promise<Map<s
   return map;
 }
 
-function shouldUseTargetLine(selection: SSESelection, keyLine: string, targetLine: number): boolean {
-  const selectionLine = Number.isFinite(selection.line) ? selection.line : parseFloat(keyLine);
-  if (!Number.isFinite(selectionLine)) return false;
-  return Math.abs(selectionLine - targetLine) < 0.01;
+function getSelectionLine(selection: SSESelection, keyLine: string): number | null {
+  const fromSelection = parseNumericLineValue(selection.line as unknown);
+  if (fromSelection !== null) return fromSelection;
+  return parseNumericLineValue(keyLine);
+}
+
+function shouldReplaceLegLine(
+  currentLine: number | undefined,
+  nextLine: number,
+  targetLine: number
+): boolean {
+  if (currentLine === undefined || !Number.isFinite(currentLine)) return true;
+
+  const currentDelta = Math.abs(currentLine - targetLine);
+  const nextDelta = Math.abs(nextLine - targetLine);
+
+  // Prefer lines closer to the target, then prefer the lower line on ties
+  // (e.g., over 9.5 = "10+" exactly matches triple-double criteria).
+  if (nextDelta < currentDelta) return true;
+  if (nextDelta > currentDelta) return false;
+  return nextLine < currentLine;
 }
 
 function ensureCandidate(
@@ -404,6 +446,7 @@ function ensureCandidate(
       matchup: `${eventMeta.awayTeam} @ ${eventMeta.homeTeam}`,
       startTime: eventMeta.startTime,
       legsByBook: {},
+      legLinesByBook: {},
       tdByBook: {},
     };
     map.set(key, candidate);
@@ -425,6 +468,9 @@ async function collectCandidatesForEvent(
     BASE_MARKETS.points,
     BASE_MARKETS.rebounds,
     BASE_MARKETS.assists,
+    ALT_MARKETS.points,
+    ALT_MARKETS.rebounds,
+    ALT_MARKETS.assists,
     ...TD_MARKETS,
   ]);
 
@@ -456,10 +502,9 @@ async function collectCandidatesForEvent(
     }
   }
 
-  if (marketsToProbe.size === 0) {
-    for (const market of desiredMarkets) {
-      marketsToProbe.add(market);
-    }
+  // Always probe all target markets. Indexes can be stale and may omit alternates.
+  for (const market of desiredMarkets) {
+    marketsToProbe.add(market);
   }
 
   // Deterministic fallback to recover data when indexes are stale/incomplete.
@@ -490,6 +535,9 @@ async function collectCandidatesForEvent(
       [BASE_MARKETS.points]: "points",
       [BASE_MARKETS.rebounds]: "rebounds",
       [BASE_MARKETS.assists]: "assists",
+      [ALT_MARKETS.points]: "points",
+      [ALT_MARKETS.rebounds]: "rebounds",
+      [ALT_MARKETS.assists]: "assists",
     };
 
     const baseLeg = baseLegByMarket[market];
@@ -497,10 +545,13 @@ async function collectCandidatesForEvent(
     if (baseLeg) {
       for (const [selectionKey, sel] of Object.entries(selections)) {
         if (!sel || sel.locked || !sel.sgp) continue;
-        const [playerRaw, sideRaw, keyLine] = selectionKey.split("|");
-        if (!playerRaw || !sideRaw || !keyLine) continue;
-        if (sideRaw !== "over") continue;
-        if (!shouldUseTargetLine(sel, keyLine, targetLine)) continue;
+        const keyParts = selectionKey.split("|");
+        const playerRaw = keyParts[0] || sel.player_id || "";
+        const sideRaw = String(sel.side || keyParts[1] || "").toLowerCase();
+        const keyLine = keyParts.slice(2).join("|");
+        if (!playerRaw || sideRaw !== "over") continue;
+        const selectionLine = getSelectionLine(sel, keyLine);
+        if (selectionLine === null) continue;
 
         const playerId = sel.player_id || playerRaw;
         const candidate = ensureCandidate(
@@ -513,7 +564,13 @@ async function collectCandidatesForEvent(
         );
 
         if (!candidate.legsByBook[book]) candidate.legsByBook[book] = {};
-        candidate.legsByBook[book][baseLeg] = sel.sgp;
+        if (!candidate.legLinesByBook[book]) candidate.legLinesByBook[book] = {};
+
+        const currentLine = candidate.legLinesByBook[book][baseLeg];
+        if (shouldReplaceLegLine(currentLine, selectionLine, targetLine)) {
+          candidate.legsByBook[book][baseLeg] = sel.sgp;
+          candidate.legLinesByBook[book][baseLeg] = selectionLine;
+        }
       }
       return;
     }
@@ -521,7 +578,9 @@ async function collectCandidatesForEvent(
     if (TD_MARKETS.includes(market)) {
       for (const [selectionKey, sel] of Object.entries(selections)) {
         if (!sel || sel.locked) continue;
-        const [playerRaw, sideRaw] = selectionKey.split("|");
+        const keyParts = selectionKey.split("|");
+        const playerRaw = keyParts[0] || sel.player_id || "";
+        const sideRaw = String(sel.side || keyParts[1] || "").toLowerCase();
         if (!playerRaw || !sideRaw) continue;
         if (!["yes", "ml", "over"].includes(sideRaw)) continue;
 
@@ -552,12 +611,32 @@ async function collectCandidatesForEvent(
   });
 }
 
-function countBooksWithLegs(candidate: SheetCandidate): { ra: number; pra: number } {
+function isEligibleLegLine(line: number | undefined, targetLine: number): boolean {
+  if (line === undefined || !Number.isFinite(line)) return false;
+  return line <= targetLine && Math.abs(line - targetLine) <= LEG_LINE_TOLERANCE;
+}
+
+function countBooksWithLegs(candidate: SheetCandidate, targetLine: number): { ra: number; pra: number } {
   let ra = 0;
   let pra = 0;
-  for (const legs of Object.values(candidate.legsByBook)) {
-    if (legs.rebounds && legs.assists) ra += 1;
-    if (legs.points && legs.rebounds && legs.assists) pra += 1;
+  for (const [book, legs] of Object.entries(candidate.legsByBook)) {
+    const lines = candidate.legLinesByBook[book] || {};
+    const hasRaLegs =
+      !!legs.rebounds &&
+      !!legs.assists &&
+      isEligibleLegLine(lines.rebounds, targetLine) &&
+      isEligibleLegLine(lines.assists, targetLine);
+
+    if (hasRaLegs) ra += 1;
+
+    const hasPraLegs =
+      hasRaLegs &&
+      !!legs.points &&
+      isEligibleLegLine(lines.points, targetLine);
+
+    if (hasPraLegs) {
+      pra += 1;
+    }
   }
   return { ra, pra };
 }
@@ -586,24 +665,57 @@ interface QuoteTask {
   tokens: string[];
 }
 
-function buildQuoteTasks(candidates: SheetCandidate[]): QuoteTask[] {
+function getBookPriority(book: string): number {
+  const meta = SPORTSBOOKS_META[book];
+  return meta?.priority || 0;
+}
+
+function pickQuoteBooks(candidate: SheetCandidate): string[] {
+  const legBooks = Object.keys(candidate.legsByBook);
+  if (legBooks.length === 0) return [];
+
+  return legBooks
+    .sort((a, b) => {
+      const aTd = candidate.tdByBook[a]?.price ?? Number.NEGATIVE_INFINITY;
+      const bTd = candidate.tdByBook[b]?.price ?? Number.NEGATIVE_INFINITY;
+      if (bTd !== aTd) return bTd - aTd;
+      return getBookPriority(b) - getBookPriority(a);
+    });
+}
+
+function buildQuoteTasks(candidates: SheetCandidate[], targetLine: number): QuoteTask[] {
   const tasks: QuoteTask[] = [];
   for (const candidate of candidates) {
+    const quoteBooks = new Set(pickQuoteBooks(candidate));
     for (const [book, legs] of Object.entries(candidate.legsByBook)) {
-      if (legs.rebounds && legs.assists) {
+      if (!quoteBooks.has(book)) continue;
+      const lines = candidate.legLinesByBook[book] || {};
+      const reboundsToken = legs.rebounds;
+      const assistsToken = legs.assists;
+      const pointsToken = legs.points;
+      const hasRaLegs =
+        !!reboundsToken &&
+        !!assistsToken &&
+        isEligibleLegLine(lines.rebounds, targetLine) &&
+        isEligibleLegLine(lines.assists, targetLine);
+      if (hasRaLegs) {
         tasks.push({
           candidateKey: candidate.key,
           combo: "ra",
           book,
-          tokens: [legs.rebounds, legs.assists],
+          tokens: [reboundsToken!, assistsToken!],
         });
       }
-      if (legs.points && legs.rebounds && legs.assists) {
+      if (
+        hasRaLegs &&
+        pointsToken &&
+        isEligibleLegLine(lines.points, targetLine)
+      ) {
         tasks.push({
           candidateKey: candidate.key,
           combo: "pra",
           book,
-          tokens: [legs.points, legs.rebounds, legs.assists],
+          tokens: [pointsToken, reboundsToken!, assistsToken!],
         });
       }
     }
@@ -654,6 +766,34 @@ function bestQuoteForCombo(quotes: ComboQuote[], combo: "ra" | "pra"): SheetBest
   };
 }
 
+function allQuotesForCombo(quotes: ComboQuote[], combo: "ra" | "pra"): SheetBestPrice[] {
+  return quotes
+    .filter((q) => q.combo === combo && q.price !== null && !q.error)
+    .sort((a, b) => (b.price || 0) - (a.price || 0))
+    .map((q) => ({
+      book: q.book,
+      price: q.price!,
+      priceFormatted: q.priceFormatted!,
+      link: q.link,
+      mobileLink: q.mobileLink,
+      source: q.source,
+      fromCache: q.fromCache,
+      stale: q.stale,
+    }));
+}
+
+function getAllTd(candidate: SheetCandidate): SheetBestPrice[] {
+  return Object.entries(candidate.tdByBook)
+    .map(([book, td]) => ({
+      book,
+      price: td.price,
+      priceFormatted: td.priceFormatted,
+      link: td.link,
+      mobileLink: td.mobileLink,
+    }))
+    .sort((a, b) => b.price - a.price);
+}
+
 function sortRows(rows: TripleDoubleSheetRow[]): TripleDoubleSheetRow[] {
   return [...rows].sort((a, b) => {
     const aMax = Math.max(a.sgp_pra?.price || -999999, a.sgp_ra?.price || -999999, a.td?.price || -999999);
@@ -685,20 +825,20 @@ export async function computeTripleDoubleSheet(
 
   const shortlisted = Array.from(candidates.values())
     .filter((candidate) => {
-      const counts = countBooksWithLegs(candidate);
-      return counts.ra > 0 || counts.pra > 0;
+      const hasTdPrice = Object.keys(candidate.tdByBook).length > 0;
+      return hasTdPrice;
     })
     .sort((a, b) => {
       const aTd = getBestTd(a)?.price || -999999;
       const bTd = getBestTd(b)?.price || -999999;
       if (bTd !== aTd) return bTd - aTd;
-      const aCounts = countBooksWithLegs(a);
-      const bCounts = countBooksWithLegs(b);
+      const aCounts = countBooksWithLegs(a, targetLine);
+      const bCounts = countBooksWithLegs(b, targetLine);
       return (bCounts.pra + bCounts.ra) - (aCounts.pra + aCounts.ra);
     })
     .slice(0, maxCandidates);
 
-  const quoteTasks = buildQuoteTasks(shortlisted);
+  const quoteTasks = buildQuoteTasks(shortlisted, targetLine);
   const taskFns = quoteTasks.map((task) => async (): Promise<{ task: QuoteTask; quote: ComboQuote }> => {
     try {
       const result = await fetchSgpQuote(task.book, task.tokens, {
@@ -761,10 +901,11 @@ export async function computeTripleDoubleSheet(
 
   const rows: TripleDoubleSheetRow[] = shortlisted.map((candidate) => {
     const quotes = quotesByCandidate.get(candidate.key) || [];
-    const counts = countBooksWithLegs(candidate);
+    const counts = countBooksWithLegs(candidate, targetLine);
 
     return {
       id: candidate.key,
+      playerId: candidate.playerId,
       player: candidate.player,
       team: candidate.team,
       matchup: candidate.matchup,
@@ -773,13 +914,18 @@ export async function computeTripleDoubleSheet(
       sgp_ra: bestQuoteForCombo(quotes, "ra"),
       sgp_pra: bestQuoteForCombo(quotes, "pra"),
       td: getBestTd(candidate),
+      allSgpRa: allQuotesForCombo(quotes, "ra"),
+      allSgpPra: allQuotesForCombo(quotes, "pra"),
+      allTd: getAllTd(candidate),
       hasAllThreeLegs: counts.pra > 0,
       booksWithRa: counts.ra,
       booksWithPra: counts.pra,
     };
   });
 
-  const sortedRows = sortRows(rows).slice(0, maxRows);
+  // Only keep rows where we have a triple-double market price.
+  const tdRows = rows.filter((row) => !!row.td);
+  const sortedRows = sortRows(tdRows).slice(0, maxRows);
   const generatedAt = Date.now();
   const generatedAtIso = new Date(generatedAt).toISOString();
 

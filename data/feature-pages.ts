@@ -570,13 +570,13 @@ export const featurePages: FeaturePage[] = [
     title: "Cheat Sheets",
     tagline: "Pre-built research pages for every game on the slate",
     description:
-      "Four powerful cheat sheets to research today's slate — hit rates, injury impact, hit rate matrix, and defense vs position. Save plays to My Slips, build SGP/SGP+ or normal parlays, and place bets with one tap through deeplinks.",
+      "Five powerful cheat sheets to research today's slate — hit rates, injury impact, hit rate matrix, defense vs position, and triple double pricing. Save plays to My Slips, build SGP/SGP+ or normal parlays, and place bets with one tap through deeplinks.",
     heroImage: "/landing-page/cs-hit-rate.png",
     mobileImage: "/landing-page/cs-mobile.png",
     category: "Research",
     accentColor: "#0EA5E9",
     toolPath: "/cheatsheets/nba/props",
-    benefits: ["4 cheat sheets", "Save to My Slips", "Build SGP & parlays"],
+    benefits: ["5 cheat sheets", "Save to My Slips", "Build SGP & parlays"],
     features: [
       {
         title: "Hit Rate Cheat Sheet",
@@ -602,12 +602,18 @@ export const featurePages: FeaturePage[] = [
           "A free cheat sheet showing how every team defends each position. See rankings across FG%, 3P%, rebounds, assists, steals, blocks, and more — with toggles for basic, advanced, and trend views so you can spot soft matchups instantly.",
         image: "/landing-page/cs-dvp.png",
       },
+      {
+        title: "Triple Double Sheet",
+        description:
+          "Find +EV triple double opportunities by comparing SGP-built pricing against the actual triple double market. We quote 10+ points, rebounds, and assists as an SGP across every sportsbook, then highlight when the SGP payout exceeds the triple double market price — giving you a better way to bet on triple doubles.",
+        image: "/landing-page/cs-triple-double.png",
+      },
     ],
     steps: [
       {
         title: "Pick a cheat sheet",
         description:
-          "Choose from Hit Rate, Injury Impact, Hit Rate Matrix, or Defense vs Position to start your research.",
+          "Choose from Hit Rate, Injury Impact, Hit Rate Matrix, Defense vs Position, or Triple Double Sheet to start your research.",
       },
       {
         title: "Filter & research",
@@ -652,6 +658,11 @@ export const featurePages: FeaturePage[] = [
           "When a player is ruled out, we show how their teammates' stats change — usage, minutes, key stats, and hit rates — so you can find boosted props before the market adjusts.",
       },
       {
+        question: "What is the Triple Double Sheet?",
+        answer:
+          "The Triple Double Sheet compares SGP-built triple double pricing against the actual triple double market. We quote 10+ points, rebounds, and assists as an SGP across every sportsbook, then show you when the SGP payout is better than the triple double market price — a +EV opportunity.",
+      },
+      {
         question: "Can I use cheat sheets on mobile?",
         answer:
           "Yes. Cheat sheets are fully responsive and work great on any device.",
@@ -660,7 +671,7 @@ export const featurePages: FeaturePage[] = [
     seo: {
       title: "Cheat Sheets | Unjuiced - Game-Day Research Pages",
       description:
-        "Four pre-built cheat sheets for every game day — hit rates, injury impact, hit rate matrix, and defense vs position. Save plays and build parlays.",
+        "Five pre-built cheat sheets for every game day — hit rates, injury impact, hit rate matrix, defense vs position, and triple double SGP pricing. Find +EV opportunities and build parlays.",
     },
   },
   {

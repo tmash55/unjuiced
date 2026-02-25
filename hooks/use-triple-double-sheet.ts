@@ -15,6 +15,7 @@ export interface TripleDoubleBestPrice {
 
 export interface TripleDoubleSheetRow {
   id: string;
+  playerId: string;
   player: string;
   team: string | null;
   matchup: string;
@@ -23,6 +24,9 @@ export interface TripleDoubleSheetRow {
   sgp_ra: TripleDoubleBestPrice | null;
   sgp_pra: TripleDoubleBestPrice | null;
   td: TripleDoubleBestPrice | null;
+  allSgpRa: TripleDoubleBestPrice[];
+  allSgpPra: TripleDoubleBestPrice[];
+  allTd: TripleDoubleBestPrice[];
   hasAllThreeLegs: boolean;
   booksWithRa: number;
   booksWithPra: number;
