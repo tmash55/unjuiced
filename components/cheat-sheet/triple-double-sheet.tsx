@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { RefreshCw, Loader2, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3 } from "lucide-react";
+import { RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3 } from "lucide-react";
 import { useTripleDoubleSheet, type TripleDoubleBestPrice, type TripleDoubleSheetRow } from "@/hooks/use-triple-double-sheet";
 import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { getStandardAbbreviation } from "@/lib/data/team-mappings";
 import { americanToImpliedProb, americanToDecimal } from "@/lib/ev/devig";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { LoadingState } from "@/components/common/loading-state";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import {
   Dialog,
@@ -519,9 +520,10 @@ export function TripleDoubleSheet() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12 text-neutral-500">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
+      <LoadingState
+        message="Loading Triple Double Sheet..."
+        compact
+      />
     );
   }
 
