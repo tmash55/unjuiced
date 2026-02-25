@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { FileText, UserMinus, Grid3X3, LayoutGrid, CloudSun, TrendingUp, BarChart3 } from "lucide-react";
+import { FileText, UserMinus, Grid3X3, LayoutGrid, CloudSun, TrendingUp, BarChart3, Trophy } from "lucide-react";
 
 const cheatsheets = [
   {
@@ -43,6 +43,19 @@ const cheatsheets = [
     description: "Props boosted when key teammates are out. Find the edge.",
     href: "/cheatsheets/nba/injury-impact",
     color: "#fb923c", // Orange
+    comingSoon: false,
+    badge: "NEW",
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-amber-400">
+        <Trophy className="size-2.5 text-amber-900" />
+      </div>
+    ),
+    title: "Triple Double Sheet",
+    description: "Live SGP R+A / P+R+A prices compared to Triple-Double odds.",
+    href: "/cheatsheets/nba/triple-double-sheet",
+    color: "#f59e0b", // Amber
     comingSoon: false,
     badge: "NEW",
   },

@@ -22,6 +22,7 @@ import { HitRateMatrix } from "@/components/hit-rate-matrix";
 import { CheatSheetNav } from "@/components/cheat-sheet/cheat-sheet-nav";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { InjuryImpactGlossary } from "@/components/cheat-sheet/injury-impact-glossary";
+import { TripleDoubleSheet } from "@/components/cheat-sheet/triple-double-sheet";
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from "@/components/nba/dvp-table/dvp-filters";
 import { DvpTable } from "@/components/nba/dvp-table/dvp-table";
 import { useDvpRankings, DvpSampleSize } from "@/hooks/use-dvp-rankings";
@@ -102,6 +103,7 @@ const SUPPORTED_SHEETS = [
   "injury-impact",
   "hit-rate-matrix",
   "dvp",
+  "triple-double-sheet",
   "weather-report",
   "power-matchups",
   "exit-velocity",
@@ -114,7 +116,7 @@ type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
 
 const SPORT_SHEETS: Record<SupportedSport, SupportedSheet[]> = {
-  nba: ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"],
+  nba: ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet"],
   mlb: [
     "weather-report",
     "power-matchups",
@@ -146,6 +148,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "dvp": {
     title: "Defense vs Position",
     description: "Team defensive rankings by position - Find the best matchups",
+  },
+  "triple-double-sheet": {
+    title: "Triple Double Sheet",
+    description: "SGP (R+A / P+R+A) and Triple-Double pricing in one view",
   },
   "weather-report": {
     title: "MLB Weather Report",
@@ -217,6 +223,10 @@ export default function CheatSheetPage({
   
   if (sheet === "dvp") {
     return <DvpSheet sport={sport} sheet={sheet} />;
+  }
+
+  if (sheet === "triple-double-sheet") {
+    return <TripleDoubleSheetPage sport={sport} sheet={sheet} />;
   }
 
   // Other sheets coming soon
@@ -298,6 +308,18 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           <AltHitMatrix sport={sport} />
         </div>
       </div>
+    </AppPageLayout>
+  );
+}
+
+function TripleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <TripleDoubleSheet />
     </AppPageLayout>
   );
 }

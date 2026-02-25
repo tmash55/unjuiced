@@ -8,6 +8,7 @@ import {
   UserMinus,
   LayoutGrid,
   CloudSun,
+  Trophy
 } from "lucide-react";
 
 interface CheatSheetTab {
@@ -47,6 +48,13 @@ const NBA_CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "Injuries",
     icon: UserMinus,
     description: "Injury-affected props",
+  },
+  {
+    slug: "triple-double-sheet",
+    label: "Triple Double",
+    shortLabel: "TD Sheet",
+    icon: Trophy,
+    description: "SGP vs TD prices",
   },
 ];
 

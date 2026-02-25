@@ -419,6 +419,14 @@ async function fetchBookHistory(context: LineHistoryContext, bookId: string): Pr
   return notFound;
 }
 
+function flipSide(side: string | undefined): string | undefined {
+  if (side === "over") return "under";
+  if (side === "under") return "over";
+  if (side === "yes") return "no";
+  if (side === "no") return "yes";
+  return undefined;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as LineHistoryApiRequest;
@@ -435,7 +443,29 @@ export async function POST(request: NextRequest) {
     }
 
     const bookResults = await Promise.all(uniqueBooks.map((bookId) => fetchBookHistory(context, bookId)));
-    return NextResponse.json({ books: bookResults } satisfies LineHistoryApiResponse, {
+
+    // Handle opposite-side fetching for EV overlay
+    let oppositeBooks: LineHistoryBookData[] | undefined;
+    if (body.includeOpposite && body.oppositeBookIds?.length) {
+      const flippedSide = flipSide(context.side);
+      if (flippedSide) {
+        const oppositeContext: LineHistoryContext = {
+          ...context,
+          side: flippedSide as LineHistoryContext["side"],
+          // Clear oddIdsByBook since opposite side has different IDs
+          oddIdsByBook: undefined,
+        };
+        const oppositeBookIds = Array.from(new Set(body.oppositeBookIds.filter(Boolean)));
+        oppositeBooks = await Promise.all(
+          oppositeBookIds.map((bookId) => fetchBookHistory(oppositeContext, bookId))
+        );
+      }
+    }
+
+    const response: LineHistoryApiResponse = { books: bookResults };
+    if (oppositeBooks) response.oppositeBooks = oppositeBooks;
+
+    return NextResponse.json(response, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=180",
       },

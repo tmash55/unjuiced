@@ -65,6 +65,7 @@ interface NavChildItem {
   disabled?: boolean
   comingSoon?: boolean  // 🔨 Under construction - being built
   offSeason?: boolean   // 💤 Sport is in off-season
+  badge?: string
 }
 
 interface NavItem {
@@ -148,6 +149,7 @@ const researchLinks: NavItem[] = [
       { label: "NBA • Hit Rates", href: "/cheatsheets/nba/hit-rates" },
       { label: "NBA • Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
       { label: "NBA • Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+      { label: "NBA • Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
       { label: "NBA • Defense vs Position", href: "/cheatsheets/nba/dvp" },
       { label: "MLB • Weather Report", href: "/cheatsheets/mlb/weather-report" },
       { label: "MLB • Power Matchups", href: "/cheatsheets/mlb/power-matchups" },
@@ -375,13 +377,18 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                       href={child.href}
                       onClick={closeMobileSidebar}
                       className={cn(
-                        "flex items-center w-full px-3 py-2 rounded-md text-sm transition-colors cursor-pointer",
+                        "flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors cursor-pointer",
                         isChildItemActive
                           ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
                           : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       )}
                     >
                       {child.label}
+                      {child.badge && (
+                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                          {child.badge}
+                        </span>
+                      )}
                     </Link>
                   </DropdownMenuItem>
                 )
@@ -450,13 +457,18 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         href={child.href}
                         onClick={closeMobileSidebar}
                         className={cn(
-                          "block py-1.5 px-2 rounded-md text-sm transition-all duration-150",
+                          "flex items-center justify-between py-1.5 px-2 rounded-md text-sm transition-all duration-150",
                           isChildItemActive
                             ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
                             : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-700 dark:hover:text-neutral-200"
                         )}
                       >
                         {child.label}
+                        {child.badge && (
+                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                            {child.badge}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}
@@ -485,28 +497,30 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
       )}
     >
       <span className={cn(
-        "shrink-0 flex items-center justify-center transition-colors duration-200",
-        isActive 
-          ? "text-[#0EA5E9] dark:text-[#7DD3FC]" 
+        "relative shrink-0 flex items-center justify-center transition-colors duration-200",
+        isActive
+          ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
           : "text-neutral-500 dark:text-neutral-400 group-hover/sidebar:text-neutral-700 dark:group-hover/sidebar:text-neutral-200"
       )}>
         <Icon className="w-5 h-5" />
       </span>
       {open && (
-        <motion.span
-          initial={{ opacity: 0, width: 0 }}
-          animate={{ opacity: 1, width: "auto" }}
-          exit={{ opacity: 0, width: 0 }}
-          transition={smoothTransition}
-          className={cn(
-            "text-sm whitespace-pre overflow-hidden",
-            isActive 
-              ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium" 
-              : "text-neutral-600 dark:text-neutral-300"
-          )}
-        >
-          {link.label}
-        </motion.span>
+        <>
+          <motion.span
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: "auto" }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={smoothTransition}
+            className={cn(
+              "text-sm whitespace-pre overflow-hidden",
+              isActive
+                ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
+                : "text-neutral-600 dark:text-neutral-300"
+            )}
+          >
+            {link.label}
+          </motion.span>
+        </>
       )}
     </Link>
   )
@@ -979,7 +993,6 @@ function UserSection() {
 export function AppSidebar() {
   const { open } = useSidebar()
   const pathname = usePathname()
-  
   // Track which nav item is expanded (only one at a time)
   const [expandedHref, setExpandedHref] = useState<string | null>(null)
   
