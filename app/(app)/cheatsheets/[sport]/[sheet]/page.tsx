@@ -20,6 +20,7 @@ import { AltHitMatrix } from "@/components/cheat-sheet/alt-hit-matrix";
 import { HitRateMatrix } from "@/components/hit-rate-matrix";
 import { InjuryImpactTable } from "@/components/cheat-sheet/injury-impact-table";
 import { InjuryImpactGlossary } from "@/components/cheat-sheet/injury-impact-glossary";
+import { TripleDoubleSheet } from "@/components/cheat-sheet/triple-double-sheet";
 import { DvpFilters, DvpViewMode, Position, TrendCompareBaseline, TrendStat } from "@/components/nba/dvp-table/dvp-filters";
 import { DvpTable } from "@/components/nba/dvp-table/dvp-table";
 import { useDvpRankings, DvpSampleSize } from "@/hooks/use-dvp-rankings";
@@ -94,7 +95,7 @@ function MobileUpgradeBanner() {
 }
 
 const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -120,6 +121,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "dvp": {
     title: "Defense vs Position",
     description: "Team defensive rankings by position - Find the best matchups",
+  },
+  "triple-double-sheet": {
+    title: "Triple Double Sheet",
+    description: "SGP (R+A / P+R+A) and Triple-Double pricing in one view",
   },
 };
 
@@ -163,6 +168,10 @@ export default function CheatSheetPage({
   
   if (sheet === "dvp") {
     return <DvpSheet sport={sport} sheet={sheet} />;
+  }
+
+  if (sheet === "triple-double-sheet") {
+    return <TripleDoubleSheetPage sport={sport} sheet={sheet} />;
   }
 
   // Other sheets coming soon
@@ -229,6 +238,18 @@ function AltHitMatrixSheet({ sport, sheet }: { sport: SupportedSport; sheet: Sup
           <AltHitMatrix sport={sport} />
         </div>
       </div>
+    </AppPageLayout>
+  );
+}
+
+function TripleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <TripleDoubleSheet />
     </AppPageLayout>
   );
 }
