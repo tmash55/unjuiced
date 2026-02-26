@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, RotateCcw, Zap } from "lucide-react";
+import { Tooltip } from "@/components/tooltip";
 import { cn } from "@/lib/utils";
 import { useMlbSprayChart } from "@/hooks/use-mlb-spray-chart";
 import {
@@ -269,6 +270,23 @@ const TRAJ_SHORT: Record<string, string> = {
   popup: "Popup",
 };
 
+const TRAJ_TOOLTIPS: Record<string, string> = {
+  ground_ball: "Ground Ball — batted ball hit on the ground with a launch angle below 10°",
+  line_drive: "Line Drive — hard-hit ball with a launch angle between 10° and 25°. Highest expected batting average.",
+  fly_ball: "Fly Ball — batted ball hit in the air with a launch angle between 25° and 50°",
+  popup: "Pop Up — batted ball hit very high with a launch angle above 50°. Almost always an out.",
+};
+
+type EvThreshold = "off" | "90" | "95" | "100" | "105";
+
+const EV_THRESHOLD_OPTIONS: Array<{ value: EvThreshold; label: string; mph: number | null }> = [
+  { value: "off", label: "All EV", mph: null },
+  { value: "90", label: "90+ mph", mph: 90 },
+  { value: "95", label: "95+ mph", mph: 95 },
+  { value: "100", label: "100+ mph", mph: 100 },
+  { value: "105", label: "105+ mph", mph: 105 },
+];
+
 function formatResult(result: string | null): string {
   if (!result) return "Unknown";
   return result.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -332,7 +350,7 @@ interface ZoneOverlay {
 export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartProps) {
   const [seasonFilter, setSeasonFilter] = useState("2025");
   const [trajectoryFilter, setTrajectoryFilter] = useState<TrajectoryFilter>("all");
-  const [hardHitOnly, setHardHitOnly] = useState(false);
+  const [evThreshold, setEvThreshold] = useState<EvThreshold>("off");
   const [animKey, setAnimKey] = useState(0);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [zoneDisplay, setZoneDisplay] = useState<ZoneDisplay>("show");
@@ -343,7 +361,7 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
     return [Number(seasonFilter)];
   }, [seasonFilter]);
 
-  const minExitVelo = hardHitOnly ? 95 : undefined;
+  const minExitVelo = EV_THRESHOLD_OPTIONS.find((o) => o.value === evThreshold)?.mph ?? undefined;
 
   const { data, isLoading, isError } = useMlbSprayChart({
     playerId,
@@ -492,7 +510,7 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
   const hardContact = data?.hard_contact ?? null;
 
   // ── Animation restart key ──
-  const dotGroupKey = `${animKey}-${trajectoryFilter}-${seasonFilter}-${hardHitOnly}-${hitFilter}`;
+  const dotGroupKey = `${animKey}-${trajectoryFilter}-${seasonFilter}-${evThreshold}-${hitFilter}`;
 
   // ── Hover handlers ──
   const handleDotEnter = useCallback((idx: number) => setHoveredIdx(idx), []);
@@ -611,19 +629,41 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
               options={SEASON_OPTIONS}
             />
 
-            <button
-              type="button"
-              onClick={() => setHardHitOnly((v) => !v)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors",
-                hardHitOnly
-                  ? "border-amber-400/60 bg-amber-50 text-amber-700 dark:border-amber-600/50 dark:bg-amber-900/30 dark:text-amber-300"
-                  : "border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
-              )}
-            >
-              <Zap className={cn("h-3.5 w-3.5", hardHitOnly && "fill-current")} />
-              95+
-            </button>
+            <Tooltip content="Filter by minimum exit velocity. Hard hit = 95+ mph." side="bottom">
+              <div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors shrink-0",
+                        evThreshold !== "off"
+                          ? "border-amber-400/60 bg-amber-50 text-amber-700 dark:border-amber-600/50 dark:bg-amber-900/30 dark:text-amber-300"
+                          : "border-neutral-200/60 dark:border-neutral-700/60 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/70 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      <Zap className={cn("h-3.5 w-3.5", evThreshold !== "off" && "fill-current")} />
+                      {evThreshold === "off" ? "EV" : `${EV_THRESHOLD_OPTIONS.find((o) => o.value === evThreshold)?.mph}+`}
+                      <ChevronDown className="h-3 w-3 opacity-50" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={6} className="min-w-[120px]">
+                    {EV_THRESHOLD_OPTIONS.map((opt) => (
+                      <DropdownMenuItem
+                        key={opt.value}
+                        onClick={() => setEvThreshold(opt.value)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs cursor-pointer",
+                          opt.value === evThreshold && "bg-neutral-100 dark:bg-neutral-800/50"
+                        )}
+                      >
+                        <span>{opt.label}</span>
+                        {opt.value === evThreshold && <Check className="h-3.5 w-3.5 text-neutral-500" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -1003,16 +1043,18 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
                   : t.trajectory === "fly_ball" ? "FB"
                   : t.trajectory === "popup" ? "PU"
                   : t.trajectory;
+              const tooltipText = TRAJ_TOOLTIPS[t.trajectory] ?? t.trajectory;
               return (
-                <span
-                  key={t.trajectory}
-                  className="inline-flex items-center gap-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 px-2 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300"
-                >
-                  {label}
-                  <span className="text-neutral-500 dark:text-neutral-400 tabular-nums">
-                    {t.pct.toFixed(0)}%
+                <Tooltip key={t.trajectory} content={tooltipText} side="top">
+                  <span
+                    className="inline-flex items-center gap-1 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/50 px-2 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-default"
+                  >
+                    {label}
+                    <span className="text-neutral-500 dark:text-neutral-400 tabular-nums">
+                      {t.pct.toFixed(0)}%
+                    </span>
                   </span>
-                </span>
+                </Tooltip>
               );
             })}
           </div>
@@ -1022,7 +1064,7 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
         {hardContact && hardContact.count > 0 && (
           <div className="mt-3 rounded-xl border border-neutral-200/70 dark:border-neutral-700/60 bg-neutral-50/70 dark:bg-neutral-900/40 px-3 py-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400 mb-1">
-              Hard Contact (95+ mph)
+              Hard Contact ({minExitVelo ?? 95}+ mph)
             </p>
             <div className="flex items-center gap-3 flex-wrap text-xs font-semibold text-neutral-700 dark:text-neutral-300">
               <span className="tabular-nums">{hardContact.count} Hard Hit</span>
