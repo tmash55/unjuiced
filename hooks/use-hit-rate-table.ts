@@ -107,6 +107,7 @@ function mapHitRateProfile(profile: RawHitRateProfile): HitRateProfile {
     last10Avg: profile.last_10_avg,
     last20Avg: profile.last_20_avg,
     seasonAvg: profile.season_avg,
+    previousSeasonAvg: profile.previous_season_avg ?? null,
     spread: profile.spread,
     total: profile.total,
     injuryStatus: profile.injury_status,

@@ -1,11 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { GameLogChart } from "@/components/hit-rates/game-log-chart";
 import { BoxScoreTable } from "@/components/hit-rates/box-score-table";
+import { ShareChartButton } from "@/components/hit-rates/share-chart-button";
+import { DrilldownChartSection } from "@/components/hit-rates/drilldown-chart-section";
+import {
+  type HeaderGameCountFilter,
+} from "@/components/hit-rates/header-hit-rate-strip";
+import {
+  DrilldownHeaderRightPanel,
+  type HeaderOddsCardConfig,
+} from "@/components/hit-rates/header-right-panel";
 import {
   MarketSelectorStrip,
   type MarketHitRateData,
@@ -15,6 +24,9 @@ import { formatMarketLabel } from "@/lib/data/markets";
 import type { HitRateProfile } from "@/lib/hit-rates-schema";
 import { useMlbPlayerGameLogs } from "@/hooks/use-mlb-player-game-logs";
 import type { BoxScoreGame } from "@/hooks/use-player-box-scores";
+import { getMlbSectionOrder, resolveMlbPlayerType } from "@/components/hit-rates/mlb/drilldown-sections";
+import { MlbBatterSectionsSkeleton } from "@/components/hit-rates/mlb/mlb-batter-sections-skeleton";
+import { MlbSprayChart } from "@/components/hit-rates/mlb/mlb-spray-chart";
 
 const MLB_MARKET_ORDER = [
   "player_hits",
@@ -55,6 +67,8 @@ type QuickFilterKey =
   | "dvpAverage"
   | "dvpWeak";
 
+type GameCountFilter = HeaderGameCountFilter;
+
 function getInjuryIconColor(status: string | null): string {
   if (!status) return "text-amber-500";
   const s = status.toLowerCase();
@@ -64,20 +78,9 @@ function getInjuryIconColor(status: string | null): string {
   return "text-amber-500";
 }
 
-function formatAvg(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "-";
-  return value.toFixed(1);
-}
-
 function formatPct(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "-";
   return `${Math.round(value)}%`;
-}
-
-function formatSigned(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "-";
-  if (value > 0) return `+${value.toFixed(1)}`;
-  return value.toFixed(1);
 }
 
 function formatBattingAverage(value: number | null | undefined): string | null {
@@ -137,6 +140,9 @@ export function MlbPlayerDrilldown({
   onBack,
   onMarketChange,
 }: MlbPlayerDrilldownProps) {
+  const chartCaptureRef = useRef<HTMLDivElement>(null);
+  const [isCapturingChart, setIsCapturingChart] = useState(false);
+
   const sortedMarkets = useMemo(() => {
     const source = allPlayerProfiles && allPlayerProfiles.length > 0 ? allPlayerProfiles : [profile];
     const unique = new Map<string, HitRateProfile>();
@@ -157,9 +163,19 @@ export function MlbPlayerDrilldown({
   const [selectedMarket, setSelectedMarket] = useState(profile.market);
   const activeProfile =
     sortedMarkets.find((item) => item.market === selectedMarket) ?? sortedMarkets[0] ?? profile;
+  const playerType = useMemo(() => resolveMlbPlayerType(activeProfile.market), [activeProfile.market]);
+  const sectionOrder = useMemo(() => getMlbSectionOrder(playerType), [playerType]);
+  const showChartSection = sectionOrder.includes("chart");
+  const showMatchupContextSection = sectionOrder.includes("matchupContext");
+  const showAdvancedSection = sectionOrder.includes("advancedProfile");
+  const showRollingWindowsSection = sectionOrder.includes("rollingWindows");
+  const showOddsComparisonSection = sectionOrder.includes("oddsComparison");
+  const showBoxScoreSection = sectionOrder.includes("boxScore");
+  const showSprayChartSection = sectionOrder.includes("sprayChart");
 
   const [line, setLine] = useState<number | null>(activeProfile.line);
   const [quickFilters, setQuickFilters] = useState<Set<string>>(new Set());
+  const [gameCount, setGameCount] = useState<GameCountFilter>(10);
 
   useEffect(() => {
     setSelectedMarket(profile.market);
@@ -168,6 +184,7 @@ export function MlbPlayerDrilldown({
   useEffect(() => {
     setLine(activeProfile.line);
     setQuickFilters(new Set());
+    setGameCount(10);
   }, [activeProfile.id, activeProfile.line]);
 
   const querySeason = activeProfile.gameDate
@@ -182,10 +199,10 @@ export function MlbPlayerDrilldown({
     enabled: !!activeProfile.playerId,
   });
 
-  const filteredGames = useMemo(() => {
-    if (quickFilters.size === 0) return games;
+  const applyQuickFilters = (sourceGames: BoxScoreGame[]) => {
+    if (quickFilters.size === 0) return sourceGames;
 
-    return games.filter((game) => {
+    return sourceGames.filter((game) => {
       const margin = game.margin ?? game.teamScore - game.opponentScore;
       if (quickFilters.has("home") && game.homeAway !== "H") return false;
       if (quickFilters.has("away") && game.homeAway !== "A") return false;
@@ -195,7 +212,26 @@ export function MlbPlayerDrilldown({
       if (quickFilters.has("lostBy10") && (game.result !== "L" || Math.abs(margin) < 10)) return false;
       return true;
     });
-  }, [games, quickFilters]);
+  };
+
+  const applyGameCountFilter = (sourceGames: BoxScoreGame[]) => {
+    let result = sourceGames;
+
+    if (gameCount === "h2h" && activeProfile.opponentTeamAbbr) {
+      result = result.filter((game) => game.opponentAbbr === activeProfile.opponentTeamAbbr);
+    }
+
+    if (gameCount !== "season" && gameCount !== "h2h") {
+      result = result.slice(0, gameCount);
+    }
+
+    return result;
+  };
+
+  const filteredGames = useMemo(() => {
+    const afterQuickFilters = applyQuickFilters(games);
+    return applyGameCountFilter(afterQuickFilters);
+  }, [games, quickFilters, gameCount, activeProfile.opponentTeamAbbr]);
 
   const hitRateAtLine = useMemo(() => {
     if (line === null || filteredGames.length === 0) return null;
@@ -203,32 +239,111 @@ export function MlbPlayerDrilldown({
     return Math.round((hits / filteredGames.length) * 100);
   }, [filteredGames, activeProfile.market, line]);
 
-  const recentAvg = useMemo(() => {
+  const chartAverage = useMemo(() => {
     if (filteredGames.length === 0) return null;
-    const last10 = filteredGames.slice(0, 10);
-    const total = last10.reduce((sum, game) => sum + getMlbMarketValue(game, activeProfile.market), 0);
-    return total / last10.length;
+    const total = filteredGames.reduce((sum, game) => sum + getMlbMarketValue(game, activeProfile.market), 0);
+    return total / filteredGames.length;
   }, [filteredGames, activeProfile.market]);
 
-  const lineDelta = useMemo(() => {
-    if (line === null || activeProfile.seasonAvg === null) return null;
-    return activeProfile.seasonAvg - line;
-  }, [activeProfile.seasonAvg, line]);
+  const chartHits = useMemo(() => {
+    if (line === null || filteredGames.length === 0) return 0;
+    return filteredGames.filter((game) => getMlbMarketValue(game, activeProfile.market) >= line).length;
+  }, [filteredGames, activeProfile.market, line]);
+
+  const dynamicHitRates = useMemo(() => {
+    if (games.length === 0 || line === null) {
+      return {
+        l5: activeProfile.last5Pct,
+        l10: activeProfile.last10Pct,
+        l20: activeProfile.last20Pct,
+        season: activeProfile.seasonPct,
+        h2h: activeProfile.h2hPct,
+      };
+    }
+
+    if (activeProfile.line === line) {
+      return {
+        l5: activeProfile.last5Pct,
+        l10: activeProfile.last10Pct,
+        l20: activeProfile.last20Pct,
+        season: activeProfile.seasonPct,
+        h2h: activeProfile.h2hPct,
+      };
+    }
+
+    const calculateHitRate = (sourceGames: BoxScoreGame[]) => {
+      if (sourceGames.length === 0) return null;
+      const hits = sourceGames.filter((game) => getMlbMarketValue(game, activeProfile.market) >= line).length;
+      return Math.round((hits / sourceGames.length) * 100);
+    };
+
+    const sortedGames = [...games].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const h2hGames = activeProfile.opponentTeamAbbr
+      ? sortedGames.filter((game) => game.opponentAbbr === activeProfile.opponentTeamAbbr)
+      : [];
+
+    return {
+      l5: calculateHitRate(sortedGames.slice(0, 5)),
+      l10: calculateHitRate(sortedGames.slice(0, 10)),
+      l20: calculateHitRate(sortedGames.slice(0, 20)),
+      season: calculateHitRate(sortedGames),
+      h2h: calculateHitRate(h2hGames),
+    };
+  }, [
+    games,
+    line,
+    activeProfile.line,
+    activeProfile.last5Pct,
+    activeProfile.last10Pct,
+    activeProfile.last20Pct,
+    activeProfile.seasonPct,
+    activeProfile.h2hPct,
+    activeProfile.market,
+    activeProfile.opponentTeamAbbr,
+  ]);
 
   const marketHitRates = useMemo<Map<string, MarketHitRateData>>(() => {
     const map = new Map<string, MarketHitRateData>();
+    const expectedTotal =
+      gameCount === "season"
+        ? games.length
+        : gameCount === "h2h"
+          ? games.filter((game) => game.opponentAbbr === activeProfile.opponentTeamAbbr).length
+          : Math.min(gameCount, games.length);
+
     if (line === null || filteredGames.length === 0) {
+      map.set(activeProfile.market, {
+        hitRate: null,
+        hits: 0,
+        total: filteredGames.length,
+        expectedTotal,
+      });
       return map;
     }
+
     const hits = filteredGames.filter((game) => getMlbMarketValue(game, activeProfile.market) >= line).length;
     map.set(activeProfile.market, {
       hitRate: Math.round((hits / filteredGames.length) * 100),
       hits,
       total: filteredGames.length,
-      expectedTotal: games.length,
+      expectedTotal,
     });
     return map;
-  }, [activeProfile.market, filteredGames, games.length, line]);
+  }, [activeProfile.market, filteredGames, games, gameCount, activeProfile.opponentTeamAbbr, line]);
+
+  const headerOddsCards = useMemo<[HeaderOddsCardConfig, HeaderOddsCardConfig]>(
+    () => [
+      {
+        sideLabel: "O",
+        priceText: null,
+      },
+      {
+        sideLabel: "U",
+        priceText: null,
+      },
+    ],
+    []
+  );
 
   const emptyInjuryFilters = useMemo(() => [], []);
   const emptyPlayTypeFilters = useMemo(() => [], []);
@@ -268,6 +383,11 @@ export function MlbPlayerDrilldown({
       ? activeProfile.lineupPosition
       : null) ?? derivedLineupPositionFromLogs;
   const lineupLabel = lineupPosition ? `Batting ${toOrdinal(lineupPosition)}` : null;
+  const matchupGameId = useMemo(() => {
+    if (!activeProfile.gameId) return null;
+    const parsed = Number(activeProfile.gameId);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [activeProfile.gameId]);
 
   const handleMarketSelect = (market: string) => {
     setSelectedMarket(market);
@@ -287,8 +407,9 @@ export function MlbPlayerDrilldown({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-40 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl">
+    <div>
+      <div ref={chartCaptureRef}>
+        <div className="sticky top-0 z-40 -mx-3 px-3 pb-4 pt-1 bg-gradient-to-b from-white via-white to-white/95 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/95 backdrop-blur-xl">
         <div
           className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5"
           style={{
@@ -302,7 +423,11 @@ export function MlbPlayerDrilldown({
               <button
                 type="button"
                 onClick={onBack}
-                className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-sm"
+                data-hide-on-capture
+                className={cn(
+                  "p-2.5 rounded-xl text-neutral-400 hover:text-neutral-900 hover:bg-white/80 dark:hover:text-white dark:hover:bg-neutral-800/80 transition-all hover:scale-105 active:scale-95 shrink-0 backdrop-blur-sm",
+                  isCapturingChart && "opacity-0"
+                )}
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
@@ -394,39 +519,20 @@ export function MlbPlayerDrilldown({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 pl-6 pr-5 py-4 border-l border-neutral-200/60 dark:border-neutral-800/60 bg-gradient-to-l from-white/40 to-transparent dark:from-neutral-900/40 dark:to-transparent min-w-[300px]">
-              <div className="rounded-xl px-3 py-2.5 text-white shadow-md" style={{ backgroundColor: activeProfile.primaryColor || "#0EA5E9" }}>
-                <p className="text-[10px] uppercase tracking-wide text-white/80">Prop</p>
-                <p className="text-sm font-bold truncate">{line ?? "-"}+ {formatMarketLabel(activeProfile.market)}</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 min-w-[92px]">
-                  <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">O</span>
-                  <span className="text-sm font-bold tabular-nums text-neutral-500 dark:text-neutral-400">—</span>
-                </div>
-                <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 min-w-[92px]">
-                  <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">U</span>
-                  <span className="text-sm font-bold tabular-nums text-neutral-500 dark:text-neutral-400">—</span>
-                </div>
-                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Odds coming soon</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-xl bg-neutral-100/80 dark:bg-neutral-800/60 px-2.5 py-2">
-                  <p className="text-[9px] uppercase tracking-wide text-neutral-500">L10</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white">{formatPct(activeProfile.last10Pct)}</p>
-                </div>
-                <div className="rounded-xl bg-neutral-100/80 dark:bg-neutral-800/60 px-2.5 py-2">
-                  <p className="text-[9px] uppercase tracking-wide text-neutral-500">Szn Avg</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white">{formatAvg(activeProfile.seasonAvg)}</p>
-                </div>
-                <div className="rounded-xl bg-neutral-100/80 dark:bg-neutral-800/60 px-2.5 py-2">
-                  <p className="text-[9px] uppercase tracking-wide text-neutral-500">vs Line</p>
-                  <p className="text-sm font-bold text-neutral-900 dark:text-white">{formatSigned(lineDelta)}</p>
-                </div>
-              </div>
-            </div>
+            <DrilldownHeaderRightPanel
+              primaryColor={activeProfile.primaryColor}
+              lineText={`${line !== null ? `${line}+` : "-"} ${formatMarketLabel(activeProfile.market)}`}
+              oddsCards={headerOddsCards}
+              stripItems={[
+                { label: "L5", value: dynamicHitRates.l5, count: 5 },
+                { label: "L10", value: dynamicHitRates.l10, count: 10 },
+                { label: "L20", value: dynamicHitRates.l20, count: 20 },
+                { label: "SZN", value: dynamicHitRates.season, count: "season" },
+                { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" },
+              ]}
+              selectedStrip={gameCount}
+              onSelectStrip={(count) => setGameCount(count as GameCountFilter)}
+            />
           </div>
         </div>
 
@@ -457,73 +563,114 @@ export function MlbPlayerDrilldown({
             totalGamesCount={games.length}
           />
         )}
-      </div>
-
-      <div className="rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5 p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300">
-          <span className="font-medium">Adjustable Line</span>
-          <span className="text-neutral-400">•</span>
-          <span>
-            Current: <span className="font-semibold text-neutral-900 dark:text-white">{line ?? "-"}</span>
-          </span>
-          {hitRateAtLine !== null && (
-            <>
-              <span className="text-neutral-400">•</span>
-              <span>
-                Hit Rate: <span className="font-semibold text-neutral-900 dark:text-white">{hitRateAtLine}%</span>
-              </span>
-            </>
-          )}
         </div>
-
-        {error ? (
-          <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/70 dark:bg-red-900/20 p-4 text-sm text-red-600 dark:text-red-300">
-            {error.message || "Failed to load MLB game logs"}
-          </div>
-        ) : (
-          <GameLogChart
-            games={filteredGames}
-            line={line}
-            market={activeProfile.market}
-            sport="mlb"
-            onLineChange={setLine}
-            quickFilters={quickFilters}
-            onQuickFilterToggle={toggleQuickFilter}
-            onQuickFiltersClear={() => setQuickFilters(new Set())}
-            className="min-h-[340px]"
-          />
+        {showChartSection && (
+          <DrilldownChartSection
+            gameCount={gameCount}
+            onGameCountChange={(count) => setGameCount(count as GameCountFilter)}
+            totalGamesAvailable={games.length}
+            chartStats={{
+              hitRate: hitRateAtLine,
+              hits: chartHits,
+              total: filteredGames.length,
+              avg: chartAverage,
+            }}
+            activeLine={line}
+            rightActions={
+              <ShareChartButton
+                targetRef={chartCaptureRef}
+                playerName={activeProfile.playerName}
+                market={activeProfile.market}
+                compact
+                onCaptureStart={() => setIsCapturingChart(true)}
+                onCaptureEnd={() => setIsCapturingChart(false)}
+                gameRange={
+                  gameCount === "season"
+                    ? "Season"
+                    : gameCount === "h2h"
+                      ? `vs ${activeProfile.opponentTeamAbbr || "OPP"}`
+                      : `L${gameCount}`
+                }
+                stats={{
+                  hitRate: hitRateAtLine,
+                  avg: chartAverage,
+                  gamesCount: filteredGames.length,
+                  line,
+                }}
+                activeFilters={Array.from(quickFilters).map((filter) => ({
+                  type: "quick" as const,
+                  label:
+                    filter === "home"
+                      ? "Home"
+                      : filter === "away"
+                        ? "Away"
+                        : filter === "win"
+                          ? "Wins"
+                          : filter === "loss"
+                            ? "Losses"
+                            : filter === "wonBy10"
+                              ? "Won 10+"
+                              : filter === "lostBy10"
+                                ? "Lost 10+"
+                                : filter,
+                }))}
+              />
+            }
+          >
+            {error ? (
+              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/70 dark:bg-red-900/20 p-4 text-sm text-red-600 dark:text-red-300">
+                {error.message || "Failed to load MLB game logs"}
+              </div>
+            ) : (
+              <GameLogChart
+                games={filteredGames}
+                line={line}
+                market={activeProfile.market}
+                sport="mlb"
+                onLineChange={setLine}
+                quickFilters={quickFilters}
+                onQuickFilterToggle={toggleQuickFilter}
+                onQuickFiltersClear={() => setQuickFilters(new Set())}
+                className={cn("min-h-[340px]", isCapturingChart && "pointer-events-none")}
+              />
+            )}
+          </DrilldownChartSection>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="text-xs text-neutral-500">Sample</div>
-          <div className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">{filteredGames.length}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="text-xs text-neutral-500">L10 Avg</div>
-          <div className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">{formatAvg(recentAvg)}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="text-xs text-neutral-500">Season Hit %</div>
-          <div className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">{formatPct(activeProfile.seasonPct)}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3">
-          <div className="text-xs text-neutral-500">Market</div>
-          <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-white">{formatMarketLabel(activeProfile.market)}</div>
-        </div>
-      </div>
+      {(showMatchupContextSection || showAdvancedSection || showRollingWindowsSection || showOddsComparisonSection) && (
+        <MlbBatterSectionsSkeleton
+          playerId={activeProfile.playerId}
+          gameId={matchupGameId}
+          market={activeProfile.market}
+          battingHand={battingHand}
+        />
+      )}
 
-      <BoxScoreTable
-        sport="mlb"
-        playerId={activeProfile.playerId}
-        market={activeProfile.market}
-        currentLine={line}
-        prefetchedGames={games}
-      />
+      {showSprayChartSection && (
+        <div className="mt-6">
+          <MlbSprayChart
+            playerId={activeProfile.playerId}
+            gameId={matchupGameId}
+            battingHand={battingHand}
+          />
+        </div>
+      )}
+
+      {showBoxScoreSection && (
+        <div className={cn(showChartSection ? "mt-6" : "")}>
+          <BoxScoreTable
+            sport="mlb"
+            playerId={activeProfile.playerId}
+            market={activeProfile.market}
+            currentLine={line}
+            prefetchedGames={games}
+          />
+        </div>
+      )}
 
       {isLoading && (
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 px-1">Refreshing game logs...</p>
+        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 px-1">Refreshing game logs...</p>
       )}
     </div>
   );

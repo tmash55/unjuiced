@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User, Heart } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Info, HeartPulse, Loader2, Search, X, ArrowDown, SlidersHorizontal, Check, User } from "lucide-react";
 import Chart from "@/icons/chart";
 // Disabled: usePrefetchPlayer was causing excessive API calls on hover
 // import { usePrefetchPlayer } from "@/hooks/use-prefetch-player";
@@ -10,12 +10,11 @@ import { Tooltip } from "@/components/tooltip";
 import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 // MiniSparkline removed - using color-coded percentage cells instead for performance
 import { HitRateProfile } from "@/lib/hit-rates-schema";
-import { useFavorites, createFavoriteKey } from "@/hooks/use-favorites";
 import { cn } from "@/lib/utils";
 import { formatMarketLabel } from "@/lib/data/markets";
 import { getTeamLogoUrl, getStandardAbbreviation } from "@/lib/data/team-mappings";
+import { getHitRateTableConfig } from "@/lib/hit-rates/table-config";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "sonner";
 
 // Map of combo market keys to their full descriptions (only abbreviated combos need tooltips)
 const COMBO_MARKET_DESCRIPTIONS: Record<string, string> = {
@@ -314,7 +313,8 @@ const getInjuryIconColorClass = (status: string | null): string => {
 // Check if player has an injury status worth showing
 const hasInjuryStatus = (status: string | null): boolean => {
   if (!status) return false;
-  return status !== "active" && status !== "available";
+  const s = status.toLowerCase();
+  return s !== "active" && s !== "available";
 };
 
 // Get matchup tier based on rank (5-tier system)
@@ -435,23 +435,13 @@ export function HitRateTable({
 }: HitRateTableProps) {
   const effectiveMarketOptions =
     marketOptions && marketOptions.length > 0 ? marketOptions : DEFAULT_MARKET_OPTIONS;
-  const seasonAvgHeaderLabel = sport === "mlb" ? "Season Avg" : "25/26 Avg";
-  const seasonPctHeaderLabel = sport === "mlb" ? "Season" : "25/26";
+  const tableConfig = getHitRateTableConfig(sport);
+  const seasonAvgHeaderLabel = tableConfig.seasonAvgLabel;
+  const showPreviousSeasonAvg = tableConfig.showPreviousSeasonAvg;
+  const previousSeasonAvgHeaderLabel = tableConfig.previousSeasonLabel;
+  const seasonPctHeaderLabel = tableConfig.seasonPctLabel;
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  // Favorites functionality
-  const { 
-    favorites, 
-    favoriteKeys, 
-    isFavorited,
-    getFavorite,
-    toggleFavorite,
-    isToggling,
-  } = useFavorites();
-  
-  // Track which row is currently being toggled (for loading state)
-  const [togglingFavoriteKey, setTogglingFavoriteKey] = useState<string | null>(null);
   
   // Disabled: Prefetch was causing excessive API calls on every row hover
   // const prefetchPlayer = usePrefetchPlayer();
@@ -544,71 +534,6 @@ export function HitRateTable({
     }
   }, [sortField, sortDirection, onSortChange]);
   
-  // Handle toggle favorite for a hit rate row
-  const handleToggleFavorite = useCallback(async (row: HitRateProfile, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click
-    
-    // Build the favorite key to check if already favorited
-    const favoriteKey = createFavoriteKey({
-      event_id: row.eventId || row.gameId || "",
-      type: "player",
-      player_id: String(row.playerId),
-      market: row.market,
-      line: row.line,
-      side: "over", // Default to over for hit rates
-    });
-    
-    setTogglingFavoriteKey(favoriteKey);
-    
-    try {
-      const oddsKey = row.eventId ? `odds:${sport}:${row.eventId}:${row.market}` : null;
-      const oddsSelectionId = row.selKey && row.line !== null
-        ? `${row.selKey}:${row.line}:over`
-        : row.oddsSelectionId;
-      const booksSnapshot = row.bestOdds
-        ? { [row.bestOdds.book]: { price: row.bestOdds.price } }
-        : null;
-
-      const result = await toggleFavorite({
-        type: "player",
-        sport,
-        event_id: row.eventId || row.gameId || "",
-        game_date: row.gameDate,
-        home_team: row.homeTeamName,
-        away_team: row.awayTeamName,
-        player_id: String(row.playerId),
-        player_name: row.playerName,
-        player_team: row.teamAbbr || row.teamName,
-        player_position: row.position,
-        market: row.market,
-        line: row.line,
-        side: "over",
-        odds_key: oddsKey,
-        odds_selection_id: oddsSelectionId,
-        books_snapshot: booksSnapshot,
-        best_price_at_save: row.bestOdds?.price ?? null,
-        best_book_at_save: row.bestOdds?.book ?? null,
-        source: "hit-rates",
-      });
-      
-      if (result.action === "added") {
-        toast.success("Added to My Plays");
-      } else if (result.action === "removed") {
-        toast.success("Removed from My Plays");
-      }
-    } catch (err: any) {
-      if (err.message === "Already in favorites") {
-        toast.info("Already in My Plays");
-      } else if (err.message?.includes("logged in")) {
-        toast.error("Sign in to save plays");
-      } else {
-        toast.error("Failed to update");
-      }
-    } finally {
-      setTogglingFavoriteKey(null);
-    }
-  }, [sport, toggleFavorite]);
-
   // Apply advanced filters only (sorting is consolidated in sortedRows)
   const filteredRows = useMemo(() => {
     let result = rows;
@@ -1062,13 +987,13 @@ export function HitRateTable({
       {/* Table - Premium styling */}
       <div ref={scrollRef} className="overflow-auto flex-1 rounded-b-2xl">
       <table className="min-w-full text-sm table-fixed">
-          <colgroup><col style={{ width: 44 }} /><col style={{ width: 250 }} /><col style={{ width: 100 }} /><col style={{ width: 100 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 80 }} /><col style={{ width: 45 }} /><col style={{ width: 320 }} /><col style={{ width: 75 }} /></colgroup>
+          <colgroup>
+            {tableConfig.columnWidths.map((width, idx) => (
+              <col key={`hr-col-${idx}`} style={{ width }} />
+            ))}
+          </colgroup>
         <thead className="sticky top-0 z-[5]">
           <tr className="bg-gradient-to-r from-neutral-50 via-white to-neutral-50 dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900 backdrop-blur-sm">
-            {/* Favorite column */}
-            <th className="h-14 px-2 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
-              <Heart className="h-4 w-4 mx-auto text-neutral-400" />
-            </th>
             {/* Non-sortable columns */}
             <th className="h-14 px-4 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
               Player
@@ -1127,6 +1052,13 @@ export function HitRateTable({
                 <SortIcon field="seasonAvg" />
               </div>
             </th>
+
+            {/* Prior season average (MLB only) */}
+            {showPreviousSeasonAvg ? (
+              <th className="h-14 px-3 text-center text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 border-b border-neutral-200/80 dark:border-neutral-800/80">
+                {previousSeasonAvgHeaderLabel}
+              </th>
+            ) : null}
             
             {/* Sortable: Streak */}
             <th
@@ -1220,18 +1152,6 @@ export function HitRateTable({
             // Check if this row should be blurred (for gated access)
             const isBlurred = blurAfterIndex !== undefined && idx >= blurAfterIndex;
 
-            // Build favorite key for this row
-            const rowFavoriteKey = createFavoriteKey({
-              event_id: row.eventId || row.gameId || "",
-              type: "player",
-              player_id: String(row.playerId),
-              market: row.market,
-              line: row.line,
-              side: "over",
-            });
-            const isFavorited = favoriteKeys.has(rowFavoriteKey);
-            const isTogglingThis = togglingFavoriteKey === rowFavoriteKey;
-
             return (
               <tr
                 key={rowKey}
@@ -1245,38 +1165,6 @@ export function HitRateTable({
                   isHighConfidence && !isBlurred && "shadow-[inset_4px_0_0_0_rgba(16,185,129,0.6)]"
                 )}
               >
-                {/* Favorite Column */}
-                <td className="px-2 py-5 text-center">
-                  {isBlurred ? (
-                    <div className="w-5 h-5 mx-auto rounded bg-neutral-200 dark:bg-neutral-700 opacity-50" />
-                  ) : (
-                    <Tooltip content={isFavorited ? "Remove from My Plays" : "Add to My Plays"} side="left">
-                      <button
-                        onClick={(e) => handleToggleFavorite(row, e)}
-                        disabled={isTogglingThis}
-                        className={cn(
-                          "p-1.5 rounded-lg transition-all duration-200",
-                          isFavorited
-                            ? "text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                            : "text-neutral-300 hover:text-rose-400 hover:bg-neutral-100 dark:text-neutral-600 dark:hover:text-rose-400 dark:hover:bg-neutral-800",
-                          isTogglingThis && "opacity-50"
-                        )}
-                      >
-                        {isTogglingThis ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Heart
-                            className={cn(
-                              "h-5 w-5 transition-all",
-                              isFavorited && "fill-current"
-                            )}
-                          />
-                        )}
-                      </button>
-                    </Tooltip>
-                  )}
-                </td>
-                
                 {/* Player Column: Headshot + Name + Position/Jersey */}
                 <td className="px-3 py-5">
                   {isBlurred ? (
@@ -1492,6 +1380,18 @@ export function HitRateTable({
                     {isBlurred ? "00.0" : (row.seasonAvg !== null ? row.seasonAvg.toFixed(1) : "—")}
                   </span>
                 </td>
+
+                {/* Prior Season Avg (MLB only) */}
+                {showPreviousSeasonAvg ? (
+                  <td className="px-3 py-5 align-middle text-center">
+                    <span className={cn(
+                      "text-sm font-medium",
+                      isBlurred ? "text-neutral-400 opacity-50 blur-[2px]" : getAvgColorClass(row.previousSeasonAvg, row.line)
+                    )}>
+                      {isBlurred ? "00.0" : (row.previousSeasonAvg !== null ? row.previousSeasonAvg.toFixed(1) : "—")}
+                    </span>
+                  </td>
+                ) : null}
 
                 {/* Streak Column */}
                 <td className="px-1 py-5 align-middle text-center">

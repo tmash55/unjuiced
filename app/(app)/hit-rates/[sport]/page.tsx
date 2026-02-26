@@ -178,9 +178,22 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     });
   }, [sportConfig]);
   
-  // Default to the next game day on first load (both desktop and mobile)
+  // Default game filter on first load.
+  // NBA: preselect next game day.
+  // MLB: default to "All Games" to avoid empty-state when a single matchup has no profiles yet.
   useEffect(() => {
     if (allGames && allGames.length > 0) {
+      if (sport === "mlb") {
+        if (selectedGameIds === null) {
+          setSelectedGameIds([]);
+        }
+
+        if (mobileSelectedGameIds === null) {
+          setMobileSelectedGameIds([]);
+        }
+        return;
+      }
+
       const sortedGames = [...allGames].sort((a, b) => {
         const dateCompare = (a.game_date || "").localeCompare(b.game_date || "");
         if (dateCompare !== 0) return dateCompare;
@@ -205,7 +218,7 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
         setMobileSelectedGameIds(defaultGameIds);
       }
     }
-  }, [allGames, selectedGameIds, mobileSelectedGameIds]);
+  }, [allGames, mobileSelectedGameIds, selectedGameIds, sport]);
 
   // Remove stale selected game IDs that are not in the current sport's game list
   useEffect(() => {

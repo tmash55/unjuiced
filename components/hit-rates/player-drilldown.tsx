@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, HeartPulse, X, Pencil, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList, ArrowDown, Heart } from "lucide-react";
+import { ArrowLeft, HeartPulse, X, TrendingUp, ChevronLeft, ChevronRight, Grid3X3, LayoutList, ArrowDown } from "lucide-react";
 import { PlayerHeadshot } from "@/components/player-headshot";
 import { HitRateProfile } from "@/lib/hit-rates-schema";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,11 @@ import { ShareChartButton } from "./share-chart-button";
 import { RosterAndInjuries, InjuryFilter } from "./roster-and-injuries";
 import { PlayTypeAnalysis } from "./play-type-analysis";
 import { ShootingZones } from "./shooting-zones";
+import { type HeaderGameCountFilter } from "@/components/hit-rates/header-hit-rate-strip";
+import {
+  DrilldownHeaderRightPanel,
+  type HeaderOddsCardConfig,
+} from "@/components/hit-rates/header-right-panel";
 import { usePlayerBoxScores } from "@/hooks/use-player-box-scores";
 import { usePlayerGamesWithInjuries, usePlayersOutForFilter } from "@/hooks/use-injury-context";
 import { useDvpRankings } from "@/hooks/use-dvp-rankings";
@@ -61,7 +66,7 @@ const getPositionLabel = (position: string | null): string => {
   return POSITION_LABELS[position] || position;
 };
 
-type GameCountFilter = 5 | 10 | 20 | "season" | "h2h";
+type GameCountFilter = HeaderGameCountFilter;
 
 // Market display order
 const MARKET_ORDER = [
@@ -1492,6 +1497,118 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
     chartFilters.fga,
   ].some(Boolean);
 
+  const startEditingLine = useCallback(() => {
+    if (isEditingLine) return;
+    setEditValue(String(activeLine ?? profile.line ?? ""));
+    setIsEditingLine(true);
+  }, [isEditingLine, activeLine, profile.line]);
+
+  const commitEditedLine = useCallback(() => {
+    const parsed = parseFloat(editValue);
+    if (!Number.isNaN(parsed) && parsed >= 0 && parsed !== profile.line) {
+      setCustomLine(parsed);
+    } else if (parsed === profile.line) {
+      setCustomLine(null);
+    }
+    setIsEditingLine(false);
+  }, [editValue, profile.line]);
+
+  const cancelEditingLine = useCallback(() => {
+    setIsEditingLine(false);
+  }, []);
+
+  const overSportsbook = useMemo(
+    () => (oddsForChart?.bestOver ? getSportsbookById(oddsForChart.bestOver.book) : null),
+    [oddsForChart?.bestOver]
+  );
+  const underSportsbook = useMemo(
+    () => (oddsForChart?.bestUnder ? getSportsbookById(oddsForChart.bestUnder.book) : null),
+    [oddsForChart?.bestUnder]
+  );
+
+  const headerOddsCards = useMemo<[HeaderOddsCardConfig, HeaderOddsCardConfig]>(() => {
+    const overUrl = oddsForChart?.bestOver?.mobileUrl ?? undefined;
+    const underUrl = oddsForChart?.bestUnder?.mobileUrl ?? undefined;
+
+    const overCard: HeaderOddsCardConfig = {
+      sideLabel: "O",
+      bookLogoSrc: overSportsbook?.image?.light ?? null,
+      bookName: overSportsbook?.name ?? oddsForChart?.bestOver?.book ?? null,
+      bookFallbackLabel: overSportsbook?.image?.light ? null : oddsForChart?.bestOver?.book ?? null,
+      priceText:
+        oddsForChart?.bestOver == null
+          ? null
+          : oddsForChart.bestOver.price > 0
+            ? `+${oddsForChart.bestOver.price}`
+            : `${oddsForChart.bestOver.price}`,
+      priceClassName:
+        oddsForChart?.bestOver == null
+          ? undefined
+          : oddsForChart.bestOver.price > 0
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-neutral-700 dark:text-neutral-300",
+      onClick: overUrl
+        ? () => window.open(overUrl, "_blank", "noopener,noreferrer")
+        : undefined,
+      favorite:
+        isLoggedIn && profile.gameId
+          ? {
+              active: isOverFavorited,
+              tooltip: isOverFavorited ? "Remove from My Plays" : "Add Over to My Plays",
+              disabled: isToggling,
+              onToggle: () => {
+                void handleToggleFavorite("over");
+              },
+            }
+          : undefined,
+    };
+
+    const underCard: HeaderOddsCardConfig = {
+      sideLabel: "U",
+      bookLogoSrc: underSportsbook?.image?.light ?? null,
+      bookName: underSportsbook?.name ?? oddsForChart?.bestUnder?.book ?? null,
+      bookFallbackLabel: underSportsbook?.image?.light ? null : oddsForChart?.bestUnder?.book ?? null,
+      priceText:
+        oddsForChart?.bestUnder == null
+          ? null
+          : oddsForChart.bestUnder.price > 0
+            ? `+${oddsForChart.bestUnder.price}`
+            : `${oddsForChart.bestUnder.price}`,
+      priceClassName:
+        oddsForChart?.bestUnder == null
+          ? undefined
+          : oddsForChart.bestUnder.price > 0
+            ? "text-red-600 dark:text-red-400"
+            : "text-neutral-700 dark:text-neutral-300",
+      onClick: underUrl
+        ? () => window.open(underUrl, "_blank", "noopener,noreferrer")
+        : undefined,
+      favorite:
+        isLoggedIn && profile.gameId
+          ? {
+              active: isUnderFavorited,
+              tooltip: isUnderFavorited ? "Remove from My Plays" : "Add Under to My Plays",
+              disabled: isToggling,
+              onToggle: () => {
+                void handleToggleFavorite("under");
+              },
+            }
+          : undefined,
+    };
+
+    return [overCard, underCard];
+  }, [
+    overSportsbook,
+    underSportsbook,
+    oddsForChart,
+    isLoggedIn,
+    profile.gameId,
+    isOverFavorited,
+    isUnderFavorited,
+    isToggling,
+    handleToggleFavorite,
+  ]);
+
   return (
     <div ref={scrollContainerRef} className="h-full overflow-auto pr-3 drilldown-scroll">
       {/* Capture Wrapper - Contains header + chart for sharing */}
@@ -1707,266 +1824,41 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
             {/* ════════════════════════════════════════════════════════════════
                 RIGHT SECTION - Premium Stats Layout
                 ════════════════════════════════════════════════════════════════ */}
-            <div className="flex flex-col gap-3 pl-6 pr-5 py-4 border-l border-neutral-200/60 dark:border-neutral-800/60 bg-gradient-to-l from-white/40 to-transparent dark:from-neutral-900/40 dark:to-transparent">
-              {/* ROW 1: Primary Prop Chip */}
-              <div className="flex items-center gap-3">
-                {/* Main Prop Chip - Hero Element */}
-                <Tooltip 
-                  content={
-                    <div className="text-center p-1">
-                      <div className="font-semibold text-neutral-100">Click to edit line</div>
-                      <div className="text-xs text-neutral-400 mt-0.5">Or drag the chart line to adjust</div>
-                    </div>
-                  } 
-                  side="bottom"
-                >
-                  <div 
-                    className={cn(
-                      "relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer",
-                      customLine !== null && customLine !== profile.line
-                        ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900" 
-                        : "hover:shadow-xl hover:scale-[1.02]"
-                    )}
-                    style={{ 
-                      backgroundColor: profile.primaryColor || '#6366f1',
-                    }}
-                    onClick={() => {
-                      if (!isEditingLine) {
-                        setEditValue(String(activeLine ?? profile.line ?? ""));
-                        setIsEditingLine(true);
-                      }
-                    }}
-                  >
-                    {/* Line + Market */}
-                    {isEditingLine ? (
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => {
-                          const parsed = parseFloat(editValue);
-                          if (!isNaN(parsed) && parsed >= 0 && parsed !== profile.line) {
-                            setCustomLine(parsed);
-                          } else if (parsed === profile.line) {
-                            setCustomLine(null);
-                          }
-                          setIsEditingLine(false);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const parsed = parseFloat(editValue);
-                            if (!isNaN(parsed) && parsed >= 0 && parsed !== profile.line) {
-                              setCustomLine(parsed);
-                            } else if (parsed === profile.line) {
-                              setCustomLine(null);
-                            }
-                            setIsEditingLine(false);
-                          } else if (e.key === "Escape") {
-                            setIsEditingLine(false);
-                          }
-                        }}
-                        autoFocus
-                        className="w-16 text-lg font-black text-center bg-white/20 text-white rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 placeholder-white/50"
-                        placeholder="0"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span className="text-lg font-black text-white tracking-tight">
-                        {activeLine}+ {formatMarketLabel(profile.market)}
-                </span>
-                    )}
-                    
-                    {/* Pencil Icon - after market name */}
-                    {!isEditingLine && (
-                      <Pencil className="h-3.5 w-3.5 text-white/50" />
-                    )}
-                    
-                    {/* Reset button - only show if custom line is different from original */}
-                    {customLine !== null && customLine !== profile.line && !isEditingLine && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCustomLine(null);
-                        }}
-                        className="ml-1 p-0.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
-                        title={`Reset to ${profile.line}`}
-                      >
-                        <X className="h-3 w-3 text-white" />
-                      </button>
-                    )}
+            <DrilldownHeaderRightPanel
+              primaryColor={profile.primaryColor}
+              lineText={`${activeLine !== null ? `${activeLine}+` : "-"} ${formatMarketLabel(profile.market)}`}
+              lineEditor={{
+                enabled: true,
+                isEditing: isEditingLine,
+                editValue,
+                placeholder: "0",
+                tooltipContent: (
+                  <div className="text-center p-1">
+                    <div className="font-semibold text-neutral-100">Click to edit line</div>
+                    <div className="text-xs text-neutral-400 mt-0.5">Or drag the chart line to adjust</div>
                   </div>
-                </Tooltip>
-                
-                {/* Odds Section with Favorite Hearts */}
-                <div className="flex items-center gap-2">
-                  {/* Over Odds + Heart */}
-                  <div className="flex items-center gap-1">
-                    {oddsForChart?.bestOver ? (
-                      <button
-                        type="button"
-                        onClick={() => oddsForChart.bestOver?.mobileUrl && window.open(oddsForChart.bestOver.mobileUrl, "_blank", "noopener,noreferrer")}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
-                      >
-                        {(() => {
-                          const sb = getSportsbookById(oddsForChart.bestOver.book);
-                          return sb?.image?.light ? (
-                            <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
-                          ) : (
-                            <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestOver.book}</span>
-                          );
-                        })()}
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">O</span>
-                          <span className={cn(
-                            "text-sm font-bold tabular-nums",
-                            oddsForChart.bestOver.price > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
-                          )}>
-                            {oddsForChart.bestOver.price > 0 ? `+${oddsForChart.bestOver.price}` : oddsForChart.bestOver.price}
-                          </span>
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                        <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">O</span>
-                        <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
-                      </div>
-                    )}
-                    {/* Over Heart Button */}
-                    {isLoggedIn && profile.gameId && (
-                      <Tooltip content={isOverFavorited ? "Remove from My Plays" : "Add Over to My Plays"} side="bottom">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFavorite("over")}
-                          disabled={isToggling}
-                          className={cn(
-                            "p-2 rounded-lg border transition-all",
-                            isOverFavorited
-                              ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
-                              : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-700",
-                            isToggling && "opacity-50 cursor-not-allowed"
-                          )}
-                        >
-                          <Heart className={cn("h-4 w-4", isOverFavorited && "fill-current")} />
-                        </button>
-                      </Tooltip>
-                    )}
-                  </div>
-                  
-                  {/* Under Odds + Heart */}
-                  <div className="flex items-center gap-1">
-                    {oddsForChart?.bestUnder ? (
-                      <button
-                        type="button"
-                        onClick={() => oddsForChart.bestUnder?.mobileUrl && window.open(oddsForChart.bestUnder.mobileUrl, "_blank", "noopener,noreferrer")}
-                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-brand/40 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all cursor-pointer"
-                      >
-                        {(() => {
-                          const sb = getSportsbookById(oddsForChart.bestUnder.book);
-                          return sb?.image?.light ? (
-                            <img src={sb.image.light} alt={sb.name} className="h-4 w-4 object-contain" />
-                          ) : (
-                            <span className="text-[10px] font-medium text-neutral-500">{oddsForChart.bestUnder.book}</span>
-                          );
-                        })()}
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400">U</span>
-                          <span className={cn(
-                            "text-sm font-bold tabular-nums",
-                            oddsForChart.bestUnder.price > 0 ? "text-red-600 dark:text-red-400" : "text-neutral-700 dark:text-neutral-300"
-                          )}>
-                            {oddsForChart.bestUnder.price > 0 ? `+${oddsForChart.bestUnder.price}` : oddsForChart.bestUnder.price}
-                          </span>
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                        <span className="text-[10px] font-medium text-neutral-400 dark:text-neutral-500">U</span>
-                        <span className="text-sm font-bold tabular-nums text-neutral-400 dark:text-neutral-500">—</span>
-                      </div>
-                    )}
-                    {/* Under Heart Button */}
-                    {isLoggedIn && profile.gameId && (
-                      <Tooltip content={isUnderFavorited ? "Remove from My Plays" : "Add Under to My Plays"} side="bottom">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFavorite("under")}
-                          disabled={isToggling}
-                          className={cn(
-                            "p-2 rounded-lg border transition-all",
-                            isUnderFavorited
-                              ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-500"
-                              : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-700",
-                            isToggling && "opacity-50 cursor-not-allowed"
-                          )}
-                        >
-                          <Heart className={cn("h-4 w-4", isUnderFavorited && "fill-current")} />
-                        </button>
-                      </Tooltip>
-                    )}
-                  </div>
-                </div>
-          </div>
-
-              {/* ROW 2: Hit Rate Strip - Premium Pills - Uses dynamicHitRates for custom line */}
-              <div className="flex items-center gap-1 p-1 rounded-xl bg-neutral-100/50 dark:bg-neutral-800/30">
-                {[
-                  { label: "L5", value: dynamicHitRates.l5, count: 5 as const },
-                  { label: "L10", value: dynamicHitRates.l10, count: 10 as const },
-                  { label: "L20", value: dynamicHitRates.l20, count: 20 as const },
-                  { label: "SZN", value: dynamicHitRates.season, count: "season" as const },
-                  { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" as const },
-                ].map((stat) => {
-                  const isSelected = gameCount === stat.count;
-                  const hitColor = stat.value !== null && stat.value >= 70 
-                    ? "emerald" 
-                    : stat.value !== null && stat.value >= 50 
-                      ? "amber" 
-                      : "red";
-                  return (
-                    <button
-                      key={stat.label}
-                      type="button"
-                      onClick={() => setGameCount(stat.count)}
-                      className={cn(
-                        "relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-xs font-semibold",
-                        isSelected 
-                          ? "bg-white dark:bg-neutral-800 shadow-sm ring-1 ring-neutral-200/50 dark:ring-neutral-700/50" 
-                          : "hover:bg-white/50 dark:hover:bg-neutral-800/50"
-                      )}
-                    >
-                      <span className={cn(
-                        "font-bold tabular-nums tracking-tight",
-                        isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-500"
-                      )}>
-                        {stat.label}
-                      </span>
-                      <span className={cn(
-                        "font-bold tabular-nums",
-                        hitColor === "emerald" && "text-emerald-600 dark:text-emerald-400",
-                        hitColor === "amber" && "text-amber-600 dark:text-amber-400",
-                        hitColor === "red" && "text-red-500 dark:text-red-400",
-                        stat.value === null && "text-neutral-400 dark:text-neutral-500"
-                      )}>
-                        {stat.value != null ? `${stat.value.toFixed(0)}%` : "—"}
-                      </span>
-                      {isSelected && (
-                        <div className={cn(
-                          "absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full",
-                          hitColor === "emerald" && "bg-emerald-500",
-                          hitColor === "amber" && "bg-amber-500",
-                          hitColor === "red" && "bg-red-500",
-                          stat.value === null && "bg-neutral-400"
-                        )} />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                ),
+                showReset: customLine !== null && customLine !== profile.line,
+                resetTitle: `Reset to ${profile.line}`,
+                onStartEditing: startEditingLine,
+                onEditValueChange: setEditValue,
+                onCommitEditing: commitEditedLine,
+                onCancelEditing: cancelEditingLine,
+                onReset: () => setCustomLine(null),
+              }}
+              oddsCards={headerOddsCards}
+              stripItems={[
+                { label: "L5", value: dynamicHitRates.l5, count: 5 },
+                { label: "L10", value: dynamicHitRates.l10, count: 10 },
+                { label: "L20", value: dynamicHitRates.l20, count: 20 },
+                { label: "SZN", value: dynamicHitRates.season, count: "season" },
+                { label: "H2H", value: dynamicHitRates.h2h, count: "h2h" },
+              ]}
+              selectedStrip={gameCount}
+              onSelectStrip={(count) => setGameCount(count as GameCountFilter)}
+            />
           </div>
         </div>
-      </div>
-
       {/* ═══════════════════════════════════════════════════════════════════
             MARKET SELECTOR STRIP - Inside sticky header
           ═══════════════════════════════════════════════════════════════════ */}
@@ -2420,7 +2312,8 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
         </div>
       </div>
       
-      </div>{/* End of chartCaptureRef wrapper */}
+      </div>
+      {/* End of chartCaptureRef wrapper */}
 
       {/* ═══════════════════════════════════════════════════════════════════
           TEAM ROSTERS & INJURIES (Combined) - Collapsible

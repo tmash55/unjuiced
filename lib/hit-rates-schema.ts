@@ -39,6 +39,7 @@ export interface RawHitRateProfile {
   last_10_avg: number | null;
   last_20_avg: number | null;
   season_avg: number | null;
+  previous_season_avg?: number | null;
   hit_streak: number | null;
   spread: number | null;
   total: number | null;
@@ -111,6 +112,7 @@ export interface HitRateProfile {
   last10Avg: number | null;
   last20Avg: number | null;
   seasonAvg: number | null;
+  previousSeasonAvg: number | null;
   spread: number | null;
   total: number | null;
   injuryStatus: string | null;

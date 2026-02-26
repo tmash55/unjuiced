@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import { getMlbPreviousSeasonAvg } from "@/lib/hit-rates/season-averages";
 
 const SPORT = "mlb";
 const CACHE_TTL_SECONDS = 60;
@@ -149,7 +150,12 @@ function getCacheKey(dates: string[], market?: string | null, hasOdds?: boolean)
   return `${CACHE_KEY_PREFIX}:${dateKey}:${marketKey}:${oddsKey}`;
 }
 
-function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTime: string | null) {
+function transformProfile(
+  row: any,
+  bestOdds: BestOddsData | null,
+  eventStartTime: string | null,
+  previousSeasonAvg: number | null
+) {
   const startTime =
     eventStartTime ||
     row.game_start_time ||
@@ -212,6 +218,7 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
     last_10_avg: row.last_10_avg,
     last_20_avg: row.last_20_avg,
     season_avg: row.season_avg,
+    previous_season_avg: previousSeasonAvg,
     spread: row.spread,
     total: row.total,
     spread_clv: row.spread_clv,
@@ -333,23 +340,46 @@ function filterData(data: any[], search?: string, market?: string, playerId?: nu
   return result;
 }
 
-async function getFallbackDates(supabase: ReturnType<typeof createServerSupabaseClient>, todayET: string) {
+async function getFallbackDates(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  todayET: string,
+  market: string | null,
+  hasOdds: boolean
+) {
   const getUniqueDates = (rows: Array<{ game_date: string | null }>) =>
     [...new Set(rows.map((r) => r.game_date).filter(Boolean) as string[])].slice(0, 2);
 
-  const { data: upcoming } = await supabase
+  let upcomingQuery = supabase
     .from("mlb_hit_rate_profiles")
     .select("game_date")
-    .gte("game_date", todayET)
+    .gte("game_date", todayET);
+
+  if (market) {
+    upcomingQuery = upcomingQuery.eq("market", market);
+  }
+  if (hasOdds) {
+    upcomingQuery = upcomingQuery.eq("has_live_odds", true);
+  }
+
+  const { data: upcoming } = await upcomingQuery
     .order("game_date", { ascending: true })
     .limit(200);
 
   const upcomingDates = getUniqueDates(upcoming || []);
   if (upcomingDates.length > 0) return upcomingDates;
 
-  const { data: anyDates } = await supabase
+  let anyDatesQuery = supabase
     .from("mlb_hit_rate_profiles")
-    .select("game_date")
+    .select("game_date");
+
+  if (market) {
+    anyDatesQuery = anyDatesQuery.eq("market", market);
+  }
+  if (hasOdds) {
+    anyDatesQuery = anyDatesQuery.eq("has_live_odds", true);
+  }
+
+  const { data: anyDates } = await anyDatesQuery
     .order("game_date", { ascending: true })
     .limit(200);
 
@@ -426,23 +456,38 @@ export async function GET(request: Request) {
         p_dates: datesToFetch,
         p_market: market,
         p_has_odds: hasOdds,
-        p_limit: market ? 500 : 3000,
+        p_limit: market ? 2000 : 3000,
         p_offset: 0,
       });
 
       if (!date && (!data || data.length === 0)) {
-        const fallbackDates = await getFallbackDates(supabase, todayET);
+        const fallbackDates = await getFallbackDates(supabase, todayET, market, hasOdds);
         if (fallbackDates.length > 0) {
           datesToFetch = fallbackDates;
           const fallback = await supabase.rpc("get_mlb_hit_rate_profiles_v3", {
             p_dates: datesToFetch,
             p_market: market,
             p_has_odds: hasOdds,
-            p_limit: market ? 500 : 3000,
+            p_limit: market ? 2000 : 3000,
             p_offset: 0,
           });
           data = fallback.data;
           error = fallback.error;
+        }
+
+        // Final fallback: remove date constraint and fetch by market globally.
+        // This handles cases where date discovery is blocked or no near-term rows exist.
+        if (!error && (!data || data.length === 0)) {
+          const broadFallback = await supabase.rpc("get_mlb_hit_rate_profiles_v3", {
+            p_dates: null,
+            p_market: market,
+            p_has_odds: hasOdds,
+            p_limit: market ? 2000 : 3000,
+            p_offset: 0,
+          });
+          data = broadFallback.data;
+          error = broadFallback.error;
+          datesToFetch = [];
         }
       }
 
@@ -484,7 +529,8 @@ export async function GET(request: Request) {
           : null;
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
       const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
-      return transformProfile(row, bestOdds, eventStartTime);
+      const previousSeasonAvg = getMlbPreviousSeasonAvg(row, todayET);
+      return transformProfile(row, bestOdds, eventStartTime, previousSeasonAvg);
     });
 
     const availableDates = [...new Set(allData.map((r: any) => r.game_date))].sort();
