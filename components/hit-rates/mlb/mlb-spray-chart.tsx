@@ -103,7 +103,9 @@ function buildCoordMapper(
     svgTopY = Math.min(...normalizedOutfield.map((p) => p[1]));
   }
 
-  const mlbamFieldDepth = MLBAM_HP_Y - 14;
+  // MLBAM hc_y at the outfield fence varies by park (~40-60).
+  // 32 balances keeping non-HR dots inside while pushing HRs past the fence.
+  const mlbamFieldDepth = MLBAM_HP_Y - 32;
   const svgFieldDepth = svgHpY - svgTopY;
   const scale = svgFieldDepth / mlbamFieldDepth;
 
@@ -567,16 +569,11 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
       {/* Header */}
       <header className="relative px-5 py-4 border-b border-neutral-200/70 dark:border-neutral-700/60 bg-gradient-to-r from-white/80 via-white/65 to-white/45 dark:from-neutral-900/75 dark:via-neutral-900/65 dark:to-neutral-900/35 backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
-                Batted Ball
-              </p>
-              <h3 className="text-sm font-black tracking-wide text-neutral-900 dark:text-white">Spray Chart</h3>
-            </div>
-            <span className="rounded-full bg-neutral-100/80 dark:bg-neutral-800/50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-neutral-500 dark:text-neutral-400">
-              {dots.length} BIP
-            </span>
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
+              Batted Ball
+            </p>
+            <h3 className="text-sm font-black tracking-wide text-neutral-900 dark:text-white">Spray Chart</h3>
           </div>
 
           {/* Top-right controls */}
@@ -930,8 +927,9 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
               )}
             </div>
 
-            {/* Legend */}
+            {/* Legend + BIP count */}
             <div className="flex items-center justify-center gap-4 mt-3 text-[10px] font-semibold text-neutral-500 dark:text-neutral-400">
+              <span className="tabular-nums font-bold">{filteredEvents.length} BIP</span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
                 Hit
@@ -1027,7 +1025,7 @@ export function MlbSprayChart({ playerId, gameId, battingHand }: MlbSprayChartPr
               Hard Contact (95+ mph)
             </p>
             <div className="flex items-center gap-3 flex-wrap text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-              <span className="tabular-nums">{hardContact.count} BIP</span>
+              <span className="tabular-nums">{hardContact.count} Hard Hit</span>
               {hardContact.avg != null && (
                 <span className="tabular-nums">
                   {(hardContact.avg > 1 ? hardContact.avg / 1000 : hardContact.avg).toFixed(3).replace(/^0/, "")} AVG
