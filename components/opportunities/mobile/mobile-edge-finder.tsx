@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { 
-  Search, 
-  ChevronDown, 
+import {
+  Search,
+  ChevronDown,
   ChevronUp,
   RefreshCw,
   X,
@@ -11,8 +11,6 @@ import {
   Filter,
   Zap,
   Check,
-  Wifi,
-  WifiOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MobileEdgeCard } from "./mobile-edge-card";
@@ -363,17 +361,19 @@ export function MobileEdgeFinder({
             </h1>
             {/* Last Updated - Compact */}
             {dataUpdatedAt && (
-              <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 {autoRefresh && streamConnected && (
-                  <span className="text-emerald-500 font-medium">LIVE</span>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
                 )}
-                {formatTimeAgo(dataUpdatedAt)}
-              </span>
+                <span className="text-[10px] text-neutral-400">
+                  {formatTimeAgo(dataUpdatedAt)}
+                </span>
+              </div>
             )}
           </div>
           
           <div className="flex items-center gap-1">
-            {/* Auto-Refresh Toggle - Sharp Feature */}
+            {/* Auto-Refresh Toggle - Pro Feature */}
             {isPro && onAutoRefreshChange && (
               <button
                 onClick={() => {
@@ -384,33 +384,22 @@ export function MobileEdgeFinder({
                   }
                 }}
                 className={cn(
-                  "p-2 rounded-lg transition-colors flex items-center gap-1",
+                  "flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold uppercase transition-all",
                   autoRefresh
                     ? streamFailed
-                      ? "text-red-500"
-                      : streamConnected
-                      ? "text-emerald-500"
-                      : "text-amber-500"
-                    : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                      : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
                 )}
               >
-                {autoRefresh ? (
-                  streamFailed ? (
-                    <WifiOff className="w-4 h-4" />
-                  ) : streamConnected ? (
-                    <>
-                      <Wifi className="w-4 h-4" />
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                    </>
-                  ) : (
-                    <Wifi className="w-4 h-4 animate-pulse" />
-                  )
-                ) : (
-                  <Wifi className="w-4 h-4 opacity-60" />
-                )}
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  autoRefresh && streamConnected && "bg-amber-500",
+                  autoRefresh && !streamConnected && !streamFailed && "bg-amber-500 animate-pulse",
+                  autoRefresh && streamFailed && "bg-red-500",
+                  !autoRefresh && "bg-neutral-400"
+                )} />
+                Auto
               </button>
             )}
             
