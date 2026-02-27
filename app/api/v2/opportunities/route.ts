@@ -14,6 +14,7 @@ import { getPreset, SHARP_PRESETS } from "@/lib/odds/presets";
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // OPTIMIZATION: Cache settings balanced for freshness + efficiency
@@ -740,7 +741,7 @@ async function fetchSportOpportunities(
     if (eventIds.length === 0) return [];
     
     // Step 2: Get odds keys scoped to active events and requested markets
-    const allOddsKeys = await getOddsKeysForEvents(sport, eventIds, markets);
+    const { keys: allOddsKeys, prefetchedData } = await getOddsKeysForEvents(sport, eventIds, markets);
     if (allOddsKeys.length === 0) return [];
 
     // Filter keys to only active events and group by event+market
@@ -787,27 +788,36 @@ async function fetchSportOpportunities(
     
     if (filteredKeys.length === 0) return [];
 
-    // OPTIMIZATION: Batch fetch ALL odds data in parallel chunks
-    const MGET_CHUNK_SIZE = 500; // Upstash limit per request
-    const chunks: string[][] = [];
-    for (let i = 0; i < filteredKeys.length; i += MGET_CHUNK_SIZE) {
-      chunks.push(filteredKeys.slice(i, i + MGET_CHUNK_SIZE));
-    }
-    
-    // Fetch all chunks in parallel (much faster than sequential)
-    const chunkResults = await Promise.all(
-      chunks.map(chunk => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
-    );
-    const allOddsData = chunkResults.flat();
-    
-    // Build key -> data map
+    // Build key -> data map — use pre-fetched data first, MGET only missing keys
     const oddsDataMap = new Map<string, SSEBookSelections>();
-    filteredKeys.forEach((key, i) => {
-      const data = allOddsData[i];
-      if (data) {
-        oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+    const missingKeys: string[] = [];
+    for (const key of filteredKeys) {
+      const cached = prefetchedData.get(key);
+      if (cached) {
+        oddsDataMap.set(key, cached);
+      } else {
+        missingKeys.push(key);
       }
-    });
+    }
+
+    // Only fetch keys not already pre-fetched (from index-only paths)
+    if (missingKeys.length > 0) {
+      const MGET_CHUNK_SIZE = 500;
+      const chunks: string[][] = [];
+      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
+        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
+      }
+      const chunkResults = await Promise.all(
+        chunks.map(chunk => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      );
+      const allOddsData = chunkResults.flat();
+      missingKeys.forEach((key, i) => {
+        const data = allOddsData[i];
+        if (data) {
+          oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+        }
+      });
+    }
 
     // Fetch event details (already batched)
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
@@ -1638,7 +1648,7 @@ function invalidateEventCache(sport: string): void {
  * Architecture: active_events (small set) + per-event scans (focused)
  * This avoids maintaining a massive global odds_keys set that's hard to clean up
  */
-const oddsKeysCache = new Map<string, { keys: string[]; timestamp: number }>();
+const oddsKeysCache = new Map<string, { keys: string[]; data: Map<string, SSEBookSelections>; timestamp: number }>();
 const ODDS_KEYS_CACHE_TTL = 20000; // 20 seconds
 
 function parseOddsIndexMember(member: string): { market: string; book: string } | null {
@@ -1676,22 +1686,22 @@ async function getOddsKeysForEvents(
   sport: string,
   eventIds: string[],
   markets: string[] | null
-): Promise<string[]> {
-  if (eventIds.length === 0) return [];
+): Promise<{ keys: string[]; prefetchedData: Map<string, SSEBookSelections> }> {
+  if (eventIds.length === 0) return { keys: [], prefetchedData: new Map() };
 
   const requestedMarkets = getRequestedMarketsForSport(markets, sport);
   if (markets && requestedMarkets.length === 0) {
     // Markets were provided, but none apply to this sport.
-    return [];
+    return { keys: [], prefetchedData: new Map() };
   }
 
   // Cache key includes concrete event IDs and requested markets to avoid collisions.
   const cacheKey = `${sport}:${[...eventIds].sort().join(",")}:${requestedMarkets.sort().join(",") || "all"}`;
-  
+
   // Check memory cache first (fastest - 0ms)
   const cached = oddsKeysCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < ODDS_KEYS_CACHE_TTL) {
-    return cached.keys;
+    return { keys: cached.keys, prefetchedData: cached.data };
   }
 
   const requestedMarketSet = new Set(requestedMarkets);
@@ -1707,6 +1717,7 @@ async function getOddsKeysForEvents(
   const foundEventMarket = new Set<string>();
   const eventMarkets = new Map<string, Set<string>>();
   const allKeys: string[] = [];
+  const prefetchedData = new Map<string, SSEBookSelections>();
 
   const BATCH_SIZE = 20;
   for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
@@ -1776,6 +1787,11 @@ async function getOddsKeysForEvents(
         const meta = candidateMeta[i + idx];
         allKeys.push(key);
         foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+        // Store the fetched data to avoid redundant MGET later
+        try {
+          const parsed: SSEBookSelections = typeof value === "string" ? JSON.parse(value) : value;
+          if (parsed) prefetchedData.set(key, parsed);
+        } catch { /* skip unparseable */ }
       });
     }
   }
@@ -1808,8 +1824,8 @@ async function getOddsKeysForEvents(
   }
 
   const uniqueKeys = [...new Set(allKeys)];
-  oddsKeysCache.set(cacheKey, { keys: uniqueKeys, timestamp: Date.now() });
-  return uniqueKeys;
+  oddsKeysCache.set(cacheKey, { keys: uniqueKeys, data: prefetchedData, timestamp: Date.now() });
+  return { keys: uniqueKeys, prefetchedData };
 }
 
 /**

@@ -44,6 +44,7 @@ const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
   url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
   token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // Configuration - optimized for speed
@@ -577,8 +578,8 @@ async function fetchPositiveEVOpportunities(
     const eventIds = await getActiveEventIds(sport);
     if (eventIds.length === 0) return [];
 
-    // Step 2: Get odds keys
-    const allOddsKeys = await getOddsKeysForEvents(sport, eventIds, markets);
+    // Step 2: Get odds keys (includes pre-fetched data from deterministic probes)
+    const { keys: allOddsKeys, prefetchedData } = await getOddsKeysForEvents(sport, eventIds, markets);
     if (allOddsKeys.length === 0) return [];
 
     // Filter keys by event and market
@@ -610,28 +611,38 @@ async function fetchPositiveEVOpportunities(
 
     if (filteredKeys.length === 0) return [];
 
-    // Step 3: Batch fetch all odds data
-    const chunks: string[][] = [];
-    for (let i = 0; i < filteredKeys.length; i += MGET_CHUNK_SIZE) {
-      chunks.push(filteredKeys.slice(i, i + MGET_CHUNK_SIZE));
+    // Step 3: Build key -> data map — use pre-fetched data first, MGET only missing keys
+    const oddsDataMap = new Map<string, SSEBookSelections>();
+    const missingKeys: string[] = [];
+    for (const key of filteredKeys) {
+      const cached = prefetchedData.get(key);
+      if (cached) {
+        oddsDataMap.set(key, cached);
+      } else {
+        missingKeys.push(key);
+      }
     }
 
-    const chunkResults = await Promise.all(
-      chunks.map((chunk) => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
-    );
-    const allOddsData = chunkResults.flat();
-
-    // Build key -> data map
-    const oddsDataMap = new Map<string, SSEBookSelections>();
-    filteredKeys.forEach((key, i) => {
-      const data = allOddsData[i];
-      if (data) {
-        const parsed = parseBookSelectionsValue(data, key);
-        if (parsed) {
-          oddsDataMap.set(key, parsed);
-        }
+    // Only fetch keys not already pre-fetched (from index-only paths)
+    if (missingKeys.length > 0) {
+      const chunks: string[][] = [];
+      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
+        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
       }
-    });
+      const chunkResults = await Promise.all(
+        chunks.map((chunk) => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      );
+      const allOddsData = chunkResults.flat();
+      missingKeys.forEach((key, i) => {
+        const data = allOddsData[i];
+        if (data) {
+          const parsed = parseBookSelectionsValue(data, key);
+          if (parsed) {
+            oddsDataMap.set(key, parsed);
+          }
+        }
+      });
+    }
 
     // Step 4: Fetch event details
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
@@ -1371,17 +1382,18 @@ async function getOddsKeysForEvents(
   sport: string,
   eventIds: string[],
   markets: string[] | null
-): Promise<string[]> {
-  if (eventIds.length === 0) return [];
+): Promise<{ keys: string[]; prefetchedData: Map<string, SSEBookSelections> }> {
+  if (eventIds.length === 0) return { keys: [], prefetchedData: new Map() };
 
   const allKeys: string[] = [];
+  const prefetchedData = new Map<string, SSEBookSelections>();
   const foundEventMarket = new Set<string>();
   const eventMarkets = new Map<string, Set<string>>();
   const requestedMarkets = getRequestedMarketsForSport(markets, sport);
 
   if (markets && requestedMarkets.length === 0) {
     // Markets were provided, but none apply to this sport.
-    return [];
+    return { keys: [], prefetchedData: new Map() };
   }
 
   const requestedMarketSet = new Set(requestedMarkets);
@@ -1468,6 +1480,9 @@ async function getOddsKeysForEvents(
         const meta = candidateMeta[i + idx];
         allKeys.push(key);
         foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+        // Store the fetched data to avoid redundant MGET later
+        const parsed = parseBookSelectionsValue(value, key);
+        if (parsed) prefetchedData.set(key, parsed);
       });
     }
   }
@@ -1500,7 +1515,7 @@ async function getOddsKeysForEvents(
     }
   }
 
-  return [...new Set(allKeys)];
+  return { keys: [...new Set(allKeys)], prefetchedData };
 }
 
 async function scanKeys(pattern: string): Promise<string[]> {

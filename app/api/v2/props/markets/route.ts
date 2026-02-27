@@ -9,6 +9,7 @@ const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
   url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
   token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 const VALID_SPORTS = new Set([
@@ -51,24 +52,41 @@ async function scanKeys(pattern: string): Promise<string[]> {
 
   do {
     iterations++;
-    if (seenCursors.has(cursor)) {
-      console.warn(`[v2/props/markets] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
-      break;
-    }
-    seenCursors.add(cursor);
-
     const [nextCursor, keys] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
     });
-    cursor = Number(nextCursor);
-    results.push(...keys);
+    const next = Number(nextCursor);
+    results.push(...keys.map(String));
+
+    // Stop on terminal cursor.
+    if (next === 0) {
+      break;
+    }
+
+    // Defensive guard for malformed cursor responses.
+    if (!Number.isFinite(next) || next < 0) {
+      if (results.length > 0) {
+        console.warn(`[v2/props/markets] Invalid cursor for ${pattern}, stopping at ${results.length} keys`);
+      }
+      break;
+    }
+
+    // Defensive guard for buggy/proxy scan behavior where cursor repeats forever.
+    if (seenCursors.has(next)) {
+      if (results.length > 0) {
+        console.warn(`[v2/props/markets] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
+      }
+      break;
+    }
+    seenCursors.add(next);
+    cursor = next;
 
     if (iterations >= MAX_ITERATIONS) {
       console.warn(`[v2/props/markets] Hit scan limit for ${pattern}, got ${results.length} keys`);
       break;
     }
-  } while (cursor !== 0);
+  } while (true);
 
   return results;
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const H_ROWS = "arbs:rows";
 const Z_ROI_PREGAME = "arbs:sort:roi:pregame";
@@ -15,15 +16,11 @@ export async function GET(req: NextRequest) {
     const limit = 3; // Only need top 3 for teasers
 
     // Fetch top arbs by ROI (prefer pregame, fallback to all)
-    let zrUnknown = (await (redis as any).zrange(Z_ROI_PREGAME, 0, limit - 1, { rev: true })) as unknown;
-    let zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
+    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
     
-    if (zrArr.length === 0) {
-      zrUnknown = (await (redis as any).zrange(Z_ROI_ALL, 0, limit - 1, { rev: true })) as unknown;
-      zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
+    if (ids.length === 0) {
+      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
     }
-    
-    const ids = zrArr.map(String).slice(0, limit);
 
     const rawUnknown = ids.length ? ((await (redis as any).hmget(H_ROWS, ...ids)) as unknown) : [];
     let rawArr = Array.isArray(rawUnknown) ? (rawUnknown as any[]) : [];
@@ -50,4 +47,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

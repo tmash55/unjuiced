@@ -2190,11 +2190,11 @@ export function OpportunitiesTable({
                     isHiddenRow && "opacity-40",
                     // Streaming states
                     isStale && "opacity-40 line-through",
-                    // New row highlight - ring effect like Positive EV
-                    isNewlyAdded && "ring-2 ring-emerald-400/50 ring-inset bg-emerald-50/50 dark:bg-emerald-900/20",
+                    // New row highlight - amber/orange ring for Edge Finder branding
+                    isNewlyAdded && "ring-2 ring-amber-400/60 ring-inset bg-amber-50/60 dark:bg-amber-900/25",
                     // Edge change highlights
-                    hasChange && change?.edge === "up" && "ring-1 ring-green-400/50 ring-inset",
-                    hasChange && change?.edge === "down" && "ring-1 ring-amber-400/50 ring-inset"
+                    hasChange && change?.edge === "up" && "ring-1 ring-orange-400/50 ring-inset",
+                    hasChange && change?.edge === "down" && "ring-1 ring-red-400/40 ring-inset"
                   )}
                 >
                   {filteredColumnOrder.map(colId => 

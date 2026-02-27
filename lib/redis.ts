@@ -6,6 +6,7 @@ const commandEndpoint = getRedisCommandEndpoint();
 export const redis = new Redis({
   url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
   token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // Cache TTL in seconds (20 minutes)
@@ -265,5 +266,4 @@ function filterSingleItemBookmakers<T extends { bookmakers?: any[] }>(
 
   return filteredItem;
 }
-
 

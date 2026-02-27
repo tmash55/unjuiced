@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
+import { pumpPubSub } from "@/lib/sse-pubsub";
 
 export async function GET(req: NextRequest) {
   // Open access: allow free and unsigned users to subscribe to props SSE
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
       Authorization: `Bearer ${token}`,
       Accept: "text/event-stream",
     },
+    cache: "no-store",
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -36,44 +38,12 @@ export async function GET(req: NextRequest) {
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
 
-  const pump = async () => {
-    const reader = upstream.body!.getReader();
-    const enc = new TextEncoder();
-
-    // optional hello (ignore if closed)
-    try { await writer.write(enc.encode(`event: hello\ndata: {}\n\n`)); } catch {void 0;}
-
-    const safeWrite = async (chunk: Uint8Array) => {
-      try { await writer.write(chunk); } catch { throw new Error('closed'); }
-    };
-
-    const PING_MS = 15_000;
-    const ping = setInterval(async () => {
-      try { await safeWrite(enc.encode(`: ping\n\n`)); } catch { clearInterval(ping); }
-    }, PING_MS);
-
-    const onAbort = () => {
-      clearInterval(ping);
-      try { writer.close(); } catch {void 0;}
-    };
-    if (req.signal.aborted) onAbort();
-    req.signal.addEventListener('abort', onAbort, { once: true });
-
-    try {
-      let finished=false;
-      while(!finished) {
-        const { value, done } = await reader.read();
-        finished = !!done;
-        if (finished) break;
-        try { await safeWrite(value!); } catch { break; }
-      }
-    } finally {
-      clearInterval(ping);
-      try { await writer.close(); } catch {void 0;}
-    }
-  };
-
-  pump();
+  pumpPubSub({
+    upstream: upstream.body!,
+    writer,
+    signal: req.signal,
+    helloEvent: `event: hello\ndata: {}\n\n`,
+  });
 
   return new Response(readable, {
     headers: {

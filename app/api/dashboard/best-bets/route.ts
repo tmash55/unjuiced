@@ -31,10 +31,12 @@ import {
   SSEBookSelections,
 } from "@/lib/odds/types";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // =============================================================================
@@ -217,7 +219,7 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
     }
 
     // Get top 10 IDs from ZSET
-    const ids = await redis.zrange(REDIS_BEST_BETS_ZSET, 0, DEFAULT_LIMIT - 1, { rev: true }) as string[];
+    const ids = await zrevrangeCompat(redis as any, REDIS_BEST_BETS_ZSET, 0, DEFAULT_LIMIT - 1);
     console.log(`[best-bets] ZSET ids found: ${ids?.length || 0}`, ids?.slice(0, 3));
     
     if (!ids || ids.length === 0) {
