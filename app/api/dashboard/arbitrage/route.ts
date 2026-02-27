@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
+});
 import { type ArbRow } from "@/lib/arb-schema";
 import { trackArbs } from "@/lib/metrics/dashboard-metrics";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 /**
  * Dashboard Arbitrage API
@@ -95,15 +102,11 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(params.get("limit") || "5"), 10);
 
     // Fetch top arbs by ROI (prefer pregame, fallback to all)
-    let zrUnknown = (await (redis as any).zrange(Z_ROI_PREGAME, 0, limit - 1, { rev: true })) as unknown;
-    let zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
+    let ids = await zrevrangeCompat(redis as any, Z_ROI_PREGAME, 0, limit - 1);
     
-    if (zrArr.length === 0) {
-      zrUnknown = (await (redis as any).zrange(Z_ROI_ALL, 0, limit - 1, { rev: true })) as unknown;
-      zrArr = Array.isArray(zrUnknown) ? (zrUnknown as any[]) : [];
+    if (ids.length === 0) {
+      ids = await zrevrangeCompat(redis as any, Z_ROI_ALL, 0, limit - 1);
     }
-    
-    const ids = zrArr.map(String).slice(0, limit);
 
     if (ids.length === 0) {
       return NextResponse.json(
@@ -121,13 +124,17 @@ export async function GET(req: NextRequest) {
       rawArr = await Promise.all(ids.map((id) => (redis as any).hget(H_ROWS, id)));
     }
     
-    // Parse rows
-    const rows: ArbRow[] = (rawArr || [])
-      .map((r) => (r ? (typeof r === "string" ? JSON.parse(r) : r) : null))
-      .filter(Boolean) as ArbRow[];
+    // Parse rows — keep ids and rows aligned
+    const pairs: Array<{ id: string; row: ArbRow }> = [];
+    for (let i = 0; i < ids.length; i++) {
+      const r = rawArr[i];
+      if (!r) continue;
+      const parsed: ArbRow = typeof r === "string" ? JSON.parse(r) : r;
+      if (parsed) pairs.push({ id: ids[i], row: parsed });
+    }
 
     // Transform to dashboard format
-    const arbs: ArbOpportunity[] = rows.map((row, idx) => {
+    const arbs: ArbOpportunity[] = pairs.map(({ id, row }) => {
       // Build event name from teams
       let event = "Unknown Event";
       if (row.ev?.away?.abbr && row.ev?.home?.abbr) {
@@ -153,7 +160,7 @@ export async function GET(req: NextRequest) {
       };
 
       return {
-        id: ids[idx] || `arb-${Date.now()}-${idx}`,
+        id: id || `arb-${Date.now()}`,
         event,
         market: row.mkt || "unknown",
         marketDisplay: getMarketDisplay(row.mkt || "unknown"),
@@ -178,9 +185,7 @@ export async function GET(req: NextRequest) {
       }));
       
       // Fire and forget - don't block response
-      trackArbs(arbMetrics).catch(err => 
-        console.error("[Dashboard Arbitrage] Metrics tracking error:", err)
-      );
+      trackArbs(arbMetrics).catch(() => {});
     }
 
     const result: ArbitrageResponse = {
@@ -194,8 +199,7 @@ export async function GET(req: NextRequest) {
         "X-Response-Time": `${Date.now() - startTime}ms`,
       },
     });
-  } catch (error) {
-    console.error("[Dashboard Arbitrage] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch arbitrage", arbs: [], timestamp: Date.now() },
       { status: 500, headers: { "X-Response-Time": `${Date.now() - startTime}ms` } }

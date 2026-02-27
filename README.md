@@ -20,6 +20,18 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Redis Endpoint Split (Recommended)
+
+To avoid pub/sub subscriber-mode conflicts with normal Redis commands, configure dedicated pub/sub credentials:
+
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`: command traffic fallback
+- `UPSTASH_REDIS_COMMAND_URL` and `UPSTASH_REDIS_COMMAND_TOKEN`: command traffic primary (recommended)
+- `UPSTASH_REDIS_PUBSUB_URL` and `UPSTASH_REDIS_PUBSUB_TOKEN`: SSE subscribe traffic (`/subscribe`, `/psubscribe`)
+
+Pub/sub fallback to command endpoint is disabled by default. You can enable it with:
+
+- `UPSTASH_REDIS_PUBSUB_FALLBACK_TO_COMMAND=true`
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

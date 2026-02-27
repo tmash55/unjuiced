@@ -38,15 +38,31 @@ import {
 import { createClient } from "@/libs/supabase/server";
 import { getUserPlan } from "@/lib/plans-server";
 import { hasEliteAccess } from "@/lib/plans";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // Configuration - optimized for speed
 const SCAN_COUNT = 2000;      // Larger scan batches
 const MGET_CHUNK_SIZE = 500;  // Reduced to prevent connection issues
+const MAX_SCAN_ITERATIONS = 200;
+const ACTIVE_EVENTS_CACHE_TTL = 15000; // 15s
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
+const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+
+// Known sportsbooks for deterministic key probes (scan-free path)
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
+  "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
+  "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  "betmgm", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
+];
 
 // =============================================================================
 // Redis Response Cache (shared across all instances)
@@ -55,6 +71,54 @@ const MGET_CHUNK_SIZE = 500;  // Reduced to prevent connection issues
 const RESPONSE_CACHE_PREFIX = "ev:response:";
 const RESPONSE_CACHE_TTL_PRESET = 15;  // 15 seconds for standard presets
 const RESPONSE_CACHE_TTL_CUSTOM = 30;  // 30 seconds for custom models (configs rarely change)
+let responseCacheDisabled = false;
+let responseCacheDisableLogged = false;
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function isSubscriberModeError(error: unknown): boolean {
+  const message =
+    (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return message.includes("subscriber mode");
+}
+
+function isEndpointJsonParseError(error: unknown): boolean {
+  const message =
+    (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return (
+    (message.includes("unexpected token '<'") && message.includes("valid json")) ||
+    message.includes("is not valid json")
+  );
+}
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[positive-ev] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[positive-ev] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 /**
  * Build cache key from request parameters
@@ -88,11 +152,23 @@ function hashCacheKey(key: string): string {
  * Check Redis response cache
  */
 async function getFromResponseCache(key: string): Promise<unknown | null> {
+  if (responseCacheDisabled) return null;
   try {
     const redisKey = `${RESPONSE_CACHE_PREFIX}${hashCacheKey(key)}`;
     const cached = await redis.get(redisKey);
     return cached;
   } catch (error) {
+    if (isSubscriberModeError(error) || isEndpointJsonParseError(error)) {
+      responseCacheDisabled = true;
+      if (!responseCacheDisableLogged) {
+        const reason = isSubscriberModeError(error)
+          ? "Redis subscriber-mode connection"
+          : "non-JSON response from Redis endpoint";
+        console.warn(`[positive-ev] Disabling response cache reads/writes due to ${reason}`);
+        responseCacheDisableLogged = true;
+      }
+      return null;
+    }
     console.error("[positive-ev] Redis cache read error:", error);
     return null;
   }
@@ -102,11 +178,23 @@ async function getFromResponseCache(key: string): Promise<unknown | null> {
  * Store in Redis response cache with tiered TTL
  */
 async function setInResponseCache(key: string, data: unknown, isCustom: boolean): Promise<void> {
+  if (responseCacheDisabled) return;
   try {
     const ttl = isCustom ? RESPONSE_CACHE_TTL_CUSTOM : RESPONSE_CACHE_TTL_PRESET;
     const redisKey = `${RESPONSE_CACHE_PREFIX}${hashCacheKey(key)}`;
     await redis.set(redisKey, data, { ex: ttl });
   } catch (error) {
+    if (isSubscriberModeError(error) || isEndpointJsonParseError(error)) {
+      responseCacheDisabled = true;
+      if (!responseCacheDisableLogged) {
+        const reason = isSubscriberModeError(error)
+          ? "Redis subscriber-mode connection"
+          : "non-JSON response from Redis endpoint";
+        console.warn(`[positive-ev] Disabling response cache writes due to ${reason}`);
+        responseCacheDisableLogged = true;
+      }
+      return;
+    }
     console.error("[positive-ev] Redis cache write error:", error);
   }
 }
@@ -188,7 +276,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     case "fanduel-yourway":
@@ -200,6 +292,31 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
 }
 
 /**
@@ -407,14 +524,18 @@ export async function GET(req: NextRequest) {
       console.warn(`[positive-ev] ⚠️  Large response (${(responseSize / 1024 / 1024).toFixed(2)} MB)`);
     }
 
-    // Store in Redis response cache for quick subsequent requests
-    // Fire and forget - don't await to avoid slowing down response
+    // Store in Redis response cache for quick subsequent requests.
+    // Skip writes for explicit refresh requests to reduce write pressure/noise.
     const isCustom = isCustomModelRequest(params);
-    setInResponseCache(cacheKey, response, isCustom).catch(err => {
-      console.error("[positive-ev] Failed to cache response:", err);
-    });
-    const ttlUsed = isCustom ? RESPONSE_CACHE_TTL_CUSTOM : RESPONSE_CACHE_TTL_PRESET;
-    console.log(`[positive-ev] Cache MISS - storing in Redis (TTL: ${ttlUsed}s, total time: ${Date.now() - startTime}ms)`);
+    if (!bypassCache) {
+      setInResponseCache(cacheKey, response, isCustom).catch(err => {
+        console.error("[positive-ev] Failed to cache response:", err);
+      });
+      const ttlUsed = isCustom ? RESPONSE_CACHE_TTL_CUSTOM : RESPONSE_CACHE_TTL_PRESET;
+      console.log(`[positive-ev] Cache MISS - storing in Redis (TTL: ${ttlUsed}s, total time: ${Date.now() - startTime}ms)`);
+    } else {
+      console.log(`[positive-ev] Cache BYPASS - skipped Redis cache write (total time: ${Date.now() - startTime}ms)`);
+    }
 
     return NextResponse.json(response, {
       headers: {
@@ -457,8 +578,8 @@ async function fetchPositiveEVOpportunities(
     const eventIds = await getActiveEventIds(sport);
     if (eventIds.length === 0) return [];
 
-    // Step 2: Get odds keys
-    const allOddsKeys = await getOddsKeysForEvents(sport, eventIds);
+    // Step 2: Get odds keys (includes pre-fetched data from deterministic probes)
+    const { keys: allOddsKeys, prefetchedData } = await getOddsKeysForEvents(sport, eventIds, markets);
     if (allOddsKeys.length === 0) return [];
 
     // Filter keys by event and market
@@ -490,25 +611,38 @@ async function fetchPositiveEVOpportunities(
 
     if (filteredKeys.length === 0) return [];
 
-    // Step 3: Batch fetch all odds data
-    const chunks: string[][] = [];
-    for (let i = 0; i < filteredKeys.length; i += MGET_CHUNK_SIZE) {
-      chunks.push(filteredKeys.slice(i, i + MGET_CHUNK_SIZE));
+    // Step 3: Build key -> data map — use pre-fetched data first, MGET only missing keys
+    const oddsDataMap = new Map<string, SSEBookSelections>();
+    const missingKeys: string[] = [];
+    for (const key of filteredKeys) {
+      const cached = prefetchedData.get(key);
+      if (cached) {
+        oddsDataMap.set(key, cached);
+      } else {
+        missingKeys.push(key);
+      }
     }
 
-    const chunkResults = await Promise.all(
-      chunks.map((chunk) => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
-    );
-    const allOddsData = chunkResults.flat();
-
-    // Build key -> data map
-    const oddsDataMap = new Map<string, SSEBookSelections>();
-    filteredKeys.forEach((key, i) => {
-      const data = allOddsData[i];
-      if (data) {
-        oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+    // Only fetch keys not already pre-fetched (from index-only paths)
+    if (missingKeys.length > 0) {
+      const chunks: string[][] = [];
+      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
+        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
       }
-    });
+      const chunkResults = await Promise.all(
+        chunks.map((chunk) => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      );
+      const allOddsData = chunkResults.flat();
+      missingKeys.forEach((key, i) => {
+        const data = allOddsData[i];
+        if (data) {
+          const parsed = parseBookSelectionsValue(data, key);
+          if (parsed) {
+            oddsDataMap.set(key, parsed);
+          }
+        }
+      });
+    }
 
     // Step 4: Fetch event details
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
@@ -1181,52 +1315,235 @@ function normalizeBookIdForSharp(id: string): string {
 // Redis Helpers (reused from opportunities API)
 // =============================================================================
 
-async function getActiveEventIds(sport: string): Promise<string[]> {
-  const activeSet = await redis.smembers(`active_events:${sport}`);
-  if (activeSet && activeSet.length > 0) {
-    return activeSet.map(String);
-  }
-
-  // Fallback to scanning
-  const eventKeys = await scanKeys(`events:${sport}:*`);
-  return eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return { market: member.slice(0, sep), book: member.slice(sep + 1) };
 }
 
-async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
+function getRequestedMarketsForSport(markets: string[] | null, sport: string): string[] {
+  if (!markets) return [];
+
+  const requested = new Set<string>();
+  for (const rawEntry of markets) {
+    const entry = rawEntry.toLowerCase().trim();
+    if (!entry) continue;
+
+    const sep = entry.indexOf(":");
+    if (sep > 0) {
+      const sportPrefix = entry.slice(0, sep);
+      const market = entry.slice(sep + 1);
+      if (!market) continue;
+      if (sportPrefix === sport) {
+        requested.add(market);
+      }
+      continue;
+    }
+
+    requested.add(entry);
+  }
+
+  return [...requested];
+}
+
+async function getActiveEventIds(sport: string): Promise<string[]> {
+  const cached = activeEventsCache.get(sport);
+  if (cached && (Date.now() - cached.ts) < ACTIVE_EVENTS_CACHE_TTL) {
+    return cached.ids;
+  }
+
+  const members = (await redis.smembers(`active_events:${sport}`)).map(String).filter(Boolean);
+  if (members.length > 8) {
+    const unique = [...new Set(members)];
+    activeEventsCache.set(sport, { ids: unique, ts: Date.now() });
+    return unique;
+  }
+
+  // Merge with events fallback when active_events is sparse/incomplete.
+  const eventKeys = await scanKeys(`events:${sport}:*`);
+  const prefix = `events:${sport}:`;
+  const scannedIds = eventKeys
+    .map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : ""))
+    .filter(Boolean);
+
+  const merged = [...new Set([...members, ...scannedIds])];
+  activeEventsCache.set(sport, { ids: merged, ts: Date.now() });
+
+  if (scannedIds.length > members.length) {
+    console.warn(
+      `[positive-ev] active_events:${sport} appears incomplete (${members.length}); merged with events scan (${scannedIds.length})`
+    );
+  }
+
+  return merged;
+}
+
+async function getOddsKeysForEvents(
+  sport: string,
+  eventIds: string[],
+  markets: string[] | null
+): Promise<{ keys: string[]; prefetchedData: Map<string, SSEBookSelections> }> {
+  if (eventIds.length === 0) return { keys: [], prefetchedData: new Map() };
+
   const allKeys: string[] = [];
-  const BATCH_SIZE = 10;
+  const prefetchedData = new Map<string, SSEBookSelections>();
+  const foundEventMarket = new Set<string>();
+  const eventMarkets = new Map<string, Set<string>>();
+  const requestedMarkets = getRequestedMarketsForSport(markets, sport);
+
+  if (markets && requestedMarkets.length === 0) {
+    // Markets were provided, but none apply to this sport.
+    return { keys: [], prefetchedData: new Map() };
+  }
+
+  const requestedMarketSet = new Set(requestedMarkets);
+  const addEventMarket = (eventId: string, market: string) => {
+    if (!market) return;
+    if (markets && !requestedMarketSet.has(market)) return;
+    if (!eventMarkets.has(eventId)) {
+      eventMarkets.set(eventId, new Set<string>());
+    }
+    eventMarkets.get(eventId)!.add(market);
+  };
+
+  const BATCH_SIZE = 20;
 
   for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
     const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map((eventId) => scanKeys(`odds:${sport}:${eventId}:*`))
-    );
-    allKeys.push(...batchResults.flat());
+    const [marketsIdxByEvent, oddsIdxByEvent] = await Promise.all([
+      Promise.all(batch.map((eventId) => redis.smembers(`markets_idx:${sport}:${eventId}`))),
+      Promise.all(batch.map((eventId) => redis.smembers(`odds_idx:${sport}:${eventId}`))),
+    ]);
+
+    batch.forEach((eventId, batchIdx) => {
+      const marketMembers = (marketsIdxByEvent[batchIdx] || []).map(String);
+      for (const market of marketMembers) {
+        addEventMarket(eventId, market);
+      }
+
+      const oddsMembers = (oddsIdxByEvent[batchIdx] || []).map(String);
+      for (const member of oddsMembers) {
+        const parsed = parseOddsIndexMember(member);
+        if (!parsed) continue;
+        if (markets && !requestedMarketSet.has(parsed.market)) continue;
+
+        addEventMarket(eventId, parsed.market);
+        for (const bookCandidate of getBookKeyCandidates(parsed.book)) {
+          allKeys.push(`odds:${sport}:${eventId}:${parsed.market}:${bookCandidate}`);
+        }
+        foundEventMarket.add(`${eventId}:${parsed.market}`);
+      }
+    });
   }
 
-  return allKeys;
+  // Ensure requested markets are probed even when indexes are partially missing.
+  if (requestedMarkets.length > 0) {
+    for (const eventId of eventIds) {
+      for (const market of requestedMarkets) {
+        addEventMarket(eventId, market);
+      }
+    }
+  }
+
+  const eventMarketPairs: Array<{ eventId: string; market: string }> = [];
+  for (const [eventId, marketsForEvent] of eventMarkets) {
+    for (const market of marketsForEvent) {
+      eventMarketPairs.push({ eventId, market });
+    }
+  }
+
+  // Fast fallback: deterministic known-book key probes + mget existence check.
+  if (eventMarketPairs.length > 0) {
+    const candidateKeys: string[] = [];
+    const candidateMeta: Array<{ eventId: string; market: string }> = [];
+
+    for (const { eventId, market } of eventMarketPairs) {
+      for (const book of KNOWN_BOOKS) {
+        candidateKeys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+        candidateMeta.push({ eventId, market });
+      }
+    }
+
+    const CANDIDATE_CHUNK_SIZE = 1000;
+    for (let i = 0; i < candidateKeys.length; i += CANDIDATE_CHUNK_SIZE) {
+      const keysChunk = candidateKeys.slice(i, i + CANDIDATE_CHUNK_SIZE);
+      const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+
+      values.forEach((value, idx) => {
+        if (!value) return;
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          // Ignore obvious non-odds payloads (e.g., HTML error pages).
+          if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
+        }
+        const key = keysChunk[idx];
+        const meta = candidateMeta[i + idx];
+        allKeys.push(key);
+        foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+        // Store the fetched data to avoid redundant MGET later
+        const parsed = parseBookSelectionsValue(value, key);
+        if (parsed) prefetchedData.set(key, parsed);
+      });
+    }
+  }
+
+  // Final fallback: scan unresolved event+market pairs only (opt-in).
+  const unresolvedPairs = eventMarketPairs.filter(
+    ({ eventId, market }) => !foundEventMarket.has(`${eventId}:${market}`)
+  );
+
+  if (ENABLE_ODDS_SCAN_FALLBACK && unresolvedPairs.length > 0) {
+    const SCAN_BATCH_SIZE = 10;
+    for (let i = 0; i < unresolvedPairs.length; i += SCAN_BATCH_SIZE) {
+      const batch = unresolvedPairs.slice(i, i + SCAN_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(({ eventId, market }) => scanKeys(`odds:${sport}:${eventId}:${market}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
+  }
+
+  // If no market index exists and no explicit market filter was provided, optionally do event-level scan.
+  if (ENABLE_ODDS_SCAN_FALLBACK && !markets && eventMarketPairs.length === 0) {
+    const SCAN_BATCH_SIZE = 10;
+    for (let i = 0; i < eventIds.length; i += SCAN_BATCH_SIZE) {
+      const batch = eventIds.slice(i, i + SCAN_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((eventId) => scanKeys(`odds:${sport}:${eventId}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
+  }
+
+  return { keys: [...new Set(allKeys)], prefetchedData };
 }
 
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = "0";
+  let cursor = 0;
   let iterations = 0;
-  const MAX_ITERATIONS = 50;
+  const seenCursors = new Set<number>();
 
   do {
     iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[positive-ev] Cursor cycle detected for ${pattern}, stopping at ${keys.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const result: [string, string[]] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
     });
-    cursor = result[0];
+    cursor = Number(result[0]);
     keys.push(...result[1]);
 
-    if (iterations >= MAX_ITERATIONS) {
-      console.warn(`[scanKeys] Hit iteration limit for pattern: ${pattern}`);
+    if (iterations >= MAX_SCAN_ITERATIONS) {
+      console.warn(`[positive-ev] Hit scan limit for pattern: ${pattern}, got ${keys.length} keys`);
       break;
     }
-  } while (cursor !== "0");
+  } while (cursor !== 0);
 
   return keys;
 }

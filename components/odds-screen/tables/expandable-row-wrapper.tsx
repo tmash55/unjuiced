@@ -204,7 +204,12 @@ export function ExpandableRowWrapper({
         url = `/api/props/alternates?${query.toString()}`;
       }
       
-      const response = await fetch(url);
+      // Protect UI from indefinitely pending network calls.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, { signal: controller.signal }).finally(() => {
+        clearTimeout(timeout);
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -223,7 +228,10 @@ export function ExpandableRowWrapper({
       fetchedMarkets.current.add(targetMarket);
     } catch (err: any) {
       console.error("[Alternates] Fetch error:", err);
-      setError(err.message || "Failed to load alternates");
+      const message = err?.name === "AbortError"
+        ? "Timed out loading alternates. Please try again."
+        : (err.message || "Failed to load alternates");
+      setError(message);
     } finally {
       setLoading(false);
     }

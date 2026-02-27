@@ -7,6 +7,7 @@ import type { EVRow } from "@/lib/ev-schema";
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 /**

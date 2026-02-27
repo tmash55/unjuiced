@@ -3,11 +3,44 @@ export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { SSESelection, SSEBookSelections } from "@/lib/odds/types";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
+const commandEndpoint = getRedisCommandEndpoint();
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
+  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/alternates] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 const VALID_SPORTS = new Set([
   "nba",
@@ -34,6 +67,17 @@ const VALID_SPORTS = new Set([
 ]);
 
 const SCAN_COUNT = 500;
+const MAX_SCAN_ITERATIONS = 200;
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
+
+// Known sportsbook key variants for direct lookup (scan-free path)
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
+  "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
+  "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  "betmgm", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
+];
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -47,7 +91,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     // FanDuel YourWay - matches sportsbooks.ts ID
@@ -61,6 +109,31 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
 }
 
 // Books to exclude (regional variants)
@@ -159,17 +232,72 @@ function normalizeMarketName(market: string): string {
 async function scanKeys(pattern: string): Promise<string[]> {
   const results: string[] = [];
   let cursor = 0;
+  let iterations = 0;
+  const seenCursors = new Set<number>();
 
   do {
+    iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[v2/props/alternates] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const [nextCursor, keys] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
     });
     cursor = Number(nextCursor);
     results.push(...keys);
+
+    if (iterations >= MAX_SCAN_ITERATIONS) {
+      console.warn(`[v2/props/alternates] Hit scan limit for ${pattern}, got ${results.length} keys`);
+      break;
+    }
   } while (cursor !== 0);
 
   return results;
+}
+
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return { market: member.slice(0, sep), book: member.slice(sep + 1) };
+}
+
+async function getOddsKeysForAlternates(
+  sport: string,
+  eventId: string,
+  market: string
+): Promise<string[]> {
+  const keys: string[] = [];
+
+  // 1) Preferred path: consumer-maintained event index
+  const indexMembers = (await redis.smembers(`odds_idx:${sport}:${eventId}`)).map(String);
+  for (const member of indexMembers) {
+    const parsed = parseOddsIndexMember(member);
+    if (!parsed) continue;
+    if (parsed.market !== market) continue;
+    for (const candidate of getBookKeyCandidates(parsed.book)) {
+      keys.push(`odds:${sport}:${eventId}:${market}:${candidate}`);
+    }
+  }
+
+  // 2) Deterministic fallback: direct known-book probes
+  for (const book of KNOWN_BOOKS) {
+    keys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+  }
+
+  const unique = [...new Set(keys)];
+  if (unique.length > 0) return unique;
+
+  // 3) Last resort scan (opt-in only)
+  if (ENABLE_ODDS_SCAN_FALLBACK) {
+    const pattern = `odds:${sport}:${eventId}:${market}:*`;
+    return scanKeys(pattern);
+  }
+
+  return [];
 }
 
 interface AlternateLine {
@@ -220,9 +348,8 @@ async function buildAlternates(
   position: string | null;
   primary_ln: number | null;
 }> {
-  // Get all book keys for this event/market
-  const pattern = `odds:${sport}:${eventId}:${market}:*`;
-  const oddsKeys = await scanKeys(pattern);
+  // Get book keys for this event/market (index-first, no scan by default)
+  const oddsKeys = await getOddsKeysForAlternates(sport, eventId, market);
 
   if (oddsKeys.length === 0) {
     return { lines: [], player: null, team: null, position: null, primary_ln: null };
@@ -246,7 +373,8 @@ async function buildAlternates(
     const data = oddsDataRaw[i];
     if (!data) return;
 
-    const selections: SSEBookSelections = typeof data === "string" ? JSON.parse(data) : data;
+    const selections = parseBookSelectionsValue(data, key);
+    if (!selections) return;
     const rawBook = key.split(":").pop()!;
     
     // Skip excluded books (Canada, regional variants)

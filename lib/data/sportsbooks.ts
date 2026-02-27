@@ -570,6 +570,7 @@ export function normalizeSportsbookId(id: string): string {
   // Common variations mapping
   const idMappings: Record<string, string> = {
     'ballybet': 'bally-bet',
+    'bally_bet': 'bally-bet',
     'sportsinteraction': 'sports-interaction',
     'hardrockbet': 'hard-rock',
     'hardrock': 'hard-rock',
@@ -579,6 +580,8 @@ export function normalizeSportsbookId(id: string): string {
     'thescore': 'thescore',
     'betparx': 'betparx',
     'betrivers': 'betrivers',
+    'bet-rivers': 'betrivers',
+    'bet_rivers': 'betrivers',
     'betonline': 'betonline',
     'fanduel-yourway': 'fanduelyourway',
     'fanduel_yourway': 'fanduelyourway',

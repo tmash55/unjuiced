@@ -1,9 +1,11 @@
 import { Redis } from "@upstash/redis";
 
-// Initialize Redis client
+// Initialize Redis client — always use REST env vars directly to avoid
+// stale UPSTASH_REDIS_COMMAND_URL / UPSTASH_REDIS_COMMAND_TOKEN overrides.
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // Cache TTL in seconds (20 minutes)
@@ -263,6 +265,4 @@ function filterSingleItemBookmakers<T extends { bookmakers?: any[] }>(
 
   return filteredItem;
 }
-
-
 

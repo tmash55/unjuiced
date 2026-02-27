@@ -236,10 +236,8 @@ function buildFilterConfigs(
     // Use user preferences for odds range when set, otherwise use broad fallback
     const broadLimit = isPro ? Math.max(limit, 500) : Math.max(limit, 100);
     
-    // Use user's preferences for odds if set, otherwise use broad defaults
-    const serverMinOdds = prefs.minOdds ?? -10000;
-    const serverMaxOdds = prefs.maxOdds ?? 20000;
-
+    // Always send broad defaults to server — odds range is filtered client-side
+    // This avoids refetching when user changes odds range slider
     const safeMarketLines = toNumberRecord(prefs.marketLines as unknown);
 
     return [{
@@ -250,8 +248,8 @@ function buildFilterConfigs(
         blend: null,
         limit: broadLimit, // Larger batch for client-side filtering
         minEdge: 0, // Fetch all edges, filter client-side
-        minOdds: serverMinOdds, // Use user preference or broad fallback
-        maxOdds: serverMaxOdds, // Use user preference or broad fallback
+        minOdds: -10000, // Broad range — client-side filtering narrows
+        maxOdds: 100000, // Broad range — client-side filtering narrows
         searchQuery: "", // Search is client-side
         selectedBooks: [], // Book exclusions are client-side
         selectedMarkets: [], // Send empty to get ALL markets
@@ -719,12 +717,12 @@ export function useMultiFilterOpportunities({
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
         JSON.stringify(prefs.marketLines || {}),
-        prefs.minOdds ?? -10000,
-        prefs.maxOdds ?? 20000,
+        // minOdds/maxOdds removed from key — server always gets broad range,
+        // client-side filtering in applyGlobalFilters handles user's preference
         isPro,
       ];
     }
-  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, prefs.minOdds, prefs.maxOdds, isPro]);
+  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, isPro]);
 
   const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
   const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);
