@@ -51,7 +51,25 @@ const SHARP_PRESET: SharpPreset = "pinnacle";
 const MIN_BOOKS_PER_SIDE = 2;
 const DEFAULT_LIMIT = 10;
 const MGET_CHUNK_SIZE = 500;
-const SCAN_COUNT = 2000;
+
+// Known books + markets for deterministic key probes (avoids slow SCAN)
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "betmgm", "caesars", "bet365", "fanatics",
+  "hard-rock", "fliff", "betrivers", "espnbet", "wynnbet", "pointsbet",
+  "circa", "pinnacle", "bovada", "betonline", "mybookie", "betway",
+  "unibet", "superbook", "stations", "betparx", "ballybet", "tipico",
+  "si_sportsbook", "prophet", "prophetx", "novig",
+];
+const KNOWN_MARKETS = [
+  "player_points", "player_rebounds", "player_assists", "player_threes_made",
+  "player_steals", "player_blocks", "player_turnovers",
+  "player_points_rebounds_assists", "player_points_rebounds", "player_points_assists",
+  "player_rebounds_assists",
+  "player_anytime_td", "player_first_td",
+  "player_anytime_goal", "player_first_goal",
+  "player_first_basket",
+  "game_spread", "game_total", "h2h",
+];
 
 // L1 Cache: In-memory (fast path)
 const RESPONSE_CACHE = new Map<string, { data: BestBetsResponse; ts: number }>();
@@ -258,48 +276,31 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
   if (activeSet && activeSet.length > 0) {
     return activeSet.map(String);
   }
-
-  // Fallback to scanning
-  const eventKeys = await scanKeys(`events:${sport}:*`);
-  return eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
+  return [];
 }
 
 async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
-  const allKeys: string[] = [];
-  const BATCH_SIZE = 10;
-
-  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
-    const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map((eventId) => scanKeys(`odds:${sport}:${eventId}:*`))
-    );
-    allKeys.push(...batchResults.flat());
+  // Deterministic key probes — construct every possible key and MGET to check existence.
+  // Much faster than SCAN on VPS Redis.
+  const candidateKeys: string[] = [];
+  for (const eventId of eventIds) {
+    for (const market of KNOWN_MARKETS) {
+      for (const book of KNOWN_BOOKS) {
+        candidateKeys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+      }
+    }
   }
 
-  return allKeys;
-}
-
-async function scanKeys(pattern: string): Promise<string[]> {
-  const keys: string[] = [];
-  let cursor = "0";
-  let iterations = 0;
-  const MAX_ITERATIONS = 50;
-
-  do {
-    iterations++;
-    const result: [string, string[]] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
+  const foundKeys: string[] = [];
+  for (let i = 0; i < candidateKeys.length; i += MGET_CHUNK_SIZE) {
+    const chunk = candidateKeys.slice(i, i + MGET_CHUNK_SIZE);
+    const values = await redis.mget<(string | null)[]>(...chunk);
+    values.forEach((v, idx) => {
+      if (v) foundKeys.push(chunk[idx]);
     });
-    cursor = result[0];
-    keys.push(...result[1]);
+  }
 
-    if (iterations >= MAX_ITERATIONS) {
-      break;
-    }
-  } while (cursor !== "0");
-
-  return keys;
+  return foundKeys;
 }
 
 function getSharpOddsForPreset(

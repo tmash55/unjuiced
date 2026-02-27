@@ -64,7 +64,13 @@ async function fetchBestBets(): Promise<BestBetsResponse> {
 
   lastComputeFallbackAt = now;
   try {
-    const fallbackResponse = await fetch("/api/dashboard/best-bets?limit=10&compute=true");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const fallbackResponse = await fetch(
+      "/api/dashboard/best-bets?limit=10&compute=true",
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
     if (!fallbackResponse.ok) return primaryData;
     const fallbackData = (await fallbackResponse.json()) as BestBetsResponse;
     if (Array.isArray(fallbackData.bets) && fallbackData.bets.length > 0) {
