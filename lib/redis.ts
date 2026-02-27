@@ -1,11 +1,10 @@
 import { Redis } from "@upstash/redis";
-import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
-// Initialize Redis client
-const commandEndpoint = getRedisCommandEndpoint();
+// Initialize Redis client — always use REST env vars directly to avoid
+// stale UPSTASH_REDIS_COMMAND_URL / UPSTASH_REDIS_COMMAND_TOKEN overrides.
 export const redis = new Redis({
-  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
-  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   responseEncoding: false,
 });
 

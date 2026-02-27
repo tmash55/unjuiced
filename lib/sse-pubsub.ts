@@ -76,9 +76,10 @@ export async function pumpPubSub(opts: {
     try { await safeWrite(enc.encode(`: ping\n\n`)); } catch { clearInterval(ping); }
   }, PING_MS);
 
+  let closed = false;
   const cleanup = () => {
     clearInterval(ping);
-    try { writer.close(); } catch {}
+    if (!closed) { closed = true; writer.close().catch(() => {}); }
   };
 
   if (signal.aborted) { cleanup(); return; }
@@ -162,9 +163,10 @@ export async function pumpMultiPubSub(opts: {
     try { await safeWrite(enc.encode(`: ping\n\n`)); } catch { clearInterval(ping); }
   }, PING_MS);
 
+  let closed = false;
   const cleanup = () => {
     clearInterval(ping);
-    try { writer.close(); } catch {}
+    if (!closed) { closed = true; writer.close().catch(() => {}); }
   };
 
   if (signal.aborted) { cleanup(); return; }

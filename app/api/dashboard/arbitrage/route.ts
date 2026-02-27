@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
+});
 import { type ArbRow } from "@/lib/arb-schema";
 import { trackArbs } from "@/lib/metrics/dashboard-metrics";
 import { zrevrangeCompat } from "@/lib/redis-zset";
@@ -179,9 +185,7 @@ export async function GET(req: NextRequest) {
       }));
       
       // Fire and forget - don't block response
-      trackArbs(arbMetrics).catch(err => 
-        console.error("[Dashboard Arbitrage] Metrics tracking error:", err)
-      );
+      trackArbs(arbMetrics).catch(() => {});
     }
 
     const result: ArbitrageResponse = {
@@ -195,8 +199,7 @@ export async function GET(req: NextRequest) {
         "X-Response-Time": `${Date.now() - startTime}ms`,
       },
     });
-  } catch (error) {
-    console.error("[Dashboard Arbitrage] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch arbitrage", arbs: [], timestamp: Date.now() },
       { status: 500, headers: { "X-Response-Time": `${Date.now() - startTime}ms` } }

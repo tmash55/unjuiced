@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
+});
 
 /**
  * Dashboard Popular Markets API
@@ -108,10 +114,7 @@ export async function GET(req: NextRequest) {
     const hashData = await redis.hgetall(REDIS_DATA_KEY);
     const timestamp = await redis.get(REDIS_TIMESTAMP_KEY);
     
-    console.log(`[Popular Markets] Hash fields found: ${hashData ? Object.keys(hashData).length : 0}`);
-    
     if (!hashData || Object.keys(hashData).length === 0) {
-      console.log("[Popular Markets] No data in Redis hash");
       return NextResponse.json({
         markets: [],
         timestamp: Date.now(),
@@ -125,7 +128,6 @@ export async function GET(req: NextRequest) {
     for (const [marketKey, playsJson] of Object.entries(hashData)) {
       const config = MARKET_CONFIG[marketKey];
       if (!config) {
-        console.log(`[Popular Markets] Unknown market key: ${marketKey}`);
         continue;
       }
 
@@ -137,8 +139,7 @@ export async function GET(req: NextRequest) {
         } else if (Array.isArray(playsJson)) {
           plays = playsJson;
         }
-      } catch (e) {
-        console.error(`[Popular Markets] Failed to parse plays for ${marketKey}:`, e);
+      } catch {
         continue;
       }
 
@@ -177,8 +178,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    console.log(`[Popular Markets] Built ${marketsWithPlays.length} markets`);
-
     // Sort markets by best edge
     marketsWithPlays.sort((a, b) => {
       const aMaxEdge = Math.max(...a.plays.map(p => p.vsMarketAvg || 0), 0);
@@ -196,8 +195,7 @@ export async function GET(req: NextRequest) {
         "Cache-Control": "public, max-age=30, s-maxage=30, stale-while-revalidate=60",
       },
     });
-  } catch (error) {
-    console.error("[Popular Markets] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch popular markets", markets: [], timestamp: Date.now() },
       { status: 500 }

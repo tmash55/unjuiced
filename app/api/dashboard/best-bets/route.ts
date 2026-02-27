@@ -196,8 +196,6 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
   try {
     // Check timestamp first - if too old, skip Redis cache
     const rawTimestamp = await redis.get(REDIS_BEST_BETS_TIMESTAMP);
-    console.log(`[best-bets] Raw timestamp from Redis:`, rawTimestamp, `type: ${typeof rawTimestamp}`);
-    
     // Handle various timestamp formats (string, number, seconds, milliseconds)
     let timestamp: number | null = null;
     if (rawTimestamp !== null && rawTimestamp !== undefined) {
@@ -210,20 +208,15 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
     }
     
     const age = timestamp ? Date.now() - timestamp : null;
-    console.log(`[best-bets] Parsed timestamp: ${timestamp}, age: ${age}ms`);
-    
+
     if (!timestamp || age === null || age > 300_000) {
-      // Data older than 5 minutes - don't use
-      console.log(`[best-bets] Timestamp check failed (null or >5min old)`);
       return null;
     }
 
     // Get top 10 IDs from ZSET
     const ids = await zrevrangeCompat(redis as any, REDIS_BEST_BETS_ZSET, 0, DEFAULT_LIMIT - 1);
-    console.log(`[best-bets] ZSET ids found: ${ids?.length || 0}`, ids?.slice(0, 3));
-    
+
     if (!ids || ids.length === 0) {
-      console.log(`[best-bets] No IDs in ZSET`);
       return null;
     }
 
@@ -239,8 +232,6 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
       dataArray = ids.map(id => (rawData as Record<string, string | null>)[id] || null);
     }
 
-    console.log(`[best-bets] HASH data items: ${dataArray.filter(Boolean).length} of ${dataArray.length}`);
-    
     const bets: SlimBestBet[] = [];
     
     for (const item of dataArray) {
@@ -248,16 +239,12 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
         try {
           const parsed = typeof item === "string" ? JSON.parse(item) : item;
           bets.push(parsed as SlimBestBet);
-        } catch (e) {
-          console.error(`[best-bets] Failed to parse bet:`, e);
-        }
+        } catch {}
       }
     }
 
-    console.log(`[best-bets] Parsed ${bets.length} bets from Redis`);
     return bets.length > 0 ? bets : null;
-  } catch (error) {
-    console.error("[best-bets] Redis cache error:", error);
+  } catch {
     return null;
   }
 }
@@ -674,27 +661,18 @@ async function fetchTopEVForSport(sport: string, limit: number = 5): Promise<Sli
     return opportunities
       .sort((a, b) => b.evPercent - a.evPercent)
       .slice(0, limit);
-  } catch (error) {
-    console.error(`[best-bets] Error fetching ${sport}:`, error);
+  } catch {
     return [];
   }
 }
 
 async function computeBestBets(limit: number = DEFAULT_LIMIT): Promise<SlimBestBet[]> {
   const startTime = Date.now();
-  console.log(`[best-bets] Computing best bets for ${DASHBOARD_SPORTS.length} sports...`);
-
-  // Fetch all sports in parallel - no timeout, let them complete
-  // The L1 cache will make subsequent requests fast
   const sportResults = await Promise.all(
     DASHBOARD_SPORTS.map(async (sport) => {
-      const sportStart = Date.now();
       try {
-        const opps = await fetchTopEVForSport(sport, 5); // Top 5 per sport
-        console.log(`[best-bets] ${sport}: ${opps.length} opportunities (${Date.now() - sportStart}ms)`);
-        return opps;
-      } catch (error) {
-        console.error(`[best-bets] ${sport} failed (${Date.now() - sportStart}ms):`, error);
+        return await fetchTopEVForSport(sport, 5);
+      } catch {
         return [];
       }
     })
@@ -705,7 +683,6 @@ async function computeBestBets(limit: number = DEFAULT_LIMIT): Promise<SlimBestB
   // Sort by EV and return top N
   const topBets = allBets.sort((a, b) => b.evPercent - a.evPercent).slice(0, limit);
 
-  console.log(`[best-bets] Computed ${topBets.length} bets in ${Date.now() - startTime}ms`);
   return topBets;
 }
 
@@ -726,7 +703,6 @@ export async function GET(req: NextRequest) {
     if (!bypassCache) {
       const l1Data = getL1Cache();
       if (l1Data) {
-        console.log(`[best-bets] L1 cache HIT (${Date.now() - startTime}ms)`);
         return NextResponse.json(l1Data, {
           headers: {
             "Cache-Control": "private, max-age=30",
@@ -746,7 +722,6 @@ export async function GET(req: NextRequest) {
         source: "redis_cache",
       };
       setL1Cache(response);
-      console.log(`[best-bets] Redis cache HIT (${Date.now() - startTime}ms)`);
       return NextResponse.json(response, {
         headers: {
           "Cache-Control": "private, max-age=30",
@@ -759,7 +734,6 @@ export async function GET(req: NextRequest) {
     // L3: Direct computation - ONLY if explicitly requested (for VPS cron or manual refresh)
     // This prevents expensive computation on every user request
     if (forceCompute) {
-      console.log(`[best-bets] Force computing...`);
       const computedBets = await computeBestBets(limit);
 
       // Store in Redis for future requests
@@ -774,7 +748,6 @@ export async function GET(req: NextRequest) {
       };
 
       setL1Cache(response);
-      console.log(`[best-bets] Computed and cached (${Date.now() - startTime}ms)`);
 
       return NextResponse.json(response, {
         headers: {
@@ -786,7 +759,6 @@ export async function GET(req: NextRequest) {
     }
 
     // No cache and no compute flag - return empty (VPS worker needs to populate Redis)
-    console.log(`[best-bets] No cached data available (${Date.now() - startTime}ms)`);
     return NextResponse.json({
       bets: [],
       timestamp: Date.now(),
@@ -799,8 +771,7 @@ export async function GET(req: NextRequest) {
         "X-Response-Time": `${Date.now() - startTime}ms`,
       },
     });
-  } catch (error) {
-    console.error("[best-bets] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch best bets", bets: [], timestamp: Date.now() },
       { status: 500 }
@@ -832,8 +803,5 @@ async function storeInRedis(bets: SlimBestBet[]): Promise<void> {
     pipeline.expire(REDIS_BEST_BETS_TIMESTAMP, 300);
     
     await pipeline.exec();
-    console.log(`[best-bets] Stored ${bets.length} bets in Redis`);
-  } catch (error) {
-    console.error("[best-bets] Failed to store in Redis:", error);
-  }
+  } catch {}
 }
