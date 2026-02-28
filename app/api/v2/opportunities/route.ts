@@ -2,7 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { 
+import {
   normalizePlayerName, 
   getMarketDisplay,
   normalizeRawMarket,
@@ -10,10 +10,19 @@ import {
   SSEBookSelections,
 } from "@/lib/odds/types";
 import { getPreset, SHARP_PRESETS } from "@/lib/odds/presets";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
+
+const redisEndpoint = resolveRedisCommandEndpoint();
+if (!redisEndpoint.url || !redisEndpoint.token) {
+  const reason = redisEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/opportunities] Redis endpoint configuration invalid: ${reason}`);
+}
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: redisEndpoint.url,
+  token: redisEndpoint.token,
   responseEncoding: false,
 });
 

@@ -1,7 +1,7 @@
 export const runtime = "edge";
 
 import { NextRequest } from "next/server";
-import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
+import { resolveRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 import { pumpPubSub, pumpMultiPubSub } from "@/lib/sse-pubsub";
 
 // Channel mapping for each sport
@@ -93,11 +93,14 @@ export async function GET(req: NextRequest) {
     }), { status: 400 });
   }
 
-  const pubsub = getRedisPubSubEndpoint();
+  const pubsub = resolveRedisPubSubEndpoint();
   const url = pubsub.url;
   const token = pubsub.token;
   if (!url || !token) {
-    return new Response(JSON.stringify({ error: "missing_redis_pubsub_env" }), { status: 500 });
+    const reason = pubsub.rejectedLoopback
+      ? "loopback Redis pubsub URL rejected in production"
+      : "missing_redis_pubsub_env";
+    return new Response(JSON.stringify({ error: reason }), { status: 500 });
   }
 
   const helloEvent = `event: hello\ndata: ${JSON.stringify({
