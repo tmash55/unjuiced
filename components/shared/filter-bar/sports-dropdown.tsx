@@ -136,6 +136,7 @@ export function SportsDropdown({
 
   // Determine if using sports or leagues based on tool
   const isPositiveEV = tool === "positive-ev";
+  const showMarketTypeToggle = tool === "positive-ev" || tool === "edge-finder";
   const showMarketsPanel = availableMarkets.length > 0;
   const propSelected = isPositiveEV ? selectedSports : selectedLeagues;
   const available = isPositiveEV ? availableSports : availableLeagues;
@@ -251,6 +252,7 @@ export function SportsDropdown({
 
   const marketsBySport = useMemo(() => {
     const grouped: Record<string, { game: MarketWithPeriod[]; props: MarketWithPeriod[] }> = {};
+    const seenBySport: Record<string, { game: Set<string>; props: Set<string> }> = {};
     const searchLower = marketSearch.trim().toLowerCase();
 
     const matchesSearch = (market: MarketOption) => {
@@ -277,7 +279,10 @@ export function SportsDropdown({
       marketSports.forEach((sport) => {
         if (!grouped[sport]) {
           grouped[sport] = { game: [], props: [] };
+          seenBySport[sport] = { game: new Set(), props: new Set() };
         }
+        if (seenBySport[sport][target].has(market.key)) return;
+        seenBySport[sport][target].add(market.key);
         grouped[sport][target].push(marketWithPeriod);
       });
     });
@@ -322,6 +327,104 @@ export function SportsDropdown({
     if (localMarkets.length === 0) return marketKeys.length;
     return marketKeys.filter((key) => isMarketSelectedForSport(sport, key)).length;
   }, [localMarkets, isMarketSelectedForSport]);
+
+  const buildAllCompositeKeys = useCallback(() => {
+    const allCompositeKeys: string[] = [];
+    availableMarkets.forEach((market) => {
+      const sports = market.sports && market.sports.length > 0 ? market.sports : ["other"];
+      sports.forEach((sport) => {
+        allCompositeKeys.push(makeCompositeKey(sport, market.key));
+      });
+    });
+    return allCompositeKeys;
+  }, [availableMarkets, makeCompositeKey]);
+
+  const normalizeToCompositeSet = useCallback((markets: string[]) => {
+    if (markets.length === 0) {
+      return new Set(buildAllCompositeKeys());
+    }
+
+    const out = new Set<string>();
+    markets.forEach((market) => {
+      const parts = market.split(":");
+      if (parts.length > 1) {
+        out.add(market);
+        return;
+      }
+
+      const marketDef = availableMarkets.find((m) => m.key === market);
+      const sports = marketDef?.sports && marketDef.sports.length > 0 ? marketDef.sports : ["other"];
+      sports.forEach((sport) => out.add(makeCompositeKey(sport, market)));
+    });
+
+    return out;
+  }, [availableMarkets, buildAllCompositeKeys, makeCompositeKey]);
+
+  const getMarketTypeTargetSet = useCallback((type: "game" | "props") => {
+    const targets = new Set<string>();
+    const activeSports = selected.length === 0 ? sportsWithMarkets : selected;
+
+    activeSports.forEach((sport) => {
+      const sportMarkets = marketsBySport[sport];
+      if (!sportMarkets) return;
+
+      const list = type === "game" ? sportMarkets.game : sportMarkets.props;
+      list.forEach((market) => targets.add(makeCompositeKey(sport, market.key)));
+    });
+
+    return targets;
+  }, [makeCompositeKey, marketsBySport, selected, sportsWithMarkets]);
+
+  const gameMarketTargets = useMemo(() => getMarketTypeTargetSet("game"), [getMarketTypeTargetSet]);
+  const propMarketTargets = useMemo(() => getMarketTypeTargetSet("props"), [getMarketTypeTargetSet]);
+
+  const marketTypeStats = useMemo(() => {
+    const selectedSet = normalizeToCompositeSet(localMarkets);
+
+    const getStats = (targets: Set<string>) => {
+      const total = targets.size;
+      if (total === 0) return { total: 0, selected: 0, allSelected: false };
+      let selectedCount = 0;
+      targets.forEach((target) => {
+        if (selectedSet.has(target)) selectedCount++;
+      });
+      return {
+        total,
+        selected: selectedCount,
+        allSelected: selectedCount === total,
+      };
+    };
+
+    return {
+      game: getStats(gameMarketTargets),
+      props: getStats(propMarketTargets),
+    };
+  }, [gameMarketTargets, localMarkets, normalizeToCompositeSet, propMarketTargets]);
+
+  const gameToggleLabel = marketTypeStats.game.allSelected ? "Hide Game Lines" : "Show Game Lines";
+  const propsToggleLabel = marketTypeStats.props.allSelected ? "Hide Player Props" : "Show Player Props";
+
+  const toggleMarketType = useCallback((type: "game" | "props") => {
+    const targets = type === "game" ? gameMarketTargets : propMarketTargets;
+    if (targets.size === 0) return;
+
+    const current = normalizeToCompositeSet(localMarkets);
+    const allSelected = Array.from(targets).every((target) => current.has(target));
+
+    if (allSelected) {
+      targets.forEach((target) => current.delete(target));
+    } else {
+      targets.forEach((target) => current.add(target));
+    }
+
+    const allComposite = buildAllCompositeKeys();
+    if (current.size === allComposite.length) {
+      setLocalMarkets([]);
+      return;
+    }
+
+    setLocalMarkets(Array.from(current));
+  }, [buildAllCompositeKeys, gameMarketTargets, localMarkets, normalizeToCompositeSet, propMarketTargets]);
 
   // Toggle individual market for a specific sport - update LOCAL state only
   const toggleMarket = useCallback((sport: string, marketKey: string) => {
@@ -564,6 +667,42 @@ export function SportsDropdown({
                 </button>
               </div>
 
+              {showMarketTypeToggle && (
+                <div className="mb-2">
+                  <div className="flex gap-1">
+                  <button
+                    onClick={() => toggleMarketType("game")}
+                    aria-pressed={marketTypeStats.game.allSelected}
+                    className={cn(
+                      "flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors",
+                      marketTypeStats.game.allSelected
+                        ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                        : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                    )}
+                    disabled={marketTypeStats.game.total === 0}
+                  >
+                    {gameToggleLabel}
+                  </button>
+                  <button
+                    onClick={() => toggleMarketType("props")}
+                    aria-pressed={marketTypeStats.props.allSelected}
+                    className={cn(
+                      "flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors",
+                      marketTypeStats.props.allSelected
+                        ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                        : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                    )}
+                    disabled={marketTypeStats.props.total === 0}
+                  >
+                    {propsToggleLabel}
+                  </button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-neutral-400 dark:text-neutral-500">
+                    Toggles all game or player markets for selected {isPositiveEV ? "sports" : "leagues"}.
+                  </p>
+                </div>
+              )}
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
@@ -640,7 +779,7 @@ export function SportsDropdown({
                               {periodMarkets.map((market) => {
                                 const isSelected = isMarketSelectedForSport(sportId, market.key);
                                 return (
-                                  <Tooltip key={market.key} content={getMarketTooltip(market, sportId)}>
+                                  <Tooltip key={`${sportId}:${market.period}:${market.key}`} content={getMarketTooltip(market, sportId)}>
                                     <button
                                       onClick={() => toggleMarket(sportId, market.key)}
                                       className={cn(
