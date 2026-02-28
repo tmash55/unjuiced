@@ -153,16 +153,39 @@ export function PositiveEVFilters({
   const [localBankroll, setLocalBankroll] = useState(bankroll);
   const [localKellyPercent, setLocalKellyPercent] = useState(kellyPercent);
 
+  const sportPrefixes = useMemo(
+    () => new Set(availableSports.map((sport) => sport.toLowerCase())),
+    [availableSports]
+  );
+
+  const toCanonicalMarketKey = useCallback((market: string) => {
+    const raw = (market || "").trim();
+    const firstColon = raw.indexOf(":");
+    if (firstColon <= 0) return raw;
+
+    // Only strip known sport prefixes from composite keys ("nba:player_points").
+    // Keep non-sport namespaced markets intact (e.g. "game:moneyline").
+    const prefix = raw.slice(0, firstColon).toLowerCase();
+    if (!sportPrefixes.has(prefix)) return raw;
+
+    const remainder = raw.slice(firstColon + 1);
+    return remainder || raw;
+  }, [sportPrefixes]);
+
   // Normalize composite market keys (e.g., "ncaab:total_points") for mobile display/toggles
   const flattenMarkets = useCallback((markets: string[]) => {
     if (markets.length === 0) return [];
     const unique = new Set<string>();
     markets.forEach((market) => {
-      const parts = market.split(":");
-      unique.add(parts.length > 1 ? parts[1] : market);
+      unique.add(toCanonicalMarketKey(market));
     });
     return Array.from(unique);
-  }, []);
+  }, [toCanonicalMarketKey]);
+
+  const availableCanonicalMarkets = useMemo(
+    () => Array.from(new Set(availableMarkets.map(toCanonicalMarketKey))),
+    [availableMarkets, toCanonicalMarketKey]
+  );
 
   const displaySelectedMarkets = useMemo(
     () => flattenMarkets(localMarkets),
@@ -345,22 +368,24 @@ export function PositiveEVFilters({
 
     Object.values(groupedMarkets).forEach((markets) => {
       markets.forEach((market) => {
-        if (seen.has(market)) return;
-        if (search && !(formatMarketLabel(market) || market).toLowerCase().includes(search)) return;
-        seen.add(market);
-        if (isPropMarket(market)) props.push(market);
-        else game.push(market);
+        const canonicalMarket = toCanonicalMarketKey(market);
+        if (seen.has(canonicalMarket)) return;
+        if (search && !(formatMarketLabel(canonicalMarket) || canonicalMarket).toLowerCase().includes(search)) return;
+        seen.add(canonicalMarket);
+        if (isPropMarket(canonicalMarket)) props.push(canonicalMarket);
+        else game.push(canonicalMarket);
       });
     });
 
     return { game, props };
-  }, [groupedMarkets, isPropMarket, marketSearchQuery]);
+  }, [groupedMarkets, isPropMarket, marketSearchQuery, toCanonicalMarketKey]);
 
   const isMarketVisibleSelected = useCallback((market: string) => {
-    const totalMarkets = availableMarkets.length;
+    const canonicalMarket = toCanonicalMarketKey(market);
+    const totalMarkets = availableCanonicalMarkets.length;
     const allSelected = localMarkets.length === 0 || (totalMarkets > 0 && displaySelectedMarkets.length === totalMarkets);
-    return allSelected || displaySelectedMarkets.includes(market);
-  }, [availableMarkets.length, displaySelectedMarkets, localMarkets.length]);
+    return allSelected || displaySelectedMarkets.includes(canonicalMarket);
+  }, [availableCanonicalMarkets.length, displaySelectedMarkets, localMarkets.length, toCanonicalMarketKey]);
 
   const gameLinesAllSelected = useMemo(() => {
     return visibleMarketTypes.game.length > 0 && visibleMarketTypes.game.every(isMarketVisibleSelected);
@@ -378,13 +403,14 @@ export function PositiveEVFilters({
 
     setLocalMarkets((prev) => {
       const flat = flattenMarkets(prev);
-      const totalMarkets = availableMarkets.length;
+      const totalMarkets = availableCanonicalMarkets.length;
       const isAllSelected = flat.length === 0 || (totalMarkets > 0 && flat.length === totalMarkets);
-      const selectedSet = new Set(isAllSelected ? availableMarkets : flat);
-      const allTargetsSelected = targets.every((market) => selectedSet.has(market));
+      const selectedSet = new Set(isAllSelected ? availableCanonicalMarkets : flat.map(toCanonicalMarketKey));
+      const canonicalTargets = targets.map(toCanonicalMarketKey);
+      const allTargetsSelected = canonicalTargets.every((market) => selectedSet.has(market));
 
-      if (allTargetsSelected) targets.forEach((market) => selectedSet.delete(market));
-      else targets.forEach((market) => selectedSet.add(market));
+      if (allTargetsSelected) canonicalTargets.forEach((market) => selectedSet.delete(market));
+      else canonicalTargets.forEach((market) => selectedSet.add(market));
 
       if (totalMarkets > 0 && selectedSet.size === totalMarkets) {
         return [];
@@ -392,7 +418,7 @@ export function PositiveEVFilters({
 
       return Array.from(selectedSet);
     });
-  }, [availableMarkets, flattenMarkets, locked, visibleMarketTypes.game, visibleMarketTypes.props]);
+  }, [availableCanonicalMarkets, flattenMarkets, locked, toCanonicalMarketKey, visibleMarketTypes.game, visibleMarketTypes.props]);
   
   // Toggle functions
   const toggleBook = (id: string) => {
@@ -417,13 +443,14 @@ export function PositiveEVFilters({
     if (locked) return;
     setLocalMarkets((prev) => {
       const flat = flattenMarkets(prev);
-      const totalMarkets = availableMarkets.length;
+      const totalMarkets = availableCanonicalMarkets.length;
+      const canonicalId = toCanonicalMarketKey(id);
       const isAllSelected = flat.length === 0 || (totalMarkets > 0 && flat.length === totalMarkets);
       if (isAllSelected) {
         // All selected -> deselect this one
-        return availableMarkets.filter((m) => m !== id);
+        return availableCanonicalMarkets.filter((m) => m !== canonicalId);
       }
-      return flat.includes(id) ? flat.filter((m) => m !== id) : [...flat, id];
+      return flat.includes(canonicalId) ? flat.filter((m) => m !== canonicalId) : [...flat, canonicalId];
     });
   };
   
@@ -442,7 +469,7 @@ export function PositiveEVFilters({
   const apply = () => {
     if (locked) return;
     const flatMarkets = flattenMarkets(localMarkets);
-    const allMarketsInUI = localMarkets.length === 0 || (availableMarkets.length > 0 && flatMarkets.length === availableMarkets.length);
+    const allMarketsInUI = localMarkets.length === 0 || (availableCanonicalMarkets.length > 0 && flatMarkets.length === availableCanonicalMarkets.length);
     onFiltersChange({
       selectedBooks: localBooks,
       selectedSports: localSports,
@@ -497,7 +524,7 @@ export function PositiveEVFilters({
   
   // Count active filters
   const allBooksSelected = localBooks.length === 0;
-  const totalMarkets = availableMarkets.length;
+  const totalMarkets = availableCanonicalMarkets.length;
   const allMarketsSelected = localMarkets.length === 0 || (totalMarkets > 0 && displaySelectedMarkets.length === totalMarkets);
   const activeFiltersCount =
     (!allBooksSelected ? 1 : 0) +
@@ -816,7 +843,7 @@ export function PositiveEVFilters({
                       if (visibleMarkets.length === 0) return null;
                       
                       const isExpanded = expandedSportSections.has(sportType);
-                      const selectedCount = visibleMarkets.filter(m => allMarketsSelected || displaySelectedMarkets.includes(m)).length;
+                      const selectedCount = visibleMarkets.filter(isMarketVisibleSelected).length;
                       const allSelected = selectedCount === visibleMarkets.length;
                       
                       // Sport icon mapping
@@ -912,10 +939,10 @@ export function PositiveEVFilters({
                                           setLocalMarkets(prev => {
                                             const flat = flattenMarkets(prev);
                                             if (flat.length === 0) {
-                                              return [...visibleMarkets];
+                                              return visibleMarkets.map(toCanonicalMarketKey);
                                             }
                                             const newSelected = new Set(flat);
-                                            visibleMarkets.forEach(m => newSelected.add(m));
+                                            visibleMarkets.forEach((m) => newSelected.add(toCanonicalMarketKey(m)));
                                             return Array.from(newSelected);
                                           });
                                         }}
@@ -930,7 +957,8 @@ export function PositiveEVFilters({
                                           if (locked) return;
                                           setLocalMarkets(prev => {
                                             const flat = flattenMarkets(prev);
-                                            return flat.filter(m => !visibleMarkets.includes(m));
+                                            const visibleSet = new Set(visibleMarkets.map(toCanonicalMarketKey));
+                                            return flat.filter(m => !visibleSet.has(m));
                                           });
                                         }}
                                         disabled={locked}
@@ -945,7 +973,7 @@ export function PositiveEVFilters({
                                   <div className="p-3 max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600 scrollbar-track-transparent">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {visibleMarkets.map(market => {
-                                        const checked = allMarketsSelected || displaySelectedMarkets.includes(market);
+                                        const checked = isMarketVisibleSelected(market);
                                         
                                         return (
                                           <button

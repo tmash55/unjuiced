@@ -611,7 +611,7 @@ function applyGlobalFilters(
     }
     
     // HYBRID: Selected markets filter (client-side)
-    // Empty = all markets selected
+    // Empty = all markets selected; skip in custom mode (custom models define their own markets)
     if (!isCustomMode && selectedMarkets.length > 0) {
       if (!isMarketSelected(selectedMarkets, opp.sport || "", opp.market || "")) {
         return false;

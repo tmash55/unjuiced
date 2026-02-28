@@ -136,7 +136,7 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
-        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        markets: null, // Market filtering is client-side only
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,

@@ -26,6 +26,7 @@ import {
 } from "@/lib/ev/constants";
 import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { isMarketSelected } from "@/lib/utils";
 
 // All supported sports
 const ALL_SPORTS = [
@@ -180,7 +181,7 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
-        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        markets: null, // Market filtering is client-side only
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,
@@ -456,6 +457,17 @@ function applyClientFilters(
       const normalizedBook = normalizeSportsbookId(bookId);
       return prefs.selectedBooks.includes(normalizedBook);
     });
+  }
+
+  // Market filter (supports both composite and plain market keys)
+  if (prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
+    filtered = filtered.filter((opp) =>
+      isMarketSelected(
+        prefs.selectedMarkets,
+        opp.sport || "",
+        opp.market || ""
+      )
+    );
   }
   
   return filtered;
