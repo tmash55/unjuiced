@@ -255,7 +255,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
       long: "/images/sports-books/novig_long.png"
     },
     brandColor: "#050505",
-    priority: 1,
+    priority: 7,
     isActive: true,
     requiresState: false,
     affiliate: true,
