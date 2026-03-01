@@ -256,7 +256,7 @@ const SPORTSBOOKS_META: Record<SportsbookId, SportsbookMeta> = {
     },
     brandColor: "#050505",
     priority: 1,
-    isActive: false,
+    isActive: true,
     requiresState: false,
     affiliate: true,
     affiliateLink: "https://novig.onelink.me/JHQQ/qh47vqcj"
