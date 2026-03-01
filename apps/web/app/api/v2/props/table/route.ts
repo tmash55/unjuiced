@@ -7,6 +7,7 @@ import {
   SSESelection,
   SSEBookSelections,
 } from "@/lib/odds/types";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
 // Single-line markets where we show ALL players (no main line filtering)
 // For these markets, each player is their own "line" - show everyone
@@ -48,13 +49,72 @@ const SINGLE_LINE_PLAYER_MARKETS = new Set([
   // Soccer goalscorers (already listed above with hockey, same markets apply)
 ]);
 
+const commandEndpoint = resolveRedisCommandEndpoint();
+if (!commandEndpoint.url || !commandEndpoint.token) {
+  const reason = commandEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/props/table] Redis endpoint configuration invalid: ${reason}`);
+}
+
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url,
+  token: commandEndpoint.token,
 });
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/table] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[v2/props/table] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
 
 const VALID_SPORTS = new Set([
-  "nba", "nfl", "nhl", "mlb", "ncaab", "ncaaf", "wnba", "soccer_epl"
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaab",
+  "ncaaf",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
 ]);
 
 // OPTIMIZATION: Higher scan count = fewer round trips
@@ -65,13 +125,20 @@ const KNOWN_BOOKS = [
   "draftkings", "fanduel", "fanduelyourway", "betmgm-michigan", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
-  "superbook", "si-sportsbook", "betfred", "tipico", "fliff"
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  // Common aliases/variants seen across feeds
+  "betmgm", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
 ];
 
 // In-memory cache for odds keys (reduces SCAN frequency)
 // NOTE: If odds_keys:{sport} set doesn't exist, ingestor needs to populate it
 const oddsKeysCache = new Map<string, { keys: string[]; ts: number }>();
 const ODDS_KEYS_CACHE_TTL = 30000; // 30 seconds - longer since SCAN fallback is expensive
+const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+const ACTIVE_EVENTS_CACHE_TTL = 15000; // 15s
+// In indexed deployments, scanning odds:* should be unnecessary and can be unstable on some proxies.
+// Opt-in to scan fallback only when explicitly needed.
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -85,7 +152,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     // FanDuel YourWay - matches sportsbooks.ts ID
@@ -99,6 +170,35 @@ function normalizeBookId(id: string): string {
     default:
       return lower;
   }
+}
+
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+
+  // Add common separator variants for robust key lookups.
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  // Common canonical aliases used in feeds
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
 }
 
 // Books to exclude (Canada, regional variants)
@@ -120,6 +220,14 @@ function normalizeMarketName(market: string): string {
     "spread": "game_spread",
     "point_spread": "game_spread",
     "pointspread": "game_spread",
+    "handicap": "handicap",
+    "match_handicap": "handicap",
+    "1st_half_handicap": "1st_half_handicap",
+    "1st_half_match_handicap": "1st_half_handicap",
+    "2nd_half_handicap": "2nd_half_handicap",
+    "2nd_half_match_handicap": "2nd_half_handicap",
+    "run_line": "game_run_line",
+    "runline": "game_run_line",
     "moneyline": "game_moneyline",
     "ml": "game_moneyline",
     "money_line": "game_moneyline",
@@ -141,6 +249,10 @@ function normalizeMarketName(market: string): string {
     "game_1h_moneyline": "game_1h_moneyline",
     "1st_half_moneyline": "game_1h_moneyline",
     "1st_half_moneyline_3_way": "1st_half_moneyline_3_way",
+    "1h_moneyline_3way": "1st_half_moneyline_3_way",
+    "1h_moneyline_3_way": "1st_half_moneyline_3_way",
+    "1h_ml_3way": "1st_half_moneyline_3_way",
+    "1h_ml_3_way": "1st_half_moneyline_3_way",
     "1q_spread": "1st_quarter_point_spread",
     "1st_quarter_spread": "1st_quarter_point_spread",
     "1st_quarter_point_spread": "1st_quarter_point_spread",
@@ -196,6 +308,7 @@ function normalizeMarketName(market: string): string {
     
     // 3-way moneyline
     "moneyline_3_way": "moneyline_3_way",
+    "moneyline_3way": "moneyline_3_way",
     "ml_3way": "moneyline_3_way",
     
     // ============ BASKETBALL PLAYER PROPS ============
@@ -589,8 +702,15 @@ function normalizeSide(side: string): "over" | "under" | null {
   switch (lower) {
     // Standard over/under
     case "over":
+    case "o":
       return "over";
     case "under":
+    case "u":
+      return "under";
+    // Odd/Even totals
+    case "odd":
+      return "over";
+    case "even":
       return "under";
     // Yes/No markets (treated as over/under)
     case "yes":
@@ -610,8 +730,8 @@ function normalizeSide(side: string): "over" | "under" | null {
     default:
       // Unknown side type - try to handle gracefully
       // If it contains "over" or "yes", treat as over
-      if (lower.includes("over") || lower.includes("yes")) return "over";
-      if (lower.includes("under") || lower.includes("no")) return "under";
+      if (lower.includes("over") || lower.includes("yes") || lower.includes("odd")) return "over";
+      if (lower.includes("under") || lower.includes("no") || lower.includes("even")) return "under";
       // Default to "over" for unknown single-sided entries
       return "over";
   }
@@ -622,6 +742,37 @@ function normalizeSide(side: string): "over" | "under" | null {
  * Maps canonical market name -> array of alternative Redis key names to try
  */
 const MARKET_SCAN_ALIASES: Record<string, string[]> = {
+  // Soccer game market aliases (vendor naming can vary by feed/book)
+  "match_total_goals": ["total_goals"],
+  "moneyline_3_way": ["match_moneyline_3_way", "moneyline_3way"],
+  "handicap": ["match_handicap"],
+  "draw_no_bet": ["match_draw_no_bet"],
+  "1st_half_moneyline_3_way": [
+    "1st_half_match_moneyline_3_way",
+    "first_half_moneyline_3_way",
+    "1h_moneyline_3way",
+    "1h_moneyline_3_way",
+    "1h_ml_3way",
+    "1h_ml_3_way"
+  ],
+  "1st_half_handicap": ["1st_half_match_handicap", "first_half_handicap"],
+  "1st_half_total_goals": ["1st_half_match_total_goals", "first_half_total_goals"],
+  "1st_half_draw_no_bet": ["first_half_draw_no_bet"],
+  "2nd_half_moneyline_3_way": [
+    "2nd_half_match_moneyline_3_way",
+    "second_half_moneyline_3_way",
+    "2h_moneyline_3way",
+    "2h_moneyline_3_way",
+    "2h_ml_3way",
+    "2h_ml_3_way"
+  ],
+  "2nd_half_total_goals": ["2nd_half_match_total_goals", "second_half_total_goals"],
+  "1st_half_both_teams_to_score": ["first_half_both_teams_to_score"],
+  "1st_half_first_team_to_score_3_way": ["first_half_first_team_to_score_3_way"],
+  "2nd_half_first_team_to_score_3_way": ["second_half_first_team_to_score_3_way"],
+  "1st_half_total_corners_odd_even": ["first_half_total_corners_odd_even"],
+  "2nd_half_total_corners_odd_even": ["second_half_total_corners_odd_even"],
+
   // First goalscorer - Redis might use different naming
   "player_first_goal": ["first_goalscorer", "first_goal_scorer", "first_goal"],
   "player_last_goal": ["last_goalscorer", "last_goal_scorer", "last_goal"],
@@ -643,6 +794,107 @@ const MARKET_SCAN_ALIASES: Record<string, string[]> = {
 };
 
 /**
+ * Soccer feeds sometimes use compact 1h/2h market keys instead of 1st_half/2nd_half.
+ * Expand aliases only for soccer so other sports keep their existing behavior.
+ */
+function getSoccerHalfMarketAliases(market: string): string[] {
+  const aliases: string[] = [];
+
+  const add = (...values: string[]) => aliases.push(...values);
+
+  switch (market) {
+    case "1st_half_moneyline_3_way":
+      add("1h_moneyline_3way", "1h_moneyline_3_way", "1h_ml_3way", "1h_ml_3_way");
+      break;
+    case "1st_half_handicap":
+      add("1h_handicap");
+      break;
+    case "1st_half_total_goals":
+      add("1h_total_goals");
+      break;
+    case "1st_half_draw_no_bet":
+      add("1h_draw_no_bet");
+      break;
+    case "1st_half_both_teams_to_score":
+      add("1h_both_teams_to_score", "1h_btts");
+      break;
+    case "1st_half_first_team_to_score_3_way":
+      add("1h_first_team_to_score_3way", "1h_first_team_to_score_3_way");
+      break;
+    case "1st_half_total_corners_odd_even":
+      add("1h_total_corners_odd_even");
+      break;
+    case "2nd_half_moneyline_3_way":
+      add("2h_moneyline_3way", "2h_moneyline_3_way", "2h_ml_3way", "2h_ml_3_way");
+      break;
+    case "2nd_half_handicap":
+      add("2h_handicap");
+      break;
+    case "2nd_half_total_goals":
+      add("2h_total_goals");
+      break;
+    case "2nd_half_draw_no_bet":
+      add("2h_draw_no_bet");
+      break;
+    case "2nd_half_first_team_to_score_3_way":
+      add("2h_first_team_to_score_3way", "2h_first_team_to_score_3_way");
+      break;
+    case "2nd_half_total_corners_odd_even":
+      add("2h_total_corners_odd_even");
+      break;
+    default:
+      break;
+  }
+
+  return aliases;
+}
+
+/**
+ * Read per-event odds index keys populated by the consumer:
+ * odds_idx:{sport}:{eventId} => members like "{market}:{book}"
+ */
+async function getOddsKeysFromIndex(
+  sport: string,
+  eventIds: string[],
+  marketsToScan: string[]
+): Promise<{ keys: string[]; foundEventMarket: Set<string>; eventsWithIndex: Set<string> }> {
+  const keys: string[] = [];
+  const foundEventMarket = new Set<string>();
+  const eventsWithIndex = new Set<string>();
+  const marketSet = new Set(marketsToScan);
+
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
+    const batch = eventIds.slice(i, i + BATCH_SIZE);
+    const membersByEvent = await Promise.all(
+      batch.map((eventId) => redis.smembers(`odds_idx:${sport}:${eventId}`))
+    );
+
+    batch.forEach((eventId, batchIdx) => {
+      const members = (membersByEvent[batchIdx] || []).map(String);
+      if (members.length > 0) {
+        eventsWithIndex.add(eventId);
+      }
+      for (const member of members) {
+        // Member format: "{market}:{book}".
+        const sep = member.lastIndexOf(":");
+        if (sep <= 0 || sep >= member.length - 1) continue;
+        const market = member.slice(0, sep);
+        const book = member.slice(sep + 1);
+        if (!marketSet.has(market) || !book) continue;
+
+        for (const bookCandidate of getBookKeyCandidates(book)) {
+          keys.push(`odds:${sport}:${eventId}:${market}:${bookCandidate}`);
+        }
+        foundEventMarket.add(`${eventId}:${market}`);
+      }
+    });
+  }
+
+  return { keys, foundEventMarket, eventsWithIndex };
+}
+
+/**
  * OPTIMIZATION: Get odds keys for specific events and market
  * Uses event-scoped scanning: active_events (O(1) SET) + per-event focused scans
  * This avoids maintaining a massive global odds_keys set that's hard to clean up
@@ -652,31 +904,90 @@ async function getOddsKeysForEvents(
   eventIds: string[], 
   market: string
 ): Promise<string[]> {
-  // Cache key includes events + market for proper invalidation
-  const cacheKey = `${sport}:${eventIds.length}:${market}`;
+  // Cache key includes concrete event IDs to avoid collisions across same-size event sets.
+  const cacheKey = `${sport}:${market}:${[...eventIds].sort().join(",")}`;
   const cached = oddsKeysCache.get(cacheKey);
   if (cached && (Date.now() - cached.ts) < ODDS_KEYS_CACHE_TTL) {
     return cached.keys;
   }
 
-  // OPTIMIZED: Scan only for specific market on active events
-  // Each scan is focused: odds:{sport}:{eventId}:{market}:*
-  // ~10-50 events × 1 market = 10-50 focused scans (much better than global)
   const allKeys: string[] = [];
   
   // Primary market name + aliases to try
-  const marketsToScan = [market, ...(MARKET_SCAN_ALIASES[market] || [])];
-  
-  // Batch scans in parallel (limit concurrency)
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
-    const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.flatMap(eventId => 
-        marketsToScan.map(m => scanKeysOnce(`odds:${sport}:${eventId}:${m}:*`))
-      )
-    );
-    allKeys.push(...batchResults.flat());
+  const baseMarketsToScan = [
+    market,
+    ...(MARKET_SCAN_ALIASES[market] || []),
+    ...(sport.startsWith("soccer_") ? getSoccerHalfMarketAliases(market) : []),
+  ];
+  const soccerCompact3WayAliases = sport.startsWith("soccer_")
+    ? baseMarketsToScan.flatMap((m) => (m.includes("_3_way") ? [m.replace(/_3_way/g, "_3way")] : []))
+    : [];
+  const marketsToScan = Array.from(new Set([
+    ...baseMarketsToScan,
+    ...soccerCompact3WayAliases,
+  ]));
+
+  // 1) Preferred path: read consumer-maintained per-event index.
+  const indexed = await getOddsKeysFromIndex(sport, eventIds, marketsToScan);
+  allKeys.push(...indexed.keys);
+
+  const foundEventMarket = new Set(indexed.foundEventMarket);
+  const unresolvedPairs: Array<{ eventId: string; market: string }> = [];
+  for (const eventId of eventIds) {
+    for (const m of marketsToScan) {
+      // Probe all event+market pairs to fill any index gaps (missing books/aliases).
+      unresolvedPairs.push({ eventId, market: m });
+    }
+  }
+
+  // 2) Fast fallback: build exact keys for known books, then mget to detect existing keys.
+  // This avoids expensive SCAN traversal on Redis proxies with large keyspaces.
+  // Probe known books for all event+market pairs.
+  // This complements indexes and recovers books when index members use variant IDs.
+  const fallbackCandidates = unresolvedPairs;
+
+  const candidateKeys: string[] = [];
+  const candidateMeta: Array<{ eventId: string; market: string }> = [];
+  for (const { eventId, market: m } of fallbackCandidates) {
+    for (const book of KNOWN_BOOKS) {
+      candidateKeys.push(`odds:${sport}:${eventId}:${m}:${book}`);
+      candidateMeta.push({ eventId, market: m });
+    }
+  }
+
+  const MGET_CHUNK_SIZE = 1000;
+  for (let i = 0; i < candidateKeys.length; i += MGET_CHUNK_SIZE) {
+    const keysChunk = candidateKeys.slice(i, i + MGET_CHUNK_SIZE);
+    const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+
+    values.forEach((value, idx) => {
+      if (!value) return;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        // Ignore obvious non-odds payloads (e.g., HTML error pages).
+        if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
+      }
+      const key = keysChunk[idx];
+      const meta = candidateMeta[i + idx];
+      allKeys.push(key);
+      foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+    });
+  }
+
+  // 3) Final fallback: SCAN only unresolved event+market pairs.
+  const fallbackPairs = fallbackCandidates.filter(
+    ({ eventId, market: m }) => !foundEventMarket.has(`${eventId}:${m}`)
+  );
+
+  if (ENABLE_ODDS_SCAN_FALLBACK && fallbackPairs.length > 0) {
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < fallbackPairs.length; i += BATCH_SIZE) {
+      const batch = fallbackPairs.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(({ eventId, market: m }) => scanKeysOnce(`odds:${sport}:${eventId}:${m}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
   }
   
   // Deduplicate keys (same data might be under different market names)
@@ -693,10 +1004,17 @@ async function scanKeysOnce(pattern: string): Promise<string[]> {
   const results: string[] = [];
   let cursor = 0;
   let iterations = 0;
-  const MAX_ITERATIONS = 20; // Safety limit
+  const MAX_ITERATIONS = 200; // Safety limit for very large keyspaces/proxy scans
+  const seenCursors = new Set<number>();
 
   do {
     iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[scanKeysOnce] Cursor cycle detected for ${pattern}, stopping at ${results.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const [nextCursor, keys] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT,
@@ -717,9 +1035,38 @@ async function scanKeysOnce(pattern: string): Promise<string[]> {
  * Get active event IDs for a sport - uses index set (O(1))
  */
 async function getActiveEventIds(sport: string): Promise<string[]> {
+  const cached = activeEventsCache.get(sport);
+  if (cached && (Date.now() - cached.ts) < ACTIVE_EVENTS_CACHE_TTL) {
+    return cached.ids;
+  }
+
   const key = `active_events:${sport}`;
-  const members = await redis.smembers(key);
-  return members.map(String);
+  const members = (await redis.smembers(key)).map(String).filter(Boolean);
+
+  // Fast path: if set looks healthy, avoid additional scans.
+  if (members.length > 8) {
+    const unique = [...new Set(members)];
+    activeEventsCache.set(sport, { ids: unique, ts: Date.now() });
+    return unique;
+  }
+
+  // Fallback/merge for partially populated sets (common during feed migrations).
+  const eventKeys = await scanKeysOnce(`events:${sport}:*`);
+  const prefix = `events:${sport}:`;
+  const scannedIds = eventKeys
+    .map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : ""))
+    .filter(Boolean);
+
+  const merged = [...new Set([...members, ...scannedIds])];
+  activeEventsCache.set(sport, { ids: merged, ts: Date.now() });
+
+  if (scannedIds.length > members.length) {
+    console.warn(
+      `[v2/props/table] active_events:${sport} appears incomplete (${members.length}); merged with events scan (${scannedIds.length})`
+    );
+  }
+
+  return merged;
 }
 
 /**
@@ -854,7 +1201,10 @@ async function buildPropsRows(
   allOddsKeys.forEach((key, i) => {
     const data = allOddsData[i];
     if (data) {
-      oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+      const parsed = parseBookSelectionsValue(data, key);
+      if (parsed) {
+        oddsDataMap.set(key, parsed);
+      }
     }
   });
 
@@ -874,8 +1224,23 @@ async function buildPropsRows(
   }>();
 
   // Helper to identify game markets
+  const isSpreadLikeMarket =
+    market.includes("spread") ||
+    market.includes("puck_line") ||
+    market.includes("run_line") ||
+    market.includes("handicap");
   const isGameTotal = market.includes("total") || market.includes("over_under");
-  const isGameLine = (market.includes("spread") || market.includes("moneyline") || market.includes("puck_line")) && !isGameTotal;
+  const isThreeWayTeamMarket =
+    market.includes("moneyline_3_way") ||
+    market.includes("team_to_score_3_way");
+  const isGameLine =
+    (
+      isSpreadLikeMarket ||
+      market.includes("moneyline") ||
+      market.includes("draw_no_bet") ||
+      isThreeWayTeamMarket
+    ) &&
+    !isGameTotal;
   const isGameMarket = isGameTotal || isGameLine;
   
   // Check if this is a single-line player market (goalscorers, TDs, first basket)
@@ -933,7 +1298,7 @@ async function buildPropsRows(
       const entityKey = isGameMarket ? "Game" : rawName;
 
       // Special handling for spreads where line signs differ (e.g. -3.5 vs +3.5)
-      const isSpread = market.includes("spread") || market.includes("puck_line");
+      const isSpread = isSpreadLikeMarket;
       const effectiveLine = isSpread && isGameMarket ? Math.abs(line) : line;
 
       // Track ALL lines available for this entity+book (for closest line fallback)
@@ -1020,7 +1385,7 @@ async function buildPropsRows(
           // This book doesn't have main=true, check if it has the canonical line
           const bookLines = allLinesByEntityBook.get(playerBookKey);
           if (bookLines) {
-            const isSpread = market.includes("spread") || market.includes("puck_line");
+            const isSpread = isSpreadLikeMarket;
             const canonicalLine = canonical.line;
             
             // Check if book has exact canonical line
@@ -1057,7 +1422,7 @@ async function buildPropsRows(
         
         // Only include if line matches the target
         if (targetLine !== undefined) {
-          const isSpread = market.includes("spread") || market.includes("puck_line");
+          const isSpread = isSpreadLikeMarket;
           const match = (isSpread && isGameMarket) 
             ? Math.abs(line) === Math.abs(targetLine)
             : line === targetLine;
@@ -1070,7 +1435,7 @@ async function buildPropsRows(
       // SANITY CHECK: For game spreads/puck lines, reject unreasonable odds
       // Legitimate spread odds are typically between -200 and +200
       // Extreme odds (like -2500 or +900) indicate wrong line selection
-      if (isGameLine && (market.includes("spread") || market.includes("puck_line"))) {
+      if (isGameLine && isSpreadLikeMarket) {
         const oddsValue = parseInt(sel.price.replace("+", ""), 10);
         if (!isNaN(oddsValue)) {
           // Reject if odds are outside reasonable range for spreads
@@ -1112,13 +1477,19 @@ async function buildPropsRows(
         const awayTeamNorm = event.awayTeam.toLowerCase().replace(/_/g, " ");
 
         // Helper to check if input matches a team (exact, contains, or word match)
-        const matchesTeam = (input: string, teamName: string, teamAbbr: string): boolean => {
+        const matchesTeam = (
+          input: string,
+          teamName: string,
+          teamAbbr: string,
+          opts?: { allowCityMatch?: boolean }
+        ): boolean => {
           if (!input || input.length === 0) return false;
           
           // Normalize inputs
           const inputNorm = input.toLowerCase().trim();
           const teamNameNorm = teamName.toLowerCase().trim();
           const teamAbbrNorm = teamAbbr.toLowerCase().trim();
+          const allowCityMatch = opts?.allowCityMatch !== false;
           
           // Exact match
           if (inputNorm === teamNameNorm || inputNorm === teamAbbrNorm) return true;
@@ -1145,22 +1516,40 @@ async function buildPropsRows(
             if (inputNorm.includes(teamAbbrNorm) && teamAbbrNorm.length >= 3) return true;
           }
           
-          // Check city match for multi-word cities
-          if (city && city.length >= 4 && inputNorm.includes(city)) return true;
+          // Check city match for multi-word cities.
+          // Same-city matchups (e.g. Lakers vs Clippers) are ambiguous on city alone.
+          if (allowCityMatch && city && city.length >= 4 && inputNorm.includes(city)) return true;
           
           return false;
         };
 
+        const getCity = (teamName: string): string => {
+          const parts = teamName.trim().split(/\s+/);
+          if (parts.length <= 1) return "";
+          return parts.slice(0, -1).join(" ").toLowerCase();
+        };
+        const homeCity = getCity(homeNameNorm);
+        const awayCity = getCity(awayNameNorm);
+        const sameCityMatchup = homeCity.length > 0 && homeCity === awayCity;
+
+        // Soccer 3-way markets can encode outcomes as 1/X/2 instead of team names.
+        // 1 => Home, X => Draw, 2 => Away
+        const normalizeToken = (value: string): string => value.replace(/\s+/g, "").toLowerCase();
+        const playerToken = normalizeToken(playerName);
+        const keyToken = normalizeToken(keyName);
+        const sideToken = normalizeToken(sideLower);
+        const homeTokens = new Set(["home", "1"]);
+        const awayTokens = new Set(["away", "2"]);
+        const drawTokens = new Set(["draw", "x", "tie"]);
+
         // Check both player name and key name for matches
-        const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm) ||
-                       matchesTeam(keyName, homeNameNorm, homeTeamNorm) ||
-                       playerName === "home" || keyName === "home" ||
-                       sideLower === "home";
+        const isHome = matchesTeam(playerName, homeNameNorm, homeTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       matchesTeam(keyName, homeNameNorm, homeTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       homeTokens.has(playerToken) || homeTokens.has(keyToken) || homeTokens.has(sideToken);
                        
-        const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm) ||
-                       matchesTeam(keyName, awayNameNorm, awayTeamNorm) ||
-                       playerName === "away" || keyName === "away" ||
-                       sideLower === "away";
+        const isAway = matchesTeam(playerName, awayNameNorm, awayTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       matchesTeam(keyName, awayNameNorm, awayTeamNorm, { allowCityMatch: !sameCityMatchup }) ||
+                       awayTokens.has(playerToken) || awayTokens.has(keyToken) || awayTokens.has(sideToken);
 
         if (isAway && !isHome) mappedSide = "over";      // Top slot (Away)
         else if (isHome && !isAway) mappedSide = "under"; // Bottom slot (Home)
@@ -1169,7 +1558,7 @@ async function buildPropsRows(
           continue;
         } else {
            // Fallback: If we can't determine team, check if it's Draw
-           if (playerName === "draw" || keyName === "draw" || sideLower === "draw") continue; 
+           if (drawTokens.has(playerToken) || drawTokens.has(keyToken) || drawTokens.has(sideToken)) continue; 
            
            // For game lines where team matching fails completely, skip the entry
            // DO NOT use spread line sign as fallback - it doesn't indicate home/away
@@ -1480,4 +1869,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

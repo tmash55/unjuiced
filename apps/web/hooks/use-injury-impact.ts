@@ -32,6 +32,7 @@ export interface InjuryImpactRow {
   opponentAbbr: string;
   opponentId: number;
   homeAway: string;
+  startTime?: string | null;
   
   // Bet info
   market: string;
@@ -117,6 +118,7 @@ export interface AvailableLine {
   overOddsDecimal: number | null;
   underOdds: string | null;
   underOddsDecimal: number | null;
+  selKey: string | null;
 }
 
 export interface AvailableTeammate {
@@ -496,4 +498,3 @@ export const INJURY_IMPACT_MARKETS = [
   { value: "player_blocks", label: "Blocks" },
   { value: "player_blocks_steals", label: "BLK+STL" },
 ];
-

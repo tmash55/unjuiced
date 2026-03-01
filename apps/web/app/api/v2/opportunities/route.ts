@@ -2,7 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { 
+import {
   normalizePlayerName, 
   getMarketDisplay,
   normalizeRawMarket,
@@ -10,10 +10,20 @@ import {
   SSEBookSelections,
 } from "@/lib/odds/types";
 import { getPreset, SHARP_PRESETS } from "@/lib/odds/presets";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
+
+const redisEndpoint = resolveRedisCommandEndpoint();
+if (!redisEndpoint.url || !redisEndpoint.token) {
+  const reason = redisEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/opportunities] Redis endpoint configuration invalid: ${reason}`);
+}
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: redisEndpoint.url,
+  token: redisEndpoint.token,
+  responseEncoding: false,
 });
 
 // OPTIMIZATION: Cache settings balanced for freshness + efficiency
@@ -37,6 +47,8 @@ function getCacheTTL(blend: { book: string; weight: number }[] | null): number {
 }
 const SCAN_COUNT = 1000; // Higher = fewer round trips to Redis
 const MGET_CHUNK_SIZE = 500; // Upstash limit per MGET
+const MAX_SCAN_ITERATIONS = 200;
+const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
 
 // Performance: Pre-warm hint for when SSE triggers a refetch
 // If provided, skip full recalculation and just invalidate cache
@@ -91,7 +103,29 @@ function formatPosition(position: string | null): string | null {
 }
 
 // Supported sports (including soccer)
-const VALID_SPORTS = new Set(["nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "wnba", "soccer_epl"]);
+const VALID_SPORTS = new Set([
+  "nba",
+  "nfl",
+  "nhl",
+  "ncaab",
+  "ncaaf",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 /**
  * Normalize book IDs to match our canonical sportsbook IDs (from sportsbooks.ts)
@@ -105,7 +139,11 @@ function normalizeBookId(id: string): string {
     case "hardrock-indiana":
       return "hard-rock-indiana";
     case "ballybet":
+    case "bally_bet":
       return "bally-bet";
+    case "bet-rivers":
+    case "bet_rivers":
+      return "betrivers";
     case "sportsinteraction":
       return "sports-interaction";
     // FanDuel YourWay - matches sportsbooks.ts ID
@@ -121,6 +159,31 @@ function normalizeBookId(id: string): string {
   }
 }
 
+function getBookKeyCandidates(rawBook: string): string[] {
+  const lower = rawBook.toLowerCase();
+  const candidates = new Set<string>([lower]);
+  const normalized = normalizeBookId(lower);
+  candidates.add(normalized);
+  candidates.add(lower.replace(/-/g, "_"));
+  candidates.add(lower.replace(/_/g, "-"));
+  candidates.add(normalized.replace(/-/g, "_"));
+  candidates.add(normalized.replace(/_/g, "-"));
+
+  if (normalized === "bally-bet") {
+    candidates.add("ballybet");
+    candidates.add("bally_bet");
+  }
+  if (normalized === "betrivers") {
+    candidates.add("bet-rivers");
+    candidates.add("bet_rivers");
+  }
+  if (normalized === "hard-rock") {
+    candidates.add("hardrock");
+  }
+
+  return [...candidates].filter(Boolean);
+}
+
 // Books to exclude from all calculations (regional variants, inactive books)
 const EXCLUDED_BOOKS = new Set([
   "hard-rock-indiana", 
@@ -132,13 +195,28 @@ const KNOWN_ACTIVE_BOOKS = [
   "draftkings", "fanduel", "fanduelyourway", "betmgm", "caesars", "pointsbet", "bet365",
   "pinnacle", "circa", "hard-rock", "bally-bet", "betrivers", "unibet",
   "wynnbet", "espnbet", "fanatics", "betparx", "thescore", "prophetx",
-  "superbook", "si-sportsbook", "betfred", "tipico", "fliff"
+  "superbook", "si-sportsbook", "betfred", "tipico", "fliff",
+  // Common aliases/variants observed in feed keys
+  "betmgm-michigan", "hardrock", "ballybet", "bally_bet", "bet-rivers", "bet_rivers"
 ];
 
 // Types
 interface BookWeight {
   book: string;
   weight: number;
+}
+
+interface BookOffer {
+  book: string;
+  price: number;
+  decimal: number;
+  link: string | null;
+  mobile_link: string | null;
+  sgp: string | null;
+  limits: { max: number } | null;
+  included_in_average?: boolean;
+  average_exclusion_reason?: string | null;
+  odd_id?: string;
 }
 
 interface Opportunity {
@@ -225,6 +303,9 @@ interface Opportunity {
       mobile_link: string | null;     // Deep link for mobile apps
       sgp: string | null;
       limits: { max: number } | null;
+      included_in_average?: boolean;
+      average_exclusion_reason?: string | null;
+      odd_id?: string;
     }[];
   } | null;
 
@@ -237,6 +318,9 @@ interface Opportunity {
     mobile_link: string | null;       // Deep link for mobile apps
     sgp: string | null;
     limits: { max: number } | null;  // Betting limits when available (e.g., Pinnacle)
+    included_in_average?: boolean;
+    average_exclusion_reason?: string | null;
+    odd_id?: string;
   }[];
 }
 
@@ -378,22 +462,20 @@ export async function GET(req: NextRequest) {
     let allOpportunities = results.flatMap(r => r.opportunities);
     const totalScanned = allOpportunities.length;
 
-    // Get the set of sharp/reference books for filtering
-    // We should exclude opportunities where the best book IS the reference book
-    // (no edge to exploit if you're comparing to yourself)
-    const sharpBooks = new Set<string>();
-    if (blend && blend.length > 0) {
-      blend.forEach(b => sharpBooks.add(b.book));
-    } else if (presetId && presetId !== 'average') {
-      // Single book preset (e.g., "draftkings", "pinnacle")
-      sharpBooks.add(presetId);
+    // Only exclude opportunities where best book equals reference book in
+    // true single-book comparison modes.
+    // For multi-book custom blends, allow best book to be one of the blend inputs.
+    const selfComparisonBooks = new Set<string>();
+    if (blend && blend.length === 1) {
+      selfComparisonBooks.add(blend[0].book.toLowerCase());
+    } else if (!blend && presetId && presetId !== "average" && presetId !== "next_best") {
+      selfComparisonBooks.add(presetId.toLowerCase());
     }
 
     // Apply filters
     allOpportunities = allOpportunities.filter((o) => {
-      // Exclude opportunities where the best book is the sharp/reference book
-      // (no edge if you're comparing the book to itself)
-      if (sharpBooks.size > 0 && sharpBooks.has(o.best_book)) return false;
+      // Exclude only in single-book self-comparison modes
+      if (selfComparisonBooks.size > 0 && selfComparisonBooks.has((o.best_book || "").toLowerCase())) return false;
 
       // Market type filter (player props vs game lines)
       // Player props have a player name, game lines don't (or have "game")
@@ -557,11 +639,11 @@ interface SelectionPair {
   marketDisplay: string;   // Human-readable market (e.g., "Player Points" instead of "player_points")
   line: number;
   over: {
-    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    books: BookOffer[];
     best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
   under: {
-    books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+    books: BookOffer[];
     best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
   };
 }
@@ -667,8 +749,8 @@ async function fetchSportOpportunities(
     const eventIds = await getActiveEventIds(sport);
     if (eventIds.length === 0) return [];
     
-    // Step 2: Get odds keys scoped to active events only (focused scans)
-    const allOddsKeys = await getOddsKeysForEvents(sport, eventIds);
+    // Step 2: Get odds keys scoped to active events and requested markets
+    const { keys: allOddsKeys, prefetchedData } = await getOddsKeysForEvents(sport, eventIds, markets);
     if (allOddsKeys.length === 0) return [];
 
     // Filter keys to only active events and group by event+market
@@ -715,27 +797,36 @@ async function fetchSportOpportunities(
     
     if (filteredKeys.length === 0) return [];
 
-    // OPTIMIZATION: Batch fetch ALL odds data in parallel chunks
-    const MGET_CHUNK_SIZE = 500; // Upstash limit per request
-    const chunks: string[][] = [];
-    for (let i = 0; i < filteredKeys.length; i += MGET_CHUNK_SIZE) {
-      chunks.push(filteredKeys.slice(i, i + MGET_CHUNK_SIZE));
-    }
-    
-    // Fetch all chunks in parallel (much faster than sequential)
-    const chunkResults = await Promise.all(
-      chunks.map(chunk => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
-    );
-    const allOddsData = chunkResults.flat();
-    
-    // Build key -> data map
+    // Build key -> data map — use pre-fetched data first, MGET only missing keys
     const oddsDataMap = new Map<string, SSEBookSelections>();
-    filteredKeys.forEach((key, i) => {
-      const data = allOddsData[i];
-      if (data) {
-        oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+    const missingKeys: string[] = [];
+    for (const key of filteredKeys) {
+      const cached = prefetchedData.get(key);
+      if (cached) {
+        oddsDataMap.set(key, cached);
+      } else {
+        missingKeys.push(key);
       }
-    });
+    }
+
+    // Only fetch keys not already pre-fetched (from index-only paths)
+    if (missingKeys.length > 0) {
+      const MGET_CHUNK_SIZE = 500;
+      const chunks: string[][] = [];
+      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
+        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
+      }
+      const chunkResults = await Promise.all(
+        chunks.map(chunk => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      );
+      const allOddsData = chunkResults.flat();
+      missingKeys.forEach((key, i) => {
+        const data = allOddsData[i];
+        if (data) {
+          oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+        }
+      });
+    }
 
     // Fetch event details (already batched)
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
@@ -894,6 +985,7 @@ async function fetchSportOpportunities(
               mobile_link: overSel.mobile_link || null,
               sgp: overSel.sgp || null,
               limits: overSel.limits || null,
+              odd_id: overSel.odd_id || undefined,
             });
             if (!pair.over.best || overSel.price_decimal > pair.over.best.decimal) {
               pair.over.best = {
@@ -927,6 +1019,7 @@ async function fetchSportOpportunities(
               mobile_link: underSel.mobile_link || null,
               sgp: underSel.sgp || null,
               limits: underSel.limits || null,
+              odd_id: underSel.odd_id || undefined,
             });
             if (!pair.under.best || underSel.price_decimal > pair.under.best.decimal) {
               pair.under.best = {
@@ -948,6 +1041,18 @@ async function fetchSportOpportunities(
       }
     }
 
+    // Moneyline feeds can publish one "ml" selection per team instead of over/under.
+    // Group those sibling team pairs so we can populate opposite side books for UI/devig.
+    const moneylineGroups = new Map<string, SelectionPair[]>();
+    for (const pair of pairMap.values()) {
+      if (!pair.market.toLowerCase().includes("moneyline")) continue;
+      const groupKey = `${pair.eventId}:${pair.market}:${pair.line}`;
+      if (!moneylineGroups.has(groupKey)) {
+        moneylineGroups.set(groupKey, []);
+      }
+      moneylineGroups.get(groupKey)!.push(pair);
+    }
+
     // Convert pairs to opportunities with proper devigging
     for (const pair of pairMap.values()) {
       // Create opportunities for both sides if they have enough books
@@ -957,6 +1062,22 @@ async function fetchSportOpportunities(
         const sideData = pair[side];
         const oppositeSide = side === "over" ? "under" : "over";
         const oppositeData = pair[oppositeSide];
+        let effectiveOppositeData = oppositeData;
+
+        // For moneyline rows, fallback to the sibling team's "over/ml" books
+        // when this pair has no direct under/no side populated.
+        if (
+          effectiveOppositeData.books.length === 0 &&
+          pair.market.toLowerCase().includes("moneyline")
+        ) {
+          const groupKey = `${pair.eventId}:${pair.market}:${pair.line}`;
+          const sibling = (moneylineGroups.get(groupKey) || []).find(
+            (candidate) => candidate !== pair && candidate.over.books.length > 0
+          );
+          if (sibling) {
+            effectiveOppositeData = sibling.over;
+          }
+        }
 
         // Need at least minBooksPerSide books on this side (default: 2 for EV, can be 1 for edge finder)
         if (sideData.books.length < minBooksPerSide || !sideData.best) continue;
@@ -1001,20 +1122,20 @@ async function fetchSportOpportunities(
           overround: null,
           market_coverage: null,
           devig_inputs: null,
-          opposite_side: oppositeData.books.length > 0 ? {
+          opposite_side: effectiveOppositeData.books.length > 0 ? {
             side: oppositeSide,
             sharp_price: null,
             sharp_decimal: null,
-            best_book: oppositeData.best?.book || null,
-            best_price: oppositeData.best ? formatAmericanOdds(oppositeData.best.price) : null,
-            best_decimal: oppositeData.best?.decimal || null,
-            all_books: oppositeData.books,
+            best_book: effectiveOppositeData.best?.book || null,
+            best_price: effectiveOppositeData.best ? formatAmericanOdds(effectiveOppositeData.best.price) : null,
+            best_decimal: effectiveOppositeData.best?.decimal || null,
+            all_books: effectiveOppositeData.books,
           } : null,
           all_books: sideData.books,
         };
 
         // Calculate metrics with proper devigging
-        calculateMetricsWithDevig(opp, sideData, oppositeData, blend, minBooksPerSide, useAverage, useNextBest);
+        calculateMetricsWithDevig(opp, sideData, effectiveOppositeData, blend, minBooksPerSide, useAverage, useNextBest);
         opportunities.push(opp);
         
       }
@@ -1031,7 +1152,7 @@ async function fetchSportOpportunities(
  * Calculate edge and EV metrics for an opportunity
  */
 interface SideData {
-  books: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null; sgp: string | null; limits: { max: number } | null }[];
+  books: BookOffer[];
   best: { book: string; price: number; decimal: number; link: string | null; mobile_link: string | null } | null;
 }
 
@@ -1048,6 +1169,11 @@ function calculateMetricsWithDevig(
   useNextBest: boolean = false
 ): void {
   if (sideData.books.length < 2) return;
+
+  // Always annotate average inclusion metadata for UI transparency,
+  // even when comparison mode is not "average".
+  annotateAndFilterBooksForAverage(sideData.books);
+  annotateAndFilterBooksForAverage(oppositeData.books);
 
   // Sort books by decimal (best first)
   opp.all_books.sort((a, b) => b.decimal - a.decimal);
@@ -1245,54 +1371,105 @@ const RSI_BOOKS = new Set(["betrivers", "bally-bet", "betparx"]);
 const OUTLIER_PRONE_BOOKS = new Set(["polymarket", "kalshi"]);
 
 /**
- * Deduplicate and filter books for average calculation.
- * - RSI books with identical odds are counted once
- * - Excludes prediction markets (Polymarket, Kalshi) from the average
- * - Non-RSI books are included normally
+ * ProphetX can occasionally post prices that are materially disconnected
+ * from the rest of the market. When this happens, don't include it in the
+ * market average reference to avoid skewing edge calculations.
+ *
+ * Override with env var `PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN`.
  */
-function deduplicateBooksForAverage(
-  books: { book: string; decimal: number }[]
-): { book: string; decimal: number }[] {
-  // Exclude prediction markets from the average calculation
-  const filteredBooks = books.filter(b => !OUTLIER_PRONE_BOOKS.has(b.book));
-  
-  // Now handle RSI deduplication
-  const rsiBooks: { book: string; decimal: number }[] = [];
-  const otherBooks: { book: string; decimal: number }[] = [];
-  
-  for (const b of filteredBooks) {
-    if (RSI_BOOKS.has(b.book)) {
-      rsiBooks.push(b);
-    } else {
-      otherBooks.push(b);
+const PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN = (() => {
+  const fromEnv = Number(process.env.PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 600;
+})();
+
+const PROPHETX_BOOK = "prophetx";
+const PROPHETX_OUTLIER_REASON = "Not included in average (ProphetX outlier)";
+
+/**
+ * Compute median for robust outlier detection.
+ */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+/**
+ * Annotate each book with average inclusion metadata and return
+ * the final book list to use for market-average calculations.
+ */
+function annotateAndFilterBooksForAverage(books: BookOffer[]): BookOffer[] {
+  const excludedByBook = new Map<string, string>();
+
+  // 1) Exclude known non-reference books (prediction markets)
+  const initiallyFiltered = books.filter((book) => {
+    const id = book.book.toLowerCase();
+    if (OUTLIER_PRONE_BOOKS.has(id)) {
+      excludedByBook.set(id, "Not included in average (prediction market)");
+      return false;
+    }
+    return true;
+  });
+
+  // 2) Conditionally exclude ProphetX if it is far from market consensus
+  let prophetFiltered = initiallyFiltered;
+  const prophetxBook = initiallyFiltered.find((book) => book.book.toLowerCase() === PROPHETX_BOOK);
+  if (prophetxBook) {
+    const comparisonBooks = initiallyFiltered.filter((book) => book.book.toLowerCase() !== PROPHETX_BOOK);
+    if (comparisonBooks.length >= 1) {
+      const marketMedianAmerican = median(comparisonBooks.map((book) => decimalToAmerican(book.decimal)));
+      if (marketMedianAmerican !== null) {
+        const prophetxAmerican = decimalToAmerican(prophetxBook.decimal);
+        const delta = Math.abs(prophetxAmerican - marketMedianAmerican);
+        if (delta >= PROPHETX_AVG_OUTLIER_THRESHOLD_AMERICAN) {
+          excludedByBook.set(PROPHETX_BOOK, PROPHETX_OUTLIER_REASON);
+          prophetFiltered = initiallyFiltered.filter((book) => book.book.toLowerCase() !== PROPHETX_BOOK);
+        }
+      }
     }
   }
-  
-  // If no RSI books, return filtered
-  if (rsiBooks.length === 0) {
-    return filteredBooks;
-  }
-  
-  // Group RSI books by their decimal odds
-  const rsiByDecimal = new Map<number, { book: string; decimal: number }>();
-  for (const b of rsiBooks) {
-    // Use rounded decimal to handle floating point comparison
-    const roundedDecimal = Math.round(b.decimal * 10000) / 10000;
-    if (!rsiByDecimal.has(roundedDecimal)) {
-      rsiByDecimal.set(roundedDecimal, b);
+
+  // 3) Deduplicate RSI books with identical prices
+  const rsiByDecimal = new Map<number, BookOffer>();
+  const averageBooks: BookOffer[] = [];
+  for (const book of prophetFiltered) {
+    const id = book.book.toLowerCase();
+    if (!RSI_BOOKS.has(id)) {
+      averageBooks.push(book);
+      continue;
     }
+    const roundedDecimal = Math.round(book.decimal * 10000) / 10000;
+    const firstAtPrice = rsiByDecimal.get(roundedDecimal);
+    if (!firstAtPrice) {
+      rsiByDecimal.set(roundedDecimal, book);
+      averageBooks.push(book);
+      continue;
+    }
+    excludedByBook.set(id, `Not included in average (duplicate ${firstAtPrice.book} price)`);
   }
-  
-  // Return other books plus unique RSI prices
-  return [...otherBooks, ...rsiByDecimal.values()];
+
+  // 4) Persist inclusion metadata to each original book entry
+  const includedIds = new Set(averageBooks.map((book) => book.book.toLowerCase()));
+  for (const book of books) {
+    const id = book.book.toLowerCase();
+    const included = includedIds.has(id);
+    book.included_in_average = included;
+    book.average_exclusion_reason = included ? null : (excludedByBook.get(id) || "Not included in average");
+  }
+
+  return averageBooks;
 }
 
 /**
  * Build a lookup map for fast book matching
  * Maps book names to their odds data for O(1) lookups
  */
-function buildBookOddsMap(books: { book: string; decimal: number }[]): Map<string, { book: string; decimal: number }> {
-  const map = new Map<string, { book: string; decimal: number }>();
+function buildBookOddsMap(books: Pick<BookOffer, "book" | "decimal">[]): Map<string, Pick<BookOffer, "book" | "decimal">> {
+  const map = new Map<string, Pick<BookOffer, "book" | "decimal">>();
   for (const book of books) {
     map.set(book.book.toLowerCase(), book);
   }
@@ -1304,7 +1481,7 @@ function buildBookOddsMap(books: { book: string; decimal: number }[]): Map<strin
  * Optimized with O(1) lookups using pre-built Map
  */
 function getSharpOdds(
-  books: { book: string; decimal: number }[],
+  books: BookOffer[],
   blend: BookWeight[] | null,
   useAverage: boolean = false,
   minBlendBooks: number = 1
@@ -1324,14 +1501,18 @@ function getSharpOdds(
   let blendComplete = true;
   let blendWeight = 1.0;
   let bookCount = 0;
+  const averageBooks = annotateAndFilterBooksForAverage(books);
+  const minAverageBooks = Math.max(2, minBlendBooks);
 
   if (useAverage) {
-    // Explicit market average: use all books, but deduplicate RSI group
-    const dedupedBooks = deduplicateBooksForAverage(books);
-    sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
-    bookCount = dedupedBooks.length;
+    // Explicit market average: use filtered + deduplicated average inputs
+    if (averageBooks.length < minAverageBooks) {
+      return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0, bookCount: averageBooks.length };
+    }
+    sharpDecimal = averageBooks.reduce((sum, b) => sum + b.decimal, 0) / averageBooks.length;
+    bookCount = averageBooks.length;
     // List all books used in the average (original list for transparency)
-    books.forEach(b => sharpBooks.push(b.book));
+    averageBooks.forEach((b) => sharpBooks.push(b.book));
   } else if (blend && blend.length > 0) {
     // Custom blend of specific books
     // Build lookup map once for O(1) lookups instead of O(n) .find() calls
@@ -1378,11 +1559,13 @@ function getSharpOdds(
       sharpBooks.push("circa");
       bookCount = 1;
     } else {
-      // Fallback to average (with RSI deduplication)
-      const dedupedBooks = deduplicateBooksForAverage(books);
-      sharpDecimal = dedupedBooks.reduce((sum, b) => sum + b.decimal, 0) / dedupedBooks.length;
+      // Fallback to average (with outlier filtering + RSI deduplication)
+      if (averageBooks.length < minAverageBooks) {
+        return { sharpDecimal: null, sharpBooks: [], blendComplete: true, blendWeight: 0, bookCount: averageBooks.length };
+      }
+      sharpDecimal = averageBooks.reduce((sum, b) => sum + b.decimal, 0) / averageBooks.length;
       sharpBooks.push("average");
-      bookCount = dedupedBooks.length;
+      bookCount = averageBooks.length;
     }
   }
 
@@ -1424,8 +1607,7 @@ function decimalToAmerican(decimal: number): number {
 
 /**
  * Get active event IDs for a sport - with caching
- * OPTIMIZATION: uses memory cache first (0ms), then Redis SET (O(1)), then SCAN fallback
- * NOTE: If active_events:{sport} set doesn't exist, ingestor needs to populate it
+ * OPTIMIZATION: uses memory cache first, then active_events index, then events fallback
  */
 const eventIdsCache = new Map<string, { ids: string[]; timestamp: number }>();
 const EVENT_IDS_CACHE_TTL = 30000; // 30 seconds - longer cache since SCAN is expensive
@@ -1437,19 +1619,29 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
     return cached.ids;
   }
 
-  // Try active events set first (O(1) - maintained by ingestor)
-  const activeSet = await redis.smembers(`active_events:${sport}`);
-  if (activeSet && activeSet.length > 0) {
-    const ids = activeSet.map(String);
+  // Try active_events set first (maintained by consumer)
+  const members = (await redis.smembers(`active_events:${sport}`)).map(String).filter(Boolean);
+  if (members.length > 8) {
+    const ids = [...new Set(members)];
     eventIdsCache.set(sport, { ids, timestamp: Date.now() });
     return ids;
   }
 
-  // Fallback to scanning event keys (slower - only if set not maintained)
-  console.warn(`[API] active_events:${sport} empty, falling back to SCAN`);
+  // Fallback/merge for sparse or partially populated active_events sets.
   const eventKeys = await scanKeys(`events:${sport}:*`);
-  const ids = eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
+  const prefix = `events:${sport}:`;
+  const scannedIds = eventKeys
+    .map((k) => (k.startsWith(prefix) ? k.slice(prefix.length) : ""))
+    .filter(Boolean);
+  const ids = [...new Set([...members, ...scannedIds])];
   eventIdsCache.set(sport, { ids, timestamp: Date.now() });
+
+  if (scannedIds.length > members.length) {
+    console.warn(
+      `[API] active_events:${sport} appears incomplete (${members.length}); merged with events scan (${scannedIds.length})`
+    );
+  }
+
   return ids;
 }
 
@@ -1465,50 +1657,196 @@ function invalidateEventCache(sport: string): void {
  * Architecture: active_events (small set) + per-event scans (focused)
  * This avoids maintaining a massive global odds_keys set that's hard to clean up
  */
-const oddsKeysCache = new Map<string, { keys: string[]; timestamp: number }>();
+const oddsKeysCache = new Map<string, { keys: string[]; data: Map<string, SSEBookSelections>; timestamp: number }>();
 const ODDS_KEYS_CACHE_TTL = 20000; // 20 seconds
 
-async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
-  // Cache key includes event count for invalidation when events change
-  const cacheKey = `${sport}:${eventIds.length}`;
-  
+function parseOddsIndexMember(member: string): { market: string; book: string } | null {
+  const sep = member.lastIndexOf(":");
+  if (sep <= 0 || sep >= member.length - 1) return null;
+  return { market: member.slice(0, sep), book: member.slice(sep + 1) };
+}
+
+function getRequestedMarketsForSport(markets: string[] | null, sport: string): string[] {
+  if (!markets) return [];
+
+  const requested = new Set<string>();
+  for (const rawEntry of markets) {
+    const entry = rawEntry.toLowerCase().trim();
+    if (!entry) continue;
+
+    const sep = entry.indexOf(":");
+    if (sep > 0) {
+      const sportPrefix = entry.slice(0, sep);
+      const market = entry.slice(sep + 1);
+      if (!market) continue;
+      if (sportPrefix === sport) {
+        requested.add(market);
+      }
+      continue;
+    }
+
+    requested.add(entry);
+  }
+
+  return [...requested];
+}
+
+async function getOddsKeysForEvents(
+  sport: string,
+  eventIds: string[],
+  markets: string[] | null
+): Promise<{ keys: string[]; prefetchedData: Map<string, SSEBookSelections> }> {
+  if (eventIds.length === 0) return { keys: [], prefetchedData: new Map() };
+
+  const requestedMarkets = getRequestedMarketsForSport(markets, sport);
+  if (markets && requestedMarkets.length === 0) {
+    // Markets were provided, but none apply to this sport.
+    return { keys: [], prefetchedData: new Map() };
+  }
+
+  // Cache key includes concrete event IDs and requested markets to avoid collisions.
+  const cacheKey = `${sport}:${[...eventIds].sort().join(",")}:${requestedMarkets.sort().join(",") || "all"}`;
+
   // Check memory cache first (fastest - 0ms)
   const cached = oddsKeysCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < ODDS_KEYS_CACHE_TTL) {
-    return cached.keys;
+    return { keys: cached.keys, prefetchedData: cached.data };
   }
 
-  // OPTIMIZED: Scan only for active events (scoped, not global)
-  // This is efficient because we only scan keys for ~10-50 active games
+  const requestedMarketSet = new Set(requestedMarkets);
+  const addEventMarket = (eventId: string, market: string, eventMarkets: Map<string, Set<string>>) => {
+    if (!market) return;
+    if (markets && !requestedMarketSet.has(market)) return;
+    if (!eventMarkets.has(eventId)) {
+      eventMarkets.set(eventId, new Set<string>());
+    }
+    eventMarkets.get(eventId)!.add(market);
+  };
+
+  const foundEventMarket = new Set<string>();
+  const eventMarkets = new Map<string, Set<string>>();
   const allKeys: string[] = [];
-  
-  // Batch scans in parallel for speed (limit concurrency to avoid overwhelming Redis)
-  const BATCH_SIZE = 10;
+  const prefetchedData = new Map<string, SSEBookSelections>();
+
+  const BATCH_SIZE = 20;
   for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
     const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(eventId => scanKeysForEvent(sport, eventId))
-    );
-    allKeys.push(...batchResults.flat());
-  }
-  
-  oddsKeysCache.set(cacheKey, { keys: allKeys, timestamp: Date.now() });
-  return allKeys;
-}
+    const [marketsIdxByEvent, oddsIdxByEvent] = await Promise.all([
+      Promise.all(batch.map((eventId) => redis.smembers(`markets_idx:${sport}:${eventId}`))),
+      Promise.all(batch.map((eventId) => redis.smembers(`odds_idx:${sport}:${eventId}`))),
+    ]);
 
-/**
- * Scan keys for a single event - focused scan pattern
- */
-async function scanKeysForEvent(sport: string, eventId: string): Promise<string[]> {
-  const pattern = `odds:${sport}:${eventId}:*`;
-  return scanKeys(pattern);
+    batch.forEach((eventId, batchIdx) => {
+      const marketMembers = (marketsIdxByEvent[batchIdx] || []).map(String);
+      for (const market of marketMembers) {
+        addEventMarket(eventId, market, eventMarkets);
+      }
+
+      const oddsMembers = (oddsIdxByEvent[batchIdx] || []).map(String);
+      for (const member of oddsMembers) {
+        const parsed = parseOddsIndexMember(member);
+        if (!parsed) continue;
+        if (markets && !requestedMarketSet.has(parsed.market)) continue;
+
+        addEventMarket(eventId, parsed.market, eventMarkets);
+        for (const bookCandidate of getBookKeyCandidates(parsed.book)) {
+          allKeys.push(`odds:${sport}:${eventId}:${parsed.market}:${bookCandidate}`);
+        }
+        foundEventMarket.add(`${eventId}:${parsed.market}`);
+      }
+    });
+  }
+
+  // Ensure requested markets are probed even when event indexes are sparse.
+  if (requestedMarkets.length > 0) {
+    for (const eventId of eventIds) {
+      for (const market of requestedMarkets) {
+        addEventMarket(eventId, market, eventMarkets);
+      }
+    }
+  }
+
+  const eventMarketPairs: Array<{ eventId: string; market: string }> = [];
+  for (const [eventId, marketsForEvent] of eventMarkets) {
+    for (const market of marketsForEvent) {
+      eventMarketPairs.push({ eventId, market });
+    }
+  }
+
+  // Deterministic fallback: known-book probes, then mget existence check.
+  if (eventMarketPairs.length > 0) {
+    const candidateKeys: string[] = [];
+    const candidateMeta: Array<{ eventId: string; market: string }> = [];
+
+    for (const { eventId, market } of eventMarketPairs) {
+      for (const book of KNOWN_ACTIVE_BOOKS) {
+        candidateKeys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+        candidateMeta.push({ eventId, market });
+      }
+    }
+
+    const CANDIDATE_CHUNK_SIZE = 1000;
+    for (let i = 0; i < candidateKeys.length; i += CANDIDATE_CHUNK_SIZE) {
+      const keysChunk = candidateKeys.slice(i, i + CANDIDATE_CHUNK_SIZE);
+      const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+
+      values.forEach((value, idx) => {
+        if (!value) return;
+        const key = keysChunk[idx];
+        const meta = candidateMeta[i + idx];
+        allKeys.push(key);
+        foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+        // Store the fetched data to avoid redundant MGET later
+        try {
+          const parsed: SSEBookSelections = typeof value === "string" ? JSON.parse(value) : value;
+          if (parsed) prefetchedData.set(key, parsed);
+        } catch { /* skip unparseable */ }
+      });
+    }
+  }
+
+  // Final fallback: SCAN only unresolved event+market pairs (opt-in).
+  const unresolvedPairs = eventMarketPairs.filter(
+    ({ eventId, market }) => !foundEventMarket.has(`${eventId}:${market}`)
+  );
+  if (ENABLE_ODDS_SCAN_FALLBACK && unresolvedPairs.length > 0) {
+    const SCAN_BATCH_SIZE = 10;
+    for (let i = 0; i < unresolvedPairs.length; i += SCAN_BATCH_SIZE) {
+      const batch = unresolvedPairs.slice(i, i + SCAN_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(({ eventId, market }) => scanKeys(`odds:${sport}:${eventId}:${market}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
+  }
+
+  // Legacy fallback for deployments without markets/odds indexes yet.
+  if (ENABLE_ODDS_SCAN_FALLBACK && !markets && eventMarketPairs.length === 0) {
+    const SCAN_BATCH_SIZE = 10;
+    for (let i = 0; i < eventIds.length; i += SCAN_BATCH_SIZE) {
+      const batch = eventIds.slice(i, i + SCAN_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((eventId) => scanKeys(`odds:${sport}:${eventId}:*`))
+      );
+      allKeys.push(...batchResults.flat());
+    }
+  }
+
+  const uniqueKeys = [...new Set(allKeys)];
+  oddsKeysCache.set(cacheKey, { keys: uniqueKeys, data: prefetchedData, timestamp: Date.now() });
+  return { keys: uniqueKeys, prefetchedData };
 }
 
 /**
  * Invalidate odds cache for a sport - called when SSE indicates updates
  */
 function invalidateOddsCache(sport: string): void {
-  oddsKeysCache.delete(sport);
+  // Cache keys are prefixed by "{sport}:..."
+  for (const key of oddsKeysCache.keys()) {
+    if (key.startsWith(`${sport}:`)) {
+      oddsKeysCache.delete(key);
+    }
+  }
 }
 
 /**
@@ -1525,25 +1863,31 @@ function invalidateSportCaches(sport: string): void {
  */
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = "0";
+  let cursor = 0;
   let iterations = 0;
-  const MAX_ITERATIONS = 50; // Safety limit
+  const seenCursors = new Set<number>();
 
   do {
     iterations++;
+    if (seenCursors.has(cursor)) {
+      console.warn(`[scanKeys] Cursor cycle detected for pattern: ${pattern}, stopping at ${keys.length} keys`);
+      break;
+    }
+    seenCursors.add(cursor);
+
     const result: [string, string[]] = await redis.scan(cursor, {
       match: pattern,
       count: SCAN_COUNT, // Higher count = fewer round trips
     });
-    cursor = result[0];
+    cursor = Number(result[0]);
     keys.push(...result[1]);
     
     // Safety: prevent infinite loops
-    if (iterations >= MAX_ITERATIONS) {
-      console.warn(`[scanKeys] Hit iteration limit for pattern: ${pattern}`);
+    if (iterations >= MAX_SCAN_ITERATIONS) {
+      console.warn(`[scanKeys] Hit iteration limit for pattern: ${pattern}, got ${keys.length} keys`);
       break;
     }
-  } while (cursor !== "0");
+  } while (cursor !== 0);
 
   return keys;
 }

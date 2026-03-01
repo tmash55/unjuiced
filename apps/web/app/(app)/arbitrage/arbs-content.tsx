@@ -22,7 +22,29 @@ import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-mar
 import { formatMarketLabel } from "@/lib/data/markets";
 
 // Available leagues for arbitrage
-const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
+const AVAILABLE_LEAGUES = [
+  "nba",
+  "nfl",
+  "ncaaf",
+  "ncaab",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 export default function ArbsPage() {
   // VC-Grade: Use centralized, cached Pro status

@@ -629,7 +629,7 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
                               e.stopPropagation();
                               onPlayerClick(row);
                             }}
-                            className="font-bold text-sm text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline transition-colors leading-tight text-left"
+                            className="font-bold text-sm text-neutral-900 dark:text-white hover:text-brand hover:underline transition-colors leading-tight text-left"
                           >
                             {row.playerName}
                           </button>
@@ -823,4 +823,3 @@ export function CheatSheetTable({ rows, isLoading, timeWindow, onRowClick, onPla
     </div>
   );
 }
-

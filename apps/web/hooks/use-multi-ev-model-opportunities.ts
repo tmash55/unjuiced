@@ -26,9 +26,32 @@ import {
 } from "@/lib/ev/constants";
 import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
+import { isMarketSelected } from "@/lib/utils";
 
 // All supported sports
-const ALL_SPORTS = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 // =============================================================================
 // Types
@@ -158,7 +181,7 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
-        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        markets: null, // Market filtering is client-side only
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,
@@ -434,6 +457,17 @@ function applyClientFilters(
       const normalizedBook = normalizeSportsbookId(bookId);
       return prefs.selectedBooks.includes(normalizedBook);
     });
+  }
+
+  // Market filter (supports both composite and plain market keys)
+  if (prefs.selectedMarkets && prefs.selectedMarkets.length > 0) {
+    filtered = filtered.filter((opp) =>
+      isMarketSelected(
+        prefs.selectedMarkets,
+        opp.sport || "",
+        opp.market || ""
+      )
+    );
   }
   
   return filtered;

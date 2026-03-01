@@ -3,6 +3,8 @@ export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { PLAN_LIMITS, hasSharpAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
+import { getRedisPubSubEndpoint } from "@/lib/redis-endpoints";
+import { pumpPubSub } from "@/lib/sse-pubsub";
 
 /**
  * GET /api/sse/best-odds
@@ -75,8 +77,15 @@ export async function GET(req: NextRequest) {
     console.log('[/api/sse/best-odds] Subscribing to channel:', channel);
     
     // Subscribe to Redis pub/sub via Upstash REST API
-    const upstreamUrl = process.env.UPSTASH_REDIS_REST_URL!;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN!;
+    const pubsub = getRedisPubSubEndpoint();
+    const upstreamUrl = pubsub.url;
+    const token = pubsub.token;
+    if (!upstreamUrl || !token) {
+      return new Response(
+        JSON.stringify({ error: "Missing Redis pub/sub endpoint configuration" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
     
     const upstream = await fetch(`${upstreamUrl}/subscribe/${encodeURIComponent(channel)}`, {
       method: "POST",
@@ -84,6 +93,7 @@ export async function GET(req: NextRequest) {
         Authorization: `Bearer ${token}`,
         Accept: "text/event-stream",
       },
+      cache: "no-store",
     });
     
     if (!upstream.ok || !upstream.body) {
@@ -93,125 +103,39 @@ export async function GET(req: NextRequest) {
     
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
-    const enc = new TextEncoder();
-    
-    const write = async (str: string) => {
-      try { 
-        await writer.write(enc.encode(str)); 
-      } catch (e) { 
-        // Connection closed
-        console.log('[/api/sse/best-odds] Write failed, connection closed');
-      }
-    };
-    
-    // Pump upstream to downstream with filtering
-    const pump = async () => {
-      const reader = upstream.body!.getReader();
-      
-      // Send hello event
+
+    // Build a filter for free users to cap deal improvements
+    const filter = isPro ? undefined : (payload: string): string | null => {
       try {
-        await write(`event: hello\ndata: ${JSON.stringify({ sport, isPro })}\n\n`);
-        console.log('[/api/sse/best-odds] Sent hello event:', { sport, isPro });
-      } catch (e) {
-        console.log('[/api/sse/best-odds] Failed to send hello event:', e);
-        return;
-      }
-      
-      // Heartbeat every 15 seconds
-      const PING_MS = 15_000;
-      const ping = setInterval(() => {
-        write(`: ping\n\n`).catch(() => {
-          clearInterval(ping);
-          console.log('[/api/sse/best-odds] Ping failed, stopping heartbeat');
-        });
-      }, PING_MS);
-      
-      // Handle client disconnect
-      const onAbort = () => {
-        console.log('[/api/sse/best-odds] Client disconnected');
-        clearInterval(ping);
-        try { writer.close(); } catch {}
-      };
-      
-      if (req.signal.aborted) {
-        onAbort();
-        return;
-      }
-      
-      req.signal.addEventListener('abort', onAbort, { once: true });
-      
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) {
-            console.log('[/api/sse/best-odds] Upstream closed');
-            break;
-          }
-          
-          // Decode the message
-          const text = new TextDecoder().decode(value);
-          
-          // If free user, filter out high-improvement deals
-          if (!isPro && text.includes('data:')) {
-            try {
-              // Extract JSON data from SSE format
-              const dataMatch = text.match(/data:\s*({.*})/);
-              if (dataMatch) {
-                const data = JSON.parse(dataMatch[1]);
-                
-                // Filter deals array if present
-                if (data.deals && Array.isArray(data.deals)) {
-                  const originalCount = data.deals.length;
-                  
-                  // Filter based on improvement threshold
-                  data.deals = data.deals.filter((d: any) => {
-                    const improvement = d.priceImprovement || d.price_improvement || 0;
-                    return improvement < FREE_USER_IMPROVEMENT_LIMIT;
-                  });
-                  
-                  console.log('[/api/sse/best-odds] Filtered deals for free user:', {
-                    original: originalCount,
-                    filtered: data.deals.length
-                  });
-                  
-                  // Only send if deals remain after filtering
-                  if (data.deals.length > 0) {
-                    await write(`data: ${JSON.stringify(data)}\n\n`);
-                  }
-                  continue;
-                }
-                
-                // Filter single deal if present
-                if (data.ent && data.mkt) {
-                  const improvement = data.priceImprovement || data.price_improvement || 0;
-                  if (improvement >= FREE_USER_IMPROVEMENT_LIMIT) {
-                    console.log('[/api/sse/best-odds] Filtered single deal for free user:', {
-                      improvement,
-                      limit: FREE_USER_IMPROVEMENT_LIMIT
-                    });
-                    continue; // Skip this update
-                  }
-                }
-              }
-            } catch (e) {
-              // If parsing fails, pass through (might be a different event type)
-              console.log('[/api/sse/best-odds] Failed to parse message, passing through:', e);
-            }
-          }
-          
-          // Pass through for Sharp users or non-data events
-          await write(text);
+        const data = JSON.parse(payload);
+
+        // Filter deals array if present
+        if (data.deals && Array.isArray(data.deals)) {
+          data.deals = data.deals.filter((d: any) => {
+            const improvement = d.priceImprovement || d.price_improvement || 0;
+            return improvement < FREE_USER_IMPROVEMENT_LIMIT;
+          });
+          return data.deals.length > 0 ? JSON.stringify(data) : null;
         }
-      } catch (error) {
-        console.error('[/api/sse/best-odds] Stream error:', error);
-      } finally {
-        clearInterval(ping);
-        try { writer.close(); } catch {}
+
+        // Filter single deal
+        if (data.ent && data.mkt) {
+          const improvement = data.priceImprovement || data.price_improvement || 0;
+          if (improvement >= FREE_USER_IMPROVEMENT_LIMIT) return null;
+        }
+      } catch {
+        // Parse error — pass through
       }
+      return payload;
     };
-    
-    // Start pumping in the background
-    pump();
+
+    pumpPubSub({
+      upstream: upstream.body!,
+      writer,
+      signal: req.signal,
+      helloEvent: `event: hello\ndata: ${JSON.stringify({ sport, isPro })}\n\n`,
+      filter,
+    });
     
     return new Response(readable, {
       headers: {

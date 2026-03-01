@@ -6,7 +6,8 @@ import {
   BarChart3, 
   TrendingUp, 
   UserMinus,
-  LayoutGrid 
+  LayoutGrid,
+  Trophy
 } from "lucide-react";
 
 interface CheatSheetTab {
@@ -46,6 +47,13 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "Injuries",
     icon: UserMinus,
     description: "Injury-affected props",
+  },
+  {
+    slug: "triple-double-sheet",
+    label: "Triple Double",
+    shortLabel: "TD Sheet",
+    icon: Trophy,
+    description: "SGP vs TD prices",
   },
 ];
 
@@ -127,4 +135,3 @@ export function CheatSheetNav({ sport, currentSheet, isMobile = false }: CheatSh
     </div>
   );
 }
-

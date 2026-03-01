@@ -94,11 +94,16 @@ export function transformPropsRowToOddsItem(
   // Build entity
   // Normalize market details for game rows so downstream UI can make consistent decisions
   const marketKey = (row.mkt || '').toString().toLowerCase()
+  const isSpreadMarket =
+    marketKey.includes('spread') ||
+    marketKey.includes('puck_line') ||
+    marketKey.includes('run_line') ||
+    marketKey.includes('handicap')
   const normalizedDetails = isPlayer
     ? undefined
     : marketKey.includes('moneyline')
       ? 'Moneyline'
-      : marketKey.includes('spread')
+      : isSpreadMarket
         ? 'Point Spread'
         : marketKey.includes('total')
           ? 'Total Points'
@@ -130,7 +135,7 @@ export function transformPropsRowToOddsItem(
 
   // Build odds
   const isMoneyline = marketKey.includes('moneyline') || row.ln === 0
-  const isSpread = marketKey.includes('spread')
+  const isSpread = isSpreadMarket
   const isTotal = marketKey.includes('total')
   const odds: OddsScreenItem['odds'] = {
     best: {
@@ -187,6 +192,9 @@ export function transformPropsRowToOddsItem(
       switch (lower) {
         case 'hardrock': return 'hard-rock'
         case 'ballybet': return 'bally-bet'
+        case 'bally_bet': return 'bally-bet'
+        case 'bet-rivers': return 'betrivers'
+        case 'bet_rivers': return 'betrivers'
         case 'sportsinteraction': return 'sports-interaction'
         default: return lower
       }
@@ -378,4 +386,3 @@ export async function fetchOddsWithNewAPI(params: {
     nextCursor: propsResponse.nextCursor,
   }
 }
-

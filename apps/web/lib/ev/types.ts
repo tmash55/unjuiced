@@ -135,6 +135,7 @@ export interface BookOffer {
   updated?: string;
   evPercent?: number;      // EV% for this book (calculated, optional)
   isSharpRef?: boolean;    // True if this book was used as sharp reference
+  oddId?: string;          // OddsBlaze odd ID for historical line lookup
 }
 
 /**

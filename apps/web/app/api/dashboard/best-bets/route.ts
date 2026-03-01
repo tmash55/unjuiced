@@ -31,10 +31,12 @@ import {
   SSEBookSelections,
 } from "@/lib/odds/types";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
+import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
 });
 
 // =============================================================================
@@ -49,7 +51,25 @@ const SHARP_PRESET: SharpPreset = "pinnacle";
 const MIN_BOOKS_PER_SIDE = 2;
 const DEFAULT_LIMIT = 10;
 const MGET_CHUNK_SIZE = 500;
-const SCAN_COUNT = 2000;
+
+// Known books + markets for deterministic key probes (avoids slow SCAN)
+const KNOWN_BOOKS = [
+  "draftkings", "fanduel", "betmgm", "caesars", "bet365", "fanatics",
+  "hard-rock", "fliff", "betrivers", "espnbet", "wynnbet", "pointsbet",
+  "circa", "pinnacle", "bovada", "betonline", "mybookie", "betway",
+  "unibet", "superbook", "stations", "betparx", "ballybet", "tipico",
+  "si_sportsbook", "prophet", "prophetx", "novig",
+];
+const KNOWN_MARKETS = [
+  "player_points", "player_rebounds", "player_assists", "player_threes_made",
+  "player_steals", "player_blocks", "player_turnovers",
+  "player_points_rebounds_assists", "player_points_rebounds", "player_points_assists",
+  "player_rebounds_assists",
+  "player_anytime_td", "player_first_td",
+  "player_anytime_goal", "player_first_goal",
+  "player_first_basket",
+  "game_spread", "game_total", "h2h",
+];
 
 // L1 Cache: In-memory (fast path)
 const RESPONSE_CACHE = new Map<string, { data: BestBetsResponse; ts: number }>();
@@ -194,8 +214,6 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
   try {
     // Check timestamp first - if too old, skip Redis cache
     const rawTimestamp = await redis.get(REDIS_BEST_BETS_TIMESTAMP);
-    console.log(`[best-bets] Raw timestamp from Redis:`, rawTimestamp, `type: ${typeof rawTimestamp}`);
-    
     // Handle various timestamp formats (string, number, seconds, milliseconds)
     let timestamp: number | null = null;
     if (rawTimestamp !== null && rawTimestamp !== undefined) {
@@ -208,20 +226,15 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
     }
     
     const age = timestamp ? Date.now() - timestamp : null;
-    console.log(`[best-bets] Parsed timestamp: ${timestamp}, age: ${age}ms`);
-    
+
     if (!timestamp || age === null || age > 300_000) {
-      // Data older than 5 minutes - don't use
-      console.log(`[best-bets] Timestamp check failed (null or >5min old)`);
       return null;
     }
 
     // Get top 10 IDs from ZSET
-    const ids = await redis.zrange(REDIS_BEST_BETS_ZSET, 0, DEFAULT_LIMIT - 1, { rev: true }) as string[];
-    console.log(`[best-bets] ZSET ids found: ${ids?.length || 0}`, ids?.slice(0, 3));
-    
+    const ids = await zrevrangeCompat(redis as any, REDIS_BEST_BETS_ZSET, 0, DEFAULT_LIMIT - 1);
+
     if (!ids || ids.length === 0) {
-      console.log(`[best-bets] No IDs in ZSET`);
       return null;
     }
 
@@ -237,8 +250,6 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
       dataArray = ids.map(id => (rawData as Record<string, string | null>)[id] || null);
     }
 
-    console.log(`[best-bets] HASH data items: ${dataArray.filter(Boolean).length} of ${dataArray.length}`);
-    
     const bets: SlimBestBet[] = [];
     
     for (const item of dataArray) {
@@ -246,16 +257,12 @@ async function getRedisCache(): Promise<SlimBestBet[] | null> {
         try {
           const parsed = typeof item === "string" ? JSON.parse(item) : item;
           bets.push(parsed as SlimBestBet);
-        } catch (e) {
-          console.error(`[best-bets] Failed to parse bet:`, e);
-        }
+        } catch {}
       }
     }
 
-    console.log(`[best-bets] Parsed ${bets.length} bets from Redis`);
     return bets.length > 0 ? bets : null;
-  } catch (error) {
-    console.error("[best-bets] Redis cache error:", error);
+  } catch {
     return null;
   }
 }
@@ -269,48 +276,31 @@ async function getActiveEventIds(sport: string): Promise<string[]> {
   if (activeSet && activeSet.length > 0) {
     return activeSet.map(String);
   }
-
-  // Fallback to scanning
-  const eventKeys = await scanKeys(`events:${sport}:*`);
-  return eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
+  return [];
 }
 
 async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
-  const allKeys: string[] = [];
-  const BATCH_SIZE = 10;
-
-  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
-    const batch = eventIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map((eventId) => scanKeys(`odds:${sport}:${eventId}:*`))
-    );
-    allKeys.push(...batchResults.flat());
+  // Deterministic key probes — construct every possible key and MGET to check existence.
+  // Much faster than SCAN on VPS Redis.
+  const candidateKeys: string[] = [];
+  for (const eventId of eventIds) {
+    for (const market of KNOWN_MARKETS) {
+      for (const book of KNOWN_BOOKS) {
+        candidateKeys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+      }
+    }
   }
 
-  return allKeys;
-}
-
-async function scanKeys(pattern: string): Promise<string[]> {
-  const keys: string[] = [];
-  let cursor = "0";
-  let iterations = 0;
-  const MAX_ITERATIONS = 50;
-
-  do {
-    iterations++;
-    const result: [string, string[]] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
+  const foundKeys: string[] = [];
+  for (let i = 0; i < candidateKeys.length; i += MGET_CHUNK_SIZE) {
+    const chunk = candidateKeys.slice(i, i + MGET_CHUNK_SIZE);
+    const values = await redis.mget<(string | null)[]>(...chunk);
+    values.forEach((v, idx) => {
+      if (v) foundKeys.push(chunk[idx]);
     });
-    cursor = result[0];
-    keys.push(...result[1]);
+  }
 
-    if (iterations >= MAX_ITERATIONS) {
-      break;
-    }
-  } while (cursor !== "0");
-
-  return keys;
+  return foundKeys;
 }
 
 function getSharpOddsForPreset(
@@ -672,27 +662,18 @@ async function fetchTopEVForSport(sport: string, limit: number = 5): Promise<Sli
     return opportunities
       .sort((a, b) => b.evPercent - a.evPercent)
       .slice(0, limit);
-  } catch (error) {
-    console.error(`[best-bets] Error fetching ${sport}:`, error);
+  } catch {
     return [];
   }
 }
 
 async function computeBestBets(limit: number = DEFAULT_LIMIT): Promise<SlimBestBet[]> {
   const startTime = Date.now();
-  console.log(`[best-bets] Computing best bets for ${DASHBOARD_SPORTS.length} sports...`);
-
-  // Fetch all sports in parallel - no timeout, let them complete
-  // The L1 cache will make subsequent requests fast
   const sportResults = await Promise.all(
     DASHBOARD_SPORTS.map(async (sport) => {
-      const sportStart = Date.now();
       try {
-        const opps = await fetchTopEVForSport(sport, 5); // Top 5 per sport
-        console.log(`[best-bets] ${sport}: ${opps.length} opportunities (${Date.now() - sportStart}ms)`);
-        return opps;
-      } catch (error) {
-        console.error(`[best-bets] ${sport} failed (${Date.now() - sportStart}ms):`, error);
+        return await fetchTopEVForSport(sport, 5);
+      } catch {
         return [];
       }
     })
@@ -703,7 +684,6 @@ async function computeBestBets(limit: number = DEFAULT_LIMIT): Promise<SlimBestB
   // Sort by EV and return top N
   const topBets = allBets.sort((a, b) => b.evPercent - a.evPercent).slice(0, limit);
 
-  console.log(`[best-bets] Computed ${topBets.length} bets in ${Date.now() - startTime}ms`);
   return topBets;
 }
 
@@ -724,7 +704,6 @@ export async function GET(req: NextRequest) {
     if (!bypassCache) {
       const l1Data = getL1Cache();
       if (l1Data) {
-        console.log(`[best-bets] L1 cache HIT (${Date.now() - startTime}ms)`);
         return NextResponse.json(l1Data, {
           headers: {
             "Cache-Control": "private, max-age=30",
@@ -744,7 +723,6 @@ export async function GET(req: NextRequest) {
         source: "redis_cache",
       };
       setL1Cache(response);
-      console.log(`[best-bets] Redis cache HIT (${Date.now() - startTime}ms)`);
       return NextResponse.json(response, {
         headers: {
           "Cache-Control": "private, max-age=30",
@@ -757,7 +735,6 @@ export async function GET(req: NextRequest) {
     // L3: Direct computation - ONLY if explicitly requested (for VPS cron or manual refresh)
     // This prevents expensive computation on every user request
     if (forceCompute) {
-      console.log(`[best-bets] Force computing...`);
       const computedBets = await computeBestBets(limit);
 
       // Store in Redis for future requests
@@ -772,7 +749,6 @@ export async function GET(req: NextRequest) {
       };
 
       setL1Cache(response);
-      console.log(`[best-bets] Computed and cached (${Date.now() - startTime}ms)`);
 
       return NextResponse.json(response, {
         headers: {
@@ -784,7 +760,6 @@ export async function GET(req: NextRequest) {
     }
 
     // No cache and no compute flag - return empty (VPS worker needs to populate Redis)
-    console.log(`[best-bets] No cached data available (${Date.now() - startTime}ms)`);
     return NextResponse.json({
       bets: [],
       timestamp: Date.now(),
@@ -797,8 +772,7 @@ export async function GET(req: NextRequest) {
         "X-Response-Time": `${Date.now() - startTime}ms`,
       },
     });
-  } catch (error) {
-    console.error("[best-bets] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch best bets", bets: [], timestamp: Date.now() },
       { status: 500 }
@@ -830,8 +804,5 @@ async function storeInRedis(bets: SlimBestBet[]): Promise<void> {
     pipeline.expire(REDIS_BEST_BETS_TIMESTAMP, 300);
     
     await pipeline.exec();
-    console.log(`[best-bets] Stored ${bets.length} bets in Redis`);
-  } catch (error) {
-    console.error("[best-bets] Failed to store in Redis:", error);
-  }
+  } catch {}
 }

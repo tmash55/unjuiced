@@ -7,6 +7,7 @@ import { SubHeading } from "./subheading";
 import { Input } from "./ui/input";
 import { Button } from "./button";
 import { toast } from "sonner";
+import posthog from "posthog-js";
 
 export const Contact = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,6 +37,8 @@ export const Contact = () => {
       if (response.ok) {
         setSubmitStatus("success");
         form.reset();
+        // Capture contact form submission event
+        posthog.capture("contact_form_submitted");
         toast.success("Message sent successfully! 📬", {
           description: "We'll get back to you within 24 hours.",
           duration: 5000,

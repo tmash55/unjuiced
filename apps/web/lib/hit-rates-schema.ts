@@ -23,6 +23,8 @@ export interface RawHitRateProfile {
   line: number | null;
   game_id: string | null;
   game_date: string | null;
+  start_time?: string | null;
+  commence_time?: string | null;
   event_id: string | null;
   last_5_pct: number | null;
   last_10_pct: number | null;
@@ -69,6 +71,7 @@ export interface RawHitRateProfile {
     home_team_name: string | null;
     away_team_name: string | null;
     game_status: string | null;
+    start_time?: string | null;
   } | null;
   nba_teams?: {
     primary_color: string | null;
@@ -110,6 +113,7 @@ export interface HitRateProfile {
   position: string | null;
   jerseyNumber: number | null;
   gameDate: string | null;
+  startTime: string | null;
   gameStatus: string | null;
   // gameLogs removed - fetched separately via usePlayerBoxScores for drilldown
   gameLogs?: unknown[] | null;
@@ -149,4 +153,3 @@ export interface HitRateResponse {
     offset: number;
   };
 }
-

@@ -74,7 +74,29 @@ interface OddsUpdateMessage {
   timestamp?: string;
 }
 
-const ALL_SPORTS = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 const FLASH_MS = 5000;
 const DEBOUNCE_MS = 1000;
 
@@ -114,7 +136,7 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods,
         minEV: prefs.minEv,
         maxEV: prefs.maxEv,
-        markets: prefs.selectedMarkets.length > 0 ? prefs.selectedMarkets : null,
+        markets: null, // Market filtering is client-side only
         marketType: "all",
         mode: prefs.mode,
         minBooksPerSide: prefs.minBooksPerSide,

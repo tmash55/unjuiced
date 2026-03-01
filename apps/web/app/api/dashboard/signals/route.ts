@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  responseEncoding: false,
+});
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 /**
@@ -117,9 +123,7 @@ export async function GET(req: NextRequest) {
           }
         }
       }
-    } catch (e) {
-      console.error("[Dashboard Signals] Error fetching from Redis:", e);
-    }
+    } catch {}
     
     // Fetch hit rates from database for more accurate data
     try {
@@ -195,9 +199,7 @@ export async function GET(req: NextRequest) {
           });
         }
       }
-    } catch (e) {
-      console.error("[Dashboard Signals] Database error:", e);
-    }
+    } catch {}
     
     // Sort hit rates by L10%
     hitRates.sort((a, b) => b.l10Pct - a.l10Pct);
@@ -216,8 +218,7 @@ export async function GET(req: NextRequest) {
         "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
       },
     });
-  } catch (error) {
-    console.error("[Dashboard Signals] Error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch signals", hitRates: [], injuryBoosts: [] },
       { status: 500 }

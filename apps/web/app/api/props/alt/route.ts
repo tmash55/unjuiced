@@ -11,7 +11,29 @@ type CacheEntry = { etag: string; body: string; ts: number };
 const MEMO = new Map<string, CacheEntry>();
 const TTL_MS = 10_000; // 10s
 
-const SUPPORTED_SPORTS = new Set(["nfl", "nba", "nhl", "ncaaf"]);
+const SUPPORTED_SPORTS = new Set([
+  "nfl",
+  "nba",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,5 +96,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
-
 

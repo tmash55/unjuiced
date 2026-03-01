@@ -582,6 +582,7 @@ export function GameLogChart({
   const [showMatchupLines, setShowMatchupLines] = useState(true);
   const marketLabel = getMarketLabel(market);
   const chartRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragLine, setDragLine] = useState<number | null>(null);
   
@@ -641,7 +642,28 @@ export function GameLogChart({
 
   const chartHeight = 200;
   // Adjust bar width based on number of games
-  const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 36 : games.length <= 20 ? 24 : 16;
+  const barWidth = games.length <= 5 ? 48 : games.length <= 10 ? 40 : games.length <= 20 ? 30 : 24;
+
+  // Shared track sizing for bars/logos/dates so all x-axis elements stay aligned.
+  const gapPx = 12; // gap-3
+  const contentWidth = games.length > 0
+    ? games.length * barWidth + (games.length - 1) * gapPx
+    : 0;
+
+  // Auto-scroll to the right (most recent games) only when overflowing.
+  // Uses requestAnimationFrame to ensure the DOM has laid out the full scroll width first.
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    requestAnimationFrame(() => {
+      const isOverflowing = el.scrollWidth > el.clientWidth + 1;
+      if (isOverflowing) {
+        el.scrollLeft = el.scrollWidth;
+      } else {
+        el.scrollLeft = 0;
+      }
+    });
+  }, [games.length, barWidth, gapPx]);
 
   // Calculate line position as percentage (use displayLine for dragging)
   const linePosition = displayLine !== null ? (displayLine / maxStat) * 100 : null;
@@ -814,16 +836,19 @@ export function GameLogChart({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Y-Axis Labels - aligned with chart area */}
-      <div className="absolute left-0 w-8 flex flex-col justify-between text-[10px] text-neutral-400 font-medium" style={{ top: 0, height: chartHeight }}>
-        <span>{maxStat}</span>
-        <span>{Math.round(maxStat / 2)}</span>
-        <span>0</span>
+      {/* Y-Axis Labels + tick marks */}
+      <div className="absolute left-0 w-10 flex flex-col justify-between z-20" style={{ top: 0, height: chartHeight }}>
+        {[maxStat, Math.round(maxStat / 2), 0].map((val) => (
+          <div key={val} className="flex items-center">
+            <span className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 font-medium text-right flex-1 pr-1.5">{val}</span>
+            <div className="w-1.5 border-b border-neutral-400/20 dark:border-neutral-500/20" />
+          </div>
+        ))}
       </div>
-      
+
       {/* DvP Y-Axis Labels - Right side (only when DvP line is shown) */}
       {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && (
-        <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1" style={{ top: 0, height: chartHeight }}>
+        <div className="absolute right-0 w-12 flex flex-col justify-between text-[9px] font-medium pr-1 z-20" style={{ top: 0, height: chartHeight }}>
           {/* Top = Rank 30 (Weak defense = good for player) */}
           <div className="flex items-center justify-end gap-0.5">
             <span className="text-emerald-500 font-bold">#30</span>
@@ -839,38 +864,97 @@ export function GameLogChart({
         </div>
       )}
 
-      {/* Chart Area */}
-      <div ref={chartRef} className={cn("ml-10 relative", showDvpLine && "mr-16")} style={{ height: chartHeight }}>
-        {/* Bottom Line Only */}
-        <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-200 dark:border-neutral-700" />
-
-        {/* Line Threshold - Visual line (behind bars) */}
-        {linePosition !== null && (
+      {/* Line value label - anchored in Y-axis area, always visible outside scroll */}
+      {linePosition !== null && (
+        <>
           <div
-            className="absolute left-0 right-0 z-0 pointer-events-none"
-            style={{ bottom: `${linePosition}%` }}
+            onMouseDown={onLineChange ? handleDragStart : undefined}
+            onTouchStart={onLineChange ? handleDragStart : undefined}
+            className={cn(
+              "absolute left-0 z-30",
+              onLineChange
+                ? (isDragging ? "cursor-grabbing pointer-events-auto touch-none" : "cursor-grab pointer-events-auto touch-none")
+                : "pointer-events-none"
+            )}
+            style={{
+              top: chartHeight * (1 - linePosition / 100),
+              transform: "translateY(-50%)",
+            }}
           >
-            {/* Visible dashed line - behind bars */}
-            <div className={cn(
-              "absolute left-0 right-0 border-t-2 border-dashed transition-all",
-              isDragging 
-                ? "border-amber-500 dark:border-amber-400" 
-                : "border-primary dark:border-primary-weak"
-            )} />
+            <div
+              className={cn(
+                "text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 transition-all shadow-sm",
+                isDragging
+                  ? "bg-amber-500 dark:bg-amber-400 text-black scale-110"
+                  : "bg-primary dark:bg-primary-weak text-on-primary"
+              )}
+            >
+              {onLineChange && (
+                <GripVertical className="h-2.5 w-2.5 opacity-60" />
+              )}
+              {displayLine}
+            </div>
           </div>
-        )}
+          {/* Connecting line from label to chart area */}
+          <div
+            onMouseDown={onLineChange ? handleDragStart : undefined}
+            onTouchStart={onLineChange ? handleDragStart : undefined}
+            className={cn(
+              "absolute z-[22] left-10 right-0",
+              onLineChange
+                ? (isDragging ? "cursor-grabbing pointer-events-auto touch-none" : "cursor-grab pointer-events-auto touch-none")
+                : "pointer-events-none"
+            )}
+            style={{
+              top: chartHeight * (1 - linePosition / 100),
+              transform: "translateY(-50%)",
+            }}
+          >
+            <div className="absolute left-0 right-0 top-1/2 h-8 -translate-y-1/2" />
+            <div className={cn(
+              "absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed transition-all duration-200 pointer-events-none",
+              isDragging
+                ? "border-amber-500 dark:border-amber-400"
+                : "border-primary/40 dark:border-primary-weak/40"
+            )}
+            style={isDragging ? { filter: "drop-shadow(0 0 4px rgba(245, 158, 11, 0.3))" } : undefined}
+            />
+          </div>
+        </>
+      )}
 
-        {/* Bars Container - centered with gap */}
-        <div className="absolute inset-0 flex items-end justify-center gap-3 z-10 pointer-events-none">
+      {/* Scrollable chart wrapper */}
+      <div
+        ref={scrollContainerRef}
+        className={cn(
+          "ml-10",
+          showDvpLine && "mr-16",
+          "overflow-x-auto scrollbar-thin"
+        )}
+      >
+      <div className="w-max min-w-full">
+      <div className="mx-auto" style={{ width: contentWidth }}>
+
+      {/* Chart Area */}
+      <div ref={chartRef} className="relative" style={{ height: chartHeight }}>
+        {/* Subtle chart background gradient */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-sm">
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-500/[0.04] via-transparent to-transparent dark:from-white/[0.025] dark:via-transparent dark:to-transparent" />
+        </div>
+
+        {/* Horizontal grid lines at Y-axis ticks */}
+        <div className="absolute top-0 left-0 right-0 border-b border-dashed border-neutral-400/[0.12] dark:border-neutral-500/[0.15] pointer-events-none" />
+        <div className="absolute top-1/2 left-0 right-0 border-b border-dashed border-neutral-400/[0.12] dark:border-neutral-500/[0.15] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 border-b border-neutral-400/[0.20] dark:border-neutral-500/[0.20] pointer-events-none" />
+
+        {/* Bars Container - fixed track with shared widths for perfect x-axis alignment */}
+        <div className="absolute inset-0 flex items-end justify-start gap-3 z-10 pointer-events-none">
           
           {/* DvP Line Overlay - positioned relative to centered bars */}
           {showDvpLine && opponentDvpRanks && opponentDvpRanks.size > 0 && games.length > 1 && (() => {
-            // Calculate dimensions matching the flex layout
-            const gapSize = 12; // gap-3 = 12px
-            const totalGap = (games.length - 1) * gapSize;
-            const totalBarWidth = games.length * barWidth;
-            const contentWidth = totalBarWidth + totalGap;
-            
+            // Calculate dimensions matching the bar/date track
+            const gapSize = gapPx;
+
             // Build points data - X positions are relative to content start (0)
             const points = games.map((game, idx) => {
               const dvpRank = opponentDvpRanks.get(game.opponentTeamId);
@@ -895,11 +979,10 @@ export function GameLogChart({
             
             return (
               <svg 
-                className="absolute bottom-0 left-1/2 z-[5] pointer-events-none"
+                className="absolute bottom-0 left-0 z-[5] pointer-events-none"
                 style={{ 
                   width: contentWidth, 
                   height: chartHeight,
-                  transform: 'translateX(-50%)', // Center to match flex justify-center
                 }}
                 viewBox={`0 0 ${contentWidth} ${chartHeight}`}
               >
@@ -927,12 +1010,9 @@ export function GameLogChart({
           
           {/* Matchup Filter Lines - Play Type and Shot Zone */}
           {showMatchupLines && activeMatchupFilters.length > 0 && games.length > 1 && (() => {
-            // Calculate dimensions matching the flex layout
-            const gapSize = 12; // gap-3 = 12px
-            const totalGap = (games.length - 1) * gapSize;
-            const totalBarWidth = games.length * barWidth;
-            const contentWidth = totalBarWidth + totalGap;
-            
+            // Calculate dimensions matching the bar/date track
+            const gapSize = gapPx;
+
             // Render a line for each active matchup filter
             return activeMatchupFilters.map((filter, filterIdx) => {
               const ranksMap = filter.type === "playType" ? playTypeRanksMap?.get(filter.key) : shotZoneRanksMap?.get(filter.key);
@@ -963,11 +1043,10 @@ export function GameLogChart({
               return (
                 <svg 
                   key={`${filter.type}-${filter.key}`}
-                  className="absolute bottom-0 left-1/2 z-[4] pointer-events-none"
+                  className="absolute bottom-0 left-0 z-[4] pointer-events-none"
                   style={{ 
                     width: contentWidth, 
                     height: chartHeight,
-                    transform: 'translateX(-50%)', // Center to match flex justify-center
                   }}
                   viewBox={`0 0 ${contentWidth} ${chartHeight}`}
                 >
@@ -1192,7 +1271,7 @@ export function GameLogChart({
             return (
               <Tooltip key={game.gameId || idx} content={tooltipContent} side="top">
                 <div
-                  className="relative flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
+                  className="relative shrink-0 flex flex-col items-end justify-end cursor-pointer group pointer-events-auto"
                   style={{ width: barWidth, height: chartHeight }}
                 >
                   {/* Bar - Stacked for combo markets, solid for single stat */}
@@ -1212,19 +1291,21 @@ export function GameLogChart({
                       </span>
                   <div
                     className={cn(
-                          "w-full rounded-t transition-all duration-200 group-hover:opacity-90 relative flex flex-col-reverse overflow-hidden",
+                          "w-full rounded-t transition-all duration-200 group-hover:brightness-110 relative flex flex-col-reverse overflow-hidden",
                       !hasLine
                             ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
                             : isHit
                               ? "bg-gradient-to-t from-emerald-600 to-emerald-500 dark:from-emerald-700 dark:to-emerald-600"
                               : "bg-gradient-to-t from-red-600 to-red-500 dark:from-red-700 dark:to-red-600"
                     )}
-                    style={{ 
+                    style={{
                           width: barWidth,
                       height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                      boxShadow: isHit 
-                        ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                        : undefined
+                      boxShadow: !hasLine
+                        ? undefined
+                        : isHit
+                          ? "0 -2px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)"
+                          : "inset 0 1px 0 rgba(255,255,255,0.1)"
                     }}
                   >
                         {(() => {
@@ -1332,22 +1413,24 @@ export function GameLogChart({
                             </span>
                           </>
                         )}
-                        {/* Actual rebounds bar */}
+                        {/* Actual stat bar */}
                         <div
                           className={cn(
-                            "rounded-t transition-all duration-200 group-hover:opacity-90 relative",
+                            "rounded-t transition-all duration-200 group-hover:brightness-110 relative",
                             !hasLine
                               ? "bg-gradient-to-t from-neutral-500 to-neutral-400 dark:from-neutral-600 dark:to-neutral-500"
                               : isHit
-                                ? "bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
-                                : "bg-gradient-to-t from-red-500 to-red-400 dark:from-red-600 dark:to-red-500"
+                                ? "bg-gradient-to-t from-emerald-600 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500"
+                                : "bg-gradient-to-t from-red-600 to-red-400 dark:from-red-600 dark:to-red-500"
                           )}
-                          style={{ 
+                          style={{
                             width: barWidth,
                             height: statValue === 0 ? 8 : Math.max(barHeightPx, 24),
-                            boxShadow: isHit 
-                              ? "0 -2px 8px rgba(16, 185, 129, 0.3)" 
-                              : undefined
+                            boxShadow: !hasLine
+                              ? undefined
+                              : isHit
+                                ? "0 -2px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)"
+                                : "inset 0 1px 0 rgba(255,255,255,0.1)"
                           }}
                         />
                   </div>
@@ -1381,56 +1464,42 @@ export function GameLogChart({
           })}
         </div>
 
-        {/* Line Threshold - Draggable hit area (above bars) */}
+        {/* Line Threshold - Draggable hit area (above bars, full chart width) */}
         {linePosition !== null && onLineChange && (
           <div
             onMouseDown={handleDragStart}
             onTouchStart={handleDragStart}
             className={cn(
-              "absolute left-0 right-0 z-20 group/line",
+              "absolute left-0 right-0 z-20 group/line touch-none",
               !isDragging && "cursor-grab",
               isDragging && "cursor-grabbing"
             )}
             style={{ bottom: `${linePosition}%` }}
           >
-            {/* Invisible larger hit area for easier grabbing */}
+            {/* Full-width hit area with hover highlight */}
             <div className={cn(
-              "absolute left-0 right-0 h-8 -translate-y-1/2 transition-colors",
-              "hover:bg-amber-500/10 dark:hover:bg-amber-400/10"
+              "absolute left-0 right-0 h-10 -translate-y-1/2 transition-all duration-200 rounded-sm",
+              isDragging
+                ? "bg-amber-500/10 dark:bg-amber-400/10"
+                : "hover:bg-amber-500/[0.06] dark:hover:bg-amber-400/[0.06]"
             )} />
-          </div>
-        )}
-
-        {/* Line value label - always visible (highest z-index) */}
-        {linePosition !== null && (
-          <div
-            className="absolute left-0 z-30 pointer-events-none"
-            style={{ bottom: `${linePosition}%` }}
-          >
-            <div
-              className={cn(
-                "absolute -left-1 -translate-y-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-all",
-                isDragging 
-                  ? "bg-amber-500 dark:bg-amber-400 text-black scale-110" 
-                  : "bg-primary dark:bg-primary-weak text-on-primary",
-                onLineChange && !isDragging && "group-hover/line:bg-amber-500 group-hover/line:dark:bg-amber-400 group-hover/line:text-black group-hover/line:scale-105"
-              )}
-            >
-              {onLineChange && (
-                <GripVertical className="h-2.5 w-2.5 opacity-70" />
-              )}
-              {displayLine}
-            </div>
+            {/* Enhanced dashed line on hover - overlays the base line for emphasis */}
+            <div className={cn(
+              "absolute left-0 right-0 -translate-y-[1px] border-t-2 border-dashed transition-all duration-200 pointer-events-none",
+              isDragging
+                ? "border-amber-500 dark:border-amber-400 opacity-100"
+                : "border-transparent group-hover/line:border-amber-500/40 dark:group-hover/line:border-amber-400/40"
+            )} />
           </div>
         )}
       </div>
 
       {/* X-Axis - Dates */}
-      <div className={cn("ml-10 mt-8 flex justify-center gap-3", showDvpLine && "mr-16")}>
+      <div className="mt-8 flex justify-start gap-3">
         {games.map((game, idx) => (
           <div
             key={game.gameId || idx}
-            className="text-[9px] text-neutral-400 text-center font-medium"
+            className="shrink-0 text-[9px] text-neutral-400 text-center font-medium"
             style={{ width: barWidth }}
           >
             {formatShortDate(game.date)}
@@ -1438,7 +1507,11 @@ export function GameLogChart({
         ))}
       </div>
 
-      {/* Chart Annotation Row - Minimal legend + context toggles */}
+      </div>{/* end centered track */}
+      </div>{/* end minWidth inner */}
+      </div>{/* end scroll wrapper */}
+
+      {/* Chart Annotation Row - Outside scroll so it stays fixed */}
       <div className={cn("ml-10 mt-3 flex items-center justify-between", showDvpLine && "mr-16")}>
         {/* Context Toggles - Slim, clickable pills (left) */}
         {onQuickFilterToggle ? (
@@ -1479,7 +1552,7 @@ export function GameLogChart({
                     className={cn(
                       "px-1.5 py-0.5 text-[9px] font-medium rounded transition-all",
                       quickFilters?.has(key)
-                        ? key === "dvpTough" 
+                        ? key === "dvpTough"
                           ? "bg-red-500 text-white"
                           : "bg-emerald-500 text-white"
                         : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
@@ -1492,7 +1565,7 @@ export function GameLogChart({
             )}
           </div>
         ) : (
-          <div /> 
+          <div />
         )}
 
         {/* Minimal Legend - Whispers, doesn't speak (center-right) */}
@@ -1529,18 +1602,18 @@ export function GameLogChart({
           {activeMatchupFilters.length > 0 && (
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-700">
               {activeMatchupFilters.map((filter) => (
-                <div 
+                <div
                   key={`${filter.type}-${filter.key}`}
                   className="flex items-center gap-1"
                 >
-                  <div 
+                  <div
                     className={cn(
                       "w-3 h-0.5 rounded-full",
                       filter.type === "shotZone" && "border-t border-dashed"
                     )}
-                    style={{ 
+                    style={{
                       backgroundColor: filter.type !== "shotZone" ? filter.color : undefined,
-                      borderColor: filter.type === "shotZone" ? filter.color : undefined 
+                      borderColor: filter.type === "shotZone" ? filter.color : undefined
                     }}
                   />
                   <span className="text-[9px]" style={{ color: filter.color }}>

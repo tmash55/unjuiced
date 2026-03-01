@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
-import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
+import type { BestOddsDeal, BestOddsResponse, BestOddsSport } from "@/lib/best-odds-schema";
 
 /**
  * GET /api/best-odds/preview-teasers
@@ -17,6 +17,29 @@ import type { BestOddsDeal, BestOddsResponse } from "@/lib/best-odds-schema";
 const FREE_USER_IMPROVEMENT_LIMIT = 10; // Show deals >= 10% improvement
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 20;
+const VALID_BEST_ODDS_SPORTS: BestOddsSport[] = [
+  "nfl",
+  "nba",
+  "nhl",
+  "ncaaf",
+  "ncaab",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 export async function GET(req: NextRequest) {
   try {
@@ -72,8 +95,7 @@ export async function GET(req: NextRequest) {
       const sport = parts[0];
       
       // Support all active sports (mlb/wnba temporarily removed - no active feeds)
-      const validSports = ['nfl', 'nba', 'nhl', 'ncaaf', 'ncaab', 'soccer_epl'];
-      if (!validSports.includes(sport)) {
+      if (!VALID_BEST_ODDS_SPORTS.includes(sport as BestOddsSport)) {
         return acc;
       }
       
@@ -141,7 +163,7 @@ export async function GET(req: NextRequest) {
 
         const normalizedDeal: BestOddsDeal = {
           key: originalKey,
-          sport: sport as 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl',
+          sport: sport as BestOddsSport,
           eid: deal.eid || '',
           ent: deal.ent || '',
           mkt: deal.mkt || '',
@@ -198,4 +220,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

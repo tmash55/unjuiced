@@ -39,14 +39,39 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useIsPro } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { useIsMobileOrTablet } from "@/hooks/use-media-query";
+import { useSSE } from "@/hooks/use-sse";
 import { FilterPresetsBar } from "@/components/filter-presets";
 import { useFilterPresets } from "@/hooks/use-filter-presets";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
 import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-types";
 import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 
 // Available leagues for the filters component
-const AVAILABLE_LEAGUES = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb", "wnba", "soccer_epl"];
+const AVAILABLE_LEAGUES = [
+  "nba",
+  "nfl",
+  "ncaaf",
+  "ncaab",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 const FREE_EDGE_ROW_LIMIT = 7; // Number of rows free users can see
 
 /**
@@ -172,6 +197,7 @@ export default function EdgeFinderPage() {
     line?: number;
     odds?: BestOddsData;
   } | null>(null);
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
 
   // Sync local search with prefs on load
   useEffect(() => {
@@ -199,15 +225,27 @@ export default function EdgeFinderPage() {
     return () => clearTimeout(timer);
   }, [searchLocal, prefs.searchQuery, updatePrefs]);
 
+  // ===== AUTO-REFRESH via SSE =====
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const FLASH_MS = 6000; // How long highlights stay visible
+
+  // Disable auto-refresh if user loses pro access
+  useEffect(() => {
+    if (!effectiveIsPro) setAutoRefresh(false);
+  }, [effectiveIsPro]);
+
+  // Streaming state for row highlights
+  const [streamAdded, setStreamAdded] = useState<Set<string>>(new Set());
+  const [streamChanges, setStreamChanges] = useState<Map<string, { edge?: "up" | "down"; price?: "up" | "down" }>>(new Map());
+  const prevOppsRef = useRef<Map<string, { edgePct: number; bestPrice: string }>>(new Map());
+
   // ===== DATA SOURCE =====
-  // Manual refresh only - SSE streaming removed until backend optimization
-  
   const {
     opportunities,
     activeFilters,
     isCustomMode,
     isLoading,
-    isFetching,
+    isFetching: rawIsFetching,
     error,
     refetch,
     prefetchPreset,
@@ -225,6 +263,112 @@ export default function EdgeFinderPage() {
     limit,
     enabled: !planLoading && !prefsLoading && !presetsLoading,
   });
+
+  // When auto-refresh is on, suppress isFetching to avoid "Updating..." subtitle and spinner
+  const isFetching = autoRefresh ? false : rawIsFetching;
+
+  // Detect new/changed rows when opportunities update during auto-refresh
+  useEffect(() => {
+    if (!autoRefresh || opportunities.length === 0) return;
+
+    const prev = prevOppsRef.current;
+    const newAdded: string[] = [];
+    const newChanges = new Map<string, { edge?: "up" | "down"; price?: "up" | "down" }>();
+
+    for (const opp of opportunities) {
+      const was = prev.get(opp.id);
+      if (!was) {
+        // New row
+        if (prev.size > 0) newAdded.push(opp.id); // Only highlight after initial load
+      } else {
+        // Check for edge change
+        const change: { edge?: "up" | "down"; price?: "up" | "down" } = {};
+        const curEdge = opp.edgePct ?? 0;
+        const prevEdge = was.edgePct ?? 0;
+        if (curEdge > prevEdge) change.edge = "up";
+        else if (curEdge < prevEdge) change.edge = "down";
+        if (opp.bestPrice !== was.bestPrice) {
+          const cur = parseInt(opp.bestPrice?.replace("+", "") || "0", 10);
+          const old = parseInt(was.bestPrice?.replace("+", "") || "0", 10);
+          if (cur > old) change.price = "up";
+          else if (cur < old) change.price = "down";
+        }
+        if (change.edge || change.price) newChanges.set(opp.id, change);
+      }
+    }
+
+    // Update prev snapshot
+    const nextPrev = new Map<string, { edgePct: number; bestPrice: string }>();
+    for (const opp of opportunities) {
+      nextPrev.set(opp.id, { edgePct: opp.edgePct ?? 0, bestPrice: opp.bestPrice || "" });
+    }
+    prevOppsRef.current = nextPrev;
+
+    // Apply highlights
+    if (newAdded.length > 0) {
+      setStreamAdded(p => {
+        const next = new Set(p);
+        for (const id of newAdded) next.add(id);
+        return next;
+      });
+      setTimeout(() => {
+        setStreamAdded(p => {
+          const next = new Set(p);
+          for (const id of newAdded) next.delete(id);
+          return next;
+        });
+      }, FLASH_MS);
+    }
+    if (newChanges.size > 0) {
+      setStreamChanges(p => {
+        const next = new Map(p);
+        for (const [id, c] of newChanges) next.set(id, c);
+        return next;
+      });
+      setTimeout(() => {
+        setStreamChanges(p => {
+          const next = new Map(p);
+          for (const [id] of newChanges) next.delete(id);
+          return next;
+        });
+      }, FLASH_MS);
+    }
+  }, [opportunities, autoRefresh]);
+
+  // SSE connection for auto-refresh: subscribe to odds updates for active leagues
+  const sseUrl = useMemo(() => {
+    if (!autoRefresh || !effectiveIsPro) return "";
+    const leagues = prefs.selectedLeagues?.length ? prefs.selectedLeagues : AVAILABLE_LEAGUES;
+    return `/api/v2/sse/props?sports=${leagues.join(",")}`;
+  }, [autoRefresh, effectiveIsPro, prefs.selectedLeagues]);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+
+  const handleSSEMessage = useCallback(() => {
+    // Debounce: coalesce rapid odds updates into a single refetch
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      refetchRef.current();
+    }, 1500);
+  }, []);
+
+  const {
+    isConnected: sseConnected,
+    isReconnecting: sseReconnecting,
+    hasFailed: sseFailed,
+  } = useSSE(sseUrl, {
+    enabled: autoRefresh && effectiveIsPro && !!sseUrl,
+    onMessage: handleSSEMessage,
+  });
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // Apply hidden edges filter and min liquidity filter (must be done client-side due to user-specific state)
   // Note: Pinning of expanded rows is handled internally by OpportunitiesTable
@@ -300,6 +444,51 @@ export default function EdgeFinderPage() {
     updateEvPrefs({ kellyPercent: value });
   }, [updateEvPrefs]);
 
+  const handleOpenLineHistory = useCallback((opp: any) => {
+    const combinedMarket = `${opp.market || ""} ${opp.marketDisplay || ""}`.toLowerCase();
+    const moneylineMarket = combinedMarket.includes("moneyline") || combinedMarket.includes("money line");
+    const fallbackTeam = opp.side === "over" || opp.side === "yes" ? opp.awayTeam : opp.homeTeam;
+    const selectionName = moneylineMarket
+      ? (opp.team || fallbackTeam || opp.player || null)
+      : (opp.player || opp.team || fallbackTeam || null);
+
+    const compareBookIds = Array.from(
+      new Set(
+        [
+          ...(opp.sharpBooks || []),
+          prefs.comparisonMode === "book" ? prefs.comparisonBook : null,
+        ].filter(Boolean)
+      )
+    ) as string[];
+
+    const oddIdsByBook: Record<string, string> = {};
+    (opp.allBooks || []).forEach((book: { book: string; oddId?: string }) => {
+      if (book.oddId) oddIdsByBook[book.book] = book.oddId;
+    });
+
+    setLineHistoryContext({
+      source: "edge",
+      sport: opp.sport,
+      eventId: opp.eventId,
+      market: opp.market,
+      marketDisplay: opp.marketDisplay,
+      side: opp.side,
+      line: opp.line,
+      selectionName,
+      playerName: opp.player,
+      team: opp.team,
+      homeTeam: opp.homeTeam,
+      awayTeam: opp.awayTeam,
+      bestBookId: opp.bestBook,
+      compareBookIds,
+      allBookIds: (opp.allBooks || []).map((book: { book: string }) => book.book),
+      currentPricesByBook: Object.fromEntries(
+        (opp.allBooks || []).map((book: { book: string; price: number }) => [book.book, book.price])
+      ),
+      oddIdsByBook,
+    });
+  }, [prefs.comparisonBook, prefs.comparisonMode]);
+
   // Toggle show hidden
   const handleToggleShowHidden = useCallback(() => {
     updatePrefs({ showHidden: !prefs.showHidden });
@@ -372,6 +561,7 @@ export default function EdgeFinderPage() {
           onBoostChange={setBoostPercent}
           onBankrollChange={handleBankrollChange}
           onKellyPercentChange={handleKellyPercentChange}
+          onLineHistoryClick={handleOpenLineHistory}
         />
         
         {/* Player Quick View Modal */}
@@ -389,6 +579,13 @@ export default function EdgeFinderPage() {
             }}
           />
         )}
+        <LineHistoryDialog
+          open={!!lineHistoryContext}
+          onOpenChange={(open) => {
+            if (!open) setLineHistoryContext(null);
+          }}
+          context={lineHistoryContext}
+        />
       </>
     );
   }
@@ -503,9 +700,15 @@ export default function EdgeFinderPage() {
         activePresets={activePresets}
         onManageModels={() => setShowPresetManager(true)}
         onClearPresets={deactivateAllPresets}
-        // Refresh
+        // Auto refresh
+        autoRefresh={autoRefresh}
+        onAutoRefreshChange={setAutoRefresh}
+        isConnected={sseConnected}
+        isReconnecting={sseReconnecting}
+        hasFailed={sseFailed}
+        // Refresh — don't spin during auto-refresh background fetches
         onRefresh={refetch}
-        isRefreshing={isFetching}
+        isRefreshing={!autoRefresh && isFetching}
         // Reset
         onReset={() => {
           updatePrefs({
@@ -559,8 +762,8 @@ export default function EdgeFinderPage() {
             onPlayerClick={setSelectedPlayer}
             comparisonMode={isCustomMode ? undefined : prefs.comparisonMode}
             comparisonLabel={
-              isCustomMode 
-                ? undefined 
+              isCustomMode
+                ? undefined
                 : prefs.comparisonMode === "book" && prefs.comparisonBook
                   ? getSportsbookById(prefs.comparisonBook)?.name || prefs.comparisonBook
                   : undefined
@@ -570,6 +773,11 @@ export default function EdgeFinderPage() {
             bankroll={evPrefs.bankroll}
             kellyPercent={evPrefs.kellyPercent || 25}
             boostPercent={boostPercent}
+            onLineHistoryClick={handleOpenLineHistory}
+            // Streaming highlights for auto-refresh
+            autoRefresh={autoRefresh}
+            streamAdded={streamAdded}
+            streamChanges={streamChanges}
           />
       </div>
 
@@ -698,6 +906,14 @@ export default function EdgeFinderPage() {
         />
       )}
 
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
+
       {/* Preset Manager & Form Modals */}
       <FilterPresetsManagerModal
         open={showPresetManager}
@@ -715,4 +931,3 @@ export default function EdgeFinderPage() {
     </AppPageLayout>
   );
 }
-

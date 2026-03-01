@@ -105,6 +105,7 @@ export interface InjuryImpactRow {
   opponentAbbr: string;
   opponentId: number;
   homeAway: string;
+  startTime?: string | null;
   
   // Bet info
   market: string;
@@ -203,8 +204,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Call the RPC function
-    const { data, error } = await supabase.rpc("get_teammate_out_cheatsheet", {
+    // Call the v2 RPC function
+    const { data, error } = await supabase.rpc("get_teammate_out_cheatsheet_v2", {
       p_dates: dates || null,
       p_markets: markets || null,
       p_min_games: minGames,
@@ -227,13 +228,14 @@ export async function POST(req: NextRequest) {
       rawRows.map((row: any) => ({
         event_id: row.event_id,
         market: row.market,
-        sel_key: row.odds_selection_id, // odds_selection_id contains the sel_key
+        sel_key: row.sel_key || row.odds_selection_id, // Prefer explicit sel_key from v2
       }))
     );
 
     // Transform snake_case to camelCase and merge best odds
     const rows: InjuryImpactRow[] = rawRows.map((row: any) => {
-      const compositeKey = `${row.event_id}:${row.market}:${row.odds_selection_id}`;
+      const stableSelKey = row.sel_key || row.odds_selection_id || null;
+      const compositeKey = `${row.event_id}:${row.market}:${stableSelKey}`;
       const bestOddsData = bestOddsMap.get(compositeKey);
       
       return {
@@ -250,12 +252,13 @@ export async function POST(req: NextRequest) {
       opponentAbbr: row.opponent_abbr,
       opponentId: row.opponent_id,
       homeAway: row.home_away,
+      startTime: row.start_time || row.game_start || row.commence_time || null,
       
       market: row.market,
       line: parseFloat(row.line),
       overOdds: row.over_odds,
       overOddsDecimal: row.over_odds_decimal ? parseFloat(row.over_odds_decimal) : null,
-      oddsSelectionId: row.odds_selection_id || null,
+      oddsSelectionId: stableSelKey,
       eventId: row.event_id || null,
       
       defaultTeammateId: row.default_teammate_id,
@@ -320,7 +323,7 @@ export async function POST(req: NextRequest) {
         updated_at: bestOddsData.updated_at,
       } : null,
       books: bestOddsData?.book_count ?? 0,
-      selKey: row.odds_selection_id || null,
+      selKey: stableSelKey,
     };
     });
 
@@ -361,4 +364,3 @@ export async function GET(req: NextRequest) {
   
   return POST(newReq);
 }
-

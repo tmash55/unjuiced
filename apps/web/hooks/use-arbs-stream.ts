@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArbRow, fetchArbs, fetchRows } from "@/lib/arbs-client";
+import type { ArbMode } from "@/lib/arb-freshness";
 
 
 type Cache = Map<string, ArbRow>;
@@ -20,7 +21,7 @@ function dir(a: number | undefined, b: number | undefined): Dir | undefined {
   return undefined;
 }
 
-export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolean; live: boolean; eventId?: string; limit: number }) {
+export function useArbsStream({ pro, live, eventId, limit = 100, mode = "all" }: { pro: boolean; live: boolean; eventId?: string; limit: number; mode?: ArbMode }) {
   const [version, setVersion] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -41,6 +42,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   const maxRetries = 10;
   const [filteredCount, setFilteredCount] = useState<number>(0);
   const [filteredReason, setFilteredReason] = useState<string | undefined>(undefined);
+  const fetchGenRef = useRef(0); // generation counter to discard stale responses
 
   // Fetch total counts from API
   const fetchTotalCounts = useCallback(async () => {
@@ -96,10 +98,12 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
 
   // page loader
   const loadPage = useCallback(async (opts?: { reset?: boolean; cursor?: number }) => {
+    const gen = ++fetchGenRef.current; // claim a generation
     const useCur = opts?.cursor !== undefined ? opts.cursor : (opts?.reset ? 0 : cursor);
     setLoading(true);
     try {
-      const res = await fetchArbs({ v: 0, limit, cursor: useCur, event_id: eventId });
+      const res = await fetchArbs({ v: 0, limit, cursor: useCur, event_id: eventId, mode });
+      if (gen !== fetchGenRef.current) return; // stale response — a newer fetch is in flight
       if (!("unchanged" in res)) {
         setVersion(res.v);
         setLastUpdated(Date.now());
@@ -118,20 +122,21 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
         setFilteredReason(res.filteredReason);
       }
     } catch (e: any) {
+      if (gen !== fetchGenRef.current) return; // stale — don't set error from outdated request
       setError(e.message || "fetch failed");
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
-  }, [cursor, limit, eventId]);
+  }, [cursor, limit, eventId, mode]);
 
-  // initial & filter change
+  // Keep a stable ref so the initial-load effect doesn't re-fire when cursor changes
+  const loadPageRef = useRef(loadPage);
+  loadPageRef.current = loadPage;
+
+  // initial & filter change — only re-fire when the query params actually change
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      await loadPage({ reset: true });
-    })();
-    return () => { cancel = true; };
-  }, [eventId, limit, loadPage]);
+    loadPageRef.current({ reset: true });
+  }, [eventId, limit, mode]);
 
   const nextPage = useCallback(async () => {
     const newCursor = cursor + limit;
@@ -281,7 +286,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
   const rows = useMemo(() => ids.map(id => cacheRef.current.get(id)).filter(Boolean) as ArbRow[], [ids]);
 
   const refresh = useCallback(async () => {
-    const res = await fetchArbs({ v: version, limit, event_id: eventId, cursor });
+    const res = await fetchArbs({ v: version, limit, event_id: eventId, cursor, mode });
     if ("unchanged" in res) return false;
     setVersion(res.v);
     setLastUpdated(Date.now());
@@ -290,7 +295,7 @@ export function useArbsStream({ pro, live, eventId, limit = 100 }: { pro: boolea
     setIds(res.ids);
     registerDiffs(res.ids);
     return true;
-  }, [version, eventId, limit, cursor]);
+  }, [version, eventId, limit, cursor, mode]);
 
   // When live toggles from off -> on, perform a refresh to catch up to latest v immediately
   const prevLiveRef = useRef<boolean>(live);

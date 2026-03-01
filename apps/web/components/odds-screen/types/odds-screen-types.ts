@@ -392,7 +392,29 @@ export interface OddsScreenParams {
   // ============================================================================
   
   /** Supported sports */
-  export const SUPPORTED_SPORTS = ['nfl', 'ncaaf', 'nba', 'ncaab', 'wnba', 'mlb', 'nhl'] as const
+  export const SUPPORTED_SPORTS = [
+    'nfl',
+    'ncaaf',
+    'nba',
+    'ncaab',
+    'wnba',
+    'mlb',
+    'ncaabaseball',
+    'nhl',
+    'soccer_epl',
+    'soccer_laliga',
+    'soccer_mls',
+    'soccer_ucl',
+    'soccer_uel',
+    'tennis_atp',
+    'tennis_challenger',
+    'tennis_itf_men',
+    'tennis_itf_women',
+    'tennis_utr_men',
+    'tennis_utr_women',
+    'tennis_wta',
+    'ufc',
+  ] as const
   export type Sport = typeof SUPPORTED_SPORTS[number]
   
   /** Supported scopes */

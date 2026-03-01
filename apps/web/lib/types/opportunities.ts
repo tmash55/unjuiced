@@ -5,7 +5,28 @@
  * No adapters needed - components use these directly.
  */
 
-export type Sport = "nba" | "nfl" | "nhl" | "ncaaf" | "ncaab" | "mlb" | "wnba" | "soccer_epl";
+export type Sport =
+  | "nba"
+  | "nfl"
+  | "nhl"
+  | "ncaaf"
+  | "ncaab"
+  | "mlb"
+  | "ncaabaseball"
+  | "wnba"
+  | "soccer_epl"
+  | "soccer_laliga"
+  | "soccer_mls"
+  | "soccer_ucl"
+  | "soccer_uel"
+  | "tennis_atp"
+  | "tennis_challenger"
+  | "tennis_itf_men"
+  | "tennis_itf_women"
+  | "tennis_utr_men"
+  | "tennis_utr_women"
+  | "tennis_wta"
+  | "ufc";
 export type Side = "over" | "under" | "yes" | "no";
 export type DevigMethod = "proper" | "estimated";
 export type DevigSource = "sharp_book" | "sharp_blend" | "market_average";
@@ -29,6 +50,9 @@ export interface BookOdds {
   mobileLink: string | null;  // Deep link for mobile apps (e.g., fanduelsportsbook://...)
   sgp: string | null;      // SGP eligibility token
   limits: BookLimits | null;  // Betting limits when available
+  includedInAverage?: boolean;
+  averageExclusionReason?: string | null;
+  oddId?: string;          // OddsBlaze odd ID for historical line lookup
 }
 
 /**
@@ -269,6 +293,9 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
       mobileLink: b.mobile_link as string | null,
       sgp: b.sgp as string | null,
       limits: b.limits as { max: number } | null,
+      includedInAverage: (b.included_in_average as boolean | undefined) ?? true,
+      averageExclusionReason: (b.average_exclusion_reason as string | null | undefined) ?? null,
+      oddId: (b.odd_id as string | undefined) || undefined,
     })),
 
     sharpPrice: raw.sharp_price as string | null,
@@ -329,6 +356,8 @@ export function parseOpportunity(raw: Record<string, unknown>): Opportunity {
             mobileLink: b.mobile_link as string | null,
             sgp: b.sgp as string | null,
             limits: (b.limits as { max: number } | null) ?? null,
+            includedInAverage: (b.included_in_average as boolean | undefined) ?? true,
+            averageExclusionReason: (b.average_exclusion_reason as string | null | undefined) ?? null,
           })),
         }
       : null,
@@ -493,6 +522,13 @@ export function formatMarketName(market: string): string {
     player_yellow_cards: "Yellow Cards",
     player_to_be_carded: "To Be Carded",
     player_passes: "Passes",
+    // UFC / MMA
+    fight_moneyline: "Fight Moneyline",
+    fight_total_rounds: "Fight Total Rounds",
+    fight_total: "Fight Total Rounds",
+    moneyline_finish_only: "Moneyline (Finish Only)",
+    moneyline_decision_only: "Moneyline (Decision Only)",
+    "1st_round_moneyline_finish_only": "1st Round Finish Only",
   };
   
   const result = names[market] || market.replace(/_/g, " ").replace(/player /i, "");

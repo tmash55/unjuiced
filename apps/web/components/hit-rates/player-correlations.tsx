@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { usePlayerCorrelations, TeammateCorrelation, TeammateGameLog, HitRateStats } from "@/hooks/use-player-correlations";
 import { useHitRateOdds, LineOdds } from "@/hooks/use-hit-rate-odds";
+import { useFavorites, createFavoriteKey, type BookSnapshot } from "@/hooks/use-favorites";
 import { PlayerHeadshot } from "@/components/player-headshot";
+import { OddsDropdown } from "@/components/hit-rates/odds-dropdown";
 import { formatMarketLabel } from "@/lib/data/markets";
-import { getSportsbookById } from "@/lib/data/sportsbooks";
 import { Tooltip } from "@/components/tooltip";
+import { toast } from "sonner";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -28,15 +30,21 @@ import {
   LayoutGrid,
   List,
   HeartPulse,
+  Heart,
+  Loader2,
   ArrowDown,
-  ExternalLink,
 } from "lucide-react";
 
 interface PlayerCorrelationsProps {
   playerId: number | null;
   market: string | null;
   line: number | null;
-  gameId?: string | null; // For fetching odds data
+  gameId?: string | number | null; // For fetching odds data
+  gameDate?: string | null;
+  homeTeamName?: string | null;
+  awayTeamName?: string | null;
+  startTime?: string | null;
+  anchorTeam?: string | null;
   playerName?: string;
   className?: string;
 }
@@ -85,6 +93,24 @@ const MARKET_LABELS: Record<TeammateMarket, string> = {
   blocksSteals: "BS",
 };
 
+const TEAMMATE_MARKET_TO_DB: Record<Exclude<TeammateMarket, "all">, string> = {
+  points: "player_points",
+  rebounds: "player_rebounds",
+  assists: "player_assists",
+  threes: "player_threes_made",
+  steals: "player_steals",
+  blocks: "player_blocks",
+  turnovers: "player_turnovers",
+  pra: "player_points_rebounds_assists",
+  pointsRebounds: "player_points_rebounds",
+  pointsAssists: "player_points_assists",
+  reboundsAssists: "player_rebounds_assists",
+  blocksSteals: "player_blocks_steals",
+};
+
+// Toggle for correlation odds/favorite controls.
+const SHOW_CORRELATION_ACTIONS = true;
+
 // Injury status helpers
 const hasInjuryStatus = (status?: string | null): boolean => {
   if (!status) return false;
@@ -107,83 +133,13 @@ const isGLeagueAssignment = (notes?: string | null): boolean => {
   return lower.includes("g league") || lower.includes("g-league") || lower.includes("gleague");
 };
 
-// Odds helpers
-const formatOddsPrice = (price: number | null | undefined): string => {
-  if (price === null || price === undefined) return "—";
-  if (price >= 0) return `+${price}`;
-  return String(price);
-};
-
-// Get book info from book ID
-const getBookInfo = (bookId: string) => {
-  const sb = getSportsbookById(bookId);
-  return {
-    bookId,
-    logo: sb?.image?.light || null,
-    name: sb?.name || bookId,
-  };
-};
-
-// Mini odds badge component using live odds from Redis
-const OddsBadge = ({ 
-  odds, 
-  compact = false 
-}: { 
-  odds: LineOdds | null; 
-  compact?: boolean;
-}) => {
-  if (!odds?.bestOver) return null;
-  
-  const { book, price, url, mobileUrl } = odds.bestOver;
-  const { logo, name } = getBookInfo(book);
-  
-  // Prefer mobile URL on mobile devices, fallback to desktop URL
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const link = isMobile ? (mobileUrl || url) : (url || mobileUrl);
-  
-  const content = (
-    <div className={cn(
-      "inline-flex items-center gap-1 rounded transition-all",
-      compact ? "px-1 py-0.5" : "px-1.5 py-0.5",
-      link 
-        ? "bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200/80 dark:border-emerald-700/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer" 
-        : "bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
-    )}>
-      {logo && (
-        <img 
-          src={logo} 
-          alt={name} 
-          className={cn("rounded object-contain", compact ? "w-3 h-3" : "w-4 h-4")}
-        />
-      )}
-      <span className={cn(
-        "font-bold tabular-nums",
-        compact ? "text-[9px]" : "text-[11px]",
-        price >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-200"
-      )}>
-        {formatOddsPrice(price)}
-      </span>
-      {link && (
-        <ExternalLink className={cn("text-emerald-500/60", compact ? "w-2.5 h-2.5" : "w-3 h-3")} />
-      )}
-    </div>
-  );
-  
-  if (link) {
-    return (
-      <a 
-        href={link} 
-        target="_blank" 
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="no-underline"
-      >
-        {content}
-      </a>
-    );
+const getCorrelationOddsStableKey = (hitRateData?: HitRateStats | null): string | null => {
+  if (!hitRateData) return null;
+  if (hitRateData.selectionId) return hitRateData.selectionId;
+  if (hitRateData.selKey && hitRateData.lineUsed !== null && hitRateData.lineUsed !== undefined) {
+    return `${hitRateData.selKey}:${hitRateData.lineUsed}:over`;
   }
-  
-  return content;
+  return null;
 };
 
 // Helper to get stat value from game log
@@ -534,6 +490,14 @@ const AllStatsGridRow = ({
 // SINGLE STAT CARD VIEW - Beautiful Card Layout
 // ═══════════════════════════════════════════════════════════════════════════
 
+interface CorrelationFavoritePayload {
+  teammate: TeammateCorrelation;
+  marketKey: string;
+  hitRateData: HitRateStats;
+  effectiveLine: number;
+  liveOdds: LineOdds | null;
+}
+
 const TeammateCard = ({ 
   teammate, 
   selectedMarket,
@@ -542,6 +506,11 @@ const TeammateCard = ({
   isExpanded,
   onToggle,
   getOdds,
+  favoriteKeys,
+  togglingFavoriteKey,
+  onToggleFavorite,
+  oddsLoading,
+  fallbackEventId,
 }: { 
   teammate: TeammateCorrelation;
   selectedMarket: Exclude<TeammateMarket, "all">;
@@ -550,15 +519,20 @@ const TeammateCard = ({
   isExpanded: boolean;
   onToggle: () => void;
   getOdds: (selectionId: string | null) => LineOdds | null;
+  favoriteKeys: Set<string>;
+  togglingFavoriteKey: string | null;
+  onToggleFavorite: (payload: CorrelationFavoritePayload, e: React.MouseEvent) => Promise<void>;
+  oddsLoading: boolean;
+  fallbackEventId?: string | null;
 }) => {
   const statData = teammate[selectedMarket];
   const hitRateData = statData?.hitRateWhenAnchorHits;
   const marketLabel = MARKET_LABELS[selectedMarket];
+  const marketKey = TEAMMATE_MARKET_TO_DB[selectedMarket];
   
   // Get live odds from Redis using selection ID
-  const liveOdds = hitRateData?.selectionId ? getOdds(hitRateData.selectionId) : null;
-
-  if (!statData || !hitRateData) return null;
+  const oddsStableKey = getCorrelationOddsStableKey(hitRateData);
+  const liveOdds = oddsStableKey ? getOdds(oddsStableKey) : null;
 
   const filteredLogs = useMemo(() => {
     if (locationFilter === "all") return teammate.gameLogs;
@@ -566,9 +540,32 @@ const TeammateCard = ({
   }, [teammate.gameLogs, locationFilter]);
 
   // Use consistent line for both sparkbar and percentage
-  const effectiveLine = (hitRateData.lineUsed != null && hitRateData.lineUsed > 0) 
+  const effectiveLine = (hitRateData?.lineUsed != null && hitRateData.lineUsed > 0) 
     ? hitRateData.lineUsed 
     : 0.5;
+  
+  const eventId = hitRateData?.eventId ?? fallbackEventId ?? null;
+  const canFavorite = !!eventId && (!!hitRateData?.selKey || !!hitRateData?.selectionId);
+  const favoriteKey = canFavorite
+    ? createFavoriteKey({
+        event_id: eventId!,
+        type: "player",
+        player_id: String(teammate.playerId),
+        market: marketKey,
+        line: effectiveLine,
+        side: "over",
+      })
+    : null;
+  const isFavorited = favoriteKey ? favoriteKeys.has(favoriteKey) : false;
+  const isTogglingFavorite = favoriteKey ? togglingFavoriteKey === favoriteKey : false;
+  
+  const bestOdds = liveOdds?.bestOver
+    ? {
+        book: liveOdds.bestOver.book,
+        price: liveOdds.bestOver.price,
+        updated_at: liveOdds.timestamp ?? Date.now(),
+      }
+    : null;
 
   // Sparkbar data - uses same effectiveLine as percentage
   const sparkData = useMemo(() => {
@@ -594,13 +591,15 @@ const TeammateCard = ({
   const config = getStrengthConfig(strength);
   const Icon = config.icon;
 
-  const boost = statData.diff;
+  const boost = statData?.diff ?? null;
   const hasBoost = boost !== null && Math.abs(boost) >= 0.3;
+
+  if (!statData || !hitRateData) return null;
 
   return (
     <div 
       className={cn(
-        "rounded-2xl border overflow-hidden transition-all cursor-pointer",
+        "rounded-2xl border overflow-visible transition-all cursor-pointer",
         "border-neutral-200/60 dark:border-neutral-700/40",
         "bg-gradient-to-b from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-900/80",
         "shadow-sm shadow-neutral-200/50 dark:shadow-neutral-900/30",
@@ -653,16 +652,59 @@ const TeammateCard = ({
           </div>
         </div>
 
-        {/* Right: Strength Badge */}
-        {strength !== "low" && (
-          <div className={cn(
-            "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
-            config.bg, config.color
-          )}>
-            <Icon className={cn("w-3 h-3", config.iconColor)} />
-            {config.label}
-          </div>
-        )}
+        {/* Right: Actions + Strength */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {SHOW_CORRELATION_ACTIONS && (
+            <>
+              <OddsDropdown
+                eventId={eventId}
+                market={marketKey}
+                selKey={hitRateData.selKey || hitRateData.selectionId}
+                line={effectiveLine}
+                bestOdds={bestOdds}
+                loading={oddsLoading}
+              />
+              <Tooltip
+                content={
+                  !canFavorite
+                    ? "No live market to save"
+                    : isFavorited
+                      ? "Remove from My Plays"
+                      : "Add to My Plays"
+                }
+                side="top"
+              >
+                <button
+                  type="button"
+                  onClick={(e) => onToggleFavorite({ teammate, marketKey, hitRateData, effectiveLine, liveOdds }, e)}
+                  disabled={!canFavorite || isTogglingFavorite}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    isFavorited
+                      ? "text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                      : "text-neutral-300 hover:text-rose-400 hover:bg-neutral-100 dark:text-neutral-600 dark:hover:text-rose-400 dark:hover:bg-neutral-800",
+                    (!canFavorite || isTogglingFavorite) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {isTogglingFavorite ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Heart className={cn("h-4 w-4", isFavorited && "fill-current")} />
+                  )}
+                </button>
+              </Tooltip>
+            </>
+          )}
+          {strength !== "low" && (
+            <div className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
+              config.bg, config.color
+            )}>
+              <Icon className={cn("w-3 h-3", config.iconColor)} />
+              {config.label}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Hit Rate Section */}
@@ -673,10 +715,8 @@ const TeammateCard = ({
           </span>
           <div className="flex flex-col gap-0.5">
             <span className="text-sm text-neutral-500 dark:text-neutral-400">
-              hit {hitRateData.lineUsed}+ {marketLabel}
+              hit {effectiveLine}+ {marketLabel}
             </span>
-            {/* Over Odds Badge - using live odds from Redis */}
-            {liveOdds?.bestOver && <OddsBadge odds={liveOdds} />}
           </div>
         </div>
         <div className="text-[11px] text-neutral-400 mt-0.5">
@@ -797,6 +837,11 @@ const StatTableRow = ({
   locationFilter,
   isEven,
   getOdds,
+  favoriteKeys,
+  togglingFavoriteKey,
+  onToggleFavorite,
+  oddsLoading,
+  fallbackEventId,
 }: { 
   teammate: TeammateCorrelation;
   selectedMarket: Exclude<TeammateMarket, "all">;
@@ -804,15 +849,23 @@ const StatTableRow = ({
   locationFilter: "all" | "home" | "away";
   isEven: boolean;
   getOdds: (selectionId: string | null) => LineOdds | null;
+  favoriteKeys: Set<string>;
+  togglingFavoriteKey: string | null;
+  onToggleFavorite: (payload: CorrelationFavoritePayload, e: React.MouseEvent) => Promise<void>;
+  oddsLoading: boolean;
+  fallbackEventId?: string | null;
 }) => {
+  const tableGridClass = SHOW_CORRELATION_ACTIONS
+    ? "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px_70px] items-center gap-2"
+    : "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px] items-center gap-2";
   const statData = teammate[selectedMarket];
   const hitRateData = statData?.hitRateWhenAnchorHits;
   const marketLabel = MARKET_LABELS[selectedMarket];
+  const marketKey = TEAMMATE_MARKET_TO_DB[selectedMarket];
   
   // Get live odds from Redis using selection ID
-  const liveOdds = hitRateData?.selectionId ? getOdds(hitRateData.selectionId) : null;
-
-  if (!statData || !hitRateData) return null;
+  const oddsStableKey = getCorrelationOddsStableKey(hitRateData);
+  const liveOdds = oddsStableKey ? getOdds(oddsStableKey) : null;
 
   const filteredLogs = useMemo(() => {
     if (locationFilter === "all") return teammate.gameLogs;
@@ -820,9 +873,32 @@ const StatTableRow = ({
   }, [teammate.gameLogs, locationFilter]);
 
   // Use consistent line for both sparkbar and percentage
-  const effectiveLine = (hitRateData.lineUsed != null && hitRateData.lineUsed > 0) 
+  const effectiveLine = (hitRateData?.lineUsed != null && hitRateData.lineUsed > 0) 
     ? hitRateData.lineUsed 
     : 0.5;
+  
+  const eventId = hitRateData?.eventId ?? fallbackEventId ?? null;
+  const canFavorite = !!eventId && (!!hitRateData?.selKey || !!hitRateData?.selectionId);
+  const favoriteKey = canFavorite
+    ? createFavoriteKey({
+        event_id: eventId!,
+        type: "player",
+        player_id: String(teammate.playerId),
+        market: marketKey,
+        line: effectiveLine,
+        side: "over",
+      })
+    : null;
+  const isFavorited = favoriteKey ? favoriteKeys.has(favoriteKey) : false;
+  const isTogglingFavorite = favoriteKey ? togglingFavoriteKey === favoriteKey : false;
+  
+  const bestOdds = liveOdds?.bestOver
+    ? {
+        book: liveOdds.bestOver.book,
+        price: liveOdds.bestOver.price,
+        updated_at: liveOdds.timestamp ?? Date.now(),
+      }
+    : null;
 
   // Sparkbar data - uses same effectiveLine as percentage
   const sparkData = useMemo(() => {
@@ -846,12 +922,15 @@ const StatTableRow = ({
 
   const strength = getStrengthLevel(hitPct, games);
   const config = getStrengthConfig(strength);
-  const boost = statData.diff;
+  const boost = statData?.diff ?? null;
+
+  if (!statData || !hitRateData) return null;
 
   return (
     <div 
       className={cn(
-        "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px_70px] items-center gap-2 px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/40 last:border-0",
+        tableGridClass,
+        "px-3 py-2.5 border-b border-neutral-100 dark:border-neutral-800/40 last:border-0",
         isEven ? "bg-neutral-50/40 dark:bg-neutral-900/30" : "bg-white dark:bg-neutral-900/10",
         "hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40 transition-colors"
       )}
@@ -869,6 +948,37 @@ const StatTableRow = ({
             <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
               {teammate.playerName}
             </span>
+            {SHOW_CORRELATION_ACTIONS && (
+              <Tooltip
+                content={
+                  !canFavorite
+                    ? "No live market to save"
+                    : isFavorited
+                      ? "Remove from My Plays"
+                      : "Add to My Plays"
+                }
+                side="top"
+              >
+                <button
+                  type="button"
+                  onClick={(e) => onToggleFavorite({ teammate, marketKey, hitRateData, effectiveLine, liveOdds }, e)}
+                  disabled={!canFavorite || isTogglingFavorite}
+                  className={cn(
+                    "p-1 rounded transition-all",
+                    isFavorited
+                      ? "text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                      : "text-neutral-300 hover:text-rose-400 hover:bg-neutral-100 dark:text-neutral-600 dark:hover:text-rose-400 dark:hover:bg-neutral-800",
+                    (!canFavorite || isTogglingFavorite) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {isTogglingFavorite ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Heart className={cn("h-3 w-3", isFavorited && "fill-current")} />
+                  )}
+                </button>
+              </Tooltip>
+            )}
             {/* Injury Icon */}
             {hasInjuryStatus(teammate.injuryStatus) && (() => {
               const isGL = isGLeagueAssignment(teammate.injuryNotes);
@@ -901,7 +1011,7 @@ const StatTableRow = ({
       {/* Line */}
       <div className="text-center">
         <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200 tabular-nums">
-          {hitRateData.lineUsed}+ {marketLabel}
+          {effectiveLine}+ {marketLabel}
         </span>
       </div>
 
@@ -968,14 +1078,18 @@ const StatTableRow = ({
         )}
       </div>
 
-      {/* Odds - using live odds from Redis */}
-      <div className="flex items-center justify-center">
-        {liveOdds?.bestOver ? (
-          <OddsBadge odds={liveOdds} compact />
-        ) : (
-          <span className="text-[10px] text-neutral-400">—</span>
-        )}
-      </div>
+      {SHOW_CORRELATION_ACTIONS && (
+        <div className="flex items-center justify-center">
+          <OddsDropdown
+            eventId={eventId}
+            market={marketKey}
+            selKey={hitRateData.selKey || hitRateData.selectionId}
+            line={effectiveLine}
+            bestOdds={bestOdds}
+            loading={oddsLoading}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -989,6 +1103,11 @@ export function PlayerCorrelations({
   market,
   line,
   gameId,
+  gameDate,
+  homeTeamName,
+  awayTeamName,
+  startTime,
+  anchorTeam,
   playerName,
   className,
 }: PlayerCorrelationsProps) {
@@ -1005,7 +1124,12 @@ export function PlayerCorrelations({
   const [showFilters, setShowFilters] = useState(false);
   const [minHitRate, setMinHitRate] = useState<number>(0);
   const [selectedMarkets, setSelectedMarkets] = useState<Set<TeammateMarket>>(new Set(STAT_MARKETS.map(m => m.key)));
+  const [togglingFavoriteKey, setTogglingFavoriteKey] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
+  const { favoriteKeys, toggleFavorite, isLoggedIn } = useFavorites();
+  const tableHeaderGridClass = SHOW_CORRELATION_ACTIONS
+    ? "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px_70px] items-center gap-2"
+    : "grid grid-cols-[180px_80px_100px_70px_70px_50px_70px] items-center gap-2";
   
   // Close filter on outside click
   useEffect(() => {
@@ -1055,6 +1179,7 @@ export function PlayerCorrelations({
     lastNGames: gameFilter,
     enabled: !!playerId && !!market && line !== null && line > 0,
   });
+  const fallbackEventId = gameId != null ? String(gameId) : null;
 
   // Build selection IDs for odds fetching from all teammate market data
   const oddsSelections = useMemo(() => {
@@ -1079,12 +1204,13 @@ export function PlayerCorrelations({
       ];
       
       for (const marketData of markets) {
-        const selectionId = marketData?.hitRateWhenAnchorHits?.selectionId;
-        if (selectionId && !seen.has(selectionId)) {
-          seen.add(selectionId);
+        const hr = marketData?.hitRateWhenAnchorHits;
+        const stableKey = getCorrelationOddsStableKey(hr);
+        if (stableKey && !seen.has(stableKey)) {
+          seen.add(stableKey);
           selections.push({
-            oddsSelectionId: selectionId,
-            line: marketData.hitRateWhenAnchorHits?.lineUsed ?? null,
+            oddsSelectionId: stableKey,
+            line: hr?.lineUsed ?? null,
           });
         }
       }
@@ -1098,6 +1224,95 @@ export function PlayerCorrelations({
     rows: oddsSelections,
     enabled: oddsSelections.length > 0,
   });
+
+  const handleToggleFavorite = useCallback(async (
+    payload: CorrelationFavoritePayload,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+
+    if (!isLoggedIn) {
+      toast.error("Sign in to save plays");
+      return;
+    }
+
+    const { teammate, marketKey, hitRateData, effectiveLine, liveOdds } = payload;
+    const eventId = hitRateData.eventId ?? (gameId ? String(gameId) : null);
+
+    if (!eventId) {
+      toast.error("No live event available for this correlation");
+      return;
+    }
+
+    const lineValue = Number.isFinite(effectiveLine) ? Number(effectiveLine.toFixed(1)) : 0.5;
+    const favoriteKey = createFavoriteKey({
+      event_id: eventId,
+      type: "player",
+      player_id: String(teammate.playerId),
+      market: marketKey,
+      line: lineValue,
+      side: "over",
+    });
+
+    setTogglingFavoriteKey(favoriteKey);
+
+    try {
+      const bestOver = liveOdds?.bestOver;
+      const booksSnapshot: Record<string, BookSnapshot> | null = bestOver
+        ? {
+            [bestOver.book]: {
+              price: bestOver.price,
+              u: bestOver.url ?? null,
+              m: bestOver.mobileUrl ?? null,
+              sgp: bestOver.sgp ?? null,
+            },
+          }
+        : null;
+
+      const oddsSelectionId = hitRateData.selKey
+        ? `${hitRateData.selKey}:${lineValue}:over`
+        : hitRateData.selectionId ?? null;
+
+      const result = await toggleFavorite({
+        type: "player",
+        sport: "nba",
+        event_id: eventId,
+        game_date: gameDate ?? null,
+        home_team: homeTeamName ?? null,
+        away_team: awayTeamName ?? null,
+        start_time: startTime ?? null,
+        player_id: String(teammate.playerId),
+        player_name: teammate.playerName,
+        player_team: anchorTeam ?? null,
+        player_position: teammate.position,
+        market: marketKey,
+        line: lineValue,
+        side: "over",
+        odds_key: `odds:nba:${eventId}:${marketKey}`,
+        odds_selection_id: oddsSelectionId,
+        books_snapshot: booksSnapshot,
+        best_price_at_save: bestOver?.price ?? null,
+        best_book_at_save: bestOver?.book ?? null,
+        source: "correlations",
+      });
+
+      if (result.action === "added") {
+        toast.success("Added to My Plays");
+      } else if (result.action === "removed") {
+        toast.success("Removed from My Plays");
+      }
+    } catch (err: any) {
+      if (err.message === "Already in favorites") {
+        toast.info("Already in My Plays");
+      } else if (err.message?.includes("logged in")) {
+        toast.error("Sign in to save plays");
+      } else {
+        toast.error("Failed to update");
+      }
+    } finally {
+      setTogglingFavoriteKey(null);
+    }
+  }, [anchorTeam, awayTeamName, gameDate, gameId, homeTeamName, isLoggedIn, startTime, toggleFavorite]);
 
   // Filter and sort teammates
   const sortedTeammates = useMemo(() => {
@@ -1535,6 +1750,11 @@ export function PlayerCorrelations({
                       expandedCard === teammate.playerId ? null : teammate.playerId
                     )}
                     getOdds={getOdds}
+                    favoriteKeys={favoriteKeys}
+                    togglingFavoriteKey={togglingFavoriteKey}
+                    onToggleFavorite={handleToggleFavorite}
+                    oddsLoading={oddsLoading}
+                    fallbackEventId={fallbackEventId}
                   />
                 ))}
               </div>
@@ -1542,7 +1762,7 @@ export function PlayerCorrelations({
               // ═══ SINGLE STAT TABLE VIEW ═══
               <div>
                 {/* Table Header */}
-                <div className="grid grid-cols-[180px_80px_100px_70px_70px_50px_70px_70px] items-center gap-2 px-3 py-2 bg-neutral-200 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-600 sticky top-0 z-10">
+                <div className={cn(tableHeaderGridClass, "px-3 py-2 bg-neutral-200 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-600 sticky top-0 z-10")}>
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase">Player</span>
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Line</span>
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Hit Rate</span>
@@ -1550,7 +1770,9 @@ export function PlayerCorrelations({
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Boost</span>
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">N</span>
                   <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Trend</span>
-                  <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Odds</span>
+                  {SHOW_CORRELATION_ACTIONS && (
+                    <span className="text-[10px] font-bold text-neutral-600 dark:text-neutral-300 uppercase text-center">Odds</span>
+                  )}
                 </div>
                 
                 {sortedTeammates.map((teammate, idx) => (
@@ -1562,6 +1784,11 @@ export function PlayerCorrelations({
                     locationFilter={locationFilter}
                     isEven={idx % 2 === 0}
                     getOdds={getOdds}
+                    favoriteKeys={favoriteKeys}
+                    togglingFavoriteKey={togglingFavoriteKey}
+                    onToggleFavorite={handleToggleFavorite}
+                    oddsLoading={oddsLoading}
+                    fallbackEventId={fallbackEventId}
                   />
                 ))}
               </div>

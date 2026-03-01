@@ -11,7 +11,29 @@ export class ValidationError extends Error {
 }
 
 // Sport validation
-const VALID_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab'] as const
+const VALID_SPORTS = [
+  'nfl',
+  'nba',
+  'mlb',
+  'ncaabaseball',
+  'nhl',
+  'ncaaf',
+  'ncaab',
+  'wnba',
+  'soccer_epl',
+  'soccer_laliga',
+  'soccer_mls',
+  'soccer_ucl',
+  'soccer_uel',
+  'tennis_atp',
+  'tennis_challenger',
+  'tennis_itf_men',
+  'tennis_itf_women',
+  'tennis_utr_men',
+  'tennis_utr_women',
+  'tennis_wta',
+  'ufc',
+] as const
 export type ValidSport = typeof VALID_SPORTS[number]
 
 export function validateSport(sport: unknown): ValidSport {
@@ -180,4 +202,3 @@ export function withValidation<T extends Record<string, unknown>>(
     }
   }
 }
-

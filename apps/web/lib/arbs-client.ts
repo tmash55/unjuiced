@@ -1,3 +1,5 @@
+import type { ArbMode } from "@/lib/arb-freshness";
+
 export type ArbLeg = {
     bk: string;
     name?: string;
@@ -30,12 +32,13 @@ export type ArbLeg = {
     u: ArbLeg;
   };
   
-  export async function fetchArbs(params: { v?: number; limit?: number; cursor?: number; event_id?: string }) {
+  export async function fetchArbs(params: { v?: number; limit?: number; cursor?: number; event_id?: string; mode?: ArbMode }) {
     const sp = new URLSearchParams();
     if (params.v != null) sp.set("v", String(params.v));
     if (params.limit != null) sp.set("limit", String(params.limit));
     if (params.cursor != null) sp.set("cursor", String(params.cursor));
     if (params.event_id) sp.set("event_id", params.event_id);
+    if (params.mode) sp.set("mode", params.mode);
     const res = await fetch(`/api/arbs?${sp.toString()}`, { credentials: "include" });
     if (res.status === 304) return { unchanged: true as const };
     if (!res.ok) throw new Error(`GET /api/arbs ${res.status}`);

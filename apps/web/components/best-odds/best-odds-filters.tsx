@@ -23,6 +23,19 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
+const PROP_MARKET_HINTS = [
+  "player_",
+  "batter_",
+  "pitcher_",
+  "goalscorer",
+  "shots_on_goal",
+  "shots_on_target",
+  "player_shots",
+  "yellow_cards",
+  "to_be_carded",
+  "fouls_committed",
+];
+
 interface BestOddsFiltersProps {
   prefs: BestOddsPrefs;
   onPrefsChange: (prefs: BestOddsPrefs) => void;
@@ -278,8 +291,21 @@ export function BestOddsFilters({
     ncaaf: 'NCAAF',
     ncaab: 'NCAAB',
     mlb: 'MLB',
+    ncaabaseball: 'NCAA Baseball',
     wnba: 'WNBA',
     soccer_epl: 'EPL',
+    soccer_laliga: 'LaLiga',
+    soccer_mls: 'MLS',
+    soccer_ucl: 'UCL',
+    soccer_uel: 'UEL',
+    tennis_atp: 'ATP',
+    tennis_challenger: 'Challenger',
+    tennis_itf_men: 'ITF Men',
+    tennis_itf_women: 'ITF Women',
+    tennis_utr_men: 'UTR Men',
+    tennis_utr_women: 'UTR Women',
+    tennis_wta: 'WTA',
+    ufc: 'UFC',
   };
 
   // Define which markets have line options and what those options are
@@ -315,8 +341,21 @@ export function BestOddsFilters({
     nfl: 'Football',
     nhl: 'Hockey',
     mlb: 'Baseball',
+    ncaabaseball: 'Baseball',
     wnba: 'Basketball',
     soccer_epl: 'Soccer',
+    soccer_laliga: 'Soccer',
+    soccer_mls: 'Soccer',
+    soccer_ucl: 'Soccer',
+    soccer_uel: 'Soccer',
+    tennis_atp: 'Tennis',
+    tennis_challenger: 'Tennis',
+    tennis_itf_men: 'Tennis',
+    tennis_itf_women: 'Tennis',
+    tennis_utr_men: 'Tennis',
+    tennis_utr_women: 'Tennis',
+    tennis_wta: 'Tennis',
+    ufc: 'MMA',
   };
 
   // Group markets by sport type - use API-provided sport data when available for exact parity with desktop
@@ -327,6 +366,8 @@ export function BestOddsFilters({
       Soccer: [],
       Hockey: [],
       Baseball: [],
+      Tennis: [],
+      MMA: [],
     };
     const added = new Set<string>(); // Track group:market to prevent duplicates
 
@@ -368,6 +409,8 @@ export function BestOddsFilters({
       const hockeyMarkets = new Set<string>();
       const baseballMarkets = new Set<string>();
       const soccerMarkets = new Set<string>();
+      const tennisMarkets = new Set<string>();
+      const mmaMarkets = new Set<string>();
 
       ['basketball_nba', 'basketball_ncaab', 'basketball_wnba'].forEach(key => {
         (SPORT_MARKETS[key] || []).forEach(m => basketballMarkets.add(m.apiKey));
@@ -377,7 +420,14 @@ export function BestOddsFilters({
       });
       (SPORT_MARKETS['icehockey_nhl'] || []).forEach(m => hockeyMarkets.add(m.apiKey));
       (SPORT_MARKETS['baseball_mlb'] || []).forEach(m => baseballMarkets.add(m.apiKey));
-      (SPORT_MARKETS['soccer_epl'] || []).forEach(m => soccerMarkets.add(m.apiKey));
+      (SPORT_MARKETS['baseball_ncaabaseball'] || []).forEach(m => baseballMarkets.add(m.apiKey));
+      ['soccer_epl', 'soccer_laliga', 'soccer_mls', 'soccer_ucl', 'soccer_uel'].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach(m => soccerMarkets.add(m.apiKey));
+      });
+      ['tennis_atp', 'tennis_challenger', 'tennis_itf_men', 'tennis_itf_women', 'tennis_utr_men', 'tennis_utr_women', 'tennis_wta'].forEach((key) => {
+        (SPORT_MARKETS[key] || []).forEach(m => tennisMarkets.add(m.apiKey));
+      });
+      (SPORT_MARKETS['ufc'] || []).forEach(m => mmaMarkets.add(m.apiKey));
 
       (availableMarkets || []).forEach(market => {
         const m = market.toLowerCase();
@@ -388,6 +438,8 @@ export function BestOddsFilters({
         if (hockeyMarkets.has(m)) { groups.Hockey.push(market); matched = true; }
         if (baseballMarkets.has(m)) { groups.Baseball.push(market); matched = true; }
         if (soccerMarkets.has(m)) { groups.Soccer.push(market); matched = true; }
+        if (tennisMarkets.has(m)) { groups.Tennis.push(market); matched = true; }
+        if (mmaMarkets.has(m)) { groups.MMA.push(market); matched = true; }
         
         if (!matched) {
           // Fallback by keyword
@@ -399,6 +451,10 @@ export function BestOddsFilters({
             groups.Hockey.push(market);
           } else if (m.includes('batter') || m.includes('pitcher') || m.includes('rbi') || m.includes('strikeout') || m.includes('home_run')) {
             groups.Baseball.push(market);
+          } else if (m.includes('set') || m.includes('tiebreak') || m.includes('breaks')) {
+            groups.Tennis.push(market);
+          } else if (m.includes('fight') || m.includes('round') || m.includes('decision') || m.includes('finish')) {
+            groups.MMA.push(market);
           } else {
             groups.Basketball.push(market);
           }
@@ -415,6 +471,68 @@ export function BestOddsFilters({
 
     return groups;
   }, [availableMarkets, marketSportsMap, localLeagues, availableLeagues]);
+
+  const isPropMarket = useCallback((marketKey: string) => {
+    const lower = marketKey.toLowerCase();
+    return PROP_MARKET_HINTS.some((hint) => lower.includes(hint));
+  }, []);
+
+  const visibleMarketTypes = useMemo(() => {
+    const game: string[] = [];
+    const props: string[] = [];
+    const seen = new Set<string>();
+    const search = marketSearchQuery.trim().toLowerCase();
+
+    Object.values(groupedMarkets).forEach((markets) => {
+      markets.forEach((market) => {
+        if (seen.has(market)) return;
+        if (search && !formatMarketLabel(market).toLowerCase().includes(search)) return;
+        seen.add(market);
+        if (isPropMarket(market)) props.push(market);
+        else game.push(market);
+      });
+    });
+
+    return { game, props };
+  }, [groupedMarkets, isPropMarket, marketSearchQuery]);
+
+  const isMarketVisibleSelected = useCallback((market: string) => {
+    const totalMarkets = availableMarkets?.length ?? 0;
+    const allSelected = localMarkets.length === 0 || (totalMarkets > 0 && displaySelectedMarkets.length === totalMarkets);
+    return allSelected || displaySelectedMarkets.includes(market);
+  }, [availableMarkets?.length, displaySelectedMarkets, localMarkets.length]);
+
+  const gameLinesAllSelected = useMemo(() => {
+    return visibleMarketTypes.game.length > 0 && visibleMarketTypes.game.every(isMarketVisibleSelected);
+  }, [isMarketVisibleSelected, visibleMarketTypes.game]);
+
+  const playerPropsAllSelected = useMemo(() => {
+    return visibleMarketTypes.props.length > 0 && visibleMarketTypes.props.every(isMarketVisibleSelected);
+  }, [isMarketVisibleSelected, visibleMarketTypes.props]);
+
+  const toggleMarketType = useCallback((type: "game" | "props") => {
+    if (locked || customPresetActive) return;
+
+    const targets = type === "game" ? visibleMarketTypes.game : visibleMarketTypes.props;
+    if (targets.length === 0) return;
+
+    setLocalMarkets((prev) => {
+      const flat = flattenMarkets(prev);
+      const totalMarkets = availableMarkets?.length ?? 0;
+      const allSelected = flat.length === 0 || (totalMarkets > 0 && flat.length === totalMarkets);
+      const selectedSet = new Set(allSelected ? (availableMarkets ?? []) : flat);
+      const allTargetsSelected = targets.every((market) => selectedSet.has(market));
+
+      if (allTargetsSelected) targets.forEach((market) => selectedSet.delete(market));
+      else targets.forEach((market) => selectedSet.add(market));
+
+      if (totalMarkets > 0 && selectedSet.size === totalMarkets) {
+        return [];
+      }
+
+      return Array.from(selectedSet);
+    });
+  }, [availableMarkets, customPresetActive, flattenMarkets, locked, visibleMarketTypes.game, visibleMarketTypes.props]);
 
   const toggleBook = (id: string) => {
     if (locked) return;
@@ -964,6 +1082,41 @@ export function BestOddsFilters({
                       </button>
                     )}
                   </div>
+
+                  {/* Market Type Toggles */}
+                  <div className={cn("grid grid-cols-2 gap-2", customPresetActive && "opacity-50 pointer-events-none")}>
+                    <button
+                      type="button"
+                      onClick={() => toggleMarketType("game")}
+                      disabled={locked || customPresetActive || visibleMarketTypes.game.length === 0}
+                      className={cn(
+                        "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                        gameLinesAllSelected
+                          ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
+                        (locked || customPresetActive || visibleMarketTypes.game.length === 0) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {gameLinesAllSelected ? "Hide Game Lines" : "Show Game Lines"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleMarketType("props")}
+                      disabled={locked || customPresetActive || visibleMarketTypes.props.length === 0}
+                      className={cn(
+                        "rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                        playerPropsAllSelected
+                          ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
+                        (locked || customPresetActive || visibleMarketTypes.props.length === 0) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {playerPropsAllSelected ? "Hide Player Props" : "Show Player Props"}
+                    </button>
+                  </div>
+                  <p className={cn("text-[11px] text-neutral-500 dark:text-neutral-400", customPresetActive && "opacity-50")}>
+                    Quick toggle for visible markets.
+                  </p>
                   
                   {/* Custom Mode Warning */}
                   {customPresetActive && (
@@ -987,12 +1140,13 @@ export function BestOddsFilters({
                       const filteredMarkets = marketSearchQuery 
                         ? markets.filter(m => formatMarketLabel(m).toLowerCase().includes(marketSearchQuery.toLowerCase()))
                         : markets;
+                      const visibleMarkets = Array.from(new Set(filteredMarkets));
                       
-                      if (filteredMarkets.length === 0) return null;
+                      if (visibleMarkets.length === 0) return null;
                       
                       const isExpanded = expandedSportSections.has(sportType);
-                      const selectedCount = filteredMarkets.filter(m => allMarketsSelected || displaySelectedMarkets.includes(m)).length;
-                      const allSelected = selectedCount === filteredMarkets.length;
+                      const selectedCount = visibleMarkets.filter(m => allMarketsSelected || displaySelectedMarkets.includes(m)).length;
+                      const allSelected = selectedCount === visibleMarkets.length;
                       
                       // Sport icon mapping
                       const sportIconMap: Record<string, string> = {
@@ -1031,7 +1185,7 @@ export function BestOddsFilters({
                             {sportType}
                           </div>
                                 <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                                  {filteredMarkets.length} market{filteredMarkets.length !== 1 ? 's' : ''}
+                                  {visibleMarkets.length} market{visibleMarkets.length !== 1 ? 's' : ''}
                                 </div>
                               </div>
                             </div>
@@ -1051,7 +1205,7 @@ export function BestOddsFilters({
                                     All
                                   </>
                                 ) : (
-                                  `${selectedCount}/${filteredMarkets.length}`
+                                  `${selectedCount}/${visibleMarkets.length}`
                                 )}
                               </div>
                               <motion.div
@@ -1087,10 +1241,10 @@ export function BestOddsFilters({
                                 setLocalMarkets(prev => {
                                   const flat = flattenMarkets(prev);
                                   if (flat.length === 0) {
-                                    return [...filteredMarkets];
+                                    return [...visibleMarkets];
                                   }
                                   const newSelected = new Set(flat);
-                                  filteredMarkets.forEach(m => newSelected.add(m));
+                                  visibleMarkets.forEach(m => newSelected.add(m));
                                   return Array.from(newSelected);
                                 });
                               }}
@@ -1105,7 +1259,7 @@ export function BestOddsFilters({
                                 if (locked) return;
                                           setLocalMarkets(prev => {
                                             const flat = flattenMarkets(prev);
-                                            return flat.filter(m => !filteredMarkets.includes(m));
+                                            return flat.filter(m => !visibleMarkets.includes(m));
                                           });
                               }}
                               disabled={locked}
@@ -1119,7 +1273,7 @@ export function BestOddsFilters({
                                   {/* Markets Grid */}
                                   <div className="p-3 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-200 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {filteredMarkets.map(market => {
+                                      {visibleMarkets.map(market => {
                             const checked = allMarketsSelected || displaySelectedMarkets.includes(market);
                             const hasLines = hasLineOptions(market);
                                         const isMarketExpanded = expandedMarkets.has(market);
@@ -1128,7 +1282,7 @@ export function BestOddsFilters({
                             const selectedLinesForMarket = localMarketLines[marketKey] || [];
                             
                             return (
-                              <div key={market} className="space-y-2">
+                              <div key={`${sportType}:${market}`} className="space-y-2">
                                             <div className="flex items-center gap-1.5">
                                               <button
                                                 type="button"

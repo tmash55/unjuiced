@@ -11,6 +11,55 @@ interface UseSSEOptions {
   onConnectionChange?: (connected: boolean) => void;
 }
 
+function tryParseSSEPayload(raw: string): unknown | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  // Ignore control/ack frames from Redis subscribe streams.
+  if (
+    text.startsWith("subscribe,") ||
+    text.startsWith("psubscribe,") ||
+    text === "ping" ||
+    text === "pong"
+  ) {
+    return null;
+  }
+
+  const start = text.search(/[\[{]/);
+  if (start < 0) return null;
+  const candidate = text.slice(start);
+
+  try {
+    const parsed = JSON.parse(candidate) as any;
+
+    // Upstash-style envelope: {"channel":"...", "message":"{...}"}
+    if (parsed && typeof parsed === "object" && "message" in parsed) {
+      const message = parsed.message;
+      if (typeof message === "string") {
+        const messageTrim = message.trim();
+        const messageStart = messageTrim.search(/[\[{]/);
+        if (messageStart >= 0) {
+          const nestedCandidate = messageTrim.slice(messageStart);
+          try {
+            return JSON.parse(nestedCandidate);
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+
+      if (message && typeof message === "object") {
+        return message;
+      }
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function useSSE(url: string, options: UseSSEOptions = {}) {
   const {
     enabled = true,
@@ -89,29 +138,14 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
 
       // Handle SSE messages (same pattern as arbitrage hook)
       eventSource.onmessage = (event) => {
-        // Skip subscription confirmations from Redis
-        if (!event.data || 
-            event.data.startsWith('subscribe,') || 
-            event.data.startsWith('psubscribe,')) {
-          return;
-        }
-        
-        try {
-          // Redis pub/sub format: "message,pub:props:nfl,{...}"
-          // Find the first { and slice from there to get the JSON payload
-          const idx = (event.data as string).indexOf("{");
-          const json = idx >= 0 ? (event.data as string).slice(idx) : (event.data as string);
-          
-          const data = JSON.parse(json);
-          setLastMessage(data);
-          // Use ref to always call latest callback (avoids stale closure)
-          onMessageRef.current?.(data);
-        } catch (error) {
-          // Only log parse errors in development
-          if (process.env.NODE_ENV === 'development') {
-            console.error("[useSSE] Failed to parse message:", error, "Data:", event.data);
-          }
-        }
+        if (!event.data) return;
+
+        const data = tryParseSSEPayload(String(event.data));
+        if (!data) return;
+
+        setLastMessage(data);
+        // Use ref to always call latest callback (avoids stale closure)
+        onMessageRef.current?.(data);
       };
 
       eventSource.onerror = (error) => {
@@ -227,7 +261,6 @@ export function useSSE(url: string, options: UseSSEOptions = {}) {
     hasFailed,
   };
 }
-
 
 
 

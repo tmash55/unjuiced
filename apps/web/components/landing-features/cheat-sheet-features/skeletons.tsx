@@ -169,6 +169,102 @@ export const InjuryImpactSkeleton = () => {
 // Shows the alternate lines matrix interface
 // ============================================================================
 
+export const TripleDoubleSkeleton = () => {
+  return (
+    <div className="flex items-center justify-center w-full h-full p-8">
+      <div className="w-full max-w-3xl bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-bold text-neutral-900 dark:text-white">Triple Double Sheet</div>
+              <div className="text-xs text-neutral-500 mt-0.5">SGP pricing vs triple double market</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Table Header */}
+        <div className="grid grid-cols-5 gap-3 px-6 py-3 bg-neutral-50 dark:bg-neutral-800/50 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+          <div className="col-span-2">Player</div>
+          <div className="text-center">SGP (R+A)</div>
+          <div className="text-center">SGP (P+R+A)</div>
+          <div className="text-center">Triple Double</div>
+        </div>
+
+        {/* Table Rows */}
+        <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          {[
+            { name: "Nikola Jokic", team: "DEN", matchup: "vs LAL", ra: "+2800", pra: "+4200", td: "+3500", evRa: "+12.4%", evPra: "+24.5%" },
+            { name: "Luka Doncic", team: "DAL", matchup: "vs PHX", ra: "+3200", pra: "+4800", td: "+3000", evRa: null, evPra: "+58.2%" },
+            { name: "LeBron James", team: "LAL", matchup: "vs DEN", ra: "+3500", pra: "+5500", td: "+4500", evRa: null, evPra: "+26.8%" },
+            { name: "Domantas Sabonis", team: "SAC", matchup: "vs GSW", ra: "+4000", pra: "+6500", td: "+5000", evRa: null, evPra: "+32.1%" },
+          ].map((row, i) => {
+            const prices = [
+              row.ra ? parseInt(row.ra.replace("+", "")) : 0,
+              row.pra ? parseInt(row.pra.replace("+", "")) : 0,
+              row.td ? parseInt(row.td.replace("+", "")) : 0,
+            ];
+            const best = Math.max(...prices);
+
+            return (
+              <div key={i} className="grid grid-cols-5 gap-3 px-6 py-3 items-center hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors">
+                <div className="col-span-2 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                  <div>
+                    <div className="text-sm font-medium text-neutral-900 dark:text-white">{row.name}</div>
+                    <div className="text-xs text-neutral-500">{row.team} {row.matchup}</div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <span className={cn(
+                    "px-2 py-1 rounded text-xs font-bold",
+                    parseInt(row.ra.replace("+", "")) === best
+                      ? "bg-green-500/20 text-green-600 dark:text-green-400"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {row.ra}
+                  </span>
+                  {row.evRa && (
+                    <div className="text-[10px] font-semibold text-green-500 mt-0.5">+EV {row.evRa}</div>
+                  )}
+                </div>
+                <div className="text-center">
+                  <span className={cn(
+                    "px-2 py-1 rounded text-xs font-bold",
+                    parseInt(row.pra.replace("+", "")) === best
+                      ? "bg-green-500/20 text-green-600 dark:text-green-400"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {row.pra}
+                  </span>
+                  {row.evPra && (
+                    <div className="text-[10px] font-semibold text-green-500 mt-0.5">+EV {row.evPra}</div>
+                  )}
+                </div>
+                <div className="text-center">
+                  <span className={cn(
+                    "px-2 py-1 rounded text-xs font-bold",
+                    parseInt(row.td.replace("+", "")) === best
+                      ? "bg-green-500/20 text-green-600 dark:text-green-400"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                  )}>
+                    {row.td}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// ALT LINE GRID SKELETON
+// Shows the alternate lines matrix interface
+// ============================================================================
+
 export const AltLineGridSkeleton = () => {
   const lines = [18.5, 20.5, 22.5, 24.5, 26.5, 28.5];
   

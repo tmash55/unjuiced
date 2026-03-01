@@ -27,7 +27,29 @@ import { type BestOddsPrefs } from "@/lib/best-odds-schema";
 import { isMarketSelected } from "@/lib/utils";
 
 // All supported sports for broad fetching in preset mode
-const ALL_SPORTS: Sport[] = ["nba", "nfl", "nhl", "mlb", "ncaaf", "ncaab", "wnba", "soccer_epl"];
+const ALL_SPORTS: Sport[] = [
+  "nba",
+  "nfl",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -174,8 +196,21 @@ function buildFilterConfigs(
     ncaab: "ncaab",
     nhl: "nhl",
     mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
     wnba: "wnba",
     soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
 
   // If no active presets, use preset mode (single filter from prefs)
@@ -201,10 +236,8 @@ function buildFilterConfigs(
     // Use user preferences for odds range when set, otherwise use broad fallback
     const broadLimit = isPro ? Math.max(limit, 500) : Math.max(limit, 100);
     
-    // Use user's preferences for odds if set, otherwise use broad defaults
-    const serverMinOdds = prefs.minOdds ?? -10000;
-    const serverMaxOdds = prefs.maxOdds ?? 20000;
-
+    // Always send broad defaults to server — odds range is filtered client-side
+    // This avoids refetching when user changes odds range slider
     const safeMarketLines = toNumberRecord(prefs.marketLines as unknown);
 
     return [{
@@ -215,8 +248,8 @@ function buildFilterConfigs(
         blend: null,
         limit: broadLimit, // Larger batch for client-side filtering
         minEdge: 0, // Fetch all edges, filter client-side
-        minOdds: serverMinOdds, // Use user preference or broad fallback
-        maxOdds: serverMaxOdds, // Use user preference or broad fallback
+        minOdds: -10000, // Broad range — client-side filtering narrows
+        maxOdds: 100000, // Broad range — client-side filtering narrows
         searchQuery: "", // Search is client-side
         selectedBooks: [], // Book exclusions are client-side
         selectedMarkets: [], // Send empty to get ALL markets
@@ -521,8 +554,21 @@ function applyGlobalFilters(
     ncaab: "ncaab",
     nhl: "nhl",
     mlb: "mlb",
+    ncaabaseball: "ncaabaseball",
     wnba: "wnba",
     soccer_epl: "soccer_epl",
+    soccer_laliga: "soccer_laliga",
+    soccer_mls: "soccer_mls",
+    soccer_ucl: "soccer_ucl",
+    soccer_uel: "soccer_uel",
+    tennis_atp: "tennis_atp",
+    tennis_challenger: "tennis_challenger",
+    tennis_itf_men: "tennis_itf_men",
+    tennis_itf_women: "tennis_itf_women",
+    tennis_utr_men: "tennis_utr_men",
+    tennis_utr_women: "tennis_utr_women",
+    tennis_wta: "tennis_wta",
+    ufc: "ufc",
   };
   
   // Build set of selected sports for fast lookup
@@ -565,7 +611,7 @@ function applyGlobalFilters(
     }
     
     // HYBRID: Selected markets filter (client-side)
-    // Empty = all markets selected
+    // Empty = all markets selected; skip in custom mode (custom models define their own markets)
     if (!isCustomMode && selectedMarkets.length > 0) {
       if (!isMarketSelected(selectedMarkets, opp.sport || "", opp.market || "")) {
         return false;
@@ -671,12 +717,12 @@ export function useMultiFilterOpportunities({
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
         JSON.stringify(prefs.marketLines || {}),
-        prefs.minOdds ?? -10000,
-        prefs.maxOdds ?? 20000,
+        // minOdds/maxOdds removed from key — server always gets broad range,
+        // client-side filtering in applyGlobalFilters handles user's preference
         isPro,
       ];
     }
-  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, prefs.minOdds, prefs.maxOdds, isPro]);
+  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, isPro]);
 
   const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
   const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);

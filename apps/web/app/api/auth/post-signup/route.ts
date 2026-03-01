@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
 import { syncNewSignupToBeeHiiv } from '@/libs/beehiiv'
+import { identifyCustomer, trackEvent } from '@/libs/customerio'
 
 export async function POST(request: NextRequest) {
   try {
@@ -103,6 +104,43 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       console.warn('⚠️ Could not ensure Stripe customer:', (e as any)?.message)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CUSTOMER.IO - Identify user + track signup event
+    // ═══════════════════════════════════════════════════════════════════
+    if (email) {
+      console.log('📧 Syncing user to Customer.io:', userId)
+
+      waitUntil(
+        (async () => {
+          await identifyCustomer(userId, {
+            email,
+            first_name: firstName || '',
+            last_name: lastName || '',
+            plan: 'free',
+            plan_name: 'free',
+            subscription_status: 'free',
+            total_sessions: 0,
+            signup_source: 'website',
+            created_at: createdAt
+              ? Math.floor(new Date(createdAt).getTime() / 1000)
+              : Math.floor(Date.now() / 1000),
+          })
+
+          if (isNewUser) {
+            await trackEvent(userId, 'signed_up', {
+              email,
+              first_name: firstName || '',
+              signup_source: 'website',
+              signed_up_at: new Date().toISOString(),
+            })
+            console.log('✅ Customer.io signup tracking complete for', userId)
+          }
+        })().catch((err) => {
+          console.error('❌ Customer.io sync error:', err)
+        })
+      )
     }
 
     // ═══════════════════════════════════════════════════════════════════

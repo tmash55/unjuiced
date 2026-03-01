@@ -44,6 +44,7 @@ interface MobilePositiveEVProps {
   onPlayerClick?: (opp: PositiveEVOpportunity) => void;
   onHideEdge?: (opp: PositiveEVOpportunity) => void;
   onUnhideEdge?: (edgeKey: string) => void;
+  onLineHistoryClick?: (opp: PositiveEVOpportunity) => void;
   isHidden?: (edgeKey: string) => boolean;
   bankroll?: number;
   kellyPercent?: number;
@@ -115,6 +116,7 @@ export function MobilePositiveEV({
   onPlayerClick,
   onHideEdge,
   onUnhideEdge,
+  onLineHistoryClick,
   isHidden,
   bankroll = 0,
   kellyPercent = 25,
@@ -510,6 +512,7 @@ export function MobilePositiveEV({
                 onPlayerClick={onPlayerClick ? () => onPlayerClick(opp) : undefined}
                 onHide={onHideEdge ? () => onHideEdge(opp) : undefined}
                 onUnhide={onUnhideEdge ? () => onUnhideEdge(opp.id) : undefined}
+                onLineHistoryClick={onLineHistoryClick ? () => onLineHistoryClick(opp) : undefined}
                 isHidden={isHidden?.(opp.id) ?? false}
                 isExpanded={expandedCardId === opp.id}
                 onToggleExpand={() => handleCardExpand(opp.id)}

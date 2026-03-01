@@ -85,6 +85,51 @@ const PLAYER_MARKETS: Record<string, { key: string; label: string; shortLabel: s
     { key: 'player_first_goal', label: 'First Goal', shortLabel: '1st' },
     { key: 'player_anytime_goal', label: 'Anytime Goal', shortLabel: 'ATG' },
   ],
+  soccer_epl: [
+    { key: 'player_goals', label: 'Goals', shortLabel: 'Goals' },
+    { key: 'player_shots_on_target', label: 'Shots on Target', shortLabel: 'SOT' },
+    { key: 'player_assists', label: 'Assists', shortLabel: 'AST' },
+    { key: 'player_shots', label: 'Shots', shortLabel: 'Shots' },
+    { key: 'player_first_goal', label: 'First Goalscorer', shortLabel: '1st G' },
+    { key: 'player_fouls', label: 'Fouls', shortLabel: 'Fouls' },
+    { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
+  ],
+  soccer_laliga: [
+    { key: 'player_goals', label: 'Goals', shortLabel: 'Goals' },
+    { key: 'player_shots_on_target', label: 'Shots on Target', shortLabel: 'SOT' },
+    { key: 'player_assists', label: 'Assists', shortLabel: 'AST' },
+    { key: 'player_shots', label: 'Shots', shortLabel: 'Shots' },
+    { key: 'player_first_goal', label: 'First Goalscorer', shortLabel: '1st G' },
+    { key: 'player_fouls', label: 'Fouls', shortLabel: 'Fouls' },
+    { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
+  ],
+  soccer_mls: [
+    { key: 'player_goals', label: 'Goals', shortLabel: 'Goals' },
+    { key: 'player_shots_on_target', label: 'Shots on Target', shortLabel: 'SOT' },
+    { key: 'player_assists', label: 'Assists', shortLabel: 'AST' },
+    { key: 'player_shots', label: 'Shots', shortLabel: 'Shots' },
+    { key: 'player_first_goal', label: 'First Goalscorer', shortLabel: '1st G' },
+    { key: 'player_fouls', label: 'Fouls', shortLabel: 'Fouls' },
+    { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
+  ],
+  soccer_ucl: [
+    { key: 'player_goals', label: 'Goals', shortLabel: 'Goals' },
+    { key: 'player_shots_on_target', label: 'Shots on Target', shortLabel: 'SOT' },
+    { key: 'player_assists', label: 'Assists', shortLabel: 'AST' },
+    { key: 'player_shots', label: 'Shots', shortLabel: 'Shots' },
+    { key: 'player_first_goal', label: 'First Goalscorer', shortLabel: '1st G' },
+    { key: 'player_fouls', label: 'Fouls', shortLabel: 'Fouls' },
+    { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
+  ],
+  soccer_uel: [
+    { key: 'player_goals', label: 'Goals', shortLabel: 'Goals' },
+    { key: 'player_shots_on_target', label: 'Shots on Target', shortLabel: 'SOT' },
+    { key: 'player_assists', label: 'Assists', shortLabel: 'AST' },
+    { key: 'player_shots', label: 'Shots', shortLabel: 'Shots' },
+    { key: 'player_first_goal', label: 'First Goalscorer', shortLabel: '1st G' },
+    { key: 'player_fouls', label: 'Fouls', shortLabel: 'Fouls' },
+    { key: 'player_offsides', label: 'Offsides', shortLabel: 'Offsides' },
+  ],
   mlb: [
     { key: 'batter_hits', label: 'Hits', shortLabel: 'H' },
     { key: 'batter_home_runs', label: 'Home Runs', shortLabel: 'HR' },
@@ -194,7 +239,20 @@ export function AlternatesModal({
   }, [market]);
 
   // Get available markets for this sport
-  const availableMarkets = PLAYER_MARKETS[sport] || PLAYER_MARKETS.nba;
+  const availableMarkets = React.useMemo(() => {
+    const configured = PLAYER_MARKETS[sport] || [];
+    if (configured.length > 0) return configured;
+
+    // Never default to NBA markets for unsupported sports.
+    // Keep current market selectable so users can still switch back.
+    const fallbackLabel = selectedMarket
+      .replace(/_/g, ' ')
+      .replace(/player /i, '')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    return [{ key: selectedMarket, label: fallbackLabel, shortLabel: fallbackLabel }];
+  }, [sport, selectedMarket]);
 
   // Get available sportsbooks from the alternates data
   const availableSportsbooks = React.useMemo(() => {

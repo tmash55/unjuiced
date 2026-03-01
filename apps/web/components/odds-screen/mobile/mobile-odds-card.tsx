@@ -43,6 +43,11 @@ function getTeamLogoUrl(teamName: string, sport: string): string {
   return `/team-logos/${sport}/${abbr.toUpperCase()}.svg`;
 }
 
+function shouldUseFullMatchupNames(sport: string): boolean {
+  const normalized = sport.toLowerCase();
+  return normalized.startsWith("soccer_") || normalized.startsWith("tennis_");
+}
+
 // Get sportsbook logo
 function getBookLogo(bookId: string): string | null {
   const book = getSportsbookById(bookId);
@@ -51,6 +56,9 @@ function getBookLogo(bookId: string): string | null {
 
 export function MobileOddsCard({ game, items, sport, onTap }: MobileOddsCardProps) {
   const showLogos = hasTeamLogos(sport);
+  const useFullNames = shouldUseFullMatchupNames(sport);
+  const awayDisplay = useFullNames ? (game.awayName || game.awayTeam) : game.awayTeam;
+  const homeDisplay = useFullNames ? (game.homeName || game.homeTeam) : game.homeTeam;
 
   // Get the moneyline item (first item should be the moneyline data)
   const moneylineItem = items[0];
@@ -81,13 +89,13 @@ export function MobileOddsCard({ game, items, sport, onTap }: MobileOddsCardProp
               {showLogos && (
                 <img
                   src={getTeamLogoUrl(game.awayTeam, sport)}
-                  alt={game.awayTeam}
+                  alt={awayDisplay}
                   className="w-7 h-7 object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
               )}
               <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                {game.awayTeam}
+                {awayDisplay}
               </span>
             </div>
             <div className={cn(
@@ -120,13 +128,13 @@ export function MobileOddsCard({ game, items, sport, onTap }: MobileOddsCardProp
               {showLogos && (
                 <img
                   src={getTeamLogoUrl(game.homeTeam, sport)}
-                  alt={game.homeTeam}
+                  alt={homeDisplay}
                   className="w-7 h-7 object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
               )}
               <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                {game.homeTeam}
+                {homeDisplay}
               </span>
             </div>
             <div className={cn(

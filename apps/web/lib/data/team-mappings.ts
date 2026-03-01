@@ -574,6 +574,14 @@ export const MLB_TEAM_MAP: Record<string, string> = {
         total_bases: "Total Bases",
         walks: "Walks",
         pitching_outs: "Outs",
+      },
+      ufc: {
+        fight_moneyline: "Fight Moneyline",
+        fight_total_rounds: "Fight Total Rounds",
+        fight_total: "Fight Total Rounds",
+        moneyline_finish_only: "Moneyline (Finish Only)",
+        moneyline_decision_only: "Moneyline (Decision Only)",
+        "1st_round_moneyline_finish_only": "1st Round Finish Only",
       }
     }
   

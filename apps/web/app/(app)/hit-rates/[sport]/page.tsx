@@ -127,24 +127,21 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Get game data
   const { games: allGames, primaryDate: apiPrimaryDate } = useNbaGames();
   
-  // Default to today's games on first load (both desktop and mobile)
+  // Default to the next game day on first load (both desktop and mobile)
   useEffect(() => {
     if (allGames && allGames.length > 0) {
-      const now = new Date();
-      const etOptions: Intl.DateTimeFormatOptions = { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' };
-      const todayET = now.toLocaleDateString('en-CA', etOptions);
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowET = tomorrow.toLocaleDateString('en-CA', etOptions);
+      const sortedGames = [...allGames].sort((a, b) => {
+        const dateCompare = (a.game_date || "").localeCompare(b.game_date || "");
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.game_id).localeCompare(String(b.game_id));
+      });
 
-      const todayGames = allGames.filter(g => g.game_date === todayET);
-      const todayUpcomingGames = todayGames.filter(g => !hasGameStarted(g));
-      const tomorrowGames = allGames.filter(g => g.game_date === tomorrowET);
-
-      const defaultGameIds = todayUpcomingGames.length > 0
-        ? todayUpcomingGames.map(g => g.game_id)
-        : tomorrowGames.length > 0
-        ? tomorrowGames.map(g => g.game_id)
+      const upcomingGames = sortedGames.filter((game) => !hasGameStarted(game));
+      const nextGameDate = upcomingGames[0]?.game_date ?? sortedGames[0]?.game_date;
+      const defaultGameIds = nextGameDate
+        ? sortedGames
+            .filter((game) => game.game_date === nextGameDate)
+            .map((game) => String(game.game_id))
         : [];
       
       // Initialize desktop if not yet set
@@ -167,9 +164,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   // Update selectedDate when selectedGameIds changes
   useEffect(() => {
     if (effectiveDesktopGameIds.length > 0) {
-      const selectedGames = allGames.filter(g => 
-        effectiveDesktopGameIds.includes(String(g.game_id))
-      );
+      const selectedIdSet = new Set(effectiveDesktopGameIds.map((id) => normalizeGameId(id)));
+      const selectedGames = allGames.filter((game) => selectedIdSet.has(normalizeGameId(game.game_id)));
       const uniqueDates = new Set(selectedGames.map(g => g.game_date));
       
       if (uniqueDates.size > 1) {
@@ -271,9 +267,8 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
   
   useEffect(() => {
     if (effectiveGameIds.length > 0) {
-      const selectedGames = allGames.filter(g => 
-        effectiveGameIds.includes(String(g.game_id))
-      );
+      const selectedIdSet = new Set(effectiveGameIds.map((id) => normalizeGameId(id)));
+      const selectedGames = allGames.filter((game) => selectedIdSet.has(normalizeGameId(game.game_id)));
       const uniqueDates = new Set(selectedGames.map(g => g.game_date));
       
       if (uniqueDates.size === 1) {
@@ -344,8 +339,12 @@ export default function HitRatesSportPage({ params }: { params: Promise<{ sport:
     const params = new URLSearchParams({
       market: player.market,
     });
+    const profileDate = player.gameDate || effectiveDate || apiPrimaryDate || undefined;
+    if (profileDate) {
+      params.set("date", profileDate);
+    }
     router.push(`/hit-rates/${sport}/player/${player.playerId}?${params.toString()}`);
-  }, [router, sport, saveFilterState]);
+  }, [router, sport, saveFilterState, effectiveDate, apiPrimaryDate]);
 
   // Pre-compute normalized selected game IDs
   const normalizedSelectedGameIds = useMemo(() => 

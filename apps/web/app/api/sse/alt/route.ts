@@ -6,7 +6,29 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const SUPPORTED_SPORTS = new Set(["nfl", "nba", "nhl", "ncaaf"]);
+const SUPPORTED_SPORTS = new Set([
+  "nfl",
+  "nba",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "ncaaf",
+  "ncaab",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+]);
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -98,5 +120,4 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-
 

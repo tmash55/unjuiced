@@ -10,6 +10,31 @@ export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
+    const callPostSignup = async (user: { id: string; email?: string; user_metadata?: Record<string, any>; created_at?: string }) => {
+      try {
+        const metadata = user.user_metadata || {};
+        const firstName = metadata.first_name || metadata.given_name || undefined;
+        const lastName = metadata.last_name || metadata.family_name || undefined;
+        const fullName = metadata.full_name || metadata.name || undefined;
+
+        await fetch("/api/auth/post-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            email: user.email,
+            firstName,
+            lastName,
+            fullName,
+            avatarUrl: metadata.avatar_url,
+            createdAt: user.created_at,
+          }),
+        });
+      } catch (e) {
+        console.warn("Post-signup tracking failed:", e);
+      }
+    };
+
     const handleCallback = async () => {
       const supabase = createClient();
 
@@ -29,6 +54,7 @@ export default function AuthCallbackPage() {
           // Already processed this code, check if we have a session and redirect
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
+            await callPostSignup(session.user);
             setStatus("success");
             window.location.href = next;
           }
@@ -73,21 +99,7 @@ export default function AuthCallbackPage() {
             }
 
             // Call server endpoint for tracking
-            try {
-              await fetch("/api/auth/post-signup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  userId: data.user.id,
-                  email: data.user.email,
-                  fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
-                  avatarUrl: data.user.user_metadata?.avatar_url,
-                  createdAt: data.user.created_at,
-                }),
-              });
-            } catch (e) {
-              console.warn("Post-signup tracking failed:", e);
-            }
+            await callPostSignup(data.user);
 
             window.location.href = next.startsWith("http") ? next : next;
             return;
@@ -102,7 +114,8 @@ export default function AuthCallbackPage() {
             // Check if user is already authenticated (code was already exchanged)
             const { data: { session: existingSession } } = await supabase.auth.getSession();
             if (existingSession) {
-              // Auth succeeded via another path, just redirect
+              // Auth succeeded via another path, ensure tracking runs then redirect
+              await callPostSignup(existingSession.user);
               setStatus("success");
               window.location.href = next;
               return;
@@ -119,32 +132,7 @@ export default function AuthCallbackPage() {
             
             // Call server endpoint to handle Stripe/Brevo/Dub tracking for new users
             if (data.user) {
-              try {
-                // Extract name from user metadata
-                // Google OAuth provides: given_name, family_name, name, full_name
-                // Email/password signup provides: first_name, last_name, full_name
-                const metadata = data.user.user_metadata || {};
-                const firstName = metadata.first_name || metadata.given_name || undefined;
-                const lastName = metadata.last_name || metadata.family_name || undefined;
-                const fullName = metadata.full_name || metadata.name || undefined;
-
-                await fetch("/api/auth/post-signup", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    userId: data.user.id,
-                    email: data.user.email,
-                    firstName,
-                    lastName,
-                    fullName,
-                    avatarUrl: metadata.avatar_url,
-                    createdAt: data.user.created_at,
-                  }),
-                });
-              } catch (e) {
-                // Non-blocking - don't fail the auth flow if tracking fails
-                console.warn("Post-signup tracking failed:", e);
-              }
+              await callPostSignup(data.user);
             }
 
             // Redirect to destination
@@ -156,6 +144,7 @@ export default function AuthCallbackPage() {
         // Check if user is already authenticated (e.g., page refresh)
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
+          await callPostSignup(session.user);
           setStatus("success");
           window.location.href = next.startsWith("http") ? next : next;
           return;

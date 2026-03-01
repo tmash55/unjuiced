@@ -26,7 +26,21 @@ const SPORT_KEY_MAP: Record<string, string> = {
   ncaab: "ncaab",
   ncaaf: "ncaaf",
   mlb: "mlb",
+  ncaabaseball: "ncaabaseball",
   wnba: "wnba",
+  soccer_epl: "soccer_epl",
+  soccer_laliga: "soccer_laliga",
+  soccer_mls: "soccer_mls",
+  soccer_ucl: "soccer_ucl",
+  soccer_uel: "soccer_uel",
+  tennis_atp: "tennis_atp",
+  tennis_challenger: "tennis_challenger",
+  tennis_itf_men: "tennis_itf_men",
+  tennis_itf_women: "tennis_itf_women",
+  tennis_utr_men: "tennis_utr_men",
+  tennis_utr_women: "tennis_utr_women",
+  tennis_wta: "tennis_wta",
+  ufc: "ufc",
 };
 
 // Sport configuration
@@ -41,14 +55,33 @@ interface SportConfig {
 const SPORTS: SportConfig[] = [
   // Active
   { id: "nba", label: "NBA" },
-  { id: "nfl", label: "NFL" },
-  { id: "nhl", label: "NHL" },
   { id: "ncaab", label: "NCAAB" },
+  { id: "nhl", label: "NHL" },
+  { id: "ncaabaseball", label: "NCAA Baseball" },
+  { id: "soccer_epl", label: "EPL" },
+  { id: "soccer_laliga", label: "LaLiga" },
+  { id: "soccer_mls", label: "MLS" },
+  { id: "soccer_ucl", label: "UCL" },
+  { id: "soccer_uel", label: "UEL" },
+  { id: "tennis_atp", label: "ATP" },
+  { id: "tennis_wta", label: "WTA" },
+  { id: "tennis_challenger", label: "Challenger" },
+  { id: "tennis_itf_men", label: "ITF Men" },
+  { id: "tennis_itf_women", label: "ITF Women" },
+  { id: "tennis_utr_men", label: "UTR Men" },
+  { id: "tennis_utr_women", label: "UTR Women" },
+  { id: "ufc", label: "UFC" },
   // Off season
   { id: "mlb", label: "MLB", disabled: true, disabledReason: "Off Season" },
   { id: "wnba", label: "WNBA", disabled: true, disabledReason: "Off Season" },
   { id: "ncaaf", label: "NCAAF", disabled: true, disabledReason: "Off Season" },
+  { id: "nfl", label: "NFL", disabled: true, disabledReason: "Off Season" },
 ];
+
+const LEADING_SPORT_IDS = ["nba", "ncaab", "nhl", "ncaabaseball"] as const;
+const SOCCER_SPORT_IDS = ["soccer_epl", "soccer_laliga", "soccer_mls", "soccer_ucl", "soccer_uel"] as const;
+const TENNIS_SPORT_IDS = ["tennis_atp", "tennis_wta", "tennis_challenger", "tennis_itf_men", "tennis_itf_women", "tennis_utr_men", "tennis_utr_women"] as const;
+const TRAILING_SPORT_IDS = ["ufc", "mlb", "wnba", "ncaaf", "nfl"] as const;
 
 // Market configuration - separated into Tier 1 (primary) and Tier 2 (more)
 interface MarketTab {
@@ -111,6 +144,45 @@ const PRIMARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "receptions", label: "Rec", apiKey: "player_receptions", type: "player" },
     { id: "atd", label: "ATD", apiKey: "player_touchdowns", type: "player" },
   ],
+  soccer_epl: [
+    { id: "goals", label: "Goals", apiKey: "player_goals", type: "player" },
+    { id: "sot", label: "SOT", apiKey: "player_shots_on_target", type: "player" },
+    { id: "assists", label: "Assists", apiKey: "player_assists", type: "player" },
+    { id: "shots", label: "Shots", apiKey: "player_shots", type: "player" },
+  ],
+  soccer_laliga: [
+    { id: "goals", label: "Goals", apiKey: "player_goals", type: "player" },
+    { id: "sot", label: "SOT", apiKey: "player_shots_on_target", type: "player" },
+    { id: "assists", label: "Assists", apiKey: "player_assists", type: "player" },
+    { id: "shots", label: "Shots", apiKey: "player_shots", type: "player" },
+  ],
+  soccer_mls: [
+    { id: "goals", label: "Goals", apiKey: "player_goals", type: "player" },
+    { id: "sot", label: "SOT", apiKey: "player_shots_on_target", type: "player" },
+    { id: "assists", label: "Assists", apiKey: "player_assists", type: "player" },
+    { id: "shots", label: "Shots", apiKey: "player_shots", type: "player" },
+  ],
+  soccer_ucl: [
+    { id: "goals", label: "Goals", apiKey: "player_goals", type: "player" },
+    { id: "sot", label: "SOT", apiKey: "player_shots_on_target", type: "player" },
+    { id: "assists", label: "Assists", apiKey: "player_assists", type: "player" },
+    { id: "shots", label: "Shots", apiKey: "player_shots", type: "player" },
+  ],
+  soccer_uel: [
+    { id: "goals", label: "Goals", apiKey: "player_goals", type: "player" },
+    { id: "sot", label: "SOT", apiKey: "player_shots_on_target", type: "player" },
+    { id: "assists", label: "Assists", apiKey: "player_assists", type: "player" },
+    { id: "shots", label: "Shots", apiKey: "player_shots", type: "player" },
+  ],
+  ncaabaseball: [],
+  tennis_atp: [],
+  tennis_challenger: [],
+  tennis_itf_men: [],
+  tennis_itf_women: [],
+  tennis_utr_men: [],
+  tennis_utr_women: [],
+  tennis_wta: [],
+  ufc: [],
   mlb: [],
   wnba: [],
 };
@@ -230,9 +302,77 @@ const SECONDARY_MARKETS: Record<string, MarketTab[]> = {
     { id: "pass_att", label: "Pass Attempts", apiKey: "pass_attempts", type: "player" },
     { id: "rush_att", label: "Rush Attempts", apiKey: "rush_attempts", type: "player" },
   ],
+  soccer_epl: [
+    { id: "first_goal", label: "1st Goalscorer", apiKey: "player_first_goal", type: "player" },
+    { id: "fouls", label: "Fouls", apiKey: "player_fouls", type: "player" },
+    { id: "offsides", label: "Offsides", apiKey: "player_offsides", type: "player" },
+  ],
+  soccer_laliga: [
+    { id: "first_goal", label: "1st Goalscorer", apiKey: "player_first_goal", type: "player" },
+    { id: "fouls", label: "Fouls", apiKey: "player_fouls", type: "player" },
+    { id: "offsides", label: "Offsides", apiKey: "player_offsides", type: "player" },
+  ],
+  soccer_mls: [
+    { id: "first_goal", label: "1st Goalscorer", apiKey: "player_first_goal", type: "player" },
+    { id: "fouls", label: "Fouls", apiKey: "player_fouls", type: "player" },
+    { id: "offsides", label: "Offsides", apiKey: "player_offsides", type: "player" },
+  ],
+  soccer_ucl: [
+    { id: "first_goal", label: "1st Goalscorer", apiKey: "player_first_goal", type: "player" },
+    { id: "fouls", label: "Fouls", apiKey: "player_fouls", type: "player" },
+    { id: "offsides", label: "Offsides", apiKey: "player_offsides", type: "player" },
+  ],
+  soccer_uel: [
+    { id: "first_goal", label: "1st Goalscorer", apiKey: "player_first_goal", type: "player" },
+    { id: "fouls", label: "Fouls", apiKey: "player_fouls", type: "player" },
+    { id: "offsides", label: "Offsides", apiKey: "player_offsides", type: "player" },
+  ],
+  ncaabaseball: [],
+  tennis_atp: [],
+  tennis_challenger: [],
+  tennis_itf_men: [],
+  tennis_itf_women: [],
+  tennis_utr_men: [],
+  tennis_utr_women: [],
+  tennis_wta: [],
+  ufc: [],
   mlb: [],
   wnba: [],
 };
+
+const SOCCER_CORE_PRIMARY_GAME_MARKETS: MarketTab[] = [
+  { id: "handicap", label: "Handicap", apiKey: "handicap", type: "game" },
+  { id: "total_goals", label: "Total Goals", apiKey: "match_total_goals", type: "game" },
+  { id: "btts", label: "BTTS", apiKey: "both_teams_to_score", type: "game" },
+  { id: "draw_no_bet", label: "Draw No Bet", apiKey: "draw_no_bet", type: "game" },
+];
+
+const SOCCER_CORE_SECONDARY_GAME_MARKETS: MarketTab[] = [
+  { id: "1h_handicap", label: "1H Handicap", apiKey: "1st_half_handicap", type: "game" },
+  { id: "1h_total_goals", label: "1H Total Goals", apiKey: "1st_half_total_goals", type: "game" },
+  { id: "1h_draw_no_bet", label: "1H Draw No Bet", apiKey: "1st_half_draw_no_bet", type: "game" },
+];
+
+const SOCCER_EXTENDED_SECONDARY_GAME_MARKETS: MarketTab[] = [
+  { id: "2h_total_goals", label: "2H Total Goals", apiKey: "2nd_half_total_goals", type: "game" },
+  { id: "home_total_goals", label: "Home Total Goals", apiKey: "home_team_total_goals", type: "game" },
+  { id: "away_total_goals", label: "Away Total Goals", apiKey: "away_team_total_goals", type: "game" },
+  { id: "goal_both_halves", label: "Goal in Both Halves", apiKey: "goal_in_both_halves", type: "game" },
+  { id: "first_to_score_3way", label: "1st Team to Score", apiKey: "first_team_to_score_3_way", type: "game" },
+  { id: "second_to_score_3way", label: "2nd Team to Score", apiKey: "second_team_to_score_3_way", type: "game" },
+  { id: "third_to_score_3way", label: "3rd Team to Score", apiKey: "third_team_to_score_3_way", type: "game" },
+  { id: "fourth_to_score_3way", label: "4th Team to Score", apiKey: "fourth_team_to_score_3_way", type: "game" },
+  { id: "fifth_to_score_3way", label: "5th Team to Score", apiKey: "fifth_team_to_score_3_way", type: "game" },
+  { id: "last_to_score_3way", label: "Last Team to Score", apiKey: "last_team_to_score_3_way", type: "game" },
+  { id: "1h_btts", label: "1H BTTS", apiKey: "1st_half_both_teams_to_score", type: "game" },
+  { id: "1h_first_to_score_3way", label: "1H 1st Team to Score", apiKey: "1st_half_first_team_to_score_3_way", type: "game" },
+  { id: "2h_first_to_score_3way", label: "2H 1st Team to Score", apiKey: "2nd_half_first_team_to_score_3_way", type: "game" },
+];
+
+const SOCCER_CORNERS_SECONDARY_GAME_MARKETS: MarketTab[] = [
+  { id: "1h_corners_oe", label: "1H Corners O/E", apiKey: "1st_half_total_corners_odd_even", type: "game" },
+  { id: "2h_corners_oe", label: "2H Corners O/E", apiKey: "2nd_half_total_corners_odd_even", type: "game" },
+];
 
 // Tier 1: Primary game markets (always visible when in Game mode)
 // NOTE: apiKeys standardized to match Redis data feed format
@@ -281,8 +421,58 @@ const PRIMARY_GAME_MARKETS: Record<string, MarketTab[]> = {
   ],
   mlb: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
-    { id: "spread", label: "Run Line", apiKey: "game_spread", type: "game" },
-    { id: "total", label: "Total", apiKey: "total_runs", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+  ],
+  ncaabaseball: [
+    { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
+    { id: "spread", label: "Run Line", apiKey: "game_run_line", type: "game" },
+    { id: "total", label: "Total", apiKey: "game_total_runs", type: "game" },
+  ],
+  soccer_epl: SOCCER_CORE_PRIMARY_GAME_MARKETS,
+  soccer_laliga: SOCCER_CORE_PRIMARY_GAME_MARKETS,
+  soccer_mls: SOCCER_CORE_PRIMARY_GAME_MARKETS,
+  soccer_ucl: SOCCER_CORE_PRIMARY_GAME_MARKETS,
+  soccer_uel: SOCCER_CORE_PRIMARY_GAME_MARKETS,
+  tennis_atp: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_challenger: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_itf_men: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_itf_women: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_utr_men: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_utr_women: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  tennis_wta: [
+    { id: "ml", label: "ML", apiKey: "match_moneyline", type: "game" },
+    { id: "spread", label: "Spread", apiKey: "match_spread", type: "game" },
+    { id: "total", label: "Total Games", apiKey: "match_total_games", type: "game" },
+  ],
+  ufc: [
+    { id: "ml", label: "Moneyline", apiKey: "fight_moneyline", type: "game" },
+    { id: "finish_only", label: "Finish Only", apiKey: "moneyline_finish_only", type: "game" },
+    { id: "total", label: "Total Rounds", apiKey: "fight_total_rounds", type: "game" },
   ],
   wnba: [
     { id: "ml", label: "ML", apiKey: "game_moneyline", type: "game" },
@@ -355,6 +545,55 @@ const SECONDARY_GAME_MARKETS: Record<string, MarketTab[]> = {
     { id: "2h_spread", label: "2H Spread", apiKey: "2nd_half_point_spread", type: "game" },
     { id: "total_tds", label: "Total TDs", apiKey: "game_total_touchdowns", type: "game" },
   ],
+  ncaabaseball: [],
+  soccer_epl: [
+    ...SOCCER_CORE_SECONDARY_GAME_MARKETS,
+    ...SOCCER_EXTENDED_SECONDARY_GAME_MARKETS,
+    ...SOCCER_CORNERS_SECONDARY_GAME_MARKETS,
+  ],
+  soccer_laliga: [
+    ...SOCCER_CORE_SECONDARY_GAME_MARKETS,
+    ...SOCCER_EXTENDED_SECONDARY_GAME_MARKETS,
+    ...SOCCER_CORNERS_SECONDARY_GAME_MARKETS,
+  ],
+  soccer_mls: [
+    ...SOCCER_CORE_SECONDARY_GAME_MARKETS,
+    ...SOCCER_EXTENDED_SECONDARY_GAME_MARKETS,
+  ],
+  soccer_ucl: SOCCER_CORE_SECONDARY_GAME_MARKETS,
+  soccer_uel: SOCCER_CORE_SECONDARY_GAME_MARKETS,
+  tennis_atp: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_challenger: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_itf_men: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_itf_women: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_utr_men: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_utr_women: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  tennis_wta: [
+    { id: "set_total", label: "Total Sets", apiKey: "match_total_sets", type: "game" },
+    { id: "set_spread", label: "Set Spread", apiKey: "set_spread", type: "game" },
+  ],
+  ufc: [
+    { id: "decision_only", label: "Decision Only", apiKey: "moneyline_decision_only", type: "game" },
+    { id: "r1_finish", label: "1R Finish", apiKey: "1st_round_moneyline_finish_only", type: "game" },
+  ],
   mlb: [],
   wnba: [],
 };
@@ -368,7 +607,21 @@ const DEFAULT_GAME_MARKET: Record<string, string> = {
   ncaab: "game_moneyline",
   ncaaf: "game_moneyline",
   mlb: "game_moneyline",
+  ncaabaseball: "game_moneyline",
   wnba: "game_moneyline",
+  soccer_epl: "match_total_goals",
+  soccer_laliga: "match_total_goals",
+  soccer_mls: "match_total_goals",
+  soccer_ucl: "match_total_goals",
+  soccer_uel: "match_total_goals",
+  tennis_atp: "match_moneyline",
+  tennis_challenger: "match_moneyline",
+  tennis_itf_men: "match_moneyline",
+  tennis_itf_women: "match_moneyline",
+  tennis_utr_men: "match_moneyline",
+  tennis_utr_women: "match_moneyline",
+  tennis_wta: "match_moneyline",
+  ufc: "fight_moneyline",
 };
 
 interface OddsNavigationProps {
@@ -417,39 +670,88 @@ export function OddsNavigation({
 }: OddsNavigationProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
+  const [soccerOpen, setSoccerOpen] = useState(false);
+  const [tennisOpen, setTennisOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const gamesRef = useRef<HTMLDivElement>(null);
+  const soccerRef = useRef<HTMLDivElement>(null);
+  const tennisRef = useRef<HTMLDivElement>(null);
+
+  const leadingSports = useMemo(
+    () => LEADING_SPORT_IDS.map((id) => SPORTS.find((s) => s.id === id)).filter((s): s is SportConfig => Boolean(s)),
+    []
+  );
+  const soccerSports = useMemo(
+    () => SOCCER_SPORT_IDS.map((id) => SPORTS.find((s) => s.id === id)).filter((s): s is SportConfig => Boolean(s)),
+    []
+  );
+  const tennisSports = useMemo(
+    () => TENNIS_SPORT_IDS.map((id) => SPORTS.find((s) => s.id === id)).filter((s): s is SportConfig => Boolean(s)),
+    []
+  );
+  const trailingSports = useMemo(
+    () => TRAILING_SPORT_IDS.map((id) => SPORTS.find((s) => s.id === id)).filter((s): s is SportConfig => Boolean(s)),
+    []
+  );
   
   // Player markets
   const primaryMarkets = useMemo(() => PRIMARY_MARKETS[sport] || [], [sport]);
   const secondaryMarkets = useMemo(() => SECONDARY_MARKETS[sport] || [], [sport]);
+  const allPlayerMarkets = useMemo(() => [...primaryMarkets, ...secondaryMarkets], [primaryMarkets, secondaryMarkets]);
+  const visiblePrimaryMarkets = useMemo(
+    () => (allPlayerMarkets.length <= 5 ? allPlayerMarkets : primaryMarkets),
+    [allPlayerMarkets, primaryMarkets]
+  );
+  const visibleSecondaryMarkets = useMemo(
+    () => (allPlayerMarkets.length <= 5 ? [] : secondaryMarkets),
+    [allPlayerMarkets, secondaryMarkets]
+  );
   
   // Game markets
   const primaryGameMarkets = useMemo(() => PRIMARY_GAME_MARKETS[sport] || [], [sport]);
   const secondaryGameMarkets = useMemo(() => SECONDARY_GAME_MARKETS[sport] || [], [sport]);
+  const allGameMarkets = useMemo(() => [...primaryGameMarkets, ...secondaryGameMarkets], [primaryGameMarkets, secondaryGameMarkets]);
+  const visiblePrimaryGameMarkets = useMemo(
+    () => (allGameMarkets.length <= 5 ? allGameMarkets : primaryGameMarkets),
+    [allGameMarkets, primaryGameMarkets]
+  );
+  const visibleSecondaryGameMarkets = useMemo(
+    () => (allGameMarkets.length <= 5 ? [] : secondaryGameMarkets),
+    [allGameMarkets, secondaryGameMarkets]
+  );
   
   // Find active market in primary or secondary (for player mode)
   const activeMarketId = useMemo(() => {
     if (type === "player") {
-      const allMarkets = [...primaryMarkets, ...secondaryMarkets];
-      const match = allMarkets.find(tab => tab.apiKey === market);
+      const match = allPlayerMarkets.find(tab => tab.apiKey === market);
       return match?.id || null;
     } else {
-      const allGameMarkets = [...primaryGameMarkets, ...secondaryGameMarkets];
       const match = allGameMarkets.find(tab => tab.apiKey === market);
       return match?.id || null;
     }
-  }, [market, type, primaryMarkets, secondaryMarkets, primaryGameMarkets, secondaryGameMarkets]);
+  }, [market, type, allPlayerMarkets, allGameMarkets]);
 
   // Check if active market is in secondary (for More button highlight)
   const isSecondaryActive = useMemo(() => {
     if (type === "player") {
-      return secondaryMarkets.some(tab => tab.apiKey === market);
+      return visibleSecondaryMarkets.some(tab => tab.apiKey === market);
     } else {
-      return secondaryGameMarkets.some(tab => tab.apiKey === market);
+      return visibleSecondaryGameMarkets.some(tab => tab.apiKey === market);
     }
-  }, [market, type, secondaryMarkets, secondaryGameMarkets]);
+  }, [market, type, visibleSecondaryMarkets, visibleSecondaryGameMarkets]);
+
+  const selectedSoccerLabel = useMemo(
+    () => soccerSports.find((s) => s.id === sport)?.label || "Soccer",
+    [soccerSports, sport]
+  );
+  const selectedTennisLabel = useMemo(
+    () => tennisSports.find((s) => s.id === sport)?.label || "Tennis",
+    [tennisSports, sport]
+  );
+  const soccerGroupActive = sport.startsWith("soccer_");
+  const tennisGroupActive = sport.startsWith("tennis_");
+  const sportGroupMenuOpen = soccerOpen || tennisOpen;
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -459,6 +761,12 @@ export function OddsNavigation({
       }
       if (gamesRef.current && !gamesRef.current.contains(event.target as Node)) {
         setGamesOpen(false);
+      }
+      if (soccerRef.current && !soccerRef.current.contains(event.target as Node)) {
+        setSoccerOpen(false);
+      }
+      if (tennisRef.current && !tennisRef.current.contains(event.target as Node)) {
+        setTennisOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -547,26 +855,125 @@ export function OddsNavigation({
   return (
     <div className={cn("w-full", className)}>
       {/* Row 1: Sports Selector (Segmented Control) */}
-      <div className="px-4 sm:px-6 py-2 bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
-        <div className="inline-flex items-center rounded-lg bg-neutral-100 dark:bg-neutral-900 p-0.5">
-          {SPORTS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => !s.disabled && onSportChange(s.id)}
-              disabled={s.disabled}
-              className={cn(
-                "px-3 py-1.5 text-xs font-semibold rounded-md transition-all",
-                sport === s.id
-                  ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
-                  : s.disabled
-                  ? "text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+      <div className="relative z-[120] px-4 sm:px-6 py-2 bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
+        <div className={cn(sportGroupMenuOpen ? "overflow-visible" : "overflow-x-auto scrollbar-hide")}>
+          <div className="inline-flex min-w-max items-center rounded-lg bg-neutral-100 dark:bg-neutral-900 p-1">
+            {leadingSports.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => !s.disabled && onSportChange(s.id)}
+                disabled={s.disabled}
+                className={cn(
+                  "px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-md transition-all",
+                  sport === s.id
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : s.disabled
+                    ? "text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                )}
+                title={s.disabled ? s.disabledReason : undefined}
+              >
+                {s.label}
+              </button>
+            ))}
+
+            <div className="relative" ref={soccerRef}>
+              <button
+                onClick={() => {
+                  setSoccerOpen((prev) => !prev);
+                  setTennisOpen(false);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1 px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-md transition-all",
+                  soccerGroupActive
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                )}
+              >
+                {selectedSoccerLabel}
+                <ChevronDown className={cn("w-3 h-3 transition-transform", soccerOpen && "rotate-180")} />
+              </button>
+              {soccerOpen && (
+                <div className="absolute top-full left-0 mt-1 py-1 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 min-w-[160px] z-[100]">
+                  {soccerSports.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        onSportChange(s.id);
+                        setSoccerOpen(false);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-1.5 text-left text-xs font-medium transition-colors",
+                        sport === s.id
+                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
+                          : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               )}
-              title={s.disabled ? s.disabledReason : undefined}
-            >
-              {s.label}
-            </button>
-          ))}
+            </div>
+
+            <div className="relative" ref={tennisRef}>
+              <button
+                onClick={() => {
+                  setTennisOpen((prev) => !prev);
+                  setSoccerOpen(false);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1 px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-md transition-all",
+                  tennisGroupActive
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                )}
+              >
+                {selectedTennisLabel}
+                <ChevronDown className={cn("w-3 h-3 transition-transform", tennisOpen && "rotate-180")} />
+              </button>
+              {tennisOpen && (
+                <div className="absolute top-full left-0 mt-1 py-1 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 min-w-[180px] z-[100]">
+                  {tennisSports.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        onSportChange(s.id);
+                        setTennisOpen(false);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-1.5 text-left text-xs font-medium transition-colors",
+                        sport === s.id
+                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white"
+                          : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white"
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {trailingSports.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => !s.disabled && onSportChange(s.id)}
+                disabled={s.disabled}
+                className={cn(
+                  "px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-md transition-all",
+                  sport === s.id
+                    ? "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm"
+                    : s.disabled
+                    ? "text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                )}
+                title={s.disabled ? s.disabledReason : undefined}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -578,7 +985,7 @@ export function OddsNavigation({
             {/* Mode Toggle - Prominent segmented control */}
             <div className="inline-flex items-center rounded-lg p-0.5 bg-neutral-200 dark:bg-neutral-800 shrink-0">
               <button
-                onClick={() => onMarketChange(DEFAULT_GAME_MARKET[sport] || "moneyline", "game")}
+                onClick={() => onMarketChange(DEFAULT_GAME_MARKET[sport] || "game_moneyline", "game")}
                 className={cn(
                   "px-3 py-1 text-xs font-bold rounded-md transition-all",
                   type === "game"
@@ -590,19 +997,19 @@ export function OddsNavigation({
               </button>
               <button
                 onClick={() => {
-                  if (primaryMarkets.length > 0 && type !== "player") {
-                    const firstMarket = primaryMarkets[0];
+                  if (allPlayerMarkets.length > 0 && type !== "player") {
+                    const firstMarket = allPlayerMarkets[0];
                     if (firstMarket) {
                       onMarketChange(firstMarket.apiKey, "player");
                     }
                   }
                 }}
-                disabled={primaryMarkets.length === 0}
+                disabled={allPlayerMarkets.length === 0}
                 className={cn(
                   "px-3 py-1 text-xs font-bold rounded-md transition-all",
                   type === "player"
                     ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm"
-                    : primaryMarkets.length === 0
+                    : allPlayerMarkets.length === 0
                     ? "text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
                     : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                 )}
@@ -612,15 +1019,15 @@ export function OddsNavigation({
             </div>
 
             {/* Divider - show when either game or player markets exist */}
-            {((type === "player" && primaryMarkets.length > 0) || (type === "game" && primaryGameMarkets.length > 0)) && (
+            {((type === "player" && visiblePrimaryMarkets.length > 0) || (type === "game" && visiblePrimaryGameMarkets.length > 0)) && (
               <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-700 shrink-0" />
             )}
 
             {/* Player Market Pills (Tier 1) - Only show when in Player mode */}
-            {type === "player" && primaryMarkets.length > 0 && (
+            {type === "player" && visiblePrimaryMarkets.length > 0 && (
               <>
                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-w-0">
-                  {primaryMarkets.map((tab) => (
+                  {visiblePrimaryMarkets.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => onMarketChange(tab.apiKey, tab.type)}
@@ -637,7 +1044,7 @@ export function OddsNavigation({
                 </div>
 
                 {/* More Dropdown (Tier 2) - Outside overflow container so dropdown isn't clipped */}
-                {secondaryMarkets.length > 0 && (
+                {visibleSecondaryMarkets.length > 0 && (
                   <div className="relative shrink-0 flex items-center" ref={moreRef}>
                     <button
                       onClick={() => setMoreOpen(!moreOpen)}
@@ -649,14 +1056,14 @@ export function OddsNavigation({
                       )}
                     >
                       {isSecondaryActive 
-                        ? secondaryMarkets.find(m => m.apiKey === market)?.label || "More"
+                        ? visibleSecondaryMarkets.find(m => m.apiKey === market)?.label || "More"
                         : "More"}
                       <ChevronDown className={cn("w-3 h-3 transition-transform", moreOpen && "rotate-180")} />
                     </button>
                     
                     {moreOpen && (
                       <div className="absolute top-full left-0 mt-1 py-1 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 min-w-[180px] max-h-[320px] overflow-y-auto z-[100]">
-                        {secondaryMarkets.map((tab) => (
+                        {visibleSecondaryMarkets.map((tab) => (
                           <button
                             key={tab.id}
                             onClick={() => {
@@ -681,10 +1088,10 @@ export function OddsNavigation({
             )}
 
             {/* Game Market Pills (Tier 1) - Only show when in Game mode */}
-            {type === "game" && primaryGameMarkets.length > 0 && (
+            {type === "game" && visiblePrimaryGameMarkets.length > 0 && (
               <>
                 <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-w-0">
-                  {primaryGameMarkets.map((tab) => (
+                  {visiblePrimaryGameMarkets.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => onMarketChange(tab.apiKey, tab.type)}
@@ -701,7 +1108,7 @@ export function OddsNavigation({
                 </div>
 
                 {/* More Dropdown for Game Markets (Tier 2) */}
-                {secondaryGameMarkets.length > 0 && (
+                {visibleSecondaryGameMarkets.length > 0 && (
                   <div className="relative shrink-0 flex items-center" ref={moreRef}>
                     <button
                       onClick={() => setMoreOpen(!moreOpen)}
@@ -713,14 +1120,14 @@ export function OddsNavigation({
                       )}
                     >
                       {isSecondaryActive 
-                        ? secondaryGameMarkets.find(m => m.apiKey === market)?.label || "More"
+                        ? visibleSecondaryGameMarkets.find(m => m.apiKey === market)?.label || "More"
                         : "More"}
                       <ChevronDown className={cn("w-3 h-3 transition-transform", moreOpen && "rotate-180")} />
                     </button>
                     
                     {moreOpen && (
                       <div className="absolute top-full left-0 mt-1 py-1 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700 min-w-[180px] max-h-[320px] overflow-y-auto z-[100]">
-                        {secondaryGameMarkets.map((tab) => (
+                        {visibleSecondaryGameMarkets.map((tab) => (
                           <button
                             key={tab.id}
                             onClick={() => {

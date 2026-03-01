@@ -35,6 +35,7 @@ import {
   TrendingUp,
   Share2,
   AlertTriangle,
+  LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -90,9 +91,33 @@ import { usePositiveEvPreferences, useEvPreferences } from "@/context/preference
 import { UnifiedFilters, type PositiveEVSettings, type FilterChangeEvent } from "@/components/shared/unified-filters";
 import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
+import type { LineHistoryContext } from "@/lib/odds/line-history";
 
 // Constants
-const AVAILABLE_SPORTS = ["nba", "nfl", "ncaaf", "ncaab", "nhl", "mlb"];
+const AVAILABLE_SPORTS = [
+  "nba",
+  "nfl",
+  "ncaaf",
+  "ncaab",
+  "nhl",
+  "mlb",
+  "ncaabaseball",
+  "wnba",
+  "soccer_epl",
+  "soccer_laliga",
+  "soccer_mls",
+  "soccer_ucl",
+  "soccer_uel",
+  "tennis_atp",
+  "tennis_challenger",
+  "tennis_itf_men",
+  "tennis_itf_women",
+  "tennis_utr_men",
+  "tennis_utr_women",
+  "tennis_wta",
+  "ufc",
+];
 const FREE_USER_EV_MAX_ROWS = 7;
 const MIN_EV_OPTIONS = [0, 0.5, 1, 2, 3, 5, 10];
 
@@ -160,7 +185,62 @@ function formatSelectionDisplay(playerName: string | null | undefined, marketDis
     }
     return "Game Total";
   }
+
+  // Convert raw keys like "match_goals" into "Match Goals" for cleaner UI.
+  if (/[_-]/.test(playerName)) {
+    return playerName
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => {
+        const lower = part.toLowerCase();
+        if (["nba", "nfl", "nhl", "mlb", "wnba", "ufc", "atp", "wta", "mls", "ucl", "uel"].includes(lower)) {
+          return lower.toUpperCase();
+        }
+        if (lower === "ncaa") return "NCAA";
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
+  }
+
   return playerName;
+}
+
+function isMoneylineMarket(market?: string | null, marketDisplay?: string | null): boolean {
+  const combined = `${market || ""} ${marketDisplay || ""}`.toLowerCase();
+  return combined.includes("moneyline") || combined.includes("money line");
+}
+
+function getLeagueDisplayName(leagueId: string): string {
+  if (leagueId === "ncaabaseball") return "NCAA Baseball";
+  return getLeagueName(leagueId);
+}
+
+function isRawSelectionValue(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (["game_total", "game", "fight_total", "fight_moneyline", "match_total", "game_moneyline"].includes(normalized)) {
+    return true;
+  }
+  return !value.includes(" ") && /[_-]/.test(value);
+}
+
+function formatMatchupLabel(sport: string, awayTeam?: string | null, homeTeam?: string | null): string | null {
+  if (!awayTeam || !homeTeam) return null;
+  return sport.toLowerCase() === "ufc" ? `${awayTeam} vs ${homeTeam}` : `${awayTeam} @ ${homeTeam}`;
+}
+
+function formatShareSelectionDisplay(opp: PositiveEVOpportunity): string {
+  const matchup = formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam);
+  if (opp.sport.toLowerCase() === "ufc" && matchup) return matchup;
+  if (!isRawSelectionValue(opp.playerName)) return opp.playerName!;
+  return matchup || formatSelectionDisplay(opp.playerName, opp.marketDisplay);
+}
+
+function formatShareMarketDisplay(market: string, marketDisplay?: string | null): string {
+  const display = (marketDisplay || "").trim();
+  if (display && !display.includes("_")) return display;
+  return formatMarketLabel(market || display);
 }
 
 /**
@@ -415,6 +495,7 @@ export default function PositiveEVPage() {
       under?: { price: number; line: number; book?: string; mobileLink?: string | null };
     };
   } | null>(null);
+  const [lineHistoryContext, setLineHistoryContext] = useState<LineHistoryContext | null>(null);
   
   // Prefetch player data on hover
   const prefetchPlayer = usePrefetchPlayerByOddsId();
@@ -870,6 +951,7 @@ export default function PositiveEVPage() {
   const buildShareText = useCallback((opp: PositiveEVOpportunity) => {
     const bestBookName = getBookName(opp.book.bookId) || opp.book.bookName || opp.book.bookId;
     const bestOdds = formatOdds(opp.book.price);
+    const sportKey = opp.sport.toLowerCase();
     const modelName = (opp as PositiveEVOpportunity & { modelName?: string }).modelName;
     const sharpPreset = savedFilters.sharpPreset;
     const sharpPresetLabel =
@@ -881,7 +963,7 @@ export default function PositiveEVPage() {
     if (referenceLabel.toLowerCase().startsWith("vs ")) {
       referenceLabel = referenceLabel.slice(3);
     }
-    const selection = formatSelectionDisplay(opp.playerName, opp.marketDisplay);
+    const selection = formatShareSelectionDisplay(opp);
     
     // Format line and side (e.g., "Over 15.5")
     const sideLabel = opp.side === "over" ? "Over" : opp.side === "under" ? "Under" : opp.side === "yes" ? "Yes" : "No";
@@ -900,12 +982,26 @@ export default function PositiveEVPage() {
     }
     
     // Market display (e.g., "Points", "Rebounds")
-    const marketLabel = opp.marketDisplay || opp.market || "";
+    const marketLabel = formatShareMarketDisplay(opp.market, opp.marketDisplay);
     
     // Format: "DraftKings +1760 vs +1000 (Market Average)"
     const oddsComparison = fairOdds 
       ? `${bestBookName} ${bestOdds} vs ${fairOdds} (${referenceLabel})`
       : `${bestBookName} ${bestOdds} (${referenceLabel})`;
+
+    if (sportKey === "ufc") {
+      const ufcMarketLabel = marketLabel.replace(/^Fight\s+/i, "").trim();
+      const evValue = (() => {
+        const evCalc = opp.evCalculations?.power || opp.evCalculations?.multiplicative;
+        return evCalc?.evPercent ?? 0;
+      })();
+      return [
+        `UFC: ${selection}`,
+        `${ufcMarketLabel} ${selectionLine}`.trim(),
+        `${bestBookName}: ${bestOdds} (+${evValue.toFixed(1)}% EV)`,
+        "via @Unjuiced",
+      ].join("\n");
+    }
     
     return [
       `${selection}`,
@@ -980,6 +1076,51 @@ export default function PositiveEVPage() {
     } catch { void 0; }
   }, []);
 
+  const handleOpenLineHistory = useCallback((opp: PositiveEVOpportunity) => {
+    const combinedMarket = `${opp.market || ""} ${opp.marketDisplay || ""}`.toLowerCase();
+    const moneylineMarket = combinedMarket.includes("moneyline") || combinedMarket.includes("money line");
+    const fallbackTeam = opp.side === "over" || opp.side === "yes" ? opp.awayTeam : opp.homeTeam;
+    const selectionName = moneylineMarket
+      ? (opp.playerTeam || fallbackTeam || opp.playerName || null)
+      : (opp.playerName || opp.playerTeam || fallbackTeam || null);
+
+    const compareBookIds = Array.from(
+      new Set(
+        [
+          ...(opp.sharpReference?.blendedFrom || []),
+          ...(opp.allBooks || []).filter((book) => book.isSharpRef).map((book) => book.bookId),
+        ].filter(Boolean)
+      )
+    );
+
+    const oddIdsByBook: Record<string, string> = {};
+    (opp.allBooks || []).forEach((book) => {
+      if (book.oddId) oddIdsByBook[book.bookId] = book.oddId;
+    });
+
+    setLineHistoryContext({
+      source: "positive_ev",
+      sport: opp.sport,
+      eventId: opp.eventId,
+      market: opp.market,
+      marketDisplay: opp.marketDisplay,
+      side: opp.side,
+      line: opp.line,
+      selectionName,
+      playerName: opp.playerName,
+      team: opp.playerTeam,
+      homeTeam: opp.homeTeam,
+      awayTeam: opp.awayTeam,
+      bestBookId: opp.book.bookId,
+      compareBookIds,
+      allBookIds: (opp.allBooks || []).map((book) => book.bookId),
+      currentPricesByBook: Object.fromEntries(
+        (opp.allBooks || []).map((book) => [book.bookId, book.price])
+      ),
+      oddIdsByBook,
+    });
+  }, []);
+
   if (planLoading) {
     return (
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -1018,6 +1159,7 @@ export default function PositiveEVPage() {
               });
             }
           }}
+          onLineHistoryClick={handleOpenLineHistory}
           onHideEdge={(opp) => hideEdge({ edgeKey: opp.id, eventId: opp.eventId, sport: opp.sport, playerName: opp.playerName })}
           onUnhideEdge={unhideEdge}
           isHidden={isHidden}
@@ -1074,6 +1216,13 @@ export default function PositiveEVPage() {
             }}
           />
         )}
+        <LineHistoryDialog
+          open={!!lineHistoryContext}
+          onOpenChange={(open) => {
+            if (!open) setLineHistoryContext(null);
+          }}
+          context={lineHistoryContext}
+        />
       </>
     );
   }
@@ -1852,8 +2001,8 @@ export default function PositiveEVPage() {
                     <td className="hidden xl:table-cell px-3 py-3 text-center border-b border-neutral-100 dark:border-neutral-800/50">
                       <div className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-gradient-to-br from-neutral-100 to-neutral-50 dark:from-neutral-800 dark:to-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 shadow-sm">
                         <SportIcon sport={opp.sport} className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-                        <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wide">
-                          {getLeagueName(opp.sport)}
+                        <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap leading-none">
+                          {getLeagueDisplayName(opp.sport)}
                         </span>
                       </div>
                     </td>
@@ -1986,7 +2135,9 @@ export default function PositiveEVPage() {
                           opp.market.includes("player_goals")
                         ));
                         
-                        const lineDisplay = opp.side === "yes" ? "Yes" : 
+                        const moneylineMarket = isMoneylineMarket(opp.market, opp.marketDisplay);
+                        const lineDisplay = moneylineMarket ? "ML" :
+                          opp.side === "yes" ? "Yes" : 
                           opp.side === "no" ? "No" :
                           isBinaryMarket ? (opp.side === "over" ? "Yes" : "No") :
                           `${opp.side === "over" ? "O" : "U"} ${opp.line}`;
@@ -2296,8 +2447,8 @@ export default function PositiveEVPage() {
                           shareText={buildShareText(opp)}
                           shareContent={
                             <ShareOddsCard
-                              playerName={formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
-                              market={opp.marketDisplay || opp.market || ""}
+                              playerName={formatShareSelectionDisplay(opp)}
+                              market={formatShareMarketDisplay(opp.market, opp.marketDisplay)}
                               sport={opp.sport.toUpperCase()}
                               line={opp.line}
                               side={opp.side}
@@ -2325,7 +2476,7 @@ export default function PositiveEVPage() {
                                     : sharpPreset;
                                 return modelName || sharpPresetLabel || "Market Average";
                               })()}
-                              eventLabel={opp.awayTeam && opp.homeTeam ? `${opp.awayTeam} @ ${opp.homeTeam}` : undefined}
+                              eventLabel={formatMatchupLabel(opp.sport, opp.awayTeam, opp.homeTeam) || undefined}
                               timeLabel={opp.startTime || opp.gameDate || undefined}
                               overBooks={(opp.side === "over" ? opp.allBooks : opp.oppositeBooks || []).map((b) => ({
                                 bookId: b.bookId,
@@ -2347,6 +2498,20 @@ export default function PositiveEVPage() {
                             <Share2 className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
                         )}
+
+                        <Tooltip content="View line movement" side="left">
+                          <button
+                            type="button"
+                            data-no-row-toggle="true"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenLineHistory(opp);
+                            }}
+                            className="hidden lg:block p-1 lg:p-1.5 rounded-lg transition-all duration-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:scale-110 active:scale-95"
+                          >
+                            <LineChart className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-neutral-500 dark:text-neutral-400" />
+                          </button>
+                        </Tooltip>
                         
                         {/* Add to Betslip Button - hidden on small screens */}
                         <Tooltip content={isFav ? "Remove from My Plays" : "Add to My Plays"} side="left">
@@ -2435,6 +2600,30 @@ export default function PositiveEVPage() {
                       const isOverSide = opp.side === "over" || opp.side === "yes";
                       const overMap = isOverSide ? currentSideMap : oppositeSideMap;
                       const underMap = isOverSide ? oppositeSideMap : currentSideMap;
+                      const moneylineMarket = isMoneylineMarket(opp.market, opp.marketDisplay);
+
+                      const selectedTeamLabel = (
+                        (opp.playerName && opp.playerName !== "game_total" && opp.playerName !== "Game" ? opp.playerName : null) ||
+                        opp.playerTeam ||
+                        (isOverSide ? opp.awayTeam : opp.homeTeam) ||
+                        (isOverSide ? "Away" : "Home")
+                      );
+                      const oppositeTeamLabel = (() => {
+                        if (opp.playerTeam && opp.awayTeam && opp.homeTeam) {
+                          if (opp.playerTeam === opp.awayTeam) return opp.homeTeam;
+                          if (opp.playerTeam === opp.homeTeam) return opp.awayTeam;
+                        }
+                        if (opp.awayTeam && opp.homeTeam) {
+                          return isOverSide ? opp.homeTeam : opp.awayTeam;
+                        }
+                        return isOverSide ? "Home" : "Away";
+                      })();
+                      const overRowLabel = moneylineMarket
+                        ? (isOverSide ? selectedTeamLabel : oppositeTeamLabel)
+                        : "Over";
+                      const underRowLabel = moneylineMarket
+                        ? (isOverSide ? oppositeTeamLabel : selectedTeamLabel)
+                        : "Under";
                       
                       // Calculate best and average for each side
                       const overBooks = Array.from(overMap.values());
@@ -2479,19 +2668,21 @@ export default function PositiveEVPage() {
                               {/* Full Width Container */}
                               <div className="w-full flex flex-col items-center">
                                 {/* Header Row with Player Info */}
-                                <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-900 dark:bg-neutral-950">
+                                <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-neutral-100/90 dark:bg-neutral-950">
                                   {/* Player & Market */}
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
                                     <div className={cn(
                                       "w-1.5 h-1.5 rounded-full shrink-0",
                                       isOddsChanged ? "bg-amber-500" : "bg-emerald-500 animate-pulse"
                                     )} />
-                                    <span className="text-sm font-bold text-white truncate">
+                                    <span className="text-sm font-bold text-neutral-900 dark:text-white truncate">
                                       {formatSelectionDisplay(opp.playerName, opp.marketDisplay)}
                                     </span>
-                                    <span className="text-xs text-neutral-400 shrink-0">
-                                      {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
-                                    </span>
+                                    {!moneylineMarket && (
+                                      <span className="text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+                                        {opp.side === "over" ? "O" : opp.side === "under" ? "U" : opp.side === "yes" ? "Y" : "N"} {opp.line}
+                                      </span>
+                                    )}
                                     <span className="hidden sm:inline text-xs text-neutral-500 truncate">
                                       {opp.marketDisplay || opp.market}
                                     </span>
@@ -2502,12 +2693,12 @@ export default function PositiveEVPage() {
                                     )}
                                   </div>
                                   {/* Odds & Fair */}
-                                  <div className="flex items-center gap-3 text-xs text-neutral-400 shrink-0">
+                                  <div className="flex items-center gap-3 text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
                                     <span className="font-bold text-emerald-500">{formatOdds(opp.book.price)}</span>
-                                    <span className="text-neutral-600">@</span>
-                                    <span className="text-neutral-300">{getBookName(opp.book.bookId) || opp.book.bookName}</span>
-                                    <span className="w-px h-3 bg-neutral-700" />
-                                    <span>Fair: <strong className="text-emerald-400">{fairOdds}</strong></span>
+                                    <span className="text-neutral-400 dark:text-neutral-600">@</span>
+                                    <span className="text-neutral-700 dark:text-neutral-300">{getBookName(opp.book.bookId) || opp.book.bookName}</span>
+                                    <span className="w-px h-3 bg-neutral-300 dark:bg-neutral-700" />
+                                    <span>Fair: <strong className="text-emerald-600 dark:text-emerald-400">{fairOdds}</strong></span>
                                   </div>
                                 </div>
 
@@ -2525,12 +2716,14 @@ export default function PositiveEVPage() {
                                     )}>
                                       <div className="flex flex-col">
                                         <span className={cn(
-                                          "text-sm font-semibold tracking-tight",
+                                          "text-sm font-semibold tracking-tight truncate max-w-[88px]",
                                           isOverSide ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
-                                        )}>
-                                          Over
+                                        )} title={overRowLabel}>
+                                          {overRowLabel}
                                         </span>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        {!moneylineMarket && (
+                                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        )}
                                       </div>
                                     </div>
                                     {/* Under Label */}
@@ -2540,12 +2733,14 @@ export default function PositiveEVPage() {
                                     )}>
                                       <div className="flex flex-col">
                                         <span className={cn(
-                                          "text-sm font-semibold tracking-tight",
+                                          "text-sm font-semibold tracking-tight truncate max-w-[88px]",
                                           !isOverSide ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"
-                                        )}>
-                                          Under
+                                        )} title={underRowLabel}>
+                                          {underRowLabel}
                                         </span>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        {!moneylineMarket && (
+                                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 -mt-0.5">{opp.line}</span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -2880,6 +3075,13 @@ export default function PositiveEVPage() {
           }}
         />
       )}
+      <LineHistoryDialog
+        open={!!lineHistoryContext}
+        onOpenChange={(open) => {
+          if (!open) setLineHistoryContext(null);
+        }}
+        context={lineHistoryContext}
+      />
     </AppPageLayout>
   );
 }

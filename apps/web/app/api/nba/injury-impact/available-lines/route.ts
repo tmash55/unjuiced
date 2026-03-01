@@ -22,6 +22,7 @@ export interface AvailableLine {
   overOddsDecimal: number | null;
   underOdds: string | null;
   underOddsDecimal: number | null;
+  selKey: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
 
-    // Call the RPC function
-    const { data, error } = await supabase.rpc("get_player_available_lines", {
+    // Call the v2 RPC function
+    const { data, error } = await supabase.rpc("get_player_available_lines_v2", {
       p_player_id: playerId,
       p_game_date: gameDate || null,
     });
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       overOddsDecimal: row.over_odds_decimal ? parseFloat(row.over_odds_decimal) : null,
       underOdds: row.under_odds,
       underOddsDecimal: row.under_odds_decimal ? parseFloat(row.under_odds_decimal) : null,
+      selKey: row.sel_key || row.odds_selection_id || null,
     }));
 
     return NextResponse.json({ lines }, {
@@ -78,4 +80,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

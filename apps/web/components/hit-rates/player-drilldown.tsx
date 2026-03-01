@@ -912,7 +912,7 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
       game_date: profile.gameDate,
       home_team: profile.homeTeamName?.split(" ").pop() || null, // Extract team abbr from name
       away_team: profile.awayTeamName?.split(" ").pop() || null,
-      start_time: null, // Not available in profile
+      start_time: profile.startTime ?? null,
       player_id: String(profile.playerId),
       player_name: profile.playerName,
       player_team: profile.teamAbbr,
@@ -2487,6 +2487,11 @@ export function PlayerDrilldown({ profile: initialProfile, allPlayerProfiles = [
           market={profile.market}
           line={activeLine}
           gameId={profile.gameId}
+          gameDate={profile.gameDate}
+          homeTeamName={profile.homeTeamName}
+          awayTeamName={profile.awayTeamName}
+          startTime={profile.startTime}
+          anchorTeam={profile.teamAbbr || profile.teamName}
           playerName={profile.playerName}
         />
       </div>

@@ -5,10 +5,33 @@
  * that finds the best available prices across sportsbooks for the same line.
  */
 
+export type BestOddsSport =
+  | "nfl"
+  | "nba"
+  | "nhl"
+  | "ncaaf"
+  | "ncaab"
+  | "mlb"
+  | "ncaabaseball"
+  | "wnba"
+  | "soccer_epl"
+  | "soccer_laliga"
+  | "soccer_mls"
+  | "soccer_ucl"
+  | "soccer_uel"
+  | "tennis_atp"
+  | "tennis_challenger"
+  | "tennis_itf_men"
+  | "tennis_itf_women"
+  | "tennis_utr_men"
+  | "tennis_utr_women"
+  | "tennis_wta"
+  | "ufc";
+
 export interface BestOddsDeal {
   // Core identifiers
   key: string                    // Full key: {sport}:evt_{eid}:{ent}:{mkt}:{ln}:{side}
-  sport: 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl'
+  sport: BestOddsSport
   eid: string                    // Event ID
   ent: string                    // Entity (player ID or 'game')
   mkt: string                    // Market code (e.g., 'passing_yards', 'points')
@@ -64,7 +87,7 @@ export interface BestOddsResponse {
 
 export interface BestOddsFilters {
   sport?: string                // Currently only 'all' is supported (client-side filtering)
-  leagues?: string[]           // Filter by specific leagues: ['nba', 'nfl', 'ncaaf', 'ncaab', 'nhl', 'soccer_epl']
+  leagues?: string[]           // Filter by specific leagues
   markets?: string[]           // Filter by specific markets: ['player_points', 'passing_yards', 'pra']
   books?: string[]             // Filter by sportsbooks: ['draftkings', 'fanduel', 'mgm']
   scope?: 'all' | 'pregame' | 'live'
@@ -120,12 +143,12 @@ export interface BestOddsSSEUpdateEvent {
  * Keeping these types for backward compatibility but they should not be used.
  */
 export interface EnrichmentPlayerRequest {
-  sport: 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl'
+  sport: BestOddsSport
   ent: string  // e.g., "pid:00-0038809"
 }
 
 export interface EnrichmentEventRequest {
-  sport: 'nfl' | 'nba' | 'nhl' | 'ncaaf' | 'ncaab' | 'soccer_epl'
+  sport: BestOddsSport
   eid: string  // e.g., "f2617c37-9050-5fc6-982e-6476a4ec5da0"
 }
 
@@ -155,4 +178,3 @@ export interface EnrichmentResponse {
     [key: string]: EnrichedEventData   // Key format: "{sport}:{eid}"
   }
 }
-

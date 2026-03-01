@@ -65,6 +65,7 @@ interface NavChildItem {
   disabled?: boolean
   comingSoon?: boolean  // 🔨 Under construction - being built
   offSeason?: boolean   // 💤 Sport is in off-season
+  badge?: string
 }
 
 interface NavItem {
@@ -78,10 +79,26 @@ interface NavItem {
 const oddsScreenSports: NavChildItem[] = [
   // Active
   { label: "NBA", href: "/odds/nba" },
-  { label: "NFL", href: "/odds/nfl" },
   { label: "NHL", href: "/odds/nhl" },
   { label: "NCAAB", href: "/odds/ncaab" },
+  { label: "NCAA Baseball", href: "/odds/ncaabaseball" },
+  { label: "UFC", href: "/odds/ufc" },
+  // Soccer
+  { label: "Soccer • EPL", href: "/odds/soccer_epl" },
+  { label: "Soccer • LaLiga", href: "/odds/soccer_laliga" },
+  { label: "Soccer • MLS", href: "/odds/soccer_mls" },
+  { label: "Soccer • UCL", href: "/odds/soccer_ucl" },
+  { label: "Soccer • UEL", href: "/odds/soccer_uel" },
+  // Tennis
+  { label: "Tennis • ATP", href: "/odds/tennis_atp" },
+  { label: "Tennis • WTA", href: "/odds/tennis_wta" },
+  { label: "Tennis • Challenger", href: "/odds/tennis_challenger" },
+  { label: "Tennis • ITF Men", href: "/odds/tennis_itf_men" },
+  { label: "Tennis • ITF Women", href: "/odds/tennis_itf_women" },
+  { label: "Tennis • UTR Men", href: "/odds/tennis_utr_men" },
+  { label: "Tennis • UTR Women", href: "/odds/tennis_utr_women" },
   // Off season
+  { label: "NFL", href: "/odds/nfl", disabled: true, offSeason: true },
   { label: "MLB", href: "/odds/mlb", disabled: true, offSeason: true },
   { label: "WNBA", href: "/odds/wnba", disabled: true, offSeason: true },
   { label: "NCAAF", href: "/odds/ncaaf", disabled: true, offSeason: true },
@@ -132,6 +149,7 @@ const researchLinks: NavItem[] = [
       { label: "Hit Rates", href: "/cheatsheets/nba/hit-rates" },
       { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
       { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
+      { label: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
       { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
   },
@@ -306,7 +324,7 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
               side="right"
               align="start"
               sideOffset={12}
-              className="min-w-[160px] p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
+              className="min-w-[200px] max-h-[70vh] overflow-y-auto p-1.5 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700"
             >
               {link.children?.map((child, idx) => {
                 const isChildItemActive = pathname === child.href
@@ -353,13 +371,18 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                       href={child.href}
                       onClick={closeMobileSidebar}
                       className={cn(
-                        "flex items-center w-full px-3 py-2 rounded-md text-sm transition-colors cursor-pointer",
+                        "flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors cursor-pointer",
                         isChildItemActive
                           ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
                           : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       )}
                     >
                       {child.label}
+                      {child.badge && (
+                        <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                          {child.badge}
+                        </span>
+                      )}
                     </Link>
                   </DropdownMenuItem>
                 )
@@ -428,13 +451,18 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
                         href={child.href}
                         onClick={closeMobileSidebar}
                         className={cn(
-                          "block py-1.5 px-2 rounded-md text-sm transition-all duration-150",
+                          "flex items-center justify-between py-1.5 px-2 rounded-md text-sm transition-all duration-150",
                           isChildItemActive
                             ? "bg-[#0EA5E9]/10 dark:bg-[#7DD3FC]/10 text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
                             : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-700 dark:hover:text-neutral-200"
                         )}
                       >
                         {child.label}
+                        {child.badge && (
+                          <span className="rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                            {child.badge}
+                          </span>
+                        )}
                       </Link>
                     )
                   })}
@@ -463,28 +491,30 @@ function NavLink({ link, expandedHref, onToggleExpand }: NavLinkProps) {
       )}
     >
       <span className={cn(
-        "shrink-0 flex items-center justify-center transition-colors duration-200",
-        isActive 
-          ? "text-[#0EA5E9] dark:text-[#7DD3FC]" 
+        "relative shrink-0 flex items-center justify-center transition-colors duration-200",
+        isActive
+          ? "text-[#0EA5E9] dark:text-[#7DD3FC]"
           : "text-neutral-500 dark:text-neutral-400 group-hover/sidebar:text-neutral-700 dark:group-hover/sidebar:text-neutral-200"
       )}>
         <Icon className="w-5 h-5" />
       </span>
       {open && (
-        <motion.span
-          initial={{ opacity: 0, width: 0 }}
-          animate={{ opacity: 1, width: "auto" }}
-          exit={{ opacity: 0, width: 0 }}
-          transition={smoothTransition}
-          className={cn(
-            "text-sm whitespace-pre overflow-hidden",
-            isActive 
-              ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium" 
-              : "text-neutral-600 dark:text-neutral-300"
-          )}
-        >
-          {link.label}
-        </motion.span>
+        <>
+          <motion.span
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: "auto" }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={smoothTransition}
+            className={cn(
+              "text-sm whitespace-pre overflow-hidden",
+              isActive
+                ? "text-[#0EA5E9] dark:text-[#7DD3FC] font-medium"
+                : "text-neutral-600 dark:text-neutral-300"
+            )}
+          >
+            {link.label}
+          </motion.span>
+        </>
       )}
     </Link>
   )
@@ -562,7 +592,7 @@ function FindPlayButton() {
         "flex items-center rounded-lg transition-all duration-200",
         isActive
           ? "bg-brand hover:bg-brand/90 text-white"
-          : "bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900",
+          : "bg-brand/10 border border-brand/20 hover:bg-brand/15 text-brand dark:bg-white dark:border-white/20 dark:hover:bg-neutral-100 dark:text-neutral-900",
         "shadow-sm hover:shadow-md",
         open 
           ? "gap-2 py-2 px-3 w-full justify-center" 
@@ -957,7 +987,6 @@ function UserSection() {
 export function AppSidebar() {
   const { open } = useSidebar()
   const pathname = usePathname()
-  
   // Track which nav item is expanded (only one at a time)
   const [expandedHref, setExpandedHref] = useState<string | null>(null)
   

@@ -11,6 +11,7 @@ import { createClient } from "@/libs/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRegisterContext } from "./register/context";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import posthog from "posthog-js";
 
 // Zod schema for sign up
 const signUpSchema = z.object({
@@ -103,6 +104,18 @@ export const SignUpEmail = () => {
 
           // Check if email confirmation is disabled (user is immediately confirmed)
           if (signUpData.user && signUpData.session) {
+            // Identify user in PostHog and capture signup event
+            posthog.identify(signUpData.user.id, {
+              email: data.email,
+              name: fullName,
+              first_name: firstName,
+              last_name: lastName,
+            });
+            posthog.capture("user_signed_up", {
+              method: "email",
+              email: data.email,
+            });
+
             // Track lead with Dub (for referral attribution)
             try {
               const leadResponse = await fetch('/api/track/lead', {
@@ -162,9 +175,12 @@ export const SignUpEmail = () => {
             setStep("verify");
           }
         } catch (error) {
+          // Capture error in PostHog
+          posthog.captureException(error);
+
           // Handle specific Supabase error messages
           let errorMessage = "Failed to create account. Please try again.";
-          
+
           if (error instanceof Error) {
             const message = error.message.toLowerCase();
             

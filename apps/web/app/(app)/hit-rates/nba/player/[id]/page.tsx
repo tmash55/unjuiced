@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PlayerDrilldown } from "@/components/hit-rates/player-drilldown";
 import { MobilePlayerDrilldown } from "@/components/hit-rates/mobile/mobile-player-drilldown";
 import { useHitRateTable } from "@/hooks/use-hit-rate-table";
+import { useNbaGames } from "@/hooks/use-nba-games";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -20,16 +21,21 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const marketParam = searchParams.get("market");
+  const dateParam = searchParams.get("date");
   
   // Detect mobile viewport
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const { primaryDate: nextGameDate, isLoading: isLoadingGames } = useNbaGames();
+  const effectiveDate = dateParam || nextGameDate || undefined;
 
   // Fetch all profiles for this player (all markets)
-  const { rows: playerProfiles, isLoading, error } = useHitRateTable({
+  const { rows: playerProfiles, isLoading: isLoadingProfiles, error } = useHitRateTable({
     playerId: playerId,
-    enabled: !isNaN(playerId),
+    date: effectiveDate,
+    enabled: !isNaN(playerId) && (!!dateParam || !isLoadingGames),
     limit: 100,
   });
+  const isLoading = isLoadingProfiles || (!dateParam && isLoadingGames);
 
   // Find the profile for the requested market, or default to first available
   const [selectedMarket, setSelectedMarket] = useState<string | null>(marketParam);
@@ -47,6 +53,9 @@ export default function PlayerProfilePage({ params }: PlayerProfilePageProps) {
     setSelectedMarket(newMarket);
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set("market", newMarket);
+    if (effectiveDate) {
+      newSearchParams.set("date", effectiveDate);
+    }
     router.replace(`/hit-rates/nba/player/${playerId}?${newSearchParams.toString()}`, {
       scroll: false,
     });

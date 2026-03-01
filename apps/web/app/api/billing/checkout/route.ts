@@ -6,6 +6,7 @@ import { createCheckout } from '@/libs/stripe'
 import { getPartnerDiscountFromCookie } from '@/lib/partner-coupon'
 import { getRedirectUrl } from '@/lib/domain'
 import Stripe from 'stripe'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export async function POST(req: NextRequest) {
   try {
@@ -148,6 +149,21 @@ export async function POST(req: NextRequest) {
     if (!url) {
       return NextResponse.json({ error: 'failed_to_create_checkout' }, { status: 500 })
     }
+
+    // Capture checkout_started event server-side
+    const posthog = getPostHogClient()
+    posthog.capture({
+      distinctId: user.id,
+      event: 'checkout_started',
+      properties: {
+        price_id: priceId,
+        mode,
+        is_yearly: isYearlyPlan,
+        has_trial: !!trialDays,
+        trial_days: trialDays,
+        has_partner_discount: shouldAutoApplyDiscount,
+      },
+    })
 
     return NextResponse.json({ url })
   } catch (error) {

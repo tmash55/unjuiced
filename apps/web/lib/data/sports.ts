@@ -24,6 +24,10 @@ export const SPORTS: Sport[] = [
     name: 'Soccer',
     leagues: [
       { id: 'soccer_epl', name: 'EPL', sportId: 'Soccer' },
+      { id: 'soccer_laliga', name: 'LaLiga', sportId: 'Soccer' },
+      { id: 'soccer_mls', name: 'MLS', sportId: 'Soccer' },
+      { id: 'soccer_ucl', name: 'UCL', sportId: 'Soccer' },
+      { id: 'soccer_uel', name: 'UEL', sportId: 'Soccer' },
     ],
   },
   {
@@ -40,6 +44,7 @@ export const SPORTS: Sport[] = [
     name: 'Baseball',
     leagues: [
       { id: 'mlb', name: 'MLB', sportId: 'Baseball' },
+      { id: 'ncaabaseball', name: 'NCAA Baseball', sportId: 'Baseball' },
     ],
   },
   {
@@ -47,6 +52,26 @@ export const SPORTS: Sport[] = [
     name: 'Hockey',
     leagues: [
       { id: 'nhl', name: 'NHL', sportId: 'Hockey' },
+    ],
+  },
+  {
+    id: 'Tennis',
+    name: 'Tennis',
+    leagues: [
+      { id: 'tennis_atp', name: 'ATP', sportId: 'Tennis' },
+      { id: 'tennis_challenger', name: 'Challenger', sportId: 'Tennis' },
+      { id: 'tennis_itf_men', name: 'ITF Men', sportId: 'Tennis' },
+      { id: 'tennis_itf_women', name: 'ITF Women', sportId: 'Tennis' },
+      { id: 'tennis_utr_men', name: 'UTR Men', sportId: 'Tennis' },
+      { id: 'tennis_utr_women', name: 'UTR Women', sportId: 'Tennis' },
+      { id: 'tennis_wta', name: 'WTA', sportId: 'Tennis' },
+    ],
+  },
+  {
+    id: 'MMA',
+    name: 'MMA',
+    leagues: [
+      { id: 'ufc', name: 'UFC', sportId: 'MMA' },
     ],
   },
 ];
@@ -73,7 +98,6 @@ export function getLeagueName(leagueId: string): string {
   const league = getAllLeagues().find(l => l.id === leagueId);
   return league?.name || leagueId;
 }
-
 
 
 

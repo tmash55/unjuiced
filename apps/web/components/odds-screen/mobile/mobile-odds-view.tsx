@@ -13,12 +13,26 @@ import { LoadingState } from "@/components/common/loading-state";
 // Available sports
 const SPORTS = [
   { key: "nba", label: "NBA" },
-  { key: "nfl", label: "NFL" },
-  { key: "nhl", label: "NHL" },
   { key: "ncaab", label: "NCAAB" },
+  { key: "nhl", label: "NHL" },
+  { key: "ncaabaseball", label: "NCAA Base" },
+  { key: "soccer_epl", label: "EPL" },
+  { key: "soccer_laliga", label: "LaLiga" },
+  { key: "soccer_mls", label: "MLS" },
+  { key: "soccer_ucl", label: "UCL" },
+  { key: "soccer_uel", label: "UEL" },
+  { key: "tennis_atp", label: "ATP" },
+  { key: "tennis_wta", label: "WTA" },
+  { key: "tennis_challenger", label: "Challenger" },
+  { key: "tennis_itf_men", label: "ITF Men" },
+  { key: "tennis_itf_women", label: "ITF Women" },
+  { key: "tennis_utr_men", label: "UTR Men" },
+  { key: "tennis_utr_women", label: "UTR Women" },
+  { key: "ufc", label: "UFC" },
   { key: "mlb", label: "MLB", disabled: true },
   { key: "wnba", label: "WNBA", disabled: true },
   { key: "ncaaf", label: "NCAAF", disabled: true },
+  { key: "nfl", label: "NFL", disabled: true },
 ];
 
 interface MobileOddsViewProps {
