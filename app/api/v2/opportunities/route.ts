@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
@@ -47,8 +47,17 @@ function getCacheTTL(blend: { book: string; weight: number }[] | null): number {
 }
 const SCAN_COUNT = 1000; // Higher = fewer round trips to Redis
 const MGET_CHUNK_SIZE = 500; // Upstash limit per MGET
+const MGET_FALLBACK_CHUNK_SIZE = 100; // Retry chunk size if endpoint returns non-JSON payload
+const CANDIDATE_MGET_CHUNK_SIZE = 1000; // Initial deterministic probe chunk size
+const CANDIDATE_MGET_FALLBACK_CHUNK_SIZE = 125; // Retry chunk size for probe MGETs
 const MAX_SCAN_ITERATIONS = 200;
 const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
+let invalidOddsPayloadWarnCount = 0;
+const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;
+let mgetFallbackWarnCount = 0;
+const MAX_MGET_FALLBACK_WARNINGS = 6;
+let endpointPayloadWarnCount = 0;
+const MAX_ENDPOINT_PAYLOAD_WARNINGS = 8;
 
 // Performance: Pre-warm hint for when SSE triggers a refetch
 // If provided, skip full recalculation and just invalidate cache
@@ -56,6 +65,102 @@ const FAST_PATH_ENABLED = true;
 
 // OPTIMIZATION: Track timing for monitoring
 const TIMING_ENABLED = process.env.NODE_ENV === 'development';
+
+function isEndpointJsonParseError(error: unknown): boolean {
+  const message =
+    (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return (
+    (message.includes("unexpected token '<'") && message.includes("valid json")) ||
+    message.includes("is not valid json")
+  );
+}
+
+function parseBookSelectionsValue(
+  value: SSEBookSelections | string | null,
+  key: string
+): SSEBookSelections | null {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || trimmed.startsWith("<")) {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[opportunities] Skipping non-JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as SSEBookSelections;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    if (invalidOddsPayloadWarnCount < MAX_INVALID_ODDS_PAYLOAD_WARNINGS) {
+      invalidOddsPayloadWarnCount += 1;
+      console.warn(`[opportunities] Skipping invalid JSON odds payload for key: ${key}`);
+    }
+    return null;
+  }
+}
+
+function chunkKeys(keys: string[], size: number): string[][] {
+  const safeSize = Math.max(1, size);
+  const chunks: string[][] = [];
+  for (let i = 0; i < keys.length; i += safeSize) {
+    chunks.push(keys.slice(i, i + safeSize));
+  }
+  return chunks;
+}
+
+async function mgetChunkWithFallback<T>(
+  keysChunk: string[],
+  fallbackChunkSize: number
+): Promise<(T | null)[]> {
+  try {
+    return await redis.mget<(T | null)[]>(...keysChunk);
+  } catch (error) {
+    if (!isEndpointJsonParseError(error) || keysChunk.length <= 1) {
+      throw error;
+    }
+
+    const nextSize = Math.min(
+      Math.max(1, fallbackChunkSize),
+      Math.max(1, Math.floor(keysChunk.length / 2))
+    );
+    if (nextSize >= keysChunk.length) {
+      throw error;
+    }
+
+    if (mgetFallbackWarnCount < MAX_MGET_FALLBACK_WARNINGS) {
+      mgetFallbackWarnCount += 1;
+      console.warn(
+        `[opportunities] Retrying Redis MGET with smaller batches (${keysChunk.length} -> ${nextSize})`
+      );
+    }
+
+    const results: (T | null)[] = [];
+    for (const splitChunk of chunkKeys(keysChunk, nextSize)) {
+      const splitValues = await mgetChunkWithFallback<T>(splitChunk, fallbackChunkSize);
+      results.push(...splitValues);
+    }
+    return results;
+  }
+}
+
+async function mgetInChunksWithFallback<T>(
+  keys: string[],
+  primaryChunkSize: number,
+  fallbackChunkSize: number
+): Promise<(T | null)[]> {
+  if (keys.length === 0) return [];
+  const results: (T | null)[] = [];
+  for (const chunk of chunkKeys(keys, primaryChunkSize)) {
+    const values = await mgetChunkWithFallback<T>(chunk, fallbackChunkSize);
+    results.push(...values);
+  }
+  return results;
+}
 
 /**
  * Generate a cache key for raw sport opportunities
@@ -811,26 +916,29 @@ async function fetchSportOpportunities(
 
     // Only fetch keys not already pre-fetched (from index-only paths)
     if (missingKeys.length > 0) {
-      const MGET_CHUNK_SIZE = 500;
-      const chunks: string[][] = [];
-      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
-        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
-      }
-      const chunkResults = await Promise.all(
-        chunks.map(chunk => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      const allOddsData = await mgetInChunksWithFallback<SSEBookSelections | string>(
+        missingKeys,
+        MGET_CHUNK_SIZE,
+        MGET_FALLBACK_CHUNK_SIZE
       );
-      const allOddsData = chunkResults.flat();
       missingKeys.forEach((key, i) => {
         const data = allOddsData[i];
         if (data) {
-          oddsDataMap.set(key, typeof data === "string" ? JSON.parse(data) : data);
+          const parsed = parseBookSelectionsValue(data, key);
+          if (parsed) {
+            oddsDataMap.set(key, parsed);
+          }
         }
       });
     }
 
     // Fetch event details (already batched)
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
-    const eventsRaw = await redis.mget<(Record<string, unknown> | null)[]>(...eventKeys);
+    const eventsRaw = await mgetInChunksWithFallback<Record<string, unknown>>(
+      eventKeys,
+      MGET_CHUNK_SIZE,
+      MGET_FALLBACK_CHUNK_SIZE
+    );
 
     // Build event map - use commence_time from Redis event data
     // Also filter out games that have already started (live filtering)
@@ -1143,6 +1251,15 @@ async function fetchSportOpportunities(
 
     return opportunities;
   } catch (error) {
+    if (isEndpointJsonParseError(error)) {
+      if (endpointPayloadWarnCount < MAX_ENDPOINT_PAYLOAD_WARNINGS) {
+        endpointPayloadWarnCount += 1;
+        console.warn(
+          `[opportunities] Skipping ${sport}: Redis endpoint returned non-JSON payload; retrying on next refresh`
+        );
+      }
+      return [];
+    }
     console.error(`[opportunities] Error fetching ${sport}:`, error);
     return [];
   }
@@ -1785,24 +1902,22 @@ async function getOddsKeysForEvents(
       }
     }
 
-    const CANDIDATE_CHUNK_SIZE = 1000;
-    for (let i = 0; i < candidateKeys.length; i += CANDIDATE_CHUNK_SIZE) {
-      const keysChunk = candidateKeys.slice(i, i + CANDIDATE_CHUNK_SIZE);
-      const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+    const values = await mgetInChunksWithFallback<SSEBookSelections | string>(
+      candidateKeys,
+      CANDIDATE_MGET_CHUNK_SIZE,
+      CANDIDATE_MGET_FALLBACK_CHUNK_SIZE
+    );
 
-      values.forEach((value, idx) => {
-        if (!value) return;
-        const key = keysChunk[idx];
-        const meta = candidateMeta[i + idx];
-        allKeys.push(key);
-        foundEventMarket.add(`${meta.eventId}:${meta.market}`);
-        // Store the fetched data to avoid redundant MGET later
-        try {
-          const parsed: SSEBookSelections = typeof value === "string" ? JSON.parse(value) : value;
-          if (parsed) prefetchedData.set(key, parsed);
-        } catch { /* skip unparseable */ }
-      });
-    }
+    values.forEach((value, idx) => {
+      if (!value) return;
+      const key = candidateKeys[idx];
+      const meta = candidateMeta[idx];
+      allKeys.push(key);
+      foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+      // Store the fetched data to avoid redundant MGET later
+      const parsed = parseBookSelectionsValue(value, key);
+      if (parsed) prefetchedData.set(key, parsed);
+    });
   }
 
   // Final fallback: SCAN only unresolved event+market pairs (opt-in).

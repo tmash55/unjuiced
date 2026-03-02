@@ -1,14 +1,20 @@
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { SSESelection, SSEBookSelections } from "@/lib/odds/types";
-import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
-const commandEndpoint = getRedisCommandEndpoint();
+const commandEndpoint = resolveRedisCommandEndpoint();
+if (!commandEndpoint.url || !commandEndpoint.token) {
+  const reason = commandEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[v2/props/alternates] Redis endpoint configuration invalid: ${reason}`);
+}
 const redis = new Redis({
-  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
-  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url,
+  token: commandEndpoint.token,
 });
 let invalidOddsPayloadWarnCount = 0;
 const MAX_INVALID_ODDS_PAYLOAD_WARNINGS = 8;

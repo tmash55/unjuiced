@@ -148,8 +148,8 @@ const EXTREME_EV_WARNING =
 /**
  * Format timestamp as relative time (e.g., "5s ago", "2m ago")
  */
-function formatTimeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+function formatTimeAgo(timestamp: number, nowMs: number = Date.now()): string {
+  const seconds = Math.floor((nowMs - timestamp) / 1000);
   if (seconds < 5) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
@@ -462,6 +462,7 @@ export default function PositiveEVPage() {
   const [showMethodInfo, setShowMethodInfo] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
+  const [relativeClockNow, setRelativeClockNow] = useState(() => Date.now());
   
   // Sorting state for table columns - default to sorting by EV % descending
   const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>("ev");
@@ -506,6 +507,14 @@ export default function PositiveEVPage() {
       setAutoRefresh(false);
     }
   }, [hasElite]);
+
+  // Keep "Updated Xs ago" labels fresh even when no data rows change.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRelativeClockNow(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Debug logging
   useEffect(() => {
@@ -1246,7 +1255,7 @@ export default function PositiveEVPage() {
           <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
         </>
       )}
-      <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+      <span>Updated {formatTimeAgo(dataUpdatedAt, relativeClockNow)}</span>
       {(isFetching || (autoRefresh && streamIsReconnecting)) && (
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       )}

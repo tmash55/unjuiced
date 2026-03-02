@@ -1,6 +1,4 @@
-// Use Node.js runtime for longer timeouts and better performance
-export const runtime = "nodejs";
-export const maxDuration = 60; // Allow up to 60 seconds
+export const runtime = "edge";
 
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
@@ -38,22 +36,35 @@ import {
 import { createClient } from "@/libs/supabase/server";
 import { getUserPlan } from "@/lib/plans-server";
 import { hasEliteAccess } from "@/lib/plans";
-import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
+import { resolveRedisCommandEndpoint } from "@/lib/redis-endpoints";
 
-const commandEndpoint = getRedisCommandEndpoint();
+const commandEndpoint = resolveRedisCommandEndpoint();
+if (!commandEndpoint.url || !commandEndpoint.token) {
+  const reason = commandEndpoint.rejectedLoopback
+    ? "loopback Redis URL rejected in production"
+    : "missing Redis endpoint credentials";
+  throw new Error(`[positive-ev] Redis endpoint configuration invalid: ${reason}`);
+}
 const redis = new Redis({
-  url: commandEndpoint.url || process.env.UPSTASH_REDIS_REST_URL!,
-  token: commandEndpoint.token || process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: commandEndpoint.url,
+  token: commandEndpoint.token,
   responseEncoding: false,
 });
 
 // Configuration - optimized for speed
 const SCAN_COUNT = 2000;      // Larger scan batches
-const MGET_CHUNK_SIZE = 500;  // Reduced to prevent connection issues
+const MGET_CHUNK_SIZE = 500;  // Primary chunk size for odds/event reads
+const MGET_FALLBACK_CHUNK_SIZE = 100; // Retry chunk size if proxy returns HTML/non-JSON
+const CANDIDATE_MGET_CHUNK_SIZE = 1000; // Initial probe chunk size
+const CANDIDATE_MGET_FALLBACK_CHUNK_SIZE = 125; // Retry size for deterministic probes
 const MAX_SCAN_ITERATIONS = 200;
 const ACTIVE_EVENTS_CACHE_TTL = 15000; // 15s
 const ENABLE_ODDS_SCAN_FALLBACK = process.env.ENABLE_ODDS_SCAN_FALLBACK === "true";
 const activeEventsCache = new Map<string, { ids: string[]; ts: number }>();
+let mgetFallbackWarnCount = 0;
+const MAX_MGET_FALLBACK_WARNINGS = 6;
+let endpointPayloadWarnCount = 0;
+const MAX_ENDPOINT_PAYLOAD_WARNINGS = 8;
 
 // Known sportsbooks for deterministic key probes (scan-free path)
 const KNOWN_BOOKS = [
@@ -118,6 +129,66 @@ function parseBookSelectionsValue(
     }
     return null;
   }
+}
+
+function chunkKeys(keys: string[], size: number): string[][] {
+  const safeSize = Math.max(1, size);
+  const chunks: string[][] = [];
+  for (let i = 0; i < keys.length; i += safeSize) {
+    chunks.push(keys.slice(i, i + safeSize));
+  }
+  return chunks;
+}
+
+async function mgetChunkWithFallback<T>(
+  keysChunk: string[],
+  fallbackChunkSize: number
+): Promise<(T | null)[]> {
+  try {
+    return await redis.mget<(T | null)[]>(...keysChunk);
+  } catch (error) {
+    if (!isEndpointJsonParseError(error) || keysChunk.length <= 1) {
+      throw error;
+    }
+
+    const nextSize = Math.min(
+      Math.max(1, fallbackChunkSize),
+      Math.max(1, Math.floor(keysChunk.length / 2))
+    );
+    if (nextSize >= keysChunk.length) {
+      throw error;
+    }
+
+    if (mgetFallbackWarnCount < MAX_MGET_FALLBACK_WARNINGS) {
+      mgetFallbackWarnCount += 1;
+      console.warn(
+        `[positive-ev] Retrying Redis MGET with smaller batches (${keysChunk.length} -> ${nextSize})`
+      );
+    }
+
+    const results: (T | null)[] = [];
+    const splitChunks = chunkKeys(keysChunk, nextSize);
+    for (const splitChunk of splitChunks) {
+      const splitValues = await mgetChunkWithFallback<T>(splitChunk, fallbackChunkSize);
+      results.push(...splitValues);
+    }
+    return results;
+  }
+}
+
+async function mgetInChunksWithFallback<T>(
+  keys: string[],
+  primaryChunkSize: number,
+  fallbackChunkSize: number
+): Promise<(T | null)[]> {
+  if (keys.length === 0) return [];
+  const results: (T | null)[] = [];
+  const chunks = chunkKeys(keys, primaryChunkSize);
+  for (const chunk of chunks) {
+    const values = await mgetChunkWithFallback<T>(chunk, fallbackChunkSize);
+    results.push(...values);
+  }
+  return results;
 }
 
 /**
@@ -625,14 +696,11 @@ async function fetchPositiveEVOpportunities(
 
     // Only fetch keys not already pre-fetched (from index-only paths)
     if (missingKeys.length > 0) {
-      const chunks: string[][] = [];
-      for (let i = 0; i < missingKeys.length; i += MGET_CHUNK_SIZE) {
-        chunks.push(missingKeys.slice(i, i + MGET_CHUNK_SIZE));
-      }
-      const chunkResults = await Promise.all(
-        chunks.map((chunk) => redis.mget<(SSEBookSelections | string | null)[]>(...chunk))
+      const allOddsData = await mgetInChunksWithFallback<SSEBookSelections | string>(
+        missingKeys,
+        MGET_CHUNK_SIZE,
+        MGET_FALLBACK_CHUNK_SIZE
       );
-      const allOddsData = chunkResults.flat();
       missingKeys.forEach((key, i) => {
         const data = allOddsData[i];
         if (data) {
@@ -646,7 +714,11 @@ async function fetchPositiveEVOpportunities(
 
     // Step 4: Fetch event details
     const eventKeys = eventIds.map((id) => `events:${sport}:${id}`);
-    const eventsRaw = await redis.mget<(Record<string, unknown> | null)[]>(...eventKeys);
+    const eventsRaw = await mgetInChunksWithFallback<Record<string, unknown>>(
+      eventKeys,
+      MGET_CHUNK_SIZE,
+      MGET_FALLBACK_CHUNK_SIZE
+    );
 
     // Build event map with robust filtering
     const now = new Date();
@@ -1068,6 +1140,15 @@ async function fetchPositiveEVOpportunities(
 
     return opportunities;
   } catch (error) {
+    if (isEndpointJsonParseError(error)) {
+      if (endpointPayloadWarnCount < MAX_ENDPOINT_PAYLOAD_WARNINGS) {
+        endpointPayloadWarnCount += 1;
+        console.warn(
+          `[positive-ev] Skipping ${sport}: Redis endpoint returned non-JSON payload; retrying on next refresh`
+        );
+      }
+      return [];
+    }
     console.error(`[positive-ev] Error fetching ${sport}:`, error);
     return [];
   }
@@ -1464,27 +1545,27 @@ async function getOddsKeysForEvents(
       }
     }
 
-    const CANDIDATE_CHUNK_SIZE = 1000;
-    for (let i = 0; i < candidateKeys.length; i += CANDIDATE_CHUNK_SIZE) {
-      const keysChunk = candidateKeys.slice(i, i + CANDIDATE_CHUNK_SIZE);
-      const values = await redis.mget<(SSEBookSelections | string | null)[]>(...keysChunk);
+    const values = await mgetInChunksWithFallback<SSEBookSelections | string>(
+      candidateKeys,
+      CANDIDATE_MGET_CHUNK_SIZE,
+      CANDIDATE_MGET_FALLBACK_CHUNK_SIZE
+    );
 
-      values.forEach((value, idx) => {
-        if (!value) return;
-        if (typeof value === "string") {
-          const trimmed = value.trim();
-          // Ignore obvious non-odds payloads (e.g., HTML error pages).
-          if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
-        }
-        const key = keysChunk[idx];
-        const meta = candidateMeta[i + idx];
-        allKeys.push(key);
-        foundEventMarket.add(`${meta.eventId}:${meta.market}`);
-        // Store the fetched data to avoid redundant MGET later
-        const parsed = parseBookSelectionsValue(value, key);
-        if (parsed) prefetchedData.set(key, parsed);
-      });
-    }
+    values.forEach((value, idx) => {
+      if (!value) return;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        // Ignore obvious non-odds payloads (e.g., HTML error pages).
+        if (!trimmed.startsWith("{") || trimmed.startsWith("<")) return;
+      }
+      const key = candidateKeys[idx];
+      const meta = candidateMeta[idx];
+      allKeys.push(key);
+      foundEventMarket.add(`${meta.eventId}:${meta.market}`);
+      // Store the fetched data to avoid redundant MGET later
+      const parsed = parseBookSelectionsValue(value, key);
+      if (parsed) prefetchedData.set(key, parsed);
+    });
   }
 
   // Final fallback: scan unresolved event+market pairs only (opt-in).
