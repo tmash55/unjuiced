@@ -93,6 +93,7 @@ import { UnifiedFilterBar } from "@/components/shared/filter-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
+import { ToolPerformanceBanner } from "@/components/common/tool-performance-banner";
 
 // Constants
 const AVAILABLE_SPORTS = [
@@ -1373,6 +1374,8 @@ export default function PositiveEVPage() {
       contextBar={contextBar}
       stickyContextBar={true}
     >
+      <ToolPerformanceBanner />
+
       {/* Method Info Panel */}
       <AnimatePresence>
         {showMethodInfo && (
