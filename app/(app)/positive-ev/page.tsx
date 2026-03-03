@@ -464,6 +464,7 @@ export default function PositiveEVPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
   const [relativeClockNow, setRelativeClockNow] = useState(() => Date.now());
+  const [lastKnownDataUpdatedAt, setLastKnownDataUpdatedAt] = useState<number | null>(null);
   
   // Sorting state for table columns - default to sorting by EV % descending
   const [sortColumn, setSortColumn] = useState<"ev" | "time" | "stake" | null>("ev");
@@ -684,6 +685,13 @@ export default function PositiveEVPage() {
   // Use freshRefetch for manual refresh button (bypasses server cache)
   const baseFreshRefetch = autoRefresh ? streamRefresh : standardFreshRefetch;
   const dataUpdatedAt = autoRefresh ? streamLastUpdated : standardDataUpdatedAt;
+  const freshnessUpdatedAt = dataUpdatedAt ?? lastKnownDataUpdatedAt;
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastKnownDataUpdatedAt(dataUpdatedAt);
+    }
+  }, [dataUpdatedAt]);
   
   // Local state for manual refresh spinning
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -1247,31 +1255,38 @@ export default function PositiveEVPage() {
     : `${displayOpportunities.length} of ${sortedOpportunities.length}+ opportunities shown`;
 
   // Header actions - freshness indicator
-  const headerActions = dataUpdatedAt && !isLoading ? (
-    <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-      {autoRefresh && streamConnected && (
+  const headerActions = (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500 transition-opacity",
+        freshnessUpdatedAt ? "opacity-100" : "opacity-0 pointer-events-none"
+      )}
+      aria-hidden={!freshnessUpdatedAt}
+    >
+      {autoRefresh && streamConnected && freshnessUpdatedAt && (
         <>
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
           <span className="text-green-600 dark:text-green-400">Live</span>
           <span className="mx-1 text-neutral-300 dark:text-neutral-600">•</span>
         </>
       )}
-      <span>Updated {formatTimeAgo(dataUpdatedAt, relativeClockNow)}</span>
-      {(isFetching || (autoRefresh && streamIsReconnecting)) && (
+      <span>
+        Updated{" "}
+        {freshnessUpdatedAt ? formatTimeAgo(freshnessUpdatedAt, relativeClockNow) : "—"}
+      </span>
+      {freshnessUpdatedAt && (isFetching || (autoRefresh && streamIsReconnecting)) && (
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       )}
     </div>
-  ) : null;
+  );
 
   // Context bar - filter bar with timestamp above
   const contextBar = (
     <>
       {/* Timestamp indicator - above filter bar */}
-      {headerActions && (
-        <div className="flex justify-end mb-2">
-          {headerActions}
-        </div>
-      )}
+      <div className="flex justify-end mb-2 min-h-4">
+        {headerActions}
+      </div>
       <UnifiedFilterBar
         tool="positive-ev"
         className=""
@@ -2192,15 +2207,16 @@ export default function PositiveEVPage() {
                     {/* Best Book */}
                     <td className="px-2 lg:px-3 py-2 lg:py-3 border-b border-neutral-100 dark:border-neutral-800/50">
                       {(() => {
-                        // Find all books with the same best EV (ties), filtered by selected books
-                        const bestEV = opp.book.evPercent ?? opp.evCalculations.evWorst;
+                        // Find all books tied at the best PRICE (not EV) so custom models
+                        // still render book logos even when per-book EV metadata differs.
+                        const bestPrice = opp.book.price;
                         const selectedBooksSet = savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0 
                           ? new Set(savedFilters.selectedBooks.map(b => normalizeSportsbookId(b)))
                           : null;
-                        const allTiedBooks = opp.allBooks
-                          .filter(b => {
+                        const tieCandidates = opp.allBooks
+                          .filter((b) => {
                             if (b.isSharpRef) return false;
-                            if (Math.abs((b.evPercent ?? 0) - bestEV) >= 0.01) return false;
+                            if (b.price !== bestPrice) return false;
                             // Filter by selected books if any are selected
                             if (selectedBooksSet) {
                               const normalizedId = normalizeSportsbookId(b.bookId);
@@ -2208,8 +2224,27 @@ export default function PositiveEVPage() {
                             }
                             return true;
                           });
-                        const tiedBooks = allTiedBooks.slice(0, 4); // Max 4 for display
-                        const extraCount = allTiedBooks.length - 4;
+
+                        // De-dupe ties by normalized book ID to avoid duplicate-key issues.
+                        const dedupedTieBooks = Array.from(
+                          new Map(
+                            tieCandidates.map((book) => [normalizeSportsbookId(book.bookId), book])
+                          ).values()
+                        );
+
+                        // If we couldn't resolve ties from allBooks (common in custom mode),
+                        // fall back to the actual best-book payload.
+                        const fallbackBestBook = {
+                          bookId: opp.book.bookId,
+                          bookName: opp.book.bookName,
+                          price: opp.book.price,
+                          priceDecimal: opp.book.priceDecimal,
+                          limits: opp.book.limits ?? null,
+                        };
+
+                        const allDisplayBooks = dedupedTieBooks.length > 0 ? dedupedTieBooks : [fallbackBestBook];
+                        const tiedBooks = allDisplayBooks.slice(0, 4); // Max 4 for display
+                        const extraCount = allDisplayBooks.length - 4;
                         
                         return (
                           <div className={cn("flex items-center justify-center gap-1.5 lg:gap-2", !effectiveIsPro && "blur-[8px] opacity-30 grayscale select-none pointer-events-none")}>
@@ -2883,7 +2918,7 @@ export default function PositiveEVPage() {
                                                       </span>
                                                     </Tooltip>
                                                   )}
-                                                  {overOffer.limits?.max && !isOverSide && (
+                                                  {overOffer.limits?.max && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${overOffer.limits.max >= 1000 ? `${(overOffer.limits.max / 1000).toFixed(0)}k` : overOffer.limits.max}
                                                     </span>
@@ -2927,7 +2962,7 @@ export default function PositiveEVPage() {
                                                       </span>
                                                     </Tooltip>
                                                   )}
-                                                  {underOffer.limits?.max && isOverSide && (
+                                                  {underOffer.limits?.max && (
                                                     <span className="text-[9px] text-neutral-500 dark:text-neutral-400 font-medium">
                                                       Max ${underOffer.limits.max >= 1000 ? `${(underOffer.limits.max / 1000).toFixed(0)}k` : underOffer.limits.max}
                                                     </span>

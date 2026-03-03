@@ -229,6 +229,7 @@ export default function EdgeFinderPage() {
   // ===== AUTO-REFRESH via SSE =====
   const [autoRefresh, setAutoRefresh] = useState(false);
   const FLASH_MS = 6000; // How long highlights stay visible
+  const [lastKnownDataUpdatedAt, setLastKnownDataUpdatedAt] = useState<number | null>(null);
 
   // Disable auto-refresh if user loses pro access
   useEffect(() => {
@@ -267,6 +268,13 @@ export default function EdgeFinderPage() {
 
   // When auto-refresh is on, suppress isFetching to avoid "Updating..." subtitle and spinner
   const isFetching = autoRefresh ? false : rawIsFetching;
+  const freshnessUpdatedAt = dataUpdatedAt ?? lastKnownDataUpdatedAt;
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastKnownDataUpdatedAt(dataUpdatedAt);
+    }
+  }, [dataUpdatedAt]);
 
   // Detect new/changed rows when opportunities update during auto-refresh
   useEffect(() => {
@@ -616,9 +624,9 @@ export default function EdgeFinderPage() {
         </div>
       )}
       {/* Freshness Indicator */}
-      {dataUpdatedAt && !isLoading && !isLoadingMore && (
+      {freshnessUpdatedAt && !isLoadingMore && (
         <div className="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-          <span>Updated {formatTimeAgo(dataUpdatedAt)}</span>
+          <span>Updated {formatTimeAgo(freshnessUpdatedAt)}</span>
           {isFetching && (
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
           )}
@@ -631,11 +639,9 @@ export default function EdgeFinderPage() {
   const contextBar = (
     <>
       {/* Timestamp indicator - above filter bar */}
-      {headerActions && (
-        <div className="flex justify-end mb-2">
-          {headerActions}
-        </div>
-      )}
+      <div className="flex justify-end mb-2 min-h-4">
+        {headerActions}
+      </div>
       <UnifiedFilterBar
         tool="edge-finder"
         className="mb-6"

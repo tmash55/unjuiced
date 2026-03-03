@@ -305,7 +305,9 @@ function buildFilterConfigs(
     // Use preset's custom markets if defined, otherwise use global or empty
     const presetMarkets = toStringArray((preset as any).markets);
     
-    const validSports = sports.length > 0 ? sports : ["nba"] as Sport[];
+    // Never silently collapse custom presets to just NBA.
+    // If preset sport serialization is malformed/missing, default to all sports.
+    const validSports = sports.length > 0 ? sports : ALL_SPORTS;
     
     // For multi-sport presets, create separate configs per sport for balanced results
     if (validSports.length > 1) {

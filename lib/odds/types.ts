@@ -340,6 +340,9 @@ export interface EdgeResult {
     price: string;
     decimal: number;
     link: string;
+    mobile_link?: string | null;
+    sgp?: string | null;
+    limits?: { max: number } | null;
     odd_id?: string;
   }>;
 }

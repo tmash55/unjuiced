@@ -16,7 +16,18 @@ export type ResolvedRedisEndpoint = {
 
 function readEnv(name: string): string | null {
   const value = process.env[name]?.trim();
-  return value ? value : null;
+  if (!value) return null;
+
+  // Be tolerant of quoted values in env providers/UIs.
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    const unwrapped = value.slice(1, -1).trim();
+    return unwrapped || null;
+  }
+
+  return value;
 }
 
 function isLoopbackHost(hostname: string): boolean {
