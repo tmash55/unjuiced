@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CSSProperties } from "react";
 import { Grid } from "@/components/grid";
 import { getUtmParams, createHref, contentHeadingClassName } from "./shared";
-import { FileText, UserMinus, Grid3X3, LayoutGrid, Trophy } from "lucide-react";
+import { FileText, UserMinus, Grid3X3, LayoutGrid, Trophy, Medal } from "lucide-react";
 
 const cheatsheets = [
   {
@@ -56,6 +56,19 @@ const cheatsheets = [
     description: "Live SGP R+A / P+R+A prices compared to Triple-Double odds.",
     href: "/cheatsheets/nba/triple-double-sheet",
     color: "#f59e0b", // Amber
+    comingSoon: false,
+    badge: "NEW",
+  },
+  {
+    icon: (
+      <div className="flex size-4 items-center justify-center rounded bg-lime-400">
+        <Medal className="size-2.5 text-lime-900" />
+      </div>
+    ),
+    title: "Double Double Sheet",
+    description: "Live SGP P+R / P+R+A prices compared to Double-Double odds.",
+    href: "/cheatsheets/nba/double-double-sheet",
+    color: "#84cc16", // Lime
     comingSoon: false,
     badge: "NEW",
   },

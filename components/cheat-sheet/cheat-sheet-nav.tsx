@@ -7,7 +7,8 @@ import {
   TrendingUp, 
   UserMinus,
   LayoutGrid,
-  Trophy
+  Trophy,
+  Medal
 } from "lucide-react";
 
 interface CheatSheetTab {
@@ -54,6 +55,13 @@ const CHEAT_SHEET_TABS: CheatSheetTab[] = [
     shortLabel: "TD Sheet",
     icon: Trophy,
     description: "SGP vs TD prices",
+  },
+  {
+    slug: "double-double-sheet",
+    label: "Double Double",
+    shortLabel: "DD Sheet",
+    icon: Medal,
+    description: "SGP vs DD prices",
   },
 ];
 
