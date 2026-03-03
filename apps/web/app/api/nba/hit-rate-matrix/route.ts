@@ -256,7 +256,7 @@ function getDvpQuality(dvpRank: number | null): "favorable" | "neutral" | "unfav
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
-  
+
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = RequestSchema.safeParse(body);
@@ -270,6 +270,23 @@ export async function POST(req: NextRequest) {
 
     const { market, gameDate, timeWindow, positions, minGames } = parsed.data;
     const targetDate = gameDate || getETDate();
+
+    // Check Redis cache first
+    const cacheKey = `matrix-cache:nba:${targetDate}:${market}:${timeWindow}:${(positions || []).join(",")}`;
+    try {
+      const cached = await redis.get<HitRateMatrixResponse>(cacheKey);
+      if (cached) {
+        console.log(`[hit-rate-matrix] Cache hit for ${cacheKey} in ${Date.now() - startTime}ms`);
+        return NextResponse.json(cached, {
+          headers: {
+            "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
+            "X-Cache": "HIT",
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[hit-rate-matrix] Cache read error:", e);
+    }
 
     const supabase = await createServerSupabaseClient();
 
@@ -681,9 +698,17 @@ export async function POST(req: NextRequest) {
       count: rows.length,
     };
 
+    // Cache the response in Redis for 60 seconds
+    try {
+      await redis.set(cacheKey, response, { ex: 60 });
+    } catch (e) {
+      console.error("[hit-rate-matrix] Cache write error:", e);
+    }
+
     return NextResponse.json(response, {
       headers: {
         "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
+        "X-Cache": "MISS",
       },
     });
   } catch (error: any) {

@@ -13,5 +13,9 @@ export const brandColors = {
   primarySoftStrong: "rgba(56, 189, 248, 0.24)",
   success: "#22C55E",
   warning: "#FBBF24",
-  error: "#F87171"
+  error: "#F87171",
+  navBackground: "#0D1117",
+  navBorder: "rgba(56, 189, 248, 0.08)",
+  navInactive: "#4B5B73",
+  navActivePill: "rgba(56, 189, 248, 0.12)"
 };

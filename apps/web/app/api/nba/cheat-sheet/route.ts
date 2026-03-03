@@ -151,6 +151,31 @@ async function fetchBestOddsForRows(
   return result;
 }
 
+// =============================================================================
+// DATE HELPERS
+// =============================================================================
+
+function getETDate(offsetDays = 0): string {
+  const d = new Date();
+  if (offsetDays) d.setDate(d.getDate() + offsetDays);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+/** Convert "today"/"tomorrow" to actual YYYY-MM-DD date strings */
+function resolveDates(dates: string[] | null): string[] | null {
+  if (!dates || dates.length === 0) return null;
+  return dates.map(d => {
+    if (d === "today") return getETDate();
+    if (d === "tomorrow") return getETDate(1);
+    return d;
+  });
+}
+
 // Request body interface
 interface CheatSheetRequest {
   timeWindow?: "last_5_pct" | "last_10_pct" | "last_20_pct" | "season_pct";
@@ -171,11 +196,14 @@ export async function POST(req: NextRequest) {
       oddsFloor = -300,
       oddsCeiling = 200,
       markets = null,
-      dates = null,
+      dates: rawDates = null,
     } = body;
 
+    // Convert "today"/"tomorrow" to actual date strings for the RPC
+    const dates = resolveDates(rawDates);
+
     const supabase = await createServerSupabaseClient();
-    
+
     const { data, error } = await supabase.rpc("get_hit_rate_cheatsheet_v2", {
       p_time_window: timeWindow,
       p_min_hit_rate: minHitRate,
@@ -290,10 +318,11 @@ export async function GET(req: NextRequest) {
   const oddsFloor = parseInt(searchParams.get("oddsFloor") || "-300");
   const oddsCeiling = parseInt(searchParams.get("oddsCeiling") || "200");
   const markets = searchParams.get("markets")?.split(",").filter(Boolean) || null;
-  const dates = searchParams.get("dates")?.split(",").filter(Boolean) || null;
+  const rawDates = searchParams.get("dates")?.split(",").filter(Boolean) || null;
+  const dates = resolveDates(rawDates);
 
   const supabase = await createServerSupabaseClient();
-  
+
   const { data, error } = await supabase.rpc("get_hit_rate_cheatsheet_v2", {
     p_time_window: timeWindow,
     p_min_hit_rate: minHitRate,

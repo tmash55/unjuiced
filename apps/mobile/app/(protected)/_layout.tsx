@@ -1,16 +1,39 @@
-import { Redirect, Tabs, useRouter } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/src/providers/auth-provider";
+import { brandColors } from "@/src/theme/brand";
+
+function TabIcon({
+  name,
+  library,
+  focused
+}: {
+  name: string;
+  library: "ionicons" | "mci";
+  focused: boolean;
+}) {
+  const color = focused ? brandColors.primary : brandColors.navInactive;
+  const icon =
+    library === "mci" ? (
+      <MaterialCommunityIcons name={name as any} size={24} color={color} />
+    ) : (
+      <Ionicons name={name as any} size={24} color={color} />
+    );
+
+  if (focused) {
+    return <View style={styles.activePill}>{icon}</View>;
+  }
+  return icon;
+}
 
 export default function ProtectedLayout() {
-  const router = useRouter();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#38BDF8" />
+        <ActivityIndicator size="small" color={brandColors.primary} />
       </SafeAreaView>
     );
   }
@@ -23,90 +46,93 @@ export default function ProtectedLayout() {
     <Tabs
       screenOptions={{
         headerTitleAlign: "center",
-        headerStyle: { backgroundColor: "#0B1014" },
-        headerTintColor: "#E5E7EB",
+        headerStyle: { backgroundColor: brandColors.appBackground },
+        headerTintColor: brandColors.textPrimary,
         headerShadowVisible: false,
-        sceneStyle: { backgroundColor: "#0B1014" },
+        sceneStyle: { backgroundColor: brandColors.appBackground },
         tabBarStyle: {
-          backgroundColor: "#0B1014",
-          borderTopColor: "#1F2937",
-          height: 72,
-          paddingBottom: 8,
-          paddingTop: 6
+          backgroundColor: brandColors.navBackground,
+          borderTopColor: brandColors.navBorder,
+          borderTopWidth: 0.5,
+          height: 80,
+          paddingBottom: 12,
+          paddingTop: 8
         },
-        tabBarActiveTintColor: "#38BDF8",
-        tabBarInactiveTintColor: "#94A3B8",
+        tabBarActiveTintColor: brandColors.primary,
+        tabBarInactiveTintColor: brandColors.navInactive,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600"
-        },
-        headerLeft: () => (
-          <View style={styles.headerLeft}>
-            <Pressable onPress={() => router.push("/help")} style={styles.circleButton}>
-              <Ionicons name="help-circle-outline" size={18} color="#E5E7EB" />
-            </Pressable>
-            <Pressable onPress={() => router.push("/how-to")} style={styles.circleButton}>
-              <Ionicons name="school-outline" size={16} color="#E5E7EB" />
-            </Pressable>
-          </View>
-        ),
-        headerRight: () => (
-          <Pressable onPress={() => router.push("/account")} style={styles.circleButton}>
-            <Ionicons name="person-outline" size={18} color="#E5E7EB" />
-          </Pressable>
-        )
+        }
       }}
     >
       <Tabs.Screen
         name="hit-rates"
         options={{
           title: "Hit Rates",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Ionicons name="stats-chart-outline" size={size} color={color} />
-          )
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon
+              name={focused ? "stats-chart" : "stats-chart-outline"}
+              library="ionicons"
+              focused={focused}
+            />
+          ),
+          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
+            focused ? <Text style={[styles.tabLabel, { color }]}>Hit Rates</Text> : null
         }}
       />
       <Tabs.Screen
         name="positive-ev"
         options={{
           title: "+EV",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Ionicons name="add-circle-outline" size={size} color={color} />
-          )
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon
+              name={focused ? "add-circle" : "add-circle-outline"}
+              library="ionicons"
+              focused={focused}
+            />
+          ),
+          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
+            focused ? <Text style={[styles.tabLabel, { color }]}>+EV</Text> : null
         }}
       />
       <Tabs.Screen
         name="edge-finder"
         options={{
           title: "Edge Finder",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="rocket-outline" size={size} color={color} />
-          )
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon
+              name={focused ? "rocket" : "rocket-outline"}
+              library="mci"
+              focused={focused}
+            />
+          ),
+          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
+            focused ? <Text style={[styles.tabLabel, { color }]}>Edge Finder</Text> : null
         }}
       />
       <Tabs.Screen
-        name="arbitrage"
+        name="more"
         options={{
-          title: "Arbitrage",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <MaterialCommunityIcons name="scale-balance" size={size} color={color} />
-          )
+          title: "More",
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon
+              name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
+              library="ionicons"
+              focused={focused}
+            />
+          ),
+          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
+            focused ? <Text style={[styles.tabLabel, { color }]}>More</Text> : null
         }}
       />
-      <Tabs.Screen
-        name="my-slips"
-        options={{
-          title: "My Slips",
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Ionicons name="heart-outline" size={size} color={color} />
-          )
-        }}
-      />
+      <Tabs.Screen name="arbitrage" options={{ href: null, title: "Arbitrage" }} />
+      <Tabs.Screen name="my-slips" options={{ href: null, title: "My Slips" }} />
       <Tabs.Screen name="account" options={{ href: null, title: "Account" }} />
       <Tabs.Screen name="help" options={{ href: null, title: "Help" }} />
       <Tabs.Screen name="how-to" options={{ href: null, title: "How To" }} />
-      <Tabs.Screen name="player/[id]" options={{ href: null, title: "Player" }} />
-      <Tabs.Screen name="more" options={{ href: null, title: "More" }} />
+      <Tabs.Screen name="player/[id]" options={{ href: null, title: "Player", headerShown: false }} />
+      <Tabs.Screen name="cheat-sheets" options={{ href: null, title: "Cheat Sheets" }} />
       <Tabs.Screen name="today" options={{ href: null }} />
       <Tabs.Screen name="tools" options={{ href: null }} />
     </Tabs>
@@ -116,22 +142,20 @@ export default function ProtectedLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0B1014",
+    backgroundColor: brandColors.appBackground,
     alignItems: "center",
     justifyContent: "center"
   },
-  headerLeft: {
-    flexDirection: "row",
-    gap: 8,
-    marginLeft: 8
-  },
-  circleButton: {
-    borderColor: "#334155",
-    borderWidth: 1,
+  activePill: {
+    backgroundColor: brandColors.navActivePill,
     borderRadius: 999,
-    width: 34,
-    height: 34,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     alignItems: "center",
     justifyContent: "center"
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: "600"
   }
 });

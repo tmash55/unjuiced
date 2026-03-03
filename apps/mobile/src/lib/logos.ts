@@ -33,7 +33,8 @@ const SPORTSBOOK_LOGO_BY_ID: Record<string, string> = {
 };
 
 const TEAM_ABBR_FIXUPS: Record<string, string> = {
-  was: "wsh"
+  was: "wsh",
+  nop: "no"
 };
 
 function baseAssetUrl(): string {
