@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { getActiveFeatureAnnouncements, type FeatureAnnouncement } from "@/lib/feature-announcements";
 
 const STORAGE_PREFIX = "feature_announcements_seen:v1:";
@@ -122,7 +123,12 @@ export function FeatureAnnouncementModal() {
                 alt={announcement.imageAlt || announcement.title}
                 width={1200}
                 height={630}
-                className="h-40 w-full object-cover"
+                className={cn(
+                  "w-full",
+                  announcement.imageHeightClass || "h-40",
+                  announcement.imageFit === "contain" ? "object-contain bg-neutral-950" : "object-cover"
+                )}
+                style={{ objectPosition: announcement.imageObjectPosition || "center" }}
                 priority
               />
             </div>

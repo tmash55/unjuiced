@@ -4,6 +4,9 @@ export interface FeatureAnnouncement {
   description: string;
   imageSrc?: string;
   imageAlt?: string;
+  imageFit?: "cover" | "contain";
+  imageHeightClass?: string;
+  imageObjectPosition?: string;
   ctaHref?: string;
   ctaLabel?: string;
   badge?: string;
@@ -13,6 +16,25 @@ export interface FeatureAnnouncement {
 
 // Ordered newest-first. Add new announcements to the top.
 export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
+  {
+    id: "double-double-sheet-2026-03",
+    title: "New: Double Double Sheet",
+    description: "Compare SGP (P+R / P+R+A) pricing against double-double odds in one view.",
+    imageSrc: "/DD_announcement.png",
+    imageAlt: "Double Double Sheet announcement",
+    imageFit: "cover",
+    imageHeightClass: "h-44",
+    imageObjectPosition: "center",
+    ctaHref: "/cheatsheets/nba/double-double-sheet",
+    ctaLabel: "Open Double Double Sheet",
+    badge: "NEW",
+    bullets: [
+      "Best available book and price surfaced per column",
+      "Direct deep links to the selected sportsbook",
+      "Built to quickly spot SGP vs DD pricing gaps",
+    ],
+    enabled: true,
+  },
   {
     id: "triple-double-sheet-2026-02",
     title: "New: Triple Double Sheet",

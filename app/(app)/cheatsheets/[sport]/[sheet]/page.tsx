@@ -129,7 +129,7 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   },
   "double-double-sheet": {
     title: "Double Double Sheet",
-    description: "SGP (P+R / P+R+A) and Double-Double pricing in one view",
+    description: "SGP (P+R / P+A) and Double-Double pricing in one view",
   },
 };
 

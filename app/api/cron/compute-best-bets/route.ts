@@ -187,23 +187,50 @@ async function getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<
 
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = "0";
+  let cursor = 0;
   let iterations = 0;
   const MAX_ITERATIONS = 50;
+  let resetAfterInvalidCursor = false;
+  const seenCursors = new Set<number>();
 
   do {
     iterations++;
-    const result: [string, string[]] = await redis.scan(cursor, {
-      match: pattern,
-      count: SCAN_COUNT,
-    });
-    cursor = result[0];
-    keys.push(...result[1]);
-
-    if (iterations >= MAX_ITERATIONS) {
+    if (seenCursors.has(cursor)) {
+      console.warn(`[cron/best-bets] Cursor cycle detected for ${pattern}, stopping at ${keys.length} keys`);
       break;
     }
-  } while (cursor !== "0");
+    seenCursors.add(cursor);
+
+    let result: [string, string[]];
+    try {
+      result = await redis.scan(cursor, {
+        match: pattern,
+        count: SCAN_COUNT,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isInvalidCursor = message.toLowerCase().includes("invalid cursor");
+      if (isInvalidCursor && cursor !== 0 && !resetAfterInvalidCursor) {
+        console.warn(`[cron/best-bets] Invalid cursor for ${pattern}; resetting to 0 once`);
+        cursor = 0;
+        resetAfterInvalidCursor = true;
+        seenCursors.clear();
+        continue;
+      }
+      throw error;
+    }
+
+    const nextCursor = Number(result[0]);
+    if (!Number.isFinite(nextCursor)) {
+      console.warn(`[cron/best-bets] Non-numeric cursor for ${pattern}; stopping at ${keys.length} keys`);
+      break;
+    }
+
+    cursor = nextCursor;
+    keys.push(...result[1]);
+
+    if (iterations >= MAX_ITERATIONS) break;
+  } while (cursor !== 0);
 
   return keys;
 }
