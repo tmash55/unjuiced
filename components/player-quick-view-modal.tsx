@@ -205,6 +205,33 @@ export function PlayerQuickViewModal({
   }, [selectedMarket, availableMarkets]);
 
   const currentMarket = selectedMarket || availableMarkets[0] || "player_points";
+  const profile = profiles.find((p) => p.market === currentMarket) || profiles[0];
+
+  const hitRateDate = useMemo(() => {
+    const candidate =
+      profile?.gameDate ||
+      profiles[0]?.gameDate ||
+      profile?.startTime ||
+      profiles[0]?.startTime ||
+      null;
+
+    if (!candidate) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return candidate;
+
+    const parsed = new Date(candidate);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().split("T")[0];
+  }, [profile?.gameDate, profile?.startTime, profiles]);
+
+  const fullHitRateHref = useMemo(() => {
+    const params = new URLSearchParams({ market: currentMarket });
+    if (hitRateDate) {
+      params.set("date", hitRateDate);
+    }
+    return nba_player_id
+      ? `/hit-rates/nba/player/${nba_player_id}?${params.toString()}`
+      : "/hit-rates/nba";
+  }, [currentMarket, hitRateDate, nba_player_id]);
 
   // Fetch alternate lines using React Query for caching
   const playerKey = player_name?.toLowerCase().replace(/ /g, "_") || "";
@@ -256,8 +283,6 @@ export function PlayerQuickViewModal({
     gcTime: 5 * 60_000, // 5 minutes
   });
   const alternateLines = alternatesData || [];
-
-  const profile = profiles.find((p) => p.market === currentMarket) || profiles[0];
 
   // Line state - initialize with initial_line if provided (e.g., from edge finder)
   const [customLine, setCustomLine] = useState<number | null>(initial_line ?? null);
@@ -930,7 +955,7 @@ export function PlayerQuickViewModal({
                 <div className="sm:hidden mt-2">
                   {hasAdvancedAccess ? (
                     <Link
-                      href={`/hit-rates/nba/player/${nba_player_id}?market=${currentMarket}`}
+                      href={fullHitRateHref}
                       target="_blank"
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                       onClick={() => onOpenChange(false)}
@@ -1248,7 +1273,7 @@ export function PlayerQuickViewModal({
             <div className="shrink-0 px-4 sm:px-5 py-3 border-t border-neutral-200/50 dark:border-neutral-800/50">
               {hasAdvancedAccess ? (
                 <Link
-                  href={`/hit-rates/nba/player/${nba_player_id}?market=${currentMarket}`}
+                  href={fullHitRateHref}
                   target="_blank"
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                   onClick={() => onOpenChange(false)}
