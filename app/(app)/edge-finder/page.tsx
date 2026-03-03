@@ -47,7 +47,6 @@ import type { BestOddsData } from "@/components/odds-screen/types/odds-screen-ty
 import { useAvailableMarkets, FALLBACK_MARKETS } from "@/hooks/use-available-markets";
 import { LineHistoryDialog } from "@/components/opportunities/line-history-dialog";
 import type { LineHistoryContext } from "@/lib/odds/line-history";
-import { ToolPerformanceBanner } from "@/components/common/tool-performance-banner";
 
 // Available leagues for the filters component
 const AVAILABLE_LEAGUES = [
@@ -747,7 +746,6 @@ export default function EdgeFinderPage() {
       contextBar={contextBar}
       stickyContextBar={true}
     >
-      <ToolPerformanceBanner />
 
       {/* Error */}
       {error && (
