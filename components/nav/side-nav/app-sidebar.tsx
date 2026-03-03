@@ -163,6 +163,7 @@ const researchLinks: NavItem[] = [
 
 // Resources - Informational content
 const resourcesLinks: NavItem[] = [
+  { label: "Promos & Boosts", href: "/promos", icon: IconStar },
   { label: "Sportsbooks", href: "/sportsbooks", icon: IconBuildingBank },
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
