@@ -179,6 +179,7 @@ export async function GET(req: NextRequest) {
       "draftkings", "fanduel", "betmgm", "caesars",
       "hardrock", "bet365", "thescore", "ballybet",
       "betrivers", "fanatics", "kalshi", "polymarket",
+      "novig", "next_best",
     ]);
     if (!VALID_PRESETS.has(sharpPreset)) {
       return NextResponse.json(

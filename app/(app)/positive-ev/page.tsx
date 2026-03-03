@@ -2341,20 +2341,69 @@ export default function PositiveEVPage() {
                           );
                         }
                         
-                        // Standard preset - show book logo
+                        // Standard preset / average blend
                         const sharpSource = opp.sharpReference.source?.split(" ")[0]?.toLowerCase() || savedFilters.sharpPreset?.toLowerCase();
-                        // Handle blends like "pinnacle_circa" - just show first book's logo
+                        const sharpSourceBooks = [
+                          ...(opp.sharpReference.blendedFrom || []),
+                          ...(opp.sharpReference.source ? [opp.sharpReference.source] : []),
+                        ];
+                        const parsedSharpBookIds = Array.from(
+                          new Set(
+                            sharpSourceBooks
+                              .flatMap((src) => String(src).split(","))
+                              .map((bookId) => normalizeSportsbookId(bookId.trim().toLowerCase()))
+                              .filter((bookId) => !!bookId && bookId !== "market_average" && bookId !== "average")
+                          )
+                        );
+                        const sharpBookEntries = parsedSharpBookIds
+                          .map((bookId) => ({
+                            bookId,
+                            logo: getBookLogo(bookId),
+                            name: getBookName(bookId) || bookId,
+                          }))
+                          .filter((entry) => !!entry.logo);
+                        const visibleSharpBooks = sharpBookEntries.slice(0, 3);
+                        const extraSharpBookCount = Math.max(0, sharpBookEntries.length - 3);
+                        const sharpBooksTooltip = parsedSharpBookIds.length > 0
+                          ? parsedSharpBookIds.map((bookId) => getBookName(bookId) || bookId).join(", ")
+                          : "Market Average";
+
+                        // Handle single-book presets like "pinnacle_circa" (fallback)
                         const sharpBookId = sharpSource?.includes("_") ? sharpSource.split("_")[0] : sharpSource;
                         const sharpLogo = getBookLogo(sharpBookId);
                         const sharpName = getBookName(sharpBookId) || sharpSource?.toUpperCase() || "Sharp";
                         
                         return (
                           <div className="flex items-center justify-center gap-2">
-                            {sharpLogo ? (
+                            {visibleSharpBooks.length > 0 ? (
+                              <div className="flex items-center -space-x-1.5">
+                                {visibleSharpBooks.map((entry, idx) => (
+                                  <Tooltip key={`${entry.bookId}-${idx}`} content={entry.name}>
+                                    <div
+                                      className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md"
+                                      style={{ zIndex: visibleSharpBooks.length - idx }}
+                                    >
+                                      <img
+                                        src={entry.logo!}
+                                        alt={entry.name}
+                                        className="h-6 w-6 object-contain rounded-md bg-white dark:bg-neutral-800"
+                                      />
+                                    </div>
+                                  </Tooltip>
+                                ))}
+                                {extraSharpBookCount > 0 && (
+                                  <Tooltip content={sharpBooksTooltip}>
+                                    <div className="relative flex-shrink-0 ring-2 ring-white dark:ring-neutral-900 rounded-md h-6 w-6 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center">
+                                      <span className="text-[9px] font-bold text-neutral-600 dark:text-neutral-300">+{extraSharpBookCount}</span>
+                                    </div>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            ) : sharpLogo ? (
                               <Tooltip content={sharpName}>
-                                <img 
-                                  src={sharpLogo} 
-                                  alt={sharpName} 
+                                <img
+                                  src={sharpLogo}
+                                  alt={sharpName}
                                   className="h-7 w-7 object-contain rounded-md bg-white dark:bg-neutral-800"
                                 />
                               </Tooltip>
