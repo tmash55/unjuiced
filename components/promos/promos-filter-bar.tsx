@@ -447,7 +447,7 @@ export function PromosFilterBar({
 
         <FiltersBarDivider />
 
-        <FiltersBarSection align="right">
+        <FiltersBarSection align="right" className="overflow-x-auto scrollbar-hide flex-nowrap sm:flex-wrap">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
