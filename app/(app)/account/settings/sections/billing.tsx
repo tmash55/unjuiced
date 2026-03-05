@@ -88,7 +88,7 @@ export default function BillingSettings({ user }: { user: any }) {
       monthly: 15,
       yearly: 150,
       productType: "scout" as const,
-      trialDays: 3,
+      trialDays: 7,
       highlights: [
         "Hit rate tools + matrices",
         "Defense vs Position matchups",
@@ -101,7 +101,7 @@ export default function BillingSettings({ user }: { user: any }) {
       monthly: 40,
       yearly: 400,
       productType: "sharp" as const,
-      trialDays: 3,
+      trialDays: 7,
       badge: "Most Popular",
       highlights: [
         "Positive EV + arbitrage",
@@ -115,7 +115,7 @@ export default function BillingSettings({ user }: { user: any }) {
       monthly: 70,
       yearly: 700,
       productType: "edge" as const,
-      trialDays: 3,
+      trialDays: 7,
       badge: "Best Value",
       highlights: [
         "Live arbitrage (in-game)",
@@ -354,7 +354,7 @@ export default function BillingSettings({ user }: { user: any }) {
             {isLegacyTrial ? (
               <>
             <a
-                  href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=3`}
+                  href={`/billing/start?priceId=${encodeURIComponent(getPriceId("monthly", config.stripe.plans[0]?.priceId))}&mode=subscription&trialDays=7`}
                   className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand/90 hover:shadow"
             >
                   Upgrade to {currentPlanLabel === "Free" ? "Sharp" : currentPlanLabel}
@@ -400,7 +400,7 @@ export default function BillingSettings({ user }: { user: any }) {
                   Upgrade your plan
                 </h4>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  All paid plans include a 3-day free trial. Yearly billing includes 2 months free.
+                  All paid plans include a 7-day free trial. Yearly billing includes 2 months free.
                 </p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white p-1 text-xs dark:border-neutral-700 dark:bg-neutral-900">

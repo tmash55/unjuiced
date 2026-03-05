@@ -698,14 +698,14 @@ function StatusCard() {
   }, [isTrial, entitlements?.trial?.trial_ends_at])
   
   const trialTotalDays = React.useMemo(() => {
-    if (!isTrial) return 3
+    if (!isTrial) return 7
     if (entitlements?.trial?.trial_started_at && entitlements?.trial?.trial_ends_at) {
       const start = new Date(entitlements.trial.trial_started_at).getTime()
       const end = new Date(entitlements.trial.trial_ends_at).getTime()
       const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
       return Math.max(1, total)
     }
-    return 3
+    return 7
   }, [isTrial, entitlements?.trial?.trial_started_at, entitlements?.trial?.trial_ends_at])
   const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
   

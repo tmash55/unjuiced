@@ -145,7 +145,7 @@ export function ToolsDropdownContent({ domain }: { domain: string }) {
                 Start Free Trial
               </span>
               <p className="mt-1.5 text-xs text-neutral-500 dark:text-white/60">
-                Access all tools free for 3 days.
+                Access all tools free for 7 days.
               </p>
             </div>
           </Link>
