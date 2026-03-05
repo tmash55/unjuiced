@@ -367,6 +367,7 @@ function MobileNav({ domain }: { domain: string }) {
         { title: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix", badge: "NEW" },
         { title: "Injury Impact", href: "/cheatsheets/nba/injury-impact", badge: "NEW" },
         { title: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
+        { title: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet", badge: "NEW" },
         { title: "Alt Line Matrix", href: "/cheatsheets/nba/alt-hit-matrix", disabled: true },
       ],
     },

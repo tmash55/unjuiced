@@ -138,7 +138,7 @@ export function HeroSpotlight() {
               <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-white/50 md:justify-start">
                 <span className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />
-                  3 Day Free Trial
+                  7 Day Free Trial
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-[color:var(--primary-weak)]" />

@@ -29,6 +29,7 @@ import { useHasHitRateAccess } from "@/hooks/use-entitlements";
 import { ButtonLink } from "@/components/button-link";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { PlayerQuickViewModal } from "@/components/player-quick-view-modal";
+import { DoubleDoubleSheet } from "@/components/cheat-sheet/double-double-sheet";
 import { Lock, ArrowRight, ChevronDown, HelpCircle, LayoutGrid, BarChart3, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,7 @@ function MobileUpgradeBanner() {
 }
 
 const SUPPORTED_SPORTS = ["nba"] as const;
-const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet"] as const;
+const SUPPORTED_SHEETS = ["hit-rates", "alt-hit-matrix", "injury-impact", "hit-rate-matrix", "dvp", "triple-double-sheet", "double-double-sheet"] as const;
 
 type SupportedSport = typeof SUPPORTED_SPORTS[number];
 type SupportedSheet = typeof SUPPORTED_SHEETS[number];
@@ -125,6 +126,10 @@ const SHEET_INFO: Record<SupportedSheet, { title: string; description: string }>
   "triple-double-sheet": {
     title: "Triple Double Sheet",
     description: "SGP (R+A / P+R+A) and Triple-Double pricing in one view",
+  },
+  "double-double-sheet": {
+    title: "Double Double Sheet",
+    description: "SGP (P+R / P+A) and Double-Double pricing in one view",
   },
 };
 
@@ -172,6 +177,10 @@ export default function CheatSheetPage({
 
   if (sheet === "triple-double-sheet") {
     return <TripleDoubleSheetPage sport={sport} sheet={sheet} />;
+  }
+
+  if (sheet === "double-double-sheet") {
+    return <DoubleDoubleSheetPage sport={sport} sheet={sheet} />;
   }
 
   // Other sheets coming soon
@@ -250,6 +259,18 @@ function TripleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet:
       subtitle={sheetInfo.description}
     >
       <TripleDoubleSheet />
+    </AppPageLayout>
+  );
+}
+
+function DoubleDoubleSheetPage({ sport, sheet }: { sport: SupportedSport; sheet: SupportedSheet }) {
+  const sheetInfo = SHEET_INFO[sheet];
+  return (
+    <AppPageLayout
+      title={sheetInfo.title}
+      subtitle={sheetInfo.description}
+    >
+      <DoubleDoubleSheet />
     </AppPageLayout>
   );
 }

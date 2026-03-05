@@ -130,12 +130,6 @@ const edgeToolsLinks: NavItem[] = [
 // Research - Analysis and research tools
 const researchLinks: NavItem[] = [
   { 
-    label: "Odds Screen", 
-    href: "/odds", 
-    icon: IconTable,
-    children: oddsScreenSports
-  },
-  { 
     label: "Hit Rates", 
     href: "/hit-rates", 
     icon: Chart,
@@ -150,8 +144,15 @@ const researchLinks: NavItem[] = [
       { label: "Hit Rate Matrix", href: "/cheatsheets/nba/hit-rate-matrix" },
       { label: "Injury Impact", href: "/cheatsheets/nba/injury-impact" },
       { label: "Triple Double Sheet", href: "/cheatsheets/nba/triple-double-sheet", badge: "NEW" },
+      { label: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet", badge: "NEW" },
       { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
+  },
+  { 
+    label: "Odds Screen", 
+    href: "/odds", 
+    icon: IconTable,
+    children: oddsScreenSports
   },
   {
     label: "KOTC",
@@ -162,6 +163,7 @@ const researchLinks: NavItem[] = [
 
 // Resources - Informational content
 const resourcesLinks: NavItem[] = [
+  { label: "Promos & Boosts", href: "/promos", icon: IconStar },
   { label: "Sportsbooks", href: "/sportsbooks", icon: IconBuildingBank },
   { label: "Markets", href: "/markets", icon: IconTags },
   { label: "Changelog", href: "/changelog", icon: IconHistory },
@@ -696,14 +698,14 @@ function StatusCard() {
   }, [isTrial, entitlements?.trial?.trial_ends_at])
   
   const trialTotalDays = React.useMemo(() => {
-    if (!isTrial) return 3
+    if (!isTrial) return 7
     if (entitlements?.trial?.trial_started_at && entitlements?.trial?.trial_ends_at) {
       const start = new Date(entitlements.trial.trial_started_at).getTime()
       const end = new Date(entitlements.trial.trial_ends_at).getTime()
       const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
       return Math.max(1, total)
     }
-    return 3
+    return 7
   }, [isTrial, entitlements?.trial?.trial_started_at, entitlements?.trial?.trial_ends_at])
   const trialProgress = isTrial ? ((trialTotalDays - trialDaysRemaining) / trialTotalDays) * 100 : 0
   

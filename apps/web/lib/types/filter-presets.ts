@@ -117,7 +117,29 @@ export const SHARP_BOOK_PRESETS = {
 // Always returns lowercase sport IDs for consistent matching
 export function parseSports(sport: string): string[] {
   if (!sport) return [];
-  return sport.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const raw = sport.trim();
+  if (!raw) return [];
+
+  // Backwards/forwards compatibility:
+  // Some records may store sports as a JSON array string (e.g. '["nba","nfl"]').
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((s) => String(s).trim().toLowerCase())
+          .filter(Boolean);
+      }
+    } catch {
+      // Fall through to delimiter parsing.
+    }
+  }
+
+  // Support comma-separated values while being tolerant of wrapped quotes/brackets.
+  return raw
+    .split(",")
+    .map((s) => s.trim().replace(/^[\s"'[\](){}]+|[\s"'[\](){}]+$/g, "").toLowerCase())
+    .filter(Boolean);
 }
 
 // Helper to format sports for storage

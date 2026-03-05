@@ -72,6 +72,7 @@ interface MobileEdgeFinderProps {
   bankroll?: number;
   kellyPercent?: number;
   isPro?: boolean;
+  hasAutoRefreshAccess?: boolean;
   // Filter presets
   activePresets?: Array<{ id: string; name: string }>;
   isCustomMode?: boolean;
@@ -119,6 +120,7 @@ export function MobileEdgeFinder({
   bankroll = 0,
   kellyPercent = 25,
   isPro = false,
+  hasAutoRefreshAccess,
   activePresets = [],
   isCustomMode = false,
   dataUpdatedAt,
@@ -144,6 +146,7 @@ export function MobileEdgeFinder({
   onBankrollChange,
   onKellyPercentChange,
 }: MobileEdgeFinderProps) {
+  const canUseAutoRefresh = hasAutoRefreshAccess ?? isPro;
   // Filter/search state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState("all");
@@ -373,8 +376,8 @@ export function MobileEdgeFinder({
           </div>
           
           <div className="flex items-center gap-1">
-            {/* Auto-Refresh Toggle - Pro Feature */}
-            {isPro && onAutoRefreshChange && (
+            {/* Auto-Refresh Toggle */}
+            {canUseAutoRefresh && onAutoRefreshChange && (
               <button
                 onClick={() => {
                   if (autoRefresh && streamFailed && onStreamReconnect) {

@@ -6,11 +6,23 @@ import { waitUntil } from '@vercel/functions'
 import Stripe from 'stripe'
 import { syncNewSignupToBeeHiiv } from '@/libs/beehiiv'
 import { identifyCustomer, trackEvent } from '@/libs/customerio'
+import { getPostHogClient } from '@/lib/posthog-server'
+
+const SIGNUP_TRACKING_COOKIE = 'signup_tracked_v1'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, email, fullName, firstName: bodyFirstName, lastName: bodyLastName, avatarUrl, createdAt } = body
+    const {
+      userId,
+      email,
+      fullName,
+      firstName: bodyFirstName,
+      lastName: bodyLastName,
+      avatarUrl,
+      createdAt,
+      signupMethod,
+    } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
@@ -23,12 +35,49 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const cookieStore = await cookies()
 
-    // Check if user was created in the last 10 minutes (new sign up)
-    const isNewUser = createdAt
-      ? new Date(createdAt) > new Date(Date.now() - 10 * 60 * 1000)
-      : false
+    const trackedUserId = cookieStore.get(SIGNUP_TRACKING_COOKIE)?.value
+    const shouldTrackSignupOnce = trackedUserId !== userId
 
-    console.log('📊 Post-signup processing:', { userId, email, firstName, lastName, isNewUser })
+    console.log('📊 Post-signup processing:', {
+      userId,
+      email,
+      firstName,
+      lastName,
+      createdAt,
+      trackedUserId: trackedUserId || 'none',
+      shouldTrackSignupOnce,
+    })
+
+    // ═══════════════════════════════════════════════════════════════════
+    // POSTHOG SIGNUP EVENT - server-side fallback for callback flow
+    // ═══════════════════════════════════════════════════════════════════
+    if (shouldTrackSignupOnce) {
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+        waitUntil(
+          Promise.resolve()
+            .then(() => {
+              const posthog = getPostHogClient()
+              posthog.capture({
+                distinctId: userId,
+                event: 'user_signed_up',
+                properties: {
+                  method: signupMethod || 'unknown',
+                  email,
+                  signup_source: 'website',
+                },
+              })
+            })
+            .then(() => {
+              console.log('✅ PostHog signup tracked for', userId)
+            })
+            .catch((err) => {
+              console.error('❌ PostHog signup tracking failed:', err)
+            })
+        )
+      } else {
+        console.warn('⚠️ NEXT_PUBLIC_POSTHOG_KEY not set - skipping PostHog signup capture')
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // UPDATE PROFILE - Save first/last name to profiles table
@@ -53,7 +102,7 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     const dub_id = cookieStore.get('dub_id')?.value
 
-    if (dub_id && isNewUser) {
+    if (dub_id && shouldTrackSignupOnce) {
       if (process.env.DUB_API_KEY) {
         console.log('📊 Tracking Dub lead event for new user:', userId)
 
@@ -74,6 +123,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Delete the dub_id cookie after tracking
+      cookieStore.delete('dub_id')
+    } else if (dub_id && !shouldTrackSignupOnce) {
+      // Avoid retaining referral cookie once signup tracking has already happened.
       cookieStore.delete('dub_id')
     }
 
@@ -128,7 +180,7 @@ export async function POST(request: NextRequest) {
               : Math.floor(Date.now() / 1000),
           })
 
-          if (isNewUser) {
+          if (shouldTrackSignupOnce) {
             await trackEvent(userId, 'signed_up', {
               email,
               first_name: firstName || '',
@@ -146,7 +198,7 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════
     // BEEHIIV SYNC - Track new sign ups as leads in BeeHiiv
     // ═══════════════════════════════════════════════════════════════════
-    if (isNewUser && email) {
+    if (shouldTrackSignupOnce && email) {
       console.log('📧 Syncing new user to BeeHiiv as lead:', userId)
 
       waitUntil(
@@ -166,7 +218,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true })
+    const response = NextResponse.json({ success: true })
+
+    if (shouldTrackSignupOnce) {
+      response.cookies.set(SIGNUP_TRACKING_COOKIE, userId, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 90,
+      })
+    }
+
+    return response
   } catch (error) {
     console.error('Post-signup error:', error)
     return NextResponse.json(

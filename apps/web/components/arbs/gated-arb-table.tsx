@@ -124,7 +124,7 @@ export function GatedArbTable({
         body: JSON.stringify({
           priceId,
           mode: "subscription",
-          trialDays: 3,
+          trialDays: 7,
         }),
       });
       if (res.status === 401) {
@@ -258,4 +258,3 @@ export function GatedArbTable({
     </div>
   );
 }
-

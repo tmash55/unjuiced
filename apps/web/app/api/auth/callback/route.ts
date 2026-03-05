@@ -7,6 +7,8 @@ import Stripe from 'stripe'
 import { syncNewSignupToBrevo } from '@/libs/brevo'
 import { getRedirectUrl, DOMAINS } from '@/lib/domain'
 
+const SIGNUP_TRACKING_COOKIE = 'signup_tracked_v1'
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -87,17 +89,18 @@ export async function GET(request: NextRequest) {
       // DUB LEAD TRACKING - Track new sign ups from referral links
       // ═══════════════════════════════════════════════════════════════════
       const dub_id = cookieStore.get('dub_id')?.value
-      // Check if user was created in the last 10 minutes (new sign up)
-      const isNewUser = new Date(data.user.created_at) > new Date(Date.now() - 10 * 60 * 1000)
+      const trackedUserId = cookieStore.get(SIGNUP_TRACKING_COOKIE)?.value
+      const shouldTrackSignupOnce = trackedUserId !== data.user.id
       
       console.log('📊 Dub lead tracking check:', {
         dub_id: dub_id || 'NOT SET',
-        isNewUser,
-        userCreatedAt: data.user.created_at,
+        userCreatedAt: data.user.created_at || null,
+        trackedUserId: trackedUserId || 'none',
+        shouldTrackSignupOnce,
         hasDubApiKey: !!process.env.DUB_API_KEY,
       })
       
-      if (dub_id && isNewUser) {
+      if (dub_id && shouldTrackSignupOnce) {
         if (!process.env.DUB_API_KEY) {
           console.error('❌ Cannot track Dub lead - DUB_API_KEY not set in environment')
         } else {
@@ -119,9 +122,6 @@ export async function GET(request: NextRequest) {
             })
           )
         }
-        
-        // Delete the dub_id cookie after tracking
-        cookieStore.delete('dub_id')
       }
       
       // Ensure a Stripe customer exists for this user (idempotent by profile check)
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
       // ═══════════════════════════════════════════════════════════════════
       // BREVO SYNC - Track new sign ups as leads in Brevo
       // ═══════════════════════════════════════════════════════════════════
-      if (isNewUser && data.user.email) {
+      if (shouldTrackSignupOnce && data.user.email) {
         console.log('📧 Syncing new user to Brevo as lead:', data.user.id)
         
         // Use waitUntil to sync without blocking the response
@@ -182,8 +182,21 @@ export async function GET(request: NextRequest) {
       // Build the redirect URL (to app subdomain)
       const redirectUrl = getAuthRedirect(next)
       console.log('✨ Auth success, redirecting to:', redirectUrl)
-      
-      return NextResponse.redirect(redirectUrl)
+
+      const response = NextResponse.redirect(redirectUrl)
+      // Always clear dub cookie after callback handling to avoid stale attribution.
+      response.cookies.delete('dub_id')
+      if (shouldTrackSignupOnce) {
+        response.cookies.set(SIGNUP_TRACKING_COOKIE, data.user.id, {
+          path: '/',
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 60 * 60 * 24 * 90,
+        })
+      }
+
+      return response
     } else {
       console.error('❌ Auth error:', error)
     }

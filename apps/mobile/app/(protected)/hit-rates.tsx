@@ -112,7 +112,7 @@ function hasGameStarted(row: HitRateProfileV2): boolean {
     `${row.game_date}T${String(hour).padStart(2, "0")}:${minutes}:00-05:00`
   );
   if (!Number.isFinite(scheduled.getTime())) return false;
-  return Date.now() > scheduled.getTime() + 10 * 60 * 1000;
+  return Date.now() >= scheduled.getTime();
 }
 
 function marketLabel(id: string): string {
@@ -139,7 +139,15 @@ function mktShort(market: string): string {
   return market.replace("player_", "").replace(/_/g, " ");
 }
 
-type GameFilterOption = { key: string; label: string; started: boolean };
+type GameFilterOption = {
+  key: string;
+  label: string;
+  started: boolean;
+  completed: boolean;
+  awayAbbr: string;
+  homeAbbr: string;
+  gameTime: string | null;
+};
 
 /* ─── Bottom Sheet ─── */
 
@@ -368,21 +376,30 @@ export default function HitRatesScreen() {
   const gameOptions = useMemo(() => {
     const byKey = new Map<string, GameFilterOption>();
     for (const row of data?.data ?? []) {
-      if (isCompletedGame(row)) continue;
       const key = getGameKey(row);
       if (byKey.has(key)) continue;
-      byKey.set(key, { key, label: getGameLabel(row), started: hasGameStarted(row) });
+      const isHome = row.home_away === "H";
+      const status = String(row.game_status ?? "").trim();
+      const isTime = /^\d{1,2}:\d{2}\s*(am|pm)\s*et$/i.test(status);
+      byKey.set(key, {
+        key,
+        label: getGameLabel(row),
+        started: hasGameStarted(row),
+        completed: isCompletedGame(row),
+        awayAbbr: isHome ? (row.opponent_team_abbr ?? "OPP") : (row.team_abbr ?? "TM"),
+        homeAbbr: isHome ? (row.team_abbr ?? "TM") : (row.opponent_team_abbr ?? "OPP"),
+        gameTime: isTime ? status : null,
+      });
     }
     return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [data?.data]);
 
   const rows = useMemo(() => {
-    const base = (data?.data ?? []).filter((r) => !isCompletedGame(r));
     if (selectedGameKeys.length > 0) {
       const set = new Set(selectedGameKeys);
-      return base.filter((r) => set.has(getGameKey(r)));
+      return (data?.data ?? []).filter((r) => set.has(getGameKey(r)));
     }
-    return base.filter((r) => !hasGameStarted(r));
+    return (data?.data ?? []).filter((r) => !isCompletedGame(r) && !hasGameStarted(r));
   }, [data?.data, selectedGameKeys]);
 
   const oddsSelections = useMemo(
@@ -686,6 +703,8 @@ export default function HitRatesScreen() {
           </Pressable>
           {gameOptions.map((game) => {
             const active = selectedGameKeys.includes(game.key);
+            const awayLogo = getNbaTeamLogoUrl(game.awayAbbr);
+            const homeLogo = getNbaTeamLogoUrl(game.homeAbbr);
             return (
               <Pressable
                 key={game.key}
@@ -693,10 +712,20 @@ export default function HitRatesScreen() {
                 style={[styles.sheetOption, active && styles.sheetOptionActive]}
               >
                 <View style={styles.sheetGameRow}>
-                  <Text style={[styles.sheetOptionText, active && styles.sheetOptionTextActive, game.started && !active && styles.sheetOptionMuted]}>
-                    {game.label}
-                  </Text>
-                  {game.started ? <Text style={styles.sheetStartedBadge}>LIVE</Text> : null}
+                  <View style={styles.gameLogosRow}>
+                    {awayLogo ? <Image source={{ uri: awayLogo }} style={styles.gameFilterLogo} /> : null}
+                    <Text style={[styles.sheetOptionText, active && styles.sheetOptionTextActive, game.started && !active && styles.sheetOptionMuted]}>
+                      {game.label}
+                    </Text>
+                    {homeLogo ? <Image source={{ uri: homeLogo }} style={styles.gameFilterLogo} /> : null}
+                  </View>
+                  {game.completed ? (
+                    <Text style={styles.sheetCompletedBadge}>FINAL</Text>
+                  ) : game.started ? (
+                    <Text style={styles.sheetStartedBadge}>LIVE</Text>
+                  ) : game.gameTime ? (
+                    <Text style={styles.gameTimeText}>{game.gameTime}</Text>
+                  ) : null}
                 </View>
                 {active ? <Ionicons name="checkmark" size={20} color={brandColors.primary} /> : null}
               </Pressable>
@@ -1210,12 +1239,37 @@ const styles = StyleSheet.create({
   sheetGameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8
+    gap: 8,
+    flex: 1
+  },
+  gameLogosRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  gameFilterLogo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12
+  },
+  gameTimeText: {
+    color: brandColors.textMuted,
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: "auto"
   },
   sheetStartedBadge: {
     color: brandColors.warning,
     fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
+    marginLeft: "auto"
+  },
+  sheetCompletedBadge: {
+    color: brandColors.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginLeft: "auto"
   }
 });

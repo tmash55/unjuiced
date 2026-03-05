@@ -1,30 +1,42 @@
 import { Redirect, Tabs } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/src/providers/auth-provider";
 import { brandColors } from "@/src/theme/brand";
 
 function TabIcon({
   name,
-  library,
   focused
 }: {
   name: string;
-  library: "ionicons" | "mci";
   focused: boolean;
 }) {
-  const color = focused ? brandColors.primary : brandColors.navInactive;
-  const icon =
-    library === "mci" ? (
-      <MaterialCommunityIcons name={name as any} size={24} color={color} />
-    ) : (
-      <Ionicons name={name as any} size={24} color={color} />
-    );
+  return (
+    <Ionicons
+      name={name as any}
+      size={24}
+      color={focused ? brandColors.primary : brandColors.navInactive}
+    />
+  );
+}
 
-  if (focused) {
-    return <View style={styles.activePill}>{icon}</View>;
-  }
-  return icon;
+function CustomTabButton(props: any) {
+  const { children, onPress, onLongPress, accessibilityState, style } = props;
+  const focused = accessibilityState?.selected;
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={[
+        style,
+        styles.tabButton,
+        focused && styles.tabButtonActive,
+      ]}
+    >
+      {children}
+    </Pressable>
+  );
 }
 
 export default function ProtectedLayout() {
@@ -52,89 +64,84 @@ export default function ProtectedLayout() {
         sceneStyle: { backgroundColor: brandColors.appBackground },
         tabBarStyle: {
           backgroundColor: brandColors.navBackground,
-          borderTopColor: brandColors.navBorder,
+          borderTopColor: "rgba(56, 189, 248, 0.06)",
           borderTopWidth: 0.5,
-          height: 80,
-          paddingBottom: 12,
-          paddingTop: 8
+          height: 82,
+          paddingBottom: 14,
+          paddingTop: 6,
+          elevation: 0,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
         },
         tabBarActiveTintColor: brandColors.primary,
         tabBarInactiveTintColor: brandColors.navInactive,
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: "600"
-        }
+          fontWeight: "600",
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
+        tabBarButton: CustomTabButton,
       }}
     >
       <Tabs.Screen
-        name="hit-rates"
+        name="today"
         options={{
-          title: "Hit Rates",
+          title: "Today",
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon
-              name={focused ? "stats-chart" : "stats-chart-outline"}
-              library="ionicons"
-              focused={focused}
-            />
-          ),
-          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
-            focused ? <Text style={[styles.tabLabel, { color }]}>Hit Rates</Text> : null
+            <TabIcon name={focused ? "calendar" : "calendar-outline"} focused={focused} />
+          )
         }}
       />
       <Tabs.Screen
-        name="positive-ev"
+        name="props"
         options={{
-          title: "+EV",
+          title: "Props",
+          headerShown: false,
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon
-              name={focused ? "add-circle" : "add-circle-outline"}
-              library="ionicons"
-              focused={focused}
-            />
-          ),
-          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
-            focused ? <Text style={[styles.tabLabel, { color }]}>+EV</Text> : null
+            <TabIcon name={focused ? "stats-chart" : "stats-chart-outline"} focused={focused} />
+          )
         }}
       />
       <Tabs.Screen
-        name="edge-finder"
+        name="sharp"
         options={{
-          title: "Edge Finder",
+          title: "Sharp",
+          headerShown: false,
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon
-              name={focused ? "rocket" : "rocket-outline"}
-              library="mci"
-              focused={focused}
-            />
-          ),
-          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
-            focused ? <Text style={[styles.tabLabel, { color }]}>Edge Finder</Text> : null
+            <TabIcon name={focused ? "flash" : "flash-outline"} focused={focused} />
+          )
         }}
       />
       <Tabs.Screen
-        name="more"
+        name="my-slips"
         options={{
-          title: "More",
+          title: "My Picks",
           tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon
-              name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
-              library="ionicons"
-              focused={focused}
-            />
-          ),
-          tabBarLabel: ({ focused, color }: { focused: boolean; color: string }) =>
-            focused ? <Text style={[styles.tabLabel, { color }]}>More</Text> : null
+            <TabIcon name={focused ? "bookmark" : "bookmark-outline"} focused={focused} />
+          )
         }}
       />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon name={focused ? "person" : "person-outline"} focused={focused} />
+          )
+        }}
+      />
+      {/* Hidden routes for backward compatibility */}
+      <Tabs.Screen name="hit-rates" options={{ href: null, title: "Hit Rates" }} />
+      <Tabs.Screen name="positive-ev" options={{ href: null, title: "+EV" }} />
       <Tabs.Screen name="arbitrage" options={{ href: null, title: "Arbitrage" }} />
-      <Tabs.Screen name="my-slips" options={{ href: null, title: "My Slips" }} />
-      <Tabs.Screen name="account" options={{ href: null, title: "Account" }} />
+      <Tabs.Screen name="edge-finder" options={{ href: null, title: "Edge Finder" }} />
       <Tabs.Screen name="help" options={{ href: null, title: "Help" }} />
       <Tabs.Screen name="how-to" options={{ href: null, title: "How To" }} />
       <Tabs.Screen name="player/[id]" options={{ href: null, title: "Player", headerShown: false }} />
       <Tabs.Screen name="cheat-sheets" options={{ href: null, title: "Cheat Sheets" }} />
-      <Tabs.Screen name="today" options={{ href: null }} />
-      <Tabs.Screen name="tools" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -146,16 +153,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  activePill: {
-    backgroundColor: brandColors.navActivePill,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+  tabButton: {
+    flex: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    borderRadius: 12,
+    marginHorizontal: 4,
+    marginVertical: 4,
   },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: "600"
-  }
+  tabButtonActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.07)",
+  },
 });

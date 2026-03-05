@@ -14,7 +14,7 @@ export default function AuthLayout() {
   }
 
   if (user) {
-    return <Redirect href="/hit-rates" />;
+    return <Redirect href="/today" />;
   }
 
   return (
@@ -25,9 +25,9 @@ export default function AuthLayout() {
         contentStyle: { backgroundColor: "#0B1014" }
       }}
     >
-      <Stack.Screen name="login" options={{ title: "Login" }} />
-      <Stack.Screen name="register" options={{ title: "Create Account" }} />
-      <Stack.Screen name="forgot-password" options={{ title: "Forgot Password" }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
     </Stack>
   );
 }

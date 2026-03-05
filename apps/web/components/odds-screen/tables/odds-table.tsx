@@ -2430,10 +2430,14 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Best line column width - wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 72 : 88) : (isSmallScreen ? 56 : 64),
-        minSize: isRelaxedView ? 64 : 56,
-        maxSize: isRelaxedView ? 100 : 72,
+        // Match sportsbook column sizing for visual consistency
+        size: isRelaxedView
+          ? (isSmallScreen ? 80 : 100)
+          : (isSingleLineMarket
+              ? (isSmallScreen ? 56 : 72)
+              : (isSmallScreen ? 72 : 96)),
+        minSize: isRelaxedView ? 100 : (isSingleLineMarket ? 48 : 64),
+        maxSize: isRelaxedView ? 180 : (isSingleLineMarket ? 80 : 120),
         cell: (info) => {
           const item = info.row.original
             const isMoneyline = item.entity.type === 'game' && (
@@ -2538,10 +2542,14 @@ export function OddsTable({
             </Tooltip>
           )
         },
-        // Average line column width - wider for relaxed view
-        size: isRelaxedView ? (isSmallScreen ? 64 : 80) : (isSmallScreen ? 48 : 56),
-        minSize: isRelaxedView ? 56 : 48,
-        maxSize: isRelaxedView ? 96 : 64,
+        // Match sportsbook column sizing for visual consistency
+        size: isRelaxedView
+          ? (isSmallScreen ? 80 : 100)
+          : (isSingleLineMarket
+              ? (isSmallScreen ? 56 : 72)
+              : (isSmallScreen ? 72 : 96)),
+        minSize: isRelaxedView ? 100 : (isSingleLineMarket ? 48 : 64),
+        maxSize: isRelaxedView ? 180 : (isSingleLineMarket ? 80 : 120),
         cell: (info) => {
           const item = info.row.original
           const isMoneyline = item.entity.type === 'game' && (
@@ -3044,22 +3052,8 @@ export function OddsTable({
       (typeof market === 'string' && /moneyline|draw_no_bet/i.test(market)) ||
       (((rowItem.odds?.best?.over?.line ?? 0) === 0) && ((rowItem.odds?.best?.under?.line ?? 0) === 0))
     )
-    const normalizedSport = sport.toLowerCase()
-    const hideBestMoneylineLabel =
-      isMoneyline &&
-      (
-        normalizedSport.startsWith('tennis_') ||
-        normalizedSport.startsWith('soccer_') ||
-        normalizedSport === 'ufc' ||
-        normalizedSport === 'ncaabaseball'
-      )
-    const label = hideBestMoneylineLabel
-      ? ''
-      : isMoneyline
-      ? (useFullMatchupNames
-        ? (side === 'over' ? (rowItem.event.awayName || rowItem.event.awayTeam) : (rowItem.event.homeName || rowItem.event.homeTeam))
-        : (side === 'over' ? rowItem.event.awayTeam : rowItem.event.homeTeam))
-      : formatLine(displayOdds.line, side, rowItem)
+    // Keep best-line chip compact: no team-name labels for moneyline rows.
+    const label = isMoneyline ? '' : formatLine(displayOdds.line, side, rowItem)
 
     const chip = (
       <div className={cn('best-line', getCellClass(isSingleLine, isRelaxedView, 'best-line'))}>

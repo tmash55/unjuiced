@@ -241,7 +241,7 @@ export default function PlayerProfileScreen() {
         <View style={s.emptyState}>
           <Ionicons name="alert-circle-outline" size={40} color={brandColors.textMuted} />
           <Text style={s.emptyTitle}>Invalid Player</Text>
-          <Pressable onPress={() => router.replace("/hit-rates")} style={s.primaryBtn}>
+          <Pressable onPress={() => router.replace("/props")} style={s.primaryBtn}>
             <Text style={s.primaryBtnText}>Back to Hit Rates</Text>
           </Pressable>
         </View>

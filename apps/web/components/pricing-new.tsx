@@ -79,7 +79,7 @@ const plans: PlanTier[] = [
     previousTier: "Free",
     productType: "scout",
     ctaText: "Try for free",
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     name: "Sharp",
@@ -97,7 +97,7 @@ const plans: PlanTier[] = [
     previousTier: "Scout",
     badge: "Most Popular",
     productType: "sharp",
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     name: "Elite",
@@ -115,7 +115,7 @@ const plans: PlanTier[] = [
     previousTier: "Sharp",
     badge: "Best Value",
     productType: "edge",
-    trialDays: 3,
+    trialDays: 7,
   },
 ];
 
@@ -285,7 +285,7 @@ export const PricingNew = () => {
         {/* Footnote */}
         <p className="mt-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
           {showTrialCTA
-            ? "All paid plans include a 3-day free trial. Yearly billing includes 2 months free."
+            ? "All paid plans include a 7-day free trial. Yearly billing includes 2 months free."
             : "Yearly billing includes 2 months free. Upgrade or downgrade anytime."}
         </p>
 

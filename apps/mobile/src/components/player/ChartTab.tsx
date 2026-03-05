@@ -227,7 +227,9 @@ export function ChartTab({
   const chartMax = useMemo(() => Math.max(1, ...allGameValues, chartLine ?? 0) * 1.3, [allGameValues, chartLine]);
   const lineY = useMemo(() => {
     if (chartLine == null || !Number.isFinite(chartLine)) return null;
-    return (chartLine / chartMax) * CHART_HEIGHT;
+    // Offset by half the line wrap height (20px) so the visible line
+    // aligns with the mathematical position, not the wrap's bottom edge
+    return (chartLine / chartMax) * CHART_HEIGHT - 10;
   }, [chartLine, chartMax]);
 
   const statAvg = useMemo(() => average(chartValues), [chartValues]);
@@ -396,24 +398,28 @@ export function ChartTab({
           </View>
 
           <View style={s.chartMain}>
-            {/* ── Bar area: fixed CHART_HEIGHT with grid lines + market line overlay ── */}
-            <View style={s.chartBarZone}>
-              {[0.25, 0.5, 0.75].map((pct) => (
-                <View key={pct} style={[s.gridLine, { bottom: pct * CHART_HEIGHT }]} />
-              ))}
+            {/* ── Chart area ── */}
+            <View style={{ position: "relative" }}>
+              {/* Grid lines + market line overlay (absolute, sized to bar area) */}
+              <View style={s.chartBarZone} pointerEvents="none">
+                {[0.25, 0.5, 0.75].map((pct) => (
+                  <View key={pct} style={[s.gridLine, { bottom: pct * CHART_HEIGHT }]} />
+                ))}
 
-              {lineY != null ? (
-                <View style={[s.chartLineWrap, { bottom: lineY }]}>
-                  <View style={s.chartLineBadge}>
-                    <Text style={s.chartLineBadgeText}>{fmtLine(chartLine)}</Text>
-                    {bestOverPrice != null ? (
-                      <Text style={s.chartLineOddsText}> O {fmtOdds(bestOverPrice)}</Text>
-                    ) : null}
+                {lineY != null ? (
+                  <View style={[s.chartLineWrap, { bottom: lineY }]}>
+                    <View style={s.chartLineBadge}>
+                      <Text style={s.chartLineBadgeText}>{fmtLine(chartLine)}</Text>
+                      {bestOverPrice != null ? (
+                        <Text style={s.chartLineOddsText}> O {fmtOdds(bestOverPrice)}</Text>
+                      ) : null}
+                    </View>
+                    <View style={s.chartLineSolid} />
                   </View>
-                  <View style={s.chartLineSolid} />
-                </View>
-              ) : null}
+                ) : null}
+              </View>
 
+              {/* Bars + footer (natural flow, not clipped) */}
               {compactView ? (
                 <View style={[s.compactBars, { height: CHART_HEIGHT }]}>
                   {chartGames.map((game, i) => renderCompactBar(game, i, chartMarket, chartLine, chartMax, barAnims, selectedGameIdx, setSelectedGameIdx))}
@@ -424,7 +430,6 @@ export function ChartTab({
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   onContentSizeChange={() => chartScrollRef.current?.scrollToEnd({ animated: false })}
-                  style={{ height: CHART_HEIGHT + 40 }}
                   contentContainerStyle={{ paddingRight: 4 }}
                 >
                   <View style={{ width: (chartGames.length + (oppAbbr ? 1 : 0)) * (CHART_BAR_W + CHART_BAR_GAP) }}>
@@ -434,7 +439,7 @@ export function ChartTab({
                     </View>
                     <View style={s.chartFooterRow}>
                       {chartGames.map((game) => renderBarFooter(game, true, dvpRankByTeam, showDvpDots))}
-                      {oppAbbr ? renderUpcomingFooter(oppAbbr, true) : null}
+                      {oppAbbr ? renderUpcomingFooter(oppAbbr, true, dvpRankByTeam, showDvpDots) : null}
                     </View>
                   </View>
                 </ScrollView>
@@ -446,16 +451,14 @@ export function ChartTab({
                   </View>
                   <View style={s.chartFooterRow}>
                     {chartGames.map((game) => renderBarFooter(game, false, dvpRankByTeam, showDvpDots))}
-                    {oppAbbr ? renderUpcomingFooter(oppAbbr, false) : null}
+                    {oppAbbr ? renderUpcomingFooter(oppAbbr, false, dvpRankByTeam, showDvpDots) : null}
                   </View>
                 </View>
               )}
-            </View>
 
-            {/* Compact view footer */}
-            {compactView ? (
-              <CompactTimeline games={chartGames} />
-            ) : null}
+              {/* Compact view timeline below bars */}
+              {compactView ? <CompactTimeline games={chartGames} /> : null}
+            </View>
           </View>
         </View>
       ) : anyFilterActive ? (
@@ -1083,11 +1086,19 @@ function renderBarFooter(
   );
 }
 
-function renderUpcomingFooter(oppAbbr: string, fixed: boolean) {
+function renderUpcomingFooter(
+  oppAbbr: string, fixed: boolean,
+  dvpRankByTeam?: Map<string, number>, showDvpDots?: boolean
+) {
   const oppLg = getNbaTeamLogoUrl(oppAbbr);
   return (
     <View key="upcoming-footer" style={[fixed ? s.chartFooterColFixed : s.chartFooterCol, { opacity: 0.5 }]}>
       <Text style={s.chartDate}>{new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</Text>
+      {showDvpDots && dvpRankByTeam ? (() => {
+        const rank = dvpRankByTeam.get(oppAbbr);
+        if (rank == null) return null;
+        return <View style={[s.dvpBarDot, { backgroundColor: rankColor(rank) }]} />;
+      })() : null}
       {oppLg ? <Image source={{ uri: oppLg }} style={s.chartOppLogo} /> : <Text style={s.chartOpp}>{oppAbbr}</Text>}
     </View>
   );
@@ -1224,12 +1235,12 @@ const s = StyleSheet.create({
   /* chart */
   chartContainer: {
     flexDirection: "row", marginHorizontal: 16, marginTop: 8,
-    padding: 12, paddingBottom: 8, overflow: "hidden"
+    padding: 12, paddingBottom: 8
   },
   chartYAxis: { width: 28, height: CHART_HEIGHT, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 },
   yLabel: { color: brandColors.textMuted, fontSize: 10, fontWeight: "600" },
   chartMain: { flex: 1 },
-  chartBarZone: { position: "relative", height: CHART_HEIGHT },
+  chartBarZone: { position: "absolute", top: 0, left: 0, right: 0, height: CHART_HEIGHT, zIndex: 1 },
   gridLine: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "rgba(255,255,255,0.04)", zIndex: 0 },
   chartLineWrap: {
     position: "absolute", left: -28, right: 0, flexDirection: "row", alignItems: "center", zIndex: 10, height: 20
@@ -1239,8 +1250,8 @@ const s = StyleSheet.create({
   chartLineBadgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "800" },
   chartLineOddsText: { color: "rgba(34, 197, 94, 0.80)", fontSize: 9, fontWeight: "700" },
   chartBars: { flexDirection: "row", alignItems: "flex-end", gap: CHART_BAR_GAP },
-  chartCol: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 2 },
-  chartColFixed: { width: CHART_BAR_W, alignItems: "center", justifyContent: "flex-end", gap: 2 },
+  chartCol: { flex: 1, alignItems: "center", justifyContent: "flex-end", position: "relative" },
+  chartColFixed: { width: CHART_BAR_W, alignItems: "center", justifyContent: "flex-end", position: "relative" },
   chartColSelected: { opacity: 0.7 },
   chartBarValue: { fontSize: 11, fontWeight: "800" },
   chartBar: { width: "85%", borderRadius: 4, minHeight: 4 },

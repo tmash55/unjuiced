@@ -4,8 +4,7 @@ import { NextRequest } from "next/server";
 import { resolveRedisPubSubEndpoint } from "@/lib/redis-endpoints";
 import { pumpPubSub, pumpMultiPubSub } from "@/lib/sse-pubsub";
 
-// Channel mapping for each sport
-// These match the ingestor's publish channels
+// Channel mapping for each sport.
 const SPORT_CHANNELS: Record<string, string> = {
   nba: "odds_updates:nba",
   nfl: "odds_updates:nfl",
@@ -32,11 +31,7 @@ const SPORT_CHANNELS: Record<string, string> = {
 
 const VALID_SPORTS = new Set(Object.keys(SPORT_CHANNELS));
 
-async function subscribeToChannel(
-  url: string,
-  token: string,
-  channel: string
-): Promise<Response> {
+async function subscribeToChannel(url: string, token: string, channel: string): Promise<Response> {
   return fetch(`${url}/subscribe/${encodeURIComponent(channel)}`, {
     method: "POST",
     headers: {
@@ -50,7 +45,7 @@ async function subscribeToChannel(
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
 
-  // Support both single sport (legacy) and multiple sports (new)
+  // Support both single sport (legacy) and multiple sports.
   const singleSport = (sp.get("sport") || "").trim().toLowerCase();
   const multipleSports = (sp.get("sports") || "").trim().toLowerCase();
 
@@ -59,7 +54,10 @@ export async function GET(req: NextRequest) {
 
   if (singleSport) {
     if (!VALID_SPORTS.has(singleSport)) {
-      return new Response(JSON.stringify({ error: "invalid_sport", valid: Array.from(VALID_SPORTS) }), { status: 400 });
+      return new Response(
+        JSON.stringify({ error: "invalid_sport", valid: Array.from(VALID_SPORTS) }),
+        { status: 400 }
+      );
     }
     channels = [SPORT_CHANNELS[singleSport] || `odds_updates:${singleSport}`];
     subscribedSports = [singleSport];
@@ -69,14 +67,17 @@ export async function GET(req: NextRequest) {
     if (multipleSports === "all" || multipleSports === "*") {
       sportsList = Array.from(VALID_SPORTS);
     } else {
-      sportsList = multipleSports.split(",").map(s => s.trim()).filter(Boolean);
-      const invalidSports = sportsList.filter(s => !VALID_SPORTS.has(s));
+      sportsList = multipleSports.split(",").map((s) => s.trim()).filter(Boolean);
+      const invalidSports = sportsList.filter((s) => !VALID_SPORTS.has(s));
       if (invalidSports.length > 0) {
-        return new Response(JSON.stringify({
-          error: "invalid_sports",
-          invalid: invalidSports,
-          valid: Array.from(VALID_SPORTS)
-        }), { status: 400 });
+        return new Response(
+          JSON.stringify({
+            error: "invalid_sports",
+            invalid: invalidSports,
+            valid: Array.from(VALID_SPORTS),
+          }),
+          { status: 400 }
+        );
       }
     }
 
@@ -84,13 +85,16 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "no_sports_provided" }), { status: 400 });
     }
 
-    channels = sportsList.map(s => SPORT_CHANNELS[s] || `odds_updates:${s}`);
+    channels = sportsList.map((s) => SPORT_CHANNELS[s] || `odds_updates:${s}`);
     subscribedSports = sportsList;
   } else {
-    return new Response(JSON.stringify({
-      error: "missing_sport_param",
-      usage: "Use ?sport=nba for single sport or ?sports=nba,nfl for multiple"
-    }), { status: 400 });
+    return new Response(
+      JSON.stringify({
+        error: "missing_sport_param",
+        usage: "Use ?sport=nba for single sport or ?sports=nba,nfl for multiple",
+      }),
+      { status: 400 }
+    );
   }
 
   const pubsub = resolveRedisPubSubEndpoint();
@@ -109,14 +113,24 @@ export async function GET(req: NextRequest) {
     sports: subscribedSports,
   })}\n\n`;
 
-  // Subscribe to all channels in parallel
-  const responses = await Promise.all(
-    channels.map(ch => subscribeToChannel(url, token, ch))
-  );
+  const responses = await Promise.all(channels.map((ch) => subscribeToChannel(url, token, ch)));
 
-  // Check that at least one succeeded
-  const validUpstreams = responses.filter(r => r.ok && r.body);
+  // At least one successful SSE upstream is enough.
+  const validUpstreams = responses.filter((r) => {
+    const contentType = (r.headers.get("content-type") || "").toLowerCase();
+    return r.ok && r.body && contentType.includes("text/event-stream");
+  });
   if (validUpstreams.length === 0) {
+    const errors = responses.map((r) => ({
+      status: r.status,
+      content_type: r.headers.get("content-type"),
+    }));
+    console.error("[/api/v2/sse/props] failed upstream subscriptions", {
+      channels,
+      source: pubsub.source,
+      rejectedLoopback: pubsub.rejectedLoopback,
+      errors,
+    });
     return new Response("failed to subscribe", { status: 502 });
   }
 
@@ -124,7 +138,6 @@ export async function GET(req: NextRequest) {
   const writer = writable.getWriter();
 
   if (validUpstreams.length === 1) {
-    // Single channel — use the simpler single-stream pump
     pumpPubSub({
       upstream: validUpstreams[0].body!,
       writer,
@@ -132,9 +145,8 @@ export async function GET(req: NextRequest) {
       helloEvent,
     });
   } else {
-    // Multiple channels — merge all streams into one client connection
     pumpMultiPubSub({
-      upstreams: validUpstreams.map(r => r.body!),
+      upstreams: validUpstreams.map((r) => r.body!),
       writer,
       signal: req.signal,
       helloEvent,
@@ -145,7 +157,7 @@ export async function GET(req: NextRequest) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     },
   });

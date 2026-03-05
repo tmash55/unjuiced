@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 import { useAuth } from "@/src/providers/auth-provider";
 
@@ -27,7 +27,7 @@ export default function LoginScreen() {
       setSubmitting(true);
       setError(null);
       await signIn(email.trim(), password);
-      router.replace("/hit-rates");
+      router.replace("/today");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Login failed");
     } finally {
@@ -36,60 +36,81 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: "padding", default: undefined })}
-        style={styles.keyboardContainer}
+        style={s.keyboard}
       >
-        <View style={styles.logoWrap}>
-          <Image source={require("../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+        <View style={s.top}>
+          <Image
+            source={require("../../assets/logo.png")}
+            style={s.logo}
+            resizeMode="contain"
+          />
+          <Text style={s.tagline}>
+            Find the edge in every prop
+          </Text>
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.title}>Sign in</Text>
-          <Text style={styles.subtitle}>Use your Unjuiced account to access tools by plan.</Text>
+        <View style={s.form}>
+          <Text style={s.title}>Sign in</Text>
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor="#6B7280"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            style={styles.input}
-          />
+          <View style={s.inputWrap}>
+            <Text style={s.inputLabel}>Email</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@email.com"
+              placeholderTextColor="#4B5B73"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              style={s.input}
+            />
+          </View>
 
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="#6B7280"
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
+          <View style={s.inputWrap}>
+            <View style={s.labelRow}>
+              <Text style={s.inputLabel}>Password</Text>
+              <Link href="/forgot-password" style={s.forgotLink}>
+                Forgot?
+              </Link>
+            </View>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Your password"
+              placeholderTextColor="#4B5B73"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={s.input}
+            />
+          </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={s.error}>{error}</Text> : null}
 
           <Pressable
             disabled={submitting || !email || !password}
             onPress={onSubmit}
             style={({ pressed }: { pressed: boolean }) => [
-              styles.primaryButton,
-              (submitting || !email || !password) && styles.disabledButton,
-              pressed && !submitting && styles.pressedButton
+              s.btn,
+              (submitting || !email || !password) && s.btnDisabled,
+              pressed && !submitting && s.btnPressed,
             ]}
           >
-            {submitting ? <ActivityIndicator size="small" color="#020617" /> : <Text style={styles.primaryButtonText}>Login</Text>}
+            {submitting ? (
+              <ActivityIndicator size="small" color="#020617" />
+            ) : (
+              <Text style={s.btnText}>Sign In</Text>
+            )}
           </Pressable>
+        </View>
 
-          <Link href="/register" style={styles.secondaryLink}>
-            Create an account
-          </Link>
-          <Link href="/forgot-password" style={styles.secondaryLink}>
-            Forgot password
+        <View style={s.bottom}>
+          <Text style={s.bottomText}>Don't have an account? </Text>
+          <Link href="/register" style={s.bottomLink}>
+            Create one
           </Link>
         </View>
       </KeyboardAvoidingView>
@@ -97,74 +118,115 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0B1014"
+    backgroundColor: "#0B1014",
   },
-  keyboardContainer: {
+  keyboard: {
     flex: 1,
+    paddingHorizontal: 24,
     justifyContent: "center",
-    paddingHorizontal: 20
   },
-  logoWrap: {
+
+  // Top branding
+  top: {
     alignItems: "center",
-    marginBottom: 12
+    marginBottom: 40,
   },
   logo: {
-    width: 170,
-    height: 52
+    width: 180,
+    height: 56,
   },
-  formCard: {
-    backgroundColor: "#111827",
-    borderColor: "#1F2937",
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12
+  tagline: {
+    color: "#7B8CA7",
+    fontSize: 15,
+    fontWeight: "500",
+    marginTop: 10,
+    letterSpacing: 0.2,
+  },
+
+  // Form
+  form: {
+    gap: 18,
   },
   title: {
-    color: "#F8FAFC",
-    fontSize: 24,
-    fontWeight: "700"
+    color: "#E5E7EB",
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-  subtitle: {
-    color: "#9CA3AF",
-    fontSize: 13
+  inputWrap: {
+    gap: 6,
+  },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  inputLabel: {
+    color: "#9FB0C6",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  forgotLink: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "600",
   },
   input: {
-    borderColor: "#374151",
+    backgroundColor: "#101A2B",
+    borderColor: "#22324A",
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#F8FAFC",
-    fontSize: 14
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 50,
+    color: "#E5E7EB",
+    fontSize: 15,
   },
   error: {
     color: "#F87171",
-    fontSize: 12
-  },
-  primaryButton: {
-    backgroundColor: "#38BDF8",
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: "center"
-  },
-  primaryButtonText: {
-    color: "#020617",
-    fontSize: 14,
-    fontWeight: "700"
-  },
-  disabledButton: {
-    opacity: 0.4
-  },
-  pressedButton: {
-    opacity: 0.85
-  },
-  secondaryLink: {
-    color: "#7DD3FC",
     fontSize: 13,
-    textAlign: "center"
-  }
+    fontWeight: "500",
+  },
+
+  // Button
+  btn: {
+    backgroundColor: "#38BDF8",
+    borderRadius: 14,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  btnText: {
+    color: "#020617",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  btnDisabled: {
+    opacity: 0.35,
+  },
+  btnPressed: {
+    opacity: 0.85,
+  },
+
+  // Bottom
+  bottom: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 32,
+  },
+  bottomText: {
+    color: "#7B8CA7",
+    fontSize: 14,
+  },
+  bottomLink: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });

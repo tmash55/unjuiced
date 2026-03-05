@@ -369,7 +369,7 @@ export function ToolPreviewLayout({
             </ButtonLink>
           </div>
           <p className="mt-4 text-sm text-white/40">
-            Free 3-day trial included
+            Free 7-day trial included
           </p>
         </motion.div>
       </section>

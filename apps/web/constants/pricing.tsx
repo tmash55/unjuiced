@@ -27,7 +27,7 @@ export const tiers = [
       "Game log & box scores",
     ],
     productType: "scout" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     title: TierName.SHARP,
@@ -51,7 +51,7 @@ export const tiers = [
     featured: true,
     badge: "Most Popular",
     productType: "sharp" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
   {
     title: TierName.ELITE,
@@ -72,7 +72,7 @@ export const tiers = [
     ],
     badge: "Best Value",
     productType: "edge" as const,
-    trialDays: 3,
+    trialDays: 7,
   },
 ];
 

@@ -1,5 +1,5 @@
 /**
- * Shared Odds Cache Layer
+ * Shared Odds Cache Layer — FIXED: No more SCAN operations
  * 
  * Central cache for odds data that can be shared across multiple API routes.
  * This prevents redundant Redis calls when multiple tools need the same odds.
@@ -8,6 +8,11 @@
  * 1. In-memory LRU cache with TTL (fastest, ~0ms)
  * 2. Falls back to Redis if memory cache misses
  * 3. Deduplication: concurrent requests for same data share one fetch
+ * 
+ * FIX: `getOddsKeysForEvents` now uses the `odds_idx:{sport}:{eventId}` sets
+ * written by the ingestor instead of doing SCAN 0 MATCH odds:{sport}:{eid}:*
+ * on the full 128K keyspace. This drops per-event key discovery from 200-600ms
+ * (SCAN) to <5ms (SMEMBERS + deterministic key construction).
  * 
  * Usage:
  *   const cache = OddsCache.getInstance();
@@ -46,12 +51,14 @@ const CONFIG = {
   // Maximum entries in memory cache
   MAX_ENTRIES: 10, // One per sport typically
   
-  // Redis scan settings
-  SCAN_COUNT: 2000,
+  // MGET chunk size
   MGET_CHUNK_SIZE: 500,
   
   // Request deduplication window
   DEDUP_WINDOW_MS: 5000,
+
+  // Pipeline batch size for SMEMBERS calls
+  INDEX_PIPELINE_BATCH: 50,
 };
 
 // ============================================================================
@@ -271,7 +278,7 @@ export class OddsCache {
         return new Map();
       }
       
-      // Get odds keys for events
+      // Get odds keys for events using index sets (NO SCAN)
       const oddsKeys = await this.getOddsKeysForEvents(sport, targetEventIds);
       
       if (oddsKeys.length === 0) {
@@ -309,51 +316,53 @@ export class OddsCache {
         return activeSet.map(String);
       }
     } catch (error) {
-      console.warn(`[OddsCache] Failed to get active events, falling back to scan:`, error);
+      console.warn(`[OddsCache] Failed to get active events:`, error);
     }
     
-    // Fallback to scanning
-    const eventKeys = await this.scanKeys(`events:${sport}:*`);
-    return eventKeys.map((k) => k.split(":")[2]).filter(Boolean);
+    // No fallback to SCAN — if smembers fails, return empty.
+    // SCAN was causing 200-600ms blocking operations per iteration
+    // against 128K+ keys, which starved the EV worker's MGETs.
+    return [];
   }
   
+  /**
+   * Build odds keys from the `odds_idx:{sport}:{eventId}` index sets
+   * instead of doing SCAN against the full keyspace.
+   *
+   * Each odds_idx member has the format: `{market}:{book}`
+   * We construct: `odds:{sport}:{eventId}:{market}:{book}`
+   */
   private async getOddsKeysForEvents(sport: string, eventIds: string[]): Promise<string[]> {
     const allKeys: string[] = [];
-    const BATCH_SIZE = 10;
-    
-    for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
-      const batch = eventIds.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map((eventId) => this.scanKeys(`odds:${sport}:${eventId}:*`))
-      );
-      allKeys.push(...batchResults.flat());
-    }
-    
-    return allKeys;
-  }
-  
-  private async scanKeys(pattern: string): Promise<string[]> {
-    const keys: string[] = [];
-    let cursor = "0";
-    let iterations = 0;
-    const MAX_ITERATIONS = 50;
-    
-    do {
-      iterations++;
-      const result: [string, string[]] = await this.redis.scan(cursor, {
-        match: pattern,
-        count: CONFIG.SCAN_COUNT,
-      });
-      cursor = result[0];
-      keys.push(...result[1]);
-      
-      if (iterations >= MAX_ITERATIONS) {
-        console.warn(`[OddsCache] Hit iteration limit for pattern: ${pattern}`);
-        break;
+
+    // Batch SMEMBERS via pipeline — much faster than individual calls
+    for (let i = 0; i < eventIds.length; i += CONFIG.INDEX_PIPELINE_BATCH) {
+      const batch = eventIds.slice(i, i + CONFIG.INDEX_PIPELINE_BATCH);
+
+      // Use pipeline to fetch all index sets in one round-trip
+      // @upstash/redis pipeline returns Promise<Array<result>>
+      const pipe = this.redis.pipeline();
+      for (const eid of batch) {
+        pipe.smembers(`odds_idx:${sport}:${eid}`);
       }
-    } while (cursor !== "0");
-    
-    return keys;
+      const results = await pipe.exec<string[][]>();
+
+      // Build full key from each index member
+      for (let j = 0; j < batch.length; j++) {
+        const members = results[j] ?? [];
+        const eventId = batch[j];
+        for (const member of members) {
+          // member format: "market:book" (last colon separates market from book)
+          const sep = member.lastIndexOf(":");
+          if (sep <= 0 || sep >= member.length - 1) continue;
+          const market = member.slice(0, sep);
+          const book = member.slice(sep + 1);
+          allKeys.push(`odds:${sport}:${eventId}:${market}:${book}`);
+        }
+      }
+    }
+
+    return allKeys;
   }
   
   private async mgetChunked(keys: string[]): Promise<(unknown | null)[]> {

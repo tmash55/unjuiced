@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/providers/auth-provider";
+import { brandColors } from "@/src/theme/brand";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -13,26 +15,63 @@ export default function AccountScreen() {
         <Text style={styles.body}>Settings and session controls for your account.</Text>
 
         <Pressable style={styles.card}>
-          <Text style={styles.cardTitle}>Profile</Text>
-          <Text style={styles.cardBody}>Edit name and notification preferences.</Text>
+          <View style={styles.cardIcon}>
+            <Ionicons name="person-outline" size={20} color={brandColors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Profile</Text>
+            <Text style={styles.cardBody}>Edit name and notification preferences.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={brandColors.navInactive} />
         </Pressable>
 
         <Pressable style={styles.card}>
-          <Text style={styles.cardTitle}>Billing</Text>
-          <Text style={styles.cardBody}>Manage plan and subscription status.</Text>
+          <View style={styles.cardIcon}>
+            <Ionicons name="card-outline" size={20} color={brandColors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Billing</Text>
+            <Text style={styles.cardBody}>Manage plan and subscription status.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={brandColors.navInactive} />
         </Pressable>
 
         <Pressable style={styles.card}>
-          <Text style={styles.cardTitle}>Security</Text>
-          <Text style={styles.cardBody}>Password and sign-in providers.</Text>
+          <View style={styles.cardIcon}>
+            <Ionicons name="lock-closed-outline" size={20} color={brandColors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Security</Text>
+            <Text style={styles.cardBody}>Password and sign-in providers.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={brandColors.navInactive} />
+        </Pressable>
+
+        <Pressable onPress={() => router.push("/help")} style={styles.card}>
+          <View style={styles.cardIcon}>
+            <Ionicons name="help-circle-outline" size={20} color={brandColors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Help</Text>
+            <Text style={styles.cardBody}>FAQs and support resources.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={brandColors.navInactive} />
+        </Pressable>
+
+        <Pressable onPress={() => router.push("/how-to")} style={styles.card}>
+          <View style={styles.cardIcon}>
+            <Ionicons name="school-outline" size={20} color={brandColors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>How To</Text>
+            <Text style={styles.cardBody}>Guides and tutorials to get started.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={brandColors.navInactive} />
         </Pressable>
 
         <Pressable onPress={() => void signOut()} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Log out</Text>
-        </Pressable>
-
-        <Pressable onPress={() => router.replace("/hit-rates")} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Back to tools</Text>
+          <Ionicons name="log-out-outline" size={18} color={brandColors.error} />
+          <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -42,57 +81,67 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0B1014"
+    backgroundColor: brandColors.appBackground
   },
   content: {
     padding: 16,
     gap: 10
   },
   title: {
-    color: "#F8FAFC",
+    color: brandColors.textPrimary,
     fontSize: 24,
     fontWeight: "700"
   },
   body: {
-    color: "#94A3B8",
-    fontSize: 13
+    color: brandColors.textSecondary,
+    fontSize: 13,
+    marginBottom: 4
   },
   card: {
-    borderColor: "#1F2937",
+    flexDirection: "row",
+    alignItems: "center",
+    borderColor: brandColors.border,
     borderWidth: 1,
     borderRadius: 12,
-    backgroundColor: "#111827",
-    padding: 12,
-    gap: 4
+    backgroundColor: brandColors.panelBackground,
+    padding: 14,
+    gap: 12
+  },
+  cardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: brandColors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  cardText: {
+    flex: 1,
+    gap: 2
   },
   cardTitle: {
-    color: "#F8FAFC",
+    color: brandColors.textPrimary,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   cardBody: {
-    color: "#94A3B8",
-    fontSize: 13
+    color: brandColors.textSecondary,
+    fontSize: 12
   },
   signOutButton: {
-    marginTop: 8,
-    borderColor: "#334155",
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderColor: "rgba(248, 113, 113, 0.2)",
     borderWidth: 1,
     borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center"
+    paddingVertical: 12
   },
   signOutText: {
-    color: "#E5E7EB",
-    fontWeight: "700"
-  },
-  backButton: {
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center"
-  },
-  backButtonText: {
-    color: "#7DD3FC",
-    fontWeight: "600"
+    color: brandColors.error,
+    fontWeight: "600",
+    fontSize: 14
   }
 });
