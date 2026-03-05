@@ -130,12 +130,6 @@ const edgeToolsLinks: NavItem[] = [
 // Research - Analysis and research tools
 const researchLinks: NavItem[] = [
   { 
-    label: "Odds Screen", 
-    href: "/odds", 
-    icon: IconTable,
-    children: oddsScreenSports
-  },
-  { 
     label: "Hit Rates", 
     href: "/hit-rates", 
     icon: Chart,
@@ -153,6 +147,12 @@ const researchLinks: NavItem[] = [
       { label: "Double Double Sheet", href: "/cheatsheets/nba/double-double-sheet", badge: "NEW" },
       { label: "Defense vs Position", href: "/cheatsheets/nba/dvp" },
     ]
+  },
+  { 
+    label: "Odds Screen", 
+    href: "/odds", 
+    icon: IconTable,
+    children: oddsScreenSports
   },
   {
     label: "KOTC",

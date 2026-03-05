@@ -36,7 +36,7 @@ import type { BestOddsPrefs } from "@/lib/best-odds-schema";
 import { formatMarketLabel } from "@/lib/data/markets";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { useIsPro } from "@/hooks/use-entitlements";
+import { useIsPro, useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useHiddenEdges } from "@/hooks/use-hidden-edges";
 import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 import { useSSE } from "@/hooks/use-sse";
@@ -102,6 +102,7 @@ function mapPresetToComparisonMode(preset: string): { mode: BestOddsPrefs['compa
 export default function EdgeFinderPage() {
   const { user } = useAuth();
   const { isPro, isLoading: planLoading } = useIsPro();
+  const { hasAccess: hasElite } = useHasEliteAccess();
   const isLoggedIn = !!user;
   const isMobile = useIsMobileOrTablet(); // Show card view on phones & tablets (< 1280px)
   const stablePlanRef = useRef(isPro);
@@ -555,6 +556,7 @@ export default function EdgeFinderPage() {
           bankroll={evPrefs.bankroll}
           kellyPercent={evPrefs.kellyPercent || 25}
           isPro={effectiveIsPro}
+          hasAutoRefreshAccess={hasElite}
           activePresets={activePresets}
           isCustomMode={isCustomMode}
           dataUpdatedAt={dataUpdatedAt ?? undefined}
@@ -712,6 +714,7 @@ export default function EdgeFinderPage() {
         isConnected={sseConnected}
         isReconnecting={sseReconnecting}
         hasFailed={sseFailed}
+        hasAutoRefreshAccess={hasElite}
         // Refresh — don't spin during auto-refresh background fetches
         onRefresh={refetch}
         isRefreshing={!autoRefresh && isFetching}
@@ -734,6 +737,7 @@ export default function EdgeFinderPage() {
         // UI state
         locked={locked}
         isPro={effectiveIsPro}
+        hasCustomModelsAccess={hasElite}
       />
     </>
   );
