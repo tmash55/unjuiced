@@ -13,9 +13,11 @@ export default function AuthCallbackPage() {
     const callPostSignup = async (user: { id: string; email?: string; user_metadata?: Record<string, any>; created_at?: string }) => {
       try {
         const metadata = user.user_metadata || {};
+        const appMetadata = (user as any).app_metadata || {};
         const firstName = metadata.first_name || metadata.given_name || undefined;
         const lastName = metadata.last_name || metadata.family_name || undefined;
         const fullName = metadata.full_name || metadata.name || undefined;
+        const signupMethod = appMetadata.provider || 'email';
 
         await fetch("/api/auth/post-signup", {
           method: "POST",
@@ -28,6 +30,7 @@ export default function AuthCallbackPage() {
             fullName,
             avatarUrl: metadata.avatar_url,
             createdAt: user.created_at,
+            signupMethod,
           }),
         });
       } catch (e) {
