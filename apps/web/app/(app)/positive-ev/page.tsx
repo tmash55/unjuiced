@@ -458,7 +458,7 @@ export default function PositiveEVPage() {
 
   // Local UI state
   const [searchQuery, setSearchQuery] = useState("");
-  const [limit, setLimit] = useState(100);
+  const [limit, setLimit] = useState(300);
   const [showMethodInfo, setShowMethodInfo] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [boostPercent, setBoostPercent] = useState(0); // Profit boost %
@@ -595,6 +595,7 @@ export default function PositiveEVPage() {
     minBooksPerSide: savedFilters.minBooksPerSide,
     searchQuery: searchQuery,
   }), [savedFilters, searchQuery]);
+  const requestLimit = effectiveIsPro ? limit : 50;
   
 
   // Multi-model fetch (handles both preset and custom model modes)
@@ -615,7 +616,7 @@ export default function PositiveEVPage() {
     prefs: multiModelPrefs,
     activeModels: activeEvModels,
     isPro: effectiveIsPro,
-    limit,
+    limit: requestLimit,
     enabled: !planLoading && !prefsLoading && !autoRefresh, // Don't fetch if auto-refresh is enabled
   });
 
@@ -641,7 +642,7 @@ export default function PositiveEVPage() {
     prefs: multiModelPrefs,
     activeModels: activeEvModels,
     isPro: effectiveIsPro,
-    limit,
+    limit: requestLimit,
     autoRefresh,
     enabled: !planLoading && !prefsLoading && autoRefresh,
   });
@@ -3075,7 +3076,7 @@ export default function PositiveEVPage() {
       </div>
 
       {/* Load More - only for pro users */}
-      {effectiveIsPro && totalReturned >= limit && (
+      {effectiveIsPro && totalReturned >= requestLimit && (
         <div className="flex justify-center mt-4">
           <button
             onClick={() => setLimit((prev) => prev + 100)}

@@ -108,6 +108,70 @@ const ALL_SPORTS = [
   "ufc",
 ];
 
+function normalizeBlendBookId(book: string): string {
+  const lower = book.toLowerCase().trim();
+  const normalized = normalizeSportsbookId(lower);
+  const aliases: Record<string, string> = {
+    hardrock: "hard-rock",
+    hardrockbet: "hard-rock",
+    "hard-rock-bet": "hard-rock",
+    espnbet: "espn",
+    "espn-bet": "espn",
+    ballybet: "bally-bet",
+    bally_bet: "bally-bet",
+    "bet-rivers": "betrivers",
+    bet_rivers: "betrivers",
+  };
+  return aliases[normalized] ?? aliases[lower] ?? normalized;
+}
+
+function normalizeWeightValue(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw > 1 ? raw / 100 : raw;
+}
+
+function buildPresetBlendParam(preset: FilterPreset): string | null {
+  const sharpBooks = Array.isArray(preset.sharp_books)
+    ? preset.sharp_books.filter((book): book is string => typeof book === "string" && book.trim().length > 0)
+    : [];
+  if (sharpBooks.length === 0) return null;
+
+  const canonicalBooks: string[] = [];
+  const seen = new Set<string>();
+  for (const rawBook of sharpBooks) {
+    const canonical = normalizeBlendBookId(rawBook);
+    if (!canonical || seen.has(canonical)) continue;
+    seen.add(canonical);
+    canonicalBooks.push(canonical);
+  }
+  if (canonicalBooks.length === 0) return null;
+
+  const weightsMap = new Map<string, number>();
+  const rawWeights = preset.book_weights ?? {};
+  for (const [book, rawWeight] of Object.entries(rawWeights)) {
+    const canonical = normalizeBlendBookId(book);
+    const weight = normalizeWeightValue(Number(rawWeight));
+    if (weight <= 0) continue;
+    weightsMap.set(canonical, (weightsMap.get(canonical) ?? 0) + weight);
+  }
+
+  let blend = canonicalBooks
+    .map((book) => ({ book, weight: weightsMap.get(book) ?? 0 }))
+    .filter((entry) => entry.weight > 0);
+
+  if (blend.length === 0 || blend.length < canonicalBooks.length) {
+    const equalWeight = 1 / canonicalBooks.length;
+    blend = canonicalBooks.map((book) => ({ book, weight: equalWeight }));
+  }
+
+  const totalWeight = blend.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) return null;
+
+  return blend
+    .map((entry) => `${entry.book}:${entry.weight / totalWeight}`)
+    .join(",");
+}
+
 // =============================================================================
 // Options & Result Types
 // =============================================================================
@@ -191,8 +255,7 @@ function isRelevantUpdate(key: string, sports: Set<string>): boolean {
  * Build query params for preset mode (no active custom models)
  */
 function buildPresetModeParams(
-  prefs: BestOddsPrefs,
-  limit: number
+  prefs: BestOddsPrefs
 ): URLSearchParams {
   const params = new URLSearchParams();
   
@@ -219,7 +282,6 @@ function buildPresetModeParams(
   params.set("minEdge", "0");
   params.set("minBooksPerSide", "2");
   params.set("sort", "edge");
-  params.set("limit", String(limit));
   
   return params;
 }
@@ -239,13 +301,9 @@ function buildCustomPresetParams(
   params.set("sports", presetSports.join(","));
   
   // Build blend from preset's sharp_books and book_weights
-  if (preset.sharp_books && preset.sharp_books.length > 0) {
-    const weights = preset.book_weights || {};
-    const blend = preset.sharp_books.map(book => {
-      const weight = (weights[book] || 0) / 100;
-      return `${book}:${weight > 0 ? weight : (1 / preset.sharp_books!.length)}`;
-    }).join(",");
-    params.set("blend", blend);
+  const blendParam = buildPresetBlendParam(preset);
+  if (blendParam) {
+    params.set("blend", blendParam);
   }
   
   // Markets from preset
@@ -514,7 +572,7 @@ export function useEdgeFinderMultiStream({
   const fetchPresetMode = useCallback(async (
     signal: AbortSignal
   ): Promise<FetchResult> => {
-    const params = buildPresetModeParams(prefs, limit);
+    const params = buildPresetModeParams(prefs);
     const response = await fetch(`/api/v2/opportunities?${params}`, {
       signal,
       cache: "no-store",

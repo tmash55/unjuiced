@@ -52,6 +52,8 @@ const ALL_SPORTS = [
   "tennis_wta",
   "ufc",
 ];
+const PRESET_STALE_TIME_MS = 5_000;
+const CUSTOM_STALE_TIME_MS = 45_000;
 
 // =============================================================================
 // Types
@@ -521,10 +523,11 @@ export function useMultiEvModelOpportunities({
         prefs.maxEv,
         prefs.mode,
         prefs.minBooksPerSide,
+        effectiveLimit,
         isPro,
       ];
     }
-  }, [isCustomMode, modelConfigs, prefs, isPro]);
+  }, [isCustomMode, modelConfigs, prefs, effectiveLimit, isPro]);
   
   // Main query
   const {
@@ -552,10 +555,11 @@ export function useMultiEvModelOpportunities({
         totalReturned: merged.length,
       };
     },
-    staleTime: isCustomMode ? 45_000 : 60_000,
+    staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: isCustomMode ? true : "always",
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,
