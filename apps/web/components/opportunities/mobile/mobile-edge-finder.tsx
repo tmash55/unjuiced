@@ -60,6 +60,7 @@ type ChangeMap = Map<string, RowChange>;
 
 interface MobileEdgeFinderProps {
   opportunities: Opportunity[];
+  totalAvailableCount?: number;
   isLoading?: boolean;
   isFetching?: boolean;
   error?: Error | null;
@@ -94,6 +95,7 @@ interface MobileEdgeFinderProps {
   // Kelly settings handlers
   onBankrollChange?: (value: number) => void;
   onKellyPercentChange?: (value: number) => void;
+  onRequestMoreResults?: () => void;
   // Streaming/auto-refresh props
   autoRefresh?: boolean;
   onAutoRefreshChange?: (value: boolean) => void;
@@ -108,6 +110,7 @@ interface MobileEdgeFinderProps {
 
 export function MobileEdgeFinder({
   opportunities,
+  totalAvailableCount = 0,
   isLoading = false,
   isFetching = false,
   error,
@@ -145,6 +148,7 @@ export function MobileEdgeFinder({
   onStreamReconnect,
   onBankrollChange,
   onKellyPercentChange,
+  onRequestMoreResults,
 }: MobileEdgeFinderProps) {
   const canUseAutoRefresh = hasAutoRefreshAccess ?? isPro;
   // Filter/search state
@@ -210,11 +214,27 @@ export function MobileEdgeFinder({
   }, [filteredOpportunities, visibleCount]);
   
   const hasMore = filteredOpportunities.length > visibleCount;
+  const hasMoreServerResults = totalAvailableCount > opportunities.length;
+  const usingLocalMobileFilters = searchQuery.trim().length > 0 || selectedSport !== "all";
+  const resultsCount = usingLocalMobileFilters
+    ? filteredOpportunities.length
+    : Math.max(filteredOpportunities.length, totalAvailableCount);
   
   // Handlers
   const handleLoadMore = useCallback(() => {
-    setVisibleCount(prev => prev + 20);
-  }, []);
+    setVisibleCount((prev) => prev + 20);
+
+    // Desktop increases the server-side limit as you scroll.
+    // Mobile needs to explicitly request the next batch.
+    if (
+      onRequestMoreResults &&
+      !isFetching &&
+      visibleCount + 20 >= opportunities.length &&
+      hasMoreServerResults
+    ) {
+      onRequestMoreResults();
+    }
+  }, [onRequestMoreResults, isFetching, visibleCount, opportunities.length, hasMoreServerResults]);
   
   const handleCardExpand = useCallback((oppId: string) => {
     if (!isPro) return; // Block expansion for free users
@@ -554,7 +574,7 @@ export function MobileEdgeFinder({
         {/* Results Count - Minimal */}
         <div className="px-4 py-1.5 bg-neutral-50 dark:bg-neutral-900/50 border-t border-neutral-200/50 dark:border-neutral-800/50">
           <span className="text-[10px] font-medium text-neutral-500">
-            {filteredOpportunities.length} edges found
+            {resultsCount} edges found
           </span>
         </div>
       </div>
@@ -616,7 +636,7 @@ export function MobileEdgeFinder({
                   "transition-colors"
                 )}
               >
-                Load more ({filteredOpportunities.length - visibleCount} remaining)
+                Load more ({Math.max(filteredOpportunities.length - visibleCount, 0)} remaining)
               </button>
             )}
           </>
