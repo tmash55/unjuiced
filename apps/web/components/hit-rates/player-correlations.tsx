@@ -1412,7 +1412,7 @@ export function PlayerCorrelations({
   const anchorLastName = playerName?.split(' ').slice(-1)[0] || "anchor";
 
   return (
-    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-hidden shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
+    <div className={cn("rounded-2xl border border-neutral-200/60 bg-white dark:border-neutral-700/60 dark:bg-neutral-800/50 overflow-visible shadow-lg ring-1 ring-black/5 dark:ring-white/5", className)}>
       {/* ═══════════════════════════════════════════════════════════════════
           PREMIUM HEADER - Matches other sections with color bar
       ═══════════════════════════════════════════════════════════════════ */}
@@ -1539,7 +1539,7 @@ export function PlayerCorrelations({
             {/* Right Controls */}
             <div className="flex items-center gap-3 shrink-0">
               {/* Filter Button - Always show */}
-              <div className="relative" ref={filterRef}>
+              <div className={cn("relative", showFilters && "z-[60]")} ref={filterRef}>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
@@ -1556,9 +1556,9 @@ export function PlayerCorrelations({
                   )}
                 </button>
                   
-                  {/* Filter Popover - Opens upward to avoid container overflow */}
+                  {/* Filter Popover */}
                   {showFilters && (
-                  <div className="absolute bottom-full right-0 mb-1.5 w-[300px] bg-white dark:bg-neutral-900 rounded-xl shadow-2xl border border-neutral-200 dark:border-neutral-700 z-50 overflow-hidden">
+                  <div className="absolute top-full right-0 mt-1.5 w-[300px] bg-white dark:bg-neutral-900 rounded-xl shadow-2xl border border-neutral-200 dark:border-neutral-700 z-[70] overflow-hidden">
                     {/* Reset - Now at top since dropdown opens upward */}
                     {hasActiveFilters && (
                       <div className="px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
