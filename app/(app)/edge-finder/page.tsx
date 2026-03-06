@@ -248,6 +248,7 @@ export default function EdgeFinderPage() {
   // ===== DATA SOURCE =====
   const {
     opportunities,
+    totalAfterFilters,
     activeFilters,
     isCustomMode,
     isLoading,
@@ -450,6 +451,14 @@ export default function EdgeFinderPage() {
     setRefreshing(false);
   };
 
+  const handleRequestMoreResults = useCallback(() => {
+    if (!effectiveIsPro) return;
+    if (isLoading || isFetching || isLoadingMore) return;
+    if (limit >= MAX_PRO_EDGE_LIMIT) return;
+
+    setLimit((prev) => Math.min(prev + EDGE_LIMIT_INCREMENT, MAX_PRO_EDGE_LIMIT));
+  }, [effectiveIsPro, isLoading, isFetching, isLoadingMore, limit]);
+
   // Handler for filters changes from UnifiedFilters
   const handleFiltersChange = useCallback((filters: FilterChangeEvent) => {
     const updates: Partial<BestOddsPrefs> = {};
@@ -553,6 +562,7 @@ export default function EdgeFinderPage() {
       <>
         <MobileEdgeFinder
           opportunities={displayOpportunities}
+          totalAvailableCount={totalAfterFilters}
           isLoading={isLoading}
           isFetching={isFetching || refreshing}
           error={error}
@@ -598,6 +608,7 @@ export default function EdgeFinderPage() {
           onBoostChange={setBoostPercent}
           onBankrollChange={handleBankrollChange}
           onKellyPercentChange={handleKellyPercentChange}
+          onRequestMoreResults={handleRequestMoreResults}
           onLineHistoryClick={handleOpenLineHistory}
         />
         
