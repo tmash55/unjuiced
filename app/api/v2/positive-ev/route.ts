@@ -53,7 +53,7 @@ import {
   devigMultiple,
   calculateEV,
 } from "@/lib/ev/devig";
-import { redis, parseRedisValue, hashCacheKey, hgetallSafe } from "@/lib/shared-redis-client";
+import { redis, parseRedisValue, hashCacheKey, hgetallSafe, setSafe } from "@/lib/shared-redis-client";
 
 // Worker EVRow shape — differs from @/lib/ev-schema EVRow.
 // We use `any` for the raw Redis data and map it in evRowToOpportunity.
@@ -65,6 +65,9 @@ type WorkerEVRow = any;
 
 const RESPONSE_CACHE_PREFIX = "ev:response:";
 const RESPONSE_CACHE_TTL = 45; // seconds — increased from 15 to reduce miss storms
+const SPORT_FETCH_CONCURRENCY = 4;
+const MAX_RESPONSE_LIMIT = 2000;
+const EV_MAX_CACHE_BYTES = 750_000;
 
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
@@ -86,15 +89,96 @@ function buildResponseCacheKey(params: URLSearchParams): string {
     .join(",");
   const preset = params.get("sharpPreset") || "pinnacle";
   const mode = params.get("mode") || "pregame";
+  const marketType = params.get("marketType") || "all";
   const minEV = params.get("minEV") || "0";
   const maxEV = params.get("maxEV") || String(EV_THRESHOLDS.maximum);
+  const devigMethods = (params.get("devigMethods") || "")
+    .toLowerCase()
+    .split(",")
+    .filter(Boolean)
+    .sort()
+    .join(",");
   const markets = (params.get("markets") || "").toLowerCase().split(",").filter(Boolean).sort().join(",");
   const books = (params.get("books") || "").toLowerCase().split(",").filter(Boolean).sort().join(",");
+  const customSharpBooks = (params.get("customSharpBooks") || "")
+    .toLowerCase()
+    .split(",")
+    .filter(Boolean)
+    .map((book) => canonicalizeCustomBookId(book))
+    .sort()
+    .join(",");
   const limit = params.get("limit") || "100";
   const minBooksPerSide = params.get("minBooksPerSide") || "2";
+  let customBookWeights = "";
+  const customBookWeightsRaw = params.get("customBookWeights");
+  if (customBookWeightsRaw) {
+    try {
+      const parsed = JSON.parse(customBookWeightsRaw) as Record<string, number>;
+      customBookWeights = Object.entries(parsed)
+        .map(([book, weight]) => [canonicalizeCustomBookId(String(book)), Number(weight)] as const)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([book, weight]) => `${book}:${weight}`)
+        .join(",");
+    } catch {
+      customBookWeights = customBookWeightsRaw;
+    }
+  }
 
-  const raw = `${sports}|${preset}|${mode}|${minEV}|${maxEV}|${markets}|${books}|${limit}|${minBooksPerSide}`;
+  const raw = `${sports}|${preset}|${mode}|${marketType}|${minEV}|${maxEV}|${devigMethods}|${markets}|${books}|${customSharpBooks}|${customBookWeights}|${limit}|${minBooksPerSide}`;
   return hashCacheKey(raw);
+}
+
+function inferRowMarketType(row: WorkerEVRow): "player" | "game" {
+  const market = String(row?.mkt || "").toLowerCase();
+  const playerId = row?.ev_data?.player_id;
+  const playerPosition = row?.ev_data?.position;
+  const playerName = String(row?.ev_data?.player || "").trim().toLowerCase();
+
+  if (playerId || playerPosition) return "player";
+  if (
+    market.startsWith("player_") ||
+    market.startsWith("pitcher_") ||
+    market.startsWith("batter_") ||
+    market.startsWith("goalie_") ||
+    market.startsWith("skater_")
+  ) {
+    return "player";
+  }
+  if (
+    playerName &&
+    ![
+      "game",
+      "game_total",
+      "match_total",
+      "fight_total",
+      "team_total",
+      "home_team_total",
+      "away_team_total",
+    ].includes(playerName)
+  ) {
+    return "player";
+  }
+  return "game";
+}
+
+async function forEachWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+  let index = 0;
+
+  await Promise.all(
+    Array.from({ length: limit }, async () => {
+      while (true) {
+        const currentIndex = index++;
+        if (currentIndex >= items.length) return;
+        await worker(items[currentIndex]);
+      }
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -137,8 +221,12 @@ export async function GET(req: NextRequest) {
     const maxEV = parseFloat(params.get("maxEV") || String(EV_THRESHOLDS.maximum));
     const booksFilter = params.get("books")?.toLowerCase().split(",").filter(Boolean) || null;
     const marketsFilter = params.get("markets")?.toLowerCase().split(",").filter(Boolean) || null;
-    const limit = Math.min(parseInt(params.get("limit") || "100"), 500);
+    const requestedLimit = parseInt(params.get("limit") || "100");
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 100, MAX_RESPONSE_LIMIT));
     const minBooksPerSide = parseInt(params.get("minBooksPerSide") || "2");
+    const marketTypeParam = params.get("marketType")?.toLowerCase();
+    const marketType: "all" | "player" | "game" =
+      marketTypeParam === "player" ? "player" : marketTypeParam === "game" ? "game" : "all";
 
     // ── Custom sharp config — Elite plan gating ──────────────────────────────
     const customSharpBooksParam =
@@ -159,12 +247,20 @@ export async function GET(req: NextRequest) {
       const customBookWeightsParam = params.get("customBookWeights");
       if (customBookWeightsParam) {
         try {
-          weights = JSON.parse(customBookWeightsParam);
+          const parsed = JSON.parse(customBookWeightsParam) as Record<string, number>;
+          weights = Object.fromEntries(
+            Object.entries(parsed)
+              .map(([book, weight]) => [canonicalizeCustomBookId(book), Number(weight)] as const)
+              .filter(([, weight]) => Number.isFinite(weight) && weight > 0)
+          );
         } catch {
           console.warn("[positive-ev] Failed to parse customBookWeights");
         }
       }
-      customSharpConfig = { books: customSharpBooksParam, weights };
+      customSharpConfig = {
+        books: Array.from(new Set(customSharpBooksParam.map((book) => canonicalizeCustomBookId(book)))),
+        weights,
+      };
 
       // Custom presets: on-demand re-devig using pre-computed row data.
       // We read the pinnacle preset (most complete) and re-calculate EV
@@ -225,8 +321,10 @@ export async function GET(req: NextRequest) {
     // For custom presets, read pinnacle data as the base
     const readPreset = customSharpConfig ? "pinnacle" : sharpPreset;
 
-    await Promise.all(
-      sports.map(async (sport) => {
+    await forEachWithConcurrency(
+      sports,
+      SPORT_FETCH_CONCURRENCY,
+      async (sport) => {
         const rowsKey = `ev:${sport}:rows:${readPreset}`;
 
         let allFields: Record<string, string> | null = null;
@@ -258,6 +356,7 @@ export async function GET(req: NextRequest) {
           if (marketsFilter && !marketsFilter.includes(processedRow.mkt)) continue;
           if (booksFilter && processedRow.book?.id && !booksFilter.includes(normalizeBookIdForFrontend(processedRow.book.id))) continue;
           if (processedRow.ev_data?.all_books && minBooksPerSide > 1 && processedRow.ev_data.all_books.length < minBooksPerSide) continue;
+          if (marketType !== "all" && inferRowMarketType(processedRow) !== marketType) continue;
 
           // Mode filter
           if (mode === "pregame" && processedRow.meta?.scope === "live") continue;
@@ -265,7 +364,7 @@ export async function GET(req: NextRequest) {
 
           allRows.push(processedRow);
         }
-      })
+      }
     );
 
     // ── Step 3: Worker not populated yet → return 503 with retry hint ────────
@@ -295,8 +394,9 @@ export async function GET(req: NextRequest) {
     // ── Step 5: Map EVRow → PositiveEVOpportunity (frontend schema) ─────────
     // The worker stores EVRow objects. We map them to PositiveEVOpportunity here
     // so the frontend schema stays identical to the old route.
+    const effectiveSharpPreset = customSharpConfig ? "custom" : sharpPreset;
     const opportunities: PositiveEVOpportunity[] = limitedRows.map((row) =>
-      evRowToOpportunity(row, sharpPreset, devigMethods)
+      evRowToOpportunity(row, effectiveSharpPreset, devigMethods)
     );
 
     const response: PositiveEVResponse = {
@@ -316,9 +416,12 @@ export async function GET(req: NextRequest) {
 
     // ── Step 6: Cache the assembled response for future requests ─────────────
     // Fire-and-forget to keep p99 latency low
-    redis
-      .set(responseCacheKey, JSON.stringify(response), { ex: RESPONSE_CACHE_TTL })
-      .catch((err) => console.warn("[positive-ev] Cache write failed:", err));
+    const responseJson = JSON.stringify(response);
+    if (new TextEncoder().encode(responseJson).length <= EV_MAX_CACHE_BYTES) {
+      setSafe(responseCacheKey, responseJson, { ex: RESPONSE_CACHE_TTL }).then((ok) => {
+        if (!ok) console.warn("[positive-ev] Cache write failed");
+      });
+    }
 
     return NextResponse.json(response, {
       headers: {
@@ -364,6 +467,89 @@ function normalizeBookIdForFrontend(id: string): string {
     fanduel_yourway: "fanduelyourway",
   };
   return mappings[lower] ?? lower;
+}
+
+function canonicalizeCustomBookId(id: string): string {
+  const lower = id.toLowerCase().trim();
+  const mappings: Record<string, string> = {
+    hardrock: "hardrock",
+    "hard-rock": "hardrock",
+    hardrockbet: "hardrock",
+    "hard-rock-bet": "hardrock",
+    "hard-rock-indiana": "hardrockindiana",
+    hardrockindiana: "hardrockindiana",
+    thescore: "thescore",
+    "the-score": "thescore",
+    ballybet: "ballybet",
+    "bally-bet": "ballybet",
+    bally_bet: "ballybet",
+    betrivers: "betrivers",
+    "bet-rivers": "betrivers",
+    bet_rivers: "betrivers",
+    "betmgm-michigan": "betmgm",
+    betmgm_michigan: "betmgm",
+    "fanduel-yourway": "fanduelyourway",
+    fanduel_yourway: "fanduelyourway",
+  };
+  return mappings[lower] ?? lower;
+}
+
+type CustomBookRow = {
+  id: string;
+  canonicalId: string;
+  am: number;
+  dec: number;
+  ev_pct?: number;
+  is_sharp_ref?: boolean;
+  link?: string | null;
+  limits?: { max: number } | null;
+};
+
+function normalizeCustomBookRows(rawBooks: unknown[]): CustomBookRow[] {
+  const byCanonical = new Map<string, CustomBookRow>();
+
+  for (const rawBook of rawBooks) {
+    const book = rawBook as Record<string, unknown> | null;
+    const rawId = typeof book?.id === "string" ? book.id : null;
+    if (!rawId) continue;
+
+    const am = typeof book?.am === "number" ? book.am : Number(book?.am);
+    if (!Number.isFinite(am)) continue;
+
+    const decRaw = typeof book?.dec === "number" ? book.dec : Number(book?.dec);
+    const dec = Number.isFinite(decRaw) && decRaw > 1 ? decRaw : americanToDecimal(am);
+    if (!Number.isFinite(dec) || dec <= 1) continue;
+
+    const canonicalId = canonicalizeCustomBookId(rawId);
+    const normalized: CustomBookRow = {
+      id: rawId,
+      canonicalId,
+      am,
+      dec,
+      ev_pct: typeof book?.ev_pct === "number" ? book.ev_pct : undefined,
+      is_sharp_ref: typeof book?.is_sharp_ref === "boolean" ? book.is_sharp_ref : undefined,
+      link: typeof book?.link === "string" ? book.link : null,
+      limits: (book?.limits as { max: number } | null | undefined) ?? null,
+    };
+
+    const existing = byCanonical.get(canonicalId);
+    if (!existing || normalized.dec > existing.dec) {
+      byCanonical.set(canonicalId, normalized);
+    }
+  }
+
+  return Array.from(byCanonical.values());
+}
+
+function calculateEvPercentForBook(
+  bookAmerican: number,
+  fairProbabilities: Array<number | null | undefined>
+): number | null {
+  const evValues = fairProbabilities
+    .map((fairProb) => (fairProb != null ? calculateEV(fairProb, bookAmerican) * 100 : null))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+
+  return evValues.length > 0 ? Math.min(...evValues) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -520,6 +706,7 @@ function evRowToOpportunity(
       mobileLink: null,
       sgp: null,
       limits: b.limits ?? null,
+      isSharpRef: b.is_sharp_ref ?? false,
     })),
 
     createdAt: row.meta?.last_computed
@@ -546,20 +733,18 @@ function redevigWithCustomSharp(
   devigMethods: DevigMethod[]
 ): WorkerEVRow | null {
   const side = row.side as "over" | "under";
-  const oppSide = side === "over" ? "under" : "over";
-
-  // Find the custom sharp book's odds on both sides
-  // all_books has this side's books, opp_books has the opposite side
-  const allBooks: Array<{ id: string; am: number; dec: number; ev_pct?: number; is_sharp_ref?: boolean; link?: string | null; limits?: { max: number } | null }> = row.ev_data?.all_books ?? [];
-  const oppBooks: Array<{ id: string; am: number; dec: number }> = row.ev_data?.opp_books ?? [];
+  const rawAllBooks: Array<Record<string, unknown>> = row.ev_data?.all_books ?? [];
+  const rawOppBooks: Array<Record<string, unknown>> = row.ev_data?.opp_books ?? [];
+  const allBooks = normalizeCustomBookRows(row.ev_data?.all_books ?? []);
+  const oppBooks = normalizeCustomBookRows(row.ev_data?.opp_books ?? []);
 
   // Build sharp odds from custom books (weighted blend if multiple)
-  const customBooksSet = new Set(config.books.map((b: string) => b.toLowerCase()));
+  const customBooksSet = new Set(config.books.map((b: string) => canonicalizeCustomBookId(b)));
 
   // Find over/under odds from the custom sharp book(s)
   // "this side" books are in allBooks, "opposite side" books are in oppBooks
-  const thisSideSharpEntries = allBooks.filter(b => customBooksSet.has((b.id || "").toLowerCase()));
-  const oppSideSharpEntries = oppBooks.filter(b => customBooksSet.has((b.id || "").toLowerCase()));
+  const thisSideSharpEntries = allBooks.filter((b) => customBooksSet.has(b.canonicalId));
+  const oppSideSharpEntries = oppBooks.filter((b) => customBooksSet.has(b.canonicalId));
 
   // Need at least one sharp book on each side to devig
   if (thisSideSharpEntries.length === 0 || oppSideSharpEntries.length === 0) return null;
@@ -583,7 +768,7 @@ function redevigWithCustomSharp(
       let totalWeight = 0;
       let blendedProb = 0;
       for (const entry of entries) {
-        const w = config.weights?.[entry.id.toLowerCase()] ?? (1 / entries.length);
+        const w = config.weights?.[entry.canonicalId] ?? (1 / entries.length);
         const prob = americanToImpliedProb(entry.am);
         blendedProb += prob * w;
         totalWeight += w;
@@ -612,11 +797,17 @@ function redevigWithCustomSharp(
   const fairProbMult = side === "over"
     ? devigResults.multiplicative?.fairProbOver
     : devigResults.multiplicative?.fairProbUnder;
+  const fairProbAdd = side === "over"
+    ? devigResults.additive?.fairProbOver
+    : devigResults.additive?.fairProbUnder;
+  const fairProbProbit = side === "over"
+    ? devigResults.probit?.fairProbOver
+    : devigResults.probit?.fairProbUnder;
 
   // Find best non-sharp book on this side
   const bettableBooks = allBooks
-    .filter(b => !customBooksSet.has((b.id || "").toLowerCase()))
-    .filter(b => b.am && b.dec);
+    .filter((b) => !customBooksSet.has(b.canonicalId))
+    .filter((b) => b.am && b.dec);
 
   if (bettableBooks.length === 0) return null;
 
@@ -626,12 +817,16 @@ function redevigWithCustomSharp(
   let bestEvBest = -Infinity;
   let bestEvPow: number | undefined;
   let bestEvMult: number | undefined;
+  let bestEvAdd: number | undefined;
+  let bestEvProbit: number | undefined;
 
   for (const book of bettableBooks) {
     const evPow = fairProbPower != null ? calculateEV(fairProbPower, book.am) * 100 : undefined;
     const evMult = fairProbMult != null ? calculateEV(fairProbMult, book.am) * 100 : undefined;
+    const evAdd = fairProbAdd != null ? calculateEV(fairProbAdd, book.am) * 100 : undefined;
+    const evProbit = fairProbProbit != null ? calculateEV(fairProbProbit, book.am) * 100 : undefined;
 
-    const evVals = [evPow, evMult].filter((v): v is number => v != null);
+    const evVals = [evPow, evMult, evAdd, evProbit].filter((v): v is number => v != null);
     if (evVals.length === 0) continue;
 
     const worst = Math.min(...evVals);
@@ -640,12 +835,51 @@ function redevigWithCustomSharp(
       bestEvBest = Math.max(...evVals);
       bestEvPow = evPow;
       bestEvMult = evMult;
+      bestEvAdd = evAdd;
+      bestEvProbit = evProbit;
       bestBook = book;
     }
   }
 
   if (bestEvWorst <= 0) return null; // No +EV with custom sharp
   if (bestEvWorst > 25) return null; // Data error filter
+
+  let bestMethod: DevigMethod = "power";
+  let bestMethodEv = bestEvPow ?? -Infinity;
+  for (const [method, value] of [
+    ["multiplicative", bestEvMult],
+    ["additive", bestEvAdd],
+    ["probit", bestEvProbit],
+  ] as const) {
+    if (value != null && value > bestMethodEv) {
+      bestMethod = method;
+      bestMethodEv = value;
+    }
+  }
+
+  const updatedAllBooks = rawAllBooks.map((rawBook) => {
+    const rawId = typeof rawBook?.id === "string" ? rawBook.id : "";
+    const canonicalId = canonicalizeCustomBookId(rawId);
+    const am = typeof rawBook?.am === "number" ? rawBook.am : Number(rawBook?.am);
+
+    return {
+      ...rawBook,
+      ev_pct: Number.isFinite(am)
+        ? calculateEvPercentForBook(am, [fairProbPower, fairProbMult, fairProbAdd, fairProbProbit])
+        : null,
+      is_sharp_ref: customBooksSet.has(canonicalId),
+    };
+  });
+
+  const updatedOppBooks = rawOppBooks.map((rawBook) => {
+    const rawId = typeof rawBook?.id === "string" ? rawBook.id : "";
+    const canonicalId = canonicalizeCustomBookId(rawId);
+
+    return {
+      ...rawBook,
+      is_sharp_ref: customBooksSet.has(canonicalId),
+    };
+  });
 
   // Build a modified row with re-computed EV values
   return {
@@ -666,25 +900,31 @@ function redevigWithCustomSharp(
         over_dec: americanToDecimal(sharpOverAm),
         under_am: sharpUnderAm,
         under_dec: americanToDecimal(sharpUnderAm),
-        blended_from: config.books,
+        blended_from: Array.from(customBooksSet),
       },
       params: { methods: devigMethods },
       p_fair: {
         power: fairProbPower ?? null,
         multiplicative: fairProbMult ?? null,
-        additive: null,
-        probit: null,
+        additive: fairProbAdd ?? null,
+        probit: fairProbProbit ?? null,
       },
     },
     ev: {
       pow: bestEvPow ?? null,
       mult: bestEvMult ?? null,
-      add: null,
+      add: bestEvAdd ?? null,
+      probit: bestEvProbit ?? null,
     },
     rollup: {
       best_case: bestEvBest,
       worst_case: bestEvWorst,
-      best_method: bestEvPow != null && bestEvPow >= (bestEvMult ?? -Infinity) ? "power" : "multiplicative",
+      best_method: bestMethod,
+    },
+    ev_data: {
+      ...row.ev_data,
+      all_books: updatedAllBooks,
+      opp_books: updatedOppBooks,
     },
   };
 }

@@ -117,6 +117,71 @@ function toNumberMap(value: unknown): Record<string, number> {
   return out;
 }
 
+function normalizeBlendBookId(book: string): string {
+  const lower = book.toLowerCase().trim();
+  const normalized = normalizeSportsbookId(lower);
+  const aliases: Record<string, string> = {
+    hardrock: "hard-rock",
+    "hard-rock-bet": "hard-rock",
+    hardrockbet: "hard-rock",
+    espnbet: "espn",
+    "espn-bet": "espn",
+    ballybet: "bally-bet",
+    bally_bet: "bally-bet",
+    "bet-rivers": "betrivers",
+    bet_rivers: "betrivers",
+  };
+  return aliases[normalized] ?? aliases[lower] ?? normalized;
+}
+
+function normalizeWeightValue(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return raw > 1 ? raw / 100 : raw;
+}
+
+function buildBlendFromPreset(
+  sharpBooks: string[],
+  bookWeights: Record<string, number>
+): Array<{ book: string; weight: number }> | null {
+  if (sharpBooks.length === 0) return null;
+
+  const canonicalBooks: string[] = [];
+  const seenBooks = new Set<string>();
+  for (const book of sharpBooks) {
+    const canonical = normalizeBlendBookId(book);
+    if (!canonical || seenBooks.has(canonical)) continue;
+    seenBooks.add(canonical);
+    canonicalBooks.push(canonical);
+  }
+  if (canonicalBooks.length === 0) return null;
+
+  const normalizedWeights = new Map<string, number>();
+  for (const [book, rawWeight] of Object.entries(bookWeights)) {
+    const canonical = normalizeBlendBookId(book);
+    const weight = normalizeWeightValue(rawWeight);
+    if (weight <= 0) continue;
+    normalizedWeights.set(canonical, (normalizedWeights.get(canonical) ?? 0) + weight);
+  }
+
+  let blend: Array<{ book: string; weight: number }> = [];
+  if (normalizedWeights.size > 0) {
+    blend = canonicalBooks
+      .map((book) => ({ book, weight: normalizedWeights.get(book) ?? 0 }))
+      .filter((entry) => entry.weight > 0);
+  }
+
+  // If provided weights don't map cleanly, fall back to equal weighting.
+  if (blend.length === 0 || blend.length < canonicalBooks.length) {
+    const equalWeight = 1 / canonicalBooks.length;
+    blend = canonicalBooks.map((book) => ({ book, weight: equalWeight }));
+  }
+
+  const totalWeight = blend.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) return null;
+
+  return blend.map((entry) => ({ ...entry, weight: entry.weight / totalWeight }));
+}
+
 interface UseMultiFilterOptions {
   /**
    * Global user preferences (books to exclude, min edge, search, etc.)
@@ -173,7 +238,9 @@ interface UseMultiFilterResult {
 
 // Progressive loading configuration
 const INITIAL_BATCH_SIZE = 50; // Show first 50 results fast
-const FULL_BATCH_SIZE = 500; // Then load all in background
+const FULL_BATCH_SIZE = 1500; // Then load larger batch in background
+const PRESET_STALE_TIME_MS = 5_000;
+const CUSTOM_STALE_TIME_MS = 45_000;
 
 /**
  * Build filter configurations from active presets
@@ -187,7 +254,8 @@ function buildFilterConfigs(
   prefs: BestOddsPrefs,
   activePresets: FilterPreset[],
   isPro: boolean,
-  limit: number
+  limit: number,
+  phase: "initial" | "full" = "full"
 ): FilterConfig[] {
   const leagueToSport: Record<string, Sport> = {
     nba: "nba",
@@ -234,7 +302,9 @@ function buildFilterConfigs(
 
     // HYBRID: Fetch ALL sports, ALL market types
     // Use user preferences for odds range when set, otherwise use broad fallback
-    const broadLimit = isPro ? Math.max(limit, 500) : Math.max(limit, 100);
+    const broadLimit = isPro
+      ? (phase === "initial" ? Math.max(limit, 500) : Math.max(limit, FULL_BATCH_SIZE))
+      : Math.max(limit, 100);
     
     // Always send broad defaults to server — odds range is filtered client-side
     // This avoids refetching when user changes odds range slider
@@ -283,24 +353,7 @@ function buildFilterConfigs(
     // Build blend from preset's sharp_books and book_weights
     const presetSharpBooks = toStringArray((preset as any).sharp_books);
     const presetBookWeights = toNumberMap((preset as any).book_weights);
-    let blend: Array<{ book: string; weight: number }> | null = null;
-    if (presetSharpBooks.length > 0) {
-      const weights = presetBookWeights;
-      if (weights && Object.keys(weights).length > 0) {
-        blend = presetSharpBooks.map(book => ({
-          book,
-          weight: (weights[book] || 0) / 100,
-        })).filter(b => b.weight > 0);
-        
-        const totalWeight = blend.reduce((sum, b) => sum + b.weight, 0);
-        if (totalWeight > 0) {
-          blend = blend.map(b => ({ ...b, weight: b.weight / totalWeight }));
-        }
-      } else {
-        const weight = 1 / presetSharpBooks.length;
-        blend = presetSharpBooks.map(book => ({ book, weight }));
-      }
-    }
+    const blend = buildBlendFromPreset(presetSharpBooks, presetBookWeights);
 
     // Use preset's custom markets if defined, otherwise use global or empty
     const presetMarkets = toStringArray((preset as any).markets);
@@ -685,12 +738,12 @@ export function useMultiFilterOpportunities({
 
   // Build filter configs - one for initial fast load, one for full load
   const initialFilterConfigs = useMemo(
-    () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit),
+    () => buildFilterConfigs(prefs, activePresets, isPro, initialLimit, "initial"),
     [activePresets, isPro, initialLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
   );
   
   const fullFilterConfigs = useMemo(
-    () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit),
+    () => buildFilterConfigs(prefs, activePresets, isPro, fullLimit, "full"),
     [activePresets, isPro, fullLimit, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines]
   );
   
@@ -700,6 +753,7 @@ export function useMultiFilterOpportunities({
   // Build query keys for both initial and full queries
   const buildQueryKey = useCallback((phase: "initial" | "full") => {
     const configs = phase === "initial" ? initialFilterConfigs : fullFilterConfigs;
+    const phaseLimit = phase === "initial" ? initialLimit : fullLimit;
     if (isCustomMode) {
       return [
         "multi-filter-opportunities",
@@ -719,12 +773,13 @@ export function useMultiFilterOpportunities({
         prefs.comparisonMode,
         prefs.comparisonBook || "none",
         JSON.stringify(prefs.marketLines || {}),
+        phaseLimit,
         // minOdds/maxOdds removed from key — server always gets broad range,
         // client-side filtering in applyGlobalFilters handles user's preference
         isPro,
       ];
     }
-  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, isPro]);
+  }, [isCustomMode, initialFilterConfigs, fullFilterConfigs, prefs.comparisonMode, prefs.comparisonBook, prefs.marketLines, initialLimit, fullLimit, isPro]);
 
   const initialQueryKey = useMemo(() => buildQueryKey("initial"), [buildQueryKey]);
   const fullQueryKey = useMemo(() => buildQueryKey("full"), [buildQueryKey]);
@@ -751,10 +806,11 @@ export function useMultiFilterOpportunities({
         timingMs: Math.max(...results.map(r => r.timingMs)),
       };
     },
-    staleTime: isCustomMode ? 45_000 : 30_000,
+    staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: isCustomMode ? true : "always",
     placeholderData: (prev) => prev,
     retry: 3,
     enabled,
@@ -784,10 +840,11 @@ export function useMultiFilterOpportunities({
         timingMs: Math.max(...results.map(r => r.timingMs)),
       };
     },
-    staleTime: isCustomMode ? 45_000 : 30_000,
+    staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: isCustomMode ? true : "always",
     placeholderData: (prev) => prev,
     retry: 3,
     // Only fetch full batch after initial is done (or if not using progressive loading)
@@ -819,7 +876,7 @@ export function useMultiFilterOpportunities({
   // OPTIMIZATION: Prefetch function for presets on hover
   const prefetchPreset = useCallback(async (preset: FilterPreset) => {
     // Build configs for this preset
-    const presetConfigs = buildFilterConfigs(prefs, [preset], isPro, effectiveLimit);
+    const presetConfigs = buildFilterConfigs(prefs, [preset], isPro, effectiveLimit, "full");
     const presetQueryKey = [
       "multi-filter-opportunities",
       "custom",

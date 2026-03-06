@@ -83,7 +83,7 @@ function dir(a: number | undefined | null, b: number | undefined | null): Direct
   return undefined;
 }
 
-function buildQueryParams(prefs: StreamPrefs, isPro: boolean, limit: number): URLSearchParams {
+function buildQueryParams(prefs: StreamPrefs, isPro: boolean): URLSearchParams {
   const params = new URLSearchParams();
   
   // Fetch ALL sports for broad coverage
@@ -113,7 +113,6 @@ function buildQueryParams(prefs: StreamPrefs, isPro: boolean, limit: number): UR
   params.set("minEdge", "0");
   params.set("minBooksPerSide", "2");
   params.set("sort", "edge");
-  params.set("limit", String(limit));
   
   return params;
 }
@@ -258,7 +257,6 @@ export interface UseEdgeFinderStreamOptions {
   prefs: StreamPrefs;
   isPro: boolean;
   autoRefresh: boolean;
-  limit?: number;
   enabled?: boolean;
 }
 
@@ -302,7 +300,6 @@ export function useEdgeFinderStream({
   prefs,
   isPro,
   autoRefresh,
-  limit = 500,
   enabled = true,
 }: UseEdgeFinderStreamOptions): UseEdgeFinderStreamResult {
   // State
@@ -397,7 +394,7 @@ export function useEdgeFinderStream({
     setError(null);
     
     try {
-      const params = buildQueryParams(prefs, isPro, limit);
+      const params = buildQueryParams(prefs, isPro);
       // Add refresh=true for SSE-triggered refreshes to invalidate server cache
       if (!isInitial) {
         params.set("refresh", "true");
@@ -540,7 +537,7 @@ export function useEdgeFinderStream({
         setLoading(false);
       }
     }
-  }, [prefs, isPro, limit, enabled, registerDiffs, markForHighlight]);
+  }, [prefs, isPro, enabled, registerDiffs, markForHighlight]);
 
   // Initial load and filter changes
   useEffect(() => {

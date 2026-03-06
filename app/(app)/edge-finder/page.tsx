@@ -73,6 +73,9 @@ const AVAILABLE_LEAGUES = [
   "ufc",
 ];
 const FREE_EDGE_ROW_LIMIT = 7; // Number of rows free users can see
+const DEFAULT_PRO_EDGE_LIMIT = 250;
+const MAX_PRO_EDGE_LIMIT = 1500;
+const EDGE_LIMIT_INCREMENT = 250;
 
 /**
  * Format timestamp as relative time (e.g., "5s ago", "2m ago")
@@ -183,8 +186,8 @@ export default function EdgeFinderPage() {
     clearAllHidden 
   } = useHiddenEdges();
 
-  // Result limit (default 200 for Pro, 50 for free)
-  const [limit, setLimit] = useState(200);
+  // Result limit (default 250 for Pro, 50 for free)
+  const [limit, setLimit] = useState(DEFAULT_PRO_EDGE_LIMIT);
 
   // Profit boost % (for sportsbook promotions like "30% profit boost")
   const [boostPercent, setBoostPercent] = useState(0);
@@ -207,13 +210,13 @@ export default function EdgeFinderPage() {
 
   // Reset limit when plan changes
   useEffect(() => {
-    setLimit(effectiveIsPro ? 200 : 50);
+    setLimit(effectiveIsPro ? DEFAULT_PRO_EDGE_LIMIT : 50);
   }, [effectiveIsPro]);
 
   // When user searches, fetch full set for coverage; otherwise use default
   useEffect(() => {
     const hasSearch = (searchLocal || "").trim().length > 0;
-    setLimit(hasSearch ? 500 : (effectiveIsPro ? 200 : 50));
+    setLimit(hasSearch ? 500 : (effectiveIsPro ? DEFAULT_PRO_EDGE_LIMIT : 50));
   }, [searchLocal, effectiveIsPro]);
 
   // Debounce search updates to prefs
@@ -230,6 +233,7 @@ export default function EdgeFinderPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const FLASH_MS = 6000; // How long highlights stay visible
   const [lastKnownDataUpdatedAt, setLastKnownDataUpdatedAt] = useState<number | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Disable auto-refresh if user loses pro access
   useEffect(() => {
@@ -416,6 +420,29 @@ export default function EdgeFinderPage() {
   const hiddenEdgeCount = effectiveIsPro
     ? 0
     : Math.max(0, filteredOpportunities.length - FREE_EDGE_ROW_LIMIT);
+
+  useEffect(() => {
+    if (!effectiveIsPro) return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        if (isLoading || isFetching || isLoadingMore) return;
+        if (limit >= MAX_PRO_EDGE_LIMIT) return;
+
+        setLimit((prev) => Math.min(prev + EDGE_LIMIT_INCREMENT, MAX_PRO_EDGE_LIMIT));
+      },
+      {
+        rootMargin: "400px 0px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [effectiveIsPro, isLoading, isFetching, isLoadingMore, limit]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -821,16 +848,12 @@ export default function EdgeFinderPage() {
         </div>
       )}
 
-      {/* Load more button - pro only */}
-      {effectiveIsPro && limit < 500 && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => setLimit(500)}
-            className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-50"
-            disabled={isLoading || isFetching}
-          >
-            Load more results
-          </button>
+      {effectiveIsPro && limit < MAX_PRO_EDGE_LIMIT && (
+        <div ref={loadMoreSentinelRef} className="mt-4 flex justify-center py-3">
+          <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span>{isLoadingMore || isFetching ? "Loading more edges..." : "More edges load as you scroll"}</span>
+          </div>
         </div>
       )}
 
