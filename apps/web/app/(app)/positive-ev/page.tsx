@@ -49,7 +49,7 @@ import { useMultiEvModelStream } from "@/hooks/use-multi-ev-model-stream";
 import type { PositiveEVOpportunity, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
-import { americanToImpliedProb, impliedProbToAmerican } from "@/lib/ev/devig";
+import { americanToImpliedProb, impliedProbToAmerican, calculateMultiEV } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
@@ -385,6 +385,47 @@ function getBookFallbackUrl(bookId?: string): string | undefined {
   if (!base) return undefined;
   if (sb.requiresState && base.includes("{state}")) return base.replace(/\{state\}/g, "nj");
   return base;
+}
+
+function remapOpportunityToSelectedBook(
+  opp: PositiveEVOpportunity,
+  selectedBooks: string[],
+): PositiveEVOpportunity | null {
+  if (selectedBooks.length === 0) return opp;
+
+  const selectedSet = new Set(selectedBooks.map((book) => normalizeSportsbookId(book)));
+  const candidateBooks = opp.allBooks.filter((book) => selectedSet.has(normalizeSportsbookId(book.bookId)));
+  if (candidateBooks.length === 0) return null;
+
+  const calcSide = opp.side === "under" || opp.side === "no" ? "under" : "over";
+  const rankedCandidates = candidateBooks
+    .map((book) => ({
+      book,
+      evCalculations: calculateMultiEV(opp.devigResults, book, calcSide),
+    }))
+    .filter((candidate) => candidate.evCalculations.evWorst > 0)
+    .sort((a, b) => {
+      const evDiff = b.evCalculations.evWorst - a.evCalculations.evWorst;
+      if (evDiff !== 0) return evDiff;
+      return b.book.priceDecimal - a.book.priceDecimal;
+    });
+
+  if (rankedCandidates.length === 0) return null;
+
+  const bestCandidate = rankedCandidates[0];
+  if (normalizeSportsbookId(opp.book.bookId) === normalizeSportsbookId(bestCandidate.book.bookId)) {
+    return opp;
+  }
+
+  return {
+    ...opp,
+    book: {
+      ...bestCandidate.book,
+      evPercent: bestCandidate.evCalculations.evWorst,
+      isSharpRef: false,
+    },
+    evCalculations: bestCandidate.evCalculations,
+  };
 }
 
 export default function PositiveEVPage() {
@@ -750,14 +791,12 @@ export default function PositiveEVPage() {
       filtered = filtered.filter((opp) => !isHidden(opp.id));
     }
     
-    // Filter by selected books (if any books are selected, only show those)
-    // Note: empty selectedBooks array means "show all books"
+    // If books are selected, surface the best selected book within each row
+    // instead of dropping the row when the current best book is deselected.
     if (savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0) {
-      filtered = filtered.filter((opp) => {
-        const bookId = opp.book?.bookId || "";
-        const normalizedBook = normalizeSportsbookId(bookId);
-        return savedFilters.selectedBooks.includes(normalizedBook);
-      });
+      filtered = filtered
+        .map((opp) => remapOpportunityToSelectedBook(opp, savedFilters.selectedBooks))
+        .filter((opp): opp is PositiveEVOpportunity => opp !== null);
     }
     
     // Min liquidity filter - filter out opportunities where best book's max stake is below threshold
@@ -1313,8 +1352,11 @@ export default function PositiveEVPage() {
         sportsbookCounts={(() => {
           const counts: Record<string, number> = {};
           data.forEach((opp) => {
-            const bookId = opp.book.bookId;
-            counts[bookId] = (counts[bookId] || 0) + 1;
+            opp.allBooks.forEach((book) => {
+              if ((book.evPercent ?? Number.NEGATIVE_INFINITY) <= 0) return;
+              const normalizedBookId = normalizeSportsbookId(book.bookId);
+              counts[normalizedBookId] = (counts[normalizedBookId] || 0) + 1;
+            });
           });
           return counts;
         })()}

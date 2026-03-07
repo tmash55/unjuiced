@@ -20,6 +20,7 @@ import {
   type Sport,
   DEFAULT_FILTERS,
   parseOpportunity,
+  formatAmericanOdds,
 } from "@/lib/types/opportunities";
 import { normalizeSportsbookId, getSportsbookById } from "@/lib/data/sportsbooks";
 import { DEFAULT_FILTER_COLOR, type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
@@ -637,8 +638,70 @@ function applyGlobalFilters(
   }
   const selectedBooks = toStringArray(prefs.selectedBooks as unknown);
   const selectedMarkets = toStringArray(prefs.selectedMarkets as unknown);
-  
-  return opportunities.filter((opp) => {
+
+  const remapOpportunityForBookExclusions = (opp: Opportunity): Opportunity | null => {
+    if (selectedBooks.length === 0) return opp;
+
+    const eligibleBooks = (opp.allBooks || [])
+      .filter((book) => !selectedBooks.includes(normalizeSportsbookId(book.book)))
+      .sort((a, b) => {
+        const decimalDiff = b.decimal - a.decimal;
+        if (decimalDiff !== 0) return decimalDiff;
+        return b.price - a.price;
+      });
+
+    const bestEligibleBook = eligibleBooks[0];
+    if (!bestEligibleBook) return null;
+
+    const sharpDecimal = opp.sharpDecimal;
+    const edge = sharpDecimal != null ? bestEligibleBook.decimal - sharpDecimal : null;
+    const edgePct =
+      sharpDecimal != null && sharpDecimal > 0
+        ? ((bestEligibleBook.decimal / sharpDecimal) - 1) * 100
+        : null;
+
+    if (edgePct == null || edgePct <= 0) return null;
+
+    if (normalizeSportsbookId(bestEligibleBook.book) === normalizeSportsbookId(opp.bestBook)) {
+      return opp;
+    }
+
+    const bestImplied = bestEligibleBook.decimal > 0 ? 1 / bestEligibleBook.decimal : null;
+    const trueProbability = opp.trueProbability;
+    const ev = trueProbability != null ? (trueProbability * bestEligibleBook.decimal) - 1 : null;
+    const evPct = ev != null ? ev * 100 : null;
+    const impliedEdge =
+      trueProbability != null && bestImplied != null ? trueProbability - bestImplied : null;
+    const kellyFraction =
+      ev != null && ev > 0 && trueProbability != null && bestEligibleBook.decimal > 1
+        ? Math.max(
+            0,
+            (((bestEligibleBook.decimal - 1) * trueProbability) - (1 - trueProbability)) /
+              (bestEligibleBook.decimal - 1),
+          )
+        : null;
+
+    return {
+      ...opp,
+      bestBook: bestEligibleBook.book,
+      bestPrice: formatAmericanOdds(bestEligibleBook.price),
+      bestDecimal: bestEligibleBook.decimal,
+      bestLink: bestEligibleBook.link ?? null,
+      bestMobileLink: bestEligibleBook.mobileLink ?? null,
+      bestImplied,
+      edge,
+      edgePct,
+      impliedEdge,
+      ev,
+      evPct,
+      kellyFraction,
+    };
+  };
+
+  return opportunities
+    .map(remapOpportunityForBookExclusions)
+    .filter((opp): opp is Opportunity => opp !== null)
+    .filter((opp) => {
     // HYBRID: Sport filter (client-side for preset mode)
     // Only filter if user has selected specific leagues
     if (!isCustomMode && selectedSports.size > 0) {
@@ -682,22 +745,6 @@ function applyGlobalFilters(
         (opp.awayTeam || "").toLowerCase().includes(q) ||
         (opp.market || "").toLowerCase().includes(q);
       if (!matches) return false;
-    }
-
-    // Book exclusions (selectedBooks contains EXCLUDED books)
-    // Only filter out if ALL books with the best odds are excluded
-    if (selectedBooks.length > 0) {
-      // Get all books that have the best (same) odds
-      const booksWithBestOdds = (opp.allBooks || []).filter(b => b.decimal === opp.bestDecimal);
-      
-      // Check if at least one book with best odds is NOT excluded
-      const hasSelectedBookWithBestOdds = booksWithBestOdds.some(b => {
-        const normalizedBook = normalizeSportsbookId(b.book);
-        return !selectedBooks.includes(normalizedBook);
-      });
-      
-      // If all books with best odds are excluded, filter out this opportunity
-      if (!hasSelectedBookWithBestOdds) return false;
     }
 
     // College player props filter
