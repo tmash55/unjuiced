@@ -431,6 +431,46 @@ function applyClientFilters(
   prefs: PositiveEVPrefs
 ): PositiveEVOpportunity[] {
   let filtered = opportunities;
+
+  const remapOpportunityToSelectedBook = (
+    opp: PositiveEVOpportunity,
+    selectedBooks: string[],
+  ): PositiveEVOpportunity | null => {
+    if (selectedBooks.length === 0) return opp;
+
+    const selectedSet = new Set(selectedBooks.map((book) => normalizeSportsbookId(book)));
+    const candidateBooks = (opp.allBooks || [])
+      .filter((book) => selectedSet.has(normalizeSportsbookId(book.bookId)))
+      .filter((book) => (book.evPercent ?? Number.NEGATIVE_INFINITY) > 0)
+      .sort((a, b) => {
+        const evDiff = (b.evPercent ?? Number.NEGATIVE_INFINITY) - (a.evPercent ?? Number.NEGATIVE_INFINITY);
+        if (evDiff !== 0) return evDiff;
+        return b.priceDecimal - a.priceDecimal;
+      });
+
+    const bestCandidate = candidateBooks[0];
+    if (!bestCandidate) return null;
+
+    if (normalizeSportsbookId(opp.book?.bookId || "") === normalizeSportsbookId(bestCandidate.bookId)) {
+      return opp;
+    }
+
+    const selectedEv = bestCandidate.evPercent ?? 0;
+    return {
+      ...opp,
+      book: {
+        ...bestCandidate,
+        evPercent: selectedEv,
+        isSharpRef: false,
+      },
+      evCalculations: {
+        ...opp.evCalculations,
+        evWorst: selectedEv,
+        evBest: selectedEv,
+        evDisplay: selectedEv,
+      },
+    };
+  };
   
   // Search filter
   if (prefs.searchQuery && prefs.searchQuery.trim()) {
@@ -450,15 +490,12 @@ function applyClientFilters(
     });
   }
   
-  // Book exclusions (selectedBooks contains EXCLUDED books for +EV)
-  // Actually for +EV, selectedBooks might be "show only" - check context
-  // For now, assume it's an inclusion filter if set
+  // Books are a "show only" filter for +EV. Promote the best selected book
+  // within the row instead of dropping the row when the top book differs.
   if (prefs.selectedBooks && prefs.selectedBooks.length > 0) {
-    filtered = filtered.filter((opp) => {
-      const bookId = opp.book?.bookId || "";
-      const normalizedBook = normalizeSportsbookId(bookId);
-      return prefs.selectedBooks.includes(normalizedBook);
-    });
+    filtered = filtered
+      .map((opp) => remapOpportunityToSelectedBook(opp, prefs.selectedBooks))
+      .filter((opp): opp is PositiveEVOpportunity => opp !== null);
   }
 
   // Market filter (supports both composite and plain market keys)
