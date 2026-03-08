@@ -11,6 +11,7 @@ import { usePlayerHitRates } from "@/src/hooks/use-player-hit-rates";
 import { usePlayerBoxScores } from "@/src/hooks/use-player-box-scores";
 import { usePlayerGamesWithInjuries } from "@/src/hooks/use-player-games-with-injuries";
 import { usePlayersOutForFilter, type PlayerOutInfo } from "@/src/hooks/use-players-out-for-filter";
+import { useTeamRoster } from "@/src/hooks/use-team-roster";
 import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
 import { useDvpRankings } from "@/src/hooks/use-dvp-rankings";
 import { usePlayTypeMatchup } from "@/src/hooks/use-play-type-matchup";
@@ -88,6 +89,20 @@ export default function PlayerProfileScreen() {
   const playerInfo = boxData?.player ?? null;
   const seasonSummary = boxData?.seasonSummary ?? null;
   const isRefreshing = hrRefetching || bsRefetching;
+
+  /* ─── Team roster for current injury statuses ─── */
+  const { players: rosterPlayers } = useTeamRoster({
+    teamId: playerInfo?.teamId ?? null,
+    enabled: playerInfo?.teamId != null,
+  });
+
+  const rosterInjuryMap = useMemo(() => {
+    const map = new Map<number, { status: string | null; notes: string | null }>();
+    for (const p of rosterPlayers) {
+      map.set(p.playerId, { status: p.injuryStatus, notes: p.injuryNotes });
+    }
+    return map;
+  }, [rosterPlayers]);
 
   /* ─── Derived state ─── */
 
@@ -275,7 +290,7 @@ export default function PlayerProfileScreen() {
           <LinearGradient
             colors={[
               `${primaryColor}30`,
-              secondaryColor ? `${secondaryColor}18` : `${primaryColor}10`,
+              `${primaryColor}18`,
               `${brandColors.appBackground}F0`,
               brandColors.appBackground
             ]}
@@ -443,6 +458,7 @@ export default function PlayerProfileScreen() {
                 playerInfo={playerInfo}
                 teammatesOutByGame={teammatesOutByGame}
                 teammateSeasonStats={teammateSeasonStats}
+                rosterInjuryMap={rosterInjuryMap}
                 dvpRankByTeam={dvpRankByTeam}
                 topPlayType={topPlayType}
                 lineHitRatesForSelected={lineHitRatesForSelected}

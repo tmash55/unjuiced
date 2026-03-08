@@ -98,20 +98,22 @@ export function streakColor(streak: number): string {
 export function injuryBorderColor(reason: string | null): string {
   if (!reason) return "rgba(255,255,255,0.08)";
   const r = reason.toLowerCase();
-  if (r === "out" || r.includes("out")) return "#EF4444";          // red
+  if (r === "out" || r.includes("out") || r.includes("injury") || r.includes("illness")) return "#EF4444"; // red
   if (r === "doubtful" || r.includes("doubtful")) return "#F97316"; // orange
-  if (r === "questionable" || r.includes("questionable")) return "#EAB308"; // yellow
+  if (r === "questionable" || r.includes("questionable") || r === "gtd" || r.includes("game time")) return "#EAB308"; // yellow
   if (r === "probable" || r.includes("probable")) return "#6B7280"; // gray
-  return "#EF4444"; // default to red for unknown injury status
+  if (r === "inactive" || r === "dnp" || r.startsWith("dnd") || r.includes("rest")) return "#6B7280"; // gray for non-injury absences
+  return "#6B7280"; // default to gray for unknown status
 }
 
 export function injuryBgColor(reason: string | null): string {
   if (!reason) return "transparent";
   const r = reason.toLowerCase();
-  if (r === "out" || r.includes("out")) return "rgba(239, 68, 68, 0.08)";
+  if (r === "out" || r.includes("out") || r.includes("injury") || r.includes("illness")) return "rgba(239, 68, 68, 0.08)";
   if (r === "doubtful" || r.includes("doubtful")) return "rgba(249, 115, 22, 0.08)";
-  if (r === "questionable" || r.includes("questionable")) return "rgba(234, 179, 8, 0.08)";
-  return "rgba(239, 68, 68, 0.08)";
+  if (r === "questionable" || r.includes("questionable") || r === "gtd" || r.includes("game time")) return "rgba(234, 179, 8, 0.08)";
+  if (r === "inactive" || r === "dnp" || r.startsWith("dnd") || r.includes("rest")) return "rgba(107, 114, 128, 0.08)";
+  return "rgba(107, 114, 128, 0.08)"; // default to gray
 }
 
 /* ─── Helpers ─── */

@@ -238,6 +238,129 @@ export interface PositiveEVResponse {
   };
 }
 
+export type OpportunitySport =
+  | "nba"
+  | "nfl"
+  | "nhl"
+  | "ncaaf"
+  | "ncaab"
+  | "mlb"
+  | "ncaabaseball"
+  | "wnba"
+  | "soccer_epl"
+  | "soccer_laliga"
+  | "soccer_mls"
+  | "soccer_ucl"
+  | "soccer_uel"
+  | "tennis_atp"
+  | "tennis_challenger"
+  | "tennis_itf_men"
+  | "tennis_itf_women"
+  | "tennis_utr_men"
+  | "tennis_utr_women"
+  | "tennis_wta"
+  | "ufc";
+
+export type OpportunitySide = "over" | "under" | "yes" | "no";
+export type OpportunityDevigMethod = "proper" | "estimated";
+export type OpportunityDevigSource = "sharp_book" | "sharp_blend" | "market_average";
+
+export interface OpportunityBookOdds {
+  book: string;
+  price: number;
+  priceFormatted: string;
+  decimal: number;
+  link: string | null;
+  mobileLink: string | null;
+  sgp: string | null;
+  limits: BookLimits | null;
+  includedInAverage?: boolean;
+  averageExclusionReason?: string | null;
+  oddId?: string;
+}
+
+export interface OpportunityMarketCoverage {
+  nBooksOver: number;
+  nBooksUnder: number;
+  twoWayDevigReady: boolean;
+}
+
+export interface OpportunityDevigInfo {
+  source: OpportunityDevigSource;
+  aggregation: "single" | "mean" | "weighted";
+  overBooks: string[];
+  underBooks: string[];
+}
+
+export interface OpportunityOppositeSide {
+  side: OpportunitySide;
+  sharpPrice: string | null;
+  sharpDecimal: number | null;
+  bestBook: string | null;
+  bestPrice: string | null;
+  bestDecimal: number | null;
+  allBooks: OpportunityBookOdds[];
+}
+
+export interface Opportunity {
+  id: string;
+  sport: OpportunitySport;
+  eventId: string;
+  player: string;
+  playerId: string | null;
+  team: string | null;
+  position: string | null;
+  market: string;
+  marketDisplay: string;
+  line: number;
+  side: OpportunitySide;
+  homeTeam: string;
+  awayTeam: string;
+  gameStart: string;
+  timestamp: number;
+  bestBook: string;
+  bestPrice: string;
+  bestDecimal: number;
+  bestLink: string | null;
+  bestMobileLink: string | null;
+  nBooks: number;
+  allBooks: OpportunityBookOdds[];
+  sharpPrice: string | null;
+  sharpDecimal: number | null;
+  sharpBooks: string[];
+  blendComplete: boolean;
+  blendWeight: number;
+  avgBookCount: number;
+  edge: number | null;
+  edgePct: number | null;
+  bestImplied: number | null;
+  sharpImplied: number | null;
+  trueProbability: number | null;
+  fairDecimal: number | null;
+  fairAmerican: string | null;
+  impliedEdge: number | null;
+  ev: number | null;
+  evPct: number | null;
+  kellyFraction: number | null;
+  devigMethod: OpportunityDevigMethod | null;
+  overround: number | null;
+  marketCoverage: OpportunityMarketCoverage | null;
+  devigInfo: OpportunityDevigInfo | null;
+  oppositeSide: OpportunityOppositeSide | null;
+  filterId: string | null;
+  filterName: string | null;
+  filterIcon: string | null;
+  filterColor?: string | null;
+}
+
+export interface OpportunitiesResponse {
+  opportunities: Opportunity[];
+  count: number;
+  totalScanned: number;
+  totalAfterFilters: number;
+  timingMs: number;
+}
+
 export interface SharpPresetListItem {
   id: string;
   name: string;
@@ -301,6 +424,16 @@ export interface HitRateProfileV2 {
     depth_chart_pos?: string | null;
     jersey_number?: number | null;
   } | null;
+  ev_data?: {
+    ev_pct: number;
+    fair_odds: number;
+    fair_prob: number;
+    sharp_over: number;
+    sharp_under: number;
+    best_ev_book: string;
+    best_ev_odds: number;
+    edge_class: "strong" | "moderate" | "slim" | "neutral" | "negative";
+  } | null;
 }
 
 export type HitRateSortField =
@@ -314,7 +447,9 @@ export type HitRateSortField =
   | "l20Pct"
   | "seasonPct"
   | "h2hPct"
-  | "matchupRank";
+  | "matchupRank"
+  | "edge"
+  | "ev";
 
 export interface HitRatesV2Meta {
   date: string;

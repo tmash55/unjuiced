@@ -504,8 +504,8 @@ function evRowToOpportunity(
       price: b.am,
       priceDecimal: b.dec,
       link: b.link ?? null,
-      mobileLink: null,
-      sgp: null,
+      mobileLink: b.mobile_link ?? null,
+      sgp: b.sgp ?? null,
       limits: b.limits ?? null,
       evPercent: b.ev_pct ?? undefined,
       isSharpRef: b.is_sharp_ref ?? false,
@@ -516,9 +516,9 @@ function evRowToOpportunity(
       bookName: normalizeBookIdForFrontend(b.id ?? ""),
       price: b.am,
       priceDecimal: b.dec,
-      link: null,
-      mobileLink: null,
-      sgp: null,
+      link: b.link ?? null,
+      mobileLink: b.mobile_link ?? null,
+      sgp: b.sgp ?? null,
       limits: b.limits ?? null,
     })),
 
@@ -550,7 +550,7 @@ function redevigWithCustomSharp(
 
   // Find the custom sharp book's odds on both sides
   // all_books has this side's books, opp_books has the opposite side
-  const allBooks: Array<{ id: string; am: number; dec: number; ev_pct?: number; is_sharp_ref?: boolean; link?: string | null; limits?: { max: number } | null }> = row.ev_data?.all_books ?? [];
+  const allBooks: Array<{ id: string; am: number; dec: number; ev_pct?: number; is_sharp_ref?: boolean; link?: string | null; mobile_link?: string | null; limits?: { max: number } | null }> = row.ev_data?.all_books ?? [];
   const oppBooks: Array<{ id: string; am: number; dec: number }> = row.ev_data?.opp_books ?? [];
 
   // Build sharp odds from custom books (weighted blend if multiple)
@@ -655,7 +655,7 @@ function redevigWithCustomSharp(
       id: bestBook.id,
       odds: { am: bestBook.am, dec: bestBook.dec, ts: row.book?.odds?.ts },
       link: bestBook.link ?? null,
-      mobile_link: null,
+      mobile_link: bestBook.mobile_link ?? null,
       sgp: null,
       limits: bestBook.limits ?? null,
     },

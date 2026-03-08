@@ -5,6 +5,9 @@ import type {
   DevigMethod,
   EVMode,
   GetSharpPresetsResponse,
+  Opportunity,
+  OpportunityDevigInfo,
+  OpportunitiesResponse,
   PlayerBoxScoresResponse,
   HitRateSortField,
   HitRatesV2Response,
@@ -37,11 +40,30 @@ export interface GetPositiveEVOptions {
   books?: string[];
   sharpPreset?: SharpPreset;
   devigMethods?: DevigMethod[];
+  marketType?: "player" | "game" | "all";
   mode?: EVMode;
   minEV?: number;
   maxEV?: number;
   minBooksPerSide?: number;
   limit?: number;
+}
+
+export interface GetOpportunitiesOptions {
+  accessToken?: string;
+  sports?: string[];
+  markets?: string[];
+  preset?: string;
+  marketType?: "player" | "game" | "all";
+  minEdge?: number;
+  minEV?: number;
+  minOdds?: number;
+  maxOdds?: number;
+  minBooksPerSide?: number;
+  requireTwoWay?: boolean;
+  requireFullBlend?: boolean;
+  limit?: number;
+  sort?: "edge" | "ev";
+  marketLines?: Record<string, number[]>;
 }
 
 export interface GetSharpPresetsOptions {
@@ -60,6 +82,7 @@ export interface GetNbaHitRatesV2Options {
   sort?: HitRateSortField;
   sortDir?: "asc" | "desc";
   hasOdds?: boolean;
+  evFilter?: "positive" | "strong";
 }
 
 export interface HitRateOddsSelection {
@@ -112,6 +135,120 @@ export interface GetPlayerGamesWithInjuriesOptions {
   accessToken?: string;
   playerId: number;
   season?: string;
+}
+
+function formatAmericanOdds(price: number): string {
+  return price > 0 ? `+${price}` : String(price);
+}
+
+function parseOpportunity(raw: Record<string, unknown>): Opportunity {
+  const eventData = raw.event as Record<string, unknown> | null;
+  const allBooksRaw = Array.isArray(raw.all_books) ? (raw.all_books as Array<Record<string, unknown>>) : [];
+  const oppositeSideRaw = raw.opposite_side as Record<string, unknown> | null;
+
+  return {
+    id: `${String(raw.sport || "")}:${String(raw.event_id || "")}:${String(raw.player || "")}:${String(raw.market || "")}:${String(raw.line || "")}:${String(raw.side || "")}`,
+    sport: String(raw.sport || "nba") as Opportunity["sport"],
+    eventId: String(raw.event_id || ""),
+    player: String(raw.player || ""),
+    playerId: (raw.player_id as string) || null,
+    team: (raw.team as string) || null,
+    position: (raw.position as string) || null,
+    market: String(raw.market || ""),
+    marketDisplay: String(raw.market_display || raw.market || ""),
+    line: Number(raw.line || 0),
+    side: String(raw.side || "over") as Opportunity["side"],
+    homeTeam: (eventData?.home_team as string) || (raw.home_team as string) || "",
+    awayTeam: (eventData?.away_team as string) || (raw.away_team as string) || "",
+    gameStart: (eventData?.start_time as string) || (raw.game_start as string) || "",
+    timestamp: Number(raw.timestamp || 0),
+    bestBook: String(raw.best_book || ""),
+    bestPrice: String(raw.best_price || ""),
+    bestDecimal: Number(raw.best_decimal || 0),
+    bestLink: (raw.best_link as string) || null,
+    bestMobileLink: (raw.best_mobile_link as string) || null,
+    nBooks: Number(raw.n_books || 0),
+    allBooks: allBooksRaw.map((book) => ({
+      book: String(book.book || ""),
+      price: Number(book.price || 0),
+      priceFormatted: formatAmericanOdds(Number(book.price || 0)),
+      decimal: Number(book.decimal || 0),
+      link: (book.link as string) || null,
+      mobileLink: (book.mobile_link as string) || null,
+      sgp: (book.sgp as string) || null,
+      limits: (book.limits as { max: number } | null) || null,
+      includedInAverage: (book.included_in_average as boolean | undefined) ?? true,
+      averageExclusionReason: (book.average_exclusion_reason as string | null | undefined) ?? null,
+      oddId: (book.odd_id as string | undefined) || undefined,
+    })),
+    sharpPrice: (raw.sharp_price as string) || null,
+    sharpDecimal: raw.sharp_decimal == null ? null : Number(raw.sharp_decimal),
+    sharpBooks: Array.isArray(raw.sharp_books) ? (raw.sharp_books as string[]) : [],
+    blendComplete: Boolean(raw.blend_complete),
+    blendWeight: Number(raw.blend_weight_available || 0),
+    avgBookCount: Number(raw.avg_book_count || 0),
+    edge: raw.edge == null ? null : Number(raw.edge),
+    edgePct: raw.edge_pct == null ? null : Number(raw.edge_pct),
+    bestImplied: raw.best_implied == null ? null : Number(raw.best_implied),
+    sharpImplied: raw.sharp_implied == null ? null : Number(raw.sharp_implied),
+    trueProbability: raw.true_probability == null ? null : Number(raw.true_probability),
+    fairDecimal: raw.fair_decimal == null ? null : Number(raw.fair_decimal),
+    fairAmerican: (raw.fair_american as string) || null,
+    impliedEdge: raw.implied_edge == null ? null : Number(raw.implied_edge),
+    ev: raw.ev == null ? null : Number(raw.ev),
+    evPct: raw.ev_pct == null ? null : Number(raw.ev_pct),
+    kellyFraction: raw.kelly_fraction == null ? null : Number(raw.kelly_fraction),
+    devigMethod: (raw.devig_method as Opportunity["devigMethod"]) || null,
+    overround: raw.overround == null ? null : Number(raw.overround),
+    marketCoverage: raw.market_coverage
+      ? {
+          nBooksOver: Number((raw.market_coverage as Record<string, unknown>).n_books_over || 0),
+          nBooksUnder: Number((raw.market_coverage as Record<string, unknown>).n_books_under || 0),
+          twoWayDevigReady: Boolean((raw.market_coverage as Record<string, unknown>).two_way_devig_ready),
+        }
+      : null,
+    devigInfo: raw.devig_inputs
+      ? {
+          source: String((raw.devig_inputs as Record<string, unknown>).source || "market_average") as OpportunityDevigInfo["source"],
+          aggregation: String((raw.devig_inputs as Record<string, unknown>).aggregation || "single") as OpportunityDevigInfo["aggregation"],
+          overBooks: Array.isArray((raw.devig_inputs as Record<string, unknown>).over_books)
+            ? (((raw.devig_inputs as Record<string, unknown>).over_books as string[]) || [])
+            : [],
+          underBooks: Array.isArray((raw.devig_inputs as Record<string, unknown>).under_books)
+            ? (((raw.devig_inputs as Record<string, unknown>).under_books as string[]) || [])
+            : [],
+        }
+      : null,
+    oppositeSide: oppositeSideRaw
+      ? {
+          side: String(oppositeSideRaw.side || "under") as Opportunity["side"],
+          sharpPrice: (oppositeSideRaw.sharp_price as string) || null,
+          sharpDecimal: oppositeSideRaw.sharp_decimal == null ? null : Number(oppositeSideRaw.sharp_decimal),
+          bestBook: (oppositeSideRaw.best_book as string) || null,
+          bestPrice: (oppositeSideRaw.best_price as string) || null,
+          bestDecimal: oppositeSideRaw.best_decimal == null ? null : Number(oppositeSideRaw.best_decimal),
+          allBooks: Array.isArray(oppositeSideRaw.all_books)
+            ? (oppositeSideRaw.all_books as Array<Record<string, unknown>>).map((book) => ({
+                book: String(book.book || ""),
+                price: Number(book.price || 0),
+                priceFormatted: formatAmericanOdds(Number(book.price || 0)),
+                decimal: Number(book.decimal || 0),
+                link: (book.link as string) || null,
+                mobileLink: (book.mobile_link as string) || null,
+                sgp: (book.sgp as string) || null,
+                limits: (book.limits as { max: number } | null) || null,
+                includedInAverage: (book.included_in_average as boolean | undefined) ?? true,
+                averageExclusionReason: (book.average_exclusion_reason as string | null | undefined) ?? null,
+                oddId: (book.odd_id as string | undefined) || undefined,
+              }))
+            : [],
+        }
+      : null,
+    filterId: (raw.filter_id as string) || null,
+    filterName: (raw.filter_name as string) || null,
+    filterIcon: (raw.filter_icon as string) || null,
+    filterColor: (raw.filter_color as string) || null,
+  };
 }
 
 /* ── Play Type Matchup ── */
@@ -236,6 +373,42 @@ export interface TeamDefenseRanksResponse {
       };
     };
   };
+}
+
+/* ── Team Roster ── */
+
+export interface GetTeamRosterOptions {
+  accessToken?: string;
+  teamId: number;
+  season?: string;
+}
+
+export interface TeamRosterPlayer {
+  playerId: number;
+  name: string;
+  position: string;
+  jerseyNumber: number | null;
+  gamesPlayed: number;
+  avgMinutes: number;
+  avgPoints: number;
+  avgRebounds: number;
+  avgAssists: number;
+  avgPra: number;
+  avgThrees: number;
+  avgSteals: number;
+  avgBlocks: number;
+  avgUsage: number;
+  injuryStatus: string | null;
+  injuryNotes: string | null;
+}
+
+export interface TeamRosterResponse {
+  players: TeamRosterPlayer[];
+  teamId: number;
+  teamAbbr: string;
+  teamName: string;
+  playerCount: number;
+  season: string;
 }
 
 /* ── Player Correlations ── */
@@ -703,6 +876,54 @@ export interface GetTripleDoubleSheetOptions {
   accessToken?: string;
 }
 
+export interface DoubleDoubleBestPrice {
+  book: string;
+  price: number;
+  priceFormatted: string;
+  link: string | null;
+  mobileLink: string | null;
+  source?: string;
+  fromCache?: boolean;
+  stale?: boolean;
+}
+
+export interface DoubleDoubleSheetRow {
+  id: string;
+  playerId: string;
+  player: string;
+  team: string | null;
+  matchup: string;
+  eventId: string;
+  startTime: string;
+  sgp_pr: DoubleDoubleBestPrice | null;
+  sgp_pa: DoubleDoubleBestPrice | null;
+  dd: DoubleDoubleBestPrice | null;
+  allSgpPr: DoubleDoubleBestPrice[];
+  allSgpPa: DoubleDoubleBestPrice[];
+  allDd: DoubleDoubleBestPrice[];
+  hasAllThreeLegs: boolean;
+  booksWithPr: number;
+  booksWithPa: number;
+}
+
+export interface DoubleDoubleSheetData {
+  rows: DoubleDoubleSheetRow[];
+  generatedAt: number;
+  generatedAtIso: string;
+  meta: { sport: string; targetLine: number; candidateCount: number; rowCount: number; books: string[]; quoteStats: { totalRequests: number; vendorCalls: number; cacheHits: number; staleServed: number; errors: number; }; };
+}
+
+export interface DoubleDoubleSheetResponse {
+  data: DoubleDoubleSheetData | null;
+  source: "l1_cache" | "redis_cache" | "computed" | "empty";
+  timestamp: number;
+  message?: string;
+}
+
+export interface GetDoubleDoubleSheetOptions {
+  accessToken?: string;
+}
+
 export function createApiClient(options: ApiClientOptions) {
   const fetcher = options.fetcher ?? fetch;
   const baseUrl = options.baseUrl.trim().replace(/\/$/, "");
@@ -780,6 +1001,7 @@ export function createApiClient(options: ApiClientOptions) {
       if (requestOptions?.books?.length) params.set("books", requestOptions.books.join(","));
       if (requestOptions?.sharpPreset) params.set("sharpPreset", requestOptions.sharpPreset);
       if (requestOptions?.devigMethods?.length) params.set("devigMethods", requestOptions.devigMethods.join(","));
+      if (requestOptions?.marketType && requestOptions.marketType !== "all") params.set("marketType", requestOptions.marketType);
       if (requestOptions?.mode) params.set("mode", requestOptions.mode);
       if (requestOptions?.minEV != null) params.set("minEV", String(requestOptions.minEV));
       if (requestOptions?.maxEV != null) params.set("maxEV", String(requestOptions.maxEV));
@@ -801,6 +1023,55 @@ export function createApiClient(options: ApiClientOptions) {
 
       return (await response.json()) as PositiveEVResponse;
     },
+    async getOpportunities(requestOptions?: GetOpportunitiesOptions): Promise<OpportunitiesResponse> {
+      const headers: Record<string, string> = {};
+
+      if (requestOptions?.accessToken) {
+        headers.Authorization = `Bearer ${requestOptions.accessToken}`;
+      }
+
+      const params = new URLSearchParams();
+      if (requestOptions?.sports?.length) params.set("sports", requestOptions.sports.join(","));
+      if (requestOptions?.markets?.length) params.set("markets", requestOptions.markets.join(","));
+      if (requestOptions?.preset) params.set("preset", requestOptions.preset);
+      if (requestOptions?.marketType && requestOptions.marketType !== "all") params.set("marketType", requestOptions.marketType);
+      if (requestOptions?.minEdge != null) params.set("minEdge", String(requestOptions.minEdge));
+      if (requestOptions?.minEV != null) params.set("minEV", String(requestOptions.minEV));
+      if (requestOptions?.minOdds != null) params.set("minOdds", String(requestOptions.minOdds));
+      if (requestOptions?.maxOdds != null) params.set("maxOdds", String(requestOptions.maxOdds));
+      if (requestOptions?.minBooksPerSide != null) params.set("minBooksPerSide", String(requestOptions.minBooksPerSide));
+      if (requestOptions?.requireTwoWay) params.set("requireTwoWay", "true");
+      if (requestOptions?.requireFullBlend) params.set("requireFullBlend", "true");
+      if (requestOptions?.limit != null) params.set("limit", String(requestOptions.limit));
+      if (requestOptions?.sort) params.set("sort", requestOptions.sort);
+      if (requestOptions?.marketLines && Object.keys(requestOptions.marketLines).length > 0) {
+        params.set("marketLines", JSON.stringify(requestOptions.marketLines));
+      }
+
+      const query = params.toString();
+      const response = await fetcher(`${baseUrl}/api/v2/opportunities${query ? `?${query}` : ""}`, {
+        method: "GET",
+        credentials: requestOptions?.accessToken ? "omit" : "include",
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch opportunities: ${response.status}`);
+      }
+
+      const payload = (await response.json()) as Record<string, unknown>;
+      const rawOpportunities = Array.isArray(payload.opportunities)
+        ? (payload.opportunities as Array<Record<string, unknown>>)
+        : [];
+
+      return {
+        opportunities: rawOpportunities.map(parseOpportunity),
+        count: Number(payload.count || rawOpportunities.length || 0),
+        totalScanned: Number(payload.total_scanned || 0),
+        totalAfterFilters: Number(payload.total_after_filters || rawOpportunities.length || 0),
+        timingMs: Number(payload.timing_ms || 0),
+      };
+    },
     async getSharpPresets(requestOptions?: GetSharpPresetsOptions): Promise<GetSharpPresetsResponse> {
       const headers: Record<string, string> = {};
 
@@ -808,7 +1079,7 @@ export function createApiClient(options: ApiClientOptions) {
         headers.Authorization = `Bearer ${requestOptions.accessToken}`;
       }
 
-      const response = await fetcher(`${baseUrl}/api/v2/positive-ev/presets`, {
+      const response = await fetcher(`${baseUrl}/api/v2/presets`, {
         method: "GET",
         credentials: requestOptions?.accessToken ? "omit" : "include",
         headers
@@ -838,6 +1109,7 @@ export function createApiClient(options: ApiClientOptions) {
       if (requestOptions?.sort) params.set("sort", requestOptions.sort);
       if (requestOptions?.sortDir) params.set("sortDir", requestOptions.sortDir);
       if (requestOptions?.hasOdds != null) params.set("hasOdds", String(requestOptions.hasOdds));
+      if (requestOptions?.evFilter) params.set("evFilter", requestOptions.evFilter);
 
       const query = params.toString();
       const response = await fetcher(`${baseUrl}/api/nba/hit-rates/v2${query ? `?${query}` : ""}`, {
@@ -959,6 +1231,25 @@ export function createApiClient(options: ApiClientOptions) {
         throw new Error(`Failed to fetch team defense ranks: ${response.status}`);
       }
       return (await response.json()) as TeamDefenseRanksResponse;
+    },
+    async getTeamRoster(requestOptions: GetTeamRosterOptions): Promise<TeamRosterResponse> {
+      const headers: Record<string, string> = {};
+      if (requestOptions?.accessToken) {
+        headers.Authorization = `Bearer ${requestOptions.accessToken}`;
+      }
+      const params = new URLSearchParams();
+      params.set("teamId", String(requestOptions.teamId));
+      if (requestOptions?.season) params.set("season", requestOptions.season);
+      const query = params.toString();
+      const response = await fetcher(`${baseUrl}/api/nba/team-roster?${query}`, {
+        method: "GET",
+        credentials: requestOptions?.accessToken ? "omit" : "include",
+        headers
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch team roster: ${response.status}`);
+      }
+      return (await response.json()) as TeamRosterResponse;
     },
     async getPlayerCorrelations(requestOptions: GetPlayerCorrelationsOptions): Promise<PlayerCorrelationsData> {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -1126,6 +1417,21 @@ export function createApiClient(options: ApiClientOptions) {
         throw new Error(`Failed to fetch triple double sheet: ${response.status}`);
       }
       return (await response.json()) as TripleDoubleSheetResponse;
+    },
+    async getDoubleDoubleSheet(requestOptions?: GetDoubleDoubleSheetOptions): Promise<DoubleDoubleSheetResponse> {
+      const headers: Record<string, string> = {};
+      if (requestOptions?.accessToken) {
+        headers.Authorization = `Bearer ${requestOptions.accessToken}`;
+      }
+      const response = await fetcher(`${baseUrl}/api/dashboard/double-double-sheet`, {
+        method: "GET",
+        credentials: requestOptions?.accessToken ? "omit" : "include",
+        headers
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch double double sheet: ${response.status}`);
+      }
+      return (await response.json()) as DoubleDoubleSheetResponse;
     }
   };
 }

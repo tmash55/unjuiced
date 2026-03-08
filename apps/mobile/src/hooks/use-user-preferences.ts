@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/providers/auth-provider";
 
 type RawUserPreferences = {
+  preferred_sportsbooks?: string[] | null;
   arbitrage_selected_books?: string[] | null;
   arbitrage_min_arb?: number | null;
   arbitrage_max_arb?: number | null;
@@ -15,9 +16,20 @@ type RawUserPreferences = {
   positive_ev_min_ev?: number | null;
   positive_ev_max_ev?: number | null;
   positive_ev_min_books_per_side?: number | null;
+  best_odds_selected_sports?: string[] | null;
+  best_odds_selected_markets?: string[] | null;
+  best_odds_market_lines?: Record<string, number[]> | null;
+  best_odds_min_improvement?: number | null;
+  best_odds_max_odds?: number | null;
+  best_odds_min_odds?: number | null;
+  best_odds_comparison_mode?: "average" | "book" | "next_best" | null;
+  best_odds_comparison_book?: string | null;
+  ev_bankroll?: number | null;
+  ev_kelly_percent?: number | null;
 };
 
 export type UserPreferencesState = {
+  preferredSportsbooks: string[];
   arbitrageSelectedBooks: string[];
   arbitrageMinArb: number;
   arbitrageMaxArb: number;
@@ -28,9 +40,20 @@ export type UserPreferencesState = {
   positiveEvMinEv: number;
   positiveEvMaxEv?: number;
   positiveEvMinBooksPerSide: number;
+  bestOddsSelectedSports?: string[];
+  bestOddsSelectedMarkets: string[];
+  bestOddsMarketLines: Record<string, number[]>;
+  bestOddsMinImprovement: number;
+  bestOddsMaxOdds?: number;
+  bestOddsMinOdds?: number;
+  bestOddsComparisonMode: "average" | "book" | "next_best";
+  bestOddsComparisonBook?: string | null;
+  evBankroll: number;
+  evKellyPercent: number;
 };
 
 type PreferenceUpdates = Partial<{
+  preferred_sportsbooks: string[];
   arbitrage_selected_books: string[];
   arbitrage_min_arb: number;
   arbitrage_max_arb: number;
@@ -41,6 +64,16 @@ type PreferenceUpdates = Partial<{
   positive_ev_min_ev: number;
   positive_ev_max_ev: number | null;
   positive_ev_min_books_per_side: number;
+  best_odds_selected_sports: string[] | null;
+  best_odds_selected_markets: string[];
+  best_odds_market_lines: Record<string, number[]>;
+  best_odds_min_improvement: number;
+  best_odds_max_odds: number | null;
+  best_odds_min_odds: number | null;
+  best_odds_comparison_mode: "average" | "book" | "next_best";
+  best_odds_comparison_book: string | null;
+  ev_bankroll: number;
+  ev_kelly_percent: number;
 }>;
 
 const QUERY_KEY = ["user-preferences-mobile"];
@@ -55,6 +88,7 @@ function toArray(value: string[] | null | undefined, fallback: string[]): string
 
 function normalizePreferences(raw: RawUserPreferences | null | undefined): UserPreferencesState {
   return {
+    preferredSportsbooks: toArray(raw?.preferred_sportsbooks, []),
     arbitrageSelectedBooks: toArray(raw?.arbitrage_selected_books, []),
     arbitrageMinArb: toNumber(raw?.arbitrage_min_arb, 0),
     arbitrageMaxArb: toNumber(raw?.arbitrage_max_arb, 20),
@@ -67,11 +101,33 @@ function normalizePreferences(raw: RawUserPreferences | null | undefined): UserP
       typeof raw?.positive_ev_max_ev === "number" && Number.isFinite(raw.positive_ev_max_ev)
         ? raw.positive_ev_max_ev
         : undefined,
-    positiveEvMinBooksPerSide: toNumber(raw?.positive_ev_min_books_per_side, 2)
+    positiveEvMinBooksPerSide: toNumber(raw?.positive_ev_min_books_per_side, 2),
+    bestOddsSelectedSports:
+      raw?.best_odds_selected_sports !== null && raw?.best_odds_selected_sports !== undefined
+        ? toArray(raw.best_odds_selected_sports, ["nba", "nfl"])
+        : undefined,
+    bestOddsSelectedMarkets: toArray(raw?.best_odds_selected_markets, []),
+    bestOddsMarketLines: raw?.best_odds_market_lines && typeof raw.best_odds_market_lines === "object"
+      ? raw.best_odds_market_lines
+      : {},
+    bestOddsMinImprovement: toNumber(raw?.best_odds_min_improvement, 0),
+    bestOddsMaxOdds:
+      typeof raw?.best_odds_max_odds === "number" && Number.isFinite(raw.best_odds_max_odds)
+        ? raw.best_odds_max_odds
+        : undefined,
+    bestOddsMinOdds:
+      typeof raw?.best_odds_min_odds === "number" && Number.isFinite(raw.best_odds_min_odds)
+        ? raw.best_odds_min_odds
+        : undefined,
+    bestOddsComparisonMode: raw?.best_odds_comparison_mode ?? "average",
+    bestOddsComparisonBook: raw?.best_odds_comparison_book ?? null,
+    evBankroll: toNumber(raw?.ev_bankroll, 1000),
+    evKellyPercent: toNumber(raw?.ev_kelly_percent, 25),
   };
 }
 
 const SELECT_COLUMNS = [
+  "preferred_sportsbooks",
   "arbitrage_selected_books",
   "arbitrage_min_arb",
   "arbitrage_max_arb",
@@ -81,7 +137,17 @@ const SELECT_COLUMNS = [
   "positive_ev_sharp_preset",
   "positive_ev_min_ev",
   "positive_ev_max_ev",
-  "positive_ev_min_books_per_side"
+  "positive_ev_min_books_per_side",
+  "best_odds_selected_sports",
+  "best_odds_selected_markets",
+  "best_odds_market_lines",
+  "best_odds_min_improvement",
+  "best_odds_max_odds",
+  "best_odds_min_odds",
+  "best_odds_comparison_mode",
+  "best_odds_comparison_book",
+  "ev_bankroll",
+  "ev_kelly_percent"
 ].join(",");
 
 export function useUserPreferences() {

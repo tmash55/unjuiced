@@ -20,6 +20,20 @@ const TABS: Array<{ key: SheetTab; label: string }> = [
 export default function CheatSheetsScreen() {
   const [activeSheet, setActiveSheet] = useState<SheetTab>("hit-rates");
 
+  // Injury Impact filter state
+  const [injuryMarkets, setInjuryMarkets] = useState<string[]>(["player_points"]);
+  const [injuryDate, setInjuryDate] = useState<"today" | "tomorrow" | "all">("today");
+  const [injurySort, setInjurySort] = useState<"hitRate" | "boost" | "grade" | "odds">("hitRate");
+
+  // DVP filter state
+  const [dvpPosition, setDvpPosition] = useState("PG");
+  const [dvpStat, setDvpStat] = useState("pts");
+
+  // Matrix filter state
+  const [matrixMarket, setMatrixMarket] = useState("player_points");
+  const [matrixTimeWindow, setMatrixTimeWindow] = useState("last_10");
+  const [matrixDate, setMatrixDate] = useState<"today" | "tomorrow">("today");
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Tab bar */}
@@ -49,9 +63,9 @@ export default function CheatSheetsScreen() {
       {/* Content */}
       <View style={styles.content}>
         {activeSheet === "hit-rates" && <HitRatesSheet />}
-        {activeSheet === "injury" && <InjuryImpactSheet />}
-        {activeSheet === "dvp" && <DvpSheet />}
-        {activeSheet === "matrix" && <MatrixSheet />}
+        {activeSheet === "injury" && <InjuryImpactSheet selectedMarkets={injuryMarkets} dateFilter={injuryDate} sortBy={injurySort} />}
+        {activeSheet === "dvp" && <DvpSheet position={dvpPosition} selectedStat={dvpStat} />}
+        {activeSheet === "matrix" && <MatrixSheet market={matrixMarket} timeWindow={matrixTimeWindow} dateFilter={matrixDate} />}
         {activeSheet === "triple" && <TripleDoubleSheet />}
       </View>
     </SafeAreaView>

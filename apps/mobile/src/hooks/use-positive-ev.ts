@@ -1,13 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import type { EVMode, PositiveEVResponse, SharpPreset } from "@unjuiced/types";
+import type { DevigMethod, EVMode, PositiveEVResponse, SharpPreset } from "@unjuiced/types";
 import { api } from "@/src/lib/api";
 import { useAuth } from "@/src/providers/auth-provider";
+
+type MarketType = "player" | "game" | "all";
 
 type UsePositiveEVOptions = {
   sports?: string[];
   books?: string[];
   markets?: string[];
   sharpPreset?: SharpPreset;
+  devigMethods?: DevigMethod[];
+  marketType?: MarketType;
   mode?: EVMode;
   minEV?: number;
   maxEV?: number;
@@ -23,6 +27,8 @@ export function usePositiveEV(options?: UsePositiveEVOptions) {
   const books = options?.books ?? [];
   const markets = options?.markets ?? [];
   const sharpPreset = options?.sharpPreset ?? "pinnacle";
+  const devigMethods = options?.devigMethods;
+  const marketType = options?.marketType ?? "all";
   const mode = options?.mode ?? "pregame";
   const minEV = options?.minEV ?? 2;
   const maxEV = options?.maxEV;
@@ -39,6 +45,8 @@ export function usePositiveEV(options?: UsePositiveEVOptions) {
       books.join(","),
       markets.join(","),
       sharpPreset,
+      devigMethods?.join(",") ?? "",
+      marketType,
       mode,
       minEV,
       maxEV,
@@ -52,6 +60,8 @@ export function usePositiveEV(options?: UsePositiveEVOptions) {
         books,
         markets,
         sharpPreset,
+        devigMethods,
+        marketType,
         mode,
         minEV,
         maxEV,

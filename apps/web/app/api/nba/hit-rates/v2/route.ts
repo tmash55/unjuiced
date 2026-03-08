@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redis } from "@/lib/redis";
+import type { EVRow } from "@/lib/ev-schema";
 
 /**
  * Hit Rates API v2 - OPTIMIZED VERSION
@@ -71,10 +72,6 @@ function jsonWithHeaders(
 interface BestOddsData {
   best_book: string;
   best_price: number;
-  line: number;
-  side: string;
-  player_id: string;
-  player_name: string;
   book_count: number;
   updated_at: number;
 }
@@ -84,57 +81,101 @@ interface EventRedisData {
   start_time?: string;
 }
 
+/** Shape of hitrate:nba:v2 hash entries (canonical live odds source) */
+interface HitRateV2RedisEntry {
+  eid?: string;
+  mkt?: string;
+  primary_ln?: number;
+  player?: string;
+  live?: boolean;
+  best?: {
+    o?: { bk: string; price: number };
+    u?: { bk: string; price: number };
+  };
+  lines?: Array<{
+    ln: number;
+    books?: Record<string, { over?: { price: number | string }; under?: { price: number | string } }>;
+    best?: {
+      over?: { bk: string; price: number };
+      under?: { bk: string; price: number };
+    };
+  }>;
+  ts?: number;
+}
+
 // =============================================================================
 // REDIS BEST ODDS HELPERS
 // =============================================================================
 
+const HITRATE_V2_HASH = "hitrate:nba:v2";
+
 /**
- * Batch fetch best odds from Redis for all rows with valid keys
+ * Batch fetch best odds from the canonical hitrate:nba:v2 Redis hash.
+ * This is the same data source the useHitRateOdds hook reads — single source of truth.
  */
 async function fetchBestOddsForRows(
-  rows: Array<{ event_id?: string; market?: string; sel_key?: string }>
+  rows: Array<{ event_id?: string; market?: string; sel_key?: string; line?: number }>
 ): Promise<Map<string, BestOddsData | null>> {
   const result = new Map<string, BestOddsData | null>();
-  
-  // Filter rows that have all required fields for Redis lookup
-  const validRows = rows.filter(r => r.event_id && r.market && r.sel_key);
-  
-  if (validRows.length === 0) {
-    return result;
-  }
-  
-  // Build Redis keys
-  const keys = validRows.map(r => `bestodds:nba:${r.event_id}:${r.market}:${r.sel_key}`);
-  
+
+  const validRows = rows.filter(r => r.sel_key);
+  if (validRows.length === 0) return result;
+
+  const selKeys = validRows.map(r => r.sel_key!);
+
   try {
-    // Batch fetch all keys in one round trip
-    const values = await redis.mget<(BestOddsData | null)[]>(...keys);
-    
-    // Map results back to composite keys for easy lookup
+    const rawValues = await redis.hmget(HITRATE_V2_HASH, ...selKeys);
+    const values: (string | HitRateV2RedisEntry | null)[] = Array.isArray(rawValues)
+      ? rawValues
+      : selKeys.map(k => (rawValues as Record<string, unknown>)?.[k] as string | null ?? null);
+
     validRows.forEach((row, i) => {
       const compositeKey = `${row.event_id}:${row.market}:${row.sel_key}`;
-      const value = values[i];
-      
-      // Handle both string and object responses from Redis
-      if (value) {
-        if (typeof value === 'string') {
-          try {
-            result.set(compositeKey, JSON.parse(value));
-          } catch {
-            result.set(compositeKey, null);
-          }
-        } else {
-          result.set(compositeKey, value);
+      const raw = values[i];
+      if (!raw) { result.set(compositeKey, null); return; }
+
+      let entry: HitRateV2RedisEntry;
+      try {
+        entry = typeof raw === "string" ? JSON.parse(raw) : raw as HitRateV2RedisEntry;
+      } catch { result.set(compositeKey, null); return; }
+
+      // Try to find odds for the specific line first, then fall back to top-level best
+      let bestBook: string | null = null;
+      let bestPrice: number | null = null;
+      let bookCount = 0;
+
+      if (row.line != null && entry.lines) {
+        const matchingLine = entry.lines.find(l => l.ln === row.line);
+        if (matchingLine?.best?.over) {
+          bestBook = matchingLine.best.over.bk;
+          bestPrice = matchingLine.best.over.price;
         }
+        if (matchingLine?.books) {
+          bookCount = Object.keys(matchingLine.books).length;
+        }
+      }
+
+      // Fall back to top-level best
+      if (bestBook == null && entry.best?.o) {
+        bestBook = entry.best.o.bk;
+        bestPrice = entry.best.o.price;
+      }
+
+      if (bestBook && bestPrice != null) {
+        result.set(compositeKey, {
+          best_book: bestBook,
+          best_price: bestPrice,
+          book_count: bookCount,
+          updated_at: entry.ts ?? 0,
+        });
       } else {
         result.set(compositeKey, null);
       }
     });
   } catch (e) {
     console.error("[Hit Rates v2] Redis best odds fetch error:", e);
-    // Return empty map on error - gracefully degrade
   }
-  
+
   return result;
 }
 
@@ -185,10 +226,85 @@ async function fetchEventStartTimes(
   return result;
 }
 
+// =============================================================================
+// EV LOOKUP HELPERS
+// =============================================================================
+
+function americanFromProb(p: number): number {
+  if (p >= 0.5) return Math.round(-100 * p / (1 - p));
+  return Math.round(100 * (1 - p) / p);
+}
+
+/**
+ * Batch fetch EV data from Redis for NBA pinnacle preset.
+ * Key by "{eid}:{player_name_lower}:{market}:{line}" since the EVRow `ent`
+ * field uses odds-API player IDs (e.g. "pid:00-0038809") which differ from
+ * the NBA player IDs in hit rate profiles. Player name is the common link.
+ */
+async function fetchEvLookup(): Promise<Map<string, EVRow>> {
+  const evLookup = new Map<string, EVRow>();
+  try {
+    const evHash = await redis.hgetall("ev:nba:rows:pinnacle");
+    if (evHash) {
+      for (const [, json] of Object.entries(evHash)) {
+        try {
+          const row = (typeof json === "string" ? JSON.parse(json) : json) as EVRow;
+          if (row.side === "over") {
+            const playerName = (row.ev_data?.player ?? "").toLowerCase().trim();
+            if (!playerName) continue;
+            const key = `${row.eid}:${playerName}:${row.mkt}:${row.line}`;
+            const existing = evLookup.get(key);
+            if (!existing || row.rollup.worst_case > existing.rollup.worst_case) {
+              evLookup.set(key, row);
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.error("[Hit Rates v2] Redis EV fetch error:", e);
+  }
+  return evLookup;
+}
+
+function attachEvData(profile: any, evLookup: Map<string, EVRow>): void {
+  const playerName = (profile.player_name ?? "").toLowerCase().trim();
+  if (!playerName || !profile.event_id) {
+    profile.ev_data = null;
+    return;
+  }
+  const evKey = `${profile.event_id}:${playerName}:${profile.market}:${profile.line}`;
+  const evRow = evLookup.get(evKey) as any;
+  if (evRow && evRow.ev) {
+    const evPct = evRow.rollup.worst_case;
+    // Handle both type-definition shape (book: string, odds.am) and actual Redis shape
+    // (book: { id, odds: { am } }, devig.p_fair.power vs .pow)
+    const bookObj = evRow.book;
+    const bookId = typeof bookObj === "string" ? bookObj : bookObj?.id ?? "unknown";
+    const bookOddsAm = typeof bookObj === "object" && bookObj?.odds?.am != null
+      ? bookObj.odds.am
+      : evRow.odds?.am ?? 0;
+    const pFair = evRow.devig?.p_fair;
+    const fairProb = pFair?.power ?? pFair?.pow ?? 0.5;
+    profile.ev_data = {
+      ev_pct: evPct,
+      fair_odds: americanFromProb(fairProb),
+      fair_prob: fairProb,
+      sharp_over: evRow.devig.inputs.over_am,
+      sharp_under: evRow.devig.inputs.under_am,
+      best_ev_book: bookId,
+      best_ev_odds: bookOddsAm,
+      edge_class: evPct >= 8 ? "strong" : evPct >= 4 ? "moderate" : evPct >= 1 ? "slim" : evPct >= 0 ? "neutral" : "negative",
+    };
+  } else {
+    profile.ev_data = null;
+  }
+}
+
 // Valid sort fields for hit rates
 const VALID_SORT_FIELDS = [
-  "line", "l5Avg", "l10Avg", "seasonAvg", "streak", 
-  "l5Pct", "l10Pct", "l20Pct", "seasonPct", "h2hPct", "matchupRank"
+  "line", "l5Avg", "l10Avg", "seasonAvg", "streak",
+  "l5Pct", "l10Pct", "l20Pct", "seasonPct", "h2hPct", "matchupRank", "edge", "ev"
 ] as const;
 
 const QuerySchema = z.object({
@@ -209,6 +325,7 @@ const QuerySchema = z.object({
   sortDir: z.enum(["asc", "desc"]).optional(),
   skipCache: z.coerce.boolean().optional(),
   hasOdds: z.coerce.boolean().optional(), // Filter for profiles with odds
+  evFilter: z.enum(["positive", "strong"]).optional(),
 });
 
 const DEFAULT_LIMIT = 500; // Fetch more for client-side sorting
@@ -326,6 +443,8 @@ function transformProfile(row: any, bestOdds: BestOddsData | null, eventStartTim
       secondary_color: row.secondary_color,
       accent_color: null, // Not in table yet
     } : null,
+    // Secondary stat averages (for grey overlay bars: 3PA for 3PM, potential reb for REB, FGA for PTS)
+    secondary_l10_avg: row.secondary_l10_avg ?? null,
     // Matchup/DvP data (now pre-computed in table - no dvp_avg_allowed yet)
     matchup: row.dvp_rank ? {
       player_id: row.player_id,
@@ -358,18 +477,42 @@ function sortData(data: any[], sort: string, sortDir: "asc" | "desc"): any[] {
     "matchupRank": "dvp_rank",
   };
   
+  // EV sort: by ev_data.ev_pct, nulls to bottom
+  if (sort === "ev") {
+    return [...data].sort((a, b) => {
+      const aEv = a.ev_data?.ev_pct ?? -999;
+      const bEv = b.ev_data?.ev_pct ?? -999;
+      if (aEv === -999 && bEv === -999) return 0;
+      if (aEv === -999) return 1;
+      if (bEv === -999) return -1;
+      return (aEv - bEv) * multiplier;
+    });
+  }
+
+  // Edge is a computed field: last_10_avg - line
+  if (sort === "edge") {
+    return [...data].sort((a, b) => {
+      const aEdge = typeof a.last_10_avg === "number" && a.line != null ? a.last_10_avg - a.line : null;
+      const bEdge = typeof b.last_10_avg === "number" && b.line != null ? b.last_10_avg - b.line : null;
+      if (aEdge === null && bEdge === null) return 0;
+      if (aEdge === null) return 1;
+      if (bEdge === null) return -1;
+      return (aEdge - bEdge) * multiplier;
+    });
+  }
+
   const dbField = fieldMap[sort];
   if (!dbField) return data;
-  
+
   return [...data].sort((a, b) => {
     const aVal = a[dbField];
     const bVal = b[dbField];
-    
+
     // ALWAYS push nulls to the END of the list
     if (aVal === null && bVal === null) return 0;
     if (aVal === null) return 1;  // a goes after b
     if (bVal === null) return -1; // b goes after a
-    
+
     return (aVal - bVal) * multiplier;
   });
 }
@@ -427,6 +570,7 @@ export async function GET(request: NextRequest) {
     sortDir: url.searchParams.get("sortDir") ?? undefined,
     skipCache: url.searchParams.get("skipCache") ?? undefined,
     hasOdds: url.searchParams.get("hasOdds") ?? undefined,
+    evFilter: url.searchParams.get("evFilter") ?? undefined,
   });
 
   if (!query.success) {
@@ -449,6 +593,7 @@ export async function GET(request: NextRequest) {
     sortDir = "desc",
     skipCache = false,
     hasOdds = true, // Default to only profiles with odds
+    evFilter,
   } = query.data;
   
   // When no market specified, fetch ALL markets (client filters as needed)
@@ -522,40 +667,57 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // Fetch EV data from Redis (needed for EV sort/filter before pagination)
+    const evStartTime = Date.now();
+    const evLookup = await fetchEvLookup();
+    console.log(`[Hit Rates v2] EV lookup: ${evLookup.size} rows in ${Date.now() - evStartTime}ms`);
+
+    // Attach EV data to all rows (needed for sort/filter)
+    for (const row of allData) {
+      attachEvData(row, evLookup);
+    }
+
     // Apply client-side filters (for search/playerId which bypass cache)
     let filteredData = filterData(allData, search, undefined, playerId);
-    
+
     // Apply sorting
     filteredData = sortData(filteredData, sort, sortDir);
-    
+
     // Apply min hit rate filter if specified
     if (minHitRate) {
-      filteredData = filteredData.filter(row => 
+      filteredData = filteredData.filter(row =>
         row.last_10_pct !== null && row.last_10_pct >= minHitRate
       );
     }
-    
+
+    // Apply EV filter
+    if (evFilter === "positive") {
+      filteredData = filteredData.filter(row => row.ev_data?.ev_pct > 0);
+    } else if (evFilter === "strong") {
+      filteredData = filteredData.filter(row => row.ev_data?.ev_pct >= 8);
+    }
+
     // Apply pagination
     const paginatedData = filteredData.slice(offset, offset + limit);
-    
-    // Fetch live best odds from Redis for paginated rows
-    const bestOddsStartTime = Date.now();
-    const bestOddsMap = await fetchBestOddsForRows(paginatedData);
-    const bestOddsTime = Date.now() - bestOddsStartTime;
-    console.log(`[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${bestOddsTime}ms`);
 
-    // Fetch event start times from Redis for favorites/expiry workflows
-    const eventStartTimes = await fetchEventStartTimes(paginatedData);
-    
-    // Transform to frontend format with best odds merged
+    // Fetch live best odds and event start times from Redis in parallel
+    const bestOddsStartTime = Date.now();
+    const [bestOddsMap, eventStartTimes] = await Promise.all([
+      fetchBestOddsForRows(paginatedData),
+      fetchEventStartTimes(paginatedData),
+    ]);
+    console.log(`[Hit Rates v2] Best odds fetch: ${bestOddsMap.size} keys in ${Date.now() - bestOddsStartTime}ms`);
+
+    // Transform to frontend format with best odds merged (EV data already attached)
     const transformedData = paginatedData.map(row => {
-      // Build composite key for lookup
-      const compositeKey = row.event_id && row.market && row.sel_key 
-        ? `${row.event_id}:${row.market}:${row.sel_key}` 
+      const compositeKey = row.event_id && row.market && row.sel_key
+        ? `${row.event_id}:${row.market}:${row.sel_key}`
         : null;
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
       const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
-      return transformProfile(row, bestOdds, eventStartTime);
+      const profile = transformProfile(row, bestOdds, eventStartTime);
+      profile.ev_data = row.ev_data ?? null;
+      return profile;
     });
     
     // Get unique dates from response

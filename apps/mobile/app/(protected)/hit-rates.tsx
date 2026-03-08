@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import type { HitRateSortField, HitRateProfileV2 } from "@unjuiced/types";
 import { useHitRates } from "@/src/hooks/use-hit-rates";
 import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
+import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";
 import { getNbaTeamLogoUrl, getSportsbookLogoUrl } from "@/src/lib/logos";
 import { brandColors } from "@/src/theme/brand";
 import { streakColor } from "@/src/components/player/constants";
@@ -51,6 +52,7 @@ const SORT_OPTIONS: Array<{ field: HitRateSortField; label: string; short: strin
   { field: "l10Pct", label: "Last 10 Hit %", short: "Last 10" },
   { field: "l5Pct", label: "Last 5 Hit %", short: "Last 5" },
   { field: "seasonPct", label: "Season Hit %", short: "Season" },
+  { field: "edge", label: "Edge (Avg vs Line)", short: "Edge" },
   { field: "line", label: "Line", short: "Line" },
   { field: "matchupRank", label: "Matchup Rank (DvP)", short: "DvP" }
 ];
@@ -418,6 +420,7 @@ export default function HitRatesScreen() {
   });
 
   function toggleSort(field: HitRateSortField) {
+    triggerSelectionHaptic();
     if (field === sort) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
@@ -427,6 +430,7 @@ export default function HitRatesScreen() {
   }
 
   function resetFilters() {
+    triggerSelectionHaptic();
     setMarket("player_points");
     setHasOddsOnly(true);
     setSort("l10Pct");
@@ -437,6 +441,7 @@ export default function HitRatesScreen() {
   }
 
   function toggleGameFilter(gameKey: string) {
+    triggerSelectionHaptic();
     setSelectedGameKeys((curr) =>
       curr.includes(gameKey) ? curr.filter((k) => k !== gameKey) : [...curr, gameKey]
     );
@@ -462,12 +467,13 @@ export default function HitRatesScreen() {
           bestBook={bestBook}
           bestPrice={bestPrice}
           sortField={sort}
-          onPress={() =>
+          onPress={() => {
+            triggerLightImpactHaptic();
             router.push({
               pathname: "/player/[id]",
               params: { id: String(item.player_id), market: item.market }
-            })
-          }
+            });
+          }}
         />
       );
     },
@@ -483,7 +489,10 @@ export default function HitRatesScreen() {
       <View style={styles.titleRow}>
         <Text style={styles.pageTitle}>Hit Rates</Text>
         <Pressable
-          onPress={() => setAutoRefreshEnabled((c) => !c)}
+          onPress={() => {
+            triggerSelectionHaptic();
+            setAutoRefreshEnabled((c) => !c);
+          }}
           style={[styles.autoBtn, autoRefreshEnabled && styles.autoBtnActive]}
         >
           <Ionicons
@@ -511,7 +520,7 @@ export default function HitRatesScreen() {
           returnKeyType="search"
         />
         {searchText.length > 0 ? (
-          <Pressable onPress={() => setSearchText("")} hitSlop={8}>
+          <Pressable onPress={() => { triggerSelectionHaptic(); setSearchText(""); }} hitSlop={8}>
             <Ionicons name="close-circle" size={16} color={brandColors.textMuted} />
           </Pressable>
         ) : null}
@@ -524,7 +533,7 @@ export default function HitRatesScreen() {
           return (
             <Pressable
               key={opt.id}
-              onPress={() => setMarket(opt.id)}
+              onPress={() => { triggerSelectionHaptic(); setMarket(opt.id); }}
               style={[styles.marketPill, active && styles.marketPillActive]}
             >
               <Text style={[styles.marketPillText, active && styles.marketPillTextActive]}>{opt.short}</Text>
@@ -536,7 +545,7 @@ export default function HitRatesScreen() {
       {/* Filter pills row */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
         <Pressable
-          onPress={() => setActiveSheet("games")}
+          onPress={() => { triggerSelectionHaptic(); setActiveSheet("games"); }}
           style={[styles.filterPill, gamesFilterActive && styles.filterPillActive]}
         >
           <Text style={[styles.filterPillText, gamesFilterActive && styles.filterPillTextActive]}>
@@ -546,7 +555,7 @@ export default function HitRatesScreen() {
         </Pressable>
 
         <Pressable
-          onPress={() => setActiveSheet("minHit")}
+          onPress={() => { triggerSelectionHaptic(); setActiveSheet("minHit"); }}
           style={[styles.filterPill, minHitActive && styles.filterPillActive]}
         >
           <Text style={[styles.filterPillText, minHitActive && styles.filterPillTextActive]}>
@@ -556,7 +565,10 @@ export default function HitRatesScreen() {
         </Pressable>
 
         <Pressable
-          onPress={() => setHasOddsOnly((c) => !c)}
+          onPress={() => {
+            triggerSelectionHaptic();
+            setHasOddsOnly((c) => !c);
+          }}
           style={[styles.filterPill, hasOddsOnly && styles.filterPillActive]}
         >
           <Text style={[styles.filterPillText, hasOddsOnly && styles.filterPillTextActive]}>
@@ -606,7 +618,10 @@ export default function HitRatesScreen() {
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
         contentContainerStyle={styles.listContent}
-        onRefresh={() => void refetch()}
+        onRefresh={() => {
+          triggerSelectionHaptic();
+          void refetch();
+        }}
         refreshing={isRefetching}
         tintColor={brandColors.primary}
         showsVerticalScrollIndicator={false}
@@ -618,7 +633,7 @@ export default function HitRatesScreen() {
       {/* ─── Sticky Sort Bar (bottom, above tab bar) ─── */}
       <View style={styles.sortBar}>
         <Pressable
-          onPress={() => setActiveSheet("market")}
+          onPress={() => { triggerSelectionHaptic(); setActiveSheet("market"); }}
           style={styles.sortBarFilter}
         >
           <Ionicons name="options-outline" size={16} color={brandColors.textPrimary} />
@@ -652,12 +667,16 @@ export default function HitRatesScreen() {
         <View style={styles.sheetOptions}>
           {MARKET_OPTIONS.map((opt) => {
             const active = opt.id === market;
-            return (
-              <Pressable
-                key={opt.id}
-                onPress={() => { setMarket(opt.id); setActiveSheet(null); }}
-                style={[styles.sheetOption, active && styles.sheetOptionActive]}
-              >
+          return (
+            <Pressable
+              key={opt.id}
+              onPress={() => {
+                triggerSelectionHaptic();
+                setMarket(opt.id);
+                setActiveSheet(null);
+              }}
+              style={[styles.sheetOption, active && styles.sheetOptionActive]}
+            >
                 <Text style={[styles.sheetOptionText, active && styles.sheetOptionTextActive]}>
                   {opt.label}
                 </Text>
@@ -673,12 +692,16 @@ export default function HitRatesScreen() {
         <View style={styles.sheetOptions}>
           {MIN_HIT_OPTIONS.map((val) => {
             const active = minHitRate === val;
-            return (
-              <Pressable
-                key={`min-${val}`}
-                onPress={() => { setMinHitRate(val); setActiveSheet(null); }}
-                style={[styles.sheetOption, active && styles.sheetOptionActive]}
-              >
+          return (
+            <Pressable
+              key={`min-${val}`}
+              onPress={() => {
+                triggerSelectionHaptic();
+                setMinHitRate(val);
+                setActiveSheet(null);
+              }}
+              style={[styles.sheetOption, active && styles.sheetOptionActive]}
+            >
                 <Text style={[styles.sheetOptionText, active && styles.sheetOptionTextActive]}>
                   {val === 0 ? "No minimum" : `${val}%+`}
                 </Text>
@@ -693,7 +716,11 @@ export default function HitRatesScreen() {
       <BottomSheet visible={activeSheet === "games"} onClose={() => setActiveSheet(null)} title="Filter by Game">
         <View style={styles.sheetOptions}>
           <Pressable
-            onPress={() => { setSelectedGameKeys([]); setActiveSheet(null); }}
+            onPress={() => {
+              triggerSelectionHaptic();
+              setSelectedGameKeys([]);
+              setActiveSheet(null);
+            }}
             style={[styles.sheetOption, selectedGameKeys.length === 0 && styles.sheetOptionActive]}
           >
             <Text style={[styles.sheetOptionText, selectedGameKeys.length === 0 && styles.sheetOptionTextActive]}>

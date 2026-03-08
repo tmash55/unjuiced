@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/src/providers/auth-provider";
+import { triggerSelectionHaptic } from "@/src/lib/haptics";
 import { brandColors } from "@/src/theme/brand";
 
 function TabIcon({
@@ -24,9 +25,15 @@ function TabIcon({
 function CustomTabButton(props: any) {
   const { children, onPress, onLongPress, accessibilityState, style } = props;
   const focused = accessibilityState?.selected;
+
+  function handlePress() {
+    if (!focused) triggerSelectionHaptic();
+    onPress?.();
+  }
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       onLongPress={onLongPress}
       style={[
         style,
@@ -90,6 +97,7 @@ export default function ProtectedLayout() {
         name="today"
         options={{
           title: "Today",
+          headerShown: false,
           tabBarIcon: ({ focused }: { focused: boolean }) => (
             <TabIcon name={focused ? "calendar" : "calendar-outline"} focused={focused} />
           )
@@ -98,7 +106,7 @@ export default function ProtectedLayout() {
       <Tabs.Screen
         name="props"
         options={{
-          title: "Props",
+          title: "Research",
           headerShown: false,
           tabBarIcon: ({ focused }: { focused: boolean }) => (
             <TabIcon name={focused ? "stats-chart" : "stats-chart-outline"} focused={focused} />
@@ -116,6 +124,16 @@ export default function ProtectedLayout() {
         }}
       />
       <Tabs.Screen
+        name="games"
+        options={{
+          title: "Games",
+          headerShown: false,
+          tabBarIcon: ({ focused }: { focused: boolean }) => (
+            <TabIcon name={focused ? "pricetags" : "pricetags-outline"} focused={focused} />
+          )
+        }}
+      />
+      <Tabs.Screen
         name="my-slips"
         options={{
           title: "My Picks",
@@ -124,15 +142,7 @@ export default function ProtectedLayout() {
           )
         }}
       />
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: "Account",
-          tabBarIcon: ({ focused }: { focused: boolean }) => (
-            <TabIcon name={focused ? "person" : "person-outline"} focused={focused} />
-          )
-        }}
-      />
+      <Tabs.Screen name="account" options={{ href: null, title: "Account" }} />
       {/* Hidden routes for backward compatibility */}
       <Tabs.Screen name="hit-rates" options={{ href: null, title: "Hit Rates" }} />
       <Tabs.Screen name="positive-ev" options={{ href: null, title: "+EV" }} />

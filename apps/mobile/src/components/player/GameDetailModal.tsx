@@ -411,6 +411,14 @@ export function GameDetailModal({
                 </View>
               </View>
 
+              {/* ─── Potential Rebounds (rebounds market only) ─── */}
+              {chartMarket === "player_rebounds" && sg.potentialReb > 0 ? (
+                <View style={s.contextRow}>
+                  <Text style={s.contextLabel}>Reb Chances</Text>
+                  <Text style={s.contextVal}>{sg.potentialReb}</Text>
+                </View>
+              ) : null}
+
               {/* ─── Shooting Pills ─── */}
               {showShooting(chartMarket) ? (
                 <View style={s.shootingRow}>

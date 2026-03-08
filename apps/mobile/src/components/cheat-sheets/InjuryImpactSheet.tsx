@@ -1,10 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View
@@ -176,19 +175,28 @@ const Card = ({ row, onPress }: { row: InjuryImpactRow; onPress: () => void }) =
   );
 };
 
-export default function InjuryImpactSheet() {
+type Props = {
+  selectedMarkets: string[];
+  dateFilter: "today" | "tomorrow" | "all";
+  sortBy: "hitRate" | "boost" | "grade" | "odds";
+};
+
+export default function InjuryImpactSheet({ selectedMarkets, dateFilter, sortBy }: Props) {
   const router = useRouter();
   const { data: entitlements } = useEntitlements();
   const isFree = !entitlements || entitlements.plan === "free";
 
-  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(["player_points"]);
-  const [dateFilter, setDateFilter] = useState("today");
-  const [sortBy, setSortBy] = useState<SortKey>("hitRate");
-
-  const dates = dateFilter === "all" ? undefined : [dateFilter];
+  const markets = useMemo(
+    () => (isFree ? ["player_points"] : selectedMarkets),
+    [isFree, selectedMarkets]
+  );
+  const dates = useMemo(
+    () => (dateFilter === "all" ? undefined : [dateFilter]),
+    [dateFilter]
+  );
 
   const { data, isLoading, isRefetching, refetch } = useInjuryImpact({
-    markets: isFree ? ["player_points"] : selectedMarkets,
+    markets,
     dates
   });
 
@@ -211,11 +219,6 @@ export default function InjuryImpactSheet() {
     return sorted;
   }, [data?.rows, sortBy, isFree]);
 
-  const toggleMarket = (value: string) => {
-    if (isFree) return;
-    setSelectedMarkets([value]);
-  };
-
   const renderItem = useCallback(
     ({ item }: { item: InjuryImpactRow }) => (
       <Card
@@ -235,42 +238,6 @@ export default function InjuryImpactSheet() {
 
   const listHeader = (
     <View style={styles.listHeader}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>
-        {MARKETS.map((m) => {
-          const active = selectedMarkets.includes(m.value);
-          return (
-            <Pressable
-              key={m.value}
-              onPress={() => toggleMarket(m.value)}
-              style={[styles.pill, active && styles.pillActive, isFree && m.value !== "player_points" && styles.pillDisabled]}
-            >
-              <Text style={[styles.pillText, active && styles.pillTextActive]}>{m.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      <View style={styles.controlRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>
-          {DATE_OPTIONS.map((d) => {
-            const active = dateFilter === d.value;
-            return (
-              <Pressable key={d.value} onPress={() => !isFree && setDateFilter(d.value)} style={[styles.pill, active && styles.pillActive]}>
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>{d.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillScroll}>
-          {SORT_OPTIONS.map((s) => {
-            const active = sortBy === s.value;
-            return (
-              <Pressable key={s.value} onPress={() => setSortBy(s.value)} style={[styles.pill, active && styles.pillActive]}>
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>{s.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
       <View style={styles.countRow}>
         <Text style={styles.countText}>{rows.length} opportunities</Text>
         {isRefetching && <ActivityIndicator size="small" color={brandColors.primary} />}
@@ -318,18 +285,8 @@ export default function InjuryImpactSheet() {
 }
 
 const styles = StyleSheet.create({
-  listContent: { paddingHorizontal: 12, paddingBottom: 24 },
+  listContent: { paddingHorizontal: 12, paddingBottom: 80 },
   listHeader: { gap: 8, paddingTop: 4, paddingBottom: 4 },
-  pillScroll: { gap: 6, paddingRight: 8 },
-  controlRow: { flexDirection: "row", gap: 12 },
-  pill: {
-    flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 20, borderWidth: 1,
-    borderColor: brandColors.border, backgroundColor: brandColors.panelBackground, paddingHorizontal: 12, paddingVertical: 7
-  },
-  pillActive: { borderColor: brandColors.primary, backgroundColor: brandColors.primarySoft },
-  pillDisabled: { opacity: 0.4 },
-  pillText: { color: brandColors.textSecondary, fontSize: 12, fontWeight: "600" },
-  pillTextActive: { color: brandColors.primary },
   countRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 2 },
   countText: { color: brandColors.textMuted, fontSize: 12, fontWeight: "600" },
   card: {

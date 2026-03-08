@@ -28,6 +28,7 @@ interface ChartTabProps {
   playerInfo: any;
   teammatesOutByGame: Map<string, TeammateOut[]>;
   teammateSeasonStats?: Map<number, PlayerOutInfo>;
+  rosterInjuryMap?: Map<number, { status: string | null; notes: string | null }>;
   dvpRankByTeam?: Map<string, number>;
   topPlayType?: PlayTypeData | null;
   lineHitRatesForSelected: { l5: number | null; l10: number | null; l20: number | null; szn: number | null } | null;
@@ -44,7 +45,7 @@ interface ChartTabProps {
 
 export function ChartTab({
   profile, chartMarket, chartLine, selectedLine, allGames, seasonSummary,
-  playerInfo, teammatesOutByGame, teammateSeasonStats, dvpRankByTeam, topPlayType, lineHitRatesForSelected,
+  playerInfo, teammatesOutByGame, teammateSeasonStats, rosterInjuryMap, dvpRankByTeam, topPlayType, lineHitRatesForSelected,
   bsLoading, chartPeriod, onChartPeriodChange,
   bestOverPrice, oppAbbr, homeAway,
   filterH2H = false, onFilterH2HChange, onLineChange
@@ -126,7 +127,13 @@ export function ChartTab({
       gamesOutTotal: number | null;
     }[] = [];
 
+    // Build set of current roster player IDs to filter out traded players
+    const rosterPlayerIds = rosterInjuryMap?.size ? new Set(rosterInjuryMap.keys()) : null;
+
     for (const [pid, gameIds] of tmGameIds) {
+      // Skip players no longer on the current team roster
+      if (rosterPlayerIds && !rosterPlayerIds.has(pid)) continue;
+
       const info = tmInfo.get(pid)!;
       const matchingGames = allGames.filter(g => {
         const nid = String(g.gameId).replace(/^0+/, "");
@@ -138,13 +145,18 @@ export function ChartTab({
       const avgMin = matchingGames.reduce((sum, g) => sum + g.minutes, 0) / matchingGames.length;
       const hr = matchingGames.length >= 3 ? getHitRate(matchingGames, chartMarket, chartLine) : null;
       const szn = teammateSeasonStats?.get(pid);
+      // Use current roster injury status if available, fall back to game-day reason
+      const rosterEntry = rosterInjuryMap?.get(pid);
+      const displayReason = rosterEntry?.status && !["active", "available"].includes(rosterEntry.status.toLowerCase())
+        ? rosterEntry.status
+        : info.reason;
       results.push({
         info, count: matchingGames.length,
         avgStat, avgMin,
         statDiff: avgStat - overallAvg,
         minDiff: avgMin - overallMin,
         hitRate: hr,
-        reason: info.reason,
+        reason: displayReason,
         sznPts: szn?.avg_pts ?? null,
         sznReb: szn?.avg_reb ?? null,
         sznAst: szn?.avg_ast ?? null,
@@ -154,13 +166,14 @@ export function ChartTab({
 
     // Sort: injury status priority (OUT/Questionable first), then by teammate's own season avg pts desc
     const statusPriority = (reason: string | null): number => {
-      if (!reason) return 4;
+      if (!reason) return 5;
       const r = reason.toLowerCase();
       if (r === "out" || r.includes("out")) return 0;
-      if (r === "questionable" || r.includes("questionable")) return 1;
-      if (r === "doubtful" || r.includes("doubtful")) return 2;
+      if (r === "doubtful" || r.includes("doubtful")) return 1;
+      if (r === "questionable" || r.includes("questionable") || r === "gtd") return 2;
       if (r === "probable" || r.includes("probable")) return 3;
-      return 4;
+      if (r === "inactive" || r === "dnp" || r.startsWith("dnd")) return 4;
+      return 5;
     };
 
     return results.sort((a, b) => {
@@ -174,7 +187,7 @@ export function ChartTab({
       // Fallback: most games missed
       return b.count - a.count;
     });
-  }, [teammatesOutByGame, allGames, chartMarket, chartLine, teammateSeasonStats]);
+  }, [teammatesOutByGame, allGames, chartMarket, chartLine, teammateSeasonStats, rosterInjuryMap]);
 
   // Filtered games
   const filteredGames = useMemo(() => {
@@ -224,7 +237,8 @@ export function ChartTab({
   const chartValues = useMemo(() => chartGames.map((g) => getGameStat(g, chartMarket)), [chartGames, chartMarket]);
   // Use all-games max so chart scale stays stable across period/filter changes
   const allGameValues = useMemo(() => allGames.map((g) => getGameStat(g, chartMarket)), [allGames, chartMarket]);
-  const chartMax = useMemo(() => Math.max(1, ...allGameValues, chartLine ?? 0) * 1.3, [allGameValues, chartLine]);
+  const allSecondaryValues = useMemo(() => allGames.map((g) => getSecondaryStat(g, chartMarket)?.value ?? 0), [allGames, chartMarket]);
+  const chartMax = useMemo(() => Math.max(1, ...allGameValues, ...allSecondaryValues, chartLine ?? 0) * 1.3, [allGameValues, allSecondaryValues, chartLine]);
   const lineY = useMemo(() => {
     if (chartLine == null || !Number.isFinite(chartLine)) return null;
     // Offset by half the line wrap height (20px) so the visible line
@@ -539,7 +553,7 @@ export function ChartTab({
       {injuredTeammates.length > 0 ? (
         <View style={s.injuredSection}>
           <View style={s.injuredHeader}>
-            <Text style={s.injuredSectionTitle}>INJURED TEAMMATES</Text>
+            <Text style={s.injuredSectionTitle}>TEAMMATES</Text>
             {filterTeammateOutIds.size > 0 ? (
               <Text style={s.injuredActiveCount}>{filterTeammateOutIds.size} selected</Text>
             ) : null}
@@ -924,13 +938,13 @@ export function ChartTab({
 
 function shortenReason(reason: string): string {
   const r = reason.toLowerCase();
-  if (r.includes("injury") || r.includes("illness")) return "Out";
-  if (r.startsWith("dnd")) return "DNP";
-  if (r === "inactive") return "Inactive";
   if (r === "out") return "Out";
   if (r === "doubtful") return "Doubtful";
-  if (r === "questionable") return "GTD";
+  if (r === "questionable" || r === "gtd" || r.includes("game time")) return "GTD";
   if (r === "probable") return "Probable";
+  if (r.includes("injury") || r.includes("illness")) return "Out";
+  if (r.startsWith("dnd")) return "DNP";
+  if (r === "inactive") return "DNP";
   // Capitalize first letter, truncate
   const short = reason.length > 10 ? reason.slice(0, 9) + "…" : reason;
   return short.charAt(0).toUpperCase() + short.slice(1).toLowerCase();
@@ -986,6 +1000,19 @@ function getComboSegments(game: PlayerBoxScoreGame, market: string): ComboSegmen
   }
 }
 
+/* ─── Secondary Stat Helper ─── */
+
+function getSecondaryStat(game: PlayerBoxScoreGame, market: string): { value: number; label: string } | null {
+  switch (market) {
+    case "player_rebounds":
+      return game.potentialReb > 0 ? { value: game.potentialReb, label: String(game.potentialReb) } : null;
+    case "player_threes_made":
+      return game.fg3a > 0 ? { value: game.fg3a, label: String(game.fg3a) } : null;
+    default:
+      return null;
+  }
+}
+
 /* ─── Bar Renderer ─── */
 
 function renderBar(
@@ -1006,6 +1033,14 @@ function renderBar(
   const segments = COMBO_MARKETS.has(chartMarket) ? getComboSegments(game, chartMarket) : null;
   const nonZeroSegments = segments?.filter(seg => seg.value > 0) ?? null;
 
+  // Secondary stat (grey overlay bar) — e.g. potentialReb for rebounds, fg3a for 3PM, fga for points
+  const secondary = !nonZeroSegments ? getSecondaryStat(game, chartMarket) : null;
+  const showSecondary = secondary != null && secondary.value > val;
+  const secondaryH = showSecondary ? Math.max(4, (secondary!.value / chartMax) * CHART_HEIGHT) : 0;
+  const animSecondaryH = anim && showSecondary
+    ? anim.interpolate({ inputRange: [0, 1], outputRange: [0, secondaryH] })
+    : secondaryH;
+
   return (
     <Pressable
       key={game.gameId}
@@ -1013,40 +1048,61 @@ function renderBar(
       style={[fixed ? s.chartColFixed : s.chartCol, selectedGameIdx === i && s.chartColSelected]}
     >
       <Text style={[s.chartBarValue, { color: colors.text }]}>{val}</Text>
-      {nonZeroSegments && nonZeroSegments.length > 1 ? (
-        <Animated.View style={[fixed ? s.chartBarFixed : s.chartBar, { height: animH, backgroundColor: "transparent", overflow: "hidden" }]}>
-          {nonZeroSegments.map((seg, idx) => {
-            const pct = val > 0 ? (seg.value / val) * 100 : 0;
-            const isLast = idx === nonZeroSegments.length - 1;
-            const opacity = 0.65 + idx * 0.15;
-            return (
-              <View
-                key={seg.label}
-                style={{
-                  flex: pct,
-                  backgroundColor: colors.bar,
-                  opacity,
-                  borderTopWidth: idx > 0 ? 0.5 : 0,
-                  borderTopColor: "rgba(255,255,255,0.30)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: 2,
-                  borderBottomLeftRadius: isLast ? 4 : 0,
-                  borderBottomRightRadius: isLast ? 4 : 0,
-                  borderTopLeftRadius: idx === 0 ? 4 : 0,
-                  borderTopRightRadius: idx === 0 ? 4 : 0,
-                }}
-              >
-                {pct > 15 ? (
-                  <Text style={s.segmentLabel}>{seg.value}{seg.label}</Text>
-                ) : null}
-              </View>
-            );
-          })}
-        </Animated.View>
-      ) : (
-        <Animated.View style={[fixed ? s.chartBarFixed : s.chartBar, { height: animH, backgroundColor: colors.bar }]} />
-      )}
+      <View style={{ position: "relative", width: "100%", alignItems: "center" }}>
+        {/* Grey secondary bar behind the main bar */}
+        {showSecondary ? (
+          <Animated.View
+            style={[
+              fixed ? s.chartBarFixed : s.chartBar,
+              {
+                height: animSecondaryH,
+                backgroundColor: "rgba(140,140,140,0.25)",
+                position: "absolute",
+                bottom: 0,
+                justifyContent: "flex-start",
+                alignItems: "center",
+                paddingTop: 2,
+              },
+            ]}
+          >
+            <Text style={s.secondaryBarValue}>{secondary!.label}</Text>
+          </Animated.View>
+        ) : null}
+        {nonZeroSegments && nonZeroSegments.length > 1 ? (
+          <Animated.View style={[fixed ? s.chartBarFixed : s.chartBar, { height: animH, backgroundColor: "transparent", overflow: "hidden" }]}>
+            {nonZeroSegments.map((seg, idx) => {
+              const pct = val > 0 ? (seg.value / val) * 100 : 0;
+              const isLast = idx === nonZeroSegments.length - 1;
+              const opacity = 0.65 + idx * 0.15;
+              return (
+                <View
+                  key={seg.label}
+                  style={{
+                    flex: pct,
+                    backgroundColor: colors.bar,
+                    opacity,
+                    borderTopWidth: idx > 0 ? 0.5 : 0,
+                    borderTopColor: "rgba(255,255,255,0.30)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 2,
+                    borderBottomLeftRadius: isLast ? 4 : 0,
+                    borderBottomRightRadius: isLast ? 4 : 0,
+                    borderTopLeftRadius: idx === 0 ? 4 : 0,
+                    borderTopRightRadius: idx === 0 ? 4 : 0,
+                  }}
+                >
+                  {pct > 15 ? (
+                    <Text style={s.segmentLabel}>{seg.value}{seg.label}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </Animated.View>
+        ) : (
+          <Animated.View style={[fixed ? s.chartBarFixed : s.chartBar, { height: animH, backgroundColor: colors.bar }]} />
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -1254,6 +1310,7 @@ const s = StyleSheet.create({
   chartColFixed: { width: CHART_BAR_W, alignItems: "center", justifyContent: "flex-end", position: "relative" },
   chartColSelected: { opacity: 0.7 },
   chartBarValue: { fontSize: 11, fontWeight: "800" },
+  secondaryBarValue: { fontSize: 8, fontWeight: "600", color: "rgba(160,160,160,0.7)" },
   chartBar: { width: "85%", borderRadius: 4, minHeight: 4 },
   chartBarFixed: { width: CHART_BAR_W - 4, borderRadius: 4, minHeight: 4 },
   segmentLabel: { color: "rgba(255,255,255,0.90)", fontSize: 8, fontWeight: "700", textAlign: "center" },

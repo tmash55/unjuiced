@@ -7,8 +7,6 @@ import {
   FlatList,
   Image,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   PanResponder,
   Pressable,
   ScrollView,
@@ -22,13 +20,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQueries } from "@tanstack/react-query";
 import type { HitRateSortField, HitRateProfileV2, HitRatesV2Response } from "@unjuiced/types";
+import type { HitRateOddsSelection } from "@unjuiced/api";
+import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
+import { useUserPreferences } from "@/src/hooks/use-user-preferences";
 import { api } from "@/src/lib/api";
+import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";
 import { useAuth } from "@/src/providers/auth-provider";
 import { getNbaTeamLogoUrl, getSportsbookLogoUrl } from "@/src/lib/logos";
 import { brandColors } from "@/src/theme/brand";
+import BottomActionBar, { useScrollHideBar, type BottomPill } from "@/src/components/BottomActionBar";
+import PageHeader from "@/src/components/PageHeader";
+import SportsbookPicker from "@/src/components/SportsbookPicker";
 import { streakColor } from "@/src/components/player/constants";
 import PlanGate from "@/src/components/plan-gate/PlanGate";
 import { PLAN_GATE_FEATURES } from "@/src/components/plan-gate/plan-gate-config";
+import InjuryImpactSheet from "@/src/components/cheat-sheets/InjuryImpactSheet";
+import DvpSheet from "@/src/components/cheat-sheets/DvpSheet";
+import MatrixSheet from "@/src/components/cheat-sheets/MatrixSheet";
+import TripleDoubleSheet from "@/src/components/cheat-sheets/TripleDoubleSheet";
+import DoubleDoubleSheet from "@/src/components/cheat-sheets/DoubleDoubleSheet";
 
 /* ─── Sport config ─── */
 
@@ -47,6 +57,24 @@ const SPORT_OPTIONS: Array<{
   { id: "nfl", label: "NFL", icon: "american-football-outline", enabled: false, emptyTitle: "NFL props coming soon", emptySubtitle: "NFL hit rates are on the roadmap. Check back later." },
   { id: "nhl", label: "NHL", icon: "snow-outline", enabled: false, emptyTitle: "NHL props coming soon", emptySubtitle: "NHL hit rates are on the roadmap. Check back later." },
 ];
+
+/* ─── Tool tabs per sport ─── */
+
+type ToolTabId = "hit-rates" | "injury" | "dvp" | "matrix" | "triple-dbl" | "double-dbl";
+
+const TOOL_TABS_BY_SPORT: Record<SportId, { id: ToolTabId; label: string }[]> = {
+  nba: [
+    { id: "hit-rates", label: "Hit Rates" },
+    { id: "injury", label: "Injury" },
+    { id: "dvp", label: "DVP" },
+    { id: "matrix", label: "Matrix" },
+    { id: "triple-dbl", label: "Triple Dbl" },
+    { id: "double-dbl", label: "Double Dbl" },
+  ],
+  mlb: [{ id: "hit-rates", label: "Hit Rates" }],
+  nfl: [{ id: "hit-rates", label: "Hit Rates" }],
+  nhl: [{ id: "hit-rates", label: "Hit Rates" }],
+};
 
 /* ─── constants ─── */
 
@@ -80,6 +108,78 @@ const QUICK_SORT_OPTIONS: Array<{ field: HitRateSortField; label: string }> = [
   { field: "l20Pct", label: "L20" },
   { field: "h2hPct", label: "H2H" },
   { field: "seasonPct", label: "SZN" },
+  { field: "edge", label: "Edge" },
+  { field: "ev", label: "EV" },
+];
+
+/* ─── Cheat sheet filter options ─── */
+
+const INJURY_DATE_OPTIONS: Array<{ value: "today" | "tomorrow" | "all"; label: string }> = [
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "all", label: "All" },
+];
+
+const INJURY_SORT_OPTIONS: Array<{ value: "hitRate" | "boost" | "grade" | "odds"; label: string }> = [
+  { value: "hitRate", label: "Hit %" },
+  { value: "boost", label: "Boost" },
+  { value: "grade", label: "Grade" },
+  { value: "odds", label: "Odds" },
+];
+
+const INJURY_MARKETS: Array<{ value: string; label: string }> = [
+  { value: "player_points", label: "PTS" },
+  { value: "player_rebounds", label: "REB" },
+  { value: "player_assists", label: "AST" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_points_rebounds", label: "P+R" },
+  { value: "player_points_assists", label: "P+A" },
+  { value: "player_rebounds_assists", label: "R+A" },
+  { value: "player_steals", label: "STL" },
+  { value: "player_blocks", label: "BLK" },
+  { value: "player_blocks_steals", label: "B+S" },
+];
+
+const DVP_POSITIONS: Array<{ value: string; label: string }> = [
+  { value: "PG", label: "PG" },
+  { value: "SG", label: "SG" },
+  { value: "SF", label: "SF" },
+  { value: "PF", label: "PF" },
+  { value: "C", label: "C" },
+];
+
+const DVP_STATS: Array<{ value: string; label: string }> = [
+  { value: "pts", label: "PTS" },
+  { value: "reb", label: "REB" },
+  { value: "ast", label: "AST" },
+  { value: "fg3m", label: "3PM" },
+  { value: "stl", label: "STL" },
+  { value: "blk", label: "BLK" },
+  { value: "tov", label: "TO" },
+  { value: "pra", label: "PRA" },
+];
+
+const MATRIX_MARKETS: Array<{ value: string; label: string }> = [
+  { value: "player_points", label: "PTS" },
+  { value: "player_rebounds", label: "REB" },
+  { value: "player_assists", label: "AST" },
+  { value: "player_points_rebounds_assists", label: "PRA" },
+  { value: "player_threes_made", label: "3PM" },
+  { value: "player_steals", label: "STL" },
+  { value: "player_blocks", label: "BLK" },
+];
+
+const MATRIX_TIME_WINDOWS: Array<{ value: string; label: string }> = [
+  { value: "last_5", label: "L5" },
+  { value: "last_10", label: "L10" },
+  { value: "last_20", label: "L20" },
+  { value: "season", label: "SZN" },
+];
+
+const MATRIX_DATE_OPTIONS: Array<{ value: "today" | "tomorrow"; label: string }> = [
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
 ];
 
 const MATCHUP_OPTIONS: Array<{ value: string; label: string; rank: string; color: string }> = [
@@ -160,6 +260,15 @@ function hitColor(pct: number | null | undefined): string {
   return brandColors.error;
 }
 
+function evBadgeColor(edgeClass: string | null | undefined): string {
+  if (edgeClass === "strong") return "#16a34a";
+  if (edgeClass === "moderate") return "#22c55e";
+  if (edgeClass === "slim") return "#84cc16";
+  if (edgeClass === "neutral") return "#6b7280";
+  if (edgeClass === "negative") return "#ef4444";
+  return "#6b7280";
+}
+
 function dvpColor(quality: string | null | undefined): string {
   if (quality === "favorable") return "#22C55E";
   if (quality === "unfavorable" || quality === "tough") return "#EF4444";
@@ -197,6 +306,12 @@ type GameFilterOption = {
 
 /* ─── Filter Drawer ─── */
 
+const EV_FILTER_OPTIONS: Array<{ value: "all" | "positive" | "strong"; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "positive", label: "+EV Only" },
+  { value: "strong", label: "Strong Edge" },
+];
+
 function FilterDrawer({
   visible,
   onClose,
@@ -212,6 +327,8 @@ function FilterDrawer({
   setHasOddsOnly,
   matchupFilter,
   toggleMatchup,
+  evFilter,
+  setEvFilter,
   resultCount,
   isNonDefault,
   onReset,
@@ -230,6 +347,8 @@ function FilterDrawer({
   setHasOddsOnly: (v: boolean) => void;
   matchupFilter: string[];
   toggleMatchup: (v: string) => void;
+  evFilter: "all" | "positive" | "strong";
+  setEvFilter: (v: "all" | "positive" | "strong") => void;
   resultCount: number;
   isNonDefault: boolean;
   onReset: () => void;
@@ -500,6 +619,25 @@ function FilterDrawer({
             })}
           </View>
 
+          {/* ── EV Filter ── */}
+          <Text style={ds.sectionTitle}>Expected Value</Text>
+          <View style={ds.chipRow}>
+            {EV_FILTER_OPTIONS.map((opt) => {
+              const active = evFilter === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => setEvFilter(opt.value)}
+                  style={[ds.chip, active && ds.chipActive]}
+                >
+                  <Text style={[ds.chipText, active && ds.chipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <View style={{ height: 100 }} />
         </ScrollView>
 
@@ -516,6 +654,140 @@ function FilterDrawer({
               <Text style={ds.applyBtnText}>Show Results ({resultCount})</Text>
             </Pressable>
           </View>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+/* ─── Market Select Drawer ─── */
+
+function MarketSelectDrawer({
+  visible,
+  onClose,
+  title,
+  markets,
+  selected,
+  onSelect,
+  multiSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  markets: Array<{ value: string; label: string }>;
+  selected: string[];
+  onSelect: (value: string) => void;
+  multiSelect: boolean;
+}) {
+  const translateY = useRef(new Animated.Value(SCREEN_H)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetHeight = useRef(DRAWER_MAX);
+
+  const animateOpen = useCallback(() => {
+    translateY.setValue(SCREEN_H);
+    backdropOpacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 28,
+        stiffness: 300,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [translateY, backdropOpacity]);
+
+  const animateClose = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: SCREEN_H,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onClose());
+  }, [translateY, backdropOpacity, onClose]);
+
+  useEffect(() => {
+    if (visible) animateOpen();
+  }, [visible, animateOpen]);
+
+  const handlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderMove: (_, gs) => {
+        const clamped = Math.max(0, gs.dy);
+        translateY.setValue(clamped);
+        backdropOpacity.setValue(Math.max(0, 1 - clamped / sheetHeight.current));
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.vy > DISMISS_VY || gs.dy > sheetHeight.current * DISMISS_DY_PCT) {
+          animateClose();
+        } else {
+          Animated.parallel([
+            Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 28, stiffness: 300 }),
+            Animated.timing(backdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={animateClose}>
+      <Animated.View style={[ds.backdrop, { opacity: backdropOpacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={animateClose} />
+      </Animated.View>
+      <Animated.View
+        style={[ds.sheet, { transform: [{ translateY }] }]}
+        onLayout={(e) => { sheetHeight.current = e.nativeEvent.layout.height; }}
+      >
+        <View {...handlePanResponder.panHandlers} style={ds.handleZone}>
+          <View style={ds.handleBar} />
+        </View>
+        <View {...handlePanResponder.panHandlers} style={ds.header}>
+          <Text style={ds.headerTitle}>{title}</Text>
+          <Pressable onPress={animateClose} hitSlop={10} style={ds.closeBtn}>
+            <Ionicons name="close" size={20} color={brandColors.textMuted} />
+          </Pressable>
+        </View>
+        <View style={ds.bodyContent}>
+          <Text style={ds.sectionTitle}>Market</Text>
+          <View style={ds.marketGrid}>
+            {markets.map((m) => {
+              const active = selected.includes(m.value);
+              return (
+                <Pressable
+                  key={m.value}
+                  onPress={() => {
+                    onSelect(m.value);
+                    if (!multiSelect) animateClose();
+                  }}
+                  style={[ds.marketCell, active && ds.marketCellActive]}
+                >
+                  <Text style={[ds.marketCellText, active && ds.marketCellTextActive]}>
+                    {m.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <View style={ds.applyWrap}>
+          <Pressable onPress={animateClose} style={[ds.applyBtn, { flex: 1 }]}>
+            <Text style={ds.applyBtnText}>Show Results</Text>
+          </Pressable>
         </View>
       </Animated.View>
     </Modal>
@@ -559,6 +831,14 @@ const PlayerCard = ({
   const edge = typeof l10Avg === "number" && Number.isFinite(l10Avg) && row.line != null
     ? l10Avg - row.line
     : null;
+
+  const evData = row.ev_data;
+  const hasEv = evData != null && evData.ev_pct != null;
+
+  // Trend: compare L5 vs L20 (proxy for L25)
+  const trendL5 = row.last_5_pct ?? 0;
+  const trendL25 = row.last_20_pct ?? row.season_pct ?? 0;
+  const trend = trendL5 > trendL25 + 5 ? "up" : trendL5 < trendL25 - 5 ? "down" : "flat";
 
   const position = row.nba_players_hr?.depth_chart_pos ?? null;
   const streak = row.hit_streak ?? 0;
@@ -607,21 +887,41 @@ const PlayerCard = ({
                 <Image source={{ uri: bookLogo }} style={styles.oddsBookLogo} />
               ) : null}
             </View>
+            {hasEv ? (
+              <Text style={styles.fairOdds}>
+                Fair: {formatOdds(evData.fair_odds)} · Sharp: {formatOdds(evData.sharp_over)}/{formatOdds(evData.sharp_under)}
+              </Text>
+            ) : null}
           </View>
         </View>
-        {edge != null ? (
+        {hasEv ? (
+          <View style={[styles.evBadge, { backgroundColor: evBadgeColor(evData.edge_class) + "18" }]}>
+            <Text style={[styles.evBadgeText, { color: evBadgeColor(evData.edge_class) }]}>
+              {evData.ev_pct > 0 ? "+" : ""}{evData.ev_pct.toFixed(1)}% EV
+            </Text>
+          </View>
+        ) : edge != null ? (
           <View style={styles.edgeBadge}>
             <Text style={styles.edgeLabel}>EDGE</Text>
             <Text style={[styles.edgeValue, { color: edge > 0 ? brandColors.success : brandColors.error }]}>
               {edge > 0 ? "+" : ""}{edge.toFixed(1)}
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.noEvTag}>
+            <Text style={styles.noEvTagText}>No EV</Text>
+          </View>
+        )}
       </View>
 
-      {/* Hit rate progress bar */}
-      <View style={styles.hitBarContainer}>
-        <View style={[styles.hitBarFill, { width: `${barPct}%`, backgroundColor: barClr }]} />
+      {/* Hit rate progress bar + trend */}
+      <View style={styles.hitBarRow}>
+        <View style={styles.hitBarContainer}>
+          <View style={[styles.hitBarFill, { width: `${barPct}%`, backgroundColor: barClr }]} />
+        </View>
+        <Text style={[styles.trendArrow, { color: trend === "up" ? "#22C55E" : trend === "down" ? "#EF4444" : "#6B7280" }]}>
+          {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+        </Text>
       </View>
 
       {/* Row 2: Stats */}
@@ -686,11 +986,36 @@ const PlayerCard = ({
 
 export default function PropsScreen() {
   const router = useRouter();
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const { preferences, savePreferences } = useUserPreferences();
 
   // Sport state
   const [sport, setSport] = useState<SportId>("nba");
   const activeSport = SPORT_OPTIONS.find((s) => s.id === sport)!;
+
+  // Tool tab state
+  const [toolTab, setToolTab] = useState<ToolTabId>("hit-rates");
+  const toolTabs = TOOL_TABS_BY_SPORT[sport];
+  const showHitRatesUI = toolTab === "hit-rates";
+
+  // Reset tool tab when sport changes
+  useEffect(() => {
+    setToolTab("hit-rates");
+  }, [sport]);
+
+  // ── Injury Impact filter state ──
+  const [injuryMarkets, setInjuryMarkets] = useState<string[]>(["player_points"]);
+  const [injuryDate, setInjuryDate] = useState<"today" | "tomorrow" | "all">("today");
+  const [injurySort, setInjurySort] = useState<"hitRate" | "boost" | "grade" | "odds">("hitRate");
+
+  // ── DVP filter state ──
+  const [dvpPosition, setDvpPosition] = useState("PG");
+  const [dvpStat, setDvpStat] = useState("pts");
+
+  // ── Matrix filter state ──
+  const [matrixMarket, setMatrixMarket] = useState("player_points");
+  const [matrixTimeWindow, setMatrixTimeWindow] = useState("last_10");
+  const [matrixDate, setMatrixDate] = useState<"today" | "tomorrow">("today");
 
   // Filter state
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([DEFAULT_MARKET]);
@@ -701,52 +1026,13 @@ export default function PropsScreen() {
   const [searchText, setSearchText] = useState("");
   const [selectedGameKeys, setSelectedGameKeys] = useState<string[]>([]);
   const [matchupFilter, setMatchupFilter] = useState<string[]>([]);
+  const [evFilter, setEvFilter] = useState<"all" | "positive" | "strong">("all");
 
   // Drawer visibility
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   // Bottom bar scroll hide
-  const bottomBarTranslateY = useRef(new Animated.Value(0)).current;
-  const lastScrollY = useRef(0);
-  const bottomBarVisible = useRef(true);
-  const scrollIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showBottomBar = useCallback(() => {
-    if (!bottomBarVisible.current) {
-      bottomBarVisible.current = true;
-      Animated.timing(bottomBarTranslateY, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [bottomBarTranslateY]);
-
-  const onListScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = e.nativeEvent.contentOffset.y;
-      const goingDown = y > lastScrollY.current && y > 20;
-      lastScrollY.current = y;
-
-      // Clear any pending idle timer
-      if (scrollIdleTimer.current) clearTimeout(scrollIdleTimer.current);
-
-      if (goingDown && bottomBarVisible.current) {
-        bottomBarVisible.current = false;
-        Animated.timing(bottomBarTranslateY, {
-          toValue: 80,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      } else if (!goingDown && !bottomBarVisible.current) {
-        showBottomBar();
-      }
-
-      // Show bar after scroll stops (no new events for 300ms)
-      scrollIdleTimer.current = setTimeout(showBottomBar, 300);
-    },
-    [bottomBarTranslateY, showBottomBar]
-  );
+  const { translateY: bottomBarTranslateY, onScroll: onListScroll } = useScrollHideBar();
 
   const sportEnabled = activeSport.enabled;
   const { session, user } = useAuth();
@@ -766,6 +1052,7 @@ export default function PropsScreen() {
         sort,
         sortDir,
         hasOddsOnly,
+        evFilter,
       ],
       queryFn: async (): Promise<HitRatesV2Response> => {
         return api.getNbaHitRatesV2({
@@ -777,12 +1064,13 @@ export default function PropsScreen() {
           sort,
           sortDir,
           hasOdds: hasOddsOnly,
+          evFilter: evFilter !== "all" ? evFilter : undefined,
         });
       },
       enabled: sportEnabled && !!session,
       staleTime: 15_000,
       gcTime: 10 * 60_000,
-      refetchInterval: autoRefreshEnabled ? 30_000 : false as const,
+      refetchInterval: false as const,
       refetchOnReconnect: true,
       refetchOnWindowFocus: false,
       retry: 1,
@@ -845,9 +1133,24 @@ export default function PropsScreen() {
     return filtered;
   }, [allData, selectedGameKeys, matchupFilter]);
 
-  // best_odds comes directly from the hit rates v2 API (Redis lookup, same as desktop)
+  // Use sel_key to look up real-time odds from hitrate:nba:v2 Redis hash (same as desktop)
+  const oddsSelections = useMemo(
+    () =>
+      rows.reduce<HitRateOddsSelection[]>((acc, row) => {
+        const sk = row.sel_key;
+        if (sk) acc.push({ stableKey: sk, line: row.line ?? undefined });
+        return acc;
+      }, []),
+    [rows]
+  );
+
+  const { getOdds } = useHitRateOdds({
+    selections: oddsSelections,
+    enabled: rows.length > 0
+  });
 
   function toggleSort(field: HitRateSortField) {
+    triggerSelectionHaptic();
     if (field === sort) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
@@ -865,12 +1168,14 @@ export default function PropsScreen() {
     if (selectedGameKeys.length > 0) count++;
     if (hasOddsOnly !== DEFAULT_HAS_ODDS) count++;
     if (matchupFilter.length > 0) count++;
+    if (evFilter !== "all") count++;
     return count;
-  }, [marketsNonDefault, minHitRate, selectedGameKeys, hasOddsOnly, matchupFilter]);
+  }, [marketsNonDefault, minHitRate, selectedGameKeys, hasOddsOnly, matchupFilter, evFilter]);
 
   const isNonDefault = activeFilterCount > 0 || sort !== DEFAULT_SORT || sortDir !== DEFAULT_SORT_DIR;
 
   function resetFilters() {
+    triggerSelectionHaptic();
     setSelectedMarkets([DEFAULT_MARKET]);
     setHasOddsOnly(DEFAULT_HAS_ODDS);
     setSort(DEFAULT_SORT);
@@ -879,9 +1184,11 @@ export default function PropsScreen() {
     setSearchText("");
     setSelectedGameKeys([]);
     setMatchupFilter([]);
+    setEvFilter("all");
   }
 
   function toggleMarket(marketId: string) {
+    triggerSelectionHaptic();
     setSelectedMarkets((curr) => {
       if (curr.includes(marketId)) {
         // Don't allow deselecting the last one
@@ -893,21 +1200,105 @@ export default function PropsScreen() {
   }
 
   function toggleGameFilter(gameKey: string) {
+    triggerSelectionHaptic();
     setSelectedGameKeys((curr) =>
       curr.includes(gameKey) ? curr.filter((k) => k !== gameKey) : [...curr, gameKey]
     );
   }
 
   function toggleMatchup(value: string) {
+    triggerSelectionHaptic();
     setMatchupFilter((curr) =>
       curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value]
     );
   }
 
+  // ── Per-tab bottom bar pills ──
+  const { currentBottomPills, currentFilterCount, currentFilterLabel, currentHasDrawer } = useMemo(() => {
+    if (toolTab === "hit-rates") {
+      return {
+        currentBottomPills: QUICK_SORT_OPTIONS.map((opt) => ({
+          key: opt.field,
+          label: `${opt.label}${opt.field === sort ? (sortDir === "desc" ? " ↓" : " ↑") : ""}`,
+          active: opt.field === sort,
+          onPress: () => toggleSort(opt.field),
+        })) as BottomPill[],
+        currentFilterCount: activeFilterCount,
+        currentFilterLabel: undefined as string | undefined,
+        currentHasDrawer: true,
+      };
+    }
+    if (toolTab === "injury") {
+      const pills: BottomPill[] = [
+        ...INJURY_DATE_OPTIONS.map((d) => ({
+          key: `injury-date-${d.value}`,
+          label: d.label,
+          active: injuryDate === d.value,
+          onPress: () => {
+            triggerSelectionHaptic();
+            setInjuryDate(d.value);
+          },
+        })),
+        ...INJURY_SORT_OPTIONS.map((s) => ({
+          key: `injury-sort-${s.value}`,
+          label: s.label,
+          active: injurySort === s.value,
+          onPress: () => {
+            triggerSelectionHaptic();
+            setInjurySort(s.value);
+          },
+        })),
+      ];
+      const injuryFilterCount = injuryMarkets.length === 1 && injuryMarkets[0] === "player_points" ? 0 : 1;
+      const injuryLabel = INJURY_MARKETS.find((m) => m.value === injuryMarkets[0])?.label ?? "PTS";
+      return { currentBottomPills: pills, currentFilterCount: injuryFilterCount, currentFilterLabel: injuryLabel, currentHasDrawer: true };
+    }
+    if (toolTab === "dvp") {
+      const pills: BottomPill[] = [
+        ...DVP_POSITIONS.map((p) => ({
+          key: `dvp-pos-${p.value}`,
+          label: p.label,
+          active: dvpPosition === p.value,
+          onPress: () => {
+            triggerSelectionHaptic();
+            setDvpPosition(p.value);
+          },
+        })),
+      ];
+      return { currentBottomPills: pills, currentFilterCount: 0, currentFilterLabel: undefined, currentHasDrawer: false };
+    }
+    if (toolTab === "matrix") {
+      const pills: BottomPill[] = [
+        ...MATRIX_TIME_WINDOWS.map((t) => ({
+          key: `matrix-tw-${t.value}`,
+          label: t.label,
+          active: matrixTimeWindow === t.value,
+          onPress: () => {
+            triggerSelectionHaptic();
+            setMatrixTimeWindow(t.value);
+          },
+        })),
+        ...MATRIX_DATE_OPTIONS.map((d) => ({
+          key: `matrix-date-${d.value}`,
+          label: d.label,
+          active: matrixDate === d.value,
+          onPress: () => {
+            triggerSelectionHaptic();
+            setMatrixDate(d.value);
+          },
+        })),
+      ];
+      const matrixLabel = MATRIX_MARKETS.find((m) => m.value === matrixMarket)?.label ?? "PTS";
+      return { currentBottomPills: pills, currentFilterCount: 0, currentFilterLabel: matrixLabel, currentHasDrawer: true };
+    }
+    return { currentBottomPills: [] as BottomPill[], currentFilterCount: 0, currentFilterLabel: undefined, currentHasDrawer: false };
+  }, [toolTab, sort, sortDir, activeFilterCount, injuryDate, injurySort, injuryMarkets, dvpPosition, dvpStat, matrixTimeWindow, matrixDate, matrixMarket]);
+
   const renderItem = useCallback(
     ({ item }: { item: HitRateProfileV2 }) => {
-      const bestBook = item.best_odds?.book ?? "";
-      const bestPrice = item.best_odds?.price ?? null;
+      const lineOdds = item.sel_key ? getOdds(item.sel_key) : null;
+      const bestBook = lineOdds?.bestOver?.book ?? item.best_odds?.book ?? "";
+      const bestPrice = lineOdds?.bestOver?.price ?? item.best_odds?.price ?? null;
 
       return (
         <PlayerCard
@@ -915,50 +1306,22 @@ export default function PropsScreen() {
           bestBook={bestBook}
           bestPrice={bestPrice}
           sortField={sort}
-          onPress={() =>
+          onPress={() => {
+            triggerLightImpactHaptic();
             router.push({
               pathname: "/props/player/[id]",
               params: { id: String(item.player_id), market: item.market }
-            })
-          }
+            });
+          }}
         />
       );
     },
-    [router, sort]
+    [getOdds, router, sort]
   );
 
   const keyExtractor = useCallback((item: HitRateProfileV2) => item.id, []);
 
-  /* ─── Fixed page header ─── */
-  const pageHeader = (
-    <View style={styles.pageHeader}>
-      <Text style={styles.pageTitle}>Props</Text>
-      <View style={styles.titleActions}>
-        <Pressable
-          onPress={() => router.push("/cheat-sheets")}
-          style={styles.cheatSheetsBtn}
-        >
-          <Ionicons name="newspaper-outline" size={14} color={brandColors.primary} />
-          <Text style={styles.cheatSheetsBtnText}>Cheat Sheets</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setAutoRefreshEnabled((c) => !c)}
-          style={[styles.autoBtn, autoRefreshEnabled && styles.autoBtnActive]}
-        >
-          <Ionicons
-            name="refresh"
-            size={14}
-            color={autoRefreshEnabled ? brandColors.primary : brandColors.textMuted}
-          />
-          <Text style={[styles.autoBtnText, autoRefreshEnabled && styles.autoBtnTextActive]}>
-            Auto
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-
-  /* ─── Sticky header: sport pills only ─── */
+  /* ─── Sticky header: sport pills + tool tabs ─── */
   const stickyFilters = (
     <View style={styles.stickyHeader}>
       {/* Sport selector */}
@@ -968,26 +1331,48 @@ export default function PropsScreen() {
           return (
             <Pressable
               key={opt.id}
-              onPress={() => setSport(opt.id)}
+              onPress={() => {
+                if (sport !== opt.id) triggerSelectionHaptic();
+                setSport(opt.id);
+              }}
               style={[styles.sportPill, active && styles.sportPillActive]}
             >
               <Ionicons
                 name={opt.icon as any}
                 size={14}
-                color={active ? "#FFFFFF" : opt.enabled ? brandColors.textSecondary : brandColors.textMuted}
+                color={active ? "#FFFFFF" : brandColors.textSecondary}
               />
-              <Text style={[styles.sportPillText, active && styles.sportPillTextActive, !opt.enabled && !active && styles.sportPillTextDisabled]}>
+              <Text style={[styles.sportPillText, active && styles.sportPillTextActive]}>
                 {opt.label}
               </Text>
-              {!opt.enabled ? (
-                <View style={styles.soonBadge}>
-                  <Text style={styles.soonBadgeText}>SOON</Text>
-                </View>
-              ) : null}
             </Pressable>
           );
         })}
       </ScrollView>
+
+      {/* Tool sub-tabs */}
+      {toolTabs.length > 1 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolTabScroll}>
+          {toolTabs.map((tab) => {
+            const active = tab.id === toolTab;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => {
+                  if (toolTab !== tab.id) triggerSelectionHaptic();
+                  setToolTab(tab.id);
+                  setDrawerVisible(false);
+                }}
+                style={[styles.toolTabPill, active && styles.toolTabPillActive]}
+              >
+                <Text style={[styles.toolTabText, active && styles.toolTabTextActive]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
     </View>
   );
 
@@ -1047,95 +1432,116 @@ export default function PropsScreen() {
 
   return (
     <PlanGate feature={PLAN_GATE_FEATURES.props} bannerBottomOffset={52}>
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* ─── Fixed page header ─── */}
-      {pageHeader}
+      <PageHeader
+        title="Research"
+        isRefetching={isRefetching}
+        onSportsbooksPress={() => setPickerVisible(true)}
+        selectedSportsbooks={preferences.preferredSportsbooks}
+      />
 
       {/* ─── Sticky header: sport pills + search ─── */}
       {stickyFilters}
 
-      {sportEnabled ? (
-        <FlatList
-          data={rows}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={listEmpty}
-          contentContainerStyle={styles.listContent}
-          onRefresh={() => void refetch()}
-          refreshing={isRefetching}
-          tintColor={brandColors.primary}
-          showsVerticalScrollIndicator={false}
-          onScroll={onListScroll}
-          scrollEventThrottle={16}
-          initialNumToRender={12}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-        />
-      ) : (
-        <View style={styles.disabledContent}>
-          {listEmpty}
-        </View>
-      )}
+      {showHitRatesUI ? (
+        sportEnabled ? (
+          <FlatList
+            data={rows}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={listEmpty}
+            contentContainerStyle={styles.listContent}
+            onRefresh={() => void refetch()}
+            refreshing={isRefetching}
+            tintColor={brandColors.primary}
+            showsVerticalScrollIndicator={false}
+            onScroll={onListScroll}
+            scrollEventThrottle={16}
+            initialNumToRender={12}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+          />
+        ) : (
+          <View style={styles.disabledContent}>
+            {listEmpty}
+          </View>
+        )
+      ) : toolTab === "injury" ? (
+        <InjuryImpactSheet selectedMarkets={injuryMarkets} dateFilter={injuryDate} sortBy={injurySort} />
+      ) : toolTab === "dvp" ? (
+        <DvpSheet position={dvpPosition} selectedStat={dvpStat} />
+      ) : toolTab === "matrix" ? (
+        <MatrixSheet market={matrixMarket} timeWindow={matrixTimeWindow} dateFilter={matrixDate} />
+      ) : toolTab === "triple-dbl" ? (
+        <TripleDoubleSheet />
+      ) : toolTab === "double-dbl" ? (
+        <DoubleDoubleSheet />
+      ) : null}
 
       {/* ─── Bottom Bar (hides on scroll down) ─── */}
-      {sportEnabled ? (
+      {currentBottomPills.length > 0 ? (
         <Animated.View style={[styles.bottomBar, { transform: [{ translateY: bottomBarTranslateY }] }]}>
-          {/* Filter button */}
-          <Pressable onPress={() => setDrawerVisible(true)} style={styles.bottomFilterBtn}>
-            <Ionicons name="options-outline" size={18} color={brandColors.textPrimary} />
-            <Text style={styles.bottomFilterBtnText}>Filter</Text>
-            {activeFilterCount > 0 ? (
-              <View style={styles.bottomFilterBadge}>
-                <Text style={styles.bottomFilterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-
-          {/* Quick sort pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.bottomSortScroll}
-          >
-            {QUICK_SORT_OPTIONS.map((opt) => {
-              const active = opt.field === sort;
-              return (
-                <Pressable
-                  key={opt.field}
-                  onPress={() => toggleSort(opt.field)}
-                  style={[styles.bottomSortPill, active && styles.bottomSortPillActive]}
-                >
-                  <Text style={[styles.bottomSortPillText, active && styles.bottomSortPillTextActive]}>
-                    {opt.label}
-                    {active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <BottomActionBar
+            filterCount={currentFilterCount}
+            filterLabel={currentFilterLabel}
+            onFilterPress={currentHasDrawer ? () => { triggerSelectionHaptic(); setDrawerVisible(true); } : undefined}
+            pills={currentBottomPills}
+          />
         </Animated.View>
       ) : null}
 
-      {/* ─── Filter Drawer ─── */}
-      <FilterDrawer
-        visible={drawerVisible}
-        onClose={() => setDrawerVisible(false)}
-        selectedMarkets={selectedMarkets}
-        toggleMarket={toggleMarket}
-        gameOptions={gameOptions}
-        selectedGameKeys={selectedGameKeys}
-        toggleGameFilter={toggleGameFilter}
-        clearGameFilter={() => setSelectedGameKeys([])}
-        minHitRate={minHitRate}
-        setMinHitRate={setMinHitRate}
-        hasOddsOnly={hasOddsOnly}
-        setHasOddsOnly={setHasOddsOnly}
-        matchupFilter={matchupFilter}
-        toggleMatchup={toggleMatchup}
-        resultCount={rows.length}
-        isNonDefault={isNonDefault}
-        onReset={resetFilters}
+      {/* ─── Filter Drawers ─── */}
+      {toolTab === "hit-rates" ? (
+        <FilterDrawer
+          visible={drawerVisible}
+          onClose={() => setDrawerVisible(false)}
+          selectedMarkets={selectedMarkets}
+          toggleMarket={toggleMarket}
+          gameOptions={gameOptions}
+          selectedGameKeys={selectedGameKeys}
+          toggleGameFilter={toggleGameFilter}
+          clearGameFilter={() => setSelectedGameKeys([])}
+          minHitRate={minHitRate}
+          setMinHitRate={setMinHitRate}
+          hasOddsOnly={hasOddsOnly}
+          setHasOddsOnly={setHasOddsOnly}
+          matchupFilter={matchupFilter}
+          toggleMatchup={toggleMatchup}
+          evFilter={evFilter}
+          setEvFilter={setEvFilter}
+          resultCount={rows.length}
+          isNonDefault={isNonDefault}
+          onReset={resetFilters}
+        />
+      ) : toolTab === "injury" ? (
+        <MarketSelectDrawer
+          visible={drawerVisible}
+          onClose={() => setDrawerVisible(false)}
+          title="Injury Impact Filters"
+          markets={INJURY_MARKETS}
+          selected={injuryMarkets}
+          onSelect={(value) => setInjuryMarkets([value])}
+          multiSelect={false}
+        />
+      ) : toolTab === "matrix" ? (
+        <MarketSelectDrawer
+          visible={drawerVisible}
+          onClose={() => setDrawerVisible(false)}
+          title="Matrix Filters"
+          markets={MATRIX_MARKETS}
+          selected={[matrixMarket]}
+          onSelect={setMatrixMarket}
+          multiSelect={false}
+        />
+      ) : null}
+
+      <SportsbookPicker
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        selected={preferences.preferredSportsbooks}
+        onSave={(books) => void savePreferences({ preferred_sportsbooks: books })}
       />
     </SafeAreaView>
     </PlanGate>
@@ -1455,13 +1861,10 @@ const styles = StyleSheet.create({
 
   /* ── sticky header ── */
   stickyHeader: {
-    backgroundColor: brandColors.appBackground,
     paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 2,
+    paddingBottom: 10,
     gap: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "rgba(255,255,255,0.06)",
   },
 
   /* ── sport pills ── */
@@ -1492,21 +1895,30 @@ const styles = StyleSheet.create({
   sportPillTextActive: {
     color: "#FFFFFF",
   },
-  sportPillTextDisabled: {
-    color: brandColors.textMuted,
-    opacity: 0.7,
+  /* ── tool sub-tabs ── */
+  toolTabScroll: {
+    gap: 6,
+    paddingRight: 8,
   },
-  soonBadge: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+  toolTabPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
   },
-  soonBadgeText: {
-    color: brandColors.textMuted,
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 0.5,
+  toolTabPillActive: {
+    backgroundColor: brandColors.primarySoft,
+    borderColor: brandColors.primary,
+  },
+  toolTabText: {
+    color: brandColors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  toolTabTextActive: {
+    color: brandColors.primary,
   },
 
   /* ── disabled sport content ── */
@@ -1545,66 +1957,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  /* ── fixed page header ── */
-  pageHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 10,
-    backgroundColor: brandColors.appBackground,
-  },
-  pageTitle: {
-    color: brandColors.textPrimary,
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.5
-  },
-  titleActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8
-  },
-  cheatSheetsBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: brandColors.primary,
-    backgroundColor: brandColors.primarySoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  cheatSheetsBtnText: {
-    color: brandColors.primary,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  autoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 5
-  },
-  autoBtnActive: {
-    borderColor: brandColors.primary,
-    backgroundColor: brandColors.primarySoft
-  },
-  autoBtnText: {
-    color: brandColors.textMuted,
-    fontSize: 12,
-    fontWeight: "600"
-  },
-  autoBtnTextActive: {
-    color: brandColors.primary
-  },
-
   /* ── search ── */
   searchBar: {
     flexDirection: "row",
@@ -1640,61 +1992,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 10,
     height: 56,
-  },
-  bottomFilterBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackground,
-  },
-  bottomFilterBtnText: {
-    color: brandColors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  bottomFilterBadge: {
-    backgroundColor: brandColors.primary,
-    borderRadius: 8,
-    minWidth: 18,
-    height: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  bottomFilterBadgeText: {
-    color: "#020617",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  bottomSortScroll: {
-    gap: 6,
-    paddingRight: 8,
-  },
-  bottomSortPill: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    backgroundColor: brandColors.panelBackground,
-  },
-  bottomSortPillActive: {
-    borderColor: brandColors.primary,
-    backgroundColor: brandColors.primary,
-  },
-  bottomSortPillText: {
-    color: brandColors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  bottomSortPillTextActive: {
-    color: "#020617",
-    fontWeight: "700",
   },
   /* ── player card ── */
   card: {
@@ -1822,6 +2119,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800"
   },
+  evBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  evBadgeText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+  },
+  noEvTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  noEvTagText: {
+    color: brandColors.textMuted,
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  fairOdds: {
+    color: brandColors.textMuted,
+    fontSize: 11,
+    fontWeight: "500" as const,
+    marginTop: 1,
+  },
+  hitBarRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+  },
+  trendArrow: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
   oddsBookLogo: {
     width: 14,
     height: 14,
@@ -1830,6 +2164,7 @@ const styles = StyleSheet.create({
 
   /* ── hit rate bar ── */
   hitBarContainer: {
+    flex: 1,
     height: 3,
     borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.06)",

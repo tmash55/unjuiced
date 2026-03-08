@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redis } from "@/lib/redis";
 import { ROWS_FORMAT, type ArbRow } from "@/lib/arb-schema";
 import { isArbFreshForMode } from "@/lib/arb-freshness";
 import { createClient } from "@/libs/supabase/server";
-import { PLAN_LIMITS } from "@/lib/plans";
-import { getUserPlan } from "@/lib/plans-server";
+import { PLAN_LIMITS, normalizePlanName, type UserPlan } from "@/lib/plans";
 import { zrevrangeCompat } from "@/lib/redis-zset";
 
 const H_ROWS = "arbs:rows";
@@ -18,12 +18,102 @@ function parseIntSafe(v: string | null, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+type EntitlementRow = {
+  current_plan: string | null;
+  entitlement_source: string | null;
+};
+
+type AuthenticatedContext = {
+  userId: string;
+  supabase: any;
+};
+
+function extractBearerToken(authorizationHeader: string | null): string | null {
+  if (!authorizationHeader?.startsWith("Bearer ")) return null;
+  const token = authorizationHeader.slice("Bearer ".length).trim();
+  return token || null;
+}
+
+async function getAuthenticatedContext(req: NextRequest): Promise<AuthenticatedContext | null> {
+  const cookieClient = await createClient();
+  const bearerToken = extractBearerToken(req.headers.get("authorization"));
+
+  if (bearerToken) {
+    const bearerClient = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${bearerToken}`
+          }
+        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false
+        }
+      }
+    );
+
+    const {
+      data: { user: bearerUser },
+      error: bearerError
+    } = await bearerClient.auth.getUser(bearerToken);
+
+    if (!bearerError && bearerUser) {
+      return {
+        userId: bearerUser.id,
+        supabase: bearerClient as any
+      };
+    }
+  }
+
+  const {
+    data: { user: cookieUser },
+    error: cookieError
+  } = await cookieClient.auth.getUser();
+
+  if (!cookieError && cookieUser) {
+    return {
+      userId: cookieUser.id,
+      supabase: cookieClient as any
+    };
+  }
+
+  return null;
+}
+
+async function getUserPlanForRequest(req: NextRequest): Promise<UserPlan> {
+  const context = await getAuthenticatedContext(req);
+  if (!context) return "anonymous";
+
+  const { data: entitlement, error } = (await context.supabase
+    .from("current_entitlements")
+    .select("current_plan, entitlement_source")
+    .eq("user_id", context.userId)
+    .single()) as { data: EntitlementRow | null; error: unknown };
+
+  if (error || !entitlement) {
+    console.error("Error fetching user entitlement for /api/arbs:", error);
+    return "free";
+  }
+
+  let plan = normalizePlanName(String(entitlement.current_plan || "free"));
+  if (!(plan in PLAN_LIMITS)) {
+    plan = "free";
+  }
+
+  if (entitlement.entitlement_source === "grant") {
+    return "elite";
+  }
+
+  return plan as UserPlan;
+}
+
 export async function GET(req: NextRequest) {
   try {
-    // Get user authentication status and plan
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const userPlan = await getUserPlan(user);
+    const userPlan = await getUserPlanForRequest(req);
     
     const sp = new URL(req.url).searchParams;
     const clientV = parseIntSafe(sp.get("v"), 0);

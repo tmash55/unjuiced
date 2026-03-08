@@ -1,21 +1,24 @@
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { useAuthOnboarding } from "@/src/components/auth/AuthOnboardingContext";
 import { useAuth } from "@/src/providers/auth-provider";
+import {
+  AuthButton,
+  AuthField,
+  AuthInlineLink,
+  AuthPanel,
+  AuthScreenShell,
+  authUiStyles,
+} from "@/src/components/auth/AuthScreenShell";
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { selectedBooks, selectedPlan, selectedSports } = useAuthOnboarding();
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,185 +42,108 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={s.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.select({ ios: "padding", default: undefined })}
-        style={s.keyboard}
-      >
-        <View style={s.top}>
-          <Image
-            source={require("../../assets/logo.png")}
-            style={s.logo}
-            resizeMode="contain"
+    <AuthScreenShell
+      keyboard
+      title="Create your premium betting workspace."
+      subtitle="Start with a cleaner setup for hit rates, sharp signals, and sportsbook-aware research."
+      eyebrow="Create account"
+      footer={
+        <AuthInlineLink
+          prefix="Already have an account?"
+          action="Sign in"
+          onPress={() => router.push("/login")}
+        />
+      }
+    >
+      <AuthPanel>
+        <View style={s.copyWrap}>
+          <Text style={s.panelTitle}>Start your account</Text>
+          <Text style={authUiStyles.helperText}>
+            We’ll get your mobile profile ready so your books and preferences follow you.
+          </Text>
+        </View>
+
+        <View style={s.summaryRow}>
+          <View style={s.summaryChip}>
+            <Text style={s.summaryValue}>{selectedSports.length}</Text>
+            <Text style={s.summaryLabel}>sports</Text>
+          </View>
+          <View style={s.summaryChip}>
+            <Text style={s.summaryValue}>{selectedBooks.length}</Text>
+            <Text style={s.summaryLabel}>books</Text>
+          </View>
+          <View style={s.summaryChip}>
+            <Text style={s.summaryValue}>{selectedPlan === "sharp" ? "Sharp" : "Standard"}</Text>
+            <Text style={s.summaryLabel}>plan</Text>
+          </View>
+        </View>
+
+        <View style={authUiStyles.actionRow}>
+          <AuthField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@email.com"
+            keyboardType="email-address"
+          />
+
+          <AuthField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Choose a password"
+            secureTextEntry
+          />
+
+          {error ? <Text style={authUiStyles.errorText}>{error}</Text> : null}
+          {message ? <Text style={authUiStyles.infoText}>{message}</Text> : null}
+
+          <AuthButton
+            label="Create account"
+            icon="sparkles-outline"
+            onPress={() => void onSubmit()}
+            disabled={!email || !password}
+            loading={submitting}
           />
         </View>
-
-        <View style={s.form}>
-          <Text style={s.title}>Create account</Text>
-          <Text style={s.subtitle}>Get access to hit rates, props tools, and more.</Text>
-
-          <View style={s.inputWrap}>
-            <Text style={s.inputLabel}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@email.com"
-              placeholderTextColor="#4B5B73"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              style={s.input}
-            />
-          </View>
-
-          <View style={s.inputWrap}>
-            <Text style={s.inputLabel}>Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Choose a password"
-              placeholderTextColor="#4B5B73"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={s.input}
-            />
-          </View>
-
-          {error ? <Text style={s.error}>{error}</Text> : null}
-          {message ? <Text style={s.message}>{message}</Text> : null}
-
-          <Pressable
-            disabled={submitting || !email || !password}
-            onPress={onSubmit}
-            style={({ pressed }: { pressed: boolean }) => [
-              s.btn,
-              (submitting || !email || !password) && s.btnDisabled,
-              pressed && !submitting && s.btnPressed,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#020617" />
-            ) : (
-              <Text style={s.btnText}>Get Started</Text>
-            )}
-          </Pressable>
-        </View>
-
-        <View style={s.bottom}>
-          <Text style={s.bottomText}>Already have an account? </Text>
-          <Link href="/login" style={s.bottomLink}>
-            Sign in
-          </Link>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </AuthPanel>
+    </AuthScreenShell>
   );
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0B1014",
-  },
-  keyboard: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: "center",
-  },
-
-  // Top
-  top: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  logo: {
-    width: 180,
-    height: 56,
-  },
-
-  // Form
-  form: {
-    gap: 18,
-  },
-  title: {
-    color: "#E5E7EB",
-    fontSize: 26,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    color: "#7B8CA7",
-    fontSize: 14,
-    fontWeight: "500",
-    marginTop: -8,
-    marginBottom: 2,
-  },
-  inputWrap: {
+  copyWrap: {
     gap: 6,
   },
-  inputLabel: {
-    color: "#9FB0C6",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  input: {
-    backgroundColor: "#101A2B",
-    borderColor: "#22324A",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 50,
-    color: "#E5E7EB",
-    fontSize: 15,
-  },
-  error: {
-    color: "#F87171",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  message: {
-    color: "#22C55E",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-
-  // Button
-  btn: {
-    backgroundColor: "#38BDF8",
-    borderRadius: 14,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-  },
-  btnText: {
-    color: "#020617",
-    fontSize: 16,
+  panelTitle: {
+    color: "#F8FAFC",
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: 0.2,
   },
-  btnDisabled: {
-    opacity: 0.35,
-  },
-  btnPressed: {
-    opacity: 0.85,
-  },
-
-  // Bottom
-  bottom: {
+  summaryRow: {
     flexDirection: "row",
-    justifyContent: "center",
+    gap: 10,
+  },
+  summaryChip: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
-    marginTop: 32,
+    gap: 3,
   },
-  bottomText: {
+  summaryValue: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  summaryLabel: {
     color: "#7B8CA7",
-    fontSize: 14,
-  },
-  bottomLink: {
-    color: "#38BDF8",
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
 });

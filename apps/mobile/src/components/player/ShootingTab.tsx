@@ -95,7 +95,7 @@ export function ShootingTab({ playerId, opponentTeamId, oppAbbr }: ShootingTabPr
           <View key={z.zone} style={s.tableRow}>
             <Text style={[s.cellText, { flex: 1 }]} numberOfLines={1}>{z.display_name}</Text>
             <Text style={[s.cellTextBold, { width: 50, textAlign: "center" }]}>
-              {Math.round(z.player_fg_pct)}%
+              {Math.round(z.player_fg_pct * 100)}%
             </Text>
             <Text style={[s.cellTextDim, { width: 50, textAlign: "center" }]}>
               {Math.round(z.player_pct_of_total)}%
