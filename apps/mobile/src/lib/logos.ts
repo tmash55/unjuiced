@@ -17,6 +17,8 @@ const SPORTSBOOK_LOGO_BY_ID: Record<string, string> = {
   espnbet: "/images/sports-books/espnbet.png",
   fanatics: "/images/sports-books/fanatics.png",
   fanduel: "/images/sports-books/fanduel.png",
+  fanduelyourway: "/images/sports-books/fanduel_yourway.png",
+  "fanduel-yourway": "/images/sports-books/fanduel_yourway.png",
   fliff: "/images/sports-books/fliff.png",
   hardrock: "/images/sports-books/hardrockbet.png",
   hardrockbet: "/images/sports-books/hardrockbet.png",
@@ -32,10 +34,29 @@ const SPORTSBOOK_LOGO_BY_ID: Record<string, string> = {
   thescore: "/images/sports-books/thescore.png"
 };
 
-const TEAM_ABBR_FIXUPS: Record<string, string> = {
-  was: "wsh",
-  nop: "no",
-  uta: "utah"
+/** Per-sport abbreviation fixups so team abbreviations from the API match logo filenames */
+const TEAM_ABBR_FIXUPS: Record<string, Record<string, string>> = {
+  nba:   { was: "wsh", nop: "no", uta: "utah" },
+  ncaab: { was: "wsh", nop: "no", uta: "utah" },
+  nhl:   {},
+  nfl:   { la: "lar", was: "wsh" },
+  mlb:   { ari: "az", cws: "chw" },
+  wnba:  {},
+};
+
+/**
+ * Maps sport keys to the team-logos folder. NCAAB shares logos with NCAAF.
+ * Logos are SVGs served from /public/team-logos/{folder}/{ABBR}.svg.
+ * To add a new sport, just add an entry here.
+ */
+const LOGO_SPORT_FOLDER: Record<string, string> = {
+  nba: "nba",
+  ncaab: "ncaaf",
+  nhl: "nhl",
+  nfl: "nfl",
+  mlb: "mlb",
+  wnba: "wnba",
+  ncaaf: "ncaaf",
 };
 
 function baseAssetUrl(): string {
@@ -51,8 +72,8 @@ export function normalizeSportsbookId(id: string | null | undefined): string {
     hardrockbet: "hard-rock",
     "hard-rock-indiana": "hard-rock",
     espnbet: "espn",
-    "fanduel-yourway": "fanduel",
-    fanduel_yourway: "fanduel",
+    "fanduel-yourway": "fanduelyourway",
+    fanduel_yourway: "fanduelyourway",
     "betmgm-michigan": "betmgm",
     betmgm_michigan: "betmgm",
     "sports-interaction": "sports-interaction",
@@ -71,9 +92,23 @@ export function getSportsbookLogoUrl(bookId: string | null | undefined): string 
   return `${baseAssetUrl()}${path}`;
 }
 
-export function getNbaTeamLogoUrl(teamAbbr: string | null | undefined): string | null {
+/**
+ * Team logo SVG URL served from our web app's /public/team-logos/.
+ * Use with <SvgUri> from react-native-svg (not <Image>).
+ * To add a new sport, add an entry to LOGO_SPORT_FOLDER and optionally TEAM_ABBR_FIXUPS.
+ */
+export function getTeamLogoUrl(teamAbbr: string | null | undefined, sport: string): string | null {
   if (!teamAbbr) return null;
+  const sportLower = sport.toLowerCase();
+  const folder = LOGO_SPORT_FOLDER[sportLower];
+  if (!folder) return null;
+  const fixups = TEAM_ABBR_FIXUPS[sportLower] ?? {};
   const normalized = teamAbbr.toLowerCase().trim();
-  const key = TEAM_ABBR_FIXUPS[normalized] ?? normalized;
-  return `https://a.espncdn.com/i/teamlogos/nba/500/${key}.png`;
+  const key = fixups[normalized] ?? normalized;
+  return `${baseAssetUrl()}/team-logos/${folder}/${key.toUpperCase()}.svg`;
+}
+
+/** @deprecated Use getTeamLogoUrl(abbr, "nba") instead */
+export function getNbaTeamLogoUrl(teamAbbr: string | null | undefined): string | null {
+  return getTeamLogoUrl(teamAbbr, "nba");
 }

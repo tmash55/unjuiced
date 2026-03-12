@@ -16,12 +16,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { HitRateSortField, HitRateProfileV2 } from "@unjuiced/types";
 import { useHitRates } from "@/src/hooks/use-hit-rates";
-import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
+import { useHitRateOddsLine } from "@/src/hooks/use-hit-rate-odds-line";
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";
 import { getNbaTeamLogoUrl, getSportsbookLogoUrl } from "@/src/lib/logos";
 import { brandColors } from "@/src/theme/brand";
 import { streakColor } from "@/src/components/player/constants";
-import type { HitRateOddsSelection } from "@unjuiced/api";
 
 /* ─── constants ─── */
 
@@ -82,13 +81,20 @@ function getPlayerName(row: HitRateProfileV2): string {
   return row.player_name || row.nba_players_hr?.name || "Unknown";
 }
 
-function getStableKey(row: HitRateProfileV2): string | null {
-  return row.odds_selection_id || row.sel_key || null;
-}
-
 function getGameKey(row: HitRateProfileV2): string {
   if (row.game_id) return row.game_id;
   return `${row.game_date ?? "D"}:${row.team_abbr ?? "T"}:${row.opponent_team_abbr ?? "O"}`;
+}
+
+function getRowKey(row: HitRateProfileV2, index: number): string {
+  return [
+    row.id,
+    row.game_id ?? row.event_id ?? "no-game",
+    row.market ?? "no-market",
+    row.line ?? "no-line",
+    row.player_id ?? "no-player",
+    index,
+  ].join(":");
 }
 
 function getGameLabel(row: HitRateProfileV2): string {
@@ -198,10 +204,21 @@ const PlayerCard = ({
   onPress: () => void;
 }) => {
   const teamLogo = getNbaTeamLogoUrl(row.team_abbr);
-  const bookLogo = getSportsbookLogoUrl(bestBook);
   const headshot = row.player_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${row.player_id}.png` : null;
   const imgFailed = useRef(false);
   const [, forceUpdate] = useState(0);
+  const playerOddsKey = row.sel_key ?? row.odds_selection_id ?? null;
+  const { data: oddsLineData } = useHitRateOddsLine({
+    eventId: row.event_id ?? null,
+    market: row.market ?? null,
+    playerKey: playerOddsKey,
+    line: row.line ?? null,
+    enabled: !!row.event_id && !!row.market && !!playerOddsKey && row.line != null,
+  });
+
+  const displayBestPrice = oddsLineData?.best?.over ?? bestPrice;
+  const displayBestBook = oddsLineData?.best?.book ?? bestBook;
+  const bookLogo = getSportsbookLogoUrl(displayBestBook);
 
   const showHeadshot = headshot && !imgFailed.current;
 
@@ -263,8 +280,8 @@ const PlayerCard = ({
               <Text style={styles.cardPropLine}>
                 O {formatLine(row.line)} {mktShort(row.market)}
               </Text>
-              {bestPrice != null ? (
-                <Text style={styles.cardPropOdds}>{formatOdds(bestPrice)}</Text>
+              {displayBestPrice != null ? (
+                <Text style={styles.cardPropOdds}>{formatOdds(displayBestPrice)}</Text>
               ) : null}
               {bookLogo ? (
                 <Image source={{ uri: bookLogo }} style={styles.oddsBookLogo} />
@@ -404,21 +421,6 @@ export default function HitRatesScreen() {
     return (data?.data ?? []).filter((r) => !isCompletedGame(r) && !hasGameStarted(r));
   }, [data?.data, selectedGameKeys]);
 
-  const oddsSelections = useMemo(
-    () =>
-      rows.reduce<HitRateOddsSelection[]>((acc, row) => {
-        const sk = getStableKey(row);
-        if (sk) acc.push({ stableKey: sk, line: row.line ?? undefined });
-        return acc;
-      }, []),
-    [rows]
-  );
-
-  const { getOdds } = useHitRateOdds({
-    selections: oddsSelections,
-    enabled: rows.length > 0
-  });
-
   function toggleSort(field: HitRateSortField) {
     triggerSelectionHaptic();
     if (field === sort) {
@@ -456,10 +458,8 @@ export default function HitRatesScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: HitRateProfileV2 }) => {
-      const sk = getStableKey(item);
-      const lineOdds = sk ? getOdds(sk) : null;
-      const bestBook = lineOdds?.bestOver?.book ?? item.best_odds?.book ?? "";
-      const bestPrice = lineOdds?.bestOver?.price ?? item.best_odds?.price ?? null;
+      const bestBook = item.best_odds?.book ?? "";
+      const bestPrice = item.best_odds?.price ?? null;
 
       return (
         <PlayerCard
@@ -477,10 +477,10 @@ export default function HitRatesScreen() {
         />
       );
     },
-    [getOdds, router, sort]
+    [router, sort]
   );
 
-  const keyExtractor = useCallback((item: HitRateProfileV2) => item.id, []);
+  const keyExtractor = useCallback((item: HitRateProfileV2, index: number) => getRowKey(item, index), []);
 
   /* ─── List Header: title, search, filter pills ─── */
   const listHeader = (

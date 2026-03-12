@@ -30,9 +30,11 @@ import {
 import OverUnderComparison from "./OverUnderComparison";
 import SingleSideGrid from "./SingleSideGrid";
 
-const SWIPE_THRESHOLD = -80;
-const SWIPE_SNAP = -90;
-const SWIPE_DISMISS = -200;
+const SWIPE_START_THRESHOLD = 10;
+const SWIPE_THRESHOLD = -60;
+const SWIPE_SNAP = -88;
+const SWIPE_DISMISS = -160;
+const SWIPE_SOFT_MAX = -96;
 
 type Props = {
   opp: PositiveEVOpportunity;
@@ -81,14 +83,14 @@ export default function OpportunityCard({
 
   /* ─── Kelly stake ─── */
   const kellyInfo = useMemo(() => {
-    if (!fairValue) return null;
+    if (ev <= 0) return null;
     return getKellyStakeDisplay({
       bankroll,
       bestOdds: opp.book.price,
-      fairOdds: fairValue,
+      evPercent: ev,
       kellyPercent,
     });
-  }, [bankroll, kellyPercent, opp.book.price, fairValue]);
+  }, [bankroll, kellyPercent, opp.book.price, ev]);
 
   /* ─── Vig from devigResults ─── */
   const vig = useMemo(() => {
@@ -99,12 +101,6 @@ export default function OpportunityCard({
     }
     return null;
   }, [opp.devigResults]);
-
-  const handleExpand = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    triggerSelectionHaptic();
-    onToggleExpand();
-  }, [onToggleExpand]);
 
   const handleBet = useCallback(() => {
     const url = opp.book.mobileLink || opp.book.link;
@@ -135,43 +131,79 @@ export default function OpportunityCard({
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gs) =>
-        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy * 1.5),
+        gs.dx < -SWIPE_START_THRESHOLD && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.6,
       onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderGrant: () => {
+        translateX.stopAnimation();
+      },
       onPanResponderMove: (_, gs) => {
-        const clamped = Math.min(0, gs.dx);
+        const base = swiped.current ? SWIPE_SNAP + gs.dx : gs.dx;
+        // Clamp right side at 0, allow going far left with resistance past soft max
+        let clamped = Math.min(0, base);
+        if (clamped < SWIPE_SOFT_MAX) {
+          // Rubber-band: past snap area, add resistance so it feels like pulling
+          const overshoot = SWIPE_SOFT_MAX - clamped;
+          clamped = SWIPE_SOFT_MAX - overshoot * 0.45;
+        }
         translateX.setValue(clamped);
       },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dx < SWIPE_DISMISS || gs.vx < -1.2) {
+        const rawX = swiped.current ? SWIPE_SNAP + gs.dx : gs.dx;
+        if (rawX < SWIPE_DISMISS || gs.vx < -0.9) {
           swiped.current = false;
           Animated.timing(translateX, {
             toValue: -400,
-            duration: 200,
+            duration: 170,
             useNativeDriver: true,
           }).start(() => {
             translateX.setValue(0);
             onToggleHide();
           });
-        } else if (gs.dx < SWIPE_THRESHOLD || gs.vx < -0.5) {
+        } else if (rawX < SWIPE_THRESHOLD || gs.vx < -0.5) {
           swiped.current = true;
           Animated.spring(translateX, {
             toValue: SWIPE_SNAP,
             useNativeDriver: true,
-            damping: 20,
-            stiffness: 200,
+            damping: 24,
+            stiffness: 260,
           }).start();
         } else {
           swiped.current = false;
           Animated.spring(translateX, {
             toValue: 0,
             useNativeDriver: true,
-            damping: 20,
-            stiffness: 200,
+            damping: 24,
+            stiffness: 260,
           }).start();
         }
       },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, {
+          toValue: swiped.current ? SWIPE_SNAP : 0,
+          useNativeDriver: true,
+          damping: 24,
+          stiffness: 260,
+        }).start();
+      },
     })
   ).current;
+
+  const handleExpand = useCallback(() => {
+    if (swiped.current) {
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 22,
+        stiffness: 240,
+      }).start(() => {
+        swiped.current = false;
+      });
+      return;
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    triggerSelectionHaptic();
+    onToggleExpand();
+  }, [onToggleExpand, translateX]);
 
   const handleSwipeAction = useCallback(() => {
     triggerSelectionHaptic();

@@ -497,14 +497,19 @@ export default function ArbitrageContent() {
   const [totalStakeInput, setTotalStakeInput] = useState("200");
   const [filtersHydrated, setFiltersHydrated] = useState(false);
 
+  const { session } = useAuth();
   const { data, isLoading, isError, error, refetch, isRefetching } = useArbitrage({
     mode,
     limit: 100,
     autoRefreshEnabled
   });
-  const { data: entitlements } = useEntitlements();
+  const { data: entitlements, isLoading: entitlementsLoading } = useEntitlements();
   const { preferences, isLoading: prefsLoading, savePreferences, isSaving } = useUserPreferences();
-  const plan = normalizePlanName(String(entitlements?.plan || data?.plan || "free"));
+  // Prefer entitlements (from /api/me/plan) since it's the canonical source.
+  // Fall back to arb API response plan while entitlements are loading.
+  const plan = normalizePlanName(
+    entitlements?.plan ?? data?.plan ?? "free"
+  );
 
   useEffect(() => {
     if (prefsLoading || filtersHydrated) return;
@@ -588,7 +593,7 @@ export default function ArbitrageContent() {
     await Linking.openURL(url);
   }
 
-  const planLabel = plan === "anonymous" ? "Free" : plan.toUpperCase();
+  const planLabel = (plan === "anonymous" || plan === "free") ? "Free" : plan.charAt(0).toUpperCase() + plan.slice(1);
   const bookSummary =
     selectedBooks.length > 0 ? `${selectedBooks.length} books active` : "All books active";
   const filterCount =

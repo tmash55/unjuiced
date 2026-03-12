@@ -12,10 +12,26 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "bet.unjuiced.mobile"
+      "bundleIdentifier": "bet.unjuiced.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "bet.unjuiced.mobile"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a64d3115-5655-40d4-b7d4-3be98bf02e4e"
+      }
+    },
+    "owner": "tmash55",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a64d3115-5655-40d4-b7d4-3be98bf02e4e"
     }
   }
 }

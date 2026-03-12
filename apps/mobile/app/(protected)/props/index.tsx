@@ -20,9 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQueries } from "@tanstack/react-query";
 import type { HitRateSortField, HitRateProfileV2, HitRatesV2Response } from "@unjuiced/types";
-import type { HitRateOddsSelection } from "@unjuiced/api";
-import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
 import { useUserPreferences } from "@/src/hooks/use-user-preferences";
+import { useHitRateOddsLine } from "@/src/hooks/use-hit-rate-odds-line";
 import { api } from "@/src/lib/api";
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";
 import { useAuth } from "@/src/providers/auth-provider";
@@ -226,12 +225,44 @@ function getGameKey(row: HitRateProfileV2): string {
   return `${row.game_date ?? "D"}:${row.team_abbr ?? "T"}:${row.opponent_team_abbr ?? "O"}`;
 }
 
+function getRowKey(row: HitRateProfileV2, index: number): string {
+  return [
+    row.id,
+    row.game_id ?? row.event_id ?? "no-game",
+    row.market ?? "no-market",
+    row.line ?? "no-line",
+    row.player_id ?? "no-player",
+    index,
+  ].join(":");
+}
+
 function getGameLabel(row: HitRateProfileV2): string {
   const team = row.team_abbr ?? "TM";
   const opp = row.opponent_team_abbr ?? "OPP";
   if (row.home_away === "H") return `${opp} @ ${team}`;
   if (row.home_away === "A") return `${team} @ ${opp}`;
   return `${team} vs ${opp}`;
+}
+
+function getSortValue(row: HitRateProfileV2, field: HitRateSortField): number | string {
+  switch (field) {
+    case "l5Pct":
+      return row.last_5_pct ?? -1;
+    case "l10Pct":
+      return row.last_10_pct ?? -1;
+    case "l20Pct":
+      return row.last_20_pct ?? -1;
+    case "h2hPct":
+      return row.h2h_pct ?? -1;
+    case "seasonPct":
+      return row.season_pct ?? -1;
+    case "edge":
+      return row.edge ?? -Infinity;
+    case "ev":
+      return row.ev_data?.ev_pct ?? -Infinity;
+    default:
+      return row.last_10_pct ?? -1;
+  }
 }
 
 function hasGameStarted(row: HitRateProfileV2): boolean {
@@ -810,10 +841,21 @@ const PlayerCard = ({
   onPress: () => void;
 }) => {
   const teamLogo = getNbaTeamLogoUrl(row.team_abbr);
-  const bookLogo = getSportsbookLogoUrl(bestBook);
   const headshot = row.player_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${row.player_id}.png` : null;
   const imgFailed = useRef(false);
   const [, forceUpdate] = useState(0);
+  const playerOddsKey = row.sel_key ?? row.odds_selection_id ?? null;
+  const { data: oddsLineData } = useHitRateOddsLine({
+    eventId: row.event_id ?? null,
+    market: row.market ?? null,
+    playerKey: playerOddsKey,
+    line: row.line ?? null,
+    enabled: !!row.event_id && !!row.market && !!playerOddsKey && row.line != null,
+  });
+
+  const displayBestPrice = oddsLineData?.best?.over ?? bestPrice;
+  const displayBestBook = oddsLineData?.best?.book ?? bestBook;
+  const bookLogo = getSportsbookLogoUrl(displayBestBook);
 
   const showHeadshot = headshot && !imgFailed.current;
 
@@ -880,8 +922,8 @@ const PlayerCard = ({
               <Text style={styles.cardPropLine}>
                 O {formatLine(row.line)} {mktShort(row.market)}
               </Text>
-              {bestPrice != null ? (
-                <Text style={styles.cardPropOdds}>{formatOdds(bestPrice)}</Text>
+              {displayBestPrice != null ? (
+                <Text style={styles.cardPropOdds}>{formatOdds(displayBestPrice)}</Text>
               ) : null}
               {bookLogo ? (
                 <Image source={{ uri: bookLogo }} style={styles.oddsBookLogo} />
@@ -1130,24 +1172,21 @@ export default function PropsScreen() {
         (r) => r.matchup?.matchup_quality && matchupFilter.includes(r.matchup.matchup_quality)
       );
     }
-    return filtered;
-  }, [allData, selectedGameKeys, matchupFilter]);
-
-  // Use sel_key to look up real-time odds from hitrate:nba:v2 Redis hash (same as desktop)
-  const oddsSelections = useMemo(
-    () =>
-      rows.reduce<HitRateOddsSelection[]>((acc, row) => {
-        const sk = row.sel_key;
-        if (sk) acc.push({ stableKey: sk, line: row.line ?? undefined });
-        return acc;
-      }, []),
-    [rows]
-  );
-
-  const { getOdds } = useHitRateOdds({
-    selections: oddsSelections,
-    enabled: rows.length > 0
-  });
+    return [...filtered].sort((a, b) => {
+      const aValue = getSortValue(a, sort);
+      const bValue = getSortValue(b, sort);
+      let comparison = 0;
+      if (typeof aValue === "string" || typeof bValue === "string") {
+        comparison = String(aValue).localeCompare(String(bValue));
+      } else {
+        comparison = aValue - bValue;
+      }
+      if (comparison === 0) {
+        comparison = (a.last_10_pct ?? -1) - (b.last_10_pct ?? -1);
+      }
+      return sortDir === "desc" ? -comparison : comparison;
+    });
+  }, [allData, matchupFilter, selectedGameKeys, sort, sortDir]);
 
   function toggleSort(field: HitRateSortField) {
     triggerSelectionHaptic();
@@ -1296,9 +1335,8 @@ export default function PropsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: HitRateProfileV2 }) => {
-      const lineOdds = item.sel_key ? getOdds(item.sel_key) : null;
-      const bestBook = lineOdds?.bestOver?.book ?? item.best_odds?.book ?? "";
-      const bestPrice = lineOdds?.bestOver?.price ?? item.best_odds?.price ?? null;
+      const bestBook = item.best_odds?.book ?? "";
+      const bestPrice = item.best_odds?.price ?? null;
 
       return (
         <PlayerCard
@@ -1316,10 +1354,10 @@ export default function PropsScreen() {
         />
       );
     },
-    [getOdds, router, sort]
+    [router, sort]
   );
 
-  const keyExtractor = useCallback((item: HitRateProfileV2) => item.id, []);
+  const keyExtractor = useCallback((item: HitRateProfileV2, index: number) => getRowKey(item, index), []);
 
   /* ─── Sticky header: sport pills + tool tabs ─── */
   const stickyFilters = (

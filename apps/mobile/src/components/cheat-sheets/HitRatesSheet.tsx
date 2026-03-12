@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCheatSheet } from "@/src/hooks/use-cheat-sheet";
 import { useEntitlements } from "@/src/hooks/use-entitlements";
-import { getNbaTeamLogoUrl, getSportsbookLogoUrl } from "@/src/lib/logos";
+import { getSportsbookLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { brandColors } from "@/src/theme/brand";
 import type { CheatSheetRow } from "@unjuiced/api";
 
@@ -101,7 +102,6 @@ const MARKET_SHORT: Record<string, string> = {
 };
 
 const Card = ({ row, onPress }: { row: CheatSheetRow; onPress: () => void }) => {
-  const teamLogo = getNbaTeamLogoUrl(row.teamAbbr);
   const bookLogo = row.bestOdds?.book ? getSportsbookLogoUrl(row.bestOdds.book) : null;
   const gc = gradeColor(row.confidenceGrade);
   const mb = matchupBadge(row.matchupQuality);
@@ -112,11 +112,7 @@ const Card = ({ row, onPress }: { row: CheatSheetRow; onPress: () => void }) => 
       {/* Top row: player + grade */}
       <View style={styles.cardTop}>
         <View style={styles.cardPlayerInfo}>
-          {teamLogo ? (
-            <Image source={{ uri: teamLogo }} style={styles.teamLogo} />
-          ) : (
-            <View style={[styles.teamLogo, { borderWidth: 1, borderColor: brandColors.border }]} />
-          )}
+          <TeamLogo teamAbbr={row.teamAbbr} sport="nba" size={32} style={{ borderRadius: 16 }} />
           <View style={styles.cardNameBlock}>
             <Text style={styles.playerName} numberOfLines={1}>
               {row.playerName}

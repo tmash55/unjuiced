@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useAuth } from "@/src/providers/auth-provider";
@@ -22,8 +23,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const onSubmit = async () => {
+    if (!email || !password) return;
     try {
       setSubmitting(true);
       setError(null);
@@ -40,24 +43,17 @@ export default function LoginScreen() {
     <AuthScreenShell
       keyboard
       title="Welcome back."
-      subtitle="Jump back into the board and pick up right where your research left off."
+      subtitle="Pick up right where your research left off."
       eyebrow="Sign in"
       footer={
         <AuthInlineLink
           prefix="Need an account?"
           action="Create one"
-          onPress={() => router.push("/register")}
+          onPress={() => router.replace("/register")}
         />
       }
     >
       <AuthPanel>
-        <View style={s.copyWrap}>
-          <Text style={s.panelTitle}>Sign in to Unjuiced</Text>
-          <Text style={authUiStyles.helperText}>
-            Your books, bankroll settings, and saved preferences come with you.
-          </Text>
-        </View>
-
         <View style={authUiStyles.actionRow}>
           <AuthField
             label="Email"
@@ -65,16 +61,24 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             placeholder="you@email.com"
             keyboardType="email-address"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
           />
 
           <AuthField
+            ref={passwordRef}
             label="Password"
             value={password}
             onChangeText={setPassword}
             placeholder="Your password"
             secureTextEntry
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={() => void onSubmit()}
             rightLabel={
-              <Text style={s.inlineAction} onPress={() => router.push("/forgot-password")}>
+              <Text style={s.forgotLink} onPress={() => router.push("/forgot-password")}>
                 Forgot?
               </Text>
             }
@@ -84,7 +88,6 @@ export default function LoginScreen() {
 
           <AuthButton
             label="Sign in"
-            icon="arrow-forward"
             onPress={() => void onSubmit()}
             disabled={!email || !password}
             loading={submitting}
@@ -96,15 +99,7 @@ export default function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  copyWrap: {
-    gap: 6,
-  },
-  panelTitle: {
-    color: "#F8FAFC",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  inlineAction: {
+  forgotLink: {
     color: "#7DD3FC",
     fontSize: 13,
     fontWeight: "700",

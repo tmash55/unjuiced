@@ -120,7 +120,7 @@ export function OddsDropdown({
     return selKey.includes(':') ? selKey.split(':')[0] : selKey;
   }, [selKey]);
 
-  // Fetch odds - called on mount to show fresh odds immediately
+  // Fetch detailed book odds on demand when the dropdown is opened.
   const fetchOdds = useCallback(async () => {
     if (!eventId || !market || !playerId || line === null || line === undefined) {
       return;
@@ -154,18 +154,15 @@ export function OddsDropdown({
     }
   }, [eventId, market, playerId, line]);
 
-  // Fetch odds on mount to show fresh odds in the button immediately
-  useEffect(() => {
-    if (!hasFetched.current && eventId && market && playerId && line !== null && line !== undefined) {
-      fetchOdds();
-    }
-  }, [eventId, market, playerId, line, fetchOdds]);
-
-  // Handle toggle - just open/close, odds already fetched
+  // Handle toggle - use row.bestOdds for the collapsed state and only fetch detailed odds on open.
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
-  }, [isOpen]);
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen && !hasFetched.current && !isLoading) {
+      void fetchOdds();
+    }
+  }, [fetchOdds, isLoading, isOpen]);
 
   // Handle book click - open link
   const handleBookClick = useCallback((book: BookOddsDetail, side: "over" | "under", e: React.MouseEvent) => {

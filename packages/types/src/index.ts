@@ -122,6 +122,7 @@ export type SharpPreset =
   | "fanatics"
   | "polymarket"
   | "kalshi"
+  | "novig"
   | "custom";
 
 export type EVMode = "pregame" | "live" | "all";

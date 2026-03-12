@@ -31,19 +31,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // Subscribe to auth changes first — this catches TOKEN_REFRESHED events.
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setLoading(false);
+    });
+
+    // getSession() returns the cached (possibly expired) token from storage.
+    // We use it to show the user quickly, then call getUser() to validate &
+    // refresh the token. onAuthStateChange fires with the fresh session.
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
-    });
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
+      // Validate token server-side; triggers refresh if expired.
+      if (data.session) {
+        supabase.auth.getUser();
+      }
     });
 
     return () => {

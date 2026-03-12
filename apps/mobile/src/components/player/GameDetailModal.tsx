@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { PlayerBoxScoreGame } from "@unjuiced/types";
 import type { TeammateOut } from "@unjuiced/api";
 import type { PlayerOutInfo } from "@/src/hooks/use-players-out-for-filter";
-import { getNbaTeamLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { brandColors } from "@/src/theme/brand";
 import {
   fmtDateShort,
@@ -136,8 +136,6 @@ export function GameDetailModal({
         ? "rgba(239,68,68,0.15)"
         : "rgba(245,158,11,0.15)";
   const hitPillColor = sHit === true ? BAR_HIT : sHit === false ? BAR_MISS : BAR_PUSH;
-
-  const sgOppLogo = getNbaTeamLogoUrl(sg.opponentAbbr);
 
   // ─── Animation values ───
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
@@ -317,7 +315,7 @@ export function GameDetailModal({
         {/* Header — also draggable */}
         <View {...handlePanResponder.panHandlers} style={s.header}>
           <View style={s.headerLeft}>
-            {sgOppLogo ? <Image source={{ uri: sgOppLogo }} style={s.oppLogo} /> : null}
+            <TeamLogo teamAbbr={sg.opponentAbbr} sport="nba" size={24} style={{ borderRadius: 12 }} />
             <Text style={s.headerTitle}>
               {fmtDateShort(sg.date)} {sg.homeAway === "H" ? "vs" : "@"} {sg.opponentAbbr}
             </Text>

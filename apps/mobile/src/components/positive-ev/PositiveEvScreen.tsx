@@ -18,6 +18,10 @@ import { usePositiveEV } from "@/src/hooks/use-positive-ev";
 import { useSharpPresets } from "@/src/hooks/use-sharp-presets";
 import { useUserPreferences } from "@/src/hooks/use-user-preferences";
 import { triggerSelectionHaptic } from "@/src/lib/haptics";
+import {
+  normalizePositiveEvOpportunityForDevigMethods,
+  remapPositiveEvOpportunityToSelectedBooks,
+} from "@/src/lib/opportunity-books";
 import { brandColors } from "@/src/theme/brand";
 import StateView from "@/src/components/StateView";
 import PlanGate from "@/src/components/plan-gate/PlanGate";
@@ -44,6 +48,7 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
   const { preferences, isLoading: prefsLoading, savePreferences } = useUserPreferences();
 
   /* ─── Filter state ─── */
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<SharpPreset>("pinnacle");
   const [selectedSports, setSelectedSports] = useState<string[]>(["nba", "nfl"]);
@@ -69,7 +74,12 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
   const [showHidden, setShowHidden] = useState(false);
 
   const toggleExpand = useCallback((id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    LayoutAnimation.configureNext({
+      duration: 150,
+      update: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.scaleY },
+      create: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity, duration: 100 },
+      delete: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity, duration: 100 },
+    });
     triggerSelectionHaptic();
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
@@ -130,7 +140,6 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
 
   const { data, isLoading, isError, error, refetch, isRefetching } = usePositiveEV({
     sports: selectedSports,
-    books: preferences.preferredSportsbooks,
     sharpPreset: selectedPreset,
     devigMethods,
     marketType,
@@ -227,13 +236,44 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
   const allOpportunities = data?.opportunities ?? [];
   const hiddenCount = allOpportunities.filter((o) => hiddenIds.has(o.id)).length;
 
+  const prevOrderRef = useRef<string[]>([]);
+
   const opportunities = useMemo(() => {
     let list = showHidden
       ? allOpportunities
       : allOpportunities.filter((o) => !hiddenIds.has(o.id));
+    list = list.map((opp) => normalizePositiveEvOpportunityForDevigMethods(opp, devigMethods));
+    if (preferences.preferredSportsbooks.length > 0) {
+      list = list
+        .map((opp) => remapPositiveEvOpportunityToSelectedBooks(opp, preferences.preferredSportsbooks, devigMethods))
+        .filter((opp): opp is PositiveEVOpportunity => opp !== null);
+    }
+    list = list.filter((opp) => {
+      const ev = opp.evCalculations?.evWorst ?? 0;
+      if (ev < minEv) return false;
+      if (maxEv != null && ev > maxEv) return false;
+      return true;
+    });
     list = sortOpportunities(list, sortField, sortDir);
+
+    // When a card is expanded, preserve the current order so the user's
+    // view doesn't jump around during auto-refresh.
+    if (expandedId) {
+      const prevOrder = prevOrderRef.current;
+      if (prevOrder.length > 0) {
+        const orderMap = new Map(prevOrder.map((id, i) => [id, i]));
+        list = list.slice().sort((a, b) => {
+          const ai = orderMap.get(a.id) ?? Infinity;
+          const bi = orderMap.get(b.id) ?? Infinity;
+          return ai - bi;
+        });
+      }
+    } else {
+      prevOrderRef.current = list.map((o) => o.id);
+    }
+
     return list;
-  }, [allOpportunities, hiddenIds, showHidden, sortField, sortDir]);
+  }, [allOpportunities, devigMethods, expandedId, hiddenIds, maxEv, minEv, preferences.preferredSportsbooks, showHidden, sortField, sortDir]);
 
   /* ─── Bottom bar scroll-hide ─── */
   const { translateY: bottomBarTranslateY, onScroll: onListScroll } = useScrollHideBar();
@@ -259,29 +299,26 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
   const keyExtractor = useCallback((item: PositiveEVOpportunity) => item.id, []);
 
   /* ─── List header: hidden toggle ─── */
-  const listHeader = hiddenCount > 0 || isRefetching ? (
+  const listHeader = hiddenCount > 0 ? (
     <View style={styles.listHeader}>
       <View style={styles.countRow}>
-        {hiddenCount > 0 ? (
-          <Pressable
-            onPress={() => {
-              triggerSelectionHaptic();
-              setShowHidden((c) => !c);
-            }}
-            hitSlop={6}
-            style={styles.hiddenTogglePill}
-          >
-            <Ionicons
-              name={showHidden ? "eye-off-outline" : "eye-outline"}
-              size={12}
-              color={brandColors.primary}
-            />
-            <Text style={styles.hiddenToggle}>
-              {showHidden ? "Hide hidden" : `${hiddenCount} hidden`}
-            </Text>
-          </Pressable>
-        ) : null}
-        {isRefetching ? <ActivityIndicator size="small" color={brandColors.primary} /> : null}
+        <Pressable
+          onPress={() => {
+            triggerSelectionHaptic();
+            setShowHidden((c) => !c);
+          }}
+          hitSlop={6}
+          style={styles.hiddenTogglePill}
+        >
+          <Ionicons
+            name={showHidden ? "eye-off-outline" : "eye-outline"}
+            size={12}
+            color={brandColors.primary}
+          />
+          <Text style={styles.hiddenToggle}>
+            {showHidden ? "Hide hidden" : `${hiddenCount} hidden`}
+          </Text>
+        </Pressable>
       </View>
     </View>
   ) : null;
@@ -362,9 +399,10 @@ export default function PositiveEvScreen({ embedded }: ScreenProps = {}) {
           contentContainerStyle={styles.listContent}
           onRefresh={() => {
             triggerSelectionHaptic();
-            void refetch();
+            setManualRefreshing(true);
+            refetch().finally(() => setManualRefreshing(false));
           }}
-          refreshing={isRefetching}
+          refreshing={manualRefreshing}
           showsVerticalScrollIndicator={false}
           onScroll={onListScroll}
           scrollEventThrottle={16}

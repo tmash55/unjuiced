@@ -23,7 +23,7 @@ export function useArbitrage(options?: UseArbitrageOptions) {
     queryKey: ["arbs", user?.id, mode, limit, cursor],
     queryFn: async () => {
       const response = await api.getArbs({
-        accessToken: session?.access_token,
+        accessToken: session!.access_token,
         mode,
         limit,
         cursor
@@ -35,6 +35,7 @@ export function useArbitrage(options?: UseArbitrageOptions) {
 
       return response;
     },
+    enabled: Boolean(session?.access_token),
     staleTime: 5_000,
     gcTime: 10 * 60_000,
     refetchInterval: autoRefreshEnabled ? autoRefreshMs : false,

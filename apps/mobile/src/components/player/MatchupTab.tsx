@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { brandColors } from "@/src/theme/brand";
 import { useTeamDefenseRanks } from "@/src/hooks/use-team-defense-ranks";
 import { usePositionVsTeam } from "@/src/hooks/use-position-vs-team";
-import { getNbaTeamLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { rankColor, rankBgColor, fmtDate, hitColor } from "./constants";
 
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
@@ -163,7 +163,7 @@ export function MatchupTab({ opponentTeamId, playerPosition, oppAbbr, chartMarke
                         <Text style={s.recentName} numberOfLines={1}>{p.playerName}</Text>
                         <View style={s.recentMeta}>
                           {p.teamAbbr ? (
-                            <Image source={{ uri: getNbaTeamLogoUrl(p.teamAbbr) ?? "" }} style={s.recentTeamLogo} />
+                            <TeamLogo teamAbbr={p.teamAbbr} sport="nba" size={12} style={{ borderRadius: 6 }} />
                           ) : null}
                           <Text style={s.recentDate}>{fmtDate(p.gameDate)}</Text>
                           {p.closingLine != null ? (

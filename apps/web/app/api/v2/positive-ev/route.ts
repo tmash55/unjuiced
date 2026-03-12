@@ -502,6 +502,7 @@ type CustomBookRow = {
   ev_pct?: number;
   is_sharp_ref?: boolean;
   link?: string | null;
+  mobile_link?: string | null;
   limits?: { max: number } | null;
 };
 
@@ -602,14 +603,16 @@ function evRowToOpportunity(
   const fairProbPow = row.devig?.p_fair?.power ?? null;
   const fairProbMult = row.devig?.p_fair?.multiplicative ?? null;
   const fairProbAdd = row.devig?.p_fair?.additive ?? null;
+  const fairProbProbit = row.devig?.p_fair?.probit ?? null;
 
   // Build full EVCalculation objects (what the frontend expects)
   const evCalcPower = buildEVCalculation("power", fairProbPow, row.ev?.pow, bookAm, bookDec);
   const evCalcMult = buildEVCalculation("multiplicative", fairProbMult, row.ev?.mult, bookAm, bookDec);
   const evCalcAdd = buildEVCalculation("additive", fairProbAdd, row.ev?.add, bookAm, bookDec);
+  const evCalcProbit = buildEVCalculation("probit", fairProbProbit, row.ev?.probit, bookAm, bookDec);
 
   // Kelly worst = smallest kelly across methods
-  const kellyValues = [evCalcPower?.kellyFraction, evCalcMult?.kellyFraction, evCalcAdd?.kellyFraction]
+  const kellyValues = [evCalcPower?.kellyFraction, evCalcMult?.kellyFraction, evCalcAdd?.kellyFraction, evCalcProbit?.kellyFraction]
     .filter((k): k is number => k != null);
   const kellyWorst = kellyValues.length > 0 ? Math.min(...kellyValues) : undefined;
 
@@ -658,6 +661,20 @@ function evRowToOpportunity(
         margin: 0,
         success: true,
       } : undefined,
+      additive: fairProbAdd != null ? {
+        method: "additive" as DevigMethod,
+        fairProbOver: row.side === "over" || row.side === "yes" ? fairProbAdd : (1 - fairProbAdd),
+        fairProbUnder: row.side === "over" || row.side === "yes" ? (1 - fairProbAdd) : fairProbAdd,
+        margin: 0,
+        success: true,
+      } : undefined,
+      probit: fairProbProbit != null ? {
+        method: "probit" as DevigMethod,
+        fairProbOver: row.side === "over" || row.side === "yes" ? fairProbProbit : (1 - fairProbProbit),
+        fairProbUnder: row.side === "over" || row.side === "yes" ? (1 - fairProbProbit) : fairProbProbit,
+        margin: 0,
+        success: true,
+      } : undefined,
     },
 
     book: {
@@ -677,7 +694,7 @@ function evRowToOpportunity(
       power: evCalcPower,
       multiplicative: evCalcMult,
       additive: evCalcAdd,
-      probit: undefined,
+      probit: evCalcProbit,
       evWorst,
       evBest,
       evDisplay: evWorst,

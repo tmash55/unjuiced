@@ -12,7 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useInjuryImpact } from "@/src/hooks/use-injury-impact-sheet";
 import { useEntitlements } from "@/src/hooks/use-entitlements";
-import { getNbaTeamLogoUrl, getSportsbookLogoUrl } from "@/src/lib/logos";
+import { getSportsbookLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { brandColors } from "@/src/theme/brand";
 import type { InjuryImpactRow } from "@unjuiced/api";
 
@@ -90,7 +91,6 @@ function formatOdds(value: number | null | undefined): string {
 }
 
 const Card = ({ row, onPress }: { row: InjuryImpactRow; onPress: () => void }) => {
-  const teamLogo = getNbaTeamLogoUrl(row.teamAbbr);
   const bookLogo = row.bestOdds?.book ? getSportsbookLogoUrl(row.bestOdds.book) : null;
   const gc = gradeColor(row.opportunityGrade);
   const is = injuryStatusStyle(row.defaultTeammateInjuryStatus);
@@ -102,11 +102,7 @@ const Card = ({ row, onPress }: { row: InjuryImpactRow; onPress: () => void }) =
       {/* Player info */}
       <View style={styles.cardTop}>
         <View style={styles.cardPlayerInfo}>
-          {teamLogo ? (
-            <Image source={{ uri: teamLogo }} style={styles.teamLogo} />
-          ) : (
-            <View style={[styles.teamLogo, { borderWidth: 1, borderColor: brandColors.border }]} />
-          )}
+          <TeamLogo teamAbbr={row.teamAbbr} sport="nba" size={32} style={{ borderRadius: 16 }} />
           <View style={styles.cardNameBlock}>
             <Text style={styles.playerName} numberOfLines={1}>{row.playerName}</Text>
             <Text style={styles.subInfo}>{row.teamAbbr} {homeAway} {row.opponentAbbr}</Text>

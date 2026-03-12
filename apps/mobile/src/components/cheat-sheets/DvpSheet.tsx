@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Pressable,
@@ -12,7 +11,7 @@ import {
   View
 } from "react-native";
 import { useDvpRankings } from "@/src/hooks/use-dvp-rankings";
-import { getNbaTeamLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { brandColors } from "@/src/theme/brand";
 import type { DvpTeamRanking } from "@unjuiced/api";
 
@@ -507,17 +506,12 @@ export default function DvpSheet({ position, selectedStat }: Props) {
                 onScroll={(event) => syncVerticalScroll("left", event)}
                 scrollEventThrottle={16}
               >
-                {sortedTeams.map((team, index) => {
-                  const teamLogo = getNbaTeamLogoUrl(team.teamAbbr);
-                  return (
+                {sortedTeams.map((team, index) => (
                     <View key={`${team.teamId}-${team.position}-left`} style={[styles.stickyCol, index % 2 === 0 && styles.dataRowAlt]}>
-                      {teamLogo ? (
-                        <Image source={{ uri: teamLogo }} style={styles.teamLogo} />
-                      ) : null}
+                      <TeamLogo teamAbbr={team.teamAbbr} sport="nba" size={22} style={{ borderRadius: 11 }} />
                       <Text style={styles.teamName} numberOfLines={1}>{team.teamAbbr}</Text>
                     </View>
-                  );
-                })}
+                ))}
               </ScrollView>
             </View>
 

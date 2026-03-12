@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   Image,
@@ -20,6 +21,7 @@ import { useUserPreferences } from "@/src/hooks/use-user-preferences";
 import { getSportsbookLogoUrl, normalizeSportsbookId } from "@/src/lib/logos";
 import { getKellyStakeDisplay } from "@/src/lib/kelly";
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";
+import { remapEdgeOpportunityToSelectedBooks } from "@/src/lib/opportunity-books";
 import { brandColors } from "@/src/theme/brand";
 import { shortenMarketDisplay, humanizeMarketKey } from "@/src/lib/market-display";
 import StateView from "@/src/components/StateView";
@@ -354,13 +356,13 @@ function EdgeOpportunityCard({
   const accentColor = brandColors.warning;
   const bookLogo = getSportsbookLogoUrl(opp.bestBook);
   const bestOddsNumber = parseAmericanOdds(opp.bestPrice);
-  const fairOddsNumber = parseAmericanOdds(opp.fairAmerican ?? opp.sharpPrice);
+  const edgePct = getDisplayImprovement(opp);
   const kellyInfo =
-    bestOddsNumber != null && fairOddsNumber != null
+    bestOddsNumber != null && edgePct > 0
       ? getKellyStakeDisplay({
           bankroll,
           bestOdds: bestOddsNumber,
-          fairOdds: fairOddsNumber,
+          evPercent: edgePct,
           kellyPercent,
         })
       : null;
@@ -419,8 +421,18 @@ function EdgeOpportunityCard({
             {books.map((book) => {
               const logoUrl = getSportsbookLogoUrl(book.book);
               const active = normalizeSportsbookId(book.book) === normalizeSportsbookId(opp.bestBook);
+              const bookUrl = book.mobileLink || book.link;
               return (
-                <View key={`${opp.id}-${book.book}-${book.price}`} style={styles.boardRow}>
+                <Pressable
+                  key={`${opp.id}-${book.book}-${book.price}`}
+                  style={styles.boardRow}
+                  onPress={() => {
+                    if (bookUrl) {
+                      triggerLightImpactHaptic();
+                      void Linking.openURL(bookUrl);
+                    }
+                  }}
+                >
                   <View style={styles.boardBook}>
                     {logoUrl ? <Image source={{ uri: logoUrl }} style={styles.boardLogo} /> : <View style={styles.boardBookFallback} />}
                     <Text style={styles.boardBookText} numberOfLines={1}>{book.book}</Text>
@@ -431,7 +443,10 @@ function EdgeOpportunityCard({
                       <Text style={styles.boardSubtext}>max {formatCurrency(book.limits.max)}</Text>
                     ) : null}
                   </View>
-                </View>
+                  {bookUrl ? (
+                    <Ionicons name="open-outline" size={12} color={brandColors.textMuted} style={{ marginLeft: 4 }} />
+                  ) : null}
+                </Pressable>
               );
             })}
 
@@ -460,6 +475,10 @@ export default function EdgeFinderContent() {
   const [sortField, setSortField] = useState<EdgeSortField>("edge");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(20);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const PAGE_SIZE = 20;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bestOddsComparisonPreset = useMemo(() => {
     if (preferences.bestOddsComparisonMode === "book" && preferences.bestOddsComparisonBook) {
@@ -513,6 +532,8 @@ export default function EdgeFinderContent() {
     minOdds,
     maxOdds,
     limit: 150,
+    autoRefreshEnabled,
+    autoRefreshMs: 15_000,
   });
 
   function toggleSport(sportId: string) {
@@ -548,13 +569,15 @@ export default function EdgeFinderContent() {
   const { translateY: bottomBarTranslateY, onScroll: onListScroll } = useScrollHideBar();
   const allOpportunities = data?.opportunities ?? [];
   const preferredBooks = preferences.preferredSportsbooks;
+  const prevOrderRef = useRef<string[]>([]);
 
   const visibleOpportunities = useMemo(() => {
     let list = [...allOpportunities];
 
     if (preferredBooks.length > 0) {
-      const selectedBookSet = new Set(preferredBooks.map((book) => normalizeSportsbookId(book)));
-      list = list.filter((opp) => selectedBookSet.has(normalizeSportsbookId(opp.bestBook)));
+      list = list
+        .map((opp) => remapEdgeOpportunityToSelectedBooks(opp, preferredBooks))
+        .filter((opp): opp is Opportunity => opp !== null);
     }
 
     if (preferences.bestOddsSelectedMarkets.length > 0) {
@@ -571,9 +594,28 @@ export default function EdgeFinderContent() {
     }
 
     list = list.filter((opp) => getDisplayImprovement(opp) >= minEdge);
-    return sortOpportunities(list, sortField, sortDir);
+    list = sortOpportunities(list, sortField, sortDir);
+
+    // When a card is expanded, preserve the current order so the user's
+    // view doesn't jump around during auto-refresh.
+    if (expandedId) {
+      const prevOrder = prevOrderRef.current;
+      if (prevOrder.length > 0) {
+        const orderMap = new Map(prevOrder.map((id, i) => [id, i]));
+        list = list.slice().sort((a, b) => {
+          const ai = orderMap.get(a.id) ?? Infinity;
+          const bi = orderMap.get(b.id) ?? Infinity;
+          return ai - bi;
+        });
+      }
+    } else {
+      prevOrderRef.current = list.map((o) => o.id);
+    }
+
+    return list;
   }, [
     allOpportunities,
+    expandedId,
     minEdge,
     preferences.bestOddsMarketLines,
     preferences.bestOddsSelectedMarkets,
@@ -582,6 +624,24 @@ export default function EdgeFinderContent() {
     sortField,
   ]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setDisplayLimit(PAGE_SIZE);
+  }, [allOpportunities, minEdge, preferredBooks, sortField, sortDir]);
+
+  const paginatedOpportunities = useMemo(
+    () => visibleOpportunities.slice(0, displayLimit),
+    [visibleOpportunities, displayLimit]
+  );
+
+  const hasMore = displayLimit < visibleOpportunities.length;
+
+  const loadMore = useCallback(() => {
+    if (hasMore) {
+      setDisplayLimit((prev) => prev + PAGE_SIZE);
+    }
+  }, [hasMore]);
+
   const activeFilterCount =
     ((preferences.bestOddsSelectedSports ?? ["nba", "nfl"]).join(",") !== ["nba", "nfl"].join(",") ? 1 : 0) +
     (marketType !== "all" ? 1 : 0) +
@@ -589,12 +649,23 @@ export default function EdgeFinderContent() {
     (minOdds !== -500 ? 1 : 0) +
     (maxOdds !== 500 ? 1 : 0);
 
-  const bottomPills: BottomPill[] = SORT_OPTIONS.map((option) => ({
-    key: option.key,
-    label: option.label,
-    active: sortField === option.key,
-    onPress: () => toggleSort(option.key),
-  }));
+  const bottomPills: BottomPill[] = [
+    ...SORT_OPTIONS.map((option) => ({
+      key: option.key,
+      label: option.label,
+      active: sortField === option.key,
+      onPress: () => toggleSort(option.key),
+    })),
+    {
+      key: "auto",
+      label: "Auto \u27F3",
+      active: autoRefreshEnabled,
+      onPress: () => {
+        triggerSelectionHaptic();
+        setAutoRefreshEnabled((c) => !c);
+      },
+    },
+  ];
 
   const listEmpty = isLoading ? (
     <StateView state="loading" message="Loading edge opportunities..." />
@@ -616,7 +687,7 @@ export default function EdgeFinderContent() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={visibleOpportunities}
+        data={paginatedOpportunities}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <EdgeOpportunityCard
@@ -625,20 +696,31 @@ export default function EdgeFinderContent() {
             kellyPercent={preferences.evKellyPercent}
             isExpanded={expandedId === item.id}
             onToggleExpand={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              LayoutAnimation.configureNext({
+                duration: 150,
+                update: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.scaleY },
+                create: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity, duration: 100 },
+                delete: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity, duration: 100 },
+              });
               triggerSelectionHaptic();
               setExpandedId((current) => (current === item.id ? null : item.id));
             }}
           />
         )}
         ListEmptyComponent={listEmpty}
+        ListFooterComponent={hasMore ? (
+          <View style={styles.loadMoreFooter}>
+            <ActivityIndicator size="small" color={brandColors.primary} />
+          </View>
+        ) : null}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={manualRefreshing}
             onRefresh={() => {
               triggerSelectionHaptic();
-              void refetch();
+              setManualRefreshing(true);
+              refetch().finally(() => setManualRefreshing(false));
             }}
             tintColor={brandColors.primary}
           />
@@ -646,6 +728,11 @@ export default function EdgeFinderContent() {
         showsVerticalScrollIndicator={false}
         onScroll={onListScroll}
         scrollEventThrottle={16}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={12}
+        maxToRenderPerBatch={8}
+        windowSize={5}
       />
 
       <Animated.View style={[styles.bottomBar, { transform: [{ translateY: bottomBarTranslateY }] }]}>
@@ -673,6 +760,7 @@ export default function EdgeFinderContent() {
         maxOdds={maxOdds}
         onSetMaxOdds={setMaxOdds}
         resultCount={visibleOpportunities.length}
+
         onReset={resetFilters}
       />
     </View>
@@ -688,6 +776,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 92,
+  },
+  loadMoreFooter: {
+    paddingVertical: 16,
+    alignItems: "center",
   },
   edgeCardShell: {
     marginBottom: 10,

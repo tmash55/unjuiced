@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
+  Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,12 +15,15 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PageHeader from "@/src/components/PageHeader";
+import TeamLogo from "@/src/components/TeamLogo";
 import SportsbookPicker from "@/src/components/SportsbookPicker";
+import StateView from "@/src/components/StateView";
 import { useOddsAlternates, type OddsAlternateLine } from "@/src/hooks/use-odds-alternates";
+import { usePlayerHeadshots } from "@/src/hooks/use-player-headshots";
 import { useOddsEvents, type OddsEvent } from "@/src/hooks/use-odds-events";
 import { useOddsTable, type OddsTableRow } from "@/src/hooks/use-odds-table";
 import { useUserPreferences } from "@/src/hooks/use-user-preferences";
-import { getNbaTeamLogoUrl, getSportsbookLogoUrl, normalizeSportsbookId } from "@/src/lib/logos";
+import { getSportsbookLogoUrl, normalizeSportsbookId } from "@/src/lib/logos";
 import {
   triggerLightImpactHaptic,
   triggerSelectionHaptic
@@ -53,6 +59,21 @@ const SPORTS: SportConfig[] = [
   { key: "soccer_epl", label: "EPL" },
 ];
 
+/**
+ * Preview market keys used on the game list cards (moneyline, spread, total).
+ * Each sport defines its own API keys so we fetch the right data.
+ * Adding a new sport only requires adding an entry here.
+ */
+const PREVIEW_MARKETS: Record<string, { moneyline: string; spread: string; total: string }> = {
+  nba:        { moneyline: "game_moneyline", spread: "game_spread",  total: "total_points" },
+  ncaab:      { moneyline: "game_moneyline", spread: "game_spread",  total: "total_points" },
+  nhl:        { moneyline: "game_moneyline", spread: "game_spread",  total: "game_total_goals" },
+  nfl:        { moneyline: "game_moneyline", spread: "game_spread",  total: "total_points" },
+  ncaaf:      { moneyline: "game_moneyline", spread: "game_spread",  total: "total_points" },
+  mlb:        { moneyline: "game_moneyline", spread: "game_spread",  total: "game_total_runs" },
+  soccer_epl: { moneyline: "game_moneyline", spread: "game_spread",  total: "match_total_goals" },
+};
+
 const GAME_MARKETS: Record<string, MarketChip[]> = {
   nba: [
     { key: "game_moneyline", label: "Moneyline" },
@@ -72,12 +93,12 @@ const GAME_MARKETS: Record<string, MarketChip[]> = {
   nhl: [
     { key: "game_moneyline", label: "Moneyline" },
     { key: "game_spread", label: "Puck Line" },
-    { key: "total_points", label: "Total Goals" },
+    { key: "game_total_goals", label: "Total Goals" },
     { key: "game_1p_moneyline", label: "1P ML" },
   ],
   soccer_epl: [
     { key: "game_moneyline", label: "Moneyline" },
-    { key: "total_points", label: "Goals O/U" },
+    { key: "match_total_goals", label: "Goals O/U" },
     { key: "moneyline_3_way", label: "3-Way ML" },
     { key: "1st_half_moneyline_3_way", label: "1H 3-Way" },
   ],
@@ -116,12 +137,6 @@ const PLAYER_MARKETS: Record<string, MarketChip[]> = {
   ],
 };
 
-const PREVIEW_MARKETS = [
-  { key: "game_moneyline", label: "Moneyline" },
-  { key: "game_spread", label: "Spread" },
-  { key: "total_points", label: "Total O/U" },
-];
-
 const SPORT_ACCENTS: Record<string, string> = {
   nba: brandColors.primary,
   ncaab: brandColors.warning,
@@ -129,27 +144,87 @@ const SPORT_ACCENTS: Record<string, string> = {
   soccer_epl: "#F97316",
 };
 
-function getDateChoices() {
-  const labels: Array<{ key: string; title: string; sublabel: string }> = [];
-  for (let i = 0; i < 5; i += 1) {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
-    const key = i === 0 ? "today" : date.toISOString().slice(0, 10);
-    labels.push({
-      key,
-      title: i === 0 ? "Today" : date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      sublabel: date.toLocaleDateString("en-US", { weekday: "short" }),
-    });
-  }
-  return labels;
+const DAY_LABELS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+
+/* ─── week helpers ─── */
+
+function getWeekDays(weekOffset: number) {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset + weekOffset * 7);
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      date: d,
+      dayNum: d.getDate(),
+      iso: d.toISOString().slice(0, 10),
+      isToday:
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate(),
+    };
+  });
 }
 
+function formatMonthYear(date: Date) {
+  const month = date.toLocaleDateString("en-US", { month: "long" });
+  const year = date.getFullYear();
+  return { month, year: `${year}` };
+}
+
+function formatDayHeader(date: Date) {
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (isToday) {
+    return `Today, ${date.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`;
+  }
+  return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+/** Check if an event's commence_time falls on the given local calendar date */
+function eventMatchesDate(commenceTime: string, target: Date): boolean {
+  const d = new Date(commenceTime);
+  return (
+    d.getFullYear() === target.getFullYear() &&
+    d.getMonth() === target.getMonth() &&
+    d.getDate() === target.getDate()
+  );
+}
+
+/* ─── time grouping ─── */
+
+type TimeGroup = "morning" | "afternoon" | "evening";
+
+function getTimeGroup(dateString: string): TimeGroup {
+  const hour = new Date(dateString).getHours();
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
+}
+
+function timeGroupLabel(group: TimeGroup): string {
+  if (group === "morning") return "Morning";
+  if (group === "afternoon") return "Afternoon";
+  return "Evening";
+}
+
+/* ─── utility ─── */
+
 function formatGameTime(dateString: string) {
-  return new Date(dateString).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  const d = new Date(dateString);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  const min = m.toString().padStart(2, "0");
+  return { time: `${hour}:${min}`, ampm };
 }
 
 function formatOdds(price: number | null | undefined) {
@@ -166,14 +241,6 @@ function hasPlayerMarkets(sport: string) {
   return (PLAYER_MARKETS[sport] ?? []).length > 0;
 }
 
-function isNbaLikeSport(sport: string) {
-  return sport === "nba" || sport === "ncaab";
-}
-
-function getTeamLogoUri(teamAbbr: string, sport: string) {
-  if (!isNbaLikeSport(sport)) return null;
-  return getNbaTeamLogoUrl(teamAbbr);
-}
 
 function marketLabelFromKey(market: string) {
   return market
@@ -186,10 +253,27 @@ function marketLabelFromKey(market: string) {
 function filterBookEntries(booksMap: GenericBookMap | undefined, preferredBooks: string[]) {
   const books: Array<[string, GenericBookEntry]> = booksMap ? (Object.entries(booksMap) as Array<[string, GenericBookEntry]>) : [];
   if (preferredBooks.length === 0) return books;
-
   const preferredSet = new Set(preferredBooks.map((book) => normalizeSportsbookId(book)));
   const filtered = books.filter(([bookId]) => preferredSet.has(normalizeSportsbookId(bookId)));
   return filtered.length > 0 ? filtered : books;
+}
+
+/**
+ * Filter book entries to only include those whose line matches the expected line.
+ * Books offering odds on a different line (alternates) are excluded.
+ */
+function filterBookEntriesByLine(
+  booksMap: GenericBookMap | undefined,
+  preferredBooks: string[],
+  expectedLine: number | null | undefined
+) {
+  const books = filterBookEntries(booksMap, preferredBooks);
+  if (expectedLine == null) return books;
+  return books.filter(([, data]) => {
+    const overOk = !data?.over || bookLineMatches(data.over as { price: number; line?: number }, expectedLine);
+    const underOk = !data?.under || bookLineMatches(data.under as { price: number; line?: number }, expectedLine);
+    return overOk || underOk;
+  });
 }
 
 function openBooksForRow(row: OddsTableRow, preferredBooks: string[]) {
@@ -198,6 +282,18 @@ function openBooksForRow(row: OddsTableRow, preferredBooks: string[]) {
 
 function openBooksForAlternateLine(line: OddsAlternateLine, preferredBooks: string[]) {
   return filterBookEntries(line.books, preferredBooks) as Array<[string, AlternateBookEntry]>;
+}
+
+/**
+ * Check if a book entry's line matches the expected line for a given side.
+ * Tolerates ±0.01 for floating point and treats missing line as a match (no alternate info).
+ * Also matches by absolute value so spreads work (over=+1.5 vs under=-1.5 both match row.ln=1.5).
+ */
+function bookLineMatches(candidate: { price: number; line?: number }, expectedLine: number | null | undefined): boolean {
+  if (expectedLine == null) return true;
+  if (!("line" in candidate) || candidate.line == null) return true;
+  return Math.abs(candidate.line - expectedLine) < 0.01
+    || Math.abs(Math.abs(candidate.line) - Math.abs(expectedLine)) < 0.01;
 }
 
 function getBestSideFromBooks(
@@ -214,10 +310,11 @@ function getBestSideFromBooks(
     line: line ?? null,
     link: null,
   };
-
   for (const [bookId, data] of books) {
     const candidate = data?.[side];
     if (!candidate || typeof candidate.price !== "number") continue;
+    // Only consider books offering odds on the matching line
+    if (!bookLineMatches(candidate as { price: number; line?: number }, line)) continue;
     if (bestSide.price == null || candidate.price > bestSide.price) {
       bestSide = {
         bookId: normalizeSportsbookId(bookId),
@@ -227,32 +324,71 @@ function getBestSideFromBooks(
       };
     }
   }
-
   if (bestSide.price != null) return bestSide;
-
-  const fallback = best?.[side];
-  return {
-    bookId: fallback?.bk ? normalizeSportsbookId(fallback.bk) : null,
-    price: fallback?.price ?? null,
-    line: line ?? null,
-    link: null,
-  };
+  // Only use the pre-computed best as fallback when we're NOT filtering by line,
+  // since row.best doesn't carry line info and may reference an alternate.
+  if (line == null) {
+    const fallback = best?.[side];
+    return {
+      bookId: fallback?.bk ? normalizeSportsbookId(fallback.bk) : null,
+      price: fallback?.price ?? null,
+      line: null,
+      link: null,
+    };
+  }
+  return { bookId: null, price: null, line, link: null };
 }
 
-function getBestSide(
-  row: OddsTableRow,
-  side: "over" | "under",
-  preferredBooks: string[]
-): { bookId: string | null; price: number | null; line: number | null; link: string | null } {
+function getBestSide(row: OddsTableRow, side: "over" | "under", preferredBooks: string[]) {
   return getBestSideFromBooks(row.books, row.best, row.ln, side, preferredBooks);
 }
 
-function getBestSideForAlternateLine(
-  line: OddsAlternateLine,
-  side: "over" | "under",
-  preferredBooks: string[]
-) {
+function getBestSideForAlternateLine(line: OddsAlternateLine, side: "over" | "under", preferredBooks: string[]) {
   return getBestSideFromBooks(line.books, line.best, line.ln, side, preferredBooks);
+}
+
+/** Get the main/sharp line from Pinnacle → Circa → DraftKings fallback, then row.ln */
+const SHARP_BOOK_PRIORITY = ["pinnacle", "circa", "draftkings"];
+
+function getSharpLine(row: OddsTableRow | undefined): number | null {
+  if (!row) return null;
+  const books = row.books;
+  if (books) {
+    for (const sharpBook of SHARP_BOOK_PRIORITY) {
+      for (const [bookId, data] of Object.entries(books)) {
+        if (normalizeSportsbookId(bookId) === sharpBook) {
+          const overLine = data?.over && "line" in data.over && typeof data.over.line === "number" ? data.over.line : null;
+          const underLine = data?.under && "line" in data.under && typeof data.under.line === "number" ? data.under.line : null;
+          if (overLine != null) return overLine;
+          if (underLine != null) return underLine;
+        }
+      }
+    }
+  }
+  return row.ln ?? null;
+}
+
+/**
+ * Get the sharp line for a specific side (over=away, under=home).
+ * For spreads/puck lines, the line stored on each side already has the correct sign
+ * for that team. We must NOT negate — just read each side's line directly.
+ */
+function getSharpLineBySide(row: OddsTableRow | undefined, side: "over" | "under"): number | null {
+  if (!row) return null;
+  const books = row.books;
+  if (books) {
+    for (const sharpBook of SHARP_BOOK_PRIORITY) {
+      for (const [bookId, data] of Object.entries(books)) {
+        if (normalizeSportsbookId(bookId) === sharpBook) {
+          const sideData = data?.[side];
+          if (sideData && "line" in sideData && typeof sideData.line === "number") {
+            return sideData.line;
+          }
+        }
+      }
+    }
+  }
+  return row.ln ?? null;
 }
 
 function groupRowsByEvent(rows: OddsTableRow[]) {
@@ -269,40 +405,62 @@ function buildEventLabel(event: OddsEvent) {
   return `${event.away_team} @ ${event.home_team}`;
 }
 
+function getDeeplink(entry: GenericBookEntry | undefined, side: "over" | "under"): string | null {
+  const sideData = entry?.[side];
+  if (!sideData) return null;
+  return ("m" in sideData ? sideData.m : null) ?? ("u" in sideData ? sideData.u : null) ?? null;
+}
+
+function getMarketStatLabel(market: string): string | null {
+  const map: Record<string, string> = {
+    player_points: "PPG",
+    player_rebounds: "RPG",
+    player_assists: "APG",
+    player_pra: "PRA",
+    player_threes_made: "3PM",
+    player_steals: "SPG",
+    player_blocks: "BPG",
+    player_turnovers: "TPG",
+  };
+  return map[market] ?? null;
+}
+
 function supportsAlternates(market: string, entity: string) {
   const normalized = market.toLowerCase();
-  if (normalized.includes("moneyline") || normalized.includes("3_way") || normalized.includes("odd_even")) {
-    return false;
-  }
-  if (normalized.includes("spread") || normalized.includes("total")) {
-    return true;
-  }
-
-  if (entity === "game" || entity.startsWith("team:")) {
-    return false;
-  }
-
+  if (normalized.includes("moneyline") || normalized.includes("3_way") || normalized.includes("odd_even")) return false;
+  if (normalized.includes("spread") || normalized.includes("total")) return true;
+  if (entity === "game" || entity.startsWith("team:")) return false;
   const excludedPlayerMarkets = new Set([
-    "player_double_double",
-    "player_triple_double",
-    "first_field_goal",
-    "player_first_td_scorer",
-    "player_anytime_td",
+    "player_double_double", "player_triple_double", "first_field_goal",
+    "player_first_td_scorer", "player_anytime_td",
   ]);
-
   return normalized.startsWith("player_") && !excludedPlayerMarkets.has(normalized);
+}
+
+function getAlternatePlayerKey(entity: string, playerName: string | null | undefined) {
+  const trimmed = entity.trim();
+  if (trimmed.startsWith("pid:")) {
+    return trimmed.slice(4);
+  }
+  if (trimmed.startsWith("game:")) {
+    return null;
+  }
+  if (trimmed) {
+    return trimmed;
+  }
+  return playerName ? playerName.toLowerCase().replace(/\s+/g, "_") : null;
 }
 
 function getVisibleAlternateLines(lines: OddsAlternateLine[], primaryLine: number | null | undefined) {
   const sorted = [...lines].sort((a, b) => a.ln - b.ln);
   if (sorted.length <= 7) return sorted;
-
   const primaryIndex = sorted.findIndex((line) => line.ln === primaryLine);
   if (primaryIndex < 0) return sorted.slice(0, 7);
-
   const start = Math.max(0, Math.min(primaryIndex - 2, sorted.length - 7));
   return sorted.slice(start, start + 7);
 }
+
+/* ─── small components ─── */
 
 function OddsValuePill({
   price,
@@ -316,67 +474,577 @@ function OddsValuePill({
   align?: "flex-start" | "flex-end";
 }) {
   const logo = getSportsbookLogoUrl(bookId);
-
   return (
-    <View style={[styles.valuePill, { alignItems: align }]}>
-      <View style={styles.valuePillMain}>
-        <Text style={[styles.valuePillPrice, { color: accentColor }]}>{formatOdds(price)}</Text>
-        {logo ? <Image source={{ uri: logo }} style={styles.bookLogo} /> : null}
+    <View style={[s.valuePill, { alignItems: align }]}>
+      <View style={s.valuePillMain}>
+        <Text style={[s.valuePillPrice, { color: accentColor }]}>{formatOdds(price)}</Text>
+        {logo ? <Image source={{ uri: logo }} style={s.bookLogo} /> : null}
       </View>
     </View>
   );
 }
 
-function GameMarketPreview({
-  row,
-  label,
-  preferredBooks,
+/* ─── Week Strip ─── */
+
+function WeekStrip({
+  weekOffset,
+  selectedIso,
+  onSelectDay,
+  onPrevWeek,
+  onNextWeek,
   accentColor,
 }: {
-  row: OddsTableRow | undefined;
-  label: string;
-  preferredBooks: string[];
+  weekOffset: number;
+  selectedIso: string;
+  onSelectDay: (iso: string, date: Date) => void;
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
   accentColor: string;
 }) {
-  if (!row) {
+  const days = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const { month, year } = formatMonthYear(days[0].date);
+
+  return (
+    <View style={s.weekSection}>
+      <View style={s.monthRow}>
+        <View style={s.monthLabel}>
+          <Text style={s.monthText}>{month}</Text>
+          <Text style={s.yearText}>{year}</Text>
+        </View>
+        <View style={s.weekNav}>
+          <Pressable onPress={onPrevWeek} style={s.weekNavBtn} hitSlop={12}>
+            <Ionicons name="chevron-back" size={18} color={brandColors.textSecondary} />
+          </Pressable>
+          <Pressable onPress={onNextWeek} style={s.weekNavBtn} hitSlop={12}>
+            <Ionicons name="chevron-forward" size={18} color={brandColors.textSecondary} />
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={s.weekStrip}>
+        {days.map((day, i) => {
+          const selected = day.iso === selectedIso;
+          return (
+            <Pressable
+              key={day.iso}
+              onPress={() => {
+                triggerSelectionHaptic();
+                onSelectDay(day.iso, day.date);
+              }}
+              style={s.dayCell}
+            >
+              <Text style={s.dayLabel}>{DAY_LABELS[i]}</Text>
+              <View style={[s.dayNumWrap, selected && { backgroundColor: accentColor }]}>
+                <Text style={[s.dayNum, selected && s.dayNumSelected]}>{day.dayNum}</Text>
+              </View>
+              {day.isToday && !selected ? <View style={[s.todayDot, { backgroundColor: accentColor }]} /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/* ─── Odds Cell ─── */
+
+function OddsCell({
+  lineLabel,
+  price,
+  bookId,
+  accentColor,
+}: {
+  lineLabel?: string;
+  price: number | null;
+  bookId: string | null;
+  accentColor: string;
+}) {
+  const logo = bookId ? getSportsbookLogoUrl(bookId) : null;
+  if (price == null) {
     return (
-      <View style={styles.previewRow}>
-        <Text style={styles.previewRowLabel}>{label}</Text>
-        <Text style={styles.previewEmpty}>No line</Text>
+      <View style={s.oddsCell}>
+        <Text style={s.oddsCellDash}>—</Text>
       </View>
     );
   }
-
-  const over = getBestSide(row, "over", preferredBooks);
-  const under = getBestSide(row, "under", preferredBooks);
-  const isTotal = row.mkt.includes("total");
-  const awayLabel = isTotal
-    ? `Over ${row.ln}`
-    : `${row.ev.away.abbr}${row.mkt.includes("spread") ? ` ${formatLine(over.line ?? row.ln)}` : ""}`;
-  const homeLabel = isTotal
-    ? `Under ${row.ln}`
-    : `${row.ev.home.abbr}${row.mkt.includes("spread") ? ` ${formatLine(under.line ?? row.ln)}` : ""}`;
-
   return (
-    <View style={styles.previewRow}>
-      <View style={styles.previewRowHeader}>
-        <Text style={styles.previewRowLabel}>{label}</Text>
-        <Text style={styles.previewRowMeta}>Best</Text>
-      </View>
-      <View style={styles.previewRowBody}>
-        <View style={styles.previewTeamSide}>
-          <Text style={styles.previewTeamLabel}>{awayLabel}</Text>
-          <OddsValuePill price={over.price} bookId={over.bookId} accentColor={accentColor} />
-        </View>
-        <View style={styles.previewRowDivider} />
-        <View style={[styles.previewTeamSide, styles.previewTeamSideRight]}>
-          <Text style={styles.previewTeamLabel}>{homeLabel}</Text>
-          <OddsValuePill price={under.price} bookId={under.bookId} accentColor={accentColor} align="flex-end" />
-        </View>
+    <View style={s.oddsCell}>
+      {lineLabel ? <Text style={s.oddsCellLine}>{lineLabel}</Text> : null}
+      <View style={s.oddsCellPriceRow}>
+        <Text style={[s.oddsCellPrice, { color: accentColor }]}>{formatOdds(price)}</Text>
+        {logo ? <Image source={{ uri: logo }} style={s.oddsCellBook} /> : null}
       </View>
     </View>
   );
 }
+
+/* ─── Game Card (DK-style grid) ─── */
+
+function GameCard({
+  event,
+  ml,
+  spread,
+  total,
+  sport,
+  accentColor,
+  preferredBooks,
+  onPress,
+}: {
+  event: OddsEvent;
+  ml: OddsTableRow | undefined;
+  spread: OddsTableRow | undefined;
+  total: OddsTableRow | undefined;
+  sport: string;
+  accentColor: string;
+  preferredBooks: string[];
+  onPress: () => void;
+}) {
+  const { time, ampm } = formatGameTime(event.commence_time);
+
+  // Best price per side
+  const mlAway = ml ? getBestSide(ml, "over", preferredBooks) : null;
+  const mlHome = ml ? getBestSide(ml, "under", preferredBooks) : null;
+  const spreadAway = spread ? getBestSide(spread, "over", preferredBooks) : null;
+  const spreadHome = spread ? getBestSide(spread, "under", preferredBooks) : null;
+  const totalOver = total ? getBestSide(total, "over", preferredBooks) : null;
+  const totalUnder = total ? getBestSide(total, "under", preferredBooks) : null;
+
+  // Sharp lines: for spreads, get each side separately (over=away, under=home)
+  // so we display the correct signed line per team. For totals, one line is shared.
+  const spreadLineAway = getSharpLineBySide(spread, "over");
+  const spreadLineHome = getSharpLineBySide(spread, "under");
+  const totalLine = getSharpLine(total);
+
+  return (
+    <Pressable
+      onPress={() => { triggerLightImpactHaptic(); onPress(); }}
+      style={({ pressed }) => [s.gameCard, pressed && s.gameCardPressed]}
+    >
+      {/* Time bar */}
+      <View style={s.gameTimeBar}>
+        <Text style={s.gameTimeText}>{time} {ampm}</Text>
+        <Ionicons name="chevron-forward" size={14} color={brandColors.textMuted} />
+      </View>
+
+      {/* Column headers */}
+      <View style={s.gridHeaderRow}>
+        <View style={s.teamColHeader} />
+        <Text style={s.gridHeaderText}>Spread</Text>
+        <Text style={s.gridHeaderText}>Total</Text>
+        <Text style={s.gridHeaderText}>ML</Text>
+      </View>
+
+      {/* Away team row */}
+      <View style={s.gridRow}>
+        <View style={s.teamCol}>
+          <TeamLogo teamAbbr={event.away_team} sport={sport} size={26} style={s.gridTeamLogo} />
+          <Text style={s.gridTeamName} numberOfLines={1}>{event.away_team}</Text>
+        </View>
+        <OddsCell
+          lineLabel={spreadLineAway != null ? formatLine(spreadLineAway) : undefined}
+          price={spreadAway?.price ?? null}
+          bookId={spreadAway?.bookId ?? null}
+          accentColor={accentColor}
+        />
+        <OddsCell
+          lineLabel={totalLine != null ? `O ${totalLine}` : undefined}
+          price={totalOver?.price ?? null}
+          bookId={totalOver?.bookId ?? null}
+          accentColor={accentColor}
+        />
+        <OddsCell
+          price={mlAway?.price ?? null}
+          bookId={mlAway?.bookId ?? null}
+          accentColor={accentColor}
+        />
+      </View>
+
+      {/* Divider */}
+      <View style={s.gridDivider} />
+
+      {/* Home team row */}
+      <View style={s.gridRow}>
+        <View style={s.teamCol}>
+          <TeamLogo teamAbbr={event.home_team} sport={sport} size={26} style={s.gridTeamLogo} />
+          <Text style={s.gridTeamName} numberOfLines={1}>{event.home_team}</Text>
+        </View>
+        <OddsCell
+          lineLabel={spreadLineHome != null ? formatLine(spreadLineHome) : undefined}
+          price={spreadHome?.price ?? null}
+          bookId={spreadHome?.bookId ?? null}
+          accentColor={accentColor}
+        />
+        <OddsCell
+          lineLabel={totalLine != null ? `U ${totalLine}` : undefined}
+          price={totalUnder?.price ?? null}
+          bookId={totalUnder?.bookId ?? null}
+          accentColor={accentColor}
+        />
+        <OddsCell
+          price={mlHome?.price ?? null}
+          bookId={mlHome?.bookId ?? null}
+          accentColor={accentColor}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+/* ─── Alternate Line Scrubber ─── */
+
+function AlternateLineScrubber({
+  lines,
+  selectedLine,
+  primaryLine,
+  isSpread,
+  onSelectLine,
+  accentColor,
+}: {
+  lines: OddsAlternateLine[];
+  selectedLine: number;
+  primaryLine: number;
+  isSpread: boolean;
+  onSelectLine: (ln: number) => void;
+  accentColor: string;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.scrubberContent}
+    >
+      {lines.map((line) => {
+        const isSelected = line.ln === selectedLine;
+        const isPrimary = line.ln === primaryLine;
+        const label = isSpread ? formatLine(line.ln) : `${line.ln}`;
+
+        return (
+          <Pressable
+            key={line.ln}
+            onPress={() => {
+              triggerSelectionHaptic();
+              onSelectLine(line.ln);
+            }}
+            style={[
+              s.scrubberChip,
+              isSelected && { backgroundColor: accentColor, borderColor: accentColor },
+              !isSelected && isPrimary && s.scrubberChipPrimary,
+            ]}
+          >
+            <Text
+              style={[
+                s.scrubberChipText,
+                isSelected && s.scrubberChipTextSelected,
+                !isSelected && isPrimary && { color: accentColor },
+              ]}
+            >
+              {label}
+            </Text>
+            {isPrimary && !isSelected ? <View style={[s.scrubberDot, { backgroundColor: accentColor }]} /> : null}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/* ─── Book Comparison Table (EV card style) ─── */
+
+function BookComparisonTable({
+  books,
+  overLabel,
+  underLabel,
+  accentColor,
+}: {
+  books: Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+  overLabel: string;
+  underLabel: string;
+  accentColor: string;
+}) {
+  // Find best prices
+  const bestOverPrice = useMemo(() => {
+    let best = -Infinity;
+    for (const [, data] of books) {
+      if (data.over && data.over.price > best) best = data.over.price;
+    }
+    return best === -Infinity ? null : best;
+  }, [books]);
+
+  const bestUnderPrice = useMemo(() => {
+    let best = -Infinity;
+    for (const [, data] of books) {
+      if (data.under && data.under.price > best) best = data.under.price;
+    }
+    return best === -Infinity ? null : best;
+  }, [books]);
+
+  return (
+    <View style={s.bookTable}>
+      {/* Header */}
+      <View style={s.bookTableHeader}>
+        <Text style={[s.bookTableHeaderLabel, { color: accentColor }]}>{overLabel}</Text>
+        <Text style={s.bookTableHeaderCenter}>Book</Text>
+        <Text style={s.bookTableHeaderLabel}>{underLabel}</Text>
+      </View>
+
+      {/* Rows */}
+      {books.map(([bookId, data]) => {
+        const normalized = normalizeSportsbookId(bookId);
+        const logo = getSportsbookLogoUrl(normalized);
+        const isBestOver = data.over != null && data.over.price === bestOverPrice;
+        const isBestUnder = data.under != null && data.under.price === bestUnderPrice;
+        const overLink = getDeeplink(data, "over");
+        const underLink = getDeeplink(data, "under");
+
+        return (
+          <View key={bookId} style={s.bookTableRow}>
+            {/* Over cell */}
+            <Pressable
+              style={[s.bookTableCell, isBestOver && s.bookTableCellBest, overLink && s.bookTableCellTappable]}
+              onPress={overLink ? () => { triggerLightImpactHaptic(); void Linking.openURL(overLink); } : undefined}
+              disabled={!overLink}
+            >
+              <Text style={[s.bookTableCellText, isBestOver && { color: accentColor }]}>
+                {data.over ? formatOdds(data.over.price) : "—"}
+              </Text>
+            </Pressable>
+
+            {/* Book logo center */}
+            <View style={s.bookTableCenter}>
+              {logo ? (
+                <Image source={{ uri: logo }} style={s.bookTableLogo} />
+              ) : (
+                <View style={s.bookTableLogoFallback}>
+                  <Text style={s.bookTableLogoFallbackText}>{normalized.slice(0, 2).toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Under cell */}
+            <Pressable
+              style={[s.bookTableCell, isBestUnder && s.bookTableCellBest, underLink && s.bookTableCellTappable]}
+              onPress={underLink ? () => { triggerLightImpactHaptic(); void Linking.openURL(underLink); } : undefined}
+              disabled={!underLink}
+            >
+              <Text style={[s.bookTableCellText, isBestUnder && { color: accentColor }]}>
+                {data.under ? formatOdds(data.under.price) : "—"}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ─── Player Prop Row (screenshot-style) ─── */
+
+// NHL counting stats where we always want 0.5 as default line
+const NHL_ALWAYS_05_MARKETS = new Set(["player_goals", "player_points", "player_assists"]);
+
+function PlayerPropRow({
+  row,
+  accentColor,
+  selectedSportsbooks,
+  expanded,
+  onToggle,
+  sport,
+  headshotUrl,
+}: {
+  row: OddsTableRow;
+  accentColor: string;
+  selectedSportsbooks: string[];
+  expanded: boolean;
+  onToggle: () => void;
+  sport: string;
+  headshotUrl: string | null;
+}) {
+  const hasTeam = Boolean(row.team);
+  const statLabel = getMarketStatLabel(row.mkt);
+
+  const includeAlternates = supportsAlternates(row.mkt, row.ent);
+  const alternatePlayerKey = useMemo(() => getAlternatePlayerKey(row.ent, row.player), [row.ent, row.player]);
+
+  // For NHL counting stats, always fetch alternates so we can show the 0.5 line
+  const needsHalfLine = sport === "nhl" && NHL_ALWAYS_05_MARKETS.has(row.mkt) && row.ln !== 0.5;
+
+  const alternatesQuery = useOddsAlternates({
+    sport,
+    eventId: row.eid,
+    market: row.mkt,
+    playerKey: alternatePlayerKey,
+    primaryLine: row.ln,
+    enabled: (expanded && includeAlternates) || needsHalfLine,
+  });
+
+  const allLines = useMemo(
+    () => (alternatesQuery.data?.all_lines ?? []).sort((a, b) => a.ln - b.ln),
+    [alternatesQuery.data?.all_lines]
+  );
+  const primaryLine = alternatesQuery.data?.primary_ln ?? row.ln;
+
+  // For NHL counting stats, auto-select 0.5 line when alternates load
+  const halfLine = useMemo(
+    () => needsHalfLine ? allLines.find((l) => l.ln === 0.5) ?? null : null,
+    [needsHalfLine, allLines]
+  );
+
+  const [selectedAltLine, setSelectedAltLine] = useState<number | null>(null);
+  const activeLine = selectedAltLine ?? (halfLine ? 0.5 : primaryLine);
+
+  useEffect(() => {
+    if (!expanded) setSelectedAltLine(null);
+  }, [expanded]);
+
+  // Get best odds — use 0.5 line data from alternates when available
+  const over = useMemo(() => {
+    if (halfLine && selectedAltLine == null) {
+      return getBestSideFromBooks(halfLine.books, halfLine.best, 0.5, "over", selectedSportsbooks);
+    }
+    if (selectedAltLine != null && allLines.length > 0) {
+      const alt = allLines.find((l) => l.ln === selectedAltLine);
+      if (alt) return getBestSideFromBooks(alt.books, alt.best, selectedAltLine, "over", selectedSportsbooks);
+    }
+    return getBestSide(row, "over", selectedSportsbooks);
+  }, [halfLine, selectedAltLine, allLines, row, selectedSportsbooks]);
+
+  const under = useMemo(() => {
+    if (halfLine && selectedAltLine == null) {
+      return getBestSideFromBooks(halfLine.books, halfLine.best, 0.5, "under", selectedSportsbooks);
+    }
+    if (selectedAltLine != null && allLines.length > 0) {
+      const alt = allLines.find((l) => l.ln === selectedAltLine);
+      if (alt) return getBestSideFromBooks(alt.books, alt.best, selectedAltLine, "under", selectedSportsbooks);
+    }
+    return getBestSide(row, "under", selectedSportsbooks);
+  }, [halfLine, selectedAltLine, allLines, row, selectedSportsbooks]);
+
+  const activeBooks = useMemo(() => {
+    if (selectedAltLine != null && allLines.length > 0) {
+      const altLine = allLines.find((l) => l.ln === selectedAltLine);
+      if (altLine) {
+        return filterBookEntries(altLine.books, selectedSportsbooks) as Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+      }
+    }
+    if (halfLine) {
+      return filterBookEntries(halfLine.books, selectedSportsbooks) as Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+    }
+    // Filter to only books offering the primary line (not alternates)
+    return filterBookEntriesByLine(row.books, selectedSportsbooks, row.ln) as Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+  }, [selectedAltLine, allLines, halfLine, row.books, selectedSportsbooks, row.ln]);
+
+  const overLabel = `O ${activeLine}`;
+  const underLabel = `U ${activeLine}`;
+
+  function handleOddsPress(side: "over" | "under") {
+    const best = side === "over" ? over : under;
+    if (best.link) {
+      triggerLightImpactHaptic();
+      void Linking.openURL(best.link);
+    }
+  }
+
+  return (
+    <View style={s.propRow}>
+      <Pressable
+        style={s.propRowMain}
+        onPress={() => { triggerLightImpactHaptic(); onToggle(); }}
+      >
+        {/* Player info */}
+        <View style={s.propRowPlayer}>
+          <View style={s.propRowAvatarWrap}>
+            {headshotUrl ? (
+              <Image source={{ uri: headshotUrl }} style={s.propRowAvatar} />
+            ) : (
+              <View style={[s.propRowAvatar, s.propRowAvatarFallback]}>
+                <Ionicons name="person" size={18} color={brandColors.textMuted} />
+              </View>
+            )}
+            {hasTeam ? (
+              <View style={s.propRowTeamBadge}>
+                <TeamLogo teamAbbr={row.team} sport={sport} size={14} />
+              </View>
+            ) : null}
+          </View>
+          <View style={s.propRowCopy}>
+            <Text style={s.propRowName} numberOfLines={1}>{row.player ?? "Unknown"}</Text>
+            {statLabel ? (
+              <Text style={s.propRowStat}>
+                <Text style={s.propRowStatLabel}>{statLabel}: </Text>
+                <Text style={[s.propRowStatValue, { color: accentColor }]}>{activeLine}</Text>
+              </Text>
+            ) : (
+              <Text style={s.propRowStat}>{marketLabelFromKey(row.mkt)} {activeLine}</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Over / Under cells */}
+        <View style={s.propRowCells}>
+          <Pressable
+            style={s.propRowCell}
+            onPress={(e) => { e.stopPropagation(); handleOddsPress("over"); }}
+          >
+            <Text style={s.propRowCellLabel}>O {activeLine}</Text>
+            <View style={s.propRowCellPriceRow}>
+              <Text style={[s.propRowCellPrice, { color: accentColor }]}>{formatOdds(over.price)}</Text>
+              {over.bookId ? <Image source={{ uri: getSportsbookLogoUrl(over.bookId)! }} style={s.propRowCellBook} /> : null}
+            </View>
+          </Pressable>
+          <Pressable
+            style={s.propRowCell}
+            onPress={(e) => { e.stopPropagation(); handleOddsPress("under"); }}
+          >
+            <Text style={s.propRowCellLabel}>U {activeLine}</Text>
+            <View style={s.propRowCellPriceRow}>
+              <Text style={s.propRowCellPrice}>{formatOdds(under.price)}</Text>
+              {under.bookId ? <Image source={{ uri: getSportsbookLogoUrl(under.bookId)! }} style={s.propRowCellBook} /> : null}
+            </View>
+          </Pressable>
+        </View>
+      </Pressable>
+
+      {/* Expanded: alternates + book table */}
+      {expanded ? (
+        <View style={s.propRowExpanded}>
+          {includeAlternates ? (
+            alternatesQuery.isLoading ? (
+              <View style={s.expandedStateRow}>
+                <ActivityIndicator size="small" color={accentColor} />
+                <Text style={s.expandedStateText}>Loading lines…</Text>
+              </View>
+            ) : allLines.length > 1 ? (
+              <AlternateLineScrubber
+                lines={allLines}
+                selectedLine={activeLine}
+                primaryLine={primaryLine}
+                isSpread={false}
+                onSelectLine={setSelectedAltLine}
+                accentColor={accentColor}
+              />
+            ) : null
+          ) : null}
+
+          {activeBooks.length > 0 ? (
+            <BookComparisonTable
+              books={activeBooks}
+              overLabel={overLabel}
+              underLabel={underLabel}
+              accentColor={accentColor}
+            />
+          ) : (
+            <Text style={s.expandedFootnote}>No book data available for this line.</Text>
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/* ─── Detail Market Card ─── */
 
 function DetailMarketCard({
   row,
@@ -397,213 +1065,236 @@ function DetailMarketCard({
 }) {
   const isGameMarket = marketType === "game";
   const isTotal = row.mkt.includes("total");
-  const books = openBooksForRow(row, selectedSportsbooks);
+  const isSpread = /spread|puck_line|run_line|handicap/i.test(row.mkt);
+  const includeAlternates = supportsAlternates(row.mkt, row.ent);
+  const alternatePlayerKey = useMemo(() => getAlternatePlayerKey(row.ent, row.player), [row.ent, row.player]);
+
+  // Best odds for the primary line
   const over = getBestSide(row, "over", selectedSportsbooks);
   const under = getBestSide(row, "under", selectedSportsbooks);
-  const includeAlternates = supportsAlternates(row.mkt, row.ent);
+  const sharpLine = isGameMarket ? getSharpLine(row) : null;
+  const displayLine = sharpLine ?? row.ln;
 
+  // Fetch alternates when expanded
   const alternatesQuery = useOddsAlternates({
     sport,
     eventId: row.eid,
     market: row.mkt,
-    playerKey: row.ent,
+    playerKey: alternatePlayerKey,
     primaryLine: row.ln,
     enabled: expanded && includeAlternates,
   });
 
-  const alternateLines = useMemo(
-    () => getVisibleAlternateLines(alternatesQuery.data?.all_lines ?? [], alternatesQuery.data?.primary_ln ?? row.ln),
-    [alternatesQuery.data?.all_lines, alternatesQuery.data?.primary_ln, row.ln]
+  const allLines = useMemo(
+    () => (alternatesQuery.data?.all_lines ?? []).sort((a, b) => a.ln - b.ln),
+    [alternatesQuery.data?.all_lines]
   );
 
   const primaryLine = alternatesQuery.data?.primary_ln ?? row.ln;
 
+  // Selected alternate line (defaults to primary)
+  const [selectedAltLine, setSelectedAltLine] = useState<number | null>(null);
+  const activeLine = selectedAltLine ?? primaryLine;
+
+  // Reset selected alt when collapsing or switching markets
+  useEffect(() => {
+    if (!expanded) setSelectedAltLine(null);
+  }, [expanded]);
+
+  // Get the books for the active line (from alternates data or from the row itself)
+  const activeBooks = useMemo(() => {
+    if (selectedAltLine != null && allLines.length > 0) {
+      const altLine = allLines.find((l) => l.ln === selectedAltLine);
+      if (altLine) {
+        return filterBookEntries(altLine.books, selectedSportsbooks) as Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+      }
+    }
+    // Filter to only books offering the primary line (not alternates)
+    return filterBookEntriesByLine(row.books, selectedSportsbooks, row.ln) as Array<[string, { over?: { price: number }; under?: { price: number } }]>;
+  }, [selectedAltLine, allLines, row.books, selectedSportsbooks, row.ln]);
+
+  // Labels
+  let overLabel: string;
+  let underLabel: string;
+  let titleLabel: string;
+  let subtitleLabel: string;
+
+  if (isGameMarket) {
+    const ln = selectedAltLine ?? displayLine;
+    if (isSpread) {
+      // For spreads, read the line from each side's book data (over=away, under=home)
+      // so the sign correctly reflects favorite/underdog per team
+      const awayLine = selectedAltLine ?? getSharpLineBySide(row, "over") ?? ln;
+      const homeLine = selectedAltLine != null ? -selectedAltLine : (getSharpLineBySide(row, "under") ?? (ln != null ? -ln : null));
+      overLabel = `${row.ev.away.abbr} ${formatLine(awayLine)}`;
+      underLabel = `${row.ev.home.abbr} ${formatLine(homeLine)}`;
+    } else if (isTotal) {
+      overLabel = `Over ${ln}`;
+      underLabel = `Under ${ln}`;
+    } else {
+      overLabel = row.ev.away.abbr;
+      underLabel = row.ev.home.abbr;
+    }
+    titleLabel = marketLabelFromKey(row.mkt);
+    subtitleLabel = `${row.ev.away.abbr} @ ${row.ev.home.abbr}`;
+  } else {
+    const ln = selectedAltLine ?? row.ln;
+    overLabel = `Over ${ln}`;
+    underLabel = `Under ${ln}`;
+    titleLabel = row.player || marketLabelFromKey(row.mkt);
+    subtitleLabel = `${row.team ?? ""}${row.position ? ` · ${row.position}` : ""} · ${marketLabelFromKey(row.mkt)} ${ln}`;
+  }
+
   return (
     <Pressable
-      style={styles.marketCard}
-      onPress={() => {
-        triggerLightImpactHaptic();
-        onToggle();
-      }}
+      style={s.marketCard}
+      onPress={() => { triggerLightImpactHaptic(); onToggle(); }}
     >
-      <View style={styles.marketCardHeader}>
-        <View style={styles.marketCardCopy}>
-          <Text style={styles.marketCardTitle}>
-            {isGameMarket
-              ? marketLabelFromKey(row.mkt)
-              : row.player || marketLabelFromKey(row.mkt)}
-          </Text>
-          <Text style={styles.marketCardSubtitle}>
-            {isGameMarket
-              ? `${row.ev.away.abbr} @ ${row.ev.home.abbr}`
-              : `${row.team ?? ""}${row.position ? ` · ${row.position}` : ""} · ${marketLabelFromKey(row.mkt)} ${row.ln}`}
-          </Text>
+      {/* Header */}
+      <View style={s.marketCardHeader}>
+        <View style={s.marketCardCopy}>
+          <Text style={s.marketCardTitle}>{titleLabel}</Text>
+          <Text style={s.marketCardSubtitle}>{subtitleLabel}</Text>
         </View>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={16}
-          color={brandColors.textMuted}
-        />
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={brandColors.textMuted} />
       </View>
 
-      <View style={styles.marketOddsRow}>
-        <View style={styles.marketOddsSide}>
-          <Text style={styles.marketOddsLabel}>
-            {isTotal ? `Over ${row.ln}` : isGameMarket ? `${row.ev.away.abbr}${row.mkt.includes("spread") ? ` ${formatLine(over.line ?? row.ln)}` : ""}` : `Over ${row.ln}`}
-          </Text>
-          <View style={styles.marketOddsValueRow}>
-            <Text style={[styles.marketOddsPrice, { color: accentColor }]}>{formatOdds(over.price)}</Text>
-            {over.bookId ? (
-              <Image source={{ uri: getSportsbookLogoUrl(over.bookId)! }} style={styles.bookLogo} />
-            ) : null}
+      {/* Best odds summary (two cells) */}
+      <View style={s.detailGridRow}>
+        <View style={s.detailGridCell}>
+          <Text style={s.detailGridLabel}>{overLabel}</Text>
+          <View style={s.detailGridPriceRow}>
+            <Text style={[s.detailGridPrice, { color: accentColor }]}>{formatOdds(over.price)}</Text>
+            {over.bookId ? <Image source={{ uri: getSportsbookLogoUrl(over.bookId)! }} style={s.detailGridBook} /> : null}
           </View>
         </View>
-
-        <View style={styles.marketOddsDivider} />
-
-        <View style={styles.marketOddsSide}>
-          <Text style={styles.marketOddsLabel}>
-            {isTotal ? `Under ${row.ln}` : isGameMarket ? `${row.ev.home.abbr}${row.mkt.includes("spread") ? ` ${formatLine(under.line ?? row.ln)}` : ""}` : `Under ${row.ln}`}
-          </Text>
-          <View style={styles.marketOddsValueRow}>
-            <Text style={styles.marketOddsPrice}>{formatOdds(under.price)}</Text>
-            {under.bookId ? (
-              <Image source={{ uri: getSportsbookLogoUrl(under.bookId)! }} style={styles.bookLogo} />
-            ) : null}
+        <View style={s.detailGridCell}>
+          <Text style={s.detailGridLabel}>{underLabel}</Text>
+          <View style={s.detailGridPriceRow}>
+            <Text style={s.detailGridPrice}>{formatOdds(under.price)}</Text>
+            {under.bookId ? <Image source={{ uri: getSportsbookLogoUrl(under.bookId)! }} style={s.detailGridBook} /> : null}
           </View>
         </View>
       </View>
 
+      {/* Expanded: alt line scrubber + book table */}
       {expanded ? (
-        <View style={styles.expandedSection}>
+        <View style={s.expandedSection}>
+          {/* Alternate line scrubber */}
           {includeAlternates ? (
             alternatesQuery.isLoading ? (
-              <View style={styles.expandedStateRow}>
+              <View style={s.expandedStateRow}>
                 <ActivityIndicator size="small" color={accentColor} />
-                <Text style={styles.expandedStateText}>Loading alternate lines…</Text>
+                <Text style={s.expandedStateText}>Loading lines…</Text>
               </View>
-            ) : alternateLines.length > 1 ? (
-              <>
-                <View style={styles.expandedSectionHeader}>
-                  <Text style={styles.expandedSectionTitle}>Alternate Lines</Text>
-                  <Text style={styles.expandedSectionMeta}>{alternatesQuery.data?.all_lines?.length ?? alternateLines.length} lines</Text>
-                </View>
-
-                <View style={styles.alternateLinesStack}>
-                  {alternateLines.map((line) => {
-                    const altOver = getBestSideForAlternateLine(line, "over", selectedSportsbooks);
-                    const altUnder = getBestSideForAlternateLine(line, "under", selectedSportsbooks);
-                    const isPrimary = line.ln === primaryLine;
-                    const lineLabel = row.mkt.includes("spread") ? formatLine(line.ln) : `${line.ln}`;
-
-                    return (
-                      <View key={`${row.eid}-${row.ent}-${row.mkt}-${line.ln}`} style={[styles.alternateLineRow, isPrimary && styles.alternateLineRowPrimary]}>
-                        <View style={styles.alternateLineTag}>
-                          <Text style={[styles.alternateLineTagText, isPrimary && styles.alternateLineTagTextPrimary]}>
-                            {isPrimary ? `Main ${lineLabel}` : `Alt ${lineLabel}`}
-                          </Text>
-                        </View>
-                        <View style={styles.alternateLinePrices}>
-                          <View style={styles.alternatePriceCell}>
-                            <Text style={styles.alternatePriceLabel}>{isTotal ? "O" : isGameMarket ? row.ev.away.abbr : "O"}</Text>
-                            <Text style={[styles.alternatePriceValue, { color: accentColor }]}>{formatOdds(altOver.price)}</Text>
-                            {altOver.bookId ? <Image source={{ uri: getSportsbookLogoUrl(altOver.bookId)! }} style={styles.altBookLogo} /> : null}
-                          </View>
-                          <View style={styles.alternatePriceCell}>
-                            <Text style={styles.alternatePriceLabel}>{isTotal ? "U" : isGameMarket ? row.ev.home.abbr : "U"}</Text>
-                            <Text style={styles.alternatePriceValue}>{formatOdds(altUnder.price)}</Text>
-                            {altUnder.bookId ? <Image source={{ uri: getSportsbookLogoUrl(altUnder.bookId)! }} style={styles.altBookLogo} /> : null}
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {(alternatesQuery.data?.all_lines?.length ?? 0) > alternateLines.length ? (
-                  <Text style={styles.expandedFootnote}>
-                    +{(alternatesQuery.data?.all_lines?.length ?? 0) - alternateLines.length} more lines available
-                  </Text>
-                ) : null}
-              </>
-            ) : (
-              <Text style={styles.expandedFootnote}>No alternate lines available.</Text>
-            )
+            ) : allLines.length > 1 ? (
+              <AlternateLineScrubber
+                lines={allLines}
+                selectedLine={activeLine}
+                primaryLine={primaryLine}
+                isSpread={isSpread}
+                onSelectLine={setSelectedAltLine}
+                accentColor={accentColor}
+              />
+            ) : null
           ) : null}
 
-          {(!includeAlternates || alternateLines.length <= 1) && books.length > 0 ? (
-            <>
-              <View style={styles.expandedSectionHeader}>
-                <Text style={styles.expandedSectionTitle}>Books</Text>
-                <Text style={styles.expandedSectionMeta}>{Math.min(books.length, 6)} shown</Text>
-              </View>
-              <View style={styles.expandedBooks}>
-                {books.slice(0, 6).map(([bookId, data]) => {
-                  const normalized = normalizeSportsbookId(bookId);
-                  const logo = getSportsbookLogoUrl(normalized);
-                  return (
-                    <View key={bookId} style={styles.expandedBookRow}>
-                      <View style={styles.expandedBookLeft}>
-                        {logo ? <Image source={{ uri: logo }} style={styles.altBookLogo} /> : null}
-                        <Text style={styles.expandedBookName}>{normalized.replace(/[-_]/g, " ")}</Text>
-                      </View>
-                      <View style={styles.expandedBookOdds}>
-                        <Text style={styles.expandedBookPrice}>O {formatOdds(data.over?.price ?? null)}</Text>
-                        <Text style={styles.expandedBookPrice}>U {formatOdds(data.under?.price ?? null)}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
+          {/* Book comparison table */}
+          {activeBooks.length > 0 ? (
+            <BookComparisonTable
+              books={activeBooks}
+              overLabel={overLabel}
+              underLabel={underLabel}
+              accentColor={accentColor}
+            />
+          ) : (
+            <Text style={s.expandedFootnote}>No book data available for this line.</Text>
+          )}
         </View>
       ) : null}
     </Pressable>
   );
 }
 
+/* ─── Search overlay ─── */
+
+function SearchOverlay({
+  visible,
+  query,
+  onChangeQuery,
+  onClose,
+}: {
+  visible: boolean;
+  query: string;
+  onChangeQuery: (q: string) => void;
+  onClose: () => void;
+}) {
+  const inputRef = useRef<TextInput>(null);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: visible ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+    if (visible) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [visible, anim]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[s.searchOverlay, { opacity: anim }]}>
+      <View style={s.searchBar}>
+        <Ionicons name="search-outline" size={18} color={brandColors.textMuted} />
+        <TextInput
+          ref={inputRef}
+          value={query}
+          onChangeText={onChangeQuery}
+          placeholder="Search games or teams..."
+          placeholderTextColor={brandColors.textMuted}
+          style={s.searchInput}
+          returnKeyType="search"
+        />
+        <Pressable onPress={onClose} hitSlop={12}>
+          <Ionicons name="close-circle" size={20} color={brandColors.textMuted} />
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
+/* ─── Main Screen ─── */
+
 export default function GamesScreen() {
-  const dateChoices = useMemo(() => getDateChoices(), []);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [selectedSport, setSelectedSport] = useState("nba");
-  const [selectedDate, setSelectedDate] = useState(dateChoices[0]?.key ?? "today");
-  const [scope, setScope] = useState<Scope>("pregame");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [marketType, setMarketType] = useState<MarketType>("game");
   const [expandedPropId, setExpandedPropId] = useState<string | null>(null);
+  const [sportPickerOpen, setSportPickerOpen] = useState(false);
   const { preferences, savePreferences } = useUserPreferences();
+  const [manualRefresh, setManualRefresh] = useState(false);
 
   const accentColor = SPORT_ACCENTS[selectedSport] ?? brandColors.primary;
   const selectedSportsbooks = preferences.preferredSportsbooks;
+  const selectedIso = selectedDate.toISOString().slice(0, 10);
 
+  // Fetch ALL events, filter by date client-side using device timezone
   const eventsQuery = useOddsEvents({
     sport: selectedSport,
-    date: selectedDate,
-    includeStarted: scope === "live",
   });
 
-  const moneylineQuery = useOddsTable({
-    sport: selectedSport,
-    market: "game_moneyline",
-    scope,
-    limit: 400,
-  });
-
-  const spreadQuery = useOddsTable({
-    sport: selectedSport,
-    market: "game_spread",
-    scope,
-    limit: 400,
-  });
-
-  const totalQuery = useOddsTable({
-    sport: selectedSport,
-    market: "total_points",
-    scope,
-    limit: 400,
-  });
+  const previewKeys = PREVIEW_MARKETS[selectedSport] ?? PREVIEW_MARKETS.nba;
+  const moneylineQuery = useOddsTable({ sport: selectedSport, market: previewKeys.moneyline, scope: "pregame", limit: 400 });
+  const spreadQuery = useOddsTable({ sport: selectedSport, market: previewKeys.spread, scope: "pregame", limit: 400 });
+  const totalQuery = useOddsTable({ sport: selectedSport, market: previewKeys.total, scope: "pregame", limit: 400 });
 
   const playerMarkets = PLAYER_MARKETS[selectedSport] ?? [];
   const gameMarkets = GAME_MARKETS[selectedSport] ?? [];
@@ -613,23 +1304,24 @@ export default function GamesScreen() {
   useEffect(() => {
     setSelectedGameId(null);
     setSearchQuery("");
+    setSearchOpen(false);
     setMarketType("game");
     setExpandedPropId(null);
     setSelectedGameMarket((GAME_MARKETS[selectedSport] ?? [])[0]?.key ?? "game_moneyline");
     setSelectedPlayerMarket((PLAYER_MARKETS[selectedSport] ?? [])[0]?.key ?? "player_points");
-  }, [selectedSport, selectedDate, scope]);
+  }, [selectedSport, selectedDate]);
 
   const detailMarket = marketType === "game" ? selectedGameMarket : selectedPlayerMarket;
 
   const detailQuery = useOddsTable({
     sport: selectedSport,
     market: detailMarket,
-    scope,
+    scope: "pregame",
     limit: 400,
     enabled: Boolean(selectedGameId),
   });
 
-  const eventIds = useMemo(() => new Set((eventsQuery.data?.events ?? []).map((event) => event.event_id)), [eventsQuery.data?.events]);
+  const eventIds = useMemo(() => new Set((eventsQuery.data?.events ?? []).map((e) => e.event_id)), [eventsQuery.data?.events]);
 
   const moneylineByEvent = useMemo(
     () => groupRowsByEvent((moneylineQuery.data?.rows ?? []).filter((row) => eventIds.has(row.eid))),
@@ -645,245 +1337,305 @@ export default function GamesScreen() {
   );
 
   const filteredEvents = useMemo(() => {
+    const allEvents = eventsQuery.data?.events ?? [];
+    // Client-side date filter using device timezone
+    const dateFiltered = allEvents.filter((e) => eventMatchesDate(e.commence_time, selectedDate));
     const query = searchQuery.trim().toLowerCase();
-    const events = eventsQuery.data?.events ?? [];
-    if (!query || selectedGameId) return events;
-    return events.filter((event) =>
+    if (!query || selectedGameId) return dateFiltered;
+    return dateFiltered.filter((event) =>
       buildEventLabel(event).toLowerCase().includes(query) ||
       event.home_team_name.toLowerCase().includes(query) ||
       event.away_team_name.toLowerCase().includes(query)
     );
-  }, [eventsQuery.data?.events, searchQuery, selectedGameId]);
+  }, [eventsQuery.data?.events, searchQuery, selectedGameId, selectedDate]);
+
+  // Group events by time of day
+  const groupedEvents = useMemo(() => {
+    const groups: { key: TimeGroup; label: string; events: OddsEvent[] }[] = [];
+    const groupMap = new Map<TimeGroup, OddsEvent[]>();
+
+    for (const event of filteredEvents) {
+      const group = getTimeGroup(event.commence_time);
+      const existing = groupMap.get(group) ?? [];
+      existing.push(event);
+      groupMap.set(group, existing);
+    }
+
+    const order: TimeGroup[] = ["morning", "afternoon", "evening"];
+    for (const key of order) {
+      const events = groupMap.get(key);
+      if (events && events.length > 0) {
+        groups.push({ key, label: timeGroupLabel(key), events });
+      }
+    }
+    return groups;
+  }, [filteredEvents]);
 
   const selectedEvent = useMemo(
-    () => (eventsQuery.data?.events ?? []).find((event) => event.event_id === selectedGameId) ?? null,
+    () => (eventsQuery.data?.events ?? []).find((e) => e.event_id === selectedGameId) ?? null,
     [eventsQuery.data?.events, selectedGameId]
   );
 
   const detailRows = useMemo(() => {
     const rows = detailQuery.data?.rows ?? [];
-    const filtered = rows.filter((row) => row.eid === selectedGameId);
-    const query = searchQuery.trim().toLowerCase();
+    let filtered = rows.filter((row) => row.eid === selectedGameId);
 
+    // For player props, deduplicate by player — keep one row per player.
+    // For NHL goals/points/assists, prefer 0.5 line as default.
+    if (marketType === "player" && filtered.length > 0) {
+      const NHL_05_MARKETS = new Set(["player_goals", "player_points", "player_assists"]);
+      const preferHalf = selectedSport === "nhl" && NHL_05_MARKETS.has(detailMarket);
+
+      const byPlayer = new Map<string, OddsTableRow>();
+      for (const row of filtered) {
+        const key = row.player ?? row.ent;
+        const existing = byPlayer.get(key);
+        if (!existing) {
+          byPlayer.set(key, row);
+        } else if (preferHalf && row.ln === 0.5 && existing.ln !== 0.5) {
+          // Prefer 0.5 line for NHL counting stats
+          byPlayer.set(key, row);
+        }
+        // Otherwise keep the first row (primary line from API)
+      }
+      filtered = Array.from(byPlayer.values());
+    }
+
+    const query = searchQuery.trim().toLowerCase();
     if (!query || marketType === "game") return filtered;
     return filtered.filter((row) =>
       String(row.player || "").toLowerCase().includes(query) ||
       String(row.team || "").toLowerCase().includes(query) ||
       marketLabelFromKey(row.mkt).toLowerCase().includes(query)
     );
-  }, [detailQuery.data?.rows, selectedGameId, searchQuery, marketType]);
+  }, [detailQuery.data?.rows, selectedGameId, searchQuery, marketType, selectedSport, detailMarket]);
 
-  const previewLoading =
-    moneylineQuery.isLoading ||
-    spreadQuery.isLoading ||
-    totalQuery.isLoading;
+  // Batch-fetch player headshots for visible player rows
+  const playerNames = useMemo(
+    () => marketType === "player" ? detailRows.map((r) => r.player).filter((n): n is string => Boolean(n)) : [],
+    [detailRows, marketType]
+  );
+  const headshotsQuery = usePlayerHeadshots(playerNames);
+  const headshotMap = headshotsQuery.data ?? {};
 
-  const listRefreshing =
-    eventsQuery.isFetching ||
-    moneylineQuery.isFetching ||
-    spreadQuery.isFetching ||
-    totalQuery.isFetching;
+  const eventsFirstLoad = !eventsQuery.data && eventsQuery.isLoading;
+  const previewFirstLoad = !moneylineQuery.data && moneylineQuery.isLoading;
+
+  async function handleRefresh() {
+    setManualRefresh(true);
+    await Promise.all([
+      eventsQuery.refetch(),
+      moneylineQuery.refetch(),
+      spreadQuery.refetch(),
+      totalQuery.refetch(),
+    ]);
+    setManualRefresh(false);
+  }
+
+  const sportLabel = SPORTS.find((sp) => sp.key === selectedSport)?.label ?? "NBA";
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <PageHeader
-        title={selectedGameId ? "Odds" : "Games"}
-        accentColor={accentColor}
-        onSportsbooksPress={() => setPickerVisible(true)}
-        selectedSportsbooks={selectedSportsbooks}
-      />
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.toolbar}>
-          {selectedGameId ? (
-            <Pressable
-              style={styles.backButton}
-              onPress={() => {
-                triggerSelectionHaptic();
-                setSelectedGameId(null);
-                setExpandedPropId(null);
-                setSearchQuery("");
-              }}
-            >
-              <Ionicons name="chevron-back" size={16} color={brandColors.textPrimary} />
-              <Text style={styles.backButtonText}>All games</Text>
-            </Pressable>
-          ) : null}
-
-          <View style={styles.scopeToggle}>
-            {(["pregame", "live"] as Scope[]).map((value) => {
-              const active = scope === value;
-              return (
-                <Pressable
-                  key={value}
-                  onPress={() => {
-                    if (scope !== value) triggerSelectionHaptic();
-                    setScope(value);
-                  }}
-                  style={[styles.scopeChip, active && styles.scopeChipActive]}
-                >
-                  <Text style={[styles.scopeChipText, active && styles.scopeChipTextActive]}>
-                    {value === "pregame" ? "Pre-Game" : "Live"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {!selectedGameId ? (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sportRail}>
-              {SPORTS.map((sport) => {
-                const active = sport.key === selectedSport;
-                return (
-                  <Pressable
-                    key={sport.key}
-                    onPress={() => {
-                      if (!active) triggerSelectionHaptic();
-                      setSelectedSport(sport.key);
-                    }}
-                    style={[styles.sportChip, active && [styles.sportChipActive, { borderColor: accentColor }]]}
-                  >
-                    <Text style={[styles.sportChipText, active && { color: accentColor }]}>{sport.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRail}>
-              {dateChoices.map((choice) => {
-                const active = choice.key === selectedDate;
-                return (
-                  <Pressable
-                    key={choice.key}
-                    onPress={() => {
-                      if (!active) triggerSelectionHaptic();
-                      setSelectedDate(choice.key);
-                    }}
-                    style={styles.dateChip}
-                  >
-                    <Text style={[styles.dateChipTitle, active && styles.dateChipTitleActive]}>{choice.title}</Text>
-                    <Text style={[styles.dateChipSubtitle, active && styles.dateChipSubtitleActive]}>{choice.sublabel}</Text>
-                    <View style={[styles.dateUnderline, active && [styles.dateUnderlineActive, { backgroundColor: accentColor }]]} />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </>
+    <SafeAreaView style={s.container} edges={["top"]}>
+      {/* Header */}
+      <View style={s.header}>
+        {selectedGameId ? (
+          <Pressable
+            onPress={() => {
+              triggerSelectionHaptic();
+              setSelectedGameId(null);
+              setExpandedPropId(null);
+              setSearchQuery("");
+            }}
+            style={s.backBtn}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={20} color={brandColors.textPrimary} />
+          </Pressable>
         ) : null}
 
-        <View style={styles.searchShell}>
-          <Ionicons name="search-outline" size={18} color={brandColors.textMuted} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder={selectedGameId && marketType === "player" ? "Search players..." : "Search games..."}
-            placeholderTextColor={brandColors.textMuted}
-            style={styles.searchInput}
-          />
+        <Text style={s.headerTitle}>{selectedGameId ? "Game Odds" : "Games"}</Text>
+
+        <View style={s.headerActions}>
+          {!selectedGameId ? (
+            <>
+              {/* Sport picker */}
+              <Pressable
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSportPickerOpen(!sportPickerOpen);
+                }}
+                style={[s.sportBtn, sportPickerOpen && { borderColor: accentColor }]}
+              >
+                <Text style={[s.sportBtnText, { color: accentColor }]}>{sportLabel}</Text>
+                <Ionicons name="chevron-down" size={12} color={accentColor} />
+              </Pressable>
+
+              {/* Search */}
+              <Pressable
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSearchOpen(!searchOpen);
+                  if (searchOpen) setSearchQuery("");
+                }}
+                style={s.iconBtn}
+              >
+                <Ionicons name="search" size={18} color={brandColors.textSecondary} />
+              </Pressable>
+            </>
+          ) : null}
+
+          {/* Sportsbooks */}
+          <Pressable
+            onPress={() => { triggerSelectionHaptic(); setPickerVisible(true); }}
+            style={s.iconBtn}
+          >
+            <Ionicons name="options-outline" size={18} color={brandColors.textSecondary} />
+          </Pressable>
         </View>
+      </View>
 
+      {/* Sport dropdown */}
+      {sportPickerOpen && !selectedGameId ? (
+        <View style={s.sportDropdown}>
+          {SPORTS.map((sport) => {
+            const active = sport.key === selectedSport;
+            const sportAccent = SPORT_ACCENTS[sport.key] ?? brandColors.primary;
+            return (
+              <Pressable
+                key={sport.key}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedSport(sport.key);
+                  setSportPickerOpen(false);
+                }}
+                style={[s.sportDropdownItem, active && { backgroundColor: `${sportAccent}14` }]}
+              >
+                <View style={[s.sportDot, { backgroundColor: sportAccent }]} />
+                <Text style={[s.sportDropdownText, active && { color: sportAccent, fontWeight: "800" }]}>{sport.label}</Text>
+                {active ? <Ionicons name="checkmark" size={16} color={sportAccent} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {/* Search bar */}
+      <SearchOverlay
+        visible={searchOpen}
+        query={searchQuery}
+        onChangeQuery={setSearchQuery}
+        onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={manualRefresh}
+            onRefresh={() => void handleRefresh()}
+            tintColor={accentColor}
+          />
+        }
+      >
         {!selectedGameId ? (
-          <View style={styles.listArea}>
-            {eventsQuery.isLoading || previewLoading ? (
-              <View style={styles.stateCard}>
-                <ActivityIndicator size="small" color={accentColor} />
-                <Text style={styles.stateText}>Loading games and odds...</Text>
-              </View>
-            ) : filteredEvents.length === 0 ? (
-              <View style={styles.stateCard}>
-                <Text style={styles.stateText}>No games available for this date.</Text>
-              </View>
-            ) : (
-              filteredEvents.map((event) => {
-                const ml = moneylineByEvent.get(event.event_id)?.[0];
-                const spread = spreadByEvent.get(event.event_id)?.[0];
-                const total = totalByEvent.get(event.event_id)?.[0];
-                const homeLogo = getTeamLogoUri(event.home_team, selectedSport);
-                const awayLogo = getTeamLogoUri(event.away_team, selectedSport);
+          <>
+            {/* Week Strip */}
+            <WeekStrip
+              weekOffset={weekOffset}
+              selectedIso={selectedIso}
+              onSelectDay={(iso, date) => setSelectedDate(date)}
+              onPrevWeek={() => { triggerSelectionHaptic(); setWeekOffset((o) => o - 1); }}
+              onNextWeek={() => { triggerSelectionHaptic(); setWeekOffset((o) => o + 1); }}
+              accentColor={accentColor}
+            />
 
-                return (
-                  <Pressable
-                    key={event.event_id}
-                    style={styles.gameCard}
-                    onPress={() => {
-                      triggerLightImpactHaptic();
-                      setSelectedGameId(event.event_id);
-                      setExpandedPropId(null);
-                      setSearchQuery("");
-                    }}
-                  >
-                    <View style={styles.gameCardTopRow}>
-                      <View style={styles.gameMetaPill}>
-                        <Text style={styles.gameMetaText}>{formatGameTime(event.commence_time)}</Text>
-                        <Text style={styles.gameMetaDivider}>·</Text>
-                        <Text style={styles.gameMetaText}>{selectedDate === "today" ? "Today" : selectedDate}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={brandColors.textMuted} />
-                    </View>
-
-                    <View style={styles.matchupRows}>
-                      <View style={styles.matchupRow}>
-                        <View style={styles.teamIdentity}>
-                          {awayLogo ? <Image source={{ uri: awayLogo }} style={styles.teamLogo} /> : null}
-                          <View style={styles.teamCopy}>
-                            <Text numberOfLines={1} style={styles.teamName}>{event.away_team_name}</Text>
-                            <Text style={styles.teamSub}>{event.away_team}</Text>
-                          </View>
-                        </View>
-                        <Text style={styles.matchupMarker}>AWAY</Text>
-                      </View>
-
-                      <View style={styles.matchupRow}>
-                        <View style={styles.teamIdentity}>
-                          {homeLogo ? <Image source={{ uri: homeLogo }} style={styles.teamLogo} /> : null}
-                          <View style={styles.teamCopy}>
-                            <Text numberOfLines={1} style={styles.teamName}>{event.home_team_name}</Text>
-                            <Text style={styles.teamSub}>{event.home_team}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.homeBadge}>
-                          <Text style={styles.homeBadgeText}>HOME</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.previewStack}>
-                      {PREVIEW_MARKETS.map((preview) => (
-                        <GameMarketPreview
-                          key={preview.key}
-                          row={
-                            preview.key === "game_moneyline"
-                              ? ml
-                              : preview.key === "game_spread"
-                                ? spread
-                                : total
-                          }
-                          label={preview.label}
-                          preferredBooks={selectedSportsbooks}
-                          accentColor={accentColor}
-                        />
-                      ))}
-                    </View>
-                  </Pressable>
-                );
-              })
-            )}
-            {listRefreshing && !eventsQuery.isLoading ? (
-              <Text style={styles.refreshHint}>Refreshing lines…</Text>
-            ) : null}
-          </View>
-        ) : selectedEvent ? (
-          <View style={styles.detailArea}>
-            <View style={styles.detailHero}>
-              <Text style={styles.detailEyebrow}>{formatGameTime(selectedEvent.commence_time)} · {selectedDate === "today" ? "Today" : selectedDate}</Text>
-              <Text style={styles.detailTitle}>{selectedEvent.away_team_name} @ {selectedEvent.home_team_name}</Text>
-              <Text style={styles.detailSubtitle}>{selectedEvent.away_team} at {selectedEvent.home_team}</Text>
+            {/* Day header */}
+            <View style={s.dayHeaderRow}>
+              <Text style={s.dayHeaderText}>{formatDayHeader(selectedDate)}</Text>
+              <Text style={s.dayHeaderCount}>
+                {filteredEvents.length} game{filteredEvents.length !== 1 ? "s" : ""}
+              </Text>
             </View>
 
+            {/* Games list */}
+            {eventsFirstLoad || previewFirstLoad ? (
+              <View style={s.listArea}>
+                <StateView state="loading" skeletonCount={3} />
+              </View>
+            ) : filteredEvents.length === 0 ? (
+              <View style={s.listArea}>
+                <StateView
+                  state="empty"
+                  icon="calendar-outline"
+                  title="No games"
+                  message={`No ${sportLabel} games scheduled for this date.`}
+                />
+              </View>
+            ) : (
+              <View style={s.listArea}>
+                {groupedEvents.map((group) => (
+                  <View key={group.key}>
+                    <View style={s.timeGroupHeader}>
+                      <Text style={s.timeGroupLabel}>{group.label}</Text>
+                      <View style={s.timeGroupLine} />
+                    </View>
+                    {group.events.map((event) => (
+                      <GameCard
+                        key={event.event_id}
+                        event={event}
+                        ml={moneylineByEvent.get(event.event_id)?.[0]}
+                        spread={spreadByEvent.get(event.event_id)?.[0]}
+                        total={totalByEvent.get(event.event_id)?.[0]}
+                        sport={selectedSport}
+                        accentColor={accentColor}
+                        preferredBooks={selectedSportsbooks}
+                        onPress={() => {
+                          setSelectedGameId(event.event_id);
+                          setExpandedPropId(null);
+                          setSearchQuery("");
+                          setSearchOpen(false);
+                        }}
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        ) : selectedEvent ? (
+          <View style={s.detailArea}>
+            {/* ─── Hero: logos + matchup ─── */}
+            <View style={s.detailHero}>
+              <View style={s.detailHeroMatchup}>
+                <View style={s.detailHeroTeam}>
+                  <View style={s.detailHeroLogo}>
+                    <TeamLogo teamAbbr={selectedEvent.away_team} sport={selectedSport} size={56} />
+                  </View>
+                  <Text style={s.detailHeroAbbr}>{selectedEvent.away_team}</Text>
+                </View>
+
+                <View style={s.detailHeroCenter}>
+                  <Text style={s.detailHeroDate}>
+                    {selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                  </Text>
+                  <Text style={s.detailHeroTime}>
+                    {formatGameTime(selectedEvent.commence_time).time} {formatGameTime(selectedEvent.commence_time).ampm}
+                  </Text>
+                </View>
+
+                <View style={s.detailHeroTeam}>
+                  <View style={s.detailHeroLogo}>
+                    <TeamLogo teamAbbr={selectedEvent.home_team} sport={selectedSport} size={56} />
+                  </View>
+                  <Text style={s.detailHeroAbbr}>{selectedEvent.home_team}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ─── Game / Player toggle ─── */}
             {hasPlayerMarkets(selectedSport) ? (
-              <View style={styles.typeToggle}>
+              <View style={s.typeToggle}>
                 {(["game", "player"] as MarketType[]).map((value) => {
                   const active = marketType === value;
                   return (
@@ -894,9 +1646,9 @@ export default function GamesScreen() {
                         setMarketType(value);
                         setExpandedPropId(null);
                       }}
-                      style={[styles.typeToggleButton, active && styles.typeToggleButtonActive]}
+                      style={[s.typeToggleBtn, active && s.typeToggleBtnActive]}
                     >
-                      <Text style={[styles.typeToggleText, active && styles.typeToggleTextActive]}>
+                      <Text style={[s.typeToggleText, active && s.typeToggleTextActive]}>
                         {value === "game" ? "Game Props" : "Player Props"}
                       </Text>
                     </Pressable>
@@ -905,7 +1657,8 @@ export default function GamesScreen() {
               </View>
             ) : null}
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketRail}>
+            {/* ─── Market rail ─── */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.marketRail}>
               {(marketType === "game" ? gameMarkets : playerMarkets).map((market) => {
                 const active = detailMarket === market.key;
                 return (
@@ -914,33 +1667,63 @@ export default function GamesScreen() {
                     onPress={() => {
                       triggerSelectionHaptic();
                       setExpandedPropId(null);
-                      if (marketType === "game") {
-                        setSelectedGameMarket(market.key);
-                      } else {
-                        setSelectedPlayerMarket(market.key);
-                      }
+                      if (marketType === "game") setSelectedGameMarket(market.key);
+                      else setSelectedPlayerMarket(market.key);
                     }}
-                    style={[styles.marketChip, active && styles.marketChipActive]}
+                    style={[s.marketChip, active && s.marketChipActive]}
                   >
-                    <Text style={[styles.marketChipText, active && styles.marketChipTextActive]}>{market.label}</Text>
+                    <Text style={[s.marketChipText, active && s.marketChipTextActive]}>{market.label}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
 
-            {detailQuery.isLoading ? (
-              <View style={styles.stateCard}>
-                <ActivityIndicator size="small" color={accentColor} />
-                <Text style={styles.stateText}>Loading market odds...</Text>
+            {/* ─── Player search ─── */}
+            {marketType === "player" ? (
+              <View style={s.detailSearchBar}>
+                <Ionicons name="search-outline" size={16} color={brandColors.textMuted} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search players..."
+                  placeholderTextColor={brandColors.textMuted}
+                  style={s.detailSearchInput}
+                />
               </View>
+            ) : null}
+
+            {/* ─── Market rows ─── */}
+            {detailQuery.isLoading ? (
+              <StateView state="loading" skeletonCount={3} />
             ) : detailRows.length === 0 ? (
-              <View style={styles.stateCard}>
-                <Text style={styles.stateText}>No odds available for this market.</Text>
+              <StateView state="empty" icon="stats-chart-outline" title="No odds" message="No odds available for this market." />
+            ) : marketType === "player" ? (
+              <View style={s.propList}>
+                {/* Column headers */}
+                <View style={s.propColumnHeaders}>
+                  <View style={{ flex: 1 }} />
+                  <Text style={s.propColumnHeader}>Over</Text>
+                  <Text style={s.propColumnHeader}>Under</Text>
+                </View>
+                {detailRows.map((row) => {
+                  const expanded = expandedPropId === `${row.eid}-${row.ent}-${row.mkt}-${row.ln}`;
+                  return (
+                    <PlayerPropRow
+                      key={`${row.eid}-${row.ent}-${row.mkt}-${row.ln}`}
+                      row={row}
+                      accentColor={accentColor}
+                      selectedSportsbooks={selectedSportsbooks}
+                      expanded={expanded}
+                      onToggle={() => setExpandedPropId(expanded ? null : `${row.eid}-${row.ent}-${row.mkt}-${row.ln}`)}
+                      sport={selectedSport}
+                      headshotUrl={row.player ? headshotMap[row.player] ?? null : null}
+                    />
+                  );
+                })}
               </View>
             ) : (
               detailRows.map((row) => {
                 const expanded = expandedPropId === `${row.eid}-${row.ent}-${row.mkt}-${row.ln}`;
-
                 return (
                   <DetailMarketCard
                     key={`${row.eid}-${row.ent}-${row.mkt}-${row.ln}`}
@@ -969,7 +1752,9 @@ export default function GamesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+/* ─── styles ─── */
+
+const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: brandColors.appBackground,
@@ -977,303 +1762,358 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 90,
   },
-  toolbar: {
-    paddingHorizontal: 16,
-    paddingTop: 2,
-    paddingBottom: 8,
+
+  /* Header */
+  header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+    gap: 10,
   },
-  backButton: {
+  headerTitle: {
+    flex: 1,
+    color: brandColors.textPrimary,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  backBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sportBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  backButtonText: {
-    color: brandColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  scopeToggle: {
-    flexDirection: "row",
-    backgroundColor: brandColors.panelBackground,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: brandColors.border,
-    padding: 3,
-  },
-  scopeChip: {
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.06)",
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 7,
   },
-  scopeChipActive: {
-    backgroundColor: brandColors.panelBackgroundAlt,
+  sportBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
   },
-  scopeChipText: {
-    color: brandColors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  scopeChipTextActive: {
-    color: brandColors.textPrimary,
-  },
-  sportRail: {
-    paddingHorizontal: 16,
-    gap: 10,
-    paddingBottom: 10,
-  },
-  sportChip: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackgroundAlt,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  sportChipActive: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  sportChipText: {
-    color: brandColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  dateRail: {
-    paddingHorizontal: 16,
-    gap: 22,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: brandColors.border,
-  },
-  dateChip: {
-    paddingBottom: 10,
-    position: "relative",
-  },
-  dateChipTitle: {
-    color: brandColors.textSecondary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  dateChipTitleActive: {
-    color: brandColors.textPrimary,
-  },
-  dateChipSubtitle: {
-    marginTop: 2,
-    color: brandColors.textMuted,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  dateChipSubtitleActive: {
-    color: brandColors.textSecondary,
-  },
-  dateUnderline: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: -1,
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: "transparent",
-  },
-  dateUnderlineActive: {
-    backgroundColor: brandColors.primary,
-  },
-  searchShell: {
-    marginHorizontal: 16,
-    marginTop: 14,
-    marginBottom: 14,
+  iconBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackgroundAlt,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* Sport dropdown */
+  sportDropdown: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: brandColors.panelBackground,
+    overflow: "hidden",
+  },
+  sportDropdownItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
     gap: 10,
-    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  sportDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sportDropdownText: {
+    flex: 1,
+    color: brandColors.textSecondary,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  /* Search overlay */
+  searchOverlay: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    paddingHorizontal: 14,
+    minHeight: 44,
   },
   searchInput: {
     flex: 1,
     color: brandColors.textPrimary,
-    fontSize: 16,
-    paddingVertical: 12,
+    fontSize: 15,
+    paddingVertical: 10,
   },
-  listArea: {
+
+  /* Week strip */
+  weekSection: {
     paddingHorizontal: 16,
-    gap: 14,
+    paddingBottom: 12,
   },
-  stateCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackgroundAlt,
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    alignItems: "center",
-    gap: 8,
-  },
-  stateText: {
-    color: brandColors.textSecondary,
-    fontSize: 14,
-    textAlign: "center",
-  },
-  refreshHint: {
-    color: brandColors.textMuted,
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  gameCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackgroundAlt,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  gameCardTopRow: {
+  monthRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    marginBottom: 14,
   },
-  gameMetaPill: {
+  monthLabel: {
     flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  monthText: {
+    color: brandColors.textPrimary,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  yearText: {
+    color: brandColors.textMuted,
+    fontSize: 20,
+    fontWeight: "500",
+  },
+  weekNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  weekNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weekStrip: {
+    flexDirection: "row",
+    borderRadius: 16,
+    backgroundColor: brandColors.panelBackground,
+    borderWidth: 1,
+    borderColor: brandColors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  dayCell: {
+    flex: 1,
     alignItems: "center",
     gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackground,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
-  gameMetaText: {
-    color: brandColors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  gameMetaDivider: {
+  dayLabel: {
     color: brandColors.textMuted,
     fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 0.3,
   },
-  matchupRows: {
-    gap: 8,
+  dayNumWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  matchupRow: {
+  dayNum: {
+    color: brandColors.textSecondary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  dayNumSelected: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  todayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginTop: -2,
+  },
+
+  /* Day header */
+  dayHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 6,
   },
-  teamIdentity: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  teamCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  teamLogo: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#0A0F1B",
-  },
-  teamName: {
+  dayHeaderText: {
     color: brandColors.textPrimary,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "800",
   },
-  teamSub: {
+  dayHeaderCount: {
     color: brandColors.textMuted,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
   },
-  matchupMarker: {
+
+  /* Time groups */
+  timeGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  timeGroupLabel: {
     color: brandColors.textMuted,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.8,
+    fontSize: 13,
+    fontWeight: "700",
   },
-  homeBadge: {
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+  timeGroupLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
-  homeBadgeText: {
-    color: brandColors.textMuted,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.8,
+
+  /* Game list */
+  listArea: {
+    paddingHorizontal: 16,
+    gap: 10,
   },
-  previewStack: {
-    gap: 8,
-  },
-  previewRow: {
+
+  /* Game card (DK grid) */
+  gameCard: {
     borderRadius: 18,
+    backgroundColor: brandColors.panelBackground,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    backgroundColor: "rgba(0,0,0,0.18)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderColor: brandColors.border,
+    marginBottom: 10,
+    overflow: "hidden",
   },
-  previewRowHeader: {
+  gameCardPressed: {
+    backgroundColor: brandColors.panelBackgroundAlt,
+  },
+  gameTimeBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
   },
-  previewRowLabel: {
-    color: brandColors.textSecondary,
+  gameTimeText: {
+    color: brandColors.textMuted,
     fontSize: 12,
     fontWeight: "700",
   },
-  previewRowMeta: {
+  gridHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  teamColHeader: {
+    flex: 1,
+  },
+  gridHeaderText: {
+    width: 76,
+    textAlign: "center",
+    marginHorizontal: 2,
     color: brandColors.textMuted,
     fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.7,
+    letterSpacing: 0.5,
   },
-  previewRowBody: {
+  gridRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  teamCol: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  previewTeamSide: {
-    flex: 1,
     minWidth: 0,
-    gap: 4,
   },
-  previewTeamSideRight: {
-    alignItems: "flex-end",
+  gridTeamLogo: {
+    borderRadius: 13,
+    overflow: "hidden",
   },
-  previewTeamLabel: {
+  gridTeamName: {
     color: brandColors.textPrimary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
   },
-  previewRowDivider: {
-    width: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignSelf: "stretch",
+  gridDivider: {
+    height: 1,
+    marginHorizontal: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  previewEmpty: {
+  oddsCell: {
+    width: 76,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: brandColors.panelBackgroundAlt,
+    borderWidth: 1,
+    borderColor: brandColors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginHorizontal: 2,
+    minHeight: 42,
+    gap: 1,
+  },
+  oddsCellLine: {
+    color: brandColors.textSecondary,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  oddsCellPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  oddsCellPrice: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  oddsCellBook: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  oddsCellDash: {
     color: brandColors.textMuted,
     fontSize: 13,
+    fontWeight: "600",
   },
+
+  /* Odds pills (used in detail) */
   valuePill: {
     minHeight: 34,
     borderRadius: 14,
@@ -1299,50 +2139,129 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
   },
+
+  /* Detail */
   detailArea: {
     paddingHorizontal: 16,
-    gap: 14,
+    gap: 12,
   },
   detailHero: {
-    borderRadius: 22,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: brandColors.border,
+    backgroundColor: brandColors.panelBackground,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  detailHeroMatchup: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  detailHeroTeam: {
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  detailHeroLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+  },
+  detailHeroAbbr: {
+    color: brandColors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  detailHeroCenter: {
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 8,
+  },
+  detailHeroDate: {
+    color: brandColors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  detailHeroTime: {
+    color: brandColors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  /* Detail grid cells (used in game/player prop cards) */
+  detailGridRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  detailGridCell: {
+    flex: 1,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: brandColors.border,
     backgroundColor: brandColors.panelBackgroundAlt,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: "center",
     gap: 4,
   },
-  detailEyebrow: {
+  detailGridLabel: {
     color: brandColors.textSecondary,
     fontSize: 12,
     fontWeight: "700",
   },
-  detailTitle: {
+  detailGridPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  detailGridPrice: {
     color: brandColors.textPrimary,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
   },
-  detailSubtitle: {
-    color: brandColors.textMuted,
-    fontSize: 13,
-    fontWeight: "600",
+  detailGridBook: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
+
+  detailSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    paddingHorizontal: 12,
+    minHeight: 40,
+  },
+  detailSearchInput: {
+    flex: 1,
+    color: brandColors.textPrimary,
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+
+  /* Type toggle */
   typeToggle: {
     flexDirection: "row",
     backgroundColor: brandColors.panelBackground,
     borderWidth: 1,
     borderColor: brandColors.border,
-    borderRadius: 16,
-    padding: 4,
+    borderRadius: 14,
+    padding: 3,
   },
-  typeToggleButton: {
+  typeToggleBtn: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 11,
   },
-  typeToggleButtonActive: {
+  typeToggleBtnActive: {
     backgroundColor: brandColors.panelBackgroundAlt,
   },
   typeToggleText: {
@@ -1353,8 +2272,10 @@ const styles = StyleSheet.create({
   typeToggleTextActive: {
     color: brandColors.textPrimary,
   },
+
+  /* Market rail */
   marketRail: {
-    gap: 10,
+    gap: 8,
     paddingRight: 16,
   },
   marketChip: {
@@ -1362,7 +2283,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: brandColors.border,
     backgroundColor: brandColors.panelBackground,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   marketChipActive: {
@@ -1377,13 +2298,15 @@ const styles = StyleSheet.create({
   marketChipTextActive: {
     color: brandColors.primary,
   },
+
+  /* Market cards */
   marketCard: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: brandColors.border,
-    backgroundColor: brandColors.panelBackgroundAlt,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
+    backgroundColor: brandColors.panelBackground,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 10,
   },
   marketCardHeader: {
@@ -1406,39 +2329,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  marketOddsRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
-  marketOddsSide: {
-    flex: 1,
-    gap: 4,
-  },
-  marketOddsDivider: {
-    width: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    marginHorizontal: 12,
-  },
-  marketOddsLabel: {
-    color: brandColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  marketOddsValueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  marketOddsPrice: {
-    color: brandColors.textPrimary,
-    fontSize: 20,
-    fontWeight: "800",
-  },
+
+  /* Expanded section */
   expandedSection: {
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    borderTopColor: "rgba(255,255,255,0.06)",
     paddingTop: 10,
-    gap: 8,
+    gap: 10,
   },
   expandedSectionHeader: {
     flexDirection: "row",
@@ -1462,100 +2359,262 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   expandedStateText: {
     color: brandColors.textMuted,
     fontSize: 12,
     fontWeight: "600",
   },
-  alternateLinesStack: {
-    gap: 6,
-  },
-  alternateLineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    backgroundColor: "rgba(255,255,255,0.03)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  alternateLineRowPrimary: {
-    borderColor: "rgba(56, 189, 248, 0.18)",
-    backgroundColor: "rgba(56, 189, 248, 0.08)",
-  },
-  alternateLineTag: {
-    minWidth: 62,
-  },
-  alternateLineTagText: {
-    color: brandColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  alternateLineTagTextPrimary: {
-    color: brandColors.textPrimary,
-  },
-  alternateLinePrices: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  alternatePriceCell: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  alternatePriceLabel: {
-    color: brandColors.textMuted,
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  alternatePriceValue: {
-    color: brandColors.textPrimary,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  altBookLogo: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
   expandedFootnote: {
     color: brandColors.textMuted,
     fontSize: 11,
     fontWeight: "600",
+    textAlign: "center",
+    paddingVertical: 6,
   },
-  expandedBooks: {
-    gap: 8,
+
+  /* Alternate line scrubber */
+  scrubberContent: {
+    gap: 6,
+    paddingVertical: 2,
   },
-  expandedBookRow: {
-    flexDirection: "row",
+  scrubberChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.03)",
     alignItems: "center",
-    justifyContent: "space-between",
+    minWidth: 50,
   },
-  expandedBookLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  scrubberChipPrimary: {
+    borderColor: "rgba(56,189,248,0.20)",
+    backgroundColor: "rgba(56,189,248,0.06)",
   },
-  expandedBookName: {
+  scrubberChipText: {
     color: brandColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "capitalize",
+    fontSize: 14,
+    fontWeight: "700",
   },
-  expandedBookOdds: {
+  scrubberChipTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  scrubberDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 3,
+  },
+
+  /* Book comparison table (EV card style) */
+  bookTable: {
+    gap: 3,
+  },
+  bookTableHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    marginBottom: 2,
   },
-  expandedBookPrice: {
+  bookTableHeaderLabel: {
+    flex: 1,
+    color: brandColors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  bookTableHeaderCenter: {
+    width: 36,
+    color: brandColors.textMuted,
+    fontSize: 8,
+    fontWeight: "700",
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  bookTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  bookTableCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: brandColors.border,
+    backgroundColor: brandColors.panelBackgroundAlt,
+  },
+  bookTableCellBest: {
+    backgroundColor: "rgba(56,189,248,0.08)",
+    borderColor: "rgba(56,189,248,0.22)",
+  },
+  bookTableCellTappable: {
+    // subtle visual hint that the cell is tappable (no-op, used for pressed state)
+  },
+  bookTableCellText: {
     color: brandColors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  bookTableCenter: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bookTableLogo: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+  },
+  bookTableLogoFallback: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bookTableLogoFallbackText: {
+    color: brandColors.textMuted,
+    fontSize: 8,
+    fontWeight: "700",
+  },
+
+  /* Player prop list */
+  propList: {
+    gap: 0,
+  },
+  propColumnHeaders: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
+  propColumnHeader: {
+    width: 90,
+    textAlign: "center",
+    color: brandColors.textMuted,
     fontSize: 12,
     fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+
+  /* Player prop row */
+  propRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  propRowMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  propRowPlayer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  propRowAvatarWrap: {
+    width: 44,
+    height: 44,
+    position: "relative",
+  },
+  propRowAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  propRowAvatarFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  propRowTeamBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: brandColors.appBackground,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  propRowCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  propRowName: {
+    color: brandColors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  propRowStat: {
+    color: brandColors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  propRowStatLabel: {
+    color: brandColors.textMuted,
+    fontWeight: "700",
+  },
+  propRowStatValue: {
+    fontWeight: "800",
+  },
+  propRowCells: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  propRowCell: {
+    width: 86,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: brandColors.panelBackgroundAlt,
+    borderWidth: 1,
+    borderColor: brandColors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    gap: 2,
+  },
+  propRowCellLabel: {
+    color: brandColors.textSecondary,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  propRowCellPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  propRowCellPrice: {
+    color: brandColors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  propRowCellBook: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+  },
+  propRowExpanded: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 10,
   },
 });

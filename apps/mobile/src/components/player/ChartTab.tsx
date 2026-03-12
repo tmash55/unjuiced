@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { HitRateProfileV2, PlayerBoxScoreGame } from "@unjuiced/types";
 import type { TeammateOut, PlayTypeData } from "@unjuiced/api";
 import type { PlayerOutInfo } from "@/src/hooks/use-players-out-for-filter";
-import { getNbaTeamLogoUrl } from "@/src/lib/logos";
+import TeamLogo from "@/src/components/TeamLogo";
 import { brandColors } from "@/src/theme/brand";
 import { GameDetailModal } from "./GameDetailModal";
 import {
@@ -1029,7 +1029,6 @@ function renderBar(
   const colors = barColor(val, chartLine);
   const anim = barAnims.current[i];
   const animH = anim ? anim.interpolate({ inputRange: [0, 1], outputRange: [0, fullH] }) : fullH;
-  const oppLg = getNbaTeamLogoUrl(game.opponentAbbr);
   const segments = COMBO_MARKETS.has(chartMarket) ? getComboSegments(game, chartMarket) : null;
   const nonZeroSegments = segments?.filter(seg => seg.value > 0) ?? null;
 
@@ -1128,7 +1127,6 @@ function renderBarFooter(
   game: PlayerBoxScoreGame, fixed: boolean,
   dvpRankByTeam?: Map<string, number>, showDvpDots?: boolean
 ) {
-  const oppLg = getNbaTeamLogoUrl(game.opponentAbbr);
   return (
     <View key={game.gameId} style={fixed ? s.chartFooterColFixed : s.chartFooterCol}>
       <Text style={s.chartDate}>{fmtDate(game.date)}</Text>
@@ -1137,7 +1135,7 @@ function renderBarFooter(
         if (rank == null) return null;
         return <View style={[s.dvpBarDot, { backgroundColor: rankColor(rank) }]} />;
       })() : null}
-      {oppLg ? <Image source={{ uri: oppLg }} style={s.chartOppLogo} /> : <Text style={s.chartOpp}>{game.opponentAbbr}</Text>}
+      <TeamLogo teamAbbr={game.opponentAbbr} sport="nba" size={14} style={{ borderRadius: 7, marginTop: 2 }} />
     </View>
   );
 }
@@ -1146,7 +1144,6 @@ function renderUpcomingFooter(
   oppAbbr: string, fixed: boolean,
   dvpRankByTeam?: Map<string, number>, showDvpDots?: boolean
 ) {
-  const oppLg = getNbaTeamLogoUrl(oppAbbr);
   return (
     <View key="upcoming-footer" style={[fixed ? s.chartFooterColFixed : s.chartFooterCol, { opacity: 0.5 }]}>
       <Text style={s.chartDate}>{new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</Text>
@@ -1155,7 +1152,7 @@ function renderUpcomingFooter(
         if (rank == null) return null;
         return <View style={[s.dvpBarDot, { backgroundColor: rankColor(rank) }]} />;
       })() : null}
-      {oppLg ? <Image source={{ uri: oppLg }} style={s.chartOppLogo} /> : <Text style={s.chartOpp}>{oppAbbr}</Text>}
+      <TeamLogo teamAbbr={oppAbbr} sport="nba" size={14} style={{ borderRadius: 7, marginTop: 2 }} />
     </View>
   );
 }

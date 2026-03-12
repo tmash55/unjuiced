@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { forwardRef, useCallback, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,8 +14,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { brandColors } from "@/src/theme/brand";
 
 type AuthScreenShellProps = {
@@ -46,90 +48,71 @@ export function AuthScreenShell({
   title,
   subtitle,
   eyebrow,
-  align = "left",
   keyboard = false,
   children,
   footer,
-  heroFooter,
 }: AuthScreenShellProps) {
+  const router = useRouter();
+
   const content = (
-    <ScrollView
-      contentContainerStyle={[
-        styles.scrollContent,
-        align === "center" ? styles.scrollContentCenter : null,
-      ]}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.heroWrap}>
-        <View style={styles.heroTopRow}>
+    <Pressable style={styles.flex} onPress={Keyboard.dismiss}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Back button */}
+        <Pressable
+          style={styles.backButton}
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
+          <Ionicons name="chevron-back" size={20} color={brandColors.textSecondary} />
+        </Pressable>
+
+        {/* Main content — centered vertically */}
+        <View style={styles.centerBlock}>
+          {/* Logo */}
           <Image
             source={require("../../../assets/logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
-          <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.livePillText}>Sharp mobile</Text>
-          </View>
-        </View>
 
-        <View style={styles.heroCard}>
-          <LinearGradient
-            colors={["rgba(56,189,248,0.14)", "rgba(251,191,36,0.10)", "rgba(16,185,129,0.06)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroGlow}
-          />
-
-          {eyebrow ? (
-            <View style={styles.eyebrowPill}>
-              <Text style={styles.eyebrowText}>{eyebrow}</Text>
-            </View>
-          ) : null}
-
-          <Text style={[styles.title, align === "center" ? styles.textCenter : null]}>{title}</Text>
-          <Text style={[styles.subtitle, align === "center" ? styles.textCenter : null]}>{subtitle}</Text>
-
-          <View style={[styles.heroChipsRow, align === "center" ? styles.heroChipsRowCenter : null]}>
-            <FeatureChip icon="basketball-outline" label="Sporty" />
-            <FeatureChip icon="diamond-outline" label="Premium" />
-            <FeatureChip icon="flash-outline" label="Live edge" />
+          {/* Header copy */}
+          <View style={styles.headerWrap}>
+            {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
 
-          {heroFooter}
+          {/* Form content */}
+          {children}
         </View>
-      </View>
 
-      {children}
-
-      {footer ? <View style={styles.footerWrap}>{footer}</View> : null}
-    </ScrollView>
+        {/* Footer link — pushed to bottom */}
+        {footer ? <View style={styles.footerWrap}>{footer}</View> : null}
+      </ScrollView>
+    </Pressable>
   );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <LinearGradient
-        colors={["#091018", "#0B1014", "#0F172A"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.background}
-      >
-        <View style={styles.bgOrbOne} />
-        <View style={styles.bgOrbTwo} />
-        <View style={styles.bgNet} />
-
+      <View style={styles.background}>
         {keyboard ? (
           <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.select({ ios: "padding", default: undefined })}
+            keyboardVerticalOffset={Platform.select({ ios: 0, default: 0 })}
           >
             {content}
           </KeyboardAvoidingView>
         ) : (
           content
         )}
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 }
@@ -138,23 +121,40 @@ export function AuthPanel({ children }: { children: ReactNode }) {
   return <View style={styles.panel}>{children}</View>;
 }
 
-export function AuthField({ label, rightLabel, style, ...props }: AuthFieldProps) {
-  return (
-    <View style={styles.fieldWrap}>
-      <View style={styles.fieldHeader}>
-        <Text style={styles.fieldLabel}>{label}</Text>
-        {rightLabel}
+export const AuthField = forwardRef<TextInput, AuthFieldProps>(
+  function AuthField({ label, rightLabel, style, ...props }, ref) {
+    const [focused, setFocused] = useState(false);
+
+    return (
+      <View style={styles.fieldWrap}>
+        <View style={styles.fieldHeader}>
+          <Text style={[styles.fieldLabel, focused && styles.fieldLabelFocused]}>{label}</Text>
+          {rightLabel}
+        </View>
+        <TextInput
+          ref={ref}
+          placeholderTextColor="rgba(255,255,255,0.22)"
+          autoCapitalize="none"
+          autoCorrect={false}
+          onFocus={(e) => {
+            setFocused(true);
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            props.onBlur?.(e);
+          }}
+          style={[
+            styles.fieldInput,
+            focused && styles.fieldInputFocused,
+            style,
+          ]}
+          {...props}
+        />
       </View>
-      <TextInput
-        placeholderTextColor={brandColors.textMuted}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={[styles.fieldInput, style]}
-        {...props}
-      />
-    </View>
-  );
-}
+    );
+  }
+);
 
 export function AuthButton({
   label,
@@ -166,10 +166,15 @@ export function AuthButton({
 }: AuthButtonProps) {
   const isPrimary = variant === "primary";
 
+  const handlePress = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  }, [onPress]);
+
   return (
     <Pressable
       disabled={disabled || loading}
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.buttonBase,
         isPrimary ? styles.buttonPrimary : styles.buttonSecondary,
@@ -180,7 +185,7 @@ export function AuthButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={isPrimary ? "#03131E" : brandColors.textPrimary}
+          color={isPrimary ? "#04111B" : brandColors.textPrimary}
         />
       ) : (
         <View style={styles.buttonContent}>
@@ -188,7 +193,7 @@ export function AuthButton({
             <Ionicons
               name={icon}
               size={16}
-              color={isPrimary ? "#03131E" : brandColors.textPrimary}
+              color={isPrimary ? "#04111B" : brandColors.textPrimary}
             />
           ) : null}
           <Text style={[styles.buttonText, isPrimary ? styles.buttonTextPrimary : styles.buttonTextSecondary]}>
@@ -226,8 +231,8 @@ export function AuthInlineLink({
 }) {
   return (
     <View style={styles.inlineLinkRow}>
-      <Text style={styles.inlineLinkPrefix}>{prefix}</Text>
-      <Pressable onPress={onPress}>
+      <Text style={styles.inlineLinkPrefix}>{prefix} </Text>
+      <Pressable onPress={onPress} hitSlop={8}>
         <Text style={styles.inlineLinkAction}>{action}</Text>
       </Pressable>
     </View>
@@ -256,7 +261,7 @@ export const authUiStyles = StyleSheet.create({
     marginTop: 4,
   },
   actionRow: {
-    gap: 12,
+    gap: 16,
   },
 });
 
@@ -266,108 +271,130 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: "#091018",
+    backgroundColor: "#0B1014",
   },
   background: {
     flex: 1,
+    backgroundColor: "#0B1014",
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 28,
-    justifyContent: "center",
-    gap: 18,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 32,
   },
-  scrollContentCenter: {
-    justifyContent: "space-between",
-    paddingTop: 20,
-  },
-  heroWrap: {
-    gap: 14,
-  },
-  heroTopRow: {
-    flexDirection: "row",
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  centerBlock: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 24,
+    paddingVertical: 24,
   },
   logo: {
-    width: 168,
-    height: 52,
+    width: 136,
+    height: 42,
   },
-  livePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+  headerWrap: {
+    gap: 8,
   },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
-  livePillText: {
-    color: brandColors.textSecondary,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  heroCard: {
-    borderRadius: 28,
-    padding: 18,
-    backgroundColor: "rgba(9, 16, 24, 0.84)",
-    borderWidth: 1,
-    borderColor: "rgba(125, 211, 252, 0.14)",
-    overflow: "hidden",
-    gap: 12,
-  },
-  heroGlow: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  eyebrowPill: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
-  },
-  eyebrowText: {
-    color: "#D7F4FF",
-    fontSize: 11,
+  eyebrow: {
+    color: "#7DD3FC",
+    fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.9,
+    letterSpacing: 1,
   },
   title: {
     color: "#F8FAFC",
-    fontSize: 31,
+    fontSize: 26,
     fontWeight: "800",
-    lineHeight: 35,
-    letterSpacing: -0.8,
+    lineHeight: 32,
+    letterSpacing: -0.6,
   },
   subtitle: {
-    color: "rgba(229, 231, 235, 0.72)",
+    color: "rgba(229,231,235,0.56)",
     fontSize: 14,
     lineHeight: 21,
+    maxWidth: 320,
   },
-  textCenter: {
-    textAlign: "center",
-    alignSelf: "center",
+  panel: {
+    gap: 18,
   },
-  heroChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  fieldWrap: {
     gap: 8,
   },
-  heroChipsRowCenter: {
+  fieldHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  fieldLabel: {
+    color: brandColors.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  fieldLabelFocused: {
+    color: brandColors.textSecondary,
+  },
+  fieldInput: {
+    height: 52,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.08)",
+    color: "#F8FAFC",
+    fontSize: 15,
+  },
+  fieldInputFocused: {
+    borderColor: "rgba(56, 189, 248, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  buttonBase: {
+    minHeight: 54,
+    borderRadius: 16,
+    alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  buttonPrimary: {
+    backgroundColor: "#38BDF8",
+  },
+  buttonSecondary: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  buttonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
+  },
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  buttonTextPrimary: {
+    color: "#04111B",
+  },
+  buttonTextSecondary: {
+    color: brandColors.textPrimary,
   },
   featureChip: {
     flexDirection: "row",
@@ -385,117 +412,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  panel: {
-    borderRadius: 24,
-    padding: 18,
-    backgroundColor: "rgba(14, 21, 34, 0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    gap: 16,
-  },
-  fieldWrap: {
-    gap: 8,
-  },
-  fieldHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  fieldLabel: {
-    color: brandColors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  fieldInput: {
-    height: 54,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    color: brandColors.textPrimary,
-    fontSize: 15,
-  },
-  buttonBase: {
-    minHeight: 54,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-  buttonPrimary: {
-    backgroundColor: "#D9F99D",
-  },
-  buttonSecondary: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  buttonDisabled: {
-    opacity: 0.42,
-  },
-  buttonPressed: {
-    opacity: 0.86,
-  },
-  buttonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  buttonText: {
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-  },
-  buttonTextPrimary: {
-    color: "#03131E",
-  },
-  buttonTextSecondary: {
-    color: brandColors.textPrimary,
-  },
   inlineLinkRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 4,
   },
   inlineLinkPrefix: {
-    color: brandColors.textMuted,
+    color: "rgba(229,231,235,0.44)",
     fontSize: 14,
   },
   inlineLinkAction: {
-    color: brandColors.primary,
+    color: "#7DD3FC",
     fontSize: 14,
     fontWeight: "700",
   },
   footerWrap: {
-    marginTop: 2,
-  },
-  bgOrbOne: {
-    position: "absolute",
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    top: -60,
-    right: -80,
-    backgroundColor: "rgba(56, 189, 248, 0.10)",
-  },
-  bgOrbTwo: {
-    position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    bottom: 40,
-    left: -70,
-    backgroundColor: "rgba(251, 191, 36, 0.07)",
-  },
-  bgNet: {
-    position: "absolute",
-    top: "18%",
-    left: -20,
-    right: -20,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    transform: [{ rotate: "-8deg" }],
+    paddingTop: 16,
+    paddingBottom: 4,
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Image, Pressable, RefreshControl,
   ScrollView, SafeAreaView, StyleSheet, Text, View
@@ -12,6 +12,8 @@ import { usePlayerBoxScores } from "@/src/hooks/use-player-box-scores";
 import { usePlayerGamesWithInjuries } from "@/src/hooks/use-player-games-with-injuries";
 import { usePlayersOutForFilter, type PlayerOutInfo } from "@/src/hooks/use-players-out-for-filter";
 import { useHitRateOdds } from "@/src/hooks/use-hit-rate-odds";
+import { useHitRateAlternateLines } from "@/src/hooks/use-hit-rate-alternate-lines";
+import { useHitRateOddsLine } from "@/src/hooks/use-hit-rate-odds-line";
 import { useDvpRankings } from "@/src/hooks/use-dvp-rankings";
 import { usePlayTypeMatchup } from "@/src/hooks/use-play-type-matchup";
 import { getNbaTeamLogoUrl } from "@/src/lib/logos";
@@ -48,6 +50,131 @@ const MARKET_TO_DVP_RANK: Record<string, string> = {
   player_points_rebounds: "prRank", player_points_assists: "paRank",
   player_rebounds_assists: "raRank", player_blocks_steals: "bsRank",
 };
+
+function getOddsLookupKeys(profile: {
+  sel_key?: string | null;
+  odds_selection_id?: string | null;
+} | null): string[] {
+  if (!profile) return [];
+  const keys = [profile.sel_key, profile.odds_selection_id].filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0
+  );
+  return Array.from(new Set(keys));
+}
+
+function mapAlternateLineToLadderLine(line: {
+  line: number;
+  books: Array<{
+    book: string;
+    price: number;
+    url: string | null;
+    mobileUrl: string | null;
+    underPrice?: number | null;
+    underUrl?: string | null;
+    underMobileUrl?: string | null;
+  }>;
+}) {
+  const books: Record<
+    string,
+    {
+      over?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null };
+      under?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null };
+    }
+  > = {};
+
+  for (const book of line.books ?? []) {
+    books[book.book] = {};
+    if (book.price != null) {
+      books[book.book].over = {
+        price: book.price,
+        url: book.url ?? null,
+        mobileUrl: book.mobileUrl ?? null,
+        sgp: null,
+      };
+    }
+    if (book.underPrice != null) {
+      books[book.book].under = {
+        price: book.underPrice,
+        url: book.underUrl ?? null,
+        mobileUrl: book.underMobileUrl ?? null,
+        sgp: null,
+      };
+    }
+  }
+
+  const overBooks = Object.entries(books)
+    .map(([book, odds]) => (odds.over ? { book, ...odds.over } : null))
+    .filter(Boolean) as Array<{ book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null }>;
+  const underBooks = Object.entries(books)
+    .map(([book, odds]) => (odds.under ? { book, ...odds.under } : null))
+    .filter(Boolean) as Array<{ book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null }>;
+
+  overBooks.sort((a, b) => b.price - a.price);
+  underBooks.sort((a, b) => b.price - a.price);
+
+  return {
+    line: line.line,
+    bestOver: overBooks[0] ?? null,
+    bestUnder: underBooks[0] ?? null,
+    books,
+  };
+}
+
+function mapOddsLineToLadderLine(data: {
+  line: number;
+  books: Array<{
+    book: string;
+    over: number | null;
+    under: number | null;
+    link_over?: string | null;
+    link_under?: string | null;
+  }>;
+}) {
+  const books: Record<
+    string,
+    {
+      over?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null };
+      under?: { price: number; url: string | null; mobileUrl: string | null; sgp: string | null };
+    }
+  > = {};
+
+  for (const book of data.books ?? []) {
+    books[book.book] = {};
+    if (book.over != null) {
+      books[book.book].over = {
+        price: book.over,
+        url: book.link_over ?? null,
+        mobileUrl: book.link_over ?? null,
+        sgp: null,
+      };
+    }
+    if (book.under != null) {
+      books[book.book].under = {
+        price: book.under,
+        url: book.link_under ?? null,
+        mobileUrl: book.link_under ?? null,
+        sgp: null,
+      };
+    }
+  }
+
+  const overBooks = Object.entries(books)
+    .map(([book, odds]) => (odds.over ? { book, ...odds.over } : null))
+    .filter(Boolean) as Array<{ book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null }>;
+  const underBooks = Object.entries(books)
+    .map(([book, odds]) => (odds.under ? { book, ...odds.under } : null))
+    .filter(Boolean) as Array<{ book: string; price: number; url: string | null; mobileUrl: string | null; sgp: string | null }>;
+
+  overBooks.sort((a, b) => b.price - a.price);
+  underBooks.sort((a, b) => b.price - a.price);
+
+  return {
+    line: data.line,
+    bestOver: overBooks[0] ?? null,
+    bestUnder: underBooks[0] ?? null,
+    books,
+  };
+}
 
 function injuryIconColor(status: string): string {
   const s = status.toLowerCase();
@@ -129,6 +256,9 @@ export default function PlayerProfileScreen() {
   const [activeTab, setActiveTab] = useState<TabId>("chart");
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("L10");
   const [filterH2H, setFilterH2H] = useState(false);
+  const marketRailRef = useRef<ScrollView | null>(null);
+  const marketChipLayouts = useRef<Record<string, { x: number; width: number }>>({});
+  const [marketRailWidth, setMarketRailWidth] = useState(0);
 
   // Reset state when player or market param changes (e.g. navigating from hit-rates list)
   useEffect(() => {
@@ -144,6 +274,19 @@ export default function PlayerProfileScreen() {
     setSelectedMarket(marketOptions[0]);
   }, [marketOptions, selectedMarket]);
 
+  const scrollSelectedMarketIntoView = useCallback(() => {
+    if (!selectedMarket || !marketRailWidth) return;
+    const layout = marketChipLayouts.current[selectedMarket];
+    if (!layout) return;
+    const targetX = Math.max(0, layout.x - Math.max(16, (marketRailWidth - layout.width) / 2));
+    marketRailRef.current?.scrollTo({ x: targetX, animated: true });
+  }, [marketRailWidth, selectedMarket]);
+
+  useEffect(() => {
+    const timer = setTimeout(scrollSelectedMarketIntoView, 0);
+    return () => clearTimeout(timer);
+  }, [marketOptions, scrollSelectedMarketIntoView, selectedMarket]);
+
   const profile = useMemo(() => {
     if (!rows.length) return null;
     if (!selectedMarket) return rows[0];
@@ -153,20 +296,71 @@ export default function PlayerProfileScreen() {
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   useEffect(() => { setSelectedLine(profile?.line ?? null); }, [profile?.market, profile?.line]);
 
-  const stableKey = profile?.odds_selection_id || profile?.sel_key || null;
+  const oddsLookupKeys = useMemo(() => getOddsLookupKeys(profile), [profile]);
   const { getOdds, isLoading: oddsLoading, isFetching: oddsFetching } = useHitRateOdds({
-    selections: stableKey ? [{ stableKey, line: selectedLine ?? profile?.line ?? undefined }] : [],
-    enabled: stableKey != null
+    selections: oddsLookupKeys.map((stableKey) => ({
+      stableKey,
+      line: selectedLine ?? profile?.line ?? undefined
+    })),
+    enabled: oddsLookupKeys.length > 0
   });
 
-  const oddsEntry = getOdds(stableKey);
+  const oddsEntry = useMemo(() => {
+    let fallback: ReturnType<typeof getOdds> = null;
+    for (const stableKey of oddsLookupKeys) {
+      const odds = getOdds(stableKey);
+      if (!odds) continue;
+      if (odds.bestOver || odds.bestUnder || (odds.allLines?.length ?? 0) > 0) {
+        return odds;
+      }
+      fallback = fallback ?? odds;
+    }
+    return fallback;
+  }, [getOdds, oddsLookupKeys]);
+  const alternateSelKey = profile?.sel_key ?? profile?.odds_selection_id ?? null;
+  const activeLine = selectedLine ?? profile?.line ?? null;
+  const { data: oddsLineData } = useHitRateOddsLine({
+    eventId: profile?.event_id ?? null,
+    market: profile?.market ?? null,
+    playerKey: alternateSelKey,
+    line: activeLine,
+    enabled: !!profile?.event_id && !!profile?.market && !!alternateSelKey && activeLine !== null,
+  });
+  const { data: alternateLinesData } = useHitRateAlternateLines({
+    eventId: profile?.event_id ?? null,
+    selKey: alternateSelKey,
+    playerId: Number.isFinite(playerId) && playerId > 0 ? playerId : null,
+    market: profile?.market ?? null,
+    currentLine: profile?.line ?? null,
+    enabled: !!profile?.event_id && !!alternateSelKey && Number.isFinite(playerId) && playerId > 0 && !!profile?.market,
+  });
+  const alternateLadderLines = useMemo(
+    () => (alternateLinesData?.lines ?? []).map(mapAlternateLineToLadderLine).sort((a, b) => a.line - b.line),
+    [alternateLinesData?.lines]
+  );
+  const selectedLineLadderLine = useMemo(
+    () => (oddsLineData?.books?.length ?? 0) > 0 ? mapOddsLineToLadderLine(oddsLineData) : null,
+    [oddsLineData]
+  );
   const ladderLines = useMemo(() => {
-    const lines = oddsEntry?.allLines ?? [];
-    return [...lines].sort((a, b) => a.line - b.line);
-  }, [oddsEntry?.allLines]);
+    const baseLines = oddsEntry?.allLines?.length ? [...oddsEntry.allLines] : [...alternateLadderLines];
+    if (selectedLineLadderLine) {
+      const idx = baseLines.findIndex((item) => item.line === selectedLineLadderLine.line);
+      if (idx >= 0) {
+        baseLines[idx] = selectedLineLadderLine;
+      } else {
+        baseLines.push(selectedLineLadderLine);
+      }
+    }
+    return baseLines.sort((a, b) => a.line - b.line);
+  }, [alternateLadderLines, oddsEntry?.allLines, selectedLineLadderLine]);
 
-  const chartLine = selectedLine ?? profile?.line ?? null;
+  const chartLine = activeLine;
   const chartMarket = profile?.market ?? "player_points";
+  const selectedLadderLine = useMemo(
+    () => ladderLines.find((item) => item.line === chartLine) ?? null,
+    [chartLine, ladderLines]
+  );
 
   const lineHitRatesForSelected = useMemo(() => {
     if (chartLine == null) return null;
@@ -386,16 +580,26 @@ export default function PlayerProfileScreen() {
         {/* Market Pill Bar */}
         {marketOptions.length > 0 ? (
           <ScrollView
+            ref={marketRailRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.pillBar}
+            onLayout={(e) => setMarketRailWidth(e.nativeEvent.layout.width)}
           >
             {marketOptions.map((m) => {
               const active = m === selectedMarket;
               const line = marketLineMap.get(m);
               const label = line != null ? `${mktTab(m)} ${fmtLine(line)}` : mktTab(m);
               return (
-                <Pressable key={m} onPress={() => setSelectedMarket(m)} style={[s.pill, active && s.pillActive]}>
+                <Pressable
+                  key={m}
+                  onPress={() => setSelectedMarket(m)}
+                  onLayout={(e) => {
+                    const { x, width } = e.nativeEvent.layout;
+                    marketChipLayouts.current[m] = { x, width };
+                  }}
+                  style={[s.pill, active && s.pillActive]}
+                >
                   <Text style={[s.pillText, active && s.pillTextActive]}>{label}</Text>
                 </Pressable>
               );
@@ -449,7 +653,7 @@ export default function PlayerProfileScreen() {
                 bsLoading={bsLoading}
                 chartPeriod={chartPeriod}
                 onChartPeriodChange={setChartPeriod}
-                bestOverPrice={oddsEntry?.bestOver?.price ?? null}
+                bestOverPrice={selectedLadderLine?.bestOver?.price ?? oddsEntry?.bestOver?.price ?? null}
                 oppAbbr={oppAbbr}
                 homeAway={profile?.home_away === "H" ? "H" : profile?.home_away === "A" ? "A" : null}
                 filterH2H={filterH2H}

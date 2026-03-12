@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import {
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -24,6 +23,7 @@ export default function ForgotPasswordScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async () => {
+    if (!email) return;
     try {
       setSubmitting(true);
       setMessage(null);
@@ -41,24 +41,17 @@ export default function ForgotPasswordScreen() {
     <AuthScreenShell
       keyboard
       title="Reset your password."
-      subtitle="We’ll send a reset link so you can get back to the board without losing momentum."
+      subtitle="We'll send a reset link so you can get back to the board."
       eyebrow="Account recovery"
       footer={
         <AuthInlineLink
           prefix="Remembered it?"
           action="Back to sign in"
-          onPress={() => router.push("/login")}
+          onPress={() => router.back()}
         />
       }
     >
       <AuthPanel>
-        <View style={styles.copyWrap}>
-          <Text style={styles.panelTitle}>Send reset link</Text>
-          <Text style={authUiStyles.helperText}>
-            Enter the email tied to your Unjuiced account and we’ll handle the rest.
-          </Text>
-        </View>
-
         <View style={authUiStyles.actionRow}>
           <AuthField
             label="Email"
@@ -66,6 +59,9 @@ export default function ForgotPasswordScreen() {
             onChangeText={setEmail}
             placeholder="you@email.com"
             keyboardType="email-address"
+            textContentType="emailAddress"
+            returnKeyType="go"
+            onSubmitEditing={() => void onSubmit()}
           />
 
           {error ? <Text style={authUiStyles.errorText}>{error}</Text> : null}
@@ -83,14 +79,3 @@ export default function ForgotPasswordScreen() {
     </AuthScreenShell>
   );
 }
-
-const styles = StyleSheet.create({
-  copyWrap: {
-    gap: 6,
-  },
-  panelTitle: {
-    color: "#F8FAFC",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-});

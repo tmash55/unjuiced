@@ -23,7 +23,7 @@ export interface SharpPreset {
  * Default presets available to all users
  */
 export const SHARP_PRESETS: SharpPreset[] = [
-  // === SINGLE SHARP BOOK ===
+  // === SHARP BOOKS ===
   {
     id: "pinnacle",
     name: "Pinnacle",
@@ -33,6 +33,14 @@ export const SHARP_PRESETS: SharpPreset[] = [
       sports: ["nba", "nfl", "mlb", "nhl", "soccer"],
       marketTypes: ["props", "game_lines"],
     },
+    tier: "free",
+  },
+  {
+    id: "prophetx",
+    name: "ProphetX",
+    description: "Sharp prop pricing model",
+    books: [{ book: "prophetx", weight: 1.0 }],
+    recommended: { marketTypes: ["props"] },
     tier: "free",
   },
   {
@@ -46,20 +54,25 @@ export const SHARP_PRESETS: SharpPreset[] = [
     },
     tier: "free",
   },
-
-  // === MARKET AVERAGE ===
   {
-    id: "average",
-    name: "Market Average",
-    description: "Average across all available books",
-    books: [], // Empty = use average
+    id: "novig",
+    name: "Novig",
+    description: "Zero-vig exchange pricing",
+    books: [{ book: "novig", weight: 1.0 }],
+    tier: "free",
+  },
+  {
+    id: "betonline",
+    name: "BetOnline",
+    description: "Offshore sharp-friendly book",
+    books: [{ book: "betonline", weight: 1.0 }],
     tier: "free",
   },
 
-  // === BLENDED SHARP LINES ===
+  // === BLENDS ===
   {
     id: "pinnacle_circa",
-    name: "Pinnacle + Circa Blend",
+    name: "Pinnacle + Circa",
     description: "50/50 blend of top sharp books",
     books: [
       { book: "pinnacle", weight: 0.5 },
@@ -72,75 +85,119 @@ export const SHARP_PRESETS: SharpPreset[] = [
     tier: "pro",
   },
   {
-    id: "sharp_consensus",
-    name: "Sharp Consensus",
-    description: "60% Pinnacle, 25% Circa, 15% BetCRIS",
+    id: "hardrock_thescore",
+    name: "Hard Rock + theScore",
+    description: "Hard Rock and theScore blend",
     books: [
-      { book: "pinnacle", weight: 0.6 },
-      { book: "circa", weight: 0.25 },
-      { book: "betcris", weight: 0.15 },
+      { book: "hardrock", weight: 0.5 },
+      { book: "thescore", weight: 0.5 },
     ],
-    recommended: {
-      sports: ["nfl", "nba", "mlb"],
-      marketTypes: ["game_lines"],
-    },
     tier: "pro",
   },
 
-  // === PROPS-SPECIFIC ===
+  // === MARKET AVERAGE ===
   {
-    id: "props_sharp",
-    name: "Props Sharp Line",
-    description: "Pinnacle weighted heavily for player props",
-    books: [
-      { book: "pinnacle", weight: 0.7 },
-      { book: "fanduel", weight: 0.3 },
-    ],
-    recommended: {
-      marketTypes: ["props"],
-    },
+    id: "market_average",
+    name: "Market Average",
+    description: "Average across all available books",
+    books: [],
+    tier: "free",
+  },
+
+  // === MAJOR US BOOKS ===
+  {
+    id: "draftkings",
+    name: "DraftKings",
+    description: "DraftKings as reference source",
+    books: [{ book: "draftkings", weight: 1.0 }],
     tier: "pro",
   },
   {
-    id: "dk_fd_blend",
-    name: "DraftKings + FanDuel",
-    description: "Major US books blend for props comparison",
-    books: [
-      { book: "draftkings", weight: 0.5 },
-      { book: "fanduel", weight: 0.5 },
-    ],
-    recommended: {
-      marketTypes: ["props"],
-    },
+    id: "fanduel",
+    name: "FanDuel",
+    description: "FanDuel as reference source",
+    books: [{ book: "fanduel", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "betmgm",
+    name: "BetMGM",
+    description: "BetMGM as reference source",
+    books: [{ book: "betmgm", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "caesars",
+    name: "Caesars",
+    description: "Caesars as reference source",
+    books: [{ book: "caesars", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "hardrock",
+    name: "Hard Rock",
+    description: "Hard Rock Bet as reference source",
+    books: [{ book: "hardrock", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "bet365",
+    name: "bet365",
+    description: "bet365 as reference source",
+    books: [{ book: "bet365", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "betrivers",
+    name: "BetRivers",
+    description: "BetRivers as reference source",
+    books: [{ book: "betrivers", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "fanatics",
+    name: "Fanatics",
+    description: "Fanatics as reference source",
+    books: [{ book: "fanatics", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "thescore",
+    name: "theScore",
+    description: "theScore as reference source",
+    books: [{ book: "thescore", weight: 1.0 }],
+    tier: "pro",
+  },
+  {
+    id: "ballybet",
+    name: "Bally Bet",
+    description: "Bally Bet as reference source",
+    books: [{ book: "ballybet", weight: 1.0 }],
     tier: "pro",
   },
 
-  // === SPORT-SPECIFIC ===
+  // === PREDICTION MARKETS ===
   {
-    id: "nfl_sharp",
-    name: "NFL Sharp Line",
-    description: "Circa-heavy blend for NFL (Circa has best NFL limits)",
-    books: [
-      { book: "circa", weight: 0.6 },
-      { book: "pinnacle", weight: 0.4 },
-    ],
-    recommended: {
-      sports: ["nfl", "ncaaf"],
-      marketTypes: ["game_lines"],
-    },
+    id: "kalshi",
+    name: "Kalshi",
+    description: "Prediction market exchange",
+    books: [{ book: "kalshi", weight: 1.0 }],
     tier: "pro",
   },
   {
-    id: "nba_sharp",
-    name: "NBA Sharp Line",
-    description: "Pinnacle-heavy for NBA player props",
-    books: [
-      { book: "pinnacle", weight: 0.65 },
-      { book: "circa", weight: 0.35 },
-    ],
-    recommended: {
-      sports: ["nba"],
-    },
+    id: "polymarket",
+    name: "Polymarket",
+    description: "Prediction market exchange",
+    books: [{ book: "polymarket", weight: 1.0 }],
+    tier: "pro",
+  },
+
+  // === CUSTOM ===
+  {
+    id: "custom",
+    name: "Custom",
+    description: "Build your own blend",
+    books: [],
     tier: "pro",
   },
 ];
@@ -219,13 +276,10 @@ export function parseBlendParam(
  * Default preset for different contexts
  */
 export const DEFAULT_PRESETS = {
-  // Free users default
   free: "pinnacle",
-  // Sharp users default
-  pro: "sharp_consensus",
-  // Sport-specific defaults
-  nfl: "nfl_sharp",
-  nba: "nba_sharp",
-  props: "props_sharp",
+  pro: "pinnacle_circa",
+  nfl: "circa",
+  nba: "pinnacle",
+  props: "pinnacle",
 } as const;
 

@@ -23,21 +23,23 @@ type OddsEventsResponse = {
 
 type UseOddsEventsOptions = {
   sport: string;
-  date: string;
-  includeStarted?: boolean;
   enabled?: boolean;
 };
 
-export function useOddsEvents({ sport, date, includeStarted = false, enabled = true }: UseOddsEventsOptions) {
+/**
+ * Fetch ALL active events for a sport (no server-side date filtering).
+ * Date filtering is done client-side in the component so the device's
+ * local timezone is used, matching how the web app works.
+ */
+export function useOddsEvents({ sport, enabled = true }: UseOddsEventsOptions) {
   const { session, user } = useAuth();
 
   return useQuery<OddsEventsResponse>({
-    queryKey: ["odds-events", user?.id, sport, date, includeStarted],
-    enabled: enabled && Boolean(sport) && Boolean(date),
+    queryKey: ["odds-events", user?.id, sport],
+    enabled: enabled && Boolean(sport),
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set("date", date);
-      if (includeStarted) params.set("include_started", "true");
+      params.set("include_started", "true");
 
       const headers: Record<string, string> = { Accept: "application/json" };
       if (session?.access_token) {

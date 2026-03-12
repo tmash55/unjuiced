@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  LayoutAnimation,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  UIManager,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +29,10 @@ import {
   type DevigMethodOption,
 } from "./constants";
 import { formatPercent } from "./helpers";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const BANKROLL_OPTIONS = [500, 1000, 2500, 5000, 10000];
 const KELLY_OPTIONS = [10, 25, 50, 100];
@@ -73,6 +81,43 @@ type Props = {
   onReset: () => void;
 };
 
+/* ── Collapsible section wrapper ── */
+function Section({
+  icon,
+  title,
+  summary,
+  expanded,
+  onToggle,
+  children,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.section}>
+      <Pressable onPress={onToggle} style={s.sectionHeader}>
+        <View style={s.sectionHeaderLeft}>
+          <Ionicons name={icon} size={15} color={brandColors.textMuted} />
+          <Text style={s.sectionTitle}>{title}</Text>
+        </View>
+        <View style={s.sectionHeaderRight}>
+          {!expanded && <Text style={s.sectionSummary} numberOfLines={1}>{summary}</Text>}
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={brandColors.textMuted}
+          />
+        </View>
+      </Pressable>
+      {expanded && <View style={s.sectionBody}>{children}</View>}
+    </View>
+  );
+}
+
 export default function FilterDrawer({
   visible,
   onClose,
@@ -103,8 +148,14 @@ export default function FilterDrawer({
 }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const scrollY = useRef(0);
   const sheetHeight = useRef(DRAWER_MAX);
+
+  const [openSection, setOpenSection] = useState<string | null>(null);
+
+  function toggle(key: string) {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenSection((prev) => (prev === key ? null : key));
+  }
 
   const animateOpen = useCallback(() => {
     translateY.setValue(SCREEN_H);
@@ -140,33 +191,12 @@ export default function FilterDrawer({
   }, [translateY, backdropOpacity, onClose]);
 
   useEffect(() => {
-    if (visible) animateOpen();
+    if (visible) {
+      setOpenSection(null);
+      animateOpen();
+    }
   }, [visible, animateOpen]);
 
-  // Content PanResponder — only intercepts when scrolled to top
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 8 && scrollY.current <= 0,
-      onMoveShouldSetPanResponderCapture: () => false,
-      onPanResponderMove: (_, gs) => {
-        const clamped = Math.max(0, gs.dy);
-        translateY.setValue(clamped);
-        backdropOpacity.setValue(Math.max(0, 1 - clamped / sheetHeight.current));
-      },
-      onPanResponderRelease: (_, gs) => {
-        if (gs.vy > DISMISS_VY || gs.dy > sheetHeight.current * DISMISS_DY_PCT) {
-          animateClose();
-        } else {
-          Animated.parallel([
-            Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 28, stiffness: 300 }),
-            Animated.timing(backdropOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-          ]).start();
-        }
-      },
-    })
-  ).current;
-
-  // Drag handle — always captures
   const handlePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -191,99 +221,140 @@ export default function FilterDrawer({
     })
   ).current;
 
+  function handleTogglePlayerProps() {
+    if (playerProps && !gameProps) return;
+    onTogglePlayerProps();
+  }
+
+  function handleToggleGameProps() {
+    if (gameProps && !playerProps) return;
+    onToggleGameProps();
+  }
+
+  /* ── Summaries ── */
+  const presetName = presets.find((p) => p.id === selectedPreset)?.label
+    ?? presets.find((p) => p.id === selectedPreset)?.name
+    ?? selectedPreset;
+  const sportsSummary =
+    selectedSports.length === SPORT_OPTIONS.length || selectedSports.length === 0
+      ? "All sports"
+      : selectedSports.map((id) => id.toUpperCase()).join(", ");
+  const propTypeSummary = playerProps && gameProps ? "Player & Game" : playerProps ? "Player" : "Game";
+  const devigSummary = selectedDevigMethods.length === DEVIG_METHOD_OPTIONS.length
+    ? "All methods"
+    : selectedDevigMethods.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(", ");
+  const evSummary =
+    (minEv === 0 ? "Any" : `${formatPercent(minEv)}%`) +
+    " – " +
+    (maxEv === undefined ? "No cap" : `${maxEv}%`);
+  const modeSummary = MODE_OPTIONS.find((o) => o.value === mode)?.label ?? mode;
+  const stakeSummary = `$${bankroll >= 1000 ? `${bankroll / 1000}k` : bankroll} · ${kellyPercent}% Kelly`;
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={animateClose}>
-      {/* Backdrop */}
-      <Animated.View style={[ds.backdrop, { opacity: backdropOpacity }]}>
+      <Animated.View style={[s.backdrop, { opacity: backdropOpacity }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={animateClose} />
       </Animated.View>
 
-      {/* Sheet */}
       <Animated.View
-        style={[ds.sheet, { transform: [{ translateY }] }]}
+        style={[s.sheet, { transform: [{ translateY }] }]}
         onLayout={(e) => { sheetHeight.current = e.nativeEvent.layout.height; }}
       >
         {/* Drag handle */}
-        <View {...handlePanResponder.panHandlers} style={ds.handleZone}>
-          <View style={ds.handleBar} />
+        <View {...handlePanResponder.panHandlers} style={s.handleZone}>
+          <View style={s.handleBar} />
         </View>
 
         {/* Header */}
-        <View {...handlePanResponder.panHandlers} style={ds.header}>
-          <Text style={ds.headerTitle}>Filters</Text>
-          <Pressable onPress={animateClose} hitSlop={10} style={ds.closeBtn}>
+        <View {...handlePanResponder.panHandlers} style={s.header}>
+          <Pressable onPress={animateClose} hitSlop={10} style={s.closeBtn}>
             <Ionicons name="close" size={20} color={brandColors.textMuted} />
+          </Pressable>
+          <Text style={s.headerTitle}>Filters</Text>
+          <Pressable
+            onPress={onReset}
+            disabled={!isNonDefault}
+            hitSlop={10}
+            style={[s.clearBtn, !isNonDefault && s.clearBtnDisabled]}
+          >
+            <Text style={[s.clearBtnText, !isNonDefault && s.clearBtnTextDisabled]}>Clear</Text>
           </Pressable>
         </View>
 
         {/* Scrollable content */}
         <ScrollView
-          style={ds.body}
-          contentContainerStyle={ds.bodyContent}
+          style={s.body}
+          contentContainerStyle={s.bodyContent}
           showsVerticalScrollIndicator={false}
           bounces={false}
-          onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
-          scrollEventThrottle={16}
-          {...panResponder.panHandlers}
+          keyboardShouldPersistTaps="handled"
         >
-          {/* ── Section: Sharp Source ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="shield-checkmark-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Sharp Source</Text>
-            </View>
-            <View style={ds.presetGrid}>
+          {/* ── Prop Type (always visible, compact) ── */}
+          <View style={s.propTypeRow}>
+            <Pressable
+              onPress={handleTogglePlayerProps}
+              style={[s.propTypeBtn, playerProps && s.propTypeBtnActive]}
+            >
+              <Ionicons
+                name="person-outline"
+                size={14}
+                color={playerProps ? brandColors.primary : brandColors.textMuted}
+              />
+              <Text style={[s.propTypeText, playerProps && s.propTypeTextActive]}>Player</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleToggleGameProps}
+              style={[s.propTypeBtn, gameProps && s.propTypeBtnActive]}
+            >
+              <Ionicons
+                name="american-football-outline"
+                size={14}
+                color={gameProps ? brandColors.primary : brandColors.textMuted}
+              />
+              <Text style={[s.propTypeText, gameProps && s.propTypeTextActive]}>Game</Text>
+            </Pressable>
+          </View>
+
+          {/* ── Sharp Source ── */}
+          <Section
+            icon="shield-checkmark-outline"
+            title="Sharp Source"
+            summary={presetName}
+            expanded={openSection === "source"}
+            onToggle={() => toggle("source")}
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.presetRail}
+            >
               {presets.map((preset) => {
                 const active = preset.id === selectedPreset;
                 return (
                   <Pressable
                     key={preset.id}
                     onPress={() => onSelectPreset(preset.id as SharpPreset)}
-                    style={[ds.presetCell, active && ds.presetCellActive]}
+                    style={[s.presetCard, active && s.presetCardActive]}
                   >
-                    <Text style={[ds.presetText, active && ds.presetTextActive]}>
+                    <Text style={[s.presetMeta, active && s.presetMetaActive]}>Sharp</Text>
+                    <Text style={[s.presetText, active && s.presetTextActive]}>
                       {preset.label || preset.name}
                     </Text>
                   </Pressable>
                 );
               })}
-            </View>
-          </View>
+            </ScrollView>
+          </Section>
 
-          {/* ── Section: Devig Method ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="calculator-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Devig Method</Text>
-            </View>
-            <View style={ds.devigGrid}>
-              {DEVIG_METHOD_OPTIONS.map((opt) => {
-                const active = selectedDevigMethods.includes(opt.value);
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => onToggleDevigMethod(opt.value)}
-                    style={[ds.devigCell, active && ds.devigCellActive]}
-                  >
-                    <Text style={[ds.devigLabel, active && ds.devigLabelActive]}>
-                      {opt.label}
-                    </Text>
-                    <Text style={[ds.devigDesc, active && ds.devigDescActive]}>
-                      {opt.description}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ── Section: Sports ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="trophy-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Sports</Text>
-            </View>
-            <View style={ds.chipRow}>
+          {/* ── Sports ── */}
+          <Section
+            icon="trophy-outline"
+            title="Sports"
+            summary={sportsSummary}
+            expanded={openSection === "sports"}
+            onToggle={() => toggle("sports")}
+          >
+            <View style={s.chipRow}>
               {SPORT_OPTIONS.map((opt) => {
                 const active = selectedSports.includes(opt.id);
                 const sportColor = SPORT_COLORS[opt.id] ?? brandColors.textMuted;
@@ -291,7 +362,7 @@ export default function FilterDrawer({
                   <Pressable
                     key={opt.id}
                     onPress={() => onToggleSport(opt.id)}
-                    style={[ds.sportChip, active && { backgroundColor: `${sportColor}18`, borderColor: sportColor }]}
+                    style={[s.sportChip, active && { backgroundColor: `${sportColor}18`, borderColor: sportColor }]}
                   >
                     {SPORT_ICONS[opt.id] ? (
                       <Ionicons
@@ -300,70 +371,65 @@ export default function FilterDrawer({
                         color={active ? sportColor : brandColors.textMuted}
                       />
                     ) : null}
-                    <Text style={[ds.sportChipText, active && { color: sportColor }]}>
+                    <Text style={[s.sportChipText, active && { color: sportColor }]}>
                       {opt.label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-          </View>
+          </Section>
 
-          {/* ── Section: Market Type ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="grid-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Market Type</Text>
+          {/* ── Devig Method ── */}
+          <Section
+            icon="calculator-outline"
+            title="Devig Method"
+            summary={devigSummary}
+            expanded={openSection === "devig"}
+            onToggle={() => toggle("devig")}
+          >
+            <View style={s.devigGrid}>
+              {DEVIG_METHOD_OPTIONS.map((opt) => {
+                const active = selectedDevigMethods.includes(opt.value);
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => onToggleDevigMethod(opt.value)}
+                    style={[s.devigCell, active && s.devigCellActive]}
+                  >
+                    <Text style={[s.devigLabel, active && s.devigLabelActive]}>
+                      {opt.label}
+                    </Text>
+                    <Text style={[s.devigDesc, active && s.devigDescActive]}>
+                      {opt.description}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-            <View style={ds.marketTypeRow}>
-              <Pressable
-                onPress={onTogglePlayerProps}
-                style={[ds.marketTypeBtn, playerProps && ds.marketTypeBtnActive]}
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={15}
-                  color={playerProps ? brandColors.primary : brandColors.textMuted}
-                />
-                <Text style={[ds.marketTypeText, playerProps && ds.marketTypeTextActive]}>
-                  Player Props
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={onToggleGameProps}
-                style={[ds.marketTypeBtn, gameProps && ds.marketTypeBtnActive]}
-              >
-                <Ionicons
-                  name="football-outline"
-                  size={15}
-                  color={gameProps ? brandColors.primary : brandColors.textMuted}
-                />
-                <Text style={[ds.marketTypeText, gameProps && ds.marketTypeTextActive]}>
-                  Game Props
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          </Section>
 
-          {/* ── Section: EV Range (side by side) ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="trending-up-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>EV Range</Text>
-            </View>
-            <View style={ds.evRangeRow}>
-              <View style={ds.evRangeCol}>
-                <Text style={ds.evRangeLabel}>Min</Text>
-                <View style={ds.chipRow}>
+          {/* ── EV Range ── */}
+          <Section
+            icon="trending-up-outline"
+            title="EV Range"
+            summary={evSummary}
+            expanded={openSection === "ev"}
+            onToggle={() => toggle("ev")}
+          >
+            <View style={s.rangeRow}>
+              <View style={s.rangeCol}>
+                <Text style={s.rangeLabel}>Min EV</Text>
+                <View style={s.chipRow}>
                   {MIN_EV_OPTIONS.map((val) => {
                     const active = minEv === val;
                     return (
                       <Pressable
                         key={`min-${val}`}
                         onPress={() => onSetMinEv(val)}
-                        style={[ds.chipCompact, active && ds.chipActive]}
+                        style={[s.chip, active && s.chipActive]}
                       >
-                        <Text style={[ds.chipText, active && ds.chipTextActive]}>
+                        <Text style={[s.chipText, active && s.chipTextActive]}>
                           {val === 0 ? "Any" : `${formatPercent(val)}%`}
                         </Text>
                       </Pressable>
@@ -371,19 +437,19 @@ export default function FilterDrawer({
                   })}
                 </View>
               </View>
-              <View style={ds.evRangeDivider} />
-              <View style={ds.evRangeCol}>
-                <Text style={ds.evRangeLabel}>Max</Text>
-                <View style={ds.chipRow}>
+              <View style={s.rangeDivider} />
+              <View style={s.rangeCol}>
+                <Text style={s.rangeLabel}>Max EV</Text>
+                <View style={s.chipRow}>
                   {MAX_EV_OPTIONS.map((opt) => {
                     const active = maxEv === opt.value;
                     return (
                       <Pressable
                         key={`max-${opt.label}`}
                         onPress={() => onSetMaxEv(opt.value)}
-                        style={[ds.chipCompact, active && ds.chipActive]}
+                        style={[s.chip, active && s.chipActive]}
                       >
-                        <Text style={[ds.chipText, active && ds.chipTextActive]}>
+                        <Text style={[s.chipText, active && s.chipTextActive]}>
                           {opt.value === undefined ? "None" : opt.label}
                         </Text>
                       </Pressable>
@@ -392,95 +458,119 @@ export default function FilterDrawer({
                 </View>
               </View>
             </View>
-          </View>
+          </Section>
 
-          {/* ── Section: Mode ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="time-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Mode</Text>
-            </View>
-            <View style={ds.segmentRow}>
+          {/* ── Mode ── */}
+          <Section
+            icon="time-outline"
+            title="Mode"
+            summary={modeSummary}
+            expanded={openSection === "mode"}
+            onToggle={() => toggle("mode")}
+          >
+            <View style={s.segmentRow}>
               {MODE_OPTIONS.map((opt) => {
                 const active = mode === opt.value;
+                const disabled = opt.value === "live" || opt.value === "all";
                 return (
                   <Pressable
                     key={opt.value}
-                    onPress={() => onSetMode(opt.value)}
-                    style={[ds.segmentBtn, active && ds.segmentBtnActive]}
+                    onPress={() => !disabled && onSetMode(opt.value)}
+                    style={[s.segmentBtn, active && s.segmentBtnActive, disabled && s.segmentBtnDisabled]}
                   >
-                    <Text style={[ds.segmentText, active && ds.segmentTextActive]}>
+                    <Text style={[s.segmentText, active && s.segmentTextActive, disabled && s.segmentTextDisabled]}>
                       {opt.label}
+                    </Text>
+                    {disabled && <Text style={s.segmentSoon}>Soon</Text>}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Section>
+
+          {/* ── Stake Sizing ── */}
+          <Section
+            icon="cash-outline"
+            title="Stake Sizing"
+            summary={stakeSummary}
+            expanded={openSection === "stake"}
+            onToggle={() => toggle("stake")}
+          >
+            {/* Bankroll */}
+            <Text style={s.rangeLabel}>Bankroll</Text>
+            <View style={s.bankrollInputRow}>
+              <Text style={s.bankrollDollar}>$</Text>
+              <TextInput
+                style={s.bankrollInput}
+                value={String(bankroll)}
+                onChangeText={(text) => {
+                  const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
+                  if (!isNaN(num) && num > 0) onSetBankroll(num);
+                  else if (text === "") onSetBankroll(0);
+                }}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                placeholderTextColor={brandColors.textMuted}
+                selectionColor={brandColors.primary}
+              />
+            </View>
+            <View style={s.chipRow}>
+              {BANKROLL_OPTIONS.map((val) => {
+                const active = bankroll === val;
+                return (
+                  <Pressable
+                    key={`br-${val}`}
+                    onPress={() => onSetBankroll(val)}
+                    style={[s.chip, active && s.chipActive]}
+                  >
+                    <Text style={[s.chipText, active && s.chipTextActive]}>
+                      ${val >= 1000 ? `${val / 1000}k` : val}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-          </View>
 
-          {/* ── Section: Stake Sizing ── */}
-          <View style={ds.section}>
-            <View style={ds.sectionHeader}>
-              <Ionicons name="cash-outline" size={14} color={brandColors.textMuted} />
-              <Text style={ds.sectionTitle}>Stake Sizing</Text>
+            {/* Kelly */}
+            <Text style={[s.rangeLabel, { marginTop: 14 }]}>Kelly %</Text>
+            <View style={s.chipRow}>
+              {KELLY_OPTIONS.map((val) => {
+                const active = kellyPercent === val;
+                return (
+                  <Pressable
+                    key={`kelly-${val}`}
+                    onPress={() => onSetKellyPercent(val)}
+                    style={[s.chip, active && s.chipActive]}
+                  >
+                    <Text style={[s.chipText, active && s.chipTextActive]}>
+                      {val}%
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-            <View style={ds.stakeRow}>
-              <View style={ds.stakeCol}>
-                <Text style={ds.evRangeLabel}>Bankroll</Text>
-                <View style={ds.chipRow}>
-                  {BANKROLL_OPTIONS.map((val) => {
-                    const active = bankroll === val;
-                    return (
-                      <Pressable
-                        key={`br-${val}`}
-                        onPress={() => onSetBankroll(val)}
-                        style={[ds.chipCompact, active && ds.chipActive]}
-                      >
-                        <Text style={[ds.chipText, active && ds.chipTextActive]}>
-                          ${val >= 1000 ? `${val / 1000}k` : val}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={ds.evRangeDivider} />
-              <View style={ds.stakeCol}>
-                <Text style={ds.evRangeLabel}>Kelly %</Text>
-                <View style={ds.chipRow}>
-                  {KELLY_OPTIONS.map((val) => {
-                    const active = kellyPercent === val;
-                    return (
-                      <Pressable
-                        key={`kelly-${val}`}
-                        onPress={() => onSetKellyPercent(val)}
-                        style={[ds.chipCompact, active && ds.chipActive]}
-                      >
-                        <Text style={[ds.chipText, active && ds.chipTextActive]}>
-                          {val}%
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </View>
+          </Section>
 
           <View style={{ height: 80 }} />
         </ScrollView>
 
         {/* Bottom actions */}
-        <View style={ds.applyWrap}>
-          <View style={ds.applyRow}>
-            {isNonDefault ? (
-              <Pressable onPress={onReset} style={ds.resetBtn}>
-                <Ionicons name="refresh-outline" size={16} color={brandColors.textSecondary} />
-                <Text style={ds.resetBtnText}>Reset</Text>
-              </Pressable>
-            ) : null}
-            <Pressable onPress={animateClose} style={[ds.applyBtn, !isNonDefault && { flex: 1 }]}>
-              <Text style={ds.applyBtnText}>Show Results ({resultCount})</Text>
+        <View style={s.applyWrap}>
+          <View style={s.applyRow}>
+            <Pressable
+              onPress={onReset}
+              disabled={!isNonDefault}
+              style={[s.resetBtn, !isNonDefault && s.resetBtnDisabled]}
+            >
+              <Ionicons
+                name="refresh-outline"
+                size={16}
+                color={isNonDefault ? brandColors.textSecondary : brandColors.textMuted}
+              />
+              <Text style={[s.resetBtnText, !isNonDefault && s.resetBtnTextDisabled]}>Reset</Text>
+            </Pressable>
+            <Pressable onPress={animateClose} style={s.applyBtn}>
+              <Text style={s.applyBtnText}>Show {resultCount} results</Text>
             </Pressable>
           </View>
         </View>
@@ -489,7 +579,7 @@ export default function FilterDrawer({
   );
 }
 
-const ds = StyleSheet.create({
+const s = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -524,94 +614,124 @@ const ds = StyleSheet.create({
   },
   headerTitle: { color: brandColors.textPrimary, fontSize: 17, fontWeight: "700" },
   closeBtn: {
-    width: 32,
+    width: 44,
     height: 32,
     borderRadius: 16,
     backgroundColor: brandColors.panelBackgroundAlt,
     alignItems: "center",
     justifyContent: "center",
   },
+  clearBtn: {
+    minWidth: 60,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: brandColors.panelBackgroundAlt,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  clearBtnDisabled: { opacity: 0.45 },
+  clearBtnText: { color: brandColors.textPrimary, fontSize: 13, fontWeight: "700" },
+  clearBtnTextDisabled: { color: brandColors.textMuted },
   body: { flex: 1 },
-  bodyContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
+  bodyContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 },
 
-  /* ── Sections ── */
+  /* ── Prop type toggle (always visible) ── */
+  propTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+  propTypeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: brandColors.panelBackgroundAlt,
+  },
+  propTypeBtnActive: {
+    borderColor: brandColors.primary,
+    backgroundColor: brandColors.primarySoft,
+  },
+  propTypeText: { color: brandColors.textSecondary, fontSize: 13, fontWeight: "600" },
+  propTypeTextActive: { color: brandColors.primary, fontWeight: "700" },
+
+  /* ── Collapsible sections ── */
   section: {
-    marginTop: 16,
+    marginBottom: 6,
     backgroundColor: brandColors.panelBackgroundAlt,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.04)",
-    padding: 14,
+    overflow: "hidden",
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  sectionHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    marginBottom: 12,
+    flexShrink: 1,
   },
   sectionTitle: {
+    color: brandColors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  sectionSummary: {
     color: brandColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: "500",
+    maxWidth: 160,
+  },
+  sectionBody: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 2,
+  },
+
+  /* ── Preset rail ── */
+  presetRail: { gap: 8, paddingRight: 4 },
+  presetCard: {
+    width: 136,
+    minHeight: 76,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: brandColors.panelBackground,
+    justifyContent: "space-between",
+  },
+  presetCardActive: {
+    borderColor: brandColors.primary,
+    backgroundColor: brandColors.primarySoft,
+  },
+  presetMeta: {
+    color: brandColors.textMuted,
+    fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-
-  /* ── Preset grid (3-col) ── */
-  presetGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  presetCell: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: brandColors.panelBackground,
-    minWidth: "30%" as any,
-    alignItems: "center",
-  },
-  presetCellActive: {
-    borderColor: brandColors.primary,
-    backgroundColor: brandColors.primarySoft,
-  },
-  presetText: { color: brandColors.textSecondary, fontSize: 13, fontWeight: "600" },
-  presetTextActive: { color: brandColors.primary, fontWeight: "700" },
-
-  /* ── Devig method grid (2-col) ── */
-  devigGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  devigCell: {
-    width: "48.5%" as any,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: brandColors.panelBackground,
-  },
-  devigCellActive: {
-    borderColor: brandColors.primary,
-    backgroundColor: brandColors.primarySoft,
-  },
-  devigLabel: {
-    color: brandColors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  devigLabelActive: { color: brandColors.primary },
-  devigDesc: {
-    color: brandColors.textMuted,
-    fontSize: 10,
-    lineHeight: 13,
-  },
-  devigDescActive: { color: `${brandColors.primary}99` },
+  presetMetaActive: { color: brandColors.primary },
+  presetText: { color: brandColors.textPrimary, fontSize: 15, fontWeight: "700", lineHeight: 20 },
+  presetTextActive: { color: brandColors.textPrimary, fontWeight: "700" },
 
   /* ── Chip rows ── */
   chipRow: {
@@ -619,7 +739,7 @@ const ds = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
   },
-  chipCompact: {
+  chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
@@ -648,46 +768,46 @@ const ds = StyleSheet.create({
   },
   sportChipText: { color: brandColors.textSecondary, fontSize: 12, fontWeight: "600" },
 
-  /* ── Market type toggle ── */
-  marketTypeRow: {
+  /* ── Devig method grid ── */
+  devigGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  marketTypeBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+  devigCell: {
+    width: "48%" as any,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     backgroundColor: brandColors.panelBackground,
   },
-  marketTypeBtnActive: {
+  devigCellActive: {
     borderColor: brandColors.primary,
     backgroundColor: brandColors.primarySoft,
   },
-  marketTypeText: {
+  devigLabel: {
     color: brandColors.textSecondary,
     fontSize: 13,
-    fontWeight: "600",
-  },
-  marketTypeTextActive: {
-    color: brandColors.primary,
     fontWeight: "700",
+    marginBottom: 2,
   },
+  devigLabelActive: { color: brandColors.primary },
+  devigDesc: {
+    color: brandColors.textMuted,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  devigDescActive: { color: `${brandColors.primary}99` },
 
-  /* ── EV Range side-by-side ── */
-  evRangeRow: {
+  /* ── Range row (EV) ── */
+  rangeRow: {
     flexDirection: "row",
     gap: 0,
   },
-  evRangeCol: {
-    flex: 1,
-  },
-  evRangeLabel: {
+  rangeCol: { flex: 1 },
+  rangeLabel: {
     color: brandColors.textMuted,
     fontSize: 11,
     fontWeight: "600",
@@ -695,32 +815,49 @@ const ds = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  evRangeDivider: {
+  rangeDivider: {
     width: 1,
     backgroundColor: "rgba(255,255,255,0.06)",
     marginHorizontal: 12,
   },
 
-  /* ── Stake sizing side-by-side ── */
-  stakeRow: {
+  /* ── Bankroll input ── */
+  bankrollInputRow: {
     flexDirection: "row",
-    gap: 0,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    height: 38,
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  stakeCol: {
+  bankrollDollar: {
+    color: brandColors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    marginRight: 2,
+  },
+  bankrollInput: {
     flex: 1,
+    color: brandColors.textPrimary,
+    fontSize: 14,
+    fontWeight: "600",
+    paddingVertical: 0,
   },
 
   /* ── Segmented control (mode) ── */
   segmentRow: {
     flexDirection: "row",
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
   },
   segmentBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 11,
     alignItems: "center",
     backgroundColor: brandColors.panelBackground,
   },
@@ -729,6 +866,16 @@ const ds = StyleSheet.create({
   },
   segmentText: { color: brandColors.textSecondary, fontSize: 13, fontWeight: "600" },
   segmentTextActive: { color: brandColors.primary, fontWeight: "700" },
+  segmentBtnDisabled: { opacity: 0.4 },
+  segmentTextDisabled: { color: brandColors.textMuted },
+  segmentSoon: {
+    color: brandColors.textMuted,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginTop: 1,
+  },
 
   /* ── Bottom actions ── */
   applyWrap: {
@@ -749,15 +896,17 @@ const ds = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: brandColors.border,
   },
+  resetBtnDisabled: { opacity: 0.45 },
   resetBtnText: { color: brandColors.textSecondary, fontSize: 14, fontWeight: "600" },
+  resetBtnTextDisabled: { color: brandColors.textMuted },
   applyBtn: {
     flex: 2,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 13,
+    borderRadius: 12,
     backgroundColor: brandColors.primary,
     alignItems: "center",
     justifyContent: "center",

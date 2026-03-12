@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { brandColors } from "@/src/theme/brand";
 
-/* ─── Shimmer bar (animated gradient-like pulse) ─── */
+/* ─── Shimmer bar ─── */
 
 function ShimmerBar({ width, delay = 0 }: { width: number | string; delay?: number }) {
   const opacity = useRef(new Animated.Value(0.3)).current;
@@ -47,7 +47,7 @@ function ShimmerBar({ width, delay = 0 }: { width: number | string; delay?: numb
   );
 }
 
-/* ─── Skeleton loader (3 shimmer rows) ─── */
+/* ─── Skeleton loader ─── */
 
 function SkeletonLoader({ count = 3 }: { count?: number }) {
   return (
@@ -69,6 +69,8 @@ type LoadingProps = {
   state: "loading";
   message?: string;
   skeletonCount?: number;
+  /** Inline mode: no panel wrapper, just skeleton bars. Good for embedding inside cards. */
+  inline?: boolean;
 };
 
 type ErrorProps = {
@@ -89,6 +91,9 @@ export type StateViewProps = LoadingProps | ErrorProps | EmptyProps;
 
 export default function StateView(props: StateViewProps) {
   if (props.state === "loading") {
+    if (props.inline) {
+      return <SkeletonLoader count={props.skeletonCount ?? 2} />;
+    }
     return (
       <View style={s.root}>
         <SkeletonLoader count={props.skeletonCount ?? 3} />
@@ -101,7 +106,7 @@ export default function StateView(props: StateViewProps) {
     return (
       <View style={[s.root, s.errorRoot]}>
         <View style={s.errorIconWrap}>
-          <Ionicons name="warning-outline" size={24} color="#F87171" />
+          <Ionicons name="warning-outline" size={22} color={brandColors.error} />
         </View>
         <Text style={s.errorTitle}>{props.title ?? "Unable to load"}</Text>
         {props.message ? <Text style={s.errorBody}>{props.message}</Text> : null}
@@ -115,12 +120,11 @@ export default function StateView(props: StateViewProps) {
     );
   }
 
-  // Empty state
   return (
-    <View style={s.root}>
+    <View style={s.emptyRoot}>
       <Ionicons
         name={props.icon ?? "search-outline"}
-        size={32}
+        size={28}
         color={brandColors.textMuted}
         style={s.emptyIcon}
       />
@@ -132,32 +136,23 @@ export default function StateView(props: StateViewProps) {
 
 const s = StyleSheet.create({
   root: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
     backgroundColor: brandColors.panelBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 8,
-    // Subtle depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.20,
-    shadowRadius: 8,
-    elevation: 3,
   },
 
-  /* ── Loading / skeleton ── */
+  /* Loading / skeleton */
   skeletonWrap: {
     width: "100%",
     gap: 8,
   },
   skeletonCard: {
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: brandColors.panelBackground,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 8,
@@ -165,7 +160,7 @@ const s = StyleSheet.create({
   shimmerBar: {
     height: 10,
     borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: brandColors.border,
   },
   loadingMsg: {
     color: brandColors.textMuted,
@@ -174,15 +169,16 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
 
-  /* ── Error ── */
+  /* Error */
   errorRoot: {
-    borderColor: "rgba(248,113,113,0.15)",
-    backgroundColor: "rgba(127,29,29,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.12)",
+    backgroundColor: "rgba(127,29,29,0.06)",
   },
   errorIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(248,113,113,0.10)",
     alignItems: "center",
     justifyContent: "center",
@@ -193,7 +189,7 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
   errorBody: {
-    color: "#FECACA",
+    color: brandColors.textMuted,
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
@@ -207,7 +203,7 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(56,189,248,0.25)",
+    borderColor: "rgba(56,189,248,0.20)",
     backgroundColor: "rgba(56,189,248,0.06)",
     marginTop: 4,
   },
@@ -217,14 +213,21 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* ── Empty ── */
+  /* Empty */
+  emptyRoot: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   emptyIcon: {
     marginBottom: 4,
-    opacity: 0.6,
+    opacity: 0.5,
   },
   emptyTitle: {
-    color: brandColors.textPrimary,
-    fontSize: 15,
+    color: brandColors.textSecondary,
+    fontSize: 14,
     fontWeight: "700",
   },
   emptyMsg: {

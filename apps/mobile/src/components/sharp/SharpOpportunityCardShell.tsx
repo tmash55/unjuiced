@@ -42,7 +42,7 @@ export default function SharpOpportunityCardShell({
   isGlowing = false,
   isElite = false,
   isFeatured = false,
-  pressedOpacity = 0.88,
+  pressedOpacity = 0.95,
 }: Props) {
   return (
     <View

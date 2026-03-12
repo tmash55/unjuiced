@@ -173,7 +173,7 @@ async function scanKeys(pattern: string): Promise<string[]> {
  */
 function getTargetDate(dateFilter: string): Date | null {
   const now = new Date();
-  
+
   // Use ET timezone for NBA games
   const etFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",

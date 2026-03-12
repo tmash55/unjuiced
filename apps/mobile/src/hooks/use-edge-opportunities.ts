@@ -28,7 +28,7 @@ type UseEdgeOpportunitiesResult = {
 export function useEdgeOpportunities(options?: UseEdgeOpportunitiesOptions) {
   const { session, user } = useAuth();
   const sports = options?.sports ?? ["nba", "nfl"];
-  const preset = options?.preset ?? "average";
+  const preset = options?.preset ?? "market_average";
   const markets = options?.markets ?? [];
   const marketLines = options?.marketLines ?? {};
   const marketType = options?.marketType ?? "all";

@@ -716,7 +716,7 @@ export async function GET(request: NextRequest) {
       const bestOdds = compositeKey ? bestOddsMap.get(compositeKey) ?? null : null;
       const eventStartTime = row.event_id ? eventStartTimes.get(row.event_id) ?? null : null;
       const profile = transformProfile(row, bestOdds, eventStartTime);
-      profile.ev_data = row.ev_data ?? null;
+      (profile as any).ev_data = (row as any).ev_data ?? null;
       return profile;
     });
     

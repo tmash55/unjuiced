@@ -9,12 +9,10 @@ export function useEntitlements() {
   return useQuery<Entitlements>({
     queryKey: ["me-plan", user?.id],
     queryFn: async () => {
-      if (!session?.access_token) {
-        return { plan: "free", authenticated: false };
-      }
-
-      return api.getMePlan({ accessToken: session.access_token });
+      return api.getMePlan({ accessToken: session!.access_token });
     },
+    enabled: Boolean(session?.access_token),
+    refetchOnMount: "always",
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: true,
