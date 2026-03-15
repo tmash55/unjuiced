@@ -244,6 +244,7 @@ async function fetchModelOpportunities(
   opportunities: PositiveEVOpportunity[];
   totalFound: number;
   totalReturned: number;
+  meta: PositiveEVResponse["meta"];
   config: ModelConfig;
 }> {
   const params = buildQueryParams(config, isPro);
@@ -251,11 +252,17 @@ async function fetchModelOpportunities(
   
   const response = await fetch(url, { cache: "no-store" });
   
+  const data = (await response.json().catch(() => null)) as PositiveEVResponse | { error?: string; message?: string } | null;
   if (!response.ok) {
-    throw new Error(`Failed to fetch: ${response.statusText}`);
+    const message =
+      (data && "message" in data && typeof data.message === "string" && data.message) ||
+      (data && "error" in data && typeof data.error === "string" && data.error) ||
+      `Failed to fetch: ${response.statusText}`;
+    throw new Error(message);
   }
-  
-  const data: PositiveEVResponse = await response.json();
+  if (!data || !("meta" in data)) {
+    throw new Error("Invalid +EV response");
+  }
   
   // Tag opportunities with model metadata
   const opportunities = (data.opportunities || []).map((opp) => ({
@@ -269,6 +276,7 @@ async function fetchModelOpportunities(
     opportunities,
     totalFound: data.meta?.totalFound || 0,
     totalReturned: data.meta?.returned || 0,
+    meta: data.meta,
     config,
   };
 }
@@ -354,6 +362,8 @@ export interface UseMultiEvModelStreamResult {
     totalFound: number;
     returned: number;
     minBooksPerSide?: number;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
   };
   isCustomMode: boolean;
   activeConfigs: ModelConfig[];
@@ -376,7 +386,13 @@ export function useMultiEvModelStream({
   const [changes, setChanges] = useState<ChangeMap>(new Map());
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [stale, setStale] = useState<Set<string>>(new Set());
-  const [meta, setMeta] = useState<{ totalFound: number; returned: number; minBooksPerSide?: number }>({ 
+  const [meta, setMeta] = useState<{
+    totalFound: number;
+    returned: number;
+    minBooksPerSide?: number;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
+  }>({ 
     totalFound: 0, 
     returned: 0 
   });
@@ -576,6 +592,8 @@ export function useMultiEvModelStream({
       setMeta({
         totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
         returned: merged.length,
+        emptyReason: results.length === 1 ? results[0].meta.emptyReason : undefined,
+        suggestedSharpPresets: results.length === 1 ? results[0].meta.suggestedSharpPresets : undefined,
       });
       
     } catch (e: any) {

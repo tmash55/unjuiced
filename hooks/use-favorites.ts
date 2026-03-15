@@ -5,6 +5,7 @@ import { createClient } from "@/libs/supabase/client";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { getFavoriteOddsMarketKey } from "@/lib/odds/types";
 
 // Shared tracking of manually deleted favorites across hook instances
 const manuallyDeletedByUserId = new Map<string, Set<string>>();
@@ -552,7 +553,10 @@ export function useFavorites() {
         body: JSON.stringify({
           favorites: toRefresh.map(f => ({
             id: f.id,
-            odds_key: f.odds_key,
+            sport: f.sport,
+            event_id: f.event_id,
+            market: f.market,
+            odds_key: getFavoriteOddsMarketKey(f.sport, f.event_id, f.market) ?? f.odds_key,
             player_name: f.player_name,
             line: f.line,
             side: f.side,
@@ -656,4 +660,3 @@ export function useFavoriteButton(params: {
     },
   };
 }
-

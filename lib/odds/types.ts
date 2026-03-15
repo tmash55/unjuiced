@@ -221,6 +221,42 @@ export function getMarketOddsPattern(sport: string, eventId: string, market: str
 }
 
 /**
+ * Build the canonical market-level odds key used by favorites and betslips.
+ */
+export function getFavoriteOddsMarketKey(
+  sport?: string | null,
+  eventId?: string | null,
+  market?: string | null
+): string | null {
+  if (!sport || !eventId || !market) return null;
+  return `odds:${sport}:${eventId}:${market}`;
+}
+
+/**
+ * Normalize a persisted favorite odds_key to the canonical market-level key.
+ * Falls back to sport/event/market fields so legacy malformed saved keys still work.
+ */
+export function normalizeFavoriteOddsKey(params: {
+  oddsKey?: string | null;
+  sport?: string | null;
+  eventId?: string | null;
+  market?: string | null;
+}): string | null {
+  const canonical = getFavoriteOddsMarketKey(params.sport, params.eventId, params.market);
+  if (canonical) return canonical;
+
+  const raw = params.oddsKey?.trim();
+  if (!raw) return null;
+
+  const parts = raw.split(":");
+  if (parts[0] === "odds" && parts.length >= 4) {
+    return parts.slice(0, 4).join(":");
+  }
+
+  return null;
+}
+
+/**
  * Build Redis key for specific book's odds
  */
 export function getBookOddsKey(sport: string, eventId: string, market: string, book: string): string {

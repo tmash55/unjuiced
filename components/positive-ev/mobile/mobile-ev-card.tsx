@@ -14,9 +14,10 @@ import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { ShareOddsButton } from "@/components/opportunities/share-odds-button";
 import { ShareOddsCard } from "@/components/opportunities/share-odds-card";
 import { useFavorites } from "@/hooks/use-favorites";
+import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-books";
 import { SportIcon } from "@/components/icons/sport-icons";
 import { SHARP_PRESETS } from "@/lib/ev/constants";
-import { impliedProbToAmerican } from "@/lib/ev/devig";
+import { getPrimaryEVCalculation, impliedProbToAmerican } from "@/lib/ev/devig";
 
 const PREDICTION_MARKET_BOOKS = new Set(["polymarket", "kalshi"]);
 const EXTREME_EV_THRESHOLD = 1000;
@@ -170,6 +171,16 @@ export function MobileEVCard({
           sgp: book.sgp ?? null,
         };
       }
+
+      const hydratedBooksSnapshot = await hydrateBooksSnapshotWithLiveSgp({
+        sport: opp.sport,
+        eventId: opp.eventId,
+        market: opp.market,
+        playerName: opp.playerName,
+        line: opp.line ?? null,
+        side: opp.side,
+        booksSnapshot,
+      });
       
       // Build odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
       const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
@@ -191,7 +202,7 @@ export function MobileEVCard({
         side: opp.side,
         odds_key: oddsKey,
         odds_selection_id: opp.id,
-        books_snapshot: Object.keys(booksSnapshot).length > 0 ? booksSnapshot : null,
+        books_snapshot: Object.keys(hydratedBooksSnapshot).length > 0 ? hydratedBooksSnapshot : null,
         best_price_at_save: opp.book.price,
         best_book_at_save: opp.book.bookId || null,
         source: 'positive_ev_mobile',
@@ -205,14 +216,18 @@ export function MobileEVCard({
   
   // Get EV based on case selection
   const baseEV = evCase === "best" ? opp.evCalculations.evBest : opp.evCalculations.evWorst;
-  const displayEV = boostPercent > 0 ? baseEV * (1 + boostPercent / 100) : baseEV;
-  const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
-  
   const calculateBoostedEV = useCallback((baseEV: number, decimalOdds: number, fairProb: number, boost: number) => {
     if (boost <= 0) return baseEV;
     const boostedOdds = applyBoostToDecimalOdds(decimalOdds, boost);
     return (fairProb * boostedOdds - 1) * 100;
   }, []);
+  const primaryEvCalculation = getPrimaryEVCalculation(opp.evCalculations, selectedDevigMethods, evCase);
+  const decimalOdds = opp.book.priceDecimal || (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
+  const fairProbability = primaryEvCalculation?.fairProb || 0;
+  const displayEV = boostPercent > 0
+    ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent)
+    : baseEV;
+  const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
 
   // Calculate recommended stake (match desktop logic)
   const recStakeDisplay = useMemo(() => {
@@ -220,11 +235,7 @@ export function MobileEVCard({
 
     const baseEV = evCase === "best" ? opp.evCalculations.evBest : opp.evCalculations.evWorst;
     const decimalOdds = opp.book.priceDecimal || (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
-    const fairProbability = opp.evCalculations.power?.fairProb 
-      || opp.evCalculations.multiplicative?.fairProb 
-      || opp.evCalculations.additive?.fairProb 
-      || opp.evCalculations.probit?.fairProb 
-      || 0;
+    const fairProbability = getPrimaryEVCalculation(opp.evCalculations, selectedDevigMethods, evCase)?.fairProb || 0;
     const displayEV = boostPercent > 0
       ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent)
       : baseEV;
@@ -245,7 +256,7 @@ export function MobileEVCard({
     if (stake < 10) return `$${Math.round(stake)}`;
     if (stake < 100) return `$${Math.round(stake / 5) * 5}`;
     return `$${Math.round(stake / 10) * 10}`;
-  }, [bankroll, kellyPercent, boostPercent, evCase, opp, calculateBoostedEV]);
+  }, [bankroll, kellyPercent, boostPercent, evCase, opp, calculateBoostedEV, selectedDevigMethods]);
   
   // Get best book info
   const bestBookInfo = getSportsbookById(opp.book.bookId);

@@ -3,6 +3,7 @@ import { createClient } from "@/libs/supabase/server";
 import { sportsbooksNew as SPORTSBOOKS_META } from "@/lib/data/sportsbooks";
 import { redis } from "@/lib/redis";
 import { fetchSgpQuote } from "@/lib/sgp/quote-service";
+import { getMarketOddsPattern, normalizeFavoriteOddsKey } from "@/lib/odds/types";
 
 // =============================================================================
 // TYPES
@@ -39,7 +40,9 @@ interface BetslipItemWithFavorite {
   id: string;
   favorite?: {
     id?: string;
+    sport?: string | null;
     event_id?: string | null;
+    market?: string | null;
     odds_key?: string | null;
     player_name?: string | null;
     line?: number | null;
@@ -136,10 +139,17 @@ async function fetchLiveSgpTokens(
   booksToFetch: string[]
 ): Promise<Record<string, string>> {
   const tokens: Record<string, string> = {};
-  
-  if (!favorite?.odds_key) {
+  if (!favorite) return tokens;
+  const marketOddsKey = normalizeFavoriteOddsKey({
+    oddsKey: favorite.odds_key,
+    sport: favorite.sport,
+    eventId: favorite.event_id,
+    market: favorite.market,
+  });
+
+  if (!marketOddsKey) {
     // Fallback to saved snapshot
-    if (favorite?.books_snapshot) {
+    if (favorite.books_snapshot) {
       for (const bookId of booksToFetch) {
         const sgp = favorite.books_snapshot[bookId]?.sgp;
         if (sgp) tokens[bookId] = sgp;
@@ -151,7 +161,13 @@ async function fetchLiveSgpTokens(
   // Try to fetch live data from Redis
   try {
     // Get all book keys for this market
-    const bookPattern = `${favorite.odds_key}:*`;
+    const oddsKeyParts = marketOddsKey.split(":");
+    const favoriteMarket = favorite.market || oddsKeyParts[3] || null;
+    const bookPattern = getMarketOddsPattern(
+      oddsKeyParts[1],
+      oddsKeyParts[2],
+      oddsKeyParts[3]
+    );
     const bookKeys = await scanKeys(bookPattern);
     
     if (bookKeys.length === 0) {
@@ -180,8 +196,6 @@ async function fetchLiveSgpTokens(
     
     // Find matching selection for each book
     const normalizedPlayer = normalizePlayerName(favorite.player_name || "");
-    // Extract market from odds_key (format: odds:{sport}:{eventId}:{market})
-    const favoriteMarket = favorite.odds_key?.split(':')[3] || null;
     
     console.log(`[SGP API] Looking for: player="${favorite.player_name}", line=${favorite.line}, side=${favorite.side}, market=${favoriteMarket}`);
     
@@ -240,7 +254,7 @@ async function fetchLiveSgpTokens(
     }
     
     // Fall back to snapshot for any books not found in live data
-    if (favorite?.books_snapshot) {
+    if (favorite.books_snapshot) {
       for (const bookId of booksToFetch) {
         if (!tokens[bookId]) {
           const sgp = favorite.books_snapshot[bookId]?.sgp;
@@ -395,6 +409,17 @@ export async function POST(request: NextRequest) {
     }
 
     const items = (betslip.items || []) as BetslipItemWithFavorite[];
+    const hasLegacyFavoriteOddsKey = items.some((item) => {
+      const favorite = item.favorite;
+      if (!favorite?.odds_key) return false;
+      const normalizedOddsKey = normalizeFavoriteOddsKey({
+        oddsKey: favorite.odds_key,
+        sport: favorite.sport,
+        eventId: favorite.event_id,
+        market: favorite.market,
+      });
+      return Boolean(normalizedOddsKey && normalizedOddsKey !== favorite.odds_key);
+    });
     
     // Classify bet type
     const betType = classifyBetType(items);
@@ -438,7 +463,7 @@ export async function POST(request: NextRequest) {
     const cacheAge = Date.now() - cacheTime;
     const cacheIsFresh = cacheAge < SGP_CACHE_TTL_MS;
 
-    if (cachedOdds && cacheIsFresh && !force_refresh) {
+    if (cachedOdds && cacheIsFresh && !force_refresh && !hasLegacyFavoriteOddsKey) {
       return NextResponse.json({
         odds: cachedOdds,
         bet_type: betType,

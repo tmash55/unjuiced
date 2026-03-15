@@ -24,6 +24,7 @@ import {
   DEFAULT_DEVIG_METHODS,
   POSITIVE_EV_DEFAULTS,
 } from "@/lib/ev/constants";
+import { calculateMultiEV } from "@/lib/ev/devig";
 import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { isMarketSelected } from "@/lib/utils";
@@ -127,6 +128,8 @@ export interface UseMultiEvModelResult {
   totalFound: number;
   /** Total returned */
   totalReturned: number;
+  /** Response metadata for preset mode */
+  meta: PositiveEVResponse["meta"] | null;
   
   /** Active model configs */
   activeConfigs: EVModelConfig[];
@@ -328,6 +331,7 @@ async function fetchModelOpportunities(
   opportunities: PositiveEVOpportunity[];
   totalFound: number;
   totalReturned: number;
+  meta: PositiveEVResponse["meta"];
   config: EVModelConfig;
 }> {
   const params = buildQueryParams(config, isPro, fresh);
@@ -340,11 +344,17 @@ async function fetchModelOpportunities(
     signal,
   });
   
+  const data = (await response.json().catch(() => null)) as PositiveEVResponse | { error?: string; message?: string } | null;
   if (!response.ok) {
-    throw new Error(`Failed to fetch +EV opportunities: ${response.statusText}`);
+    const message =
+      (data && "message" in data && typeof data.message === "string" && data.message) ||
+      (data && "error" in data && typeof data.error === "string" && data.error) ||
+      `Failed to fetch +EV opportunities: ${response.statusText}`;
+    throw new Error(message);
   }
-  
-  const data: PositiveEVResponse = await response.json();
+  if (!data || !("meta" in data)) {
+    throw new Error("Invalid +EV response");
+  }
   
   // Tag each opportunity with model metadata
   const opportunities = (data.opportunities || []).map((opp) => ({
@@ -358,6 +368,7 @@ async function fetchModelOpportunities(
     opportunities,
     totalFound: data.meta?.totalFound || 0,
     totalReturned: data.meta?.returned || 0,
+    meta: data.meta,
     config,
   };
 }
@@ -435,39 +446,46 @@ function applyClientFilters(
   const remapOpportunityToSelectedBook = (
     opp: PositiveEVOpportunity,
     selectedBooks: string[],
+    devigMethods: DevigMethod[],
   ): PositiveEVOpportunity | null => {
     if (selectedBooks.length === 0) return opp;
 
     const selectedSet = new Set(selectedBooks.map((book) => normalizeSportsbookId(book)));
     const candidateBooks = (opp.allBooks || [])
       .filter((book) => selectedSet.has(normalizeSportsbookId(book.bookId)))
-      .filter((book) => (book.evPercent ?? Number.NEGATIVE_INFINITY) > 0)
+      .map((book) => ({
+        book,
+        evCalculations: calculateMultiEV(
+          opp.devigResults,
+          book,
+          opp.side === "under" || opp.side === "no" ? "under" : "over",
+          devigMethods
+        ),
+      }))
+      .filter((candidate) => candidate.evCalculations.evWorst > 0)
       .sort((a, b) => {
-        const evDiff = (b.evPercent ?? Number.NEGATIVE_INFINITY) - (a.evPercent ?? Number.NEGATIVE_INFINITY);
+        const evDiff = b.evCalculations.evWorst - a.evCalculations.evWorst;
         if (evDiff !== 0) return evDiff;
-        return b.priceDecimal - a.priceDecimal;
+        return b.book.priceDecimal - a.book.priceDecimal;
       });
 
     const bestCandidate = candidateBooks[0];
     if (!bestCandidate) return null;
 
-    if (normalizeSportsbookId(opp.book?.bookId || "") === normalizeSportsbookId(bestCandidate.bookId)) {
+    if (normalizeSportsbookId(opp.book?.bookId || "") === normalizeSportsbookId(bestCandidate.book.bookId)) {
       return opp;
     }
 
-    const selectedEv = bestCandidate.evPercent ?? 0;
+    const selectedEv = bestCandidate.evCalculations.evWorst ?? 0;
     return {
       ...opp,
       book: {
-        ...bestCandidate,
+        ...bestCandidate.book,
         evPercent: selectedEv,
         isSharpRef: false,
       },
       evCalculations: {
-        ...opp.evCalculations,
-        evWorst: selectedEv,
-        evBest: selectedEv,
-        evDisplay: selectedEv,
+        ...bestCandidate.evCalculations,
       },
     };
   };
@@ -494,7 +512,7 @@ function applyClientFilters(
   // within the row instead of dropping the row when the top book differs.
   if (prefs.selectedBooks && prefs.selectedBooks.length > 0) {
     filtered = filtered
-      .map((opp) => remapOpportunityToSelectedBook(opp, prefs.selectedBooks))
+      .map((opp) => remapOpportunityToSelectedBook(opp, prefs.selectedBooks, prefs.devigMethods))
       .filter((opp): opp is PositiveEVOpportunity => opp !== null);
   }
 
@@ -590,6 +608,7 @@ export function useMultiEvModelOpportunities({
         opportunities: merged,
         totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
         totalReturned: merged.length,
+        meta: results.length === 1 ? results[0].meta : null,
       };
     },
     staleTime: isCustomMode ? CUSTOM_STALE_TIME_MS : PRESET_STALE_TIME_MS,
@@ -627,6 +646,7 @@ export function useMultiEvModelOpportunities({
       opportunities: merged,
       totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
       totalReturned: merged.length,
+      meta: results.length === 1 ? results[0].meta : null,
     });
   }, [modelConfigs, isPro, queryClient, queryKey]);
   
@@ -659,6 +679,7 @@ export function useMultiEvModelOpportunities({
           opportunities: merged,
           totalFound: results.reduce((sum, r) => sum + r.totalFound, 0),
           totalReturned: merged.length,
+          meta: results.length === 1 ? results[0].meta : null,
         };
       },
       staleTime: 45_000,
@@ -669,6 +690,7 @@ export function useMultiEvModelOpportunities({
     opportunities,
     totalFound: data?.totalFound || 0,
     totalReturned: data?.totalReturned || 0,
+    meta: data?.meta || null,
     activeConfigs: modelConfigs,
     isCustomMode,
     isLoading,

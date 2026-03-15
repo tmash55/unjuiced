@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSSE } from "@/hooks/use-sse";
 import type { Favorite, RefreshedOdds, RefreshOddsResponse, BookSnapshot } from "@/hooks/use-favorites";
+import { getFavoriteOddsMarketKey } from "@/lib/odds/types";
 
 // =============================================================================
 // Types
@@ -103,7 +104,8 @@ function getSportsFromFavorites(favorites: Favorite[]): string[] {
 function getOddsKeysFromFavorites(favorites: Favorite[]): Set<string> {
   const keys = new Set<string>();
   for (const fav of favorites) {
-    if (fav.odds_key) keys.add(fav.odds_key);
+    const oddsKey = getFavoriteOddsMarketKey(fav.sport, fav.event_id, fav.market) ?? fav.odds_key;
+    if (oddsKey) keys.add(oddsKey);
   }
   return keys;
 }

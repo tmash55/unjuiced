@@ -294,6 +294,8 @@ export interface PositiveEVResponse {
     minBooksPerSide?: number;
     mode: EVMode;
     timestamp: string;
+    emptyReason?: "no_reference_data";
+    suggestedSharpPresets?: SharpPreset[];
   };
 }
 

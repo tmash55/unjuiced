@@ -49,7 +49,7 @@ import { useMultiEvModelStream } from "@/hooks/use-multi-ev-model-stream";
 import type { PositiveEVOpportunity, SharpPreset, DevigMethod, EVMode } from "@/lib/ev/types";
 import { DEFAULT_DEVIG_METHODS } from "@/lib/ev/constants";
 import { SHARP_PRESETS, DEVIG_METHODS } from "@/lib/ev/constants";
-import { americanToImpliedProb, impliedProbToAmerican, calculateMultiEV } from "@/lib/ev/devig";
+import { americanToImpliedProb, impliedProbToAmerican, calculateMultiEV, getPrimaryEVCalculation } from "@/lib/ev/devig";
 import { applyBoostToDecimalOdds } from "@/lib/utils/kelly";
 import { getSportsbookById, normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { formatMarketLabelShort, formatMarketLabel } from "@/lib/data/markets";
@@ -64,6 +64,7 @@ import { useIsMobileOrTablet } from "@/hooks/use-media-query";
 
 // Favorites
 import { useFavorites } from "@/hooks/use-favorites";
+import { hydrateBooksSnapshotWithLiveSgp } from "@/lib/favorites/hydrate-live-books";
 import { Heart } from "@/components/icons/heart";
 import { HeartFill } from "@/components/icons/heart-fill";
 import { SportIcon } from "@/components/icons/sport-icons";
@@ -390,6 +391,7 @@ function getBookFallbackUrl(bookId?: string): string | undefined {
 function remapOpportunityToSelectedBook(
   opp: PositiveEVOpportunity,
   selectedBooks: string[],
+  devigMethods: DevigMethod[],
 ): PositiveEVOpportunity | null {
   if (selectedBooks.length === 0) return opp;
 
@@ -401,7 +403,7 @@ function remapOpportunityToSelectedBook(
   const rankedCandidates = candidateBooks
     .map((book) => ({
       book,
-      evCalculations: calculateMultiEV(opp.devigResults, book, calcSide),
+      evCalculations: calculateMultiEV(opp.devigResults, book, calcSide, devigMethods),
     }))
     .filter((candidate) => candidate.evCalculations.evWorst > 0)
     .sort((a, b) => {
@@ -645,6 +647,7 @@ export default function PositiveEVPage() {
     opportunities: standardData,
     totalFound: standardTotalFound,
     totalReturned: standardTotalReturned,
+    meta: standardMeta,
     isLoading: standardIsLoading,
     isFetching: standardIsFetching,
     error: standardError,
@@ -714,6 +717,9 @@ export default function PositiveEVPage() {
   
   const totalFound = autoRefresh ? streamMeta.totalFound : standardTotalFound;
   const totalReturned = autoRefresh ? streamMeta.returned : standardTotalReturned;
+  const activeMeta = autoRefresh ? streamMeta : standardMeta;
+  const emptyReason = activeMeta?.emptyReason;
+  const suggestedSharpPresets = activeMeta?.suggestedSharpPresets || [];
   
   // Only show loading skeleton when NEITHER source has data (first load only)
   const isLoading = autoRefresh 
@@ -795,7 +801,7 @@ export default function PositiveEVPage() {
     // instead of dropping the row when the current best book is deselected.
     if (savedFilters.selectedBooks && savedFilters.selectedBooks.length > 0) {
       filtered = filtered
-        .map((opp) => remapOpportunityToSelectedBook(opp, savedFilters.selectedBooks))
+        .map((opp) => remapOpportunityToSelectedBook(opp, savedFilters.selectedBooks, savedFilters.devigMethods as DevigMethod[]))
         .filter((opp): opp is PositiveEVOpportunity => opp !== null);
     }
     
@@ -1083,7 +1089,6 @@ export default function PositiveEVPage() {
     
     try {
       const oddsKey = `odds:${opp.sport}:${opp.eventId}:${opp.market}`;
-      const oddsSelectionId = `${opp.playerName?.toLowerCase().replace(/\s+/g, "_")}|${opp.side}|${opp.line}`;
       
       // Build books snapshot from allBooks
       const booksSnapshot: Record<string, { price: number; u: string | null; m: string | null; sgp: string | null }> = {};
@@ -1094,6 +1099,16 @@ export default function PositiveEVPage() {
           m: book.mobileLink || null,
           sgp: book.sgp || null,
         };
+      });
+
+      const hydratedBooksSnapshot = await hydrateBooksSnapshotWithLiveSgp({
+        sport: opp.sport,
+        eventId: opp.eventId,
+        market: opp.market,
+        playerName: opp.playerName,
+        line: opp.line,
+        side: opp.side,
+        booksSnapshot,
       });
 
       await toggleFavorite({
@@ -1112,8 +1127,8 @@ export default function PositiveEVPage() {
         line: opp.line,
         side: opp.side,
         odds_key: oddsKey,
-        odds_selection_id: oddsSelectionId,
-        books_snapshot: booksSnapshot,
+        odds_selection_id: opp.id,
+        books_snapshot: hydratedBooksSnapshot,
         best_price_at_save: opp.book.price,
         best_book_at_save: opp.book.bookId,
         source: "positive_ev",
@@ -1720,10 +1735,16 @@ export default function PositiveEVPage() {
                       <Zap className="w-8 h-8 text-neutral-400 dark:text-neutral-500" />
                     </div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-1.5">
-                      No +EV opportunities found
+                      {emptyReason === "no_reference_data"
+                        ? "No +EV plays found for this reference book"
+                        : "No +EV opportunities found"}
                     </h3>
                     <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center max-w-sm">
-                      Try lowering your minimum EV threshold, selecting more sports, or check back later for new opportunities.
+                      {emptyReason === "no_reference_data"
+                        ? `Try switching your sharp reference to ${suggestedSharpPresets
+                            .map((preset) => SHARP_PRESETS[preset]?.label || preset)
+                            .join(" or ")}.`
+                        : "Try lowering your minimum EV threshold, selecting more sports, or check back later for new opportunities."}
                     </p>
                   </div>
                 </td>
@@ -1735,6 +1756,8 @@ export default function PositiveEVPage() {
               // Get base EV based on evCase setting (worst or best)
               // The API returns evWorst, evBest, and evDisplay - we use evCase to select
               const evCase = savedFilters.evCase as "worst" | "best";
+              const activeDevigMethods = (savedFilters.devigMethods as DevigMethod[]) ?? DEFAULT_DEVIG_METHODS;
+              const primaryEvCalculation = getPrimaryEVCalculation(opp.evCalculations, activeDevigMethods, evCase);
               const baseEV = evCase === "best" 
                 ? opp.evCalculations.evBest 
                 : opp.evCalculations.evWorst;
@@ -1742,18 +1765,6 @@ export default function PositiveEVPage() {
               // Calculate boosted EV if boost is active
               const decimalOdds = opp.book.priceDecimal || 
                 (opp.book.price > 0 ? 1 + opp.book.price / 100 : 1 + 100 / Math.abs(opp.book.price));
-              // Get fair probability from whichever devig method is available
-              const fairProbability = opp.evCalculations.power?.fairProb 
-                || opp.evCalculations.multiplicative?.fairProb 
-                || opp.evCalculations.additive?.fairProb 
-                || opp.evCalculations.probit?.fairProb 
-                || 0;
-              const displayEV = boostPercent > 0 
-                ? calculateBoostedEV(baseEV, decimalOdds, fairProbability, boostPercent) 
-                : baseEV;
-              
-              const evFormat = formatEVPercent(displayEV);
-              const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               const book = getSportsbookById(opp.book.bookId);
               const isExpanded = expandedRows.has(opp.id);
               const showLogos = hasTeamLogos(opp.sport);
@@ -1780,11 +1791,7 @@ export default function PositiveEVPage() {
               
               // Get fair probability and convert to American odds
               // Check all devig methods in order of preference
-              const fairProb = opp.evCalculations.power?.fairProb 
-                || opp.evCalculations.multiplicative?.fairProb 
-                || opp.evCalculations.additive?.fairProb 
-                || opp.evCalculations.probit?.fairProb 
-                || 0;
+              const fairProb = primaryEvCalculation?.fairProb || 0;
               const fairOdds = fairProbToAmerican(fairProb);
               
               // Get all method EV values for tooltip (apply boost if active)
@@ -1810,21 +1817,22 @@ export default function PositiveEVPage() {
                       : opp.evCalculations.probit.evPercent)
                   : undefined,
               };
-              const evWorst = boostPercent > 0 
-                ? calculateBoostedEV(opp.evCalculations.evWorst, decimalOdds, fairProbability, boostPercent)
-                : opp.evCalculations.evWorst;
-              const evBest = boostPercent > 0 
-                ? calculateBoostedEV(opp.evCalculations.evBest, decimalOdds, fairProbability, boostPercent)
-                : opp.evCalculations.evBest;
+              const activeMethodEntries = activeDevigMethods
+                .map((method) => [method, methodEVs[method]] as const)
+                .filter(([, value]) => value !== undefined);
+              const activeMethodValues = activeMethodEntries
+                .map(([, value]) => value)
+                .filter((value): value is number => value !== undefined);
+              const evWorst = activeMethodValues.length > 0 ? Math.min(...activeMethodValues) : opp.evCalculations.evWorst;
+              const evBest = activeMethodValues.length > 0 ? Math.max(...activeMethodValues) : opp.evCalculations.evBest;
+              const displayEV = evCase === "best" ? evBest : evWorst;
+              const evFormat = formatEVPercent(displayEV);
+              const isExtremeEV = displayEV >= EXTREME_EV_THRESHOLD && PREDICTION_MARKET_BOOKS.has((opp.book.bookId || "").toLowerCase());
               
               // Determine which method gave the displayed EV (worst or best based on evCase)
               const displayMethod = evCase === "best"
-                ? Object.entries(methodEVs)
-                    .filter(([, v]) => v !== undefined)
-                    .sort(([, a], [, b]) => (b || 0) - (a || 0))[0]?.[0] || "power" // Best = highest
-                : Object.entries(methodEVs)
-                    .filter(([, v]) => v !== undefined)
-                    .sort(([, a], [, b]) => (a || 0) - (b || 0))[0]?.[0] || "power"; // Worst = lowest
+                ? activeMethodEntries.sort(([, a], [, b]) => (b || 0) - (a || 0))[0]?.[0] || activeDevigMethods[0] || "power"
+                : activeMethodEntries.sort(([, a], [, b]) => (a || 0) - (b || 0))[0]?.[0] || activeDevigMethods[0] || "power";
               
               // Format game time
               const gameDate = opp.startTime ? new Date(opp.startTime) : null;

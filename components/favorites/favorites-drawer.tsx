@@ -298,6 +298,77 @@ const getBooksWithSgpSupport = (
   return { full, partial };
 };
 
+const classifyBetType = (favorites: Favorite[]): "individual" | "parlay" | "sgp" | "sgp_plus" => {
+  if (favorites.length <= 1) return "individual";
+
+  const eventGroups = new Map<string, number>();
+  favorites.forEach((favorite) => {
+    const eventId = favorite.event_id || "unknown";
+    eventGroups.set(eventId, (eventGroups.get(eventId) || 0) + 1);
+  });
+
+  const groupSizes = Array.from(eventGroups.values());
+  const sgpGroups = groupSizes.filter((size) => size >= 2);
+  const singleLegGroups = groupSizes.filter((size) => size === 1);
+
+  if (eventGroups.size === 1) return "sgp";
+  if (sgpGroups.length >= 1 && (sgpGroups.length >= 2 || singleLegGroups.length >= 1)) {
+    return "sgp_plus";
+  }
+  return "parlay";
+};
+
+const calculateCompareParlayOdds = (
+  favorites: Favorite[],
+  refreshedOddsMap?: Map<string, RefreshedFavoriteOdds | null>
+): Record<string, SgpOddsResult> => {
+  if (favorites.length < 2) return {};
+
+  const books = new Set<string>();
+  favorites.forEach((favorite) => {
+    if (favorite.books_snapshot) {
+      Object.keys(favorite.books_snapshot).forEach((bookId) => books.add(bookId));
+    }
+    const refreshedData = refreshedOddsMap?.get(favorite.id);
+    if (refreshedData?.allBooks) {
+      Object.keys(refreshedData.allBooks).forEach((bookId) => books.add(bookId));
+    }
+  });
+
+  const oddsByBook: Record<string, SgpOddsResult> = {};
+
+  books.forEach((bookId) => {
+    let parlayDecimal = 1;
+    let legsSupported = 0;
+
+    favorites.forEach((favorite) => {
+      const livePrice = refreshedOddsMap?.get(favorite.id)?.allBooks?.[bookId]?.price;
+      const savedPrice = favorite.books_snapshot?.[bookId]?.price;
+      const price = livePrice ?? savedPrice;
+
+      if (!price) return;
+
+      const decimal = price > 0 ? (price / 100) + 1 : (100 / Math.abs(price)) + 1;
+      parlayDecimal *= decimal;
+      legsSupported += 1;
+    });
+
+    if (legsSupported !== favorites.length || parlayDecimal <= 1) return;
+
+    const americanOdds = parlayDecimal >= 2
+      ? Math.round((parlayDecimal - 1) * 100)
+      : Math.round(-100 / (parlayDecimal - 1));
+
+    oddsByBook[bookId] = {
+      price: americanOdds >= 0 ? `+${americanOdds}` : `${americanOdds}`,
+      legsSupported,
+      totalLegs: favorites.length,
+    };
+  });
+
+  return oddsByBook;
+};
+
 // Auto-suggest betslip name based on selected favorites
 const suggestBetslipName = (favorites: Favorite[]): string => {
   const sports = new Set(favorites.map(f => f.sport?.toUpperCase()));
@@ -1716,6 +1787,19 @@ export function FavoritesDrawer({ open, onOpenChange }: FavoritesDrawerProps) {
   const fetchCompareOdds = useCallback(async () => {
     if (selectedFavorites.length < 2) {
       toast.error("Select at least 2 plays to compare parlay odds");
+      return;
+    }
+
+    const betType = classifyBetType(selectedFavorites);
+
+    if (betType === "parlay") {
+      const parlayOdds = calculateCompareParlayOdds(selectedFavorites, refreshedOddsMap);
+      if (Object.keys(parlayOdds).length === 0) {
+        toast.error("No sportsbooks support all selected legs as a parlay");
+        return;
+      }
+      setCompareError(null);
+      setCompareOdds(parlayOdds);
       return;
     }
     

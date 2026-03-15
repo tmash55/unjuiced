@@ -64,10 +64,12 @@ type WorkerEVRow = any;
 // ---------------------------------------------------------------------------
 
 const RESPONSE_CACHE_PREFIX = "ev:response:";
+const RESPONSE_CACHE_VERSION = "v2";
 const RESPONSE_CACHE_TTL = 45; // seconds — increased from 15 to reduce miss storms
 const SPORT_FETCH_CONCURRENCY = 4;
 const MAX_RESPONSE_LIMIT = 2000;
 const EV_MAX_CACHE_BYTES = 750_000;
+const REFERENCE_PRESET_SUGGESTIONS: SharpPreset[] = ["draftkings", "market_average"];
 
 const VALID_SPORTS = new Set([
   "nba", "nfl", "nhl", "ncaab", "ncaaf", "mlb", "ncaabaseball",
@@ -124,7 +126,7 @@ function buildResponseCacheKey(params: URLSearchParams): string {
     }
   }
 
-  const raw = `${sports}|${preset}|${mode}|${marketType}|${minEV}|${maxEV}|${devigMethods}|${markets}|${books}|${customSharpBooks}|${customBookWeights}|${limit}|${minBooksPerSide}`;
+  const raw = `${RESPONSE_CACHE_VERSION}|${sports}|${preset}|${mode}|${marketType}|${minEV}|${maxEV}|${devigMethods}|${markets}|${books}|${customSharpBooks}|${customBookWeights}|${limit}|${minBooksPerSide}`;
   return hashCacheKey(raw);
 }
 
@@ -159,6 +161,37 @@ function inferRowMarketType(row: WorkerEVRow): "player" | "game" {
     return "player";
   }
   return "game";
+}
+
+function getRowEvForMethod(row: WorkerEVRow, method: DevigMethod): number | null {
+  switch (method) {
+    case "power":
+      return typeof row?.ev?.pow === "number" ? row.ev.pow : null;
+    case "multiplicative":
+      return typeof row?.ev?.mult === "number" ? row.ev.mult : null;
+    case "additive":
+      return typeof row?.ev?.add === "number" ? row.ev.add : null;
+    case "probit":
+      return typeof row?.ev?.probit === "number" ? row.ev.probit : null;
+    default:
+      return null;
+  }
+}
+
+function getSelectedRowEvRange(
+  row: WorkerEVRow,
+  devigMethods: DevigMethod[]
+): { evWorst: number; evBest: number } | null {
+  const values = devigMethods
+    .map((method) => getRowEvForMethod(row, method))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+
+  if (values.length === 0) return null;
+
+  return {
+    evWorst: Math.min(...values),
+    evBest: Math.max(...values),
+  };
 }
 
 async function forEachWithConcurrency<T>(
@@ -317,6 +350,7 @@ export async function GET(req: NextRequest) {
 
     const allRows: WorkerEVRow[] = [];
     let workerDataFound = false;
+    let alternateReferenceDataFound = false;
 
     // For custom presets, read pinnacle data as the base
     const readPreset = customSharpConfig ? "pinnacle" : sharpPreset;
@@ -350,9 +384,11 @@ export async function GET(req: NextRequest) {
             processedRow = redevigged;
           }
 
-          // Apply client-side filters on (possibly re-computed) data
-          if (processedRow.rollup.worst_case < minEV) continue;
-          if (processedRow.rollup.best_case > maxEV) continue;
+          // Apply client-side filters using only the active devig methods.
+          const selectedRange = getSelectedRowEvRange(processedRow, devigMethods);
+          if (!selectedRange) continue;
+          if (selectedRange.evWorst < minEV) continue;
+          if (selectedRange.evBest > maxEV) continue;
           if (marketsFilter && !marketsFilter.includes(processedRow.mkt)) continue;
           if (booksFilter && processedRow.book?.id && !booksFilter.includes(normalizeBookIdForFrontend(processedRow.book.id))) continue;
           if (processedRow.ev_data?.all_books && minBooksPerSide > 1 && processedRow.ev_data.all_books.length < minBooksPerSide) continue;
@@ -369,6 +405,42 @@ export async function GET(req: NextRequest) {
 
     // ── Step 3: Worker not populated yet → return 503 with retry hint ────────
     if (!workerDataFound && allRows.length === 0) {
+      if (!customSharpConfig) {
+        for (const sport of sports) {
+          for (const preset of REFERENCE_PRESET_SUGGESTIONS) {
+            if (preset === sharpPreset) continue;
+            try {
+              const count = await redis.hlen(`ev:${sport}:rows:${preset}`);
+              if (typeof count === "number" && count > 0) {
+                alternateReferenceDataFound = true;
+                break;
+              }
+            } catch (err) {
+              console.warn(`[positive-ev] HLEN failed for ${sport}:${preset}`, err);
+            }
+          }
+          if (alternateReferenceDataFound) break;
+        }
+      }
+
+      if (alternateReferenceDataFound) {
+        return NextResponse.json({
+          opportunities: [],
+          meta: {
+            totalFound: 0,
+            returned: 0,
+            sharpPreset,
+            devigMethods,
+            minEV,
+            minBooksPerSide,
+            mode,
+            timestamp: new Date().toISOString(),
+            emptyReason: "no_reference_data",
+            suggestedSharpPresets: REFERENCE_PRESET_SUGGESTIONS.filter((preset) => preset !== sharpPreset),
+          },
+        });
+      }
+
       return NextResponse.json(
         {
           error: "data_not_ready",
@@ -388,7 +460,11 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Step 4: Sort and limit ─────────────────────────────────────────────
-    allRows.sort((a, b) => (b.rollup?.worst_case ?? 0) - (a.rollup?.worst_case ?? 0));
+    allRows.sort((a, b) => {
+      const aRange = getSelectedRowEvRange(a, devigMethods);
+      const bRange = getSelectedRowEvRange(b, devigMethods);
+      return (bRange?.evWorst ?? 0) - (aRange?.evWorst ?? 0);
+    });
     const limitedRows = allRows.slice(0, limit);
 
     // ── Step 5: Map EVRow → PositiveEVOpportunity (frontend schema) ─────────
@@ -502,6 +578,8 @@ type CustomBookRow = {
   ev_pct?: number;
   is_sharp_ref?: boolean;
   link?: string | null;
+  mobile_link?: string | null;
+  sgp?: string | null;
   limits?: { max: number } | null;
 };
 
@@ -529,6 +607,8 @@ function normalizeCustomBookRows(rawBooks: unknown[]): CustomBookRow[] {
       ev_pct: typeof book?.ev_pct === "number" ? book.ev_pct : undefined,
       is_sharp_ref: typeof book?.is_sharp_ref === "boolean" ? book.is_sharp_ref : undefined,
       link: typeof book?.link === "string" ? book.link : null,
+      mobile_link: typeof book?.mobile_link === "string" ? book.mobile_link : null,
+      sgp: typeof book?.sgp === "string" ? book.sgp : null,
       limits: (book?.limits as { max: number } | null | undefined) ?? null,
     };
 
@@ -585,14 +665,45 @@ function buildEVCalculation(
   };
 }
 
+function summarizeSelectedCalculations(
+  calculations: Partial<Record<DevigMethod, EVCalculation | undefined>>,
+  devigMethods: DevigMethod[]
+): {
+  evWorst: number;
+  evBest: number;
+  evDisplay: number;
+  kellyWorst?: number;
+} {
+  const selected = devigMethods
+    .map((method) => calculations[method])
+    .filter((calculation): calculation is EVCalculation => calculation !== undefined);
+
+  if (selected.length === 0) {
+    return {
+      evWorst: 0,
+      evBest: 0,
+      evDisplay: 0,
+    };
+  }
+
+  const evValues = selected.map((calculation) => calculation.evPercent);
+  const kellyValues = selected
+    .map((calculation) => calculation.kellyFraction)
+    .filter((kelly): kelly is number => kelly != null);
+
+  return {
+    evWorst: Math.min(...evValues),
+    evBest: Math.max(...evValues),
+    evDisplay: Math.min(...evValues),
+    kellyWorst: kellyValues.length > 0 ? Math.min(...kellyValues) : undefined,
+  };
+}
+
 function evRowToOpportunity(
   row: WorkerEVRow,
   sharpPreset: SharpPreset,
   devigMethods: DevigMethod[]
 ): PositiveEVOpportunity {
-  const evBest = row.rollup.best_case;
-  const evWorst = row.rollup.worst_case;
-
   // Normalize the best-book ID so frontend can look up the logo
   const bestBookId = normalizeBookIdForFrontend(row.book?.id ?? "");
   const bookAm = row.book?.odds?.am ?? 0;
@@ -602,16 +713,61 @@ function evRowToOpportunity(
   const fairProbPow = row.devig?.p_fair?.power ?? null;
   const fairProbMult = row.devig?.p_fair?.multiplicative ?? null;
   const fairProbAdd = row.devig?.p_fair?.additive ?? null;
+  const fairProbProbit = row.devig?.p_fair?.probit ?? null;
 
   // Build full EVCalculation objects (what the frontend expects)
   const evCalcPower = buildEVCalculation("power", fairProbPow, row.ev?.pow, bookAm, bookDec);
   const evCalcMult = buildEVCalculation("multiplicative", fairProbMult, row.ev?.mult, bookAm, bookDec);
   const evCalcAdd = buildEVCalculation("additive", fairProbAdd, row.ev?.add, bookAm, bookDec);
+  const evCalcProbit = buildEVCalculation("probit", fairProbProbit, row.ev?.probit, bookAm, bookDec);
+  const calculationsByMethod = {
+    power: evCalcPower,
+    multiplicative: evCalcMult,
+    additive: evCalcAdd,
+    probit: evCalcProbit,
+  };
+  const { evWorst, evBest, evDisplay, kellyWorst } = summarizeSelectedCalculations(
+    calculationsByMethod,
+    devigMethods
+  );
 
-  // Kelly worst = smallest kelly across methods
-  const kellyValues = [evCalcPower?.kellyFraction, evCalcMult?.kellyFraction, evCalcAdd?.kellyFraction]
-    .filter((k): k is number => k != null);
-  const kellyWorst = kellyValues.length > 0 ? Math.min(...kellyValues) : undefined;
+  const buildBookEvPercent = (price: number, decimal: number): number => {
+    const bookCalculations = summarizeSelectedCalculations(
+      {
+        power: buildEVCalculation(
+          "power",
+          fairProbPow,
+          fairProbPow != null ? calculateEV(fairProbPow, price) * 100 : null,
+          price,
+          decimal
+        ),
+        multiplicative: buildEVCalculation(
+          "multiplicative",
+          fairProbMult,
+          fairProbMult != null ? calculateEV(fairProbMult, price) * 100 : null,
+          price,
+          decimal
+        ),
+        additive: buildEVCalculation(
+          "additive",
+          fairProbAdd,
+          fairProbAdd != null ? calculateEV(fairProbAdd, price) * 100 : null,
+          price,
+          decimal
+        ),
+        probit: buildEVCalculation(
+          "probit",
+          fairProbProbit,
+          fairProbProbit != null ? calculateEV(fairProbProbit, price) * 100 : null,
+          price,
+          decimal
+        ),
+      },
+      devigMethods
+    );
+
+    return bookCalculations.evWorst;
+  };
 
   return {
     id: row.seid,
@@ -658,6 +814,20 @@ function evRowToOpportunity(
         margin: 0,
         success: true,
       } : undefined,
+      additive: fairProbAdd != null ? {
+        method: "additive" as DevigMethod,
+        fairProbOver: row.side === "over" || row.side === "yes" ? fairProbAdd : (1 - fairProbAdd),
+        fairProbUnder: row.side === "over" || row.side === "yes" ? (1 - fairProbAdd) : fairProbAdd,
+        margin: 0,
+        success: true,
+      } : undefined,
+      probit: fairProbProbit != null ? {
+        method: "probit" as DevigMethod,
+        fairProbOver: row.side === "over" || row.side === "yes" ? fairProbProbit : (1 - fairProbProbit),
+        fairProbUnder: row.side === "over" || row.side === "yes" ? (1 - fairProbProbit) : fairProbProbit,
+        margin: 0,
+        success: true,
+      } : undefined,
     },
 
     book: {
@@ -674,13 +844,10 @@ function evRowToOpportunity(
     },
 
     evCalculations: {
-      power: evCalcPower,
-      multiplicative: evCalcMult,
-      additive: evCalcAdd,
-      probit: undefined,
+      ...calculationsByMethod,
       evWorst,
       evBest,
-      evDisplay: evWorst,
+      evDisplay,
       kellyWorst,
     },
 
@@ -690,10 +857,10 @@ function evRowToOpportunity(
       price: b.am,
       priceDecimal: b.dec,
       link: b.link ?? null,
-      mobileLink: null,
-      sgp: null,
+      mobileLink: b.mobile_link ?? null,
+      sgp: b.sgp ?? null,
       limits: b.limits ?? null,
-      evPercent: b.ev_pct ?? undefined,
+      evPercent: buildBookEvPercent(b.am, b.dec),
       isSharpRef: b.is_sharp_ref ?? false,
     })),
 
@@ -702,9 +869,9 @@ function evRowToOpportunity(
       bookName: normalizeBookIdForFrontend(b.id ?? ""),
       price: b.am,
       priceDecimal: b.dec,
-      link: null,
-      mobileLink: null,
-      sgp: null,
+      link: b.link ?? null,
+      mobileLink: b.mobile_link ?? null,
+      sgp: b.sgp ?? null,
       limits: b.limits ?? null,
       isSharpRef: b.is_sharp_ref ?? false,
     })),
@@ -889,8 +1056,8 @@ function redevigWithCustomSharp(
       id: bestBook.id,
       odds: { am: bestBook.am, dec: bestBook.dec, ts: row.book?.odds?.ts },
       link: bestBook.link ?? null,
-      mobile_link: null,
-      sgp: null,
+      mobile_link: bestBook.mobile_link ?? null,
+      sgp: bestBook.sgp ?? null,
       limits: bestBook.limits ?? null,
     },
     devig: {

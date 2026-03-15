@@ -161,9 +161,8 @@ export function BestOddsTable({
     const startTime = deal.startTime || (deal as any).game_start;
     const side = deal.side === 'o' ? 'over' : deal.side === 'u' ? 'under' : deal.side;
     
-    // Build odds_key for Redis lookups: sport:eventId:market:player|side|line
-    const playerKey = playerName?.toLowerCase().replace(/\s+/g, '_') || 'game';
-    const oddsKey = `${deal.sport}:${deal.eid}:${deal.mkt}:${playerKey}|${side}|${deal.ln ?? 0}`;
+    // Build market-level odds_key for Redis lookups: odds:{sport}:{eventId}:{market}
+    const oddsKey = `odds:${deal.sport}:${deal.eid}:${deal.mkt}`;
     
     return {
       type: (deal.ent === 'game' ? 'game' : 'player') as 'player' | 'game',
@@ -1178,4 +1177,3 @@ export function BestOddsTable({
     </div>
   );
 }
-
