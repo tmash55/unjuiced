@@ -5,6 +5,7 @@
     "entryPoint": "./node_modules/expo-router/entry",
     "scheme": "unjuiced",
     "version": "1.0.0",
+    "icon": "./assets/logo.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "plugins": [
