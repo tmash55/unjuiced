@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
-  Image,
   LayoutAnimation,
   Linking,
   PanResponder,
@@ -10,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { PositiveEVOpportunity } from "@unjuiced/types";
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from "@/src/lib/haptics";

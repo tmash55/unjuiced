@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { brandColors } from "@/src/theme/brand";
 import { getSportsbookLogoUrl } from "@/src/lib/logos";

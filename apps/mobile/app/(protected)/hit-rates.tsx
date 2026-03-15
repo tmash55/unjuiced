@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
   Pressable,
   SafeAreaView,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { HitRateSortField, HitRateProfileV2 } from "@unjuiced/types";

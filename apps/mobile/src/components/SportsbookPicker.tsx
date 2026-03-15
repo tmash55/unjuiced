@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
-  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -11,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { getSportsbookLogoUrl } from "@/src/lib/logos";
 import { ALL_SPORTSBOOKS } from "@/src/lib/sportsbooks";

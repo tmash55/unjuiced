@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { TeammateCorrelation, StatCorrelation } from "@unjuiced/api";
 import { brandColors } from "@/src/theme/brand";

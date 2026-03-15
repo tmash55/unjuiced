@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getSportsbookLogoUrl } from "@/src/lib/logos";

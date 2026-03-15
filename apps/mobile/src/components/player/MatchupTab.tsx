@@ -1,4 +1,5 @@
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { brandColors } from "@/src/theme/brand";
 import { useTeamDefenseRanks } from "@/src/hooks/use-team-defense-ranks";

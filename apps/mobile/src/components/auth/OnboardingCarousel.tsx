@@ -3,13 +3,13 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
   type ViewToken,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { brandColors } from "@/src/theme/brand";
@@ -277,7 +277,7 @@ export function OnboardingCarousel({
               <Image
                 source={require("../../../assets/logo.png")}
                 style={slideStyles.welcomeLogo}
-                resizeMode="contain"
+                contentFit="contain"
               />
             </Animated.View>
 

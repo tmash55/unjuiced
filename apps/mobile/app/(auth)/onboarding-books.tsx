@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import {
   AuthButton,
   AuthPanel,

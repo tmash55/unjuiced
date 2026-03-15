@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

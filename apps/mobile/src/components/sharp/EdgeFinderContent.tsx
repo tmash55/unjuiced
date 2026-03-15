@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
-  Image,
   LayoutAnimation,
   Linking,
   Modal,
@@ -14,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { Opportunity } from "@unjuiced/types";
 import { useEdgeOpportunities } from "@/src/hooks/use-edge-opportunities";

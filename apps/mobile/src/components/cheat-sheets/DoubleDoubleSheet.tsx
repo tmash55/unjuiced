@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -11,6 +10,7 @@ import {
   Text,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useDoubleDoubleSheet } from "@/src/hooks/use-double-double-sheet";
 import { getSportsbookLogoUrl } from "@/src/lib/logos";

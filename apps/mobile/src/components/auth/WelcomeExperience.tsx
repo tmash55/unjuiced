@@ -2,13 +2,13 @@ import { useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";

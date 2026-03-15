@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Image, Pressable, RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl,
   ScrollView, SafeAreaView, StyleSheet, Text, View
 } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";

@@ -2,12 +2,12 @@ import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useInjuryImpact } from "@/src/hooks/use-injury-impact-sheet";

@@ -2,13 +2,13 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCheatSheet } from "@/src/hooks/use-cheat-sheet";

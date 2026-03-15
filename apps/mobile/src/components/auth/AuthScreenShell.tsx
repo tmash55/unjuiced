@@ -1,7 +1,6 @@
 import { forwardRef, useCallback, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
   type TextInputProps,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -78,7 +78,7 @@ export function AuthScreenShell({
           <Image
             source={require("../../../assets/logo.png")}
             style={styles.logo}
-            resizeMode="contain"
+            contentFit="contain"
           />
 
           {/* Header copy */}

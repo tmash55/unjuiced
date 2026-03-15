@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PageHeader from "@/src/components/PageHeader";

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { ArbLeg, ArbMode, ArbRow } from "@unjuiced/types";
 import { normalizePlanName } from "@unjuiced/types";

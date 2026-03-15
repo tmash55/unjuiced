@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, Image, Modal, Pressable, ScrollView,
+  ActivityIndicator, Animated, Modal, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { HitRateProfileV2, PlayerBoxScoreGame } from "@unjuiced/types";
 import type { TeammateOut, PlayTypeData } from "@unjuiced/api";

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { PositiveEVOpportunity } from "@unjuiced/types";
 import { getSportsbookLogoUrl } from "@/src/lib/logos";

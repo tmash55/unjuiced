@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Dimensions,
-  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -11,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { PlayerBoxScoreGame } from "@unjuiced/types";
 import type { TeammateOut } from "@unjuiced/api";

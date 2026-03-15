@@ -5,7 +5,6 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -16,6 +15,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQueries } from "@tanstack/react-query";
