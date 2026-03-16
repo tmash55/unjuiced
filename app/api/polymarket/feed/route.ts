@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
-import type { FeedResponse, WalletTier } from "@/lib/polymarket/types";
+import type { FeedResponse, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
 /**
@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
     // "recent" = default DB order (created_at desc), no re-sort needed
 
     const response: FeedResponse = {
-      signals: enriched,
+      signals: enriched as WhaleSignal[],
       total: count ?? 0,
     };
 

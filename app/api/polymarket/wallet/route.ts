@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
-import type { WalletDetailResponse } from "@/lib/polymarket/types";
+import type { WalletDetailResponse, WhaleSignal } from "@/lib/polymarket/types";
 
 /**
  * GET /api/polymarket/wallet?address=0x...
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
 
     const response: WalletDetailResponse = {
       wallet,
-      recent_bets: enrichedBets,
+      recent_bets: enrichedBets as unknown as WhaleSignal[],
       sport_stats: wallet.sport_breakdown ?? {},
     };
 
