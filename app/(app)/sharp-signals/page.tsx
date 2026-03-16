@@ -4,15 +4,16 @@ import { useState } from "react";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { SignalFeed } from "@/components/sharp-signals/signal-feed";
+import { GameFeed } from "@/components/sharp-signals/game-feed";
 import { Leaderboard } from "@/components/sharp-signals/leaderboard";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-type Tab = "feed" | "leaderboard" | "settings";
+type Tab = "games" | "bets" | "leaderboard" | "settings";
 
 export default function SharpSignalsPage() {
   const { hasAccess, isLoading } = useHasEliteAccess();
-  const [tab, setTab] = useState<Tab>("feed");
+  const [tab, setTab] = useState<Tab>("games");
 
   if (isLoading) {
     return (
@@ -44,7 +45,8 @@ export default function SharpSignalsPage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "feed", label: "Signal Feed" },
+    { key: "games", label: "Game Feed" },
+    { key: "bets", label: "Bet Feed" },
     { key: "leaderboard", label: "Leaderboard" },
     { key: "settings", label: "Settings" },
   ];
@@ -81,7 +83,8 @@ export default function SharpSignalsPage() {
         </div>
       }
     >
-      {tab === "feed" && <SignalFeed />}
+      {tab === "games" && <GameFeed />}
+      {tab === "bets" && <SignalFeed />}
       {tab === "leaderboard" && <Leaderboard />}
       {tab === "settings" && (
         <div className="py-12 text-center text-neutral-500">

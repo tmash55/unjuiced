@@ -12,12 +12,13 @@ const tierConfig: Record<WalletTier, { label: string; color: string; bg: string 
   NEW: { label: "NEW", color: "text-purple-400", bg: "bg-purple-500/20 border-purple-500/40" },
 };
 
-export function TierBadge({ tier, className }: { tier: WalletTier | string; className?: string }) {
+export function TierBadge({ tier, size = "sm", className }: { tier: WalletTier | string; size?: "xs" | "sm"; className?: string }) {
   const config = tierConfig[tier as WalletTier] ?? tierConfig.C;
   return (
     <span
       className={cn(
-        "inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border",
+        "inline-flex items-center font-bold uppercase tracking-wider rounded border",
+        size === "xs" ? "px-1 py-px text-[8px]" : "px-1.5 py-0.5 text-[10px]",
         config.bg,
         config.color,
         className
