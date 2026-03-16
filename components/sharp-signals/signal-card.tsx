@@ -171,12 +171,17 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
             )}
             <span className={cn(
               "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md",
-              signal.side === "YES"
+              signal.side === "BUY" || signal.side === "YES"
                 ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30"
                 : "bg-red-500/15 text-red-400 ring-1 ring-red-500/30"
             )}>
-              {signal.side === "YES" ? "BUY" : "SELL"}
+              {signal.side}
             </span>
+            {signal.outcome && (
+              <span className="text-xs font-semibold text-neutral-200">
+                {signal.outcome}
+              </span>
+            )}
           </div>
         </div>
 
@@ -230,13 +235,7 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
           </div>
         </div>
 
-        {/* Price chart */}
-        {signal.token_id && (
-          <div>
-            <span className="text-[10px] text-neutral-500">Price</span>
-            <PriceChart tokenId={signal.token_id} entryPrice={signal.entry_price} />
-          </div>
-        )}
+        {/* Price chart — only shown when books expanded */}
       </div>
 
       {/* All-books dropdown */}
@@ -268,6 +267,13 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
                 className="overflow-hidden"
               >
                 <div className="px-3 pb-3 space-y-1">
+                  {/* Price chart — shown only when expanded */}
+                  {signal.token_id && (
+                    <div className="mb-2">
+                      <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Price History</span>
+                      <PriceChart tokenId={signal.token_id} entryPrice={signal.entry_price} />
+                    </div>
+                  )}
                   {allBooks.map((b, i) => {
                     const sb = getSportsbookById(b.book);
                     const bookAmerican = b.american != null

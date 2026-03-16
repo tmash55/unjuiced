@@ -88,8 +88,11 @@ export async function GET(req: NextRequest) {
          quality_score, all_book_odds, created_at`,
         { count: "exact" }
       )
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order("created_at", { ascending: false });
+
+    // For score/stake sort, fetch more rows since sorting happens after enrichment
+    const fetchLimit = sortBy === "recent" ? limit : Math.max(limit * 5, 100);
+    query = query.range(0, fetchLimit - 1);
 
     // Filters
     if (sport) query = query.eq("sport", sport);
@@ -186,8 +189,13 @@ export async function GET(req: NextRequest) {
     }
     // "recent" = default DB order (created_at desc), no re-sort needed
 
+    // Apply pagination after sorting (for score/stake sorts that fetched extra rows)
+    const paginated = sortBy === "recent"
+      ? enriched
+      : enriched.slice(offset, offset + limit);
+
     const response: FeedResponse = {
-      signals: enriched as WhaleSignal[],
+      signals: paginated as WhaleSignal[],
       total: count ?? 0,
     };
 

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `https://clob.polymarket.com/prices-history?market=${encodeURIComponent(tokenId)}&interval=1h&fidelity=5`;
+    const url = `https://clob.polymarket.com/prices-history?market=${encodeURIComponent(tokenId)}&interval=all&fidelity=10`;
     const res = await fetch(url, { next: { revalidate: 300 } });
 
     if (!res.ok) {
