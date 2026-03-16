@@ -70,6 +70,16 @@ export interface WalletScore {
   is_new_account: boolean;
 }
 
+export interface BookOdds {
+  book: string;
+  line?: string | number | null;
+  price?: string | number | null;
+  decimal?: number | null;
+  implied?: number | null;
+  american?: number | null;
+  displayBook?: string;
+}
+
 export interface WhaleSignal {
   id: number;
   tier: string;
@@ -108,6 +118,9 @@ export interface WhaleSignal {
 
   // Quality
   quality_score: number | null;
+
+  // All sportsbook odds for this market/outcome
+  all_book_odds: BookOdds[] | null;
 
   created_at: string;
 
