@@ -20,14 +20,37 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
   const polyImplied = signal.implied_probability ?? signal.entry_price;
   const bookImplied = signal.best_book_decimal ? 1 / signal.best_book_decimal : null;
 
+  const score = signal.signal_score ?? 0;
+  const scoreLabel = signal.signal_label ?? "👀";
+
+  const scoreBorder =
+    score >= 8
+      ? "border-amber-500/40 hover:border-amber-500/60"
+      : score >= 6
+        ? "border-sky-500/30 hover:border-sky-500/50"
+        : "border-neutral-800 hover:border-neutral-700";
+
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4 space-y-3 hover:border-neutral-700 transition-colors">
-      {/* Header: source + insider + result */}
+    <div className={cn("rounded-lg border bg-neutral-900/60 p-4 space-y-3 transition-colors", scoreBorder)}>
+      {/* Header: score + insider + result */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
-            Polymarket
-          </span>
+          {/* Score badge */}
+          <div
+            className={cn(
+              "flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold",
+              score >= 8
+                ? "bg-amber-500/20 text-amber-300"
+                : score >= 6
+                  ? "bg-sky-500/15 text-sky-400"
+                  : score >= 4
+                    ? "bg-neutral-700/50 text-neutral-300"
+                    : "bg-neutral-800/50 text-neutral-500"
+            )}
+          >
+            <span>{scoreLabel}</span>
+            <span>{score.toFixed(1)}</span>
+          </div>
           <InsiderCard
             walletAddress={signal.wallet_address}
             tier={signal.wallet_tier ?? signal.tier ?? "C"}

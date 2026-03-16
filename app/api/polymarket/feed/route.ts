@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 import type { FeedResponse } from "@/lib/polymarket/types";
+import { computeSignalScore } from "@/lib/polymarket/score";
 
 /**
  * GET /api/polymarket/feed
@@ -22,6 +23,7 @@ import type { FeedResponse } from "@/lib/polymarket/types";
  *   wallet        - filter by specific wallet_address
  *   showNew       - include NEW/burner wallet bets (default "true")
  *   today         - only today's bets (default "false")
+ *   sort          - "score" | "recent" | "stake" (default "score")
  */
 export async function GET(req: NextRequest) {
   try {
@@ -71,6 +73,7 @@ export async function GET(req: NextRequest) {
     const walletFilter = sp.get("wallet") || undefined;
     const showNew = sp.get("showNew") !== "false";
     const todayOnly = sp.get("today") === "true";
+    const sortBy = sp.get("sort") || "score";
 
     // Build signals query
     let query = supabase
@@ -128,17 +131,41 @@ export async function GET(req: NextRequest) {
     const enriched = signals
       .map((s) => {
         const ws = scoreMap.get(s.wallet_address);
+        const walletTier = (ws?.tier ?? "C") as string;
+        const stakeVsAvg =
+          ws?.avg_stake && s.bet_size
+            ? Math.round((s.bet_size / ws.avg_stake) * 10) / 10
+            : null;
+        const bookDecimal = s.best_book_decimal;
+        const bookImplied = bookDecimal ? 1 / bookDecimal : null;
+
+        // Compute composite signal score
+        const scoreResult = computeSignalScore({
+          tier: s.tier,
+          bet_size: s.bet_size ?? 0,
+          wallet_avg_stake: ws?.avg_stake ?? null,
+          wallet_roi: ws?.roi ?? null,
+          wallet_win_rate: ws ? ws.wins / Math.max(ws.wins + ws.losses, 1) : null,
+          wallet_total_bets: ws ? ws.wins + ws.losses : null,
+          clv_avg: null, // TODO: wire up CLV from wallet scores
+          american_odds: s.american_odds,
+          entry_price: s.entry_price,
+          book_implied: bookImplied,
+          quality_score: s.quality_score,
+          created_at: s.created_at,
+        });
+
         return {
           ...s,
           wallet_rank: ws?.rank ?? null,
-          wallet_tier: (ws?.tier ?? "C") as string,
+          wallet_tier: walletTier,
           wallet_roi: ws?.roi ?? null,
           wallet_record: ws ? `${ws.wins}-${ws.losses}` : null,
-          stake_vs_avg:
-            ws?.avg_stake && s.bet_size
-              ? Math.round((s.bet_size / ws.avg_stake) * 10) / 10
-              : null,
+          stake_vs_avg: stakeVsAvg,
           is_new_account: ws?.is_new_account ?? false,
+          signal_score: scoreResult.total,
+          signal_label: scoreResult.label,
+          score_breakdown: scoreResult.breakdown,
         };
       })
       .filter((s) => {
@@ -150,6 +177,14 @@ export async function GET(req: NextRequest) {
         if (!showNew && s.is_new_account) return false;
         return true;
       });
+
+    // Sort
+    if (sortBy === "score") {
+      enriched.sort((a, b) => (b.signal_score ?? 0) - (a.signal_score ?? 0));
+    } else if (sortBy === "stake") {
+      enriched.sort((a, b) => (b.bet_size ?? 0) - (a.bet_size ?? 0));
+    }
+    // "recent" = default DB order (created_at desc), no re-sort needed
 
     const response: FeedResponse = {
       signals: enriched,

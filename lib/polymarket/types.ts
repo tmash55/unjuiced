@@ -117,6 +117,17 @@ export interface WhaleSignal {
   wallet_roi?: number | null;
   wallet_record?: string;
   stake_vs_avg?: number | null; // multiplier vs avg stake
+
+  // Composite signal score
+  signal_score?: number;     // 0.0 - 10.0
+  signal_label?: string;     // 🔥 ⭐ 👍 👀
+  score_breakdown?: {
+    bettor: number;
+    conviction: number;
+    edge: number;
+    track: number;
+    recency: number;
+  };
 }
 
 export interface LeaderboardResponse {

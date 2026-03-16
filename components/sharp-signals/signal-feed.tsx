@@ -6,6 +6,11 @@ import { SignalCard } from "./signal-card";
 
 const SPORTS = ["all", "nba", "nhl", "mlb", "nfl", "soccer", "mma", "tennis"];
 const TIERS = ["all", "S", "A", "B", "C", "FADE", "NEW"];
+const SORT_OPTIONS = [
+  { value: "score", label: "Best Score" },
+  { value: "recent", label: "Most Recent" },
+  { value: "stake", label: "Largest Stake" },
+];
 const PAGE_SIZE = 20;
 
 export function SignalFeed() {
@@ -18,12 +23,14 @@ export function SignalFeed() {
   const [sport, setSport] = useState("all");
   const [tier, setTier] = useState("all");
   const [minStake, setMinStake] = useState(0);
+  const [sort, setSort] = useState("score");
 
   const fetchFeed = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
+      sort,
     });
     if (sport !== "all") params.set("sport", sport);
     if (tier !== "all") params.set("tier", tier);
@@ -39,7 +46,7 @@ export function SignalFeed() {
     } finally {
       setLoading(false);
     }
-  }, [page, sport, tier, minStake]);
+  }, [page, sport, tier, minStake, sort]);
 
   useEffect(() => {
     fetchFeed();
@@ -81,6 +88,16 @@ export function SignalFeed() {
             className="w-20 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200"
           />
         </div>
+
+        <select
+          value={sort}
+          onChange={(e) => { setSort(e.target.value); setPage(0); }}
+          className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200"
+        >
+          {SORT_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
 
         <span className="text-xs text-neutral-500 ml-auto">
           {total} signals
