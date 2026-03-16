@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
-import type { FeedResponse } from "@/lib/polymarket/types";
+import type { FeedResponse, WalletTier } from "@/lib/polymarket/types";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
 /**
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
     const enriched = signals
       .map((s) => {
         const ws = scoreMap.get(s.wallet_address);
-        const walletTier = (ws?.tier ?? "C") as string;
+        const walletTier = (ws?.tier ?? "C") as WalletTier;
         const stakeVsAvg =
           ws?.avg_stake && s.bet_size
             ? Math.round((s.bet_size / ws.avg_stake) * 10) / 10
