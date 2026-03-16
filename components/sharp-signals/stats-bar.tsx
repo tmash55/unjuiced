@@ -3,6 +3,15 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
+interface TierStats {
+  wins: number;
+  losses: number;
+  total: number;
+  winRate: number;
+  roi: number;
+  pnl100: number;
+}
+
 interface Stats {
   wins: number;
   losses: number;
@@ -11,6 +20,11 @@ interface Stats {
   roi: number;
   pnl100: number;
   since: string | null;
+  byTier?: {
+    sharp: TierStats;
+    whale: TierStats;
+    all: TierStats;
+  };
 }
 
 function formatSince(dateStr: string | null): string {
@@ -74,8 +88,8 @@ export function StatsBar() {
           </>
         )}
 
-        <span className="text-[10px] text-neutral-600 ml-auto" title="Based on consensus sharp money picks (≥60% dollar flow on one side)">
-          ℹ️ Consensus picks only
+        <span className="text-[10px] text-neutral-600 ml-auto" title="Based on consensus sharp money picks (≥60% dollar flow on one side). Sharps only — excludes whale and burner tiers.">
+          ℹ️ Sharp consensus only
         </span>
       </div>
     </div>
