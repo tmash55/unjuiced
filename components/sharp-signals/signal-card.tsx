@@ -9,6 +9,7 @@ import { SportIcon } from "@/components/icons/sport-icons";
 import type { WhaleSignal, BookOdds } from "@/lib/polymarket/types";
 import { InsiderCard } from "./insider-card";
 import { KellySizer } from "./kelly-sizer";
+import { PriceChart } from "./price-chart";
 
 function formatMoney(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -228,6 +229,14 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
             })()}
           </div>
         </div>
+
+        {/* Price chart */}
+        {signal.token_id && (
+          <div>
+            <span className="text-[10px] text-neutral-500">Price</span>
+            <PriceChart tokenId={signal.token_id} entryPrice={signal.entry_price} />
+          </div>
+        )}
       </div>
 
       {/* All-books dropdown */}

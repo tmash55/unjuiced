@@ -7,6 +7,7 @@ import { SignalFeed } from "@/components/sharp-signals/signal-feed";
 import { GameFeed } from "@/components/sharp-signals/game-feed";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { StatsBar } from "@/components/sharp-signals/stats-bar";
 
 type Tab = "feed" | "games";
 
@@ -61,6 +62,7 @@ export default function SharpSignalsPage() {
           <span className="text-xs text-emerald-400 font-medium">Live</span>
         </div>
       }
+      statsBar={<StatsBar />}
       contextBar={
         <div className="flex gap-1 border-b border-neutral-800">
           {tabs.map((t) => (

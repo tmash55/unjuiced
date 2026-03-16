@@ -93,6 +93,7 @@ export interface WhaleSignal {
   sport: string | null;
   outcome: string;
   side: string;
+  token_id?: string | null;
 
   // Pricing
   entry_price: number;
