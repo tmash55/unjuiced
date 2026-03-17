@@ -102,7 +102,12 @@ export async function GET(req: NextRequest) {
     if (minQuality > 0) query = query.gte("quality_score", minQuality);
 
     if (resolvedFilter === "true") query = query.eq("resolved", true);
-    else if (resolvedFilter === "false") query = query.eq("resolved", false);
+    else if (resolvedFilter === "false") {
+      query = query.eq("resolved", false);
+      // Also filter out games that have already started (with 30min buffer)
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
+    }
 
     if (todayOnly) {
       const today = new Date().toISOString().slice(0, 10);

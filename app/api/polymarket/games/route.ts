@@ -78,6 +78,9 @@ export async function GET(req: NextRequest) {
       query = query.eq("resolved", true);
     } else if (resolvedFilter === "false") {
       query = query.eq("resolved", false);
+      // Filter out games that have already started (30min buffer)
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      query = query.or(`game_start_time.is.null,game_start_time.gte.${cutoff}`);
     }
     if (todayOnly) {
       const todayStr = new Date().toISOString().slice(0, 10);

@@ -73,14 +73,14 @@ export default function SharpSignalsPage() {
 
   // Fetch picks data
   const { data: picksData, error: picksError, isLoading: picksLoading } = useSWR(
-    hasAccess ? `/api/polymarket/feed?limit=50&sort=score${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
+    hasAccess ? `/api/polymarket/feed?limit=50&sort=score&resolved=false${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
     fetcher,
     { refreshInterval: 30000 } // Refresh every 30 seconds
   );
 
   // Fetch markets/games data
   const { data: marketsData, error: marketsError, isLoading: marketsLoading } = useSWR(
-    hasAccess ? `/api/polymarket/games?limit=20${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
+    hasAccess ? `/api/polymarket/games?limit=20&resolved=false${selectedSport ? `&sport=${selectedSport}` : ""}` : null,
     fetcher,
     { refreshInterval: 30000 }
   );
