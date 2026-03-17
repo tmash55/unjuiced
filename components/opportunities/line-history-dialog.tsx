@@ -251,7 +251,10 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-3rem)] lg:max-w-[1200px] p-0 gap-0 overflow-hidden border border-neutral-200/80 dark:border-neutral-800/90 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.08),_transparent_28%),linear-gradient(180deg,_rgba(252,252,253,0.98),_rgba(245,247,250,0.96))] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_28%),linear-gradient(180deg,_rgba(8,12,18,0.98),_rgba(4,8,14,0.98))] shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]">
+      <DialogContent
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="top-2 sm:top-[50%] left-[50%] translate-x-[-50%] translate-y-0 sm:translate-y-[-50%] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-3rem)] lg:max-w-[1200px] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100vh-2rem)] p-0 gap-0 overflow-hidden border border-neutral-200/80 dark:border-neutral-800/90 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.08),_transparent_28%),linear-gradient(180deg,_rgba(252,252,253,0.98),_rgba(245,247,250,0.96))] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_28%),linear-gradient(180deg,_rgba(8,12,18,0.98),_rgba(4,8,14,0.98))] shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]"
+      >
         <DialogHeader className="px-3 sm:px-5 pr-16 sm:pr-24 py-3 sm:py-4 border-b border-neutral-200/70 dark:border-neutral-800/80 bg-white/55 dark:bg-neutral-950/35 backdrop-blur-sm">
           <div className="flex flex-col items-start gap-3 min-w-0">
             <div className="flex w-full flex-col items-start sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 min-w-0">
@@ -308,7 +311,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
           </div>
         </DialogHeader>
 
-        <div className="px-3 sm:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden">
+        <div className="px-3 sm:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 max-h-[calc(100dvh-6.5rem)] sm:max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden overscroll-contain">
           {errorMessage && (
             <div className="rounded-2xl border border-red-300/70 dark:border-red-900/70 bg-red-50/80 dark:bg-red-950/25 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
               {errorMessage}
