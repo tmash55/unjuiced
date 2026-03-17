@@ -514,6 +514,189 @@ async function buildAlternates(
   };
 }
 
+/**
+ * Build alternate lines for game markets (spread, moneyline, total).
+ * Pairs away team → over slot, home team → under slot at each line value.
+ * For spreads, lines are grouped by absolute value (e.g., ±5.5 → one row at 5.5).
+ */
+async function buildGameAlternates(
+  sport: string,
+  eventId: string,
+  market: string,
+  homeTeam: string,
+  awayTeam: string,
+  primaryLine?: number
+): Promise<{
+  lines: AlternateLine[];
+  player: string | null;
+  team: string | null;
+  position: string | null;
+  primary_ln: number | null;
+}> {
+  const oddsKeys = await getOddsKeysForAlternates(sport, eventId, market);
+  if (oddsKeys.length === 0) {
+    return { lines: [], player: null, team: null, position: null, primary_ln: null };
+  }
+
+  const oddsDataRaw = await redis.mget<(SSEBookSelections | string | null)[]>(...oddsKeys);
+
+  const isSpread = market.includes("spread") || market.includes("puck_line") || market.includes("run_line") || market.includes("handicap");
+  const isTotal = market.includes("total");
+
+  // For spreads: group by absolute line, away=over(+line), home=under(-line)
+  // For totals: group by line, over=over, under=under
+  // For moneyline: single line (0), away=over, home=under
+  const lineMap = new Map<number, Map<string, { over?: SSESelection; under?: SSESelection }>>();
+  let foundPrimaryLine: number | null = null;
+  let awayDisplay: string | null = null;
+  let homeDisplay: string | null = null;
+
+  oddsKeys.forEach((key, i) => {
+    const data = oddsDataRaw[i];
+    if (!data) return;
+    const selections = parseBookSelectionsValue(data, key);
+    if (!selections) return;
+    const rawBook = key.split(":").pop()!;
+    if (EXCLUDED_BOOKS.has(rawBook.toLowerCase())) return;
+    const book = normalizeBookId(rawBook);
+
+    for (const [selKey, sel] of Object.entries(selections)) {
+      const parts = selKey.split("|");
+      if (parts.length !== 3) continue;
+      const [rawName, side, lineStr] = parts;
+      const line = parseFloat(lineStr);
+      if (isNaN(line)) continue;
+
+      const nameNorm = rawName.toLowerCase().replace(/ /g, "_");
+
+      let mappedSide: "over" | "under" | null = null;
+      let displayLine = line;
+
+      if (isTotal) {
+        // For totals, use standard over/under
+        if (side === "over" || side === "o") mappedSide = "over";
+        else if (side === "under" || side === "u") mappedSide = "under";
+      } else {
+        // For spread/moneyline: identify team
+        const isAway = nameNorm.includes(awayTeam) || awayTeam.includes(nameNorm) ||
+                        nameNorm.split("_").pop() === awayTeam.split("_").pop();
+        const isHome = nameNorm.includes(homeTeam) || homeTeam.includes(nameNorm) ||
+                        nameNorm.split("_").pop() === homeTeam.split("_").pop();
+
+        if (isAway && !isHome) {
+          mappedSide = "over";
+          if (!awayDisplay && sel.player) awayDisplay = sel.player;
+        } else if (isHome && !isAway) {
+          mappedSide = "under";
+          if (!homeDisplay && sel.player) homeDisplay = sel.player;
+        } else {
+          continue;
+        }
+
+        // For spreads, use the line as-is (away gets positive, home gets negative)
+        // The display line is the absolute value for grouping
+        if (isSpread) {
+          displayLine = Math.abs(line);
+        }
+      }
+
+      if (!mappedSide) continue;
+
+      // Track primary line
+      if (sel.main && !foundPrimaryLine) {
+        foundPrimaryLine = isSpread ? Math.abs(line) : line;
+      }
+
+      if (!lineMap.has(displayLine)) {
+        lineMap.set(displayLine, new Map());
+      }
+      const bookMap = lineMap.get(displayLine)!;
+      if (!bookMap.has(book)) {
+        bookMap.set(book, {});
+      }
+      const bookData = bookMap.get(book)!;
+
+      // For spreads, only keep the correct directional line per side
+      // away (over) should have positive or correct line, home (under) should have negative
+      if (mappedSide === "over") {
+        // For away team, prefer positive line (receiving points)
+        if (isSpread && bookData.over) {
+          // Already have an entry — keep the one with odds closest to -110
+          const existingOdds = Math.abs(parseInt(String(bookData.over.price).replace("+", ""), 10) || 0);
+          const newOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
+          if (Math.abs(newOdds - 110) >= Math.abs(existingOdds - 110)) continue;
+        }
+        bookData.over = sel;
+      } else {
+        if (isSpread && bookData.under) {
+          const existingOdds = Math.abs(parseInt(String(bookData.under.price).replace("+", ""), 10) || 0);
+          const newOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
+          if (Math.abs(newOdds - 110) >= Math.abs(existingOdds - 110)) continue;
+        }
+        bookData.under = sel;
+      }
+    }
+  });
+
+  // Build response lines
+  const effectivePrimaryLine = primaryLine ?? foundPrimaryLine;
+  const lines: AlternateLine[] = [];
+
+  for (const [lineValue, bookMap] of lineMap) {
+    const books: AlternateLine["books"] = {};
+    let bestOver: { bk: string; price: number } | undefined;
+    let bestUnder: { bk: string; price: number } | undefined;
+
+    for (const [bookId, data] of bookMap) {
+      const bookEntry: any = {};
+
+      if (data.over) {
+        const price = parseInt(data.over.price.replace("+", ""), 10);
+        bookEntry.over = {
+          price,
+          decimal: data.over.price_decimal,
+          u: data.over.link || null,
+          m: data.over.mobile_link || null,
+          sgp: data.over.sgp || null,
+        };
+        if (!bestOver || price > bestOver.price) bestOver = { bk: bookId, price };
+      }
+
+      if (data.under) {
+        const price = parseInt(data.under.price.replace("+", ""), 10);
+        bookEntry.under = {
+          price,
+          decimal: data.under.price_decimal,
+          u: data.under.link || null,
+          m: data.under.mobile_link || null,
+          sgp: data.under.sgp || null,
+        };
+        if (!bestUnder || price > bestUnder.price) bestUnder = { bk: bookId, price };
+      }
+
+      if (bookEntry.over || bookEntry.under) {
+        books[bookId] = bookEntry;
+      }
+    }
+
+    if (Object.keys(books).length > 0) {
+      lines.push({ ln: lineValue, books, best: { over: bestOver, under: bestUnder } });
+    }
+  }
+
+  lines.sort((a, b) => a.ln - b.ln);
+
+  const displayName = awayDisplay && homeDisplay ? `${awayDisplay} @ ${homeDisplay}` : null;
+
+  return {
+    lines,
+    player: displayName,
+    team: null,
+    position: null,
+    primary_ln: effectivePrimaryLine ?? null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -522,6 +705,9 @@ export async function GET(req: NextRequest) {
     const market = searchParams.get("market")?.trim() || "";
     const playerKey = searchParams.get("player")?.trim() || "";
     const primaryLineStr = searchParams.get("primaryLine");
+    const type = searchParams.get("type")?.trim().toLowerCase() || "player";
+    const homeTeam = searchParams.get("homeTeam")?.trim().toLowerCase().replace(/ /g, "_") || "";
+    const awayTeam = searchParams.get("awayTeam")?.trim().toLowerCase().replace(/ /g, "_") || "";
 
     // Validate required params
     if (!sport || !VALID_SPORTS.has(sport)) {
@@ -545,7 +731,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (!playerKey) {
+    if (!playerKey && type !== "game") {
       return NextResponse.json(
         { error: "missing_player" },
         { status: 400, headers: { "Cache-Control": "no-store" } }
@@ -560,13 +746,40 @@ export async function GET(req: NextRequest) {
     const startTime = performance.now();
 
     // Build alternates from new key structure
-    const { lines, player, team, position, primary_ln } = await buildAlternates(
-      sport,
-      eventId,
-      normalizedMarket,
-      playerKey,
-      primaryLine
-    );
+    let lines: AlternateLine[];
+    let player: string | null;
+    let team: string | null;
+    let position: string | null;
+    let primary_ln: number | null;
+
+    if (type === "game") {
+      const result = await buildGameAlternates(
+        sport,
+        eventId,
+        normalizedMarket,
+        homeTeam,
+        awayTeam,
+        primaryLine
+      );
+      lines = result.lines;
+      player = result.player;
+      team = result.team;
+      position = result.position;
+      primary_ln = result.primary_ln;
+    } else {
+      const result = await buildAlternates(
+        sport,
+        eventId,
+        normalizedMarket,
+        playerKey,
+        primaryLine
+      );
+      lines = result.lines;
+      player = result.player;
+      team = result.team;
+      position = result.position;
+      primary_ln = result.primary_ln;
+    }
 
     const duration = performance.now() - startTime;
 

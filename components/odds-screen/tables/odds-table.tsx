@@ -3594,6 +3594,7 @@ export function OddsTable({
                         eventId={item.event?.id}
                         market={market}
                         playerKey={item.entity?.id}
+                        alternatesType={item.entity?.type === 'game' || item.entity?.id === 'game_line' || item.entity?.id === 'game_total' ? 'game' : 'player'}
                         // Player info for modal
                         playerName={item.entity?.name}
                         team={item.entity?.team}

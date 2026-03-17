@@ -114,6 +114,7 @@ interface ExpandableRowWrapperProps {
   eventId?: string; // Event ID for v2 alternates
   market?: string; // Market key for v2 alternates
   playerKey?: string; // Normalized player key for v2 alternates
+  alternatesType?: "player" | "game"; // Type of alternates to fetch
   // Player info for modal
   playerName?: string;
   team?: string;
@@ -153,6 +154,7 @@ export function ExpandableRowWrapper({
   eventId,
   market,
   playerKey,
+  alternatesType,
   playerName,
   team,
   playerPosition,
@@ -190,14 +192,18 @@ export function ExpandableRowWrapper({
     try {
       let url: string;
       
-      if (eventId && targetMarket && playerKey) {
-        const query = new URLSearchParams({ 
+      if (eventId && targetMarket && (playerKey || alternatesType === "game")) {
+        const params: Record<string, string> = { 
           sport, 
           eventId, 
           market: targetMarket, 
-          player: playerKey,
-          ...(primaryLine !== undefined && { primaryLine: String(primaryLine) })
-        });
+          ...(playerKey && { player: playerKey }),
+          ...(primaryLine !== undefined && { primaryLine: String(primaryLine) }),
+          ...(alternatesType === "game" && { type: "game" }),
+          ...(alternatesType === "game" && homeTeam && { homeTeam }),
+          ...(alternatesType === "game" && awayTeam && { awayTeam }),
+        };
+        const query = new URLSearchParams(params);
         url = `/api/v2/props/alternates?${query.toString()}`;
       } else {
         const query = new URLSearchParams({ sport, sid });
