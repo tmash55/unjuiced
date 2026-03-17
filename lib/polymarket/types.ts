@@ -146,7 +146,6 @@ export interface WhaleSignal {
     bettor: number;
     conviction: number;
     edge: number;
-    track: number;
     recency: number;
   };
 }
