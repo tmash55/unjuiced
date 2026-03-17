@@ -67,6 +67,7 @@ export default function SharpSignalsPage() {
   const { hasAccess, isLoading } = useHasEliteAccess();
   const [tab, setTab] = useState<Tab>("picks");
   const [selectedSport, setSelectedSport] = useState("");
+  const [selectedTier, setSelectedTier] = useState("");
   const [selectedPick, setSelectedPick] = useState<WhaleSignal | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<GameData | null>(null);
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>("american");
@@ -119,8 +120,18 @@ export default function SharpSignalsPage() {
     { key: "markets", label: "Markets" },
   ];
 
-  const picks = picksData?.signals || [];
-  const markets = marketsData?.games || [];
+  const allPicks = picksData?.signals || [];
+  const allMarkets = marketsData?.games || [];
+  
+  // Apply tier filter client-side
+  const picks = selectedTier 
+    ? allPicks.filter((p: WhaleSignal) => p.tier === selectedTier)
+    : allPicks;
+  const markets = selectedTier
+    ? allMarkets.filter((m: GameData) => 
+        m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === selectedTier))
+      )
+    : allMarkets;
 
   // Auto-select first item when data loads or tab changes
   if (tab === "picks" && picks.length > 0 && !selectedPick) {
@@ -243,17 +254,40 @@ export default function SharpSignalsPage() {
           <Filters
             selectedSport={selectedSport}
             onSportChange={setSelectedSport}
+            selectedTier={selectedTier}
+            onTierChange={setSelectedTier}
             counts={{
               total: tab === "picks" ? picks.length : markets.length,
               nba: tab === "picks" 
                 ? picks.filter((p: WhaleSignal) => p.sport === "nba").length
                 : markets.filter((m: GameData) => m.sport === "nba").length,
+              nhl: tab === "picks"
+                ? picks.filter((p: WhaleSignal) => p.sport === "nhl").length
+                : markets.filter((m: GameData) => m.sport === "nhl").length,
               nfl: tab === "picks"
                 ? picks.filter((p: WhaleSignal) => p.sport === "nfl").length
                 : markets.filter((m: GameData) => m.sport === "nfl").length,
               soccer: tab === "picks"
                 ? picks.filter((p: WhaleSignal) => p.sport === "soccer").length
                 : markets.filter((m: GameData) => m.sport === "soccer").length,
+              mlb: tab === "picks"
+                ? picks.filter((p: WhaleSignal) => p.sport === "mlb").length
+                : markets.filter((m: GameData) => m.sport === "mlb").length,
+              tennis: tab === "picks"
+                ? picks.filter((p: WhaleSignal) => p.sport === "tennis").length
+                : markets.filter((m: GameData) => m.sport === "tennis").length,
+              ufc: tab === "picks"
+                ? picks.filter((p: WhaleSignal) => p.sport === "ufc").length
+                : markets.filter((m: GameData) => m.sport === "ufc").length,
+            }}
+            tierCounts={{
+              total: tab === "picks" ? allPicks.length : allMarkets.length,
+              sharp: tab === "picks"
+                ? allPicks.filter((p: WhaleSignal) => p.tier === "sharp").length
+                : allMarkets.filter((m: GameData) => m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === "sharp"))).length,
+              whale: tab === "picks"
+                ? allPicks.filter((p: WhaleSignal) => p.tier === "whale").length
+                : allMarkets.filter((m: GameData) => m.outcomes?.some((o: any) => o.bets?.some((b: any) => b.tier === "whale"))).length,
             }}
           />
         </div>
