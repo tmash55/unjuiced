@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
     const walletAddresses = [...new Set(signals.map((s) => s.wallet_address))];
     const { data: walletScores } = await supabase
       .from("polymarket_wallet_scores")
-      .select("wallet_address, rank, tier, roi, wins, losses, avg_stake, is_new_account")
+      .select("wallet_address, rank, tier, roi, wins, losses, avg_stake, total_profit, is_new_account")
       .in("wallet_address", walletAddresses);
 
     const scoreMap = new Map(
