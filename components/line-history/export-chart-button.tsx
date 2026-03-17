@@ -89,10 +89,10 @@ export function ExportChartButton({ chartRef, selectionTitle = "line-history", c
         onClick={captureChart}
         disabled={isCapturing}
         className={cn(
-          "p-1.5 rounded-md border transition-all",
+          "p-2 rounded-xl border transition-all shadow-sm bg-white/80 dark:bg-white/[0.05]",
           success
             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-            : "border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300",
+            : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200",
           isCapturing && "opacity-50 cursor-not-allowed",
           className
         )}

@@ -39,17 +39,17 @@ export function CLVTracker({ bestBookData, bookDataById, compareBookIds, isMobil
       {clvResult && (
         <span
           className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold border",
+            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border shadow-sm",
             clvResult.beatCLV
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-              : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
+              : "bg-rose-500/10 border-rose-500/25 text-rose-700 dark:text-rose-300"
           )}
         >
           {clvResult.beatCLV ? "Beat CLV" : "CLV moved against"} by {Math.abs(Math.round(clvResult.delta))}
         </span>
       )}
       {reverseLineMovement && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-300 shadow-sm">
           Reverse line movement detected
         </span>
       )}
