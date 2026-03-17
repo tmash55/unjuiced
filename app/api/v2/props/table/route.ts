@@ -1423,11 +1423,14 @@ async function buildPropsRows(
         // Only include if line matches the target
         if (targetLine !== undefined) {
           const isSpread = isSpreadLikeMarket;
-          const match = (isSpread && isGameMarket) 
-            ? Math.abs(line) === Math.abs(targetLine)
-            : line === targetLine;
-            
-          if (!match) continue;
+          if (isSpread && isGameMarket) {
+            // For game spreads, only include the selection with main=true at this absolute line value
+            // This prevents picking up e.g. miami_heat|spread|-5.5 (+299) when we want miami_heat|spread|5.5 (-110)
+            if (Math.abs(line) !== Math.abs(targetLine)) continue;
+            if (sel.main !== true) continue; // Only use main lines for game spreads
+          } else {
+            if (line !== targetLine) continue;
+          }
         }
       }
       // For single-line player markets, we don't filter by main line - show ALL selections
@@ -1624,11 +1627,19 @@ async function buildPropsRows(
       
       if (mappedSide === "over") {
         bookData.over = sel;
-        // Ensure row line is set (prioritize non-zero if possible, though ML is 0)
-        if (!row.line || row.line === 0) row.line = line;
+        // For game lines, always use the away (over) side's line value
+        // This ensures spreads show correctly: away gets their line (e.g., +5.5 for underdog)
+        if (isGameLine) {
+          row.line = line;
+        } else if (!row.line || row.line === 0) {
+          row.line = line;
+        }
       } else if (mappedSide === "under") {
         bookData.under = sel;
-        if (!row.line || row.line === 0) row.line = line;
+        // For game lines, don't overwrite with home team's line
+        if (!isGameLine) {
+          if (!row.line || row.line === 0) row.line = line;
+        }
       }
     }
   }
