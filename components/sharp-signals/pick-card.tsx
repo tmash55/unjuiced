@@ -26,7 +26,7 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
   const selection = pick.outcome
   const shares = pick.total_shares || Math.round(pick.bet_size / pick.entry_price)
   const amount = pick.bet_size
-  const price = pick.entry_price * 100 // Convert to cents
+  const price = Math.round(pick.entry_price * 100) // Convert to cents, rounded
   const multiplier = pick.stake_vs_avg?.toFixed(1) || "1.0"
   const wagerCount = pick.wager_count || 1
   const roi = pick.wallet_roi ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"

@@ -25,7 +25,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
   const selection = pick.outcome
   const shares = pick.total_shares || Math.round(pick.bet_size / pick.entry_price)
   const amount = pick.bet_size
-  const price = pick.entry_price * 100 // Convert to cents
+  const price = Math.round(pick.entry_price * 100) // Convert to cents, rounded
   const multiplier = pick.stake_vs_avg?.toFixed(1) || "1.0"
   const walletRoi = pick.wallet_roi ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"
   
@@ -117,7 +117,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-neutral-400">
-                      {fill.american_odds ? formatOdds(fill.price * 100, oddsFormat) : `${(fill.price * 100).toFixed(0)}¢`}
+                      {fill.american_odds ? formatOdds(Math.round(fill.price * 100), oddsFormat) : `${Math.round(fill.price * 100)}¢`}
                     </span>
                     <span className="font-medium text-neutral-200 tabular-nums w-20 text-right">
                       ${fill.size.toLocaleString()}
@@ -129,7 +129,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
                 <span className="text-neutral-400">Total</span>
                 <div className="flex items-center gap-4">
                   <span className="text-neutral-400">
-                    avg {(pick.entry_price * 100).toFixed(1)}¢
+                    avg {Math.round(pick.entry_price * 100)}¢
                   </span>
                   <span className="text-sky-400 tabular-nums w-20 text-right">
                     ${pick.bet_size.toLocaleString()}
