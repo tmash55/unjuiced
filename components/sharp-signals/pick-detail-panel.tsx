@@ -23,7 +23,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
   const matchup = pick.event_title || pick.market_title
   const betType = pick.market_label || pick.market_type || ""
   const selection = pick.outcome
-  const shares = Math.round(pick.bet_size / pick.entry_price)
+  const shares = pick.total_shares || Math.round(pick.bet_size / pick.entry_price)
   const amount = pick.bet_size
   const price = pick.entry_price * 100 // Convert to cents
   const multiplier = pick.stake_vs_avg?.toFixed(1) || "1.0"
@@ -96,6 +96,50 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Fills Timeline (when multiple wagers are aggregated) */}
+      {pick.fills && pick.fills.length > 1 && (
+        <Card className="border-neutral-800 bg-neutral-900">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-neutral-400">
+              Order Fills ({pick.fills.length} wagers)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="space-y-2">
+              {pick.fills.map((fill, i) => (
+                <div key={i} className="flex items-center justify-between text-sm border-b border-neutral-800/50 pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <span className="text-neutral-500 font-mono text-xs w-5">{i + 1}</span>
+                    <span className="text-neutral-400">
+                      {new Date(fill.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-neutral-400">
+                      {fill.american_odds ? formatOdds(fill.price * 100, oddsFormat) : `${(fill.price * 100).toFixed(0)}¢`}
+                    </span>
+                    <span className="font-medium text-neutral-200 tabular-nums w-20 text-right">
+                      ${fill.size.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 border-t border-neutral-700 text-sm font-medium">
+                <span className="text-neutral-400">Total</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-neutral-400">
+                    avg {(pick.entry_price * 100).toFixed(1)}¢
+                  </span>
+                  <span className="text-sky-400 tabular-nums w-20 text-right">
+                    ${pick.bet_size.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Why This Bet */}
       <Card>

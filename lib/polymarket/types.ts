@@ -148,6 +148,16 @@ export interface WhaleSignal {
     edge: number;
     recency: number;
   };
+
+  // Aggregation fields (when multiple fills are merged)
+  wager_count?: number;       // Number of individual fills
+  fills?: {                   // Individual fill details
+    price: number;            // Entry price (0-1)
+    size: number;             // USD amount
+    created_at: string;       // Timestamp
+    american_odds: number | null;
+  }[];
+  total_shares?: number;      // Total shares across all fills
 }
 
 export interface LeaderboardResponse {

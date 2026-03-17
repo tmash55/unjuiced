@@ -189,18 +189,96 @@ export async function GET(req: NextRequest) {
         return true;
       });
 
+    // Aggregate duplicate fills: same wallet + same market (token_id) + same side
+    // Wallets often split large bets into 5+ chunks within seconds to avoid moving the book
+    const aggregated = (() => {
+      const groups = new Map<string, typeof enriched>();
+      for (const s of enriched) {
+        // Group key: wallet + market token + side
+        const key = `${s.wallet_address}:${s.token_id || s.market_title}:${s.side}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(s);
+      }
+
+      const merged: typeof enriched = [];
+      for (const [, group] of groups) {
+        if (group.length === 1) {
+          // Single fill — just add wager_count = 1
+          merged.push({ ...group[0], wager_count: 1 });
+          continue;
+        }
+
+        // Sort fills chronologically
+        group.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        // Use the most recent signal as the base (has latest enrichment)
+        const base = { ...group[group.length - 1] };
+        const totalSize = group.reduce((sum, s) => sum + (s.bet_size ?? 0), 0);
+        const totalShares = group.reduce((sum, s) => sum + Math.round((s.bet_size ?? 0) / (s.entry_price || 1)), 0);
+
+        // Weighted average entry price
+        const weightedPrice = totalSize > 0
+          ? group.reduce((sum, s) => sum + (s.entry_price ?? 0) * (s.bet_size ?? 0), 0) / totalSize
+          : base.entry_price;
+
+        base.bet_size = totalSize;
+        base.entry_price = weightedPrice;
+        base.implied_probability = weightedPrice;
+        base.wager_count = group.length;
+        base.total_shares = totalShares;
+        base.fills = group.map(s => ({
+          price: s.entry_price,
+          size: s.bet_size ?? 0,
+          created_at: s.created_at,
+          american_odds: s.american_odds,
+        }));
+
+        // Recalculate signal score with aggregated bet_size (higher conviction)
+        const ws = scoreMap.get(base.wallet_address);
+        const bookDecimal = base.best_book_decimal;
+        const bookImplied = bookDecimal ? 1 / bookDecimal : null;
+        const scoreResult = computeSignalScore({
+          tier: base.tier,
+          bet_size: totalSize,
+          wallet_avg_stake: ws?.avg_stake ?? null,
+          wallet_roi: ws?.roi ?? null,
+          wallet_win_rate: ws ? ws.wins / Math.max(ws.wins + ws.losses, 1) : null,
+          wallet_total_bets: ws ? ws.wins + ws.losses : null,
+          wallet_rank: ws?.rank ?? base.wallet_rank ?? null,
+          wallet_pnl: ws?.total_profit ?? base.wallet_pnl ?? null,
+          clv_avg: null,
+          american_odds: base.american_odds,
+          entry_price: weightedPrice,
+          book_implied: bookImplied,
+          quality_score: base.quality_score,
+          created_at: base.created_at,
+        });
+        base.signal_score = scoreResult.total;
+        base.signal_label = scoreResult.label;
+        base.score_breakdown = scoreResult.breakdown;
+
+        // Recalculate stake_vs_avg with total size
+        if (ws?.avg_stake && totalSize) {
+          base.stake_vs_avg = Math.round((totalSize / ws.avg_stake) * 10) / 10;
+        }
+
+        merged.push(base);
+      }
+      return merged;
+    })();
+
     // Sort
     if (sortBy === "score") {
-      enriched.sort((a, b) => (b.signal_score ?? 0) - (a.signal_score ?? 0));
+      aggregated.sort((a, b) => (b.signal_score ?? 0) - (a.signal_score ?? 0));
     } else if (sortBy === "stake") {
-      enriched.sort((a, b) => (b.bet_size ?? 0) - (a.bet_size ?? 0));
+      aggregated.sort((a, b) => (b.bet_size ?? 0) - (a.bet_size ?? 0));
     }
     // "recent" = default DB order (created_at desc), no re-sort needed
 
     // Apply pagination after sorting (for score/stake sorts that fetched extra rows)
     const paginated = sortBy === "recent"
-      ? enriched
-      : enriched.slice(offset, offset + limit);
+      ? aggregated
+      : aggregated.slice(offset, offset + limit);
 
     const response: FeedResponse = {
       signals: paginated as WhaleSignal[],

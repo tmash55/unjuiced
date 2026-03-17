@@ -24,10 +24,11 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
     ? formatDistanceToNow(new Date(pick.game_start_time), { addSuffix: true })
     : "TBD"
   const selection = pick.outcome
-  const shares = Math.round(pick.bet_size / pick.entry_price)
+  const shares = pick.total_shares || Math.round(pick.bet_size / pick.entry_price)
   const amount = pick.bet_size
   const price = pick.entry_price * 100 // Convert to cents
   const multiplier = pick.stake_vs_avg?.toFixed(1) || "1.0"
+  const wagerCount = pick.wager_count || 1
   const roi = pick.wallet_roi ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"
 
   // Anonymous wallet display
@@ -140,6 +141,9 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
           <span className="text-neutral-500">Size:</span>
           <span className="font-medium text-neutral-200">
             ${amount.toLocaleString()}
+            {wagerCount > 1 && (
+              <span className="text-neutral-500 ml-0.5">({wagerCount} fills)</span>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-1">
