@@ -30,8 +30,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
   const walletRoi = pick.wallet_roi ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"
   
   // Anonymous wallet display
-  const walletDisplay = pick.wallet_username || 
-    (pick.wallet_address ? `#${pick.wallet_address.slice(-4)}` : "Unknown")
+  const walletDisplay = pick.wallet_address ? `#${pick.wallet_address.slice(2, 6).toUpperCase()}` : "Anon"
 
   // Fetch price chart data
   const { data: priceData } = useSWR(
@@ -161,8 +160,16 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
               <p className="text-xs text-neutral-500">Wallet ID</p>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-neutral-200">{pick.wallet_record || "N/A"}</div>
-              <p className="text-xs text-neutral-500">Record</p>
+              <div className="text-lg font-bold text-neutral-200">
+                {pick.wallet_roi != null ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"}
+              </div>
+              <p className="text-xs text-neutral-500">ROI</p>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-neutral-200">
+                {pick.stake_vs_avg != null ? `${pick.stake_vs_avg}x` : "—"}
+              </div>
+              <p className="text-xs text-neutral-500">Rel. Stake</p>
             </div>
           </div>
         </CardContent>
