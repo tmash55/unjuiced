@@ -241,129 +241,197 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
   }, [context]);
 
   const bestBookData = context?.bestBookId ? bookDataById[context.bestBookId] : undefined;
+  const bestBookName = context?.bestBookId ? getSportsbookById(context.bestBookId)?.name || context.bestBookId : null;
+  const visibleCount = visibleBookIds.length;
+  const totalCount = selectedBookIds.length;
+  const sourceLabel = context?.source === "positive_ev" ? "EV Tool" : context?.source === "edge" ? "Edge Finder" : null;
+  const sectionClass = "rounded-[20px] border border-neutral-200/80 dark:border-neutral-800/80 bg-white/85 dark:bg-neutral-950/65 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.55)] backdrop-blur-sm";
 
   /* ── Render ───────────────────────────────────────────────────────── */
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-3rem)] lg:max-w-[1200px] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-3 sm:px-5 pr-16 sm:pr-24 py-2.5 sm:py-3 border-b border-neutral-200/70 dark:border-neutral-800/70">
-          <div className="flex flex-col items-start sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 min-w-0">
-            <div className="min-w-0">
-              <DialogTitle className="text-[18px] sm:text-lg font-semibold tracking-tight">Historical Line Movement</DialogTitle>
-              <DialogDescription className="text-[11px] sm:text-sm text-neutral-500 truncate">
-                {selectionTitle || "Selection history"}
-              </DialogDescription>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              {canShowEV && (
-                <button
-                  type="button"
-                  onClick={toggleEV}
-                  className={cn(
-                    "px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all",
-                    showEV
-                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-                      : "border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  )}
-                >
-                  {isLoadingOpposite ? (
-                    <span className="flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      EV
+      <DialogContent
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="top-2 sm:top-[50%] left-[50%] translate-x-[-50%] translate-y-0 sm:translate-y-[-50%] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-3rem)] lg:max-w-[1200px] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100vh-2rem)] p-0 gap-0 overflow-hidden border border-neutral-200/80 dark:border-neutral-800/90 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.08),_transparent_28%),linear-gradient(180deg,_rgba(252,252,253,0.98),_rgba(245,247,250,0.96))] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_28%),linear-gradient(180deg,_rgba(8,12,18,0.98),_rgba(4,8,14,0.98))] shadow-[0_28px_90px_-40px_rgba(15,23,42,0.85)]"
+      >
+        <DialogHeader className="px-3 sm:px-5 pr-16 sm:pr-24 py-3 sm:py-4 border-b border-neutral-200/70 dark:border-neutral-800/80 bg-white/55 dark:bg-neutral-950/35 backdrop-blur-sm">
+          <div className="flex flex-col items-start gap-3 min-w-0">
+            <div className="flex w-full flex-col items-start sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 min-w-0">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {sourceLabel && (
+                    <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-300">
+                      {sourceLabel}
                     </span>
-                  ) : isMobile ? (
-                    "EV"
-                  ) : (
-                    "EV Overlay"
                   )}
-                </button>
-              )}
-              <ChartHelpButton canShowEV={canShowEV} />
-              <ExportChartButton chartRef={chartRef} selectionTitle={selectionTitle || "line-history"} />
-              <TimeRangeSelector value={timeRange} onChange={setTimeRange} className={isMobile ? "" : "mr-3"} />
+                  <span className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
+                    {visibleCount}/{Math.max(totalCount, visibleCount)} books visible
+                  </span>
+                  {bestBookName && (
+                    <span className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
+                      Focus: {bestBookName}
+                    </span>
+                  )}
+                </div>
+                <DialogTitle className="text-[19px] sm:text-[21px] font-semibold tracking-tight text-neutral-950 dark:text-white">Historical Line Movement</DialogTitle>
+                <DialogDescription className="text-[11px] sm:text-sm text-neutral-500 truncate max-w-[760px]">
+                  {selectionTitle || "Selection history"}
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:justify-end">
+                {canShowEV && (
+                  <button
+                    type="button"
+                    onClick={toggleEV}
+                    className={cn(
+                      "px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all shadow-sm",
+                      showEV
+                        ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-700 dark:text-emerald-300"
+                        : "border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-white/5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    )}
+                  >
+                    {isLoadingOpposite ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        EV
+                      </span>
+                    ) : isMobile ? (
+                      "EV"
+                    ) : (
+                      "EV Overlay"
+                    )}
+                  </button>
+                )}
+                <ChartHelpButton canShowEV={canShowEV} />
+                <ExportChartButton chartRef={chartRef} selectionTitle={selectionTitle || "line-history"} />
+                <TimeRangeSelector value={timeRange} onChange={setTimeRange} className={isMobile ? "" : "ml-1"} />
+              </div>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="px-3 sm:px-5 py-2.5 sm:py-4 space-y-2.5 sm:space-y-3 max-h-[calc(100vh-7.5rem)] sm:max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden">
+        <div className="px-3 sm:px-5 py-3 sm:py-4 space-y-3 sm:space-y-4 max-h-[calc(100dvh-6.5rem)] sm:max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden overscroll-contain">
           {errorMessage && (
-            <div className="rounded-lg border border-red-300/70 dark:border-red-900/70 bg-red-50/70 dark:bg-red-950/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+            <div className="rounded-2xl border border-red-300/70 dark:border-red-900/70 bg-red-50/80 dark:bg-red-950/25 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
               {errorMessage}
             </div>
           )}
 
           {selectedBookIds.length > 0 && (
             <>
-              <BookLegend
-                bookIds={selectedBookIds}
-                hiddenBookIds={hiddenBookIds}
-                loadingBookIds={loadingBookIds}
-                isMobile={isMobile}
-                onToggle={handleToggleBook}
-                onSelectAll={handleSelectAll}
-                onDeselectAll={handleDeselectAll}
-              />
+              <section className={cn(sectionClass, "px-3 sm:px-4 py-3")}>
+                <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">Sportsbooks</p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Toggle books on and off to compare movement and isolate sharper signals.
+                    </p>
+                  </div>
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {visibleCount} visible of {totalCount}
+                  </div>
+                </div>
+                <BookLegend
+                  bookIds={selectedBookIds}
+                  hiddenBookIds={hiddenBookIds}
+                  loadingBookIds={loadingBookIds}
+                  isMobile={isMobile}
+                  onToggle={handleToggleBook}
+                  onSelectAll={handleSelectAll}
+                  onDeselectAll={handleDeselectAll}
+                />
+              </section>
 
-              <UnifiedLineChart
-                bookIds={visibleBookIds}
-                bookDataById={bookDataById}
-                timeRange={timeRange}
-                isLoading={isChartLoading}
-                isMobile={isMobile}
-                evTimeline={evTimeline}
-                showEV={showEV}
-                chartRef={chartRef}
-              />
+              <section className={cn(sectionClass, "px-2 sm:px-3 py-2 sm:py-3")}>
+                <div className="px-1 sm:px-2 pb-2.5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">Movement Chart</p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Step history across visible books with opening, current, and steam inflection points.
+                    </p>
+                  </div>
+                </div>
+                <UnifiedLineChart
+                  bookIds={visibleBookIds}
+                  bookDataById={bookDataById}
+                  timeRange={timeRange}
+                  isLoading={isChartLoading}
+                  isMobile={isMobile}
+                  evTimeline={evTimeline}
+                  showEV={showEV}
+                  chartRef={chartRef}
+                />
+              </section>
 
-              {/* Summary stats for primary book */}
-              <SummaryStats bookData={bestBookData} isMobile={isMobile} />
+              <section className={cn(sectionClass, "px-3 sm:px-4 py-3 space-y-3")}>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">Snapshot</p>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      {bestBookName ? `${bestBookName} is being used as the primary reference book.` : "Primary book snapshot and closing line value indicators."}
+                    </p>
+                  </div>
+                </div>
 
-              {/* CLV tracker + reverse line movement badges */}
-              <CLVTracker
-                bestBookData={bestBookData}
-                bookDataById={bookDataById}
-                compareBookIds={context?.compareBookIds || []}
-                isMobile={isMobile}
-              />
+                <SummaryStats bookData={bestBookData} isMobile={isMobile} />
+
+                <CLVTracker
+                  bestBookData={bestBookData}
+                  bookDataById={bookDataById}
+                  compareBookIds={context?.compareBookIds || []}
+                  isMobile={isMobile}
+                />
+              </section>
 
               {noHistoryBookNames.length > 0 && (
-                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs text-amber-700 dark:text-amber-300">
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3 sm:px-3.5 py-2 text-[11px] sm:text-xs text-amber-700 dark:text-amber-300">
                   No historical data for {isMobile ? noHistorySummary : noHistoryBookNames.join(", ")} at this time. Current odds may still be available.
                 </div>
               )}
 
               {isMobile ? (
-                <div className="rounded-md border border-neutral-200/70 dark:border-neutral-800/70 overflow-hidden">
+                <div className={cn(sectionClass, "overflow-hidden")}>
                   <button
                     type="button"
                     onClick={() => setMobileDetailsOpen((prev) => !prev)}
-                    className="w-full px-2.5 py-2 flex items-center justify-between text-[11px] font-semibold text-neutral-300 bg-neutral-900/30"
+                    className="w-full px-3 py-3 flex items-center justify-between text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 bg-neutral-100/80 dark:bg-white/5"
                   >
-                    <span>Book Details (OLV, CLV, Current)</span>
+                    <span>Book Details</span>
                     {mobileDetailsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                   {mobileDetailsOpen && (
-                    <div className="p-1.5">
+                    <div className="px-2 pb-2 pt-1">
                       <StatsTable bookIds={selectedBookIds} bookDataById={bookDataById} isMobile={isMobile} />
                     </div>
                   )}
                 </div>
               ) : (
-                <StatsTable bookIds={selectedBookIds} bookDataById={bookDataById} isMobile={isMobile} />
+                <section className={cn(sectionClass, "px-3 sm:px-4 py-3")}>
+                  <div className="mb-2.5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">Book Details</p>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Opening line value, closing line value, current price, move, age, and history depth by book.</p>
+                    </div>
+                  </div>
+                  <StatsTable bookIds={selectedBookIds} bookDataById={bookDataById} isMobile={isMobile} />
+                </section>
               )}
             </>
           )}
 
           {selectedBookIds.length === 0 && (
-            <div className="rounded-xl border border-neutral-200/70 dark:border-neutral-800/70 p-5 text-sm text-neutral-500 text-center">
+            <div className="rounded-[20px] border border-neutral-200/70 dark:border-neutral-800/70 p-5 text-sm text-neutral-500 text-center bg-white/80 dark:bg-neutral-950/60">
               No books selected for historical lookup.
             </div>
           )}
 
           {addableBooks.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Add Sportsbooks</p>
+            <section className={cn(sectionClass, "px-3 sm:px-4 py-3 space-y-2.5")}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Add Sportsbooks</p>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">Pull in additional books for comparison without reopening the modal.</p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {addableBooks.map((bookId) => {
                   const meta = getSportsbookById(bookId);
@@ -382,9 +450,9 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                       }}
                       disabled={loading}
                       className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
-                        "border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600",
-                        "bg-neutral-50 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300",
+                        "px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-colors shadow-sm",
+                        "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700",
+                        "bg-white/85 dark:bg-white/5 text-neutral-700 dark:text-neutral-300",
                         loading && "opacity-60 cursor-wait"
                       )}
                     >
@@ -393,7 +461,7 @@ export function LineHistoryDialog({ open, onOpenChange, context }: LineHistoryDi
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
         </div>
       </DialogContent>

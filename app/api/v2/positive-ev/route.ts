@@ -94,6 +94,8 @@ function buildResponseCacheKey(params: URLSearchParams): string {
   const marketType = params.get("marketType") || "all";
   const minEV = params.get("minEV") || "0";
   const maxEV = params.get("maxEV") || String(EV_THRESHOLDS.maximum);
+  const minOdds = params.get("minOdds") || "";
+  const maxOdds = params.get("maxOdds") || "";
   const devigMethods = (params.get("devigMethods") || "")
     .toLowerCase()
     .split(",")
@@ -126,7 +128,7 @@ function buildResponseCacheKey(params: URLSearchParams): string {
     }
   }
 
-  const raw = `${RESPONSE_CACHE_VERSION}|${sports}|${preset}|${mode}|${marketType}|${minEV}|${maxEV}|${devigMethods}|${markets}|${books}|${customSharpBooks}|${customBookWeights}|${limit}|${minBooksPerSide}`;
+  const raw = `${RESPONSE_CACHE_VERSION}|${sports}|${preset}|${mode}|${marketType}|${minEV}|${maxEV}|${minOdds}|${maxOdds}|${devigMethods}|${markets}|${books}|${customSharpBooks}|${customBookWeights}|${limit}|${minBooksPerSide}`;
   return hashCacheKey(raw);
 }
 
@@ -252,6 +254,10 @@ export async function GET(req: NextRequest) {
 
     const minEV = parseFloat(params.get("minEV") || "0");
     const maxEV = parseFloat(params.get("maxEV") || String(EV_THRESHOLDS.maximum));
+    const minOddsParam = params.get("minOdds");
+    const maxOddsParam = params.get("maxOdds");
+    const minOdds = minOddsParam != null ? parseInt(minOddsParam) : null;
+    const maxOdds = maxOddsParam != null ? parseInt(maxOddsParam) : null;
     const booksFilter = params.get("books")?.toLowerCase().split(",").filter(Boolean) || null;
     const marketsFilter = params.get("markets")?.toLowerCase().split(",").filter(Boolean) || null;
     const requestedLimit = parseInt(params.get("limit") || "100");
@@ -389,6 +395,10 @@ export async function GET(req: NextRequest) {
           if (!selectedRange) continue;
           if (selectedRange.evWorst < minEV) continue;
           if (selectedRange.evBest > maxEV) continue;
+          const bookAm = processedRow.book?.odds?.am;
+          if (typeof bookAm !== "number" || !Number.isFinite(bookAm)) continue;
+          if (minOdds != null && bookAm < minOdds) continue;
+          if (maxOdds != null && bookAm > maxOdds) continue;
           if (marketsFilter && !marketsFilter.includes(processedRow.mkt)) continue;
           if (booksFilter && processedRow.book?.id && !booksFilter.includes(normalizeBookIdForFrontend(processedRow.book.id))) continue;
           if (processedRow.ev_data?.all_books && minBooksPerSide > 1 && processedRow.ev_data.all_books.length < minBooksPerSide) continue;
@@ -575,6 +585,7 @@ type CustomBookRow = {
   canonicalId: string;
   am: number;
   dec: number;
+  odd_id?: string | null;
   ev_pct?: number;
   is_sharp_ref?: boolean;
   link?: string | null;
@@ -604,6 +615,7 @@ function normalizeCustomBookRows(rawBooks: unknown[]): CustomBookRow[] {
       canonicalId,
       am,
       dec,
+      odd_id: typeof book?.odd_id === "string" ? book.odd_id : null,
       ev_pct: typeof book?.ev_pct === "number" ? book.ev_pct : undefined,
       is_sharp_ref: typeof book?.is_sharp_ref === "boolean" ? book.is_sharp_ref : undefined,
       link: typeof book?.link === "string" ? book.link : null,
@@ -860,6 +872,7 @@ function evRowToOpportunity(
       mobileLink: b.mobile_link ?? null,
       sgp: b.sgp ?? null,
       limits: b.limits ?? null,
+      oddId: typeof b.odd_id === "string" ? b.odd_id : undefined,
       evPercent: buildBookEvPercent(b.am, b.dec),
       isSharpRef: b.is_sharp_ref ?? false,
     })),
@@ -873,6 +886,7 @@ function evRowToOpportunity(
       mobileLink: b.mobile_link ?? null,
       sgp: b.sgp ?? null,
       limits: b.limits ?? null,
+      oddId: typeof b.odd_id === "string" ? b.odd_id : undefined,
       isSharpRef: b.is_sharp_ref ?? false,
     })),
 
@@ -1059,6 +1073,7 @@ function redevigWithCustomSharp(
       mobile_link: bestBook.mobile_link ?? null,
       sgp: bestBook.sgp ?? null,
       limits: bestBook.limits ?? null,
+      odd_id: bestBook.odd_id ?? null,
     },
     devig: {
       inputs: {

@@ -23,7 +23,14 @@ import {
   formatAmericanOdds,
 } from "@/lib/types/opportunities";
 import { normalizeSportsbookId, getSportsbookById } from "@/lib/data/sportsbooks";
-import { DEFAULT_FILTER_COLOR, type FilterPreset, parseSports, getSportIcon } from "@/lib/types/filter-presets";
+import {
+  DEFAULT_FILTER_COLOR,
+  FILTER_PRESET_EMPTY_SPORT_MARKET,
+  type FilterPreset,
+  parseSports,
+  parseFilterPresetSportMarketKey,
+  getSportIcon,
+} from "@/lib/types/filter-presets";
 import { type BestOddsPrefs } from "@/lib/best-odds-schema";
 import { isMarketSelected } from "@/lib/utils";
 
@@ -358,6 +365,10 @@ function buildFilterConfigs(
 
     // Use preset's custom markets if defined, otherwise use global or empty
     const presetMarkets = toStringArray((preset as any).markets);
+    const parsedCompositeMarkets = presetMarkets
+      .map(parseFilterPresetSportMarketKey)
+      .filter((value): value is { sport: string; market: string } => value !== null);
+    const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
     
     // Never silently collapse custom presets to just NBA.
     // If preset sport serialization is malformed/missing, default to all sports.
@@ -371,6 +382,16 @@ function buildFilterConfigs(
       console.log(`[useMultiFilter] Multi-sport preset "${preset.name}" - splitting into ${validSports.length} separate fetches (${perSportLimit} per sport)`);
       
       for (const sport of validSports) {
+        const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === sport);
+        const sportMarkets = sportEntries
+          .map((entry) => entry.market)
+          .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+        const hasSportCustomization = sportEntries.length > 0;
+
+        if (hasSportCustomization && sportMarkets.length === 0) {
+          continue;
+        }
+
         configs.push({
           filters: {
             ...DEFAULT_FILTERS,
@@ -383,12 +404,12 @@ function buildFilterConfigs(
             maxOdds: preset.max_odds ?? 500,
             searchQuery: prefs.searchQuery || "",
             selectedBooks: prefs.selectedBooks || [],
-            selectedMarkets: presetMarkets,
+            selectedMarkets: hasSportCustomization ? sportMarkets : (hasCompositeMarkets ? [] : presetMarkets),
             selectedLeagues: [],
             marketLines: {},
             minBooksPerSide: preset.min_books_reference || 2,
             requireFullBlend: preset.fallback_mode !== "use_fallback",
-            marketType: preset.market_type || "all",
+            marketType: hasCompositeMarkets ? "all" : (preset.market_type || "all"),
           },
           metadata: {
             filterId: preset.id,
@@ -401,6 +422,17 @@ function buildFilterConfigs(
       }
     } else {
       // Single sport - create one config
+      const singleSport = validSports[0];
+      const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === singleSport);
+      const singleSportMarkets = sportEntries
+        .map((entry) => entry.market)
+        .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+      const hasSportCustomization = sportEntries.length > 0;
+
+      if (hasCompositeMarkets && hasSportCustomization && singleSportMarkets.length === 0) {
+        continue;
+      }
+
       console.log(`[useMultiFilter] Building config for preset "${preset.name}":`, {
         sports: validSports,
         presetMarkets: presetMarkets.length > 0 ? presetMarkets : '(all markets)',
@@ -420,12 +452,14 @@ function buildFilterConfigs(
           maxOdds: preset.max_odds ?? 500,
           searchQuery: prefs.searchQuery || "",
           selectedBooks: prefs.selectedBooks || [],
-          selectedMarkets: presetMarkets,
+          selectedMarkets: hasCompositeMarkets
+            ? singleSportMarkets
+            : presetMarkets,
           selectedLeagues: [],
           marketLines: {},
           minBooksPerSide: preset.min_books_reference || 2,
           requireFullBlend: preset.fallback_mode !== "use_fallback",
-          marketType: preset.market_type || "all",
+          marketType: hasCompositeMarkets ? "all" : (preset.market_type || "all"),
         },
         metadata: {
           filterId: preset.id,

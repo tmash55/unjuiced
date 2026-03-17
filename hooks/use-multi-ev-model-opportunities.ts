@@ -25,7 +25,13 @@ import {
   POSITIVE_EV_DEFAULTS,
 } from "@/lib/ev/constants";
 import { calculateMultiEV } from "@/lib/ev/devig";
-import { DEFAULT_MODEL_COLOR, type EvModel, parseEvSports } from "@/lib/types/ev-models";
+import {
+  DEFAULT_MODEL_COLOR,
+  EV_MODEL_EMPTY_SPORT_MARKET,
+  type EvModel,
+  parseEvSports,
+  parseEvModelSportMarketKey,
+} from "@/lib/types/ev-models";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { isMarketSelected } from "@/lib/utils";
 
@@ -93,6 +99,8 @@ export interface EVModelConfig {
     devigMethods: DevigMethod[];
     minEV: number;
     maxEV?: number;
+    minOdds?: number;
+    maxOdds?: number;
     markets: string[] | null;
     marketType: "all" | "player" | "game";
     mode: EVMode;
@@ -206,13 +214,14 @@ function buildModelConfigs(
   
   for (const model of activeModels) {
     const modelSports = parseEvSports(model.sport);
-    // If model has no sports, use user's selected sports or all
     const sports = modelSports.length > 0 
       ? modelSports 
       : (prefs.selectedSports.length > 0 ? prefs.selectedSports : ALL_SPORTS);
-    
-    // For multi-sport models, we could split into separate fetches like Edge Finder
-    // For now, we'll fetch all sports together and let server handle it
+    const parsedCompositeMarkets = (model.markets || [])
+      .map(parseEvModelSportMarketKey)
+      .filter((value): value is { sport: string; market: string } => value !== null);
+    const hasCompositeMarkets = parsedCompositeMarkets.length > 0;
+    const perSportLimit = Math.max(1, Math.ceil(limit / activeModels.length / Math.max(1, sports.length)));
     
     console.log(`[useMultiEvModel] Building config for model "${model.name}":`, {
       sports,
@@ -220,7 +229,48 @@ function buildModelConfigs(
       weights: model.book_weights,
       marketType: model.market_type,
       markets: model.markets,
+      hasCompositeMarkets,
     });
+
+    if (hasCompositeMarkets) {
+      sports.forEach((sport) => {
+        const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === sport);
+        const sportMarkets = sportEntries
+          .map((entry) => entry.market)
+          .filter((market) => market !== EV_MODEL_EMPTY_SPORT_MARKET);
+        const hasSportCustomization = sportEntries.length > 0;
+
+        if (hasSportCustomization && sportMarkets.length === 0) {
+          return;
+        }
+
+        configs.push({
+          filters: {
+            sports: [sport],
+            sharpPreset: null,
+            customSharpBooks: model.sharp_books,
+            customBookWeights: model.book_weights,
+            devigMethods: prefs.devigMethods,
+            minEV: prefs.minEv,
+            maxEV: prefs.maxEv,
+            minOdds: model.min_odds ?? -500,
+            maxOdds: model.max_odds ?? 500,
+            markets: hasSportCustomization ? sportMarkets : null,
+            marketType: "all",
+            mode: prefs.mode,
+            minBooksPerSide: model.min_books_reference || prefs.minBooksPerSide,
+            limit: perSportLimit,
+          },
+          metadata: {
+            modelId: model.id,
+            modelName: model.name,
+            isCustom: true,
+            modelColor: model.color || DEFAULT_MODEL_COLOR,
+          },
+        });
+      });
+      continue;
+    }
 
     configs.push({
       filters: {
@@ -231,6 +281,8 @@ function buildModelConfigs(
         devigMethods: prefs.devigMethods, // Use global devig methods
         minEV: prefs.minEv, // Use global min EV
         maxEV: prefs.maxEv, // Use global max EV
+        minOdds: model.min_odds ?? -500,
+        maxOdds: model.max_odds ?? 500,
         markets: model.markets,
         marketType: model.market_type,
         mode: prefs.mode,
@@ -296,6 +348,12 @@ function buildQueryParams(config: EVModelConfig, isPro: boolean, fresh: boolean 
   }
   if (filters.maxEV) {
     params.set("maxEV", String(filters.maxEV));
+  }
+  if (filters.minOdds !== undefined) {
+    params.set("minOdds", String(filters.minOdds));
+  }
+  if (filters.maxOdds !== undefined) {
+    params.set("maxOdds", String(filters.maxOdds));
   }
   
   // Mode

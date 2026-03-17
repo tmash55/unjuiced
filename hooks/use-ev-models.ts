@@ -82,6 +82,8 @@ export function useEvModels() {
           fallback_mode: newModel.fallback_mode || "hide",
           fallback_weights: newModel.fallback_weights || null,
           min_books_reference: newModel.min_books_reference ?? 2,
+          min_odds: newModel.min_odds ?? -500,
+          max_odds: newModel.max_odds ?? 500,
           is_active: true,
           is_favorite: newModel.is_favorite || false,
           sort_order: previousData.models.length,

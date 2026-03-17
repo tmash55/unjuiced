@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import type { EvModelUpdate, EvModel } from "@/lib/types/ev-models";
-import { DEFAULT_MODEL_COLOR, EV_MODEL_NOTES_MAX_LENGTH } from "@/lib/types/ev-models";
+import {
+  DEFAULT_EV_MODEL_MAX_ODDS,
+  DEFAULT_EV_MODEL_MIN_ODDS,
+  DEFAULT_MODEL_COLOR,
+  EV_MODEL_NOTES_MAX_LENGTH,
+} from "@/lib/types/ev-models";
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -45,6 +50,8 @@ function preWarmModelCache(model: EvModel, baseUrl: string): void {
   params.set("minEV", "0");
   params.set("limit", "200");
   params.set("minBooksPerSide", String(model.min_books_reference || 2));
+  params.set("minOdds", String(model.min_odds ?? DEFAULT_EV_MODEL_MIN_ODDS));
+  params.set("maxOdds", String(model.max_odds ?? DEFAULT_EV_MODEL_MAX_ODDS));
   
   const url = `${baseUrl}/api/v2/positive-ev?${params.toString()}`;
   
@@ -196,6 +203,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (body.fallback_mode !== undefined) updateData.fallback_mode = body.fallback_mode;
     if (body.fallback_weights !== undefined) updateData.fallback_weights = body.fallback_weights;
     if (body.min_books_reference !== undefined) updateData.min_books_reference = body.min_books_reference;
+    if (body.min_odds !== undefined) updateData.min_odds = body.min_odds;
+    if (body.max_odds !== undefined) updateData.max_odds = body.max_odds;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     if (body.is_favorite !== undefined) updateData.is_favorite = body.is_favorite;
     if (body.sort_order !== undefined) updateData.sort_order = body.sort_order;

@@ -55,6 +55,7 @@ export interface FilterPresetCreate {
 // Maximum character length for notes field
 export const NOTES_MAX_LENGTH = 500;
 export const DEFAULT_FILTER_COLOR = "#0EA5E9";
+export const FILTER_PRESET_EMPTY_SPORT_MARKET = "__none__";
 
 export interface FilterPresetUpdate extends Partial<FilterPresetCreate> {
   is_active?: boolean;
@@ -145,6 +146,16 @@ export function parseSports(sport: string): string[] {
 // Helper to format sports for storage
 export function formatSportsForStorage(sports: string[]): string {
   return sports.join(',');
+}
+
+export function buildFilterPresetSportMarketKey(sport: string, market: string): string {
+  return `${sport.toLowerCase()}:${market.toLowerCase()}`;
+}
+
+export function parseFilterPresetSportMarketKey(value: string): { sport: string; market: string } | null {
+  const [sport, market] = value.toLowerCase().split(":");
+  if (!sport || !market) return null;
+  return { sport, market };
 }
 
 // Helper to get sport label

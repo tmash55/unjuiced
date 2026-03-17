@@ -43,17 +43,17 @@ export function SummaryStats({ bookData, isMobile }: SummaryStatsProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-neutral-200/70 dark:border-neutral-800/70 bg-white/50 dark:bg-neutral-900/30 px-2.5 py-2",
+        "rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.9))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] px-3 py-3",
         isMobile ? "grid grid-cols-3 gap-x-3 gap-y-1.5" : "grid grid-cols-6 gap-3"
       )}
     >
       {cells.map((cell) => (
-        <div key={cell.label}>
-          <p className="text-[9px] text-neutral-500 uppercase tracking-wide font-medium">{cell.label}</p>
-          <p className={cn("text-[13px] font-bold tabular-nums", cell.className)}>
+        <div key={cell.label} className="rounded-xl bg-neutral-50/75 dark:bg-white/[0.03] px-2.5 py-2">
+          <p className="text-[9px] text-neutral-500 uppercase tracking-[0.16em] font-medium">{cell.label}</p>
+          <p className={cn("text-[14px] font-bold tabular-nums text-neutral-950 dark:text-white", cell.className)}>
             {cell.value}
           </p>
-          {cell.sub && <p className="text-[9px] text-neutral-500">{cell.sub}</p>}
+          {cell.sub && <p className="text-[9px] text-neutral-500 mt-0.5">{cell.sub}</p>}
         </div>
       ))}
     </div>

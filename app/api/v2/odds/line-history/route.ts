@@ -333,6 +333,7 @@ function buildBookHistoryFromVendor(
 }
 
 function buildCacheKey(context: LineHistoryContext, bookId: string): string {
+  const directOddId = context.oddIdsByBook?.[bookId] || "";
   const raw = [
     context.source,
     context.sport,
@@ -347,6 +348,7 @@ function buildCacheKey(context: LineHistoryContext, bookId: string): string {
     context.side || "",
     context.line ?? "",
     bookId,
+    directOddId,
   ]
     .join("|")
     .toLowerCase();

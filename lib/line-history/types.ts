@@ -18,6 +18,8 @@ export interface ChartDataset {
   entries: LineHistoryPoint[];
   color: string;
   tooltipColor: string;
+  fillColor: string;
+  glowColor: string;
   name: string;
   logo: string | null;
 }
