@@ -196,6 +196,12 @@ function scoreRecency(input: ScoreInput): number {
 
 /**
  * Compute composite signal score (0-100)
+ * 
+ * Philosophy: Sharps start HIGH (75-80 baseline) and get adjusted.
+ * - Above-average stake → bonus up to 95+
+ * - Below-average stake → small penalty, still 70+
+ * - Whale/unknown tiers start lower (50-60)
+ * - Edge and recency are modifiers, not primary drivers
  */
 export function computeSignalScore(input: ScoreInput): ScoreResult {
   const bettor = scoreBettor(input);
@@ -203,24 +209,85 @@ export function computeSignalScore(input: ScoreInput): ScoreResult {
   const edge = scoreEdge(input);
   const recency = scoreRecency(input);
 
-  // Weighted average
-  const total =
-    bettor * 0.35 +
-    conviction * 0.35 +
-    edge * 0.15 +
-    recency * 0.15;
+  // Tier-based baseline
+  let baseline: number;
+  if (input.tier === "sharp") {
+    baseline = 78; // Sharps start high
+  } else if (input.tier === "whale") {
+    baseline = 65; // Whales are notable but unproven
+  } else {
+    baseline = 45; // Unknown/new accounts
+  }
 
-  const rounded = Math.round(total);
+  // Conviction modifier: multiplier vs avg stake
+  let convictionMod = 0;
+  const avg = input.wallet_avg_stake;
+  if (avg && avg > 0) {
+    const multiplier = input.bet_size / avg;
+    if (multiplier >= 10) convictionMod = 18;
+    else if (multiplier >= 5) convictionMod = 14;
+    else if (multiplier >= 3) convictionMod = 10;
+    else if (multiplier >= 2) convictionMod = 7;
+    else if (multiplier >= 1.5) convictionMod = 4;
+    else if (multiplier >= 1.0) convictionMod = 1;
+    else if (multiplier >= 0.5) convictionMod = -3;
+    else convictionMod = -6;
+  } else {
+    // No avg data — use absolute size
+    if (input.bet_size >= 10000) convictionMod = 8;
+    else if (input.bet_size >= 5000) convictionMod = 5;
+    else if (input.bet_size >= 1000) convictionMod = 2;
+  }
 
-  // Label thresholds (matching OddsJam-style feel)
+  // Bettor quality modifier (rank, PnL, win rate)
+  let bettorMod = 0;
+  const rank = input.wallet_rank;
+  if (rank != null && rank > 0) {
+    if (rank <= 10) bettorMod += 6;
+    else if (rank <= 25) bettorMod += 4;
+    else if (rank <= 50) bettorMod += 3;
+    else if (rank <= 100) bettorMod += 2;
+  }
+  const pnl = input.wallet_pnl;
+  if (pnl != null && pnl >= 100000) bettorMod += 2;
+  const wr = input.wallet_win_rate;
+  if (wr != null && wr >= 0.60) bettorMod += 2;
+  else if (wr != null && wr >= 0.55) bettorMod += 1;
+
+  // Edge modifier
+  let edgeMod = 0;
+  const polyProb = input.entry_price ?? 0;
+  const bookProb = input.book_implied ?? 0;
+  if (polyProb > 0 && bookProb > 0) {
+    const edgePp = (polyProb - bookProb) * 100;
+    if (edgePp >= 10) edgeMod = 4;
+    else if (edgePp >= 5) edgeMod = 2;
+    else if (edgePp >= 2) edgeMod = 1;
+  }
+
+  // Recency modifier (small, just prevents stale signals from being top)
+  let recencyMod = 0;
+  const ageMs = Date.now() - new Date(input.created_at).getTime();
+  const ageHours = ageMs / (1000 * 60 * 60);
+  if (ageHours > 12) recencyMod = -5;
+  else if (ageHours > 6) recencyMod = -3;
+  else if (ageHours > 3) recencyMod = -1;
+
+  const total = clamp(
+    Math.round(baseline + convictionMod + bettorMod + edgeMod + recencyMod),
+    10,
+    99
+  );
+
+  // Label
   let label: ScoreResult["label"];
-  if (rounded >= 85) label = "🔥";
-  else if (rounded >= 70) label = "⭐";
-  else if (rounded >= 50) label = "👍";
+  if (total >= 90) label = "🔥";
+  else if (total >= 80) label = "⭐";
+  else if (total >= 65) label = "👍";
   else label = "👀";
 
   return {
-    total: rounded,
+    total,
     breakdown: { bettor, conviction, edge, recency },
     label,
   };
