@@ -100,6 +100,13 @@ export function toHexColor(rgb: { r: number; g: number; b: number }): string {
   return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
 }
 
+export function rgbaColor(base: string, alpha: number): string {
+  const rgb = parseHexColor(base);
+  const a = Math.max(0, Math.min(1, alpha));
+  if (!rgb) return `rgba(56, 189, 248, ${a})`;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
+}
+
 export function mixColors(base: string, target: string, amount: number): string {
   const baseRgb = parseHexColor(base);
   const targetRgb = parseHexColor(target);
