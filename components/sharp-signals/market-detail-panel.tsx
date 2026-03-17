@@ -6,6 +6,9 @@ import { OddsFormat, formatOdds } from "@/lib/odds"
 import { MarketPriceChart } from "./market-price-chart"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 interface MarketOutcome {
   outcome: string
@@ -19,6 +22,7 @@ interface MarketOutcome {
   best_book_decimal: number | null
   wins: number
   losses: number
+  token_id?: string | null
   bets: Array<{
     anon_id: string
     tier: string
@@ -61,6 +65,16 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
   // Get the two main outcomes (we sort by dollars in API)
   const mainOutcome = game.outcomes[0] || null
   const secondOutcome = game.outcomes[1] || null
+
+  // Fetch price history for both sides
+  const { data: sideAHistory } = useSWR(
+    mainOutcome?.token_id ? `/api/polymarket/price-chart?token_id=${mainOutcome.token_id}` : null,
+    fetcher
+  )
+  const { data: sideBHistory } = useSWR(
+    secondOutcome?.token_id ? `/api/polymarket/price-chart?token_id=${secondOutcome.token_id}` : null,
+    fetcher
+  )
 
   const timeDisplay = game.game_start_time 
     ? formatDistanceToNow(new Date(game.game_start_time), { addSuffix: true })
@@ -266,6 +280,8 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
               sideAName={mainOutcome.outcome}
               sideBName={secondOutcome.outcome}
               oddsFormat={oddsFormat}
+              sideAHistory={sideAHistory?.history}
+              sideBHistory={sideBHistory?.history}
             />
           </CardContent>
         </Card>

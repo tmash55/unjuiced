@@ -196,6 +196,9 @@ export async function GET(req: NextRequest) {
         const wins = data.signals.filter(s => s.result === "win").length;
         const losses = data.signals.filter(s => s.result === "loss").length;
 
+        // Get token_id from first signal that has one
+        const tokenId = data.signals.find(s => s.token_id)?.token_id || null;
+
         return {
           outcome: name,
           total_dollars: data.total_dollars,
@@ -209,6 +212,7 @@ export async function GET(req: NextRequest) {
           wins,
           losses,
           bets,
+          token_id: tokenId,
         };
       });
 
