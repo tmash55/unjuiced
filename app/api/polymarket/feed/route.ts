@@ -204,7 +204,9 @@ export async function GET(req: NextRequest) {
       for (const [, group] of groups) {
         if (group.length === 1) {
           // Single fill — just add wager_count = 1
-          merged.push({ ...group[0], wager_count: 1 });
+          const single = group[0] as any;
+          single.wager_count = 1;
+          merged.push(single);
           continue;
         }
 
@@ -212,7 +214,7 @@ export async function GET(req: NextRequest) {
         group.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
         // Use the most recent signal as the base (has latest enrichment)
-        const base: any = { ...group[group.length - 1] };
+        const base = group[group.length - 1] as any;
         const totalSize = group.reduce((sum, s) => sum + (s.bet_size ?? 0), 0);
         const totalShares = group.reduce((sum, s) => sum + Math.round((s.bet_size ?? 0) / (s.entry_price || 1)), 0);
 
