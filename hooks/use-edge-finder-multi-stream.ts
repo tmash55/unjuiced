@@ -19,7 +19,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Opportunity } from "@/lib/types/opportunities";
 import type { FilterPreset } from "@/lib/types/filter-presets";
 import type { BestOddsPrefs } from "@/lib/best-odds-schema";
-import { parseSports } from "@/lib/types/filter-presets";
+import {
+  FILTER_PRESET_EMPTY_SPORT_MARKET,
+  parseSports,
+  parseFilterPresetSportMarketKey,
+} from "@/lib/types/filter-presets";
 import { useSSE } from "@/hooks/use-sse";
 import { normalizeSportsbookId } from "@/lib/data/sportsbooks";
 import { isMarketSelected } from "@/lib/utils";
@@ -292,12 +296,17 @@ function buildPresetModeParams(
 function buildCustomPresetParams(
   preset: FilterPreset,
   prefs: BestOddsPrefs,
-  limit: number
+  limit: number,
+  sportsOverride?: string[],
+  marketsOverride?: string[] | null,
+  marketTypeOverride?: "all" | "player" | "game"
 ): URLSearchParams {
   const params = new URLSearchParams();
   
   // Get sports from preset
-  const presetSports = parseSports(preset.sport);
+  const presetSports = sportsOverride && sportsOverride.length > 0
+    ? sportsOverride
+    : parseSports(preset.sport);
   params.set("sports", presetSports.join(","));
   
   // Build blend from preset's sharp_books and book_weights
@@ -307,8 +316,9 @@ function buildCustomPresetParams(
   }
   
   // Markets from preset
-  if (preset.markets && preset.markets.length > 0) {
-    params.set("markets", preset.markets.join(","));
+  const markets = marketsOverride ?? preset.markets;
+  if (markets && markets.length > 0) {
+    params.set("markets", markets.join(","));
   }
   
   // Filter params
@@ -318,14 +328,64 @@ function buildCustomPresetParams(
   params.set("minBooksPerSide", String(preset.min_books_reference || 2));
   params.set("requireFullBlend", preset.fallback_mode !== "use_fallback" ? "true" : "false");
   
-  if (preset.market_type && preset.market_type !== "all") {
-    params.set("marketType", preset.market_type);
+  const marketType = marketTypeOverride ?? preset.market_type;
+  if (marketType && marketType !== "all") {
+    params.set("marketType", marketType);
   }
   
   params.set("sort", "edge");
   params.set("limit", String(limit));
   
   return params;
+}
+
+function buildCustomPresetRequestConfigs(
+  preset: FilterPreset,
+  prefs: BestOddsPrefs,
+  limit: number
+): Array<{ params: URLSearchParams; presetId: string; presetName: string }> {
+  const presetSports = parseSports(preset.sport);
+  const parsedCompositeMarkets = (preset.markets || [])
+    .map(parseFilterPresetSportMarketKey)
+    .filter((value): value is { sport: string; market: string } => value !== null);
+
+  if (parsedCompositeMarkets.length === 0) {
+    return [{
+      params: buildCustomPresetParams(preset, prefs, limit),
+      presetId: preset.id,
+      presetName: preset.name,
+    }];
+  }
+
+  const perSportLimit = Math.max(50, Math.floor(limit / Math.max(1, presetSports.length)));
+  const requests: Array<{ params: URLSearchParams; presetId: string; presetName: string }> = [];
+
+  presetSports.forEach((sport) => {
+    const sportEntries = parsedCompositeMarkets.filter((entry) => entry.sport === sport);
+    const sportMarkets = sportEntries
+      .map((entry) => entry.market)
+      .filter((market) => market !== FILTER_PRESET_EMPTY_SPORT_MARKET);
+    const hasSportCustomization = sportEntries.length > 0;
+
+    if (hasSportCustomization && sportMarkets.length === 0) {
+      return;
+    }
+
+    requests.push({
+      params: buildCustomPresetParams(
+        preset,
+        prefs,
+        perSportLimit,
+        [sport],
+        hasSportCustomization ? sportMarkets : null,
+        "all"
+      ),
+      presetId: preset.id,
+      presetName: preset.name,
+    });
+  });
+
+  return requests;
 }
 
 /**
@@ -586,11 +646,18 @@ export function useEdgeFinderMultiStream({
   const fetchCustomMode = useCallback(async (
     signal: AbortSignal
   ): Promise<{ successful: FetchResult[]; failed: string[] }> => {
+    const requestConfigs = activePresets.flatMap((preset) =>
+      buildCustomPresetRequestConfigs(
+        preset,
+        prefs,
+        Math.max(50, Math.floor(limit / activePresets.length))
+      )
+    );
+
     // Parallel fetch with isolated error handling
     const results = await Promise.allSettled(
-      activePresets.map(async (preset): Promise<FetchResult> => {
-        const params = buildCustomPresetParams(preset, prefs, Math.max(50, Math.floor(limit / activePresets.length)));
-        const response = await fetch(`/api/v2/opportunities?${params}`, {
+      requestConfigs.map(async (requestConfig): Promise<FetchResult> => {
+        const response = await fetch(`/api/v2/opportunities?${requestConfig.params}`, {
           signal,
           cache: "no-store",
         });
@@ -599,8 +666,8 @@ export function useEdgeFinderMultiStream({
         const data = await response.json();
         return {
           ...data,
-          _presetId: preset.id,
-          _presetName: preset.name,
+          _presetId: requestConfig.presetId,
+          _presetName: requestConfig.presetName,
         };
       })
     );
@@ -613,8 +680,8 @@ export function useEdgeFinderMultiStream({
       if (result.status === "fulfilled") {
         successful.push(result.value);
       } else {
-        failed.push(activePresets[i].id);
-        console.error(`[EdgeFinder] Preset "${activePresets[i].name}" failed:`, result.reason);
+        failed.push(requestConfigs[i].presetId);
+        console.error(`[EdgeFinder] Preset "${requestConfigs[i].presetName}" failed:`, result.reason);
       }
     });
     

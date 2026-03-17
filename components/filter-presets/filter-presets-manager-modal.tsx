@@ -422,6 +422,7 @@ export function FilterPresetsManagerModal({
     
     setCreatingTemplateId(template.id);
     try {
+      const fallbackMode = template.min_books_reference < template.sharp_books.length ? 'use_fallback' : 'hide';
       await createPreset({
         name: template.name,
         sport: template.sport,
@@ -432,7 +433,7 @@ export function FilterPresetsManagerModal({
         min_books_reference: template.min_books_reference,
         min_odds: template.min_odds,
         max_odds: template.max_odds,
-        fallback_mode: 'hide',
+        fallback_mode: fallbackMode,
         fallback_weights: null,
       });
     } catch (error) {
@@ -485,14 +486,11 @@ export function FilterPresetsManagerModal({
           showCloseButton={false}
           className="w-full sm:max-w-6xl max-h-[85vh] overflow-hidden flex flex-col border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 shadow-2xl rounded-2xl"
         >
-          {/* Premium Header with gradient accent bar - YELLOW/ORANGE theme */}
-          <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500" />
-          
-          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 bg-gradient-to-r from-white via-amber-50/20 to-orange-50/20 dark:from-neutral-900 dark:via-amber-950/10 dark:to-orange-950/10">
+          <DialogHeader className="border-b border-neutral-200/80 dark:border-neutral-800/80 px-6 py-5 bg-white dark:bg-neutral-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25">
-                  <Layers className="h-5 w-5 text-white" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800">
+                  <Layers className="h-5 w-5 text-neutral-700 dark:text-neutral-200" />
                 </div>
                 <div>
                   <DialogTitle className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
@@ -513,9 +511,9 @@ export function FilterPresetsManagerModal({
                       const favoriteIds = new Set(presets.filter(p => p.is_favorite).map(p => p.id));
                       setLocalSelection(favoriteIds);
                     }}
-                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-700/50 transition-colors"
+                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-colors"
                   >
-                    <Star className="w-4 h-4" />
+                    <Star className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
                     Favorites
                   </button>
                 )}
@@ -527,7 +525,7 @@ export function FilterPresetsManagerModal({
                       const allIds = new Set(presets.map(p => p.id));
                       setLocalSelection(allIds);
                     }}
-                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 transition-colors"
+                    className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 transition-colors"
                   >
                     <Check className="w-4 h-4" />
                     Select All
@@ -537,7 +535,7 @@ export function FilterPresetsManagerModal({
                 {/* New Model button */}
                 <button
                   onClick={onCreateNew}
-                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02]"
+                  className="flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   New Model
@@ -546,7 +544,7 @@ export function FilterPresetsManagerModal({
                 {/* Close button */}
                 <button
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="flex items-center justify-center h-10 w-10 rounded-xl text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -558,12 +556,12 @@ export function FilterPresetsManagerModal({
           <div className="flex-1 overflow-y-auto">
             {/* Active Models Section - Always visible when there are active models */}
             {selectedCount > 0 && (
-              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/30">
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-md">
-                        <Check className="h-3.5 w-3.5 text-white" />
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                        <Check className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <span className="text-sm font-semibold text-neutral-900 dark:text-white">
                         Active Models ({selectedCount})
@@ -581,13 +579,13 @@ export function FilterPresetsManagerModal({
                     {presets.filter(p => localSelection.has(p.id)).map((preset) => (
                       <div
                         key={preset.id}
-                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-800 border border-amber-200 dark:border-amber-800 shadow-sm"
+                        className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm"
                       >
                         <span
                           className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: preset.color || DEFAULT_FILTER_COLOR }}
                         />
-                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
                           {preset.name}
                         </span>
                         <button
@@ -611,12 +609,12 @@ export function FilterPresetsManagerModal({
             
             {/* Templates Section - Premium gradient background */}
             {shouldShowTemplates && (
-              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/30">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
-                        <Layers className="h-5 w-5 text-white" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                        <Layers className="h-5 w-5 text-neutral-600 dark:text-neutral-300" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-neutral-900 dark:text-white">Quick Start Templates</h3>
@@ -647,10 +645,10 @@ export function FilterPresetsManagerModal({
                           onClick={() => handleCreateFromTemplate(template)}
                           disabled={alreadyCreated || isCreatingThis}
                           className={cn(
-                            "flex items-start gap-3 p-4 rounded-xl border text-left transition-all",
+                            "flex items-start gap-3 p-4 rounded-xl border text-left transition-colors",
                             alreadyCreated
                               ? "bg-neutral-100/80 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
-                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg hover:shadow-amber-500/10 cursor-pointer hover:ring-1 hover:ring-amber-500/20"
+                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer"
                           )}
                         >
                           {/* Mini pie chart */}
@@ -666,8 +664,8 @@ export function FilterPresetsManagerModal({
                                 {template.name}
                               </span>
                               {alreadyCreated && (
-                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-200 dark:bg-neutral-700">
+                                  <Check className="w-3 h-3 text-neutral-700 dark:text-neutral-200" />
                                 </div>
                               )}
                             </div>
@@ -678,11 +676,11 @@ export function FilterPresetsManagerModal({
                           
                           {/* Add button */}
                           {!alreadyCreated && (
-                            <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                            <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
                               {isCreatingThis ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
+                                <Loader2 className="w-4 h-4 animate-spin text-neutral-600 dark:text-neutral-300" />
                               ) : (
-                                <Copy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                <Copy className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                               )}
                             </div>
                           )}
@@ -696,12 +694,12 @@ export function FilterPresetsManagerModal({
             
             {/* Favorites Section - Always at the top when there are favorites */}
             {presets.some(p => p.is_favorite) && (
-              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-yellow-50/30 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10">
+              <div className="border-b border-neutral-200/80 dark:border-neutral-800/80 bg-neutral-50/80 dark:bg-neutral-950/30">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/25">
-                        <Star className="h-5 w-5 text-white fill-white" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                        <Star className="h-5 w-5 text-neutral-600 dark:text-neutral-300 fill-current" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-neutral-900 dark:text-white">Favorites</h3>
@@ -725,7 +723,7 @@ export function FilterPresetsManagerModal({
                           setLocalSelection(prev => new Set([...prev, ...favoriteIds]));
                         }
                       }}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-white dark:hover:bg-neutral-900 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700 transition-colors"
                     >
                       {presets.filter(p => p.is_favorite).every(p => localSelection.has(p.id)) ? "Deselect All" : "Select All"}
                     </button>
@@ -745,14 +743,14 @@ export function FilterPresetsManagerModal({
                           className={cn(
                             "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
                             isSelected
-                              ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
-                              : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md"
+                              ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 shadow-sm"
+                              : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-sm"
                           )}
                         >
                           {/* Selection indicator bar */}
                           <div className={cn(
                             "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
-                            isSelected ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
+                            isSelected ? "bg-neutral-900 dark:bg-white" : "bg-transparent"
                           )} />
 
                           <div className="flex items-start gap-3 p-4">
@@ -773,13 +771,13 @@ export function FilterPresetsManagerModal({
                                 />
                                 <h4 className={cn(
                                   "font-medium truncate transition-colors",
-                                  isSelected ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-900 dark:text-white"
+                                  "text-neutral-900 dark:text-white"
                                 )}>
                                   {preset.name}
                                 </h4>
                                 {isSelected && (
-                                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0">
-                                    <Check className="w-3 h-3 text-white" />
+                                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-900 dark:bg-white flex-shrink-0">
+                                    <Check className="w-3 h-3 text-white dark:text-neutral-900" />
                                   </div>
                                 )}
                               </div>
@@ -792,14 +790,14 @@ export function FilterPresetsManagerModal({
                           {/* Stats footer */}
                           <div className={cn(
                             "flex items-center justify-between px-4 py-2.5 border-t text-[11px]",
-                            isSelected 
-                              ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20" 
+                            isSelected
+                              ? "border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60"
                               : "border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30"
                           )}>
                             <div className="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
                               <div className="flex items-center gap-1">
                                 {sports.slice(0, 2).map((s, i) => (
-                                  <SportIcon key={i} sport={s} className={cn("w-3.5 h-3.5", isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400")} />
+                                  <SportIcon key={i} sport={s} className={cn("w-3.5 h-3.5", isSelected ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400")} />
                                 ))}
                                 {sports.length > 2 && <span className="text-[10px] font-medium">+{sports.length - 2}</span>}
                               </div>
@@ -809,9 +807,7 @@ export function FilterPresetsManagerModal({
                             {preset.market_type && preset.market_type !== 'all' && (
                               <span className={cn(
                                 "text-[10px] font-medium px-1.5 py-0.5 rounded capitalize",
-                                isSelected 
-                                  ? "bg-emerald-200/50 dark:bg-emerald-800/30 text-emerald-700 dark:text-emerald-300" 
-                                  : "bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300"
+                                "bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300"
                               )}>
                                 {preset.market_type === 'player' ? 'Props' : 'Lines'}
                               </span>
@@ -829,11 +825,11 @@ export function FilterPresetsManagerModal({
               /* Premium Empty state */
               <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center shadow-lg ring-1 ring-black/[0.03] dark:ring-white/[0.03]">
-                    <Layers className="w-9 h-9 text-amber-500 dark:text-amber-400" />
+                  <div className="w-20 h-20 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center shadow-sm">
+                    <Layers className="w-9 h-9 text-neutral-500 dark:text-neutral-400" />
                   </div>
-                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg flex items-center justify-center">
-                    <Plus className="w-4 h-4 text-white" />
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm flex items-center justify-center">
+                    <Plus className="w-4 h-4 text-neutral-700 dark:text-neutral-200" />
                   </div>
                 </div>
                 <h3 className="font-bold text-xl text-neutral-900 dark:text-white mb-2 tracking-tight">
@@ -844,7 +840,7 @@ export function FilterPresetsManagerModal({
                 </p>
                 <button
                   onClick={onCreateNew}
-                  className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02] flex items-center gap-2"
+                  className="h-11 px-6 rounded-xl text-sm font-semibold text-white bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Create Model
@@ -857,7 +853,7 @@ export function FilterPresetsManagerModal({
                   <div key={sport}>
                     {/* Sport section header */}
                     <div className="flex items-center gap-3 mb-5 pb-3 border-b border-neutral-100 dark:border-neutral-800">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200/50 dark:from-neutral-800 dark:to-neutral-700/50 text-neutral-600 dark:text-neutral-400 shadow-sm">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 shadow-sm">
                         {sport === 'multi' ? (
                           renderSportsIcon(['nba', 'nfl'], 18)
                         ) : (
@@ -887,7 +883,7 @@ export function FilterPresetsManagerModal({
                             return next;
                           });
                         }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                       >
                         {presetsBySport[sport].every(p => localSelection.has(p.id)) ? "Deselect All" : "Select All"}
                       </button>
@@ -916,14 +912,14 @@ export function FilterPresetsManagerModal({
                             className={cn(
                               "group relative flex flex-col rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden",
                               isSelected
-                                ? "bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/20"
+                                ? "bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 shadow-sm"
                                 : "bg-white dark:bg-neutral-800/60 border-neutral-200/80 dark:border-neutral-700/80 hover:border-neutral-300 dark:hover:border-neutral-600 hover:shadow-md ring-1 ring-black/[0.02] dark:ring-white/[0.02]"
                             )}
                           >
                             {/* Selection indicator */}
                             <div className={cn(
                               "absolute left-0 top-0 bottom-0 w-1.5 transition-all",
-                              isSelected ? "bg-gradient-to-b from-emerald-400 to-teal-500" : "bg-transparent"
+                              isSelected ? "bg-neutral-900 dark:bg-white" : "bg-transparent"
                             )} />
 
                             {/* Top section with pie chart and info */}
@@ -939,16 +935,16 @@ export function FilterPresetsManagerModal({
                                 ) : (
                                   <div className={cn(
                                     "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
-                                    isSelected 
-                                      ? "bg-emerald-100 dark:bg-emerald-900/50" 
+                                    isSelected
+                                      ? "bg-neutral-200 dark:bg-neutral-700"
                                       : "bg-neutral-100 dark:bg-neutral-700"
                                   )}>
                                     <SportIcon 
                                       sport={sports[0] || 'nba'} 
                                       className={cn(
                                         "w-5 h-5 transition-colors",
-                                        isSelected 
-                                          ? "text-emerald-600 dark:text-emerald-400" 
+                                        isSelected
+                                          ? "text-neutral-700 dark:text-neutral-200"
                                           : "text-neutral-400 dark:text-neutral-500"
                                       )} 
                                     />
@@ -968,15 +964,13 @@ export function FilterPresetsManagerModal({
                                   />
                                   <h4 className={cn(
                                     "font-medium truncate transition-colors",
-                                    isSelected 
-                                      ? "text-emerald-700 dark:text-emerald-300" 
-                                      : "text-neutral-900 dark:text-white"
+                                    "text-neutral-900 dark:text-white"
                                   )}>
                                     {preset.name}
                                   </h4>
                                   {isSelected && (
-                                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0">
-                                      <Check className="w-3 h-3 text-white" />
+                                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-neutral-900 dark:bg-white flex-shrink-0">
+                                      <Check className="w-3 h-3 text-white dark:text-neutral-900" />
                                     </div>
                                   )}
                                 </div>
@@ -1051,8 +1045,8 @@ export function FilterPresetsManagerModal({
                             {/* Bottom section with stats */}
                             <div className={cn(
                               "flex items-center justify-between px-4 py-2.5 border-t text-[11px]",
-                              isSelected 
-                                ? "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/20" 
+                              isSelected
+                                ? "border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/60"
                                 : "border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30"
                             )}>
                               <div className="flex items-center gap-3 text-neutral-500 dark:text-neutral-400">
@@ -1064,8 +1058,8 @@ export function FilterPresetsManagerModal({
                                       sport={s} 
                                       className={cn(
                                         "w-3.5 h-3.5",
-                                        isSelected 
-                                          ? "text-emerald-600 dark:text-emerald-400" 
+                                        isSelected
+                                          ? "text-neutral-700 dark:text-neutral-200"
                                           : "text-neutral-400"
                                       )} 
                                     />
@@ -1088,9 +1082,7 @@ export function FilterPresetsManagerModal({
                               {preset.market_type && preset.market_type !== 'all' && (
                                 <span className={cn(
                                   "text-[10px] font-medium px-1.5 py-0.5 rounded capitalize",
-                                  isSelected 
-                                    ? "bg-emerald-200/50 dark:bg-emerald-800/30 text-emerald-700 dark:text-emerald-300" 
-                                    : "bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300"
+                                  "bg-neutral-200/50 dark:bg-neutral-700/50 text-neutral-600 dark:text-neutral-300"
                                 )}>
                                   {preset.market_type === 'player' ? 'Props' : 'Lines'}
                                 </span>
@@ -1118,7 +1110,7 @@ export function FilterPresetsManagerModal({
                     </span>
                   </div>
                   {pendingChanges.hasChanges && (
-                    <span className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
+                    <span className="text-xs font-medium px-3 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
                       {changeCount} unsaved changes
                     </span>
                   )}
@@ -1134,9 +1126,9 @@ export function FilterPresetsManagerModal({
                     onClick={handleSave}
                     disabled={isSaving || !pendingChanges.hasChanges}
                     className={cn(
-                      "h-10 px-6 rounded-xl text-sm font-semibold text-white transition-all flex items-center gap-2",
+                      "h-10 px-6 rounded-xl text-sm font-semibold text-white transition-colors flex items-center gap-2",
                       pendingChanges.hasChanges
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-[1.02]"
+                        ? "bg-neutral-900 dark:bg-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100"
                         : "bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed"
                     )}
                   >
