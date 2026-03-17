@@ -34,6 +34,7 @@ interface AlternatesModalProps {
   eventId?: string;
   onMarketChange?: (market: string) => void;
   onViewProfile?: () => void;
+  alternatesType?: "player" | "game"; // Type of market (affects column labels & market tabs)
   // Additional props for favorites
   homeTeam?: string;
   awayTeam?: string;
@@ -44,6 +45,13 @@ interface AlternatesModalProps {
 type ViewMode = 'over' | 'under' | 'both';
 
 // Player prop markets for each sport
+// Game-level markets (spread, moneyline, total)
+const GAME_MARKETS: { key: string; label: string; shortLabel: string }[] = [
+  { key: 'game_spread', label: 'Spread', shortLabel: 'Spread' },
+  { key: 'game_moneyline', label: 'Moneyline', shortLabel: 'ML' },
+  { key: 'game_total', label: 'Total', shortLabel: 'Total' },
+];
+
 const PLAYER_MARKETS: Record<string, { key: string; label: string; shortLabel: string }[]> = {
   nba: [
     { key: 'player_points', label: 'Points', shortLabel: 'PTS' },
@@ -161,7 +169,10 @@ export function AlternatesModal({
   awayTeam,
   startTime,
   playerPosition,
+  alternatesType = "player",
 }: AlternatesModalProps) {
+  const isGame = alternatesType === "game";
+  const isSpreadMarket = market.includes('spread') || market.includes('puck_line') || market.includes('run_line') || market.includes('handicap');
   const [viewMode, setViewMode] = useState<ViewMode>('over');
   const [selectedMarket, setSelectedMarket] = useState(market);
   
@@ -240,6 +251,7 @@ export function AlternatesModal({
 
   // Get available markets for this sport
   const availableMarkets = React.useMemo(() => {
+    if (isGame) return GAME_MARKETS;
     const configured = PLAYER_MARKETS[sport] || [];
     if (configured.length > 0) return configured;
 
@@ -419,7 +431,7 @@ export function AlternatesModal({
                           : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                       )}
                     >
-                      Over
+                      {isGame && !market.includes('total') ? (awayTeam || 'Away') : 'Over'}
                     </button>
                     <button
                       onClick={() => setViewMode('under')}
@@ -430,7 +442,7 @@ export function AlternatesModal({
                           : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                       )}
                     >
-                      Under
+                      {isGame && !market.includes('total') ? (homeTeam || 'Home') : 'Under'}
                     </button>
                     <button
                       onClick={() => setViewMode('both')}
@@ -569,8 +581,8 @@ export function AlternatesModal({
                                   cn("text-neutral-700 dark:text-neutral-300", stickyBg)
                                 )}>
                                   <div className="flex items-center gap-1.5">
-                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">o</span>}
-                                    <span>{alt.ln}</span>
+                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">{isGame && !market.includes('total') ? 'A' : 'o'}</span>}
+                                    <span>{isGame && isSpreadMarket ? `+${alt.ln}` : alt.ln}</span>
                                   </div>
                                 </td>
                                 {/* Favorite button for Over */}
@@ -667,8 +679,8 @@ export function AlternatesModal({
                                     : cn("text-neutral-700 dark:text-neutral-300", stickyBg)
                                 )}>
                                   <div className="flex items-center gap-1.5">
-                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">u</span>}
-                                    <span>{alt.ln}</span>
+                                    {viewMode === 'both' && <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">{isGame && !market.includes('total') ? 'H' : 'u'}</span>}
+                                    <span>{isGame && isSpreadMarket ? `-${alt.ln}` : alt.ln}</span>
                                   </div>
                                 </td>
                                 {/* Favorite button for Under */}

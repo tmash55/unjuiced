@@ -1256,6 +1256,9 @@ async function buildPropsRows(
   const mainLinesByPlayerBook = new Map<string, number>();
   // Canonical main line per player: eventId:player -> { line, source }
   const canonicalMainLine = new Map<string, { line: number; priority: number }>();
+  // For game spreads: track the actual signed line per team from reference books
+  // e.g., eventId:miami_heat -> 5.5 (away getting points), eventId:charlotte_hornets -> -5.5
+  const teamSpreadSign = new Map<string, number>();
   
   // Priority order for determining canonical main line (lower = higher priority)
   // DraftKings first, then FanDuel as fallback (per user request)
@@ -1328,6 +1331,15 @@ async function buildPropsRows(
 
       // Track the main line for this entity+book
       mainLinesByPlayerBook.set(playerBookKey, effectiveLine);
+      
+      // For game spreads, record the SIGNED line per team from reference books
+      // This tells us which direction each team's spread goes (e.g., MIA=+5.5, CHA=-5.5)
+      if (isSpreadLikeMarket && isGameMarket) {
+        const teamSignKey = `${eventId}:${rawName.toLowerCase().replace(/ /g, "_")}`;
+        if (!teamSpreadSign.has(teamSignKey)) {
+          teamSpreadSign.set(teamSignKey, line); // Store the actual signed line
+        }
+      }
       
       // Update canonical main line if this book has higher priority
       const playerKey = `${eventId}:${entityKey}`;
@@ -1435,19 +1447,15 @@ async function buildPropsRows(
             if (bookHasMain) {
               if (sel.main !== true) continue;
             } else {
-              // For books without main flag, prefer the line with odds closest to -110
-              // Check if the opposite signed line has better (closer to -110) odds
-              const oppositeLineStr = String(-line);
-              const oppositeKey = `${rawName}|${side}|${oppositeLineStr}`;
-              const oppositeSel = selections[oppositeKey] as SSESelection | undefined;
-              if (oppositeSel) {
-                const thisOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
-                const oppOdds = Math.abs(parseInt(String(oppositeSel.price).replace("+", ""), 10) || 0);
-                // Closer to 110 = more likely to be the main spread line
-                const thisDist = Math.abs(thisOdds - 110);
-                const oppDist = Math.abs(oppOdds - 110);
-                if (oppDist < thisDist) continue; // Skip this one, the opposite is better
+              // Books without main flag: use the signed line direction from reference books
+              // e.g., if DK says miami_heat main is +5.5, Kalshi should also use +5.5 for miami_heat
+              const teamKey = `${eventId}:${rawName.toLowerCase().replace(/ /g, "_")}`;
+              const refSign = teamSpreadSign.get(teamKey);
+              if (refSign !== undefined) {
+                // Reference says this team's line should be positive/negative — match it
+                if (Math.sign(line) !== Math.sign(refSign)) continue;
               }
+              // If no reference exists, let both through (first-write wins below)
             }
           } else {
             if (line !== targetLine) continue;
@@ -1648,8 +1656,7 @@ async function buildPropsRows(
       
       if (mappedSide === "over") {
         bookData.over = sel;
-        // For game lines, always use the away (over) side's line value
-        // This ensures spreads show correctly: away gets their line (e.g., +5.5 for underdog)
+        // For game lines, set row line from the away (over) side
         if (isGameLine) {
           row.line = line;
         } else if (!row.line || row.line === 0) {

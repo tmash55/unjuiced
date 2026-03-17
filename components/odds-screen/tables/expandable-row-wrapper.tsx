@@ -314,6 +314,7 @@ export function ExpandableRowWrapper({
         eventId={eventId}
         onMarketChange={handleMarketChange}
         onViewProfile={onViewProfile}
+        alternatesType={alternatesType}
         // Additional props for favorites
         homeTeam={homeTeam}
         awayTeam={awayTeam}
