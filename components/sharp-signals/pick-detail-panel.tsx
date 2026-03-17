@@ -219,6 +219,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
             currentPrice={price} 
             oddsFormat={oddsFormat}
             data={priceData?.history || []}
+            entryPrice={price}
           />
         </CardContent>
       </Card>
