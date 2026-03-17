@@ -130,8 +130,8 @@ export function MarketPriceChart({
               fontSize: 12,
             }}
             labelFormatter={(ts) => format(new Date(ts), "MMM d, h:mm a")}
-            formatter={(value: number, name: string) => [
-              formatOdds(value, oddsFormat),
+            formatter={(value: any, name: any) => [
+              formatOdds(Number(value), oddsFormat),
               name === "sideA" ? sideAName : sideBName,
             ]}
           />

@@ -92,8 +92,8 @@ export function PriceChart({ currentPrice, oddsFormat, data, entryPrice }: Price
               fontSize: 12,
             }}
             labelFormatter={(ts) => format(new Date(ts), "MMM d, h:mm a")}
-            formatter={(value: number) => [
-              formatOdds(value, oddsFormat),
+            formatter={(value: any) => [
+              formatOdds(Number(value), oddsFormat),
               oddsFormat === "american" ? "Odds" : "Price",
             ]}
           />
