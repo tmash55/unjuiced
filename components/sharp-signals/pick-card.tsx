@@ -15,7 +15,7 @@ interface PickCardProps {
 
 export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardProps) {
   // Map real data to display format
-  const score = Math.round((pick.signal_score || 0) * 10) // 0-10 to 0-100
+  const score = Math.round(pick.signal_score || 0) // Already 0-100
   const sport = pick.sport || "N/A"
   const league = pick.league || ""
   const matchup = pick.event_title || pick.market_title

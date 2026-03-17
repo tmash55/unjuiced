@@ -19,7 +19,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
   // Convert real data to display format
-  const score = Math.round((pick.signal_score || 0) * 10)
+  const score = Math.round(pick.signal_score || 0)
   const matchup = pick.event_title || pick.market_title
   const betType = pick.market_label || pick.market_type || ""
   const selection = pick.outcome

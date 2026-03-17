@@ -1,37 +1,43 @@
 /**
- * Sharp Signals — Composite Signal Score (0-10)
+ * Sharp Signals — Composite Signal Score (0-100)
+ *
+ * Inspired by OddsJam Insiders scoring:
+ *   - Stake conviction (bet size × multiplier vs avg) is the #1 factor
+ *   - Bettor quality (tier, rank, ROI, sample) is #2
+ *   - Edge (poly vs sportsbook) is a bonus
+ *   - Recency keeps stale signals from floating to the top
  *
  * Weights:
- *   Bettor tier & history    30%
- *   Stake conviction         25%
- *   Edge / odds value        20%
- *   Track record (ROI/CLV)   15%
- *   Recency                  10%
+ *   Bettor quality           35%
+ *   Stake conviction         35%
+ *   Edge / odds value        15%
+ *   Recency                  15%
  */
 
 export interface ScoreInput {
-  tier: string;                    // sharp / whale
-  bet_size: number;                // dollars wagered
-  wallet_avg_stake?: number | null;// avg stake for this wallet
-  wallet_roi?: number | null;      // lifetime ROI as decimal (0.34 = 34%)
-  wallet_win_rate?: number | null; // win rate as decimal (0.62 = 62%)
+  tier: string;
+  bet_size: number;
+  wallet_avg_stake?: number | null;
+  wallet_roi?: number | null;
+  wallet_win_rate?: number | null;
   wallet_total_bets?: number | null;
-  clv_avg?: number | null;         // avg CLV in percentage points
-  american_odds?: number | null;   // american odds
-  entry_price?: number | null;     // polymarket price (0-1)
-  book_implied?: number | null;    // sportsbook implied prob (0-1)
-  quality_score?: number | null;   // existing 1-5 quality score
-  created_at: string;              // ISO timestamp
+  wallet_rank?: number | null;
+  wallet_pnl?: number | null;
+  clv_avg?: number | null;
+  american_odds?: number | null;
+  entry_price?: number | null;
+  book_implied?: number | null;
+  quality_score?: number | null;
+  created_at: string;
 }
 
 export interface ScoreResult {
-  total: number;         // 0.0 - 10.0
+  total: number;         // 0 - 100
   breakdown: {
-    bettor: number;      // 0-10
-    conviction: number;  // 0-10
-    edge: number;        // 0-10
-    track: number;       // 0-10
-    recency: number;     // 0-10
+    bettor: number;      // 0-100
+    conviction: number;  // 0-100
+    edge: number;        // 0-100
+    recency: number;     // 0-100
   };
   label: "🔥" | "⭐" | "👍" | "👀";
 }
@@ -41,176 +47,181 @@ function clamp(val: number, min: number, max: number): number {
 }
 
 /**
- * Bettor tier & history (30% weight)
- * S-tier whale with 800+ bets = 10, random sharp with 5 bets = 3
+ * Bettor quality (35% weight)
+ * Based on tier, rank, PnL, win rate, sample size
+ * A top-50 leaderboard sharp with 500+ bets and 60%+ WR = 100
  */
 function scoreBettor(input: ScoreInput): number {
   let score = 0;
 
-  // Tier base
-  if (input.tier === "whale") score += 4;
-  else if (input.tier === "sharp") score += 3;
-  else score += 1;
+  // Tier base (0-30)
+  if (input.tier === "sharp") score += 25;
+  else if (input.tier === "whale") score += 20;
+  else score += 5;
 
-  // Sample size bonus
-  const bets = input.wallet_total_bets ?? 0;
-  if (bets >= 500) score += 3;
-  else if (bets >= 100) score += 2;
-  else if (bets >= 20) score += 1;
-
-  // Win rate bonus (only if decent sample)
-  const wr = input.wallet_win_rate;
-  if (wr != null && bets >= 10) {
-    if (wr >= 0.60) score += 3;
-    else if (wr >= 0.55) score += 2;
-    else if (wr >= 0.50) score += 1;
+  // Leaderboard rank bonus (0-25)
+  const rank = input.wallet_rank;
+  if (rank != null && rank > 0) {
+    if (rank <= 10) score += 25;
+    else if (rank <= 25) score += 20;
+    else if (rank <= 50) score += 15;
+    else if (rank <= 100) score += 10;
+    else if (rank <= 250) score += 5;
   }
 
-  return clamp(score, 0, 10);
+  // PnL bonus (0-15)
+  const pnl = input.wallet_pnl;
+  if (pnl != null) {
+    if (pnl >= 500000) score += 15;
+    else if (pnl >= 200000) score += 12;
+    else if (pnl >= 100000) score += 10;
+    else if (pnl >= 50000) score += 7;
+    else if (pnl >= 10000) score += 5;
+    else if (pnl > 0) score += 3;
+  }
+
+  // Win rate bonus (0-15, only with decent sample)
+  const wr = input.wallet_win_rate;
+  const bets = input.wallet_total_bets ?? 0;
+  if (wr != null && bets >= 10) {
+    if (wr >= 0.65) score += 15;
+    else if (wr >= 0.60) score += 12;
+    else if (wr >= 0.55) score += 8;
+    else if (wr >= 0.50) score += 5;
+  }
+
+  // Sample size bonus (0-15)
+  if (bets >= 500) score += 15;
+  else if (bets >= 200) score += 12;
+  else if (bets >= 100) score += 8;
+  else if (bets >= 50) score += 5;
+  else if (bets >= 20) score += 3;
+
+  return clamp(score, 0, 100);
 }
 
 /**
- * Stake conviction (25% weight)
- * How much above their average are they betting?
- * 16x avg = 10, 1x avg = 2, big absolute size also matters
+ * Stake conviction (35% weight)
+ * How much are they betting relative to their average?
+ * OddsJam style: 1.6x+ is notable, 3x+ is high conviction, 10x+ is max
+ * Absolute bet size also matters
  */
 function scoreConviction(input: ScoreInput): number {
   let score = 0;
 
-  // Stake vs average multiplier
+  // Stake vs average multiplier (0-50)
   const avg = input.wallet_avg_stake;
   if (avg && avg > 0) {
     const multiplier = input.bet_size / avg;
-    if (multiplier >= 10) score += 6;
-    else if (multiplier >= 5) score += 5;
-    else if (multiplier >= 3) score += 4;
-    else if (multiplier >= 2) score += 3;
-    else if (multiplier >= 1.5) score += 2;
-    else score += 1;
+    if (multiplier >= 10) score += 50;
+    else if (multiplier >= 5) score += 42;
+    else if (multiplier >= 3) score += 35;
+    else if (multiplier >= 2) score += 28;
+    else if (multiplier >= 1.5) score += 22;
+    else if (multiplier >= 1.2) score += 18;
+    else if (multiplier >= 1.0) score += 14;
+    else score += 8; // Below average bet
+  } else {
+    // No avg stake data — use absolute size as proxy
+    score += 15;
   }
 
-  // Absolute bet size
-  if (input.bet_size >= 50000) score += 4;
-  else if (input.bet_size >= 10000) score += 3;
-  else if (input.bet_size >= 5000) score += 2;
-  else if (input.bet_size >= 1000) score += 1;
+  // Absolute bet size (0-50)
+  if (input.bet_size >= 50000) score += 50;
+  else if (input.bet_size >= 25000) score += 42;
+  else if (input.bet_size >= 10000) score += 35;
+  else if (input.bet_size >= 5000) score += 28;
+  else if (input.bet_size >= 2000) score += 20;
+  else if (input.bet_size >= 1000) score += 15;
+  else if (input.bet_size >= 500) score += 10;
+  else score += 5;
 
-  return clamp(score, 0, 10);
+  return clamp(score, 0, 100);
 }
 
 /**
- * Edge / odds value (20% weight)
- * Plus money with edge = great, heavy juice = bad
+ * Edge / odds value (15% weight)
+ * Polymarket price vs sportsbook implied probability
+ * Plus money is more valuable than heavy juice
  */
 function scoreEdge(input: ScoreInput): number {
-  let score = 0;
+  let score = 30; // Base score — we don't penalize for missing data
 
   // Edge from polymarket vs book
   const polyProb = input.entry_price ?? 0;
   const bookProb = input.book_implied ?? 0;
   if (polyProb > 0 && bookProb > 0) {
     const edge = polyProb - bookProb;
-    if (edge >= 0.15) score += 5;
-    else if (edge >= 0.10) score += 4;
-    else if (edge >= 0.05) score += 3;
-    else if (edge >= 0.02) score += 2;
-    else if (edge > 0) score += 1;
+    if (edge >= 0.15) score += 40;
+    else if (edge >= 0.10) score += 30;
+    else if (edge >= 0.05) score += 20;
+    else if (edge >= 0.02) score += 10;
+    else if (edge > 0) score += 5;
   }
 
-  // Odds value — plus money is better
+  // Odds value — plus money is better for the bettor
   const odds = input.american_odds ?? 0;
-  if (odds >= 200) score += 3;
-  else if (odds >= 100) score += 2.5;
-  else if (odds >= 0) score += 2;
-  else if (odds >= -150) score += 1.5;
-  else if (odds >= -200) score += 1;
-  else score += 0.5; // heavy juice = lower score
+  if (odds >= 300) score += 25;
+  else if (odds >= 200) score += 20;
+  else if (odds >= 100) score += 15;
+  else if (odds >= 0) score += 10;
+  else if (odds >= -150) score += 5;
 
-  // Existing quality score as tiebreaker
+  // Quality score tiebreaker (0-5)
   if (input.quality_score) {
-    score += (input.quality_score - 1) * 0.25; // 0-1 bonus
+    score += input.quality_score;
   }
 
-  return clamp(score, 0, 10);
+  return clamp(score, 0, 100);
 }
 
 /**
- * Track record / ROI / CLV (15% weight)
- */
-function scoreTrack(input: ScoreInput): number {
-  let score = 0;
-
-  // ROI
-  const roi = input.wallet_roi;
-  if (roi != null) {
-    if (roi >= 0.30) score += 5;
-    else if (roi >= 0.20) score += 4;
-    else if (roi >= 0.10) score += 3;
-    else if (roi >= 0.05) score += 2;
-    else if (roi >= 0) score += 1;
-    // Negative ROI = 0
-  }
-
-  // CLV (closing line value)
-  const clv = input.clv_avg;
-  if (clv != null) {
-    if (clv >= 4) score += 5;
-    else if (clv >= 2) score += 4;
-    else if (clv >= 1) score += 3;
-    else if (clv >= 0) score += 2;
-  }
-
-  return clamp(score, 0, 10);
-}
-
-/**
- * Recency (10% weight)
- * Fresh signal > stale signal. Decays over 24 hours.
+ * Recency (15% weight)
+ * Fresh signals are more actionable. Decays over time.
  */
 function scoreRecency(input: ScoreInput): number {
   const ageMs = Date.now() - new Date(input.created_at).getTime();
   const ageHours = ageMs / (1000 * 60 * 60);
 
-  if (ageHours <= 0.5) return 10;
-  if (ageHours <= 1) return 9;
-  if (ageHours <= 2) return 8;
-  if (ageHours <= 4) return 7;
-  if (ageHours <= 6) return 6;
-  if (ageHours <= 12) return 4;
-  if (ageHours <= 24) return 2;
-  return 1;
+  if (ageHours <= 0.25) return 100;
+  if (ageHours <= 0.5) return 95;
+  if (ageHours <= 1) return 85;
+  if (ageHours <= 2) return 75;
+  if (ageHours <= 4) return 60;
+  if (ageHours <= 8) return 45;
+  if (ageHours <= 12) return 30;
+  if (ageHours <= 24) return 15;
+  return 5;
 }
 
 /**
- * Compute composite signal score (0.0 - 10.0)
+ * Compute composite signal score (0-100)
  */
 export function computeSignalScore(input: ScoreInput): ScoreResult {
   const bettor = scoreBettor(input);
   const conviction = scoreConviction(input);
   const edge = scoreEdge(input);
-  const track = scoreTrack(input);
   const recency = scoreRecency(input);
 
   // Weighted average
   const total =
-    bettor * 0.30 +
-    conviction * 0.25 +
-    edge * 0.20 +
-    track * 0.15 +
-    recency * 0.10;
+    bettor * 0.35 +
+    conviction * 0.35 +
+    edge * 0.15 +
+    recency * 0.15;
 
-  const rounded = Math.round(total * 10) / 10;
+  const rounded = Math.round(total);
 
-  // Label
+  // Label thresholds (matching OddsJam-style feel)
   let label: ScoreResult["label"];
-  if (rounded >= 8) label = "🔥";
-  else if (rounded >= 6) label = "⭐";
-  else if (rounded >= 4) label = "👍";
+  if (rounded >= 85) label = "🔥";
+  else if (rounded >= 70) label = "⭐";
+  else if (rounded >= 50) label = "👍";
   else label = "👀";
 
   return {
     total: rounded,
-    breakdown: { bettor, conviction, edge, track, recency },
+    breakdown: { bettor, conviction, edge, recency },
     label,
   };
 }

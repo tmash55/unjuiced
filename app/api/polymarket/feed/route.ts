@@ -156,7 +156,9 @@ export async function GET(req: NextRequest) {
           wallet_roi: ws?.roi ?? null,
           wallet_win_rate: ws ? ws.wins / Math.max(ws.wins + ws.losses, 1) : null,
           wallet_total_bets: ws ? ws.wins + ws.losses : null,
-          clv_avg: null, // TODO: wire up CLV from wallet scores
+          wallet_rank: ws?.rank ?? s.wallet_rank ?? null,
+          wallet_pnl: ws?.total_profit ?? s.wallet_pnl ?? null,
+          clv_avg: null,
           american_odds: s.american_odds,
           entry_price: s.entry_price,
           book_implied: bookImplied,
