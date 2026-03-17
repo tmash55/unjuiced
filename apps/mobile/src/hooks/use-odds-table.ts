@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { mobileEnv } from "@/src/config/env";
 import { useAuth } from "@/src/providers/auth-provider";
 
@@ -109,9 +109,10 @@ export function useOddsTable({
 
       return (await response.json()) as OddsTableResponse;
     },
-    staleTime: 30_000,
+    staleTime: 15_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    retry: 1
+    placeholderData: keepPreviousData,
+    retry: 2
   });
 }

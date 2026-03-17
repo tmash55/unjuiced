@@ -1338,8 +1338,14 @@ export default function GamesScreen() {
 
   const filteredEvents = useMemo(() => {
     const allEvents = eventsQuery.data?.events ?? [];
-    // Client-side date filter using device timezone
-    const dateFiltered = allEvents.filter((e) => eventMatchesDate(e.commence_time, selectedDate));
+    const now = new Date();
+    // Client-side date filter using device timezone, hide games that have already started
+    const dateFiltered = allEvents.filter((e) => {
+      if (!eventMatchesDate(e.commence_time, selectedDate)) return false;
+      // Hide games past their commence time
+      if (new Date(e.commence_time) < now) return false;
+      return true;
+    });
     const query = searchQuery.trim().toLowerCase();
     if (!query || selectedGameId) return dateFiltered;
     return dateFiltered.filter((event) =>
