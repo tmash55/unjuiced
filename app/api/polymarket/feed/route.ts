@@ -223,17 +223,20 @@ export async function GET(req: NextRequest) {
           ? group.reduce((sum, s) => sum + (s.entry_price ?? 0) * (s.bet_size ?? 0), 0) / totalSize
           : base.entry_price;
 
-        base.bet_size = totalSize;
-        base.entry_price = weightedPrice;
-        base.implied_probability = weightedPrice;
-        base.wager_count = group.length;
-        base.total_shares = totalShares;
+        // Build fills BEFORE mutating base (base is a reference into group,
+        // so mutating base.bet_size would corrupt the last fill's size)
         base.fills = group.map(s => ({
           price: s.entry_price,
           size: s.bet_size ?? 0,
           created_at: s.created_at,
           american_odds: s.american_odds,
         }));
+
+        base.bet_size = totalSize;
+        base.entry_price = weightedPrice;
+        base.implied_probability = weightedPrice;
+        base.wager_count = group.length;
+        base.total_shares = totalShares;
 
         // Recalculate signal score with aggregated bet_size (higher conviction)
         const ws = scoreMap.get(base.wallet_address);
