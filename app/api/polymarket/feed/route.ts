@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
          game_start_time, game_date,
          book_name, book_price, best_book, best_book_price, best_book_decimal,
          resolved, result, pnl,
-         quality_score, all_book_odds, created_at`,
+         quality_score, all_book_odds, wallet_rank, created_at`,
         { count: "exact" }
       )
       .order("created_at", { ascending: false });
