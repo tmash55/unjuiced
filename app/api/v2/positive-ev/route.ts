@@ -575,6 +575,7 @@ type CustomBookRow = {
   canonicalId: string;
   am: number;
   dec: number;
+  odd_id?: string | null;
   ev_pct?: number;
   is_sharp_ref?: boolean;
   link?: string | null;
@@ -604,6 +605,7 @@ function normalizeCustomBookRows(rawBooks: unknown[]): CustomBookRow[] {
       canonicalId,
       am,
       dec,
+      odd_id: typeof book?.odd_id === "string" ? book.odd_id : null,
       ev_pct: typeof book?.ev_pct === "number" ? book.ev_pct : undefined,
       is_sharp_ref: typeof book?.is_sharp_ref === "boolean" ? book.is_sharp_ref : undefined,
       link: typeof book?.link === "string" ? book.link : null,
@@ -860,6 +862,7 @@ function evRowToOpportunity(
       mobileLink: b.mobile_link ?? null,
       sgp: b.sgp ?? null,
       limits: b.limits ?? null,
+      oddId: typeof b.odd_id === "string" ? b.odd_id : undefined,
       evPercent: buildBookEvPercent(b.am, b.dec),
       isSharpRef: b.is_sharp_ref ?? false,
     })),
@@ -873,6 +876,7 @@ function evRowToOpportunity(
       mobileLink: b.mobile_link ?? null,
       sgp: b.sgp ?? null,
       limits: b.limits ?? null,
+      oddId: typeof b.odd_id === "string" ? b.odd_id : undefined,
       isSharpRef: b.is_sharp_ref ?? false,
     })),
 
@@ -1059,6 +1063,7 @@ function redevigWithCustomSharp(
       mobile_link: bestBook.mobile_link ?? null,
       sgp: bestBook.sgp ?? null,
       limits: bestBook.limits ?? null,
+      odd_id: bestBook.odd_id ?? null,
     },
     devig: {
       inputs: {
