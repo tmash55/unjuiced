@@ -94,6 +94,13 @@ export interface WhaleSignal {
   outcome: string;
   side: string;
   token_id?: string | null;
+  
+  // New fields for v0 integration
+  event_title: string | null;
+  league: string | null;
+  home_team: string | null;
+  away_team: string | null;
+  market_label: string | null;
 
   // Pricing
   entry_price: number;

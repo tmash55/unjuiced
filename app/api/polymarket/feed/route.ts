@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
       .select(
         `id, tier, wallet_address, wallet_username, wallet_pnl,
          market_title, market_type, sport, outcome, side, token_id,
+         event_title, league, home_team, away_team, market_label,
          entry_price, american_odds, bet_size, implied_probability,
          game_start_time, game_date,
          book_name, book_price, best_book, best_book_price, best_book_decimal,

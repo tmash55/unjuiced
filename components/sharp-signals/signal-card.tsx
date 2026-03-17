@@ -271,7 +271,7 @@ export function SignalCard({ signal }: { signal: WhaleSignal }) {
                   {signal.token_id && (
                     <div className="mb-2">
                       <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Price History</span>
-                      <PriceChart tokenId={signal.token_id} entryPrice={signal.entry_price} />
+                      <PriceChart currentPrice={signal.entry_price * 100} oddsFormat="american" data={[]} />
                     </div>
                   )}
                   {allBooks.map((b, i) => {
