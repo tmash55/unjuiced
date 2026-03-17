@@ -1424,10 +1424,31 @@ async function buildPropsRows(
         if (targetLine !== undefined) {
           const isSpread = isSpreadLikeMarket;
           if (isSpread && isGameMarket) {
-            // For game spreads, only include the selection with main=true at this absolute line value
-            // This prevents picking up e.g. miami_heat|spread|-5.5 (+299) when we want miami_heat|spread|5.5 (-110)
+            // For game spreads, match by absolute line value
             if (Math.abs(line) !== Math.abs(targetLine)) continue;
-            if (sel.main !== true) continue; // Only use main lines for game spreads
+            
+            // Books with main=true: only use those (prevents wrong alt line from DK/FD/etc)
+            // Books WITHOUT main flag (Polymarket, Kalshi, ProphetX, Novig):
+            //   Pick the selection closest to typical spread odds (-110). 
+            //   Between team|spread|5.5 (-110) and team|spread|-5.5 (+299), -110 wins.
+            const bookHasMain = mainLinesByPlayerBook.has(playerBookKey);
+            if (bookHasMain) {
+              if (sel.main !== true) continue;
+            } else {
+              // For books without main flag, prefer the line with odds closest to -110
+              // Check if the opposite signed line has better (closer to -110) odds
+              const oppositeLineStr = String(-line);
+              const oppositeKey = `${rawName}|${side}|${oppositeLineStr}`;
+              const oppositeSel = selections[oppositeKey] as SSESelection | undefined;
+              if (oppositeSel) {
+                const thisOdds = Math.abs(parseInt(String(sel.price).replace("+", ""), 10) || 0);
+                const oppOdds = Math.abs(parseInt(String(oppositeSel.price).replace("+", ""), 10) || 0);
+                // Closer to 110 = more likely to be the main spread line
+                const thisDist = Math.abs(thisOdds - 110);
+                const oppDist = Math.abs(oppOdds - 110);
+                if (oppDist < thisDist) continue; // Skip this one, the opposite is better
+              }
+            }
           } else {
             if (line !== targetLine) continue;
           }
