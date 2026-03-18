@@ -295,10 +295,27 @@ export async function GET(req: NextRequest) {
           normalizedMarketType
         );
 
+        // Compute correct spread display for the bettor's side
+        // Polymarket: "Spread: Thunder (-18.5)" — Thunder outcome = -18.5, Nets outcome = +18.5
+        let spreadDisplay: string | null = null;
+        if (normalizedMarketType === "spread") {
+          const lineMatch = (s.market_title || "").match(/\(([+-]?\d+\.?\d*)\)/);
+          const favoriteMatch = (s.market_title || "").match(/Spread:\s*(.+?)\s*\(/i);
+          if (lineMatch && favoriteMatch) {
+            const favoriteLine = parseFloat(lineMatch[1]); // e.g. -18.5
+            const favoriteTeam = favoriteMatch[1].trim();
+            const isFavorite = normalizedOutcome.toLowerCase().includes(favoriteTeam.toLowerCase())
+              || favoriteTeam.toLowerCase().includes(normalizedOutcome.toLowerCase());
+            const line = isFavorite ? favoriteLine : -favoriteLine;
+            spreadDisplay = `${normalizedOutcome} ${line > 0 ? "+" : ""}${line}`;
+          }
+        }
+
         return {
           ...s,
           market_type: normalizedMarketType,
           outcome: normalizedOutcome,
+          spread_display: spreadDisplay,
           wallet_rank: ws?.rank ?? null,
           wallet_tier: walletTier,
           wallet_roi: ws?.roi ?? null,

@@ -56,6 +56,7 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
     const line = lineMatch ? lineMatch[0] : null
 
     if (label.includes("spread") || title.includes("spread")) {
+      if (pick.spread_display) return pick.spread_display
       return line ? `${selection} ${line}` : selection
     }
     if (label.includes("total") || label.includes("o/u") || title.includes("total") || title.includes("o/u")) {

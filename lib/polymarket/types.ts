@@ -104,6 +104,7 @@ export interface WhaleSignal {
   token_id?: string | null;
   event_slug?: string | null;
   condition_id?: string | null;
+  spread_display?: string | null;
   
   // New fields for v0 integration
   event_title: string | null;
