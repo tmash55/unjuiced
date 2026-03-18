@@ -196,24 +196,36 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{walletRoi}</div>
-              <p className="text-xs text-neutral-500">Wallet ROI</p>
-            </div>
-            <div className="text-center">
               <div className="text-lg font-bold text-neutral-200">{walletDisplay}</div>
               <p className="text-xs text-neutral-500">Wallet ID</p>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-neutral-200">
-                {pick.wallet_roi != null ? `${(pick.wallet_roi * 100).toFixed(1)}%` : "N/A"}
-              </div>
+              <div className="text-lg font-bold text-emerald-400">{walletRoi}</div>
               <p className="text-xs text-neutral-500">ROI</p>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-neutral-200">
+                {pick.wallet_record || "—"}
+              </div>
+              <p className="text-xs text-neutral-500">Record</p>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-neutral-200">
+                {pick.wallet_total_bets != null ? pick.wallet_total_bets.toLocaleString() : "—"}
+              </div>
+              <p className="text-xs text-neutral-500">Total Bets</p>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-neutral-200">
+                {pick.wallet_avg_stake != null ? `$${Math.round(pick.wallet_avg_stake).toLocaleString()}` : "—"}
+              </div>
+              <p className="text-xs text-neutral-500">Avg Stake</p>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-neutral-200">
                 {pick.stake_vs_avg != null ? `${pick.stake_vs_avg}x` : "—"}
               </div>
-              <p className="text-xs text-neutral-500">Rel. Stake</p>
+              <p className="text-xs text-neutral-500">Stake vs Avg</p>
             </div>
           </div>
         </CardContent>

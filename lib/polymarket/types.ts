@@ -137,6 +137,9 @@ export interface WhaleSignal {
   wallet_tier?: WalletTier;
   wallet_roi?: number | null;
   wallet_record?: string;
+  wallet_total_bets?: number | null;
+  wallet_avg_stake?: number | null;
+  wallet_total_profit?: number | null;
   stake_vs_avg?: number | null; // multiplier vs avg stake
 
   // Composite signal score
