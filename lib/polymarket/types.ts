@@ -102,6 +102,8 @@ export interface WhaleSignal {
   outcome: string;
   side: string;
   token_id?: string | null;
+  event_slug?: string | null;
+  condition_id?: string | null;
   
   // New fields for v0 integration
   event_title: string | null;

@@ -122,7 +122,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
           {pick.token_id && (
             <button
               className="flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 shrink-0"
-              onClick={() => window.open(`https://polymarket.com/event/${pick.token_id}`, '_blank')}
+              onClick={() => window.open(`https://polymarket.com/event/${pick.event_slug || pick.condition_id}`, '_blank')}
             >
               <ExternalLink className="h-3 w-3" />
               Polymarket
