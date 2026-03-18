@@ -4,6 +4,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 
+/** Normalize market_type from title — whale tracker sometimes misclassifies */
+function normalizeMarketType(currentType: string | null, title: string | null): string {
+  const t = (title || "").trim();
+  if (/^Spread:/i.test(t) || /spread/i.test(t)) return "spread";
+  if (/O\/U\s*\d/i.test(t) || /over.?under/i.test(t)) return "total";
+  if (/^Will .+ win on \d{4}-\d{2}-\d{2}\??$/i.test(t)) return "moneyline";
+  if (/^.+\s+vs\.?\s+.+$/i.test(t) && !/spread|o\/u|over|under|total/i.test(t)) return "moneyline";
+  return currentType || "unknown";
+}
+
 /**
  * GET /api/polymarket/games
  *
@@ -254,7 +264,7 @@ export async function GET(req: NextRequest) {
         condition_id: cid,
         market_title: market.market_title,
         sport: market.sport,
-        market_type: market.market_type,
+        market_type: normalizeMarketType(market.market_type, market.market_title),
         game_date: market.game_date,
         game_start_time: market.game_start_time,
         resolved: market.resolved,

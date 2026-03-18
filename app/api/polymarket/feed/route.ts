@@ -17,19 +17,10 @@ function normalizeMarketType(
   title: string | null,
   outcome: string | null
 ): string {
-  // If already classified correctly, keep it
-  if (
-    currentType === "moneyline" ||
-    currentType === "spread" ||
-    currentType === "total" ||
-    currentType === "player_prop"
-  ) {
-    return currentType;
-  }
-
   const t = (title || "").trim();
   const o = (outcome || "").toLowerCase();
 
+  // Title-based overrides FIRST — whale tracker sometimes misclassifies
   // "Spread: Liverpool FC (-1.5)" → spread
   if (/^Spread:/i.test(t) || /spread/i.test(t)) return "spread";
 
