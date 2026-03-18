@@ -58,6 +58,12 @@ export interface WalletScore {
   // Polymarket profile
   poly_pnl: number | null;
   poly_rank: number | null;
+  poly_volume: number | null;
+  poly_month_pnl: number | null;
+  poly_week_pnl: number | null;
+  poly_month_rank: number | null;
+  poly_week_rank: number | null;
+  hot_cold: "hot" | "cold" | null;
 
   // Notable plays
   biggest_win_pnl: number | null;
@@ -142,6 +148,10 @@ export interface WhaleSignal {
   wallet_total_profit?: number | null;
   wallet_lifetime_volume?: number | null;  // From Polymarket leaderboard
   wallet_polymarket_rank?: number | null;  // Sports leaderboard rank
+  wallet_poly_pnl?: number | null;         // Lifetime Polymarket PNL
+  wallet_poly_month_pnl?: number | null;   // Last 30d PNL
+  wallet_poly_week_pnl?: number | null;    // Last 7d PNL
+  wallet_hot_cold?: "hot" | "cold" | null; // Recent form indicator
   stake_vs_avg?: number | null; // multiplier vs avg stake
 
   // Composite signal score

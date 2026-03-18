@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
     const walletAddresses = [...new Set(signals.map((s) => s.wallet_address))];
     const { data: walletScores } = await supabase
       .from("polymarket_wallet_scores")
-      .select("wallet_address, rank, tier, roi, wins, losses, avg_stake, total_profit, is_new_account")
+      .select("wallet_address, rank, tier, roi, wins, losses, avg_stake, total_profit, is_new_account, poly_pnl, poly_rank, poly_volume, poly_month_pnl, poly_week_pnl, hot_cold")
       .in("wallet_address", walletAddresses);
 
     const scoreMap = new Map(
@@ -215,8 +215,12 @@ export async function GET(req: NextRequest) {
           wallet_total_bets: ws ? ws.wins + ws.losses : null,
           wallet_avg_stake: ws?.avg_stake ?? null,
           wallet_total_profit: ws?.total_profit ?? null,
-          wallet_lifetime_volume: leaderboardMap.get(s.wallet_address?.toLowerCase())?.vol ?? null,
-          wallet_polymarket_rank: leaderboardMap.get(s.wallet_address?.toLowerCase())?.rank ?? null,
+          wallet_lifetime_volume: ws?.poly_volume ?? leaderboardMap.get(s.wallet_address?.toLowerCase())?.vol ?? null,
+          wallet_polymarket_rank: ws?.poly_rank ?? leaderboardMap.get(s.wallet_address?.toLowerCase())?.rank ?? null,
+          wallet_poly_pnl: ws?.poly_pnl ?? null,
+          wallet_poly_month_pnl: ws?.poly_month_pnl ?? null,
+          wallet_poly_week_pnl: ws?.poly_week_pnl ?? null,
+          wallet_hot_cold: ws?.hot_cold ?? null,
           stake_vs_avg: stakeVsAvg,
           is_new_account: ws?.is_new_account ?? false,
           signal_score: scoreResult.total,
