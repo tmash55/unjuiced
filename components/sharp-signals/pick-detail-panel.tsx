@@ -197,11 +197,13 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
               <div className="text-lg font-bold text-neutral-200">{walletDisplay}</div>
-              <p className="text-xs text-neutral-500">Wallet ID</p>
+              <p className="text-xs text-neutral-500">Insider ID</p>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{walletRoi}</div>
-              <p className="text-xs text-neutral-500">ROI</p>
+              <div className="text-lg font-bold text-sky-400">
+                {pick.wallet_polymarket_rank ? `#${pick.wallet_polymarket_rank}` : "—"}
+              </div>
+              <p className="text-xs text-neutral-500">Sports Rank</p>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-neutral-200">
@@ -213,7 +215,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
               <div className="text-lg font-bold text-neutral-200">
                 {pick.wallet_total_bets != null ? pick.wallet_total_bets.toLocaleString() : "—"}
               </div>
-              <p className="text-xs text-neutral-500">Total Bets</p>
+              <p className="text-xs text-neutral-500">Tracked Bets</p>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-neutral-200">
@@ -222,12 +224,28 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
               <p className="text-xs text-neutral-500">Avg Stake</p>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-neutral-200">
+              <div className={`text-lg font-bold ${(pick.stake_vs_avg ?? 0) >= 3 ? 'text-emerald-400' : (pick.stake_vs_avg ?? 0) >= 1.5 ? 'text-yellow-400' : 'text-neutral-200'}`}>
                 {pick.stake_vs_avg != null ? `${pick.stake_vs_avg}x` : "—"}
               </div>
               <p className="text-xs text-neutral-500">Stake vs Avg</p>
             </div>
           </div>
+          {/* Lifetime volume bar */}
+          {pick.wallet_lifetime_volume != null && pick.wallet_lifetime_volume > 0 && (
+            <div className="mt-4 pt-3 border-t border-neutral-800">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-500">Lifetime Volume</span>
+                <span className="font-medium text-neutral-300">
+                  ${pick.wallet_lifetime_volume >= 1_000_000 
+                    ? `${(pick.wallet_lifetime_volume / 1_000_000).toFixed(1)}M`
+                    : pick.wallet_lifetime_volume >= 1_000
+                    ? `${(pick.wallet_lifetime_volume / 1_000).toFixed(0)}K`
+                    : pick.wallet_lifetime_volume.toLocaleString()
+                  }
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

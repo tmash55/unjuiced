@@ -148,7 +148,7 @@ export function PickCard({ pick, isSelected, onSelect, oddsFormat }: PickCardPro
         </div>
         <div className="flex items-center gap-1">
           <Activity className="h-3 w-3 text-neutral-500" />
-          <span className="font-medium text-neutral-200">{multiplier}x</span>
+          <span className={cn("font-medium", parseFloat(multiplier) >= 3 ? "text-emerald-400" : parseFloat(multiplier) >= 1.5 ? "text-yellow-400" : "text-neutral-200")}>{multiplier}x avg</span>
         </div>
         <div className="flex items-center gap-1">
           <span className="text-neutral-500">ROI:</span>

@@ -140,6 +140,8 @@ export interface WhaleSignal {
   wallet_total_bets?: number | null;
   wallet_avg_stake?: number | null;
   wallet_total_profit?: number | null;
+  wallet_lifetime_volume?: number | null;  // From Polymarket leaderboard
+  wallet_polymarket_rank?: number | null;  // Sports leaderboard rank
   stake_vs_avg?: number | null; // multiplier vs avg stake
 
   // Composite signal score

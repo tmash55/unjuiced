@@ -6,6 +6,41 @@ import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
 import type { FeedResponse, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
+// Polymarket leaderboard cache (refreshes every hour)
+let leaderboardCache: Map<string, { vol: number; rank: number }> | null = null;
+let leaderboardCacheTime = 0;
+const LEADERBOARD_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+async function getLeaderboardMap(): Promise<Map<string, { vol: number; rank: number }>> {
+  if (leaderboardCache && Date.now() - leaderboardCacheTime < LEADERBOARD_CACHE_TTL) {
+    return leaderboardCache;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      "https://data-api.polymarket.com/v1/leaderboard?category=SPORTS&timePeriod=ALL&orderBy=PNL&limit=200",
+      { signal: controller.signal }
+    ).finally(() => clearTimeout(timeout));
+    if (!res.ok) return leaderboardCache ?? new Map();
+    const data = await res.json();
+    const map = new Map<string, { vol: number; rank: number }>();
+    for (const entry of data) {
+      if (entry.proxyWallet) {
+        map.set(entry.proxyWallet.toLowerCase(), {
+          vol: entry.vol || 0,
+          rank: parseInt(entry.rank, 10) || 0,
+        });
+      }
+    }
+    leaderboardCache = map;
+    leaderboardCacheTime = Date.now();
+    return map;
+  } catch {
+    return leaderboardCache ?? new Map();
+  }
+}
+
 /**
  * GET /api/polymarket/feed
  *
@@ -136,6 +171,9 @@ export async function GET(req: NextRequest) {
       (walletScores ?? []).map((w) => [w.wallet_address, w])
     );
 
+    // Fetch lifetime stats from Polymarket leaderboard (cached)
+    const leaderboardMap = await getLeaderboardMap();
+
     // Filter by tier if specified (applied after join since tier comes from wallet_scores)
     const enriched = signals
       .map((s) => {
@@ -175,6 +213,8 @@ export async function GET(req: NextRequest) {
           wallet_total_bets: ws ? ws.wins + ws.losses : null,
           wallet_avg_stake: ws?.avg_stake ?? null,
           wallet_total_profit: ws?.total_profit ?? null,
+          wallet_lifetime_volume: leaderboardMap.get(s.wallet_address?.toLowerCase())?.vol ?? null,
+          wallet_polymarket_rank: leaderboardMap.get(s.wallet_address?.toLowerCase())?.rank ?? null,
           stake_vs_avg: stakeVsAvg,
           is_new_account: ws?.is_new_account ?? false,
           signal_score: scoreResult.total,
