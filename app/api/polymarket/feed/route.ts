@@ -7,6 +7,80 @@ import type { FeedResponse, LiveOdds, LiveOddsEntry, WalletTier, WhaleSignal } f
 import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
+/**
+ * Normalize market_type from Polymarket title patterns.
+ * Runs at read-time so existing "unknown" data gets fixed without
+ * altering the whale tracker's write path.
+ */
+function normalizeMarketType(
+  currentType: string | null,
+  title: string | null,
+  outcome: string | null
+): string {
+  // If already classified correctly, keep it
+  if (
+    currentType === "moneyline" ||
+    currentType === "spread" ||
+    currentType === "total" ||
+    currentType === "player_prop"
+  ) {
+    return currentType;
+  }
+
+  const t = (title || "").trim();
+  const o = (outcome || "").toLowerCase();
+
+  // "Spread: Liverpool FC (-1.5)" → spread
+  if (/^Spread:/i.test(t) || /spread/i.test(t)) return "spread";
+
+  // "X vs Y: O/U 3.5" or "O/U" anywhere → total
+  if (/O\/U\s*\d/i.test(t) || /over.?under/i.test(t)) return "total";
+  // Outcome is "Over" or "Under" on a game-level market
+  if (/^(over|under)$/i.test(o) && !/player|prop/i.test(t)) return "total";
+
+  // "Will X win on DATE?" → moneyline (3-way: Yes=win, No=draw/loss)
+  if (/^Will .+ win on \d{4}-\d{2}-\d{2}\??$/i.test(t)) return "moneyline";
+
+  // "Team A vs. Team B" or "Team A vs Team B" (no spread/total qualifier) → moneyline
+  if (/^.+\s+vs\.?\s+.+$/i.test(t) && !/spread|o\/u|over|under|total/i.test(t)) {
+    return "moneyline";
+  }
+
+  // "Will X reach/advance/qualify" → futures
+  if (/^Will .+ (reach|advance|qualify|make)/i.test(t)) return "futures";
+
+  // "Winner" in title → futures
+  if (/winner/i.test(t)) return "futures";
+
+  return currentType || "unknown";
+}
+
+/**
+ * Clean up "Yes"/"No" outcomes for "Will X win?" markets into team names.
+ * "Will Liverpool FC win on 2026-03-18?" + outcome "Yes" → "Liverpool FC"
+ * "Will Liverpool FC win on 2026-03-18?" + outcome "No"  → "Draw / Liverpool FC loss"
+ */
+function normalizeOutcome(
+  outcome: string | null,
+  title: string | null,
+  marketType: string
+): string {
+  const o = (outcome || "").trim();
+  const t = (title || "").trim();
+
+  // Only transform Yes/No on "Will X win" moneyline markets
+  if (marketType !== "moneyline") return o;
+  if (!/^(Yes|No)$/i.test(o)) return o;
+
+  const match = t.match(/^Will (.+?) win on \d{4}/i);
+  if (!match) return o;
+
+  const teamName = match[1].trim();
+  if (/^yes$/i.test(o)) return teamName;
+  // "No" on a 3-way soccer market means draw OR opponent wins
+  return `Not ${teamName}`;
+}
+
 // Polymarket leaderboard cache (refreshes every hour)
 let leaderboardCache: Map<string, { vol: number; rank: number }> | null = null;
 let leaderboardCacheTime = 0;
@@ -206,8 +280,22 @@ export async function GET(req: NextRequest) {
           created_at: s.created_at,
         });
 
+        // Normalize market_type and outcome at read-time
+        const normalizedMarketType = normalizeMarketType(
+          s.market_type,
+          s.market_title,
+          s.outcome
+        );
+        const normalizedOutcome = normalizeOutcome(
+          s.outcome,
+          s.market_title,
+          normalizedMarketType
+        );
+
         return {
           ...s,
+          market_type: normalizedMarketType,
+          outcome: normalizedOutcome,
           wallet_rank: ws?.rank ?? null,
           wallet_tier: walletTier,
           wallet_roi: ws?.roi ?? null,
