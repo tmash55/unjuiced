@@ -18,6 +18,7 @@ const SPORTS = [
   { id: "all", label: "All" },
   { id: "nba", label: "NBA" },
   { id: "nhl", label: "NHL" },
+  { id: "ncaab", label: "NCAAB" },
   { id: "soccer", label: "Soccer" },
   { id: "mlb", label: "MLB" },
   { id: "nfl", label: "NFL" },

@@ -384,6 +384,9 @@ export default function SharpSignalsPage() {
                 nhl: tab === "picks"
                   ? picks.filter((p: WhaleSignal) => p.sport === "nhl").length
                   : markets.filter((m: GameData) => m.sport === "nhl").length,
+                ncaab: tab === "picks"
+                  ? picks.filter((p: WhaleSignal) => p.sport === "ncaab").length
+                  : markets.filter((m: GameData) => m.sport === "ncaab").length,
                 nfl: tab === "picks"
                   ? picks.filter((p: WhaleSignal) => p.sport === "nfl").length
                   : markets.filter((m: GameData) => m.sport === "nfl").length,
