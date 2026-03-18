@@ -370,6 +370,22 @@ Intervals: `1h`, `6h`, `1d`, `1w`, `1m`, `all`.
 - Do NOT show PNL dollar amounts (users could cross-reference with Polymarket)
 - Show: rank, record, win rate, ROI %, avg stake, streak, specialty sport
 
+### UX Decisions (Confirmed)
+
+**Tier display:** Do NOT show the internal `wallet_tier` (S/A/B/C) on cards or anywhere user-facing. Users see three tiers based on `signal.tier`:
+- **Sharp** (green badge) — `tier === "sharp"` — proven profitable bettors
+- **Insider** (purple badge) — `tier === "whale"` — high-volume, less track record
+- **New Account** (gray badge) — `tier === "burner"` — fresh wallets, unproven
+In the detail panel "Insider Stats" section, show rank #, record, ROI, streak — that communicates quality without exposing internal scoring.
+
+**Settings panel:** Gear icon in the header → opens a slide-over sheet (not a separate route). Keeps context, no page navigation.
+
+**Leaderboard wallet detail:** Reuse the same right-side 55/45 detail panel used by Picks and Markets tabs. Click a wallet row on the left → wallet detail loads on the right. Consistent pattern across all 3 tabs.
+
+**Default feed:** Sharp tier only, esports excluded, sorted by score, unresolved only. "My Sharps" filter appears after user follows 1+ wallets from the leaderboard.
+
+**Follow flow:** First follow triggers a toast (NOT a modal): "✅ Following #37C1 — filter to 'My Sharps' to see only their picks." No popups.
+
 ---
 
 ## Sections to Build / Polish
