@@ -163,6 +163,15 @@ export interface WhaleSignal {
     american_odds: number | null;
   }[];
   total_shares?: number;      // Total shares across all fills
+
+  // Odds matching fields
+  odds_event_id?: string | null;
+  odds_sport?: string | null;
+  odds_market_key?: string | null;
+  odds_confidence?: number | null;
+
+  // Live sportsbook odds
+  live_odds?: LiveOdds | null;
 }
 
 export interface LeaderboardResponse {
@@ -174,6 +183,35 @@ export interface LeaderboardResponse {
 export interface FeedResponse {
   signals: WhaleSignal[];
   total: number;
+}
+
+export interface LiveOddsEntry {
+  book: string;
+  price: string;
+  decimal: number;
+  line?: string;
+  mobile_link?: string;
+}
+
+export interface LiveOdds {
+  best: LiveOddsEntry;
+  all: LiveOddsEntry[];
+  updated_at?: string;
+}
+
+export interface SignalPreferences {
+  signal_followed_wallets?: string[];
+  signal_sport_filters?: string[] | null;
+  signal_excluded_sports?: string[] | null;
+  signal_tier_filters?: string[] | null;
+  signal_min_stake?: number;
+  signal_sort_by?: string;
+  signal_show_resolved?: boolean;
+  signal_timeframe?: string;
+  signal_alert_enabled?: boolean;
+  signal_alert_min_stake?: number;
+  signal_alert_sports?: string[] | null;
+  signal_alert_wallets?: string[] | null;
 }
 
 export interface WalletDetailResponse {

@@ -3,7 +3,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
-import type { FeedResponse, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
+import type { FeedResponse, LiveOdds, LiveOddsEntry, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
+import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
 // Polymarket leaderboard cache (refreshes every hour)
@@ -121,7 +122,8 @@ export async function GET(req: NextRequest) {
          game_start_time, game_date,
          book_name, book_price, best_book, best_book_price, best_book_decimal,
          resolved, result, pnl,
-         quality_score, all_book_odds, wallet_rank, created_at`,
+         quality_score, all_book_odds, wallet_rank, created_at,
+         odds_event_id, odds_sport, odds_market_key, odds_confidence`,
         { count: "exact" }
       )
       .order("created_at", { ascending: false });
@@ -314,6 +316,102 @@ export async function GET(req: NextRequest) {
       }
       return merged;
     })();
+
+    // Enrich with live odds from Redis
+    const BETTABLE_BOOKS = ["draftkings", "fanduel", "betmgm", "caesars", "bet365", "fanatics", "hard-rock", "espnbet", "betrivers"];
+
+    const oddsSignals = aggregated.filter(
+      (s: any) => s.odds_event_id && s.odds_sport && s.odds_market_key
+    );
+
+    if (oddsSignals.length > 0) {
+      const redis = getRedisCommandEndpoint();
+      if (redis.url && redis.token) {
+        // Collect unique combos
+        const combos = new Map<string, { sport: string; eventId: string; marketKey: string }>();
+        for (const s of oddsSignals) {
+          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${s.odds_market_key}`;
+          if (!combos.has(comboKey)) {
+            combos.set(comboKey, { sport: s.odds_sport, eventId: s.odds_event_id, marketKey: s.odds_market_key });
+          }
+        }
+
+        // Fetch all book odds for all combos in parallel
+        type RedisResult = { comboKey: string; book: string; data: any };
+        const fetches: Promise<RedisResult | null>[] = [];
+        for (const [comboKey, combo] of combos) {
+          for (const book of BETTABLE_BOOKS) {
+            const redisKey = `odds:${combo.sport}:${combo.eventId}:${combo.marketKey}:${book}`;
+            fetches.push(
+              Promise.race([
+                fetch(`${redis.url}/GET/${encodeURIComponent(redisKey)}`, {
+                  headers: { Authorization: `Bearer ${redis.token}` },
+                })
+                  .then((r) => r.json())
+                  .then((json: any) => {
+                    if (!json.result) return null;
+                    return { comboKey, book, data: JSON.parse(json.result) } as RedisResult;
+                  })
+                  .catch(() => null),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+              ])
+            );
+          }
+        }
+
+        const results = await Promise.allSettled(fetches);
+
+        // Build odds lookup: comboKey -> book -> parsed data
+        const oddsLookup = new Map<string, Map<string, any>>();
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value) {
+            const { comboKey, book, data } = r.value;
+            if (!oddsLookup.has(comboKey)) oddsLookup.set(comboKey, new Map());
+            oddsLookup.get(comboKey)!.set(book, data);
+          }
+        }
+
+        // Match odds to signals
+        for (const s of oddsSignals) {
+          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${s.odds_market_key}`;
+          const bookOdds = oddsLookup.get(comboKey);
+          if (!bookOdds || bookOdds.size === 0) continue;
+
+          const allEntries: LiveOddsEntry[] = [];
+          for (const [book, data] of bookOdds) {
+            // data is expected to be an object or array of selections
+            const selections = Array.isArray(data) ? data : (data?.selections ?? data?.outcomes ?? [data]);
+            for (const sel of selections) {
+              if (!sel) continue;
+              // Match outcome name (case-insensitive)
+              const selName = (sel.name || sel.selection || sel.outcome || "").toLowerCase();
+              const signalOutcome = (s.outcome || "").toLowerCase();
+              if (selName && signalOutcome && selName.includes(signalOutcome) || signalOutcome.includes(selName)) {
+                const decimal = sel.decimal ?? sel.price ?? (sel.american ? (sel.american > 0 ? sel.american / 100 + 1 : 100 / Math.abs(sel.american) + 1) : null);
+                if (decimal && decimal > 1) {
+                  allEntries.push({
+                    book,
+                    price: sel.american?.toString() ?? sel.price?.toString() ?? "",
+                    decimal: Math.round(decimal * 1000) / 1000,
+                    line: sel.line?.toString(),
+                    mobile_link: sel.mobile_link ?? sel.deep_link ?? undefined,
+                  });
+                }
+              }
+            }
+          }
+
+          if (allEntries.length > 0) {
+            // Best = highest decimal (best payout)
+            allEntries.sort((a, b) => b.decimal - a.decimal);
+            (s as any).live_odds = {
+              best: allEntries[0],
+              all: allEntries,
+            } satisfies LiveOdds;
+          }
+        }
+      }
+    }
 
     // Sort
     if (sortBy === "score") {

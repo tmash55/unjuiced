@@ -94,6 +94,20 @@ export interface UserPreferences {
   
   // Model templates preference
   hide_model_templates?: boolean;
+
+  // Sharp Signals preferences
+  signal_followed_wallets?: string[];
+  signal_sport_filters?: string[] | null;
+  signal_excluded_sports?: string[] | null;
+  signal_tier_filters?: string[] | null;
+  signal_min_stake?: number;
+  signal_sort_by?: string;
+  signal_show_resolved?: boolean;
+  signal_timeframe?: string;
+  signal_alert_enabled?: boolean;
+  signal_alert_min_stake?: number;
+  signal_alert_sports?: string[] | null;
+  signal_alert_wallets?: string[] | null;
   
   // Positive EV Tool preferences
   positive_ev_selected_books?: string[];
