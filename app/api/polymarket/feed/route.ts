@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
     const showNew = sp.get("showNew") !== "false";
     const todayOnly = sp.get("today") === "true";
     const sortBy = sp.get("sort") || "score";
+    const minScore = parseInt(sp.get("minScore") || "0", 10) || 0;
 
     // Build signals query
     let query = supabase
@@ -338,7 +339,7 @@ export async function GET(req: NextRequest) {
 
     // Aggregate duplicate fills: same wallet + same market (token_id) + same side
     // Wallets often split large bets into 5+ chunks within seconds to avoid moving the book
-    const aggregated = (() => {
+    let aggregated = (() => {
       const groups = new Map<string, typeof enriched>();
       for (const s of enriched) {
         // Group key: wallet + market token + side
@@ -662,6 +663,12 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+    }
+
+    // Apply min score filter (computed post-enrichment)
+    if (minScore > 0) {
+      const beforeCount = aggregated.length;
+      aggregated = aggregated.filter((s: any) => (s.signal_score ?? 0) >= minScore);
     }
 
     // Sort

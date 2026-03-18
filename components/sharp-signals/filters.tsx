@@ -8,6 +8,8 @@ interface FiltersProps {
   onSportChange: (sport: string) => void
   selectedTier: string
   onTierChange: (tier: string) => void
+  minScore: number
+  onMinScoreChange: (score: number) => void
   counts?: Record<string, number>
   tierCounts?: Record<string, number>
 }
@@ -42,6 +44,8 @@ export function Filters({
   selectedTier,
   onTierChange,
   counts = {},
+  minScore = 0,
+  onMinScoreChange,
   tierCounts = {},
 }: FiltersProps) {
   const [showTierInfo, setShowTierInfo] = useState(false)
@@ -129,6 +133,25 @@ export function Filters({
             <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
           </svg>
         </button>
+
+        {/* Divider */}
+        <span className="h-3.5 w-px bg-neutral-200 dark:bg-neutral-800/60 mx-1 shrink-0" />
+
+        {/* Min Score */}
+        {[60, 70, 80, 90].map((threshold) => (
+          <button
+            key={threshold}
+            onClick={() => onMinScoreChange(minScore === threshold ? 0 : threshold)}
+            className={cn(
+              "px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-150 whitespace-nowrap",
+              minScore === threshold
+                ? "bg-amber-50 text-amber-600 dark:text-amber-400 dark:bg-amber-500/10"
+                : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+            )}
+          >
+            {threshold}+
+          </button>
+        ))}
       </div>
 
       {/* Tier info */}

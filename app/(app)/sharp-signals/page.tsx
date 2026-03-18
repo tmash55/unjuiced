@@ -75,6 +75,7 @@ export default function SharpSignalsPage() {
   const [tab, setTab] = useState<Tab>("picks");
   const [selectedSport, setSelectedSport] = useState("");
   const [selectedTier, setSelectedTier] = useState("");
+  const [minScore, setMinScore] = useState(0);
   const [selectedPick, setSelectedPick] = useState<WhaleSignal | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<GameData | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<WalletScore | null>(null);
@@ -100,12 +101,13 @@ export default function SharpSignalsPage() {
       });
       if (selectedSport) params.set("sport", selectedSport);
       if (selectedTier) params.set("tier", selectedTier);
+      if (minScore > 0) params.set("minScore", String(minScore));
       if (showMySharps && followedWallets.length > 0) {
         params.set("wallet", followedWallets.join(","));
       }
       return `/api/polymarket/feed?${params}`;
     },
-    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, showMySharps, followedWallets]
+    [hasAccess, prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, minScore, showMySharps, followedWallets]
   );
 
   const {
@@ -372,6 +374,8 @@ export default function SharpSignalsPage() {
               onSportChange={setSelectedSport}
               selectedTier={selectedTier}
               onTierChange={setSelectedTier}
+              minScore={minScore}
+              onMinScoreChange={setMinScore}
               counts={{
                 total: tab === "picks" ? picks.length : markets.length,
                 nba: tab === "picks"
