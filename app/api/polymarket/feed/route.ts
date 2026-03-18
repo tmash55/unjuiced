@@ -207,6 +207,11 @@ export async function GET(req: NextRequest) {
     query = query.range(0, fetchLimit - 1);
 
     // Filters
+    // Push tier filter to DB level so pagination works correctly
+    // (otherwise filtering 50 fetched rows could return only 2 matches)
+    if (tierFilter && tierFilter.length > 0) {
+      query = query.in("tier", tierFilter);
+    }
     if (sport) query = query.eq("sport", sport);
     if (walletFilter && walletFilter.length > 0) {
       if (walletFilter.length === 1) {
@@ -325,10 +330,7 @@ export async function GET(req: NextRequest) {
         };
       })
       .filter((s) => {
-        // Apply tier filter
-        if (tierFilter && tierFilter.length > 0 && !tierFilter.includes(s.wallet_tier)) {
-          return false;
-        }
+        // Tier filter already applied at DB level
         // Filter new accounts if disabled
         if (!showNew && s.is_new_account) return false;
         return true;
