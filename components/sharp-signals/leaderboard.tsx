@@ -145,7 +145,7 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
         </div>
       ) : (
         <div className="divide-y divide-neutral-200 dark:divide-neutral-800/20">
-          {wallets.map((wallet) => {
+          {wallets.map((wallet, index) => {
             const anonId = `#${wallet.wallet_address.slice(0, 4).toUpperCase()}`
             const isSelected = selectedWallet?.wallet_address === wallet.wallet_address
             const isFollowed = followedWallets.includes(wallet.wallet_address)
@@ -167,7 +167,7 @@ export function Leaderboard({ selectedWallet, onSelectWallet, followedWallets, o
                 {/* Row 1: Rank + Identity + Follow */}
                 <div className="flex items-center gap-2.5 mb-1">
                   <span className="text-neutral-400 dark:text-neutral-600 font-mono text-xs tabular-nums w-5 text-right shrink-0">
-                    {wallet.rank || "—"}
+                    {index + 1}
                   </span>
                   <TierBadge tier={displayTier} size="xs" />
                   <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-200 tabular-nums">
