@@ -172,6 +172,8 @@ export interface WhaleSignal {
     net_direction: string;           // Which side has more money ("this" | "opposing")
     net_size: number;                // Absolute net exposure in USD
     is_hedge: boolean;               // True if this side is the smaller (hedge) position
+    type: "same_market" | "cross_market";  // Same condition_id or same event
+    opposing_markets?: string[];     // Market types on opposing side (cross_market only)
   } | null;
 
   // Aggregation fields (when multiple fills are merged)

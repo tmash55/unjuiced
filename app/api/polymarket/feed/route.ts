@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
          market_title, market_type, sport, outcome, side, token_id,
          event_title, league, home_team, away_team, market_label,
          entry_price, american_odds, bet_size, implied_probability,
-         game_start_time, game_date, condition_id,
+         game_start_time, game_date, condition_id, event_slug,
          book_name, book_price, best_book, best_book_price, best_book_decimal,
          resolved, result, pnl,
          quality_score, all_book_odds, wallet_rank, created_at,
@@ -323,19 +323,21 @@ export async function GET(req: NextRequest) {
       return merged;
     })();
 
-    // ── Opposing position detection ──────────────────────────────
-    // Detect when the same wallet bet BOTH sides of the same market.
-    // This happens when sharps hedge, arb, or close positions.
-    // We flag these so the frontend can warn users.
+    // ── Opposing position detection (two layers) ────────────────
+    // Layer 1: Same condition_id — wallet bet both outcomes of same market
+    //          (e.g., Team A ML + Team B ML on same moneyline market)
+    // Layer 2: Same event_slug — wallet bet correlated markets on same game
+    //          (e.g., Team A ML + Team B spread, or Over + Team A ML)
+    // This catches hedging, arbing, and position management across market types.
     {
-      // Build a map of wallet+condition → outcome → total bet size
-      const positionMap = new Map<string, Map<string, { totalSize: number; outcome: string }>>();
+      // ── Layer 1: Exact market opposition (same condition_id) ──
+      const conditionMap = new Map<string, Map<string, { totalSize: number; outcome: string }>>();
       for (const s of aggregated) {
         const condId = (s as any).condition_id;
         if (!condId || !s.wallet_address) continue;
         const key = `${s.wallet_address}:${condId}`;
-        if (!positionMap.has(key)) positionMap.set(key, new Map());
-        const outcomes = positionMap.get(key)!;
+        if (!conditionMap.has(key)) conditionMap.set(key, new Map());
+        const outcomes = conditionMap.get(key)!;
         const outcome = s.outcome || "unknown";
         const existing = outcomes.get(outcome);
         if (existing) {
@@ -345,43 +347,127 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Now tag signals where wallet has multiple outcomes on same condition
-      for (const s of aggregated) {
-        const condId = (s as any).condition_id;
-        if (!condId || !s.wallet_address) continue;
-        const key = `${s.wallet_address}:${condId}`;
-        const outcomes = positionMap.get(key);
-        if (!outcomes || outcomes.size < 2) {
-          (s as any).has_opposing_position = false;
-          (s as any).opposing_position = null;
-          continue;
+      // ── Layer 2: Same-game cross-market opposition (same event_slug) ──
+      // Determine each signal's "side" of the game: home team, away team, over, under
+      // Two signals conflict if one backs home team (ML/spread) and another backs away team
+      const getGameSide = (s: any): string | null => {
+        const outcome = (s.outcome || "").toLowerCase();
+        const marketType = (s.market_type || "").toLowerCase();
+        const homeTeam = (s.home_team || "").toLowerCase();
+        const awayTeam = (s.away_team || "").toLowerCase();
+
+        if (marketType === "total" || /over|under/i.test(outcome)) {
+          return /over/i.test(outcome) ? "over" : "under";
         }
 
-        // This wallet bet multiple sides of this market
-        const thisOutcome = s.outcome || "unknown";
-        const thisSide = outcomes.get(thisOutcome);
-        const thisSize = thisSide?.totalSize ?? 0;
+        // For ML / spread: match outcome to home or away team
+        if (homeTeam && outcome.includes(homeTeam)) return "home";
+        if (awayTeam && outcome.includes(awayTeam)) return "away";
 
-        // Find the largest opposing position
-        let opposingOutcome = "";
-        let opposingSize = 0;
-        for (const [oc, data] of outcomes) {
-          if (oc !== thisOutcome && data.totalSize > opposingSize) {
-            opposingOutcome = oc;
-            opposingSize = data.totalSize;
+        // Fuzzy: check if any word in outcome matches team name
+        const homeWords = homeTeam.split(/\s+/).filter((w: string) => w.length > 3);
+        const awayWords = awayTeam.split(/\s+/).filter((w: string) => w.length > 3);
+        for (const w of homeWords) { if (outcome.includes(w)) return "home"; }
+        for (const w of awayWords) { if (outcome.includes(w)) return "away"; }
+
+        return null;
+      };
+
+      const OPPOSING_SIDES: Record<string, string> = {
+        home: "away", away: "home", over: "under", under: "over",
+      };
+
+      // Build event-level position map: wallet+event → gameSide → signals
+      const eventMap = new Map<string, Map<string, { totalSize: number; outcomes: string[]; marketTypes: string[] }>>();
+      for (const s of aggregated) {
+        const slug = (s as any).event_slug || (s as any).odds_event_id;
+        if (!slug || !s.wallet_address) continue;
+        const gameSide = getGameSide(s);
+        if (!gameSide) continue;
+
+        const key = `${s.wallet_address}:${slug}`;
+        if (!eventMap.has(key)) eventMap.set(key, new Map());
+        const sides = eventMap.get(key)!;
+        const existing = sides.get(gameSide);
+        if (existing) {
+          existing.totalSize += s.bet_size ?? 0;
+          if (!existing.outcomes.includes(s.outcome)) existing.outcomes.push(s.outcome);
+          const mt = (s as any).market_type || "unknown";
+          if (!existing.marketTypes.includes(mt)) existing.marketTypes.push(mt);
+        } else {
+          sides.set(gameSide, {
+            totalSize: s.bet_size ?? 0,
+            outcomes: [s.outcome || "unknown"],
+            marketTypes: [(s as any).market_type || "unknown"],
+          });
+        }
+      }
+
+      // ── Tag each signal ──
+      for (const s of aggregated) {
+        // Default: no opposing position
+        (s as any).has_opposing_position = false;
+        (s as any).opposing_position = null;
+
+        const condId = (s as any).condition_id;
+        const thisOutcome = s.outcome || "unknown";
+        const thisSize = s.bet_size ?? 0;
+
+        // Layer 1: Same condition_id (exact market — both outcomes)
+        if (condId && s.wallet_address) {
+          const key = `${s.wallet_address}:${condId}`;
+          const outcomes = conditionMap.get(key);
+          if (outcomes && outcomes.size >= 2) {
+            let opposingOutcome = "";
+            let opposingSize = 0;
+            for (const [oc, data] of outcomes) {
+              if (oc !== thisOutcome && data.totalSize > opposingSize) {
+                opposingOutcome = oc;
+                opposingSize = data.totalSize;
+              }
+            }
+            const thisSideSize = outcomes.get(thisOutcome)?.totalSize ?? thisSize;
+            (s as any).has_opposing_position = true;
+            (s as any).opposing_position = {
+              outcome: opposingOutcome,
+              total_size: Math.round(opposingSize * 100) / 100,
+              net_direction: thisSideSize >= opposingSize ? "this" : "opposing",
+              net_size: Math.round(Math.abs(thisSideSize - opposingSize) * 100) / 100,
+              is_hedge: thisSideSize < opposingSize,
+              type: "same_market",
+            };
+            continue; // Layer 1 takes priority — skip Layer 2
           }
         }
 
-        const netSize = Math.abs(thisSize - opposingSize);
-        const isHedge = thisSize < opposingSize; // This side is the smaller (hedge) bet
+        // Layer 2: Same event_slug (cross-market — ML vs spread, spread vs spread)
+        const slug = (s as any).event_slug || (s as any).odds_event_id;
+        const gameSide = getGameSide(s);
+        if (!slug || !gameSide || !s.wallet_address) continue;
+
+        const key = `${s.wallet_address}:${slug}`;
+        const sides = eventMap.get(key);
+        if (!sides) continue;
+
+        const oppSideKey = OPPOSING_SIDES[gameSide];
+        if (!oppSideKey) continue;
+
+        const oppData = sides.get(oppSideKey);
+        if (!oppData) continue;
+
+        // This wallet has bets on the opposing side of the same game
+        const thisSideData = sides.get(gameSide);
+        const thisSideTotal = thisSideData?.totalSize ?? thisSize;
 
         (s as any).has_opposing_position = true;
         (s as any).opposing_position = {
-          outcome: opposingOutcome,
-          total_size: Math.round(opposingSize * 100) / 100,
-          net_direction: thisSize >= opposingSize ? "this" : "opposing",
-          net_size: Math.round(netSize * 100) / 100,
-          is_hedge: isHedge,
+          outcome: oppData.outcomes.join(", "),
+          total_size: Math.round(oppData.totalSize * 100) / 100,
+          net_direction: thisSideTotal >= oppData.totalSize ? "this" : "opposing",
+          net_size: Math.round(Math.abs(thisSideTotal - oppData.totalSize) * 100) / 100,
+          is_hedge: thisSideTotal < oppData.totalSize,
+          type: "cross_market",
+          opposing_markets: oppData.marketTypes,
         };
       }
     }
