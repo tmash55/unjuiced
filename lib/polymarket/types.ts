@@ -164,6 +164,16 @@ export interface WhaleSignal {
     recency: number;
   };
 
+  // Opposing position detection (hedge/arb warning)
+  has_opposing_position?: boolean;   // Same wallet bet BOTH sides of this market
+  opposing_position?: {
+    outcome: string;                 // The other side they bet on
+    total_size: number;              // Total USD on the other side
+    net_direction: string;           // Which side has more money ("this" | "opposing")
+    net_size: number;                // Absolute net exposure in USD
+    is_hedge: boolean;               // True if this side is the smaller (hedge) position
+  } | null;
+
   // Aggregation fields (when multiple fills are merged)
   wager_count?: number;       // Number of individual fills
   fills?: {                   // Individual fill details

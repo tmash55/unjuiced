@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
          market_title, market_type, sport, outcome, side, token_id,
          event_title, league, home_team, away_team, market_label,
          entry_price, american_odds, bet_size, implied_probability,
-         game_start_time, game_date,
+         game_start_time, game_date, condition_id,
          book_name, book_price, best_book, best_book_price, best_book_decimal,
          resolved, result, pnl,
          quality_score, all_book_odds, wallet_rank, created_at,
@@ -322,6 +322,69 @@ export async function GET(req: NextRequest) {
       }
       return merged;
     })();
+
+    // ── Opposing position detection ──────────────────────────────
+    // Detect when the same wallet bet BOTH sides of the same market.
+    // This happens when sharps hedge, arb, or close positions.
+    // We flag these so the frontend can warn users.
+    {
+      // Build a map of wallet+condition → outcome → total bet size
+      const positionMap = new Map<string, Map<string, { totalSize: number; outcome: string }>>();
+      for (const s of aggregated) {
+        const condId = (s as any).condition_id;
+        if (!condId || !s.wallet_address) continue;
+        const key = `${s.wallet_address}:${condId}`;
+        if (!positionMap.has(key)) positionMap.set(key, new Map());
+        const outcomes = positionMap.get(key)!;
+        const outcome = s.outcome || "unknown";
+        const existing = outcomes.get(outcome);
+        if (existing) {
+          existing.totalSize += s.bet_size ?? 0;
+        } else {
+          outcomes.set(outcome, { totalSize: s.bet_size ?? 0, outcome });
+        }
+      }
+
+      // Now tag signals where wallet has multiple outcomes on same condition
+      for (const s of aggregated) {
+        const condId = (s as any).condition_id;
+        if (!condId || !s.wallet_address) continue;
+        const key = `${s.wallet_address}:${condId}`;
+        const outcomes = positionMap.get(key);
+        if (!outcomes || outcomes.size < 2) {
+          (s as any).has_opposing_position = false;
+          (s as any).opposing_position = null;
+          continue;
+        }
+
+        // This wallet bet multiple sides of this market
+        const thisOutcome = s.outcome || "unknown";
+        const thisSide = outcomes.get(thisOutcome);
+        const thisSize = thisSide?.totalSize ?? 0;
+
+        // Find the largest opposing position
+        let opposingOutcome = "";
+        let opposingSize = 0;
+        for (const [oc, data] of outcomes) {
+          if (oc !== thisOutcome && data.totalSize > opposingSize) {
+            opposingOutcome = oc;
+            opposingSize = data.totalSize;
+          }
+        }
+
+        const netSize = Math.abs(thisSize - opposingSize);
+        const isHedge = thisSize < opposingSize; // This side is the smaller (hedge) bet
+
+        (s as any).has_opposing_position = true;
+        (s as any).opposing_position = {
+          outcome: opposingOutcome,
+          total_size: Math.round(opposingSize * 100) / 100,
+          net_direction: thisSize >= opposingSize ? "this" : "opposing",
+          net_size: Math.round(netSize * 100) / 100,
+          is_hedge: isHedge,
+        };
+      }
+    }
 
     // Enrich with live odds from Redis
     const BETTABLE_BOOKS = ["draftkings", "fanduel", "betmgm", "caesars", "bet365", "fanatics", "hard-rock", "espnbet", "betrivers"];
