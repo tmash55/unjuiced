@@ -155,7 +155,7 @@ export function MarketDetailPanel({ game, oddsFormat }: MarketDetailPanelProps) 
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-purple-400">{game.total_whales}</div>
-              <p className="text-xs text-neutral-500">Whales</p>
+              <p className="text-xs text-neutral-500">Insiders</p>
             </div>
           </div>
 

@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
 
     if (!hasEliteAccess(plan)) {
       return NextResponse.json(
-        { error: "Elite tier required for Whale Board" },
+        { error: "Elite tier required for Sharp Signals" },
         { status: 403 }
       );
     }

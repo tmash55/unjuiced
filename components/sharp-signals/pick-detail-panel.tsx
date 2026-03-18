@@ -190,7 +190,7 @@ export function PickDetailPanel({ pick, oddsFormat }: PickDetailPanelProps) {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-neutral-500">
             <BarChart3 className="h-4 w-4" />
-            WHALE STATS
+            INSIDER STATS
           </CardTitle>
         </CardHeader>
         <CardContent>

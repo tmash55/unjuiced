@@ -39,7 +39,7 @@ const TIERS = [
   },
   { 
     id: "whale", 
-    label: "Whales",
+    label: "Insiders",
     color: "purple",
     description: "Large-stake bettors placing $5K+ on individual plays. May not have long track records, but their bet sizing shows serious conviction. Watch for bets significantly above their average stake.",
   },
