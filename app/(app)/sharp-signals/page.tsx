@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { AppPageLayout } from "@/components/layout/app-page-layout";
 import { useHasEliteAccess } from "@/hooks/use-entitlements";
 import { useSignalPreferences } from "@/hooks/use-signal-preferences";
@@ -82,22 +82,108 @@ export default function SharpSignalsPage() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch picks data
-  const feedParams = new URLSearchParams({
-    limit: "50",
-    sort: prefs.signal_sort_by || "score",
-    resolved: prefs.signal_show_resolved ? "all" : "false",
-  })
-  if (selectedSport) feedParams.set("sport", selectedSport)
-  if (showMySharps && followedWallets.length > 0) {
-    feedParams.set("wallet", followedWallets.join(","))
-  }
+  // Fetch picks data with infinite scroll
+  const PAGE_SIZE = 50;
+  const [pickPages, setPickPages] = useState<WhaleSignal[][]>([]);
+  const [picksLoading, setPicksLoading] = useState(true);
+  const [picksLoadingMore, setPicksLoadingMore] = useState(false);
+  const [picksError, setPicksError] = useState<Error | null>(null);
+  const [picksTotal, setPicksTotal] = useState(0);
+  const [picksHasMore, setPicksHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { data: picksData, error: picksError, isLoading: picksLoading } = useSWR(
-    hasAccess ? `/api/polymarket/feed?${feedParams}` : null,
-    fetcher,
-    { refreshInterval: 30000 }
-  );
+  const buildFeedUrl = useCallback((offset: number) => {
+    const feedParams = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      offset: String(offset),
+      sort: prefs.signal_sort_by || "score",
+      resolved: prefs.signal_show_resolved ? "all" : "false",
+    });
+    if (selectedSport) feedParams.set("sport", selectedSport);
+    if (selectedTier) feedParams.set("tier", selectedTier);
+    if (showMySharps && followedWallets.length > 0) {
+      feedParams.set("wallet", followedWallets.join(","));
+    }
+    return `/api/polymarket/feed?${feedParams}`;
+  }, [prefs.signal_sort_by, prefs.signal_show_resolved, selectedSport, selectedTier, showMySharps, followedWallets]);
+
+  // Initial fetch + refetch when filters change
+  useEffect(() => {
+    if (!hasAccess) return;
+    let cancelled = false;
+    setPicksLoading(true);
+    setPickPages([]);
+    setPicksHasMore(true);
+
+    fetch(buildFeedUrl(0))
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        const signals = data.signals || [];
+        setPickPages([signals]);
+        setPicksTotal(data.total || 0);
+        setPicksHasMore(signals.length >= PAGE_SIZE);
+        setPicksError(null);
+      })
+      .catch(err => { if (!cancelled) setPicksError(err); })
+      .finally(() => { if (!cancelled) setPicksLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [hasAccess, buildFeedUrl]);
+
+  // Auto-refresh first page every 30s
+  useEffect(() => {
+    if (!hasAccess) return;
+    const interval = setInterval(() => {
+      fetch(buildFeedUrl(0))
+        .then(r => r.json())
+        .then(data => {
+          const signals = data.signals || [];
+          setPickPages(prev => {
+            const updated = [...prev];
+            updated[0] = signals;
+            return updated;
+          });
+          setPicksTotal(data.total || 0);
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [hasAccess, buildFeedUrl]);
+
+  // Load more when sentinel enters viewport
+  const loadMorePicks = useCallback(() => {
+    if (picksLoadingMore || !picksHasMore) return;
+    const currentCount = pickPages.reduce((sum, page) => sum + page.length, 0);
+    setPicksLoadingMore(true);
+
+    fetch(buildFeedUrl(currentCount))
+      .then(r => r.json())
+      .then(data => {
+        const signals = data.signals || [];
+        setPickPages(prev => [...prev, signals]);
+        setPicksHasMore(signals.length >= PAGE_SIZE);
+      })
+      .catch(() => {})
+      .finally(() => setPicksLoadingMore(false));
+  }, [picksLoadingMore, picksHasMore, pickPages, buildFeedUrl]);
+
+  // IntersectionObserver for infinite scroll sentinel
+  useEffect(() => {
+    if (!sentinelRef.current || tab !== "picks") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMorePicks();
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [loadMorePicks, tab]);
+
+  // Flatten all pages into single array
+  const allPicksRaw = pickPages.flat();
+  const picksData = { signals: allPicksRaw, total: picksTotal };
 
   // Fetch markets/games data
   const { data: marketsData, error: marketsError, isLoading: marketsLoading } = useSWR(
@@ -424,6 +510,22 @@ export default function SharpSignalsPage() {
                   oddsFormat={oddsFormat}
                 />
               ))}
+              {/* Infinite scroll sentinel */}
+              {picksHasMore && picks.length > 0 && (
+                <div ref={sentinelRef} className="py-4 flex justify-center">
+                  {picksLoadingMore && (
+                    <div className="flex items-center gap-2 text-xs text-neutral-500">
+                      <div className="h-3.5 w-3.5 border-2 border-neutral-600 border-t-transparent rounded-full animate-spin" />
+                      Loading more...
+                    </div>
+                  )}
+                </div>
+              )}
+              {!picksHasMore && picks.length > 0 && (
+                <div className="py-4 text-center text-xs text-neutral-600">
+                  All {picks.length} picks loaded
+                </div>
+              )}
             </>
           )}
 
