@@ -64,6 +64,8 @@ export interface WalletScore {
   poly_month_rank: number | null;
   poly_week_rank: number | null;
   hot_cold: "hot" | "cold" | null;
+  poly_total_trades: number | null;
+  poly_sport_breakdown: Record<string, { trades: number; volume: number }> | null;
 
   // Notable plays
   biggest_win_pnl: number | null;
@@ -152,6 +154,8 @@ export interface WhaleSignal {
   wallet_poly_month_pnl?: number | null;   // Last 30d PNL
   wallet_poly_week_pnl?: number | null;    // Last 7d PNL
   wallet_hot_cold?: "hot" | "cold" | null; // Recent form indicator
+  wallet_total_trades?: number | null;    // All-time Polymarket trades (from backfill)
+  wallet_sport_breakdown?: Record<string, { trades: number; volume: number }> | null;
   stake_vs_avg?: number | null; // multiplier vs avg stake
 
   // Composite signal score

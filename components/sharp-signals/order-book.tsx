@@ -91,7 +91,7 @@ export function OrderBook({ currentPrice, oddsFormat, bids, asks }: OrderBookPro
               className="absolute inset-y-0 right-0 bg-red-500/20"
               style={{ width: `${(order.size / maxSize) * 100}%` }}
             />
-            <span className="relative z-10 font-mono text-neutral-200">{formatOdds(order.price, oddsFormat)}</span>
+            <span className="relative z-10 font-mono text-neutral-900 dark:text-neutral-200">{formatOdds(order.price, oddsFormat)}</span>
             <span className="relative z-10 font-mono text-neutral-400">
               ${(order.size / 1000).toFixed(1)}k
             </span>
@@ -100,7 +100,7 @@ export function OrderBook({ currentPrice, oddsFormat, bids, asks }: OrderBookPro
       </div>
 
       {/* Spread */}
-      <div className="flex items-center justify-between border-y border-neutral-700 py-1 text-xs">
+      <div className="flex items-center justify-between border-y border-neutral-200 dark:border-neutral-700 py-1 text-xs">
         <span className="font-medium text-sky-400">{formatOdds(currentPrice, oddsFormat)}</span>
         <span className="text-neutral-500">
           Spread: {oddsFormat === "american" ? "~2pts" : "1¢"}
@@ -115,7 +115,7 @@ export function OrderBook({ currentPrice, oddsFormat, bids, asks }: OrderBookPro
               className="absolute inset-y-0 left-0 bg-green-500/20"
               style={{ width: `${(order.size / maxSize) * 100}%` }}
             />
-            <span className="relative z-10 font-mono text-neutral-200">{formatOdds(order.price, oddsFormat)}</span>
+            <span className="relative z-10 font-mono text-neutral-900 dark:text-neutral-200">{formatOdds(order.price, oddsFormat)}</span>
             <span className="relative z-10 font-mono text-neutral-400">
               ${(order.size / 1000).toFixed(1)}k
             </span>

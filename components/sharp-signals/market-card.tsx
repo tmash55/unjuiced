@@ -1,7 +1,6 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Clock, Users, TrendingUp, TrendingDown } from "lucide-react"
 import { OddsFormat, formatOdds } from "@/lib/odds"
 import { formatDistanceToNow } from "date-fns"
 
@@ -34,119 +33,90 @@ interface MarketCardProps {
   oddsFormat: OddsFormat
 }
 
+function formatMoney(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`
+  return `$${n.toFixed(0)}`
+}
+
 export function MarketCard({ market, isSelected, onSelect, oddsFormat }: MarketCardProps) {
-  const maxPercent = Math.max(market.sideA.percentOfMoney, market.sideB.percentOfMoney)
-  const timeDisplay = market.gameStartTime 
+  const timeDisplay = market.gameStartTime
     ? formatDistanceToNow(new Date(market.gameStartTime), { addSuffix: true })
     : market.time
-  
+  const favoring = market.sideA.percentOfMoney >= market.sideB.percentOfMoney ? "A" : "B"
+
   return (
     <div
       onClick={() => onSelect(market)}
       className={cn(
-        "cursor-pointer rounded-xl border p-4 transition-all hover:border-sky-500/50",
+        "cursor-pointer rounded-lg border px-4 py-3.5 transition-all duration-150",
         isSelected
-          ? "border-sky-500 bg-sky-500/5"
-          : "border-neutral-800 bg-neutral-900 hover:bg-neutral-800/50"
+          ? "border-neutral-300 dark:border-neutral-700/50 bg-sky-50/40 dark:bg-sky-500/[0.03]"
+          : "border-neutral-200/80 dark:border-neutral-800/30 bg-white dark:bg-transparent hover:border-neutral-300 dark:hover:border-neutral-700/40",
+        "active:scale-[0.998]"
       )}
     >
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs font-medium text-neutral-400">
-            {market.sport} • {market.league}
-          </span>
-          <span className="rounded bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-400">
-            {market.betType}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-neutral-500">
-          <Clock className="h-3 w-3" />
-          {timeDisplay}
-        </div>
-      </div>
-
-      {/* Matchup Title */}
-      <h3 className="mb-4 text-sm font-semibold text-neutral-200">{market.matchup}</h3>
-
-      {/* Two Sides Comparison */}
-      <div className="space-y-3">
-        {/* Side A */}
-        <div className="relative">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-neutral-200">{market.sideA.name}</span>
-              <div className="flex items-center gap-1 text-xs text-neutral-500">
-                <Users className="h-3 w-3" />
-                {market.sideA.insiderCount}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-neutral-500">
-                ${(market.sideA.totalWagered / 1000).toFixed(1)}k
-              </span>
-              <div className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-0.5">
-                <TrendingUp className="h-3 w-3 text-white" />
-                <span className="font-mono text-xs font-bold text-white">
-                  {formatOdds(market.sideA.price, oddsFormat)}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="h-2 rounded-full bg-neutral-700 overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-sky-500 transition-all"
-              style={{ width: `${market.sideA.percentOfMoney}%` }}
-            />
-          </div>
-          <span className="text-xs text-neutral-500">{market.sideA.percentOfMoney}% of insider money</span>
-        </div>
-
-        {/* Side B */}
-        <div className="relative">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-neutral-200">{market.sideB.name}</span>
-              <div className="flex items-center gap-1 text-xs text-neutral-500">
-                <Users className="h-3 w-3" />
-                {market.sideB.insiderCount}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-neutral-500">
-                ${(market.sideB.totalWagered / 1000).toFixed(1)}k
-              </span>
-              <div className="flex items-center gap-1 rounded-full bg-red-500/80 px-2.5 py-0.5">
-                <TrendingDown className="h-3 w-3 text-white" />
-                <span className="font-mono text-xs font-bold text-white">
-                  {formatOdds(market.sideB.price, oddsFormat)}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="h-2 rounded-full bg-neutral-700 overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-red-500/60 transition-all"
-              style={{ width: `${market.sideB.percentOfMoney}%` }}
-            />
-          </div>
-          <span className="text-xs text-neutral-500">{market.sideB.percentOfMoney}% of insider money</span>
-        </div>
-      </div>
-
-      {/* Footer Stats */}
-      <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-3">
-        <div className="flex items-center gap-4 text-xs text-neutral-500">
-          <span>Volume: <span className="font-medium text-neutral-200">${(market.totalVolume / 1000).toFixed(1)}k</span></span>
-          <span>Wagers: <span className="font-medium text-neutral-200">{market.wagerCount}</span></span>
-        </div>
-        <div className="flex items-center gap-1">
-          {market.sideA.percentOfMoney > market.sideB.percentOfMoney ? (
-            <span className="text-xs font-medium text-sky-400">Favoring {market.sideA.name}</span>
-          ) : (
-            <span className="text-xs font-medium text-red-400">Favoring {market.sideB.name}</span>
+      {/* Row 1: Sport + Time */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+          <span className="text-neutral-500 dark:text-neutral-400">{market.sport.toUpperCase()}</span>
+          {market.betType && (
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700">&middot;</span>
+              <span>{market.betType}</span>
+            </>
           )}
         </div>
+        <span className="text-[11px] text-neutral-400 dark:text-neutral-600">{timeDisplay}</span>
+      </div>
+
+      {/* Row 2: Matchup */}
+      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight mb-3">
+        {market.matchup}
+      </h3>
+
+      {/* Flow comparison — compact two-row */}
+      <div className="space-y-2">
+        {[
+          { side: market.sideA, isFavored: favoring === "A", color: "bg-sky-500" },
+          { side: market.sideB, isFavored: favoring === "B", color: "bg-neutral-400 dark:bg-neutral-500" },
+        ].map(({ side, isFavored, color }) => (
+          <div key={side.name}>
+            <div className="flex items-center justify-between mb-0.5">
+              <span className={cn(
+                "text-xs font-medium",
+                isFavored ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-500"
+              )}>
+                {side.name}
+              </span>
+              <div className="flex items-center gap-2 text-[11px] tabular-nums">
+                <span className="text-neutral-400 dark:text-neutral-500">{side.insiderCount}</span>
+                <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-200">
+                  {formatOdds(side.price, oddsFormat)}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-1 rounded-full bg-neutral-200/80 dark:bg-neutral-800/50 overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all duration-500", color)}
+                  style={{ width: `${side.percentOfMoney}%`, opacity: isFavored ? 0.7 : 0.35 }}
+                />
+              </div>
+              <span className="font-mono text-[10px] text-neutral-400 dark:text-neutral-600 tabular-nums w-7 text-right">
+                {side.percentOfMoney}%
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-2.5 pt-2 border-t border-neutral-200/60 dark:border-neutral-800/30 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500 tabular-nums">
+        <span>{formatMoney(market.totalVolume)} &middot; {market.wagerCount} positions</span>
+        <span className={cn("font-medium", favoring === "A" ? "text-sky-600 dark:text-sky-400" : "text-neutral-500")}>
+          {favoring === "A" ? market.sideA.name : market.sideB.name}
+        </span>
       </div>
     </div>
   )

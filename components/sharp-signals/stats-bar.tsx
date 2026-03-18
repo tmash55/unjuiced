@@ -47,8 +47,14 @@ export function StatsBar() {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-r from-neutral-900 to-neutral-800 rounded-xl border border-neutral-800/60 px-4 py-3 animate-pulse">
-        <div className="h-5 w-64 bg-neutral-700/50 rounded" />
+      <div className="rounded-xl border border-neutral-800/60 bg-neutral-900/80 px-5 py-3.5 animate-pulse">
+        <div className="flex items-center gap-4">
+          <div className="h-4 w-20 bg-neutral-700/40 rounded" />
+          <div className="h-4 w-px bg-neutral-700/40" />
+          <div className="h-4 w-16 bg-neutral-700/40 rounded" />
+          <div className="h-4 w-px bg-neutral-700/40" />
+          <div className="h-4 w-24 bg-neutral-700/40 rounded" />
+        </div>
       </div>
     );
   }
@@ -58,38 +64,43 @@ export function StatsBar() {
   const positive = stats.roi >= 0;
 
   return (
-    <div className="bg-gradient-to-r from-neutral-900 to-neutral-800 rounded-xl border border-neutral-800/60 px-4 py-3">
-      <div className="flex items-center gap-3 flex-wrap text-sm">
-        <span className="font-semibold text-white">
-          {positive ? "🟢" : "🔴"}{" "}
-          <span className="text-emerald-400">{stats.wins}</span>
-          <span className="text-neutral-500">-</span>
-          <span className="text-red-400">{stats.losses}</span>
-          <span className="text-neutral-400 ml-1">({stats.winRate}%)</span>
-        </span>
+    <div className="rounded-xl border border-neutral-800/60 bg-neutral-900/80 backdrop-blur-sm px-5 py-3.5 shadow-sm shadow-black/10">
+      <div className="flex items-center gap-4 flex-wrap text-sm">
+        <div className="flex items-center gap-2 font-semibold text-white">
+          <span className={cn("h-2 w-2 rounded-full", positive ? "bg-emerald-400" : "bg-red-400")} />
+          <span className="tabular-nums">
+            <span className="text-emerald-400">{stats.wins}</span>
+            <span className="text-neutral-600 mx-0.5">–</span>
+            <span className="text-red-400">{stats.losses}</span>
+          </span>
+          <span className="text-neutral-500 font-normal">({stats.winRate}%)</span>
+        </div>
 
-        <span className="text-neutral-600">·</span>
+        <span className="h-4 w-px bg-neutral-700/60" />
 
         <span className={cn("font-bold tabular-nums", positive ? "text-emerald-400" : "text-red-400")}>
           {positive ? "+" : ""}{stats.roi}% ROI
         </span>
 
-        <span className="text-neutral-600">·</span>
+        <span className="h-4 w-px bg-neutral-700/60" />
 
         <span className={cn("font-medium tabular-nums", positive ? "text-emerald-400" : "text-red-400")}>
           {stats.pnl100 >= 0 ? "+" : ""}${Math.abs(stats.pnl100).toLocaleString()}
-          <span className="text-neutral-500 font-normal"> on $100/bet</span>
+          <span className="text-neutral-500 font-normal ml-1">on $100/bet</span>
         </span>
 
         {stats.since && (
           <>
-            <span className="text-neutral-600">·</span>
+            <span className="h-4 w-px bg-neutral-700/60" />
             <span className="text-neutral-500">Since {formatSince(stats.since)}</span>
           </>
         )}
 
-        <span className="text-[10px] text-neutral-600 ml-auto" title="Based on consensus sharp money picks (≥60% dollar flow on one side). Sharps only — excludes whale and burner tiers.">
-          ℹ️ Sharp consensus only
+        <span
+          className="text-[10px] text-neutral-600 ml-auto cursor-help"
+          title="Based on consensus sharp money picks (≥60% dollar flow on one side). Sharps only — excludes whale and burner tiers."
+        >
+          Sharp consensus only
         </span>
       </div>
     </div>

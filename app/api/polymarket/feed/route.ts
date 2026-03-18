@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
     const minStake = parseFloat(sp.get("minStake") || "0") || 0;
     const minQuality = parseInt(sp.get("minQuality") || "0", 10) || 0;
     const resolvedFilter = sp.get("resolved") || "all";
-    const walletFilter = sp.get("wallet") || undefined;
+    const walletFilter = sp.get("wallet")?.split(",").filter(Boolean) || undefined;
     const showNew = sp.get("showNew") !== "false";
     const todayOnly = sp.get("today") === "true";
     const sortBy = sp.get("sort") || "score";
@@ -208,7 +208,13 @@ export async function GET(req: NextRequest) {
 
     // Filters
     if (sport) query = query.eq("sport", sport);
-    if (walletFilter) query = query.eq("wallet_address", walletFilter);
+    if (walletFilter && walletFilter.length > 0) {
+      if (walletFilter.length === 1) {
+        query = query.eq("wallet_address", walletFilter[0]);
+      } else {
+        query = query.in("wallet_address", walletFilter);
+      }
+    }
     if (minStake > 0) query = query.gte("bet_size", minStake);
     if (minQuality > 0) query = query.gte("quality_score", minQuality);
 

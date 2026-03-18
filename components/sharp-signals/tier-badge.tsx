@@ -1,30 +1,107 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { WalletTier } from "@/lib/polymarket/types";
 
-const tierConfig: Record<WalletTier, { label: string; color: string; bg: string }> = {
-  S: { label: "S", color: "text-amber-300", bg: "bg-amber-500/20 border-amber-500/40" },
-  A: { label: "A", color: "text-emerald-400", bg: "bg-emerald-500/20 border-emerald-500/40" },
-  B: { label: "B", color: "text-sky-400", bg: "bg-sky-500/20 border-sky-500/40" },
-  C: { label: "C", color: "text-neutral-400", bg: "bg-neutral-500/20 border-neutral-500/40" },
-  FADE: { label: "FADE", color: "text-red-400", bg: "bg-red-500/20 border-red-500/40" },
-  NEW: { label: "NEW", color: "text-purple-400", bg: "bg-purple-500/20 border-purple-500/40" },
+/**
+ * User-facing signal tier system.
+ *
+ * Mapping (based on signal.tier, NOT wallet_tier S/A/B/C):
+ *   "sharp"  → Sharp       (green)
+ *   "whale"  → Insider     (purple)
+ *   "burner" → New Account (gray)
+ */
+
+export type SignalTier = "sharp" | "whale" | "burner";
+
+const tierConfig: Record<
+  SignalTier,
+  { label: string; dot: string; text: string; bg: string }
+> = {
+  sharp: {
+    label: "Sharp",
+    dot: "bg-emerald-500 dark:bg-emerald-400",
+    text: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/25",
+  },
+  whale: {
+    label: "Insider",
+    dot: "bg-purple-500 dark:bg-purple-400",
+    text: "text-purple-600 dark:text-purple-400",
+    bg: "bg-purple-50 border-purple-200 dark:bg-purple-500/10 dark:border-purple-500/25",
+  },
+  burner: {
+    label: "New Account",
+    dot: "bg-neutral-400 dark:bg-neutral-500",
+    text: "text-neutral-500 dark:text-neutral-400",
+    bg: "bg-neutral-100 border-neutral-300 dark:bg-neutral-500/10 dark:border-neutral-600/25",
+  },
 };
 
-export function TierBadge({ tier, size = "sm", className }: { tier: WalletTier | string; size?: "xs" | "sm"; className?: string }) {
-  const config = tierConfig[tier as WalletTier] ?? tierConfig.C;
+function resolveConfig(tier: string) {
+  const key = tier?.toLowerCase() as SignalTier;
+  return tierConfig[key] ?? tierConfig.burner;
+}
+
+export function TierBadge({
+  tier,
+  size = "sm",
+  className,
+}: {
+  tier: string;
+  size?: "xs" | "sm" | "md";
+  className?: string;
+}) {
+  const config = resolveConfig(tier);
+
   return (
     <span
       className={cn(
-        "inline-flex items-center font-bold uppercase tracking-wider rounded border",
-        size === "xs" ? "px-1 py-px text-[8px]" : "px-1.5 py-0.5 text-[10px]",
+        "inline-flex items-center gap-1.5 font-semibold rounded-md border",
+        size === "xs" && "px-1.5 py-px text-[9px] gap-1",
+        size === "sm" && "px-2 py-0.5 text-[10px]",
+        size === "md" && "px-2.5 py-1 text-xs",
         config.bg,
-        config.color,
+        config.text,
         className
       )}
     >
+      <span
+        className={cn(
+          "rounded-full shrink-0",
+          size === "xs" ? "h-1.5 w-1.5" : "h-2 w-2",
+          config.dot
+        )}
+      />
       {config.label}
     </span>
   );
+}
+
+/**
+ * Minimal dot-only variant for tight spaces.
+ */
+export function TierDot({
+  tier,
+  className,
+}: {
+  tier: string;
+  className?: string;
+}) {
+  const config = resolveConfig(tier);
+  return (
+    <span
+      className={cn("h-2 w-2 rounded-full shrink-0", config.dot, className)}
+      title={config.label}
+    />
+  );
+}
+
+/** Utility to get the user-facing label for a signal tier. */
+export function getTierLabel(tier: string): string {
+  return resolveConfig(tier).label;
+}
+
+/** Utility to get the tier color class. */
+export function getTierColor(tier: string): string {
+  return resolveConfig(tier).text;
 }
