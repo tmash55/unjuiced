@@ -640,24 +640,43 @@ export async function GET(req: NextRequest) {
 
           const allEntries: LiveOddsEntry[] = [];
           for (const [book, data] of bookOdds) {
-            // data is expected to be an object or array of selections
-            const selections = Array.isArray(data) ? data : (data?.selections ?? data?.outcomes ?? [data]);
+            // Redis stores odds as object keyed by "team|side|line" (e.g. "miami_heat|ml|0")
+            // Each value has: player (team name), price (American string), line, mobile_link, sgp
+            const selections = Array.isArray(data)
+              ? data
+              : data && typeof data === "object" && !data.selections && !data.outcomes
+                ? Object.values(data)
+                : Array.isArray(data?.selections) ? data.selections : Array.isArray(data?.outcomes) ? data.outcomes : [data];
             for (const sel of selections) {
-              if (!sel) continue;
-              // Match outcome name (case-insensitive)
-              const selName = (sel.name || sel.selection || sel.outcome || "").toLowerCase();
+              if (!sel || typeof sel !== "object") continue;
+              // Match outcome name — Redis uses "player" field for team/player name
+              const selName = (sel.player || sel.name || sel.selection || sel.outcome || "").toLowerCase();
               const signalOutcome = (s.outcome || "").toLowerCase();
-              if (selName && signalOutcome && selName.includes(signalOutcome) || signalOutcome.includes(selName)) {
-                const decimal = sel.decimal ?? sel.price ?? (sel.american ? (sel.american > 0 ? sel.american / 100 + 1 : 100 / Math.abs(sel.american) + 1) : null);
-                if (decimal && decimal > 1) {
-                  allEntries.push({
-                    book,
-                    price: sel.american?.toString() ?? sel.price?.toString() ?? "",
-                    decimal: Math.round(decimal * 1000) / 1000,
-                    line: sel.line?.toString(),
-                    mobile_link: sel.mobile_link ?? sel.deep_link ?? undefined,
-                  });
-                }
+              if (!selName || !signalOutcome) continue;
+              if (!(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
+
+              // Parse price — Redis stores American odds as string ("+180", "-218")
+              let american: number | null = null;
+              let decimal: number | null = null;
+              const rawPrice = sel.price ?? sel.american;
+              if (typeof rawPrice === "string") {
+                american = parseInt(rawPrice.replace("+", ""), 10);
+              } else if (typeof rawPrice === "number") {
+                american = rawPrice;
+              }
+              if (american != null && !isNaN(american)) {
+                decimal = american > 0 ? american / 100 + 1 : 100 / Math.abs(american) + 1;
+              }
+              decimal = decimal ?? sel.decimal ?? null;
+
+              if (decimal && decimal > 1) {
+                allEntries.push({
+                  book,
+                  price: american != null ? (american > 0 ? `+${american}` : `${american}`) : (sel.price?.toString() ?? ""),
+                  decimal: Math.round(decimal * 1000) / 1000,
+                  line: sel.line?.toString(),
+                  mobile_link: sel.mobile_link ?? sel.deep_link ?? undefined,
+                });
               }
             }
           }
