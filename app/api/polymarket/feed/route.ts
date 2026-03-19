@@ -655,6 +655,27 @@ export async function GET(req: NextRequest) {
               if (!selName || !signalOutcome) continue;
               if (!(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
 
+              // For spread/total markets, also match the line number
+              // Signal market_title contains line: "Spread: Team (-4.5)" or "O/U 215.5"
+              const sigMarketKey = (s as any).odds_market_key || "";
+              if (sigMarketKey === "game_spread" && sel.line != null) {
+                // Extract line from market_title: "Spread: Team (-4.5)" → "4.5"
+                const lineMatch = ((s as any).market_title || "").match(/\(([+-]?\d+\.?\d*)\)/);
+                if (lineMatch) {
+                  const sigLine = Math.abs(parseFloat(lineMatch[1]));
+                  const selLine = Math.abs(parseFloat(sel.line));
+                  if (!isNaN(sigLine) && !isNaN(selLine) && sigLine !== selLine) continue;
+                }
+              }
+              if (sigMarketKey === "game_total" && sel.line != null) {
+                const lineMatch = ((s as any).market_title || "").match(/O\/U\s+(\d+\.?\d*)/i);
+                if (lineMatch) {
+                  const sigLine = parseFloat(lineMatch[1]);
+                  const selLine = parseFloat(sel.line);
+                  if (!isNaN(sigLine) && !isNaN(selLine) && sigLine !== selLine) continue;
+                }
+              }
+
               // Parse price — Redis stores American odds as string ("+180", "-218")
               let american: number | null = null;
               let decimal: number | null = null;
