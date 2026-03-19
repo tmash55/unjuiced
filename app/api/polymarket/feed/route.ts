@@ -588,13 +588,25 @@ export async function GET(req: NextRequest) {
     if (oddsSignals.length > 0) {
       const redis = getRedisCommandEndpoint();
       if (redis.url && redis.token) {
-        // Collect unique combos
+        // Collect unique combos — remap market keys for sport-specific naming
+        const SPORT_MARKET_KEYS: Record<string, Record<string, string>> = {
+          nba: { game_total: "total_points" },
+          nhl: { game_total: "game_total_goals", game_spread: "game_puck_line" },
+          ncaab: { game_total: "total_points" },
+          mlb: { game_spread: "game_run_line" },
+        };
         const combos = new Map<string, { sport: string; eventId: string; marketKey: string }>();
         for (const s of oddsSignals) {
-          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${s.odds_market_key}`;
+          let marketKey = s.odds_market_key;
+          // Remap generic key to sport-specific Redis key
+          const remap = SPORT_MARKET_KEYS[s.odds_sport];
+          if (remap && remap[marketKey]) marketKey = remap[marketKey];
+          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${marketKey}`;
           if (!combos.has(comboKey)) {
-            combos.set(comboKey, { sport: s.odds_sport, eventId: s.odds_event_id, marketKey: s.odds_market_key });
+            combos.set(comboKey, { sport: s.odds_sport, eventId: s.odds_event_id, marketKey });
           }
+          // Store remapped key back for line matching later
+          (s as any)._resolvedMarketKey = marketKey;
         }
 
         // Fetch all book odds for all combos in parallel
@@ -649,11 +661,18 @@ export async function GET(req: NextRequest) {
                 : Array.isArray(data?.selections) ? data.selections : Array.isArray(data?.outcomes) ? data.outcomes : [data];
             for (const sel of selections) {
               if (!sel || typeof sel !== "object") continue;
-              // Match outcome name — Redis uses "player" field for team/player name
+              // Match outcome — Redis uses "player" for team name, "side" for over/under
               const selName = (sel.player || sel.name || sel.selection || sel.outcome || "").toLowerCase();
+              const selSide = (sel.side || "").toLowerCase();
               const signalOutcome = (s.outcome || "").toLowerCase();
-              if (!selName || !signalOutcome) continue;
-              if (!(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
+              if (!signalOutcome) continue;
+              // For totals: match "Over"/"Under" against sel.side
+              const isTotal = (s as any).odds_market_key === "game_total" || selSide === "over" || selSide === "under";
+              if (isTotal) {
+                if (signalOutcome !== selSide && !selSide.includes(signalOutcome) && !signalOutcome.includes(selSide)) continue;
+              } else {
+                if (!selName || !(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
+              }
 
               // For spread/total markets, also match the line number
               // Signal market_title contains line: "Spread: Team (-4.5)" or "O/U 215.5"
