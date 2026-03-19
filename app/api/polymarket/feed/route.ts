@@ -3,8 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/libs/supabase/server";
 import { hasEliteAccess, normalizePlanName, type UserPlan } from "@/lib/plans";
-import type { FeedResponse, LiveOdds, LiveOddsEntry, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
-import { getRedisCommandEndpoint } from "@/lib/redis-endpoints";
+import type { FeedResponse, WalletTier, WhaleSignal } from "@/lib/polymarket/types";
 import { computeSignalScore } from "@/lib/polymarket/score";
 
 /**
@@ -578,157 +577,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Enrich with live odds from Redis
-    const BETTABLE_BOOKS = ["draftkings", "fanduel", "betmgm", "caesars", "bet365", "fanatics", "hard-rock", "espnbet", "betrivers"];
+    // Build odds_key for frontend to fetch odds separately (no Redis calls here)
+    // Remap generic market keys to sport-specific Redis key names
+    const SPORT_MARKET_REMAP: Record<string, Record<string, string>> = {
+      nba: { game_total: "total_points" },
+      nhl: { game_total: "game_total_goals", game_spread: "game_puck_line" },
+      ncaab: { game_total: "total_points" },
+      mlb: { game_spread: "game_run_line" },
+    };
 
-    const oddsSignals = aggregated.filter(
-      (s: any) => s.odds_event_id && s.odds_sport && s.odds_market_key
-    );
+    for (const s of aggregated) {
+      if (!s.odds_event_id || !s.odds_sport || !s.odds_market_key) continue;
 
-    if (oddsSignals.length > 0) {
-      const redis = getRedisCommandEndpoint();
-      if (redis.url && redis.token) {
-        // Collect unique combos — remap market keys for sport-specific naming
-        const SPORT_MARKET_KEYS: Record<string, Record<string, string>> = {
-          nba: { game_total: "total_points" },
-          nhl: { game_total: "game_total_goals", game_spread: "game_puck_line" },
-          ncaab: { game_total: "total_points" },
-          mlb: { game_spread: "game_run_line" },
-        };
-        const combos = new Map<string, { sport: string; eventId: string; marketKey: string }>();
-        for (const s of oddsSignals) {
-          let marketKey = s.odds_market_key;
-          // Remap generic key to sport-specific Redis key
-          const remap = SPORT_MARKET_KEYS[s.odds_sport];
-          if (remap && remap[marketKey]) marketKey = remap[marketKey];
-          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${marketKey}`;
-          if (!combos.has(comboKey)) {
-            combos.set(comboKey, { sport: s.odds_sport, eventId: s.odds_event_id, marketKey });
-          }
-          // Store remapped key back for line matching later
-          (s as any)._resolvedMarketKey = marketKey;
-        }
+      let market = s.odds_market_key;
+      const remap = SPORT_MARKET_REMAP[s.odds_sport];
+      if (remap && remap[market]) market = remap[market];
 
-        // Fetch all book odds for all combos in parallel
-        type RedisResult = { comboKey: string; book: string; data: any };
-        const fetches: Promise<RedisResult | null>[] = [];
-        for (const [comboKey, combo] of combos) {
-          for (const book of BETTABLE_BOOKS) {
-            const redisKey = `odds:${combo.sport}:${combo.eventId}:${combo.marketKey}:${book}`;
-            fetches.push(
-              Promise.race([
-                fetch(`${redis.url}/GET/${encodeURIComponent(redisKey)}`, {
-                  headers: { Authorization: `Bearer ${redis.token}` },
-                })
-                  .then((r) => r.json())
-                  .then((json: any) => {
-                    if (!json.result) return null;
-                    return { comboKey, book, data: JSON.parse(json.result) } as RedisResult;
-                  })
-                  .catch(() => null),
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-              ])
-            );
-          }
-        }
-
-        const results = await Promise.allSettled(fetches);
-
-        // Build odds lookup: comboKey -> book -> parsed data
-        const oddsLookup = new Map<string, Map<string, any>>();
-        for (const r of results) {
-          if (r.status === "fulfilled" && r.value) {
-            const { comboKey, book, data } = r.value;
-            if (!oddsLookup.has(comboKey)) oddsLookup.set(comboKey, new Map());
-            oddsLookup.get(comboKey)!.set(book, data);
-          }
-        }
-
-        // Match odds to signals
-        for (const s of oddsSignals) {
-          const comboKey = `${s.odds_sport}:${s.odds_event_id}:${s.odds_market_key}`;
-          const bookOdds = oddsLookup.get(comboKey);
-          if (!bookOdds || bookOdds.size === 0) continue;
-
-          const allEntries: LiveOddsEntry[] = [];
-          for (const [book, data] of bookOdds) {
-            // Redis stores odds as object keyed by "team|side|line" (e.g. "miami_heat|ml|0")
-            // Each value has: player (team name), price (American string), line, mobile_link, sgp
-            const selections = Array.isArray(data)
-              ? data
-              : data && typeof data === "object" && !data.selections && !data.outcomes
-                ? Object.values(data)
-                : Array.isArray(data?.selections) ? data.selections : Array.isArray(data?.outcomes) ? data.outcomes : [data];
-            for (const sel of selections) {
-              if (!sel || typeof sel !== "object") continue;
-              // Match outcome — Redis uses "player" for team name, "side" for over/under
-              const selName = (sel.player || sel.name || sel.selection || sel.outcome || "").toLowerCase();
-              const selSide = (sel.side || "").toLowerCase();
-              const signalOutcome = (s.outcome || "").toLowerCase();
-              if (!signalOutcome) continue;
-              // For totals: match "Over"/"Under" against sel.side
-              const isTotal = (s as any).odds_market_key === "game_total" || selSide === "over" || selSide === "under";
-              if (isTotal) {
-                if (signalOutcome !== selSide && !selSide.includes(signalOutcome) && !signalOutcome.includes(selSide)) continue;
-              } else {
-                if (!selName || !(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
-              }
-
-              // For spread markets: only include the main line (closest to typical spread)
-              // Polymarket spreads often differ from sportsbook, so don't filter by exact line
-              const sigMarketKey = (s as any)._resolvedMarketKey || (s as any).odds_market_key || "";
-              if ((sigMarketKey === "game_spread" || sigMarketKey === "game_puck_line" || sigMarketKey === "game_run_line") && sel.line != null) {
-                // Only include main line (sel.main === true or 'true') to avoid 80+ alt spreads
-                const isMain = sel.main === true || sel.main === "true" || sel.main === 1;
-                if (!isMain) continue;
-              }
-              // For totals: match exact line from signal title
-              if ((sigMarketKey === "total_points" || sigMarketKey === "game_total_goals" || sigMarketKey === "game_total") && sel.line != null) {
-                const lineMatch = ((s as any).market_title || "").match(/O\/U\s+(\d+\.?\d*)/i);
-                if (lineMatch) {
-                  const sigLine = parseFloat(lineMatch[1]);
-                  const selLine = parseFloat(sel.line);
-                  if (!isNaN(sigLine) && !isNaN(selLine) && sigLine !== selLine) continue;
-                }
-              }
-
-              // Parse price — Redis stores American odds as string ("+180", "-218")
-              let american: number | null = null;
-              let decimal: number | null = null;
-              const rawPrice = sel.price ?? sel.american;
-              if (typeof rawPrice === "string") {
-                american = parseInt(rawPrice.replace("+", ""), 10);
-              } else if (typeof rawPrice === "number") {
-                american = rawPrice;
-              }
-              if (american != null && !isNaN(american)) {
-                decimal = american > 0 ? american / 100 + 1 : 100 / Math.abs(american) + 1;
-              }
-              decimal = decimal ?? sel.decimal ?? null;
-
-              if (decimal && decimal > 1) {
-                allEntries.push({
-                  book,
-                  price: american != null ? (american > 0 ? `+${american}` : `${american}`) : (sel.price?.toString() ?? ""),
-                  decimal: Math.round(decimal * 1000) / 1000,
-                  line: sel.line?.toString(),
-                  link: sel.link ?? undefined,
-                  mobile_link: sel.mobile_link ?? sel.deep_link ?? undefined,
-                });
-              }
-            }
-          }
-
-          if (allEntries.length > 0) {
-            // Best = highest decimal (best payout)
-            allEntries.sort((a, b) => b.decimal - a.decimal);
-            (s as any).live_odds = {
-              best: allEntries[0],
-              all: allEntries,
-            } satisfies LiveOdds;
-          }
-        }
+      // Extract line from title for totals
+      let line: string | null = null;
+      if (market === "total_points" || market === "game_total_goals" || market === "game_total") {
+        const lineMatch = (s.market_title || "").match(/O\/U\s+([\d.]+)/i);
+        if (lineMatch) line = lineMatch[1];
       }
+
+      (s as any).odds_key = {
+        sport: s.odds_sport,
+        event_id: s.odds_event_id,
+        market,
+        outcome: s.outcome || null,
+        line,
+      };
     }
 
     // Apply min score filter (computed post-enrichment)

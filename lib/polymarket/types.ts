@@ -199,8 +199,17 @@ export interface WhaleSignal {
   odds_market_key?: string | null;
   odds_confidence?: number | null;
 
-  // Live sportsbook odds
+  // Live sportsbook odds (legacy — use odds_key for new implementation)
   live_odds?: LiveOdds | null;
+
+  // Redis lookup key for frontend to fetch odds separately
+  odds_key?: {
+    sport: string;
+    event_id: string;
+    market: string;       // Sport-specific Redis key (e.g. "total_points", "game_moneyline", "game_puck_line")
+    outcome: string | null; // Team name or "Over"/"Under" — used to filter the right side
+    line: string | null;    // For totals: exact line to match. For spreads: null (use main line)
+  } | null;
 }
 
 export interface LeaderboardResponse {
