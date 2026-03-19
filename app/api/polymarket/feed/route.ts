@@ -674,19 +674,16 @@ export async function GET(req: NextRequest) {
                 if (!selName || !(selName.includes(signalOutcome) || signalOutcome.includes(selName))) continue;
               }
 
-              // For spread/total markets, also match the line number
-              // Signal market_title contains line: "Spread: Team (-4.5)" or "O/U 215.5"
-              const sigMarketKey = (s as any).odds_market_key || "";
-              if (sigMarketKey === "game_spread" && sel.line != null) {
-                // Extract line from market_title: "Spread: Team (-4.5)" → "4.5"
-                const lineMatch = ((s as any).market_title || "").match(/\(([+-]?\d+\.?\d*)\)/);
-                if (lineMatch) {
-                  const sigLine = Math.abs(parseFloat(lineMatch[1]));
-                  const selLine = Math.abs(parseFloat(sel.line));
-                  if (!isNaN(sigLine) && !isNaN(selLine) && sigLine !== selLine) continue;
-                }
+              // For spread markets: only include the main line (closest to typical spread)
+              // Polymarket spreads often differ from sportsbook, so don't filter by exact line
+              const sigMarketKey = (s as any)._resolvedMarketKey || (s as any).odds_market_key || "";
+              if ((sigMarketKey === "game_spread" || sigMarketKey === "game_puck_line" || sigMarketKey === "game_run_line") && sel.line != null) {
+                // Only include main line (sel.main === true or 'true') to avoid 80+ alt spreads
+                const isMain = sel.main === true || sel.main === "true" || sel.main === 1;
+                if (!isMain) continue;
               }
-              if (sigMarketKey === "game_total" && sel.line != null) {
+              // For totals: match exact line from signal title
+              if ((sigMarketKey === "total_points" || sigMarketKey === "game_total_goals" || sigMarketKey === "game_total") && sel.line != null) {
                 const lineMatch = ((s as any).market_title || "").match(/O\/U\s+(\d+\.?\d*)/i);
                 if (lineMatch) {
                   const sigLine = parseFloat(lineMatch[1]);
