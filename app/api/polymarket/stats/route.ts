@@ -70,7 +70,7 @@ function computeConsensus(signals: Array<{
     const sorted = market.sides.sort((a, b) => b.flow - a.flow);
     const majority = sorted[0];
     const majorityPct = majority.flow / totalFlow;
-    if (majorityPct < 0.6 && market.sides.length > 1) continue;
+    if (majorityPct < 0.7 && market.sides.length > 1) continue;
     const avgEntry = majority.entries.reduce((a, b) => a + b, 0) / majority.entries.length;
     if (majority.result === "win") {
       wins++;
